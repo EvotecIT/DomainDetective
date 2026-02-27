@@ -84,7 +84,9 @@ namespace DomainDetective.Tests {
             Assert.Equal(0, drift.EndpointsExcludedByMinimumSeverity);
             Assert.Equal(0, drift.EndpointsExcludedByChangeKindFilter);
             Assert.Equal(0, drift.EndpointsExcludedByFilters);
+            Assert.Equal(0, drift.EndpointsTruncatedByMaxEndpoints);
             Assert.Equal(drift.EndpointCount, drift.EndpointsMatchingFilters + drift.EndpointsExcludedByFilters);
+            Assert.Equal(drift.EndpointsMatchingFilters, drift.Endpoints.Count + drift.EndpointsTruncatedByMaxEndpoints);
             Assert.Equal(2, drift.Endpoints.Count);
 
             var api = drift.Endpoints.Single(x => x.Host == "api.example.com");
@@ -477,7 +479,43 @@ namespace DomainDetective.Tests {
 
             Assert.Equal(4, capped.EndpointCount);
             Assert.Equal(3, capped.EndpointsMatchingFilters);
+            Assert.Equal(2, capped.EndpointsTruncatedByMaxEndpoints);
+            Assert.Equal(capped.EndpointsMatchingFilters, capped.Endpoints.Count + capped.EndpointsTruncatedByMaxEndpoints);
             Assert.Single(capped.Endpoints);
+        }
+
+        [Fact]
+        public void BuildDriftNegativeMaxEndpointsReturnsNoRowsAndTracksTruncation() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var capped = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: -5,
+                minimumSeverity: "low");
+
+            Assert.Equal(4, capped.EndpointCount);
+            Assert.Equal(3, capped.EndpointsMatchingFilters);
+            Assert.Equal(3, capped.EndpointsTruncatedByMaxEndpoints);
+            Assert.Empty(capped.Endpoints);
+            Assert.Equal(capped.EndpointsMatchingFilters, capped.Endpoints.Count + capped.EndpointsTruncatedByMaxEndpoints);
+        }
+
+        [Fact]
+        public void BuildDriftZeroMaxEndpointsReturnsNoRowsAndTracksTruncation() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var capped = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 0,
+                minimumSeverity: "low");
+
+            Assert.Equal(4, capped.EndpointCount);
+            Assert.Equal(3, capped.EndpointsMatchingFilters);
+            Assert.Equal(3, capped.EndpointsTruncatedByMaxEndpoints);
+            Assert.Empty(capped.Endpoints);
+            Assert.Equal(capped.EndpointsMatchingFilters, capped.Endpoints.Count + capped.EndpointsTruncatedByMaxEndpoints);
         }
 
         [Fact]
@@ -785,7 +823,9 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, summary.EndpointsExcludedByMinimumSeverity);
             Assert.Equal(1, summary.EndpointsExcludedByChangeKindFilter);
             Assert.Equal(3, summary.EndpointsExcludedByFilters);
+            Assert.Equal(0, summary.EndpointsTruncatedByMaxEndpoints);
             Assert.Equal(summary.EndpointCount, summary.EndpointsMatchingFilters + summary.EndpointsExcludedByFilters);
+            Assert.Equal(summary.EndpointsMatchingFilters, summary.Endpoints.Count + summary.EndpointsTruncatedByMaxEndpoints);
             var endpoint = Assert.Single(summary.Endpoints);
             Assert.Equal("included.example.com", endpoint.Host);
         }

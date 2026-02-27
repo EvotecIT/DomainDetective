@@ -6,6 +6,7 @@ using System.Linq;
 namespace DomainDetective {
     /// <summary>
     /// Endpoint-level drift summary over persisted certificate inventory snapshots.
+    /// <para>Aggregate counts are calculated before <see cref="Endpoints"/> is capped by max endpoints.</para>
     /// </summary>
     public sealed class CertificateInventoryDriftSummary {
         public int SnapshotCount { get; set; }
@@ -15,6 +16,7 @@ namespace DomainDetective {
         public int EndpointsExcludedByMinimumSeverity { get; set; }
         public int EndpointsExcludedByChangeKindFilter { get; set; }
         public int EndpointsExcludedByFilters { get; set; }
+        public int EndpointsTruncatedByMaxEndpoints { get; set; }
         public List<string> AppliedChangeKinds { get; set; } = new();
         public string AppliedChangeKindMatchMode { get; set; } = "Any";
         public int EndpointsWithAnyChange { get; set; }
@@ -84,6 +86,16 @@ namespace DomainDetective {
             public CertificateInventoryEntry Entry { get; init; } = null!;
         }
 
+        /// <summary>
+        /// Builds endpoint-level drift summary across certificate inventory snapshots.
+        /// </summary>
+        /// <param name="snapshots">Snapshots to evaluate for endpoint drift.</param>
+        /// <param name="changedOnly">When true, only endpoints with at least one detected change are included.</param>
+        /// <param name="maxEndpoints">Maximum number of drift rows to return. Values below 0 are clamped to 0.</param>
+        /// <param name="minimumSeverity">Optional minimum severity threshold. Accepted values: none, low, medium, high.</param>
+        /// <param name="requiredChangeKinds">Optional change-kind filters.</param>
+        /// <param name="changeKindMatchMode">Optional change-kind match mode: any or all.</param>
+        /// <returns>Calculated drift summary and endpoint rows.</returns>
         public static CertificateInventoryDriftSummary BuildDrift(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             bool changedOnly = false,
@@ -249,12 +261,14 @@ namespace DomainDetective {
             summary.EndpointsWithHighSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals(DriftSeverityHigh, StringComparison.OrdinalIgnoreCase));
             summary.EndpointsWithMediumSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals(DriftSeverityMedium, StringComparison.OrdinalIgnoreCase));
             summary.EndpointsWithLowSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals(DriftSeverityLow, StringComparison.OrdinalIgnoreCase));
+            var effectiveMaxEndpoints = Math.Max(0, maxEndpoints);
+            summary.EndpointsTruncatedByMaxEndpoints = Math.Max(0, driftRows.Count - effectiveMaxEndpoints);
 
             summary.Endpoints = driftRows
                 .OrderByDescending(row => row.LastChangedAtUtc ?? DateTimeOffset.MinValue)
                 .ThenBy(row => row.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(row => row.Port)
-                .Take(Math.Max(0, maxEndpoints))
+                .Take(effectiveMaxEndpoints)
                 .ToList();
 
             return summary;
