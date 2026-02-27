@@ -193,11 +193,11 @@ namespace DomainDetective {
                     }
                 }
                 if (hasIssuerFilter) {
-                    var leafIssuer = row.Issuer ?? string.Empty;
-                    var rootIssuer = row.RootIssuer ?? string.Empty;
+                    // Like minimum severity and reason filtering, issuer filtering only narrows returned endpoint rows.
+                    // Summary counts/reason distributions stay computed across the full endpoint set.
                     var matchesIssuer =
-                        leafIssuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        rootIssuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0;
+                        row.Issuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        row.RootIssuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0;
                     if (!matchesIssuer) {
                         continue;
                     }
