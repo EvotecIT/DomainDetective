@@ -124,6 +124,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal(3, result.ScannedEntryCount);
                 Assert.Equal(1, result.MatchedEntryCount);
                 Assert.Equal(1, result.MatchedUniqueEndpointCount);
+                Assert.Equal(0, result.SkippedByLatestPerEndpointCount);
                 Assert.Single(result.Entries);
                 Assert.Equal("api.example.com", result.Entries[0].Entry.Host);
                 Assert.Equal(1, result.MatchedServiceCounts["HTTPS"]);
@@ -357,6 +358,7 @@ namespace DomainDetective.Tests {
                 });
                 Assert.Equal(2, latestOnly.MatchedEntryCount);
                 Assert.Equal(2, latestOnly.MatchedUniqueEndpointCount);
+                Assert.Equal(1, latestOnly.SkippedByLatestPerEndpointCount);
                 Assert.Equal(2, latestOnly.Entries.Count);
                 Assert.Equal(1, latestOnly.MatchedIssuerCounts["New CA"]);
                 Assert.Equal(1, latestOnly.MatchedIssuerCounts["Legacy CA"]);
@@ -368,6 +370,7 @@ namespace DomainDetective.Tests {
                     MaxResults = 10
                 });
                 Assert.Equal(0, latestOnlyOldCa.MatchedEntryCount);
+                Assert.Equal(1, latestOnlyOldCa.SkippedByLatestPerEndpointCount);
                 Assert.Empty(latestOnlyOldCa.Entries);
             } finally {
                 if (Directory.Exists(tempDir)) {

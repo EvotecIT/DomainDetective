@@ -93,6 +93,8 @@ namespace DomainDetective {
         public int MatchedEntryCount { get; set; }
         /// <summary>Number of unique endpoints represented by matched entries (host+port key, including truncated matches).</summary>
         public int MatchedUniqueEndpointCount { get; set; }
+        /// <summary>Number of scanned entries skipped because an entry for the same endpoint was already evaluated in latest-only mode.</summary>
+        public int SkippedByLatestPerEndpointCount { get; set; }
         /// <summary>Indicates whether matched results exceeded <see cref="CertificateInventoryQuery.MaxResults"/>.</summary>
         public bool Truncated { get; set; }
         /// <summary>Matched entries, limited by the configured maximum.</summary>
