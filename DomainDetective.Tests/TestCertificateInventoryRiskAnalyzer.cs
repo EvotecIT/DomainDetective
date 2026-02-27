@@ -941,5 +941,146 @@ namespace DomainDetective.Tests {
                 issuerContains: "not-present");
             Assert.Empty(filteredByMissingIssuer.Endpoints);
         }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByAuthUsageFlags() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "server-auth-only.example.com",
+                            ResolvedHost = "server-auth-only.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "client-auth-only.example.com",
+                            ResolvedHost = "client-auth-only.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = false,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = false,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "secure-email-only.example.com",
+                            ResolvedHost = "secure-email-only.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = false,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "full-auth.example.com",
+                            ResolvedHost = "full-auth.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var serverOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                serverAuthOnly: true);
+            Assert.Equal(2, serverOnly.Endpoints.Count);
+            Assert.Contains(serverOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "server-auth-only.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(serverOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "full-auth.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var clientOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                clientAuthOnly: true);
+            Assert.Equal(2, clientOnly.Endpoints.Count);
+            Assert.Contains(clientOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "client-auth-only.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(clientOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "full-auth.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var secureEmailOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                secureEmailOnly: true);
+            Assert.Equal(2, secureEmailOnly.Endpoints.Count);
+            Assert.Contains(secureEmailOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "secure-email-only.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(secureEmailOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "full-auth.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var serverAndClient = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                serverAuthOnly: true,
+                clientAuthOnly: true);
+            Assert.Single(serverAndClient.Endpoints);
+            Assert.Equal("full-auth.example.com", serverAndClient.Endpoints[0].Host);
+        }
     }
 }

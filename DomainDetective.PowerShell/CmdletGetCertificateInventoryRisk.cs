@@ -62,6 +62,18 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? IssuerContains { get; set; }
 
+    /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ServerAuthOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificate allows client authentication EKU.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ClientAuthOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificate allows secure-email EKU.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter SecureEmailOnly { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         if (CriticalExpiringWithinDays > ExpiringWithinDays) {
@@ -91,7 +103,10 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             maxEndpoints: MaxEndpoints,
             minimumSeverity: MinimumSeverity,
             reasonContains: ReasonContains,
-            issuerContains: IssuerContains);
+            issuerContains: IssuerContains,
+            serverAuthOnly: ServerAuthOnly.IsPresent,
+            clientAuthOnly: ClientAuthOnly.IsPresent,
+            secureEmailOnly: SecureEmailOnly.IsPresent);
         WriteObject(risk);
     }
 

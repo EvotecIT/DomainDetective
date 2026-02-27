@@ -476,6 +476,9 @@ namespace DomainDetective {
         /// <param name="minimumSeverity">Optional minimum endpoint severity filter (None, Low, Medium, High, Critical). Applied after includeNoRisk filtering.</param>
         /// <param name="reasonContains">Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).</param>
         /// <param name="issuerContains">Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</param>
+        /// <param name="serverAuthOnly">When true, only returns endpoint rows whose certificate allows server authentication EKU.</param>
+        /// <param name="clientAuthOnly">When true, only returns endpoint rows whose certificate allows client authentication EKU.</param>
+        /// <param name="secureEmailOnly">When true, only returns endpoint rows whose certificate allows secure-email EKU.</param>
         public CertificateInventoryRiskSummary BuildInventoryRisk(
             DateTimeOffset? sinceUtc = null,
             bool includeNoRisk = false,
@@ -484,7 +487,10 @@ namespace DomainDetective {
             int maxEndpoints = 300,
             string? minimumSeverity = null,
             string? reasonContains = null,
-            string? issuerContains = null) {
+            string? issuerContains = null,
+            bool serverAuthOnly = false,
+            bool clientAuthOnly = false,
+            bool secureEmailOnly = false) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
             return CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
@@ -494,7 +500,10 @@ namespace DomainDetective {
                 maxEndpoints,
                 minimumSeverity,
                 reasonContains,
-                issuerContains);
+                issuerContains,
+                serverAuthOnly,
+                clientAuthOnly,
+                secureEmailOnly);
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>

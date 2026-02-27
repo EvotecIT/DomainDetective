@@ -63,6 +63,21 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--issuer-contains <TEXT>")]
     public string? IssuerContains { get; set; }
 
+    /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
+    [Description("Only include endpoints whose certificate allows server authentication EKU.")]
+    [CommandOption("--server-auth-only")]
+    public bool ServerAuthOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificate allows client authentication EKU.</summary>
+    [Description("Only include endpoints whose certificate allows client authentication EKU.")]
+    [CommandOption("--client-auth-only")]
+    public bool ClientAuthOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificate allows secure-email EKU.</summary>
+    [Description("Only include endpoints whose certificate allows secure-email EKU.")]
+    [CommandOption("--secure-email-only")]
+    public bool SecureEmailOnly { get; set; }
+
     /// <summary>Output JSON instead of tables.</summary>
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
@@ -121,7 +136,10 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             maxEndpoints: settings.MaxEndpoints,
             minimumSeverity: normalizedMinimumSeverity,
             reasonContains: settings.ReasonContains,
-            issuerContains: settings.IssuerContains);
+            issuerContains: settings.IssuerContains,
+            serverAuthOnly: settings.ServerAuthOnly,
+            clientAuthOnly: settings.ClientAuthOnly,
+            secureEmailOnly: settings.SecureEmailOnly);
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(risk, JsonOptions.Default));
