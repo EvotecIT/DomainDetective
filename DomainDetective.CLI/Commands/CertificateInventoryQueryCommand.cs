@@ -225,6 +225,10 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             AnsiConsole.MarkupLine("[red]--expired-only cannot be combined with --not-yet-valid-only.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ValidOnly && settings.NotYetValidOnly) {
+            AnsiConsole.MarkupLine("[red]--valid-only cannot be combined with --not-yet-valid-only.[/]");
+            return Task.FromResult(1);
+        }
 
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {

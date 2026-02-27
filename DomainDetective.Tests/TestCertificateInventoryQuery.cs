@@ -368,6 +368,23 @@ namespace DomainDetective.Tests {
                             Sha1Signature = false,
                             AllowsServerAuthentication = true,
                             AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "unknownnb.example.com",
+                            ResolvedHost = "unknownnb.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "unknownnb.example.com" },
+                            NotAfterUtc = now.AddDays(70),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            WeakKey = false,
+                            Sha1Signature = false,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
                         }
                     }
                 };
@@ -386,15 +403,25 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, weakOnly.LoadedSnapshotCount);
                 Assert.Equal(1, weakOnly.ScannedSnapshotCount);
                 Assert.Equal(0, weakOnly.SkippedSnapshotCountByUntilUtc);
-                Assert.Equal(3, weakOnly.ScannedEntryCount);
-                Assert.Equal(3, weakOnly.EvaluatedEntryCount);
-                Assert.Equal(2, weakOnly.ExcludedByFiltersCount);
+                Assert.Equal(4, weakOnly.ScannedEntryCount);
+                Assert.Equal(4, weakOnly.EvaluatedEntryCount);
+                Assert.Equal(3, weakOnly.ExcludedByFiltersCount);
                 Assert.Equal(1, weakOnly.MatchedEntryCount);
                 Assert.Equal(0, weakOnly.EntriesTruncatedByMaxResults);
                 Assert.Equal(weakOnly.LoadedSnapshotCount, weakOnly.ScannedSnapshotCount + weakOnly.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(weakOnly.EvaluatedEntryCount, weakOnly.MatchedEntryCount + weakOnly.ExcludedByFiltersCount);
                 Assert.Single(weakOnly.Entries);
                 Assert.Equal("weak.example.com", weakOnly.Entries[0].Entry.Host);
+
+                var weakFalse = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    WeakKeyOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(3, weakFalse.MatchedEntryCount);
+                Assert.Equal(3, weakFalse.Entries.Count);
+                Assert.DoesNotContain(weakFalse.Entries, observed => string.Equals(observed.Entry.Host, "weak.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Equal(weakFalse.LoadedSnapshotCount, weakFalse.ScannedSnapshotCount + weakFalse.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(weakFalse.EvaluatedEntryCount, weakFalse.MatchedEntryCount + weakFalse.ExcludedByFiltersCount);
 
                 var sha1Only = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     Sha1SignatureOnly = true,
@@ -413,6 +440,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, notYetValidOnly.MatchedEntryCount);
                 Assert.Single(notYetValidOnly.Entries);
                 Assert.Equal("future.example.com", notYetValidOnly.Entries[0].Entry.Host);
+                Assert.DoesNotContain(notYetValidOnly.Entries, observed => string.Equals(observed.Entry.Host, "unknownnb.example.com", StringComparison.OrdinalIgnoreCase));
                 Assert.Equal(notYetValidOnly.LoadedSnapshotCount, notYetValidOnly.ScannedSnapshotCount + notYetValidOnly.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(notYetValidOnly.EvaluatedEntryCount, notYetValidOnly.MatchedEntryCount + notYetValidOnly.ExcludedByFiltersCount);
 
@@ -423,7 +451,7 @@ namespace DomainDetective.Tests {
                 });
                 Assert.Equal(0, weakAndSha1.MatchedEntryCount);
                 Assert.Empty(weakAndSha1.Entries);
-                Assert.Equal(3, weakAndSha1.ExcludedByFiltersCount);
+                Assert.Equal(4, weakAndSha1.ExcludedByFiltersCount);
                 Assert.Equal(weakAndSha1.LoadedSnapshotCount, weakAndSha1.ScannedSnapshotCount + weakAndSha1.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(weakAndSha1.EvaluatedEntryCount, weakAndSha1.MatchedEntryCount + weakAndSha1.ExcludedByFiltersCount);
             } finally {

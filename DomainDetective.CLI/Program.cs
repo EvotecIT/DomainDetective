@@ -177,7 +177,8 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryQuery", "--authority-family", "LetsEncrypt", "--known-root-ca-only", "--auth-profile", "ServerAuthOnly" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--latest-only", "--host-contains", "api.example.com" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--host-contains", "example.com", "--show-breakdown" })
-                .WithExample(new[] { "CertificateInventoryQuery", "--weak-key-only", "--sha1-signature-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--weak-key-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--sha1-signature-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--ct-template-error-contains", "CensysApiUrlTemplate", "--json" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryQueryCommand>("cert-inventory-query")
                 .WithDescription("Query persisted certificate inventory snapshots (alias)");

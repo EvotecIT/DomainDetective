@@ -62,7 +62,10 @@ namespace DomainDetective {
         public bool? WeakKeyOnly { get; set; }
         /// <summary>When set, include only entries whose SHA-1 signature state equals this value.</summary>
         public bool? Sha1SignatureOnly { get; set; }
-        /// <summary>When set, include only entries whose not-yet-valid state equals this value (NotBeforeUtc is in the future).</summary>
+        /// <summary>
+        /// When set, include only entries whose not-yet-valid state equals this value (NotBeforeUtc is in the future).
+        /// Entries with no NotBeforeUtc value are treated as already valid.
+        /// </summary>
         public bool? NotYetValidOnly { get; set; }
         /// <summary>Case-insensitive authentication profile exact-match filter.</summary>
         public string? AuthenticationProfileEquals { get; set; }
