@@ -523,9 +523,11 @@ namespace DomainDetective {
             var snapshots = LoadInventorySnapshots(effectiveQuery.SinceUtc)
                 .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
                 .ToList();
+            result.LoadedSnapshotCount = snapshots.Count;
             var now = DateTimeOffset.UtcNow;
             foreach (var snapshot in snapshots) {
                 if (effectiveQuery.UntilUtc.HasValue && snapshot.CapturedAtUtc > effectiveQuery.UntilUtc.Value) {
+                    result.SkippedSnapshotCountByUntilUtc++;
                     continue;
                 }
 
