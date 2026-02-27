@@ -147,6 +147,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         rows.AddColumn("Severity");
         rows.AddColumn("Valid From");
         rows.AddColumn("Expiry");
+        rows.AddColumn("Auth");
         rows.AddColumn("Issuer");
         rows.AddColumn("Reasons");
         foreach (var endpoint in risk.Endpoints) {
@@ -160,6 +161,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
                 expiry = $"{expiry} ({endpoint.DaysToExpire.Value}d)";
             }
 
+            var auth = BuildAuthSummary(endpoint);
             var reasons = endpoint.Reasons.Count > 0 ? string.Join(",", endpoint.Reasons) : "-";
             rows.AddRow(
                 endpoint.Host,
@@ -169,6 +171,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
                 endpoint.Severity,
                 validFrom,
                 expiry,
+                auth,
                 endpoint.Issuer,
                 reasons);
         }
@@ -195,5 +198,28 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             dt = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
         }
         return dt.ToUniversalTime();
+    }
+
+    private static string BuildAuthSummary(CertificateInventoryEndpointRisk endpoint) {
+        var flags = string.Empty;
+        if (endpoint.AllowsServerAuthentication) {
+            flags += "S";
+        }
+        if (endpoint.AllowsClientAuthentication) {
+            flags += "C";
+        }
+        if (endpoint.AllowsSecureEmail) {
+            flags += "E";
+        }
+
+        if (flags.Length == 0) {
+            flags = "-";
+        }
+
+        if (string.IsNullOrWhiteSpace(endpoint.AuthenticationProfile)) {
+            return flags;
+        }
+
+        return $"{flags} ({endpoint.AuthenticationProfile})";
     }
 }

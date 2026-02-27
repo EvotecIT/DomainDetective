@@ -49,6 +49,9 @@ namespace DomainDetective {
         public bool IsSelfSigned { get; set; }
         public bool IsKnownCertificateAuthority { get; set; }
         public bool AllowsServerAuthentication { get; set; }
+        public bool AllowsClientAuthentication { get; set; }
+        public bool AllowsSecureEmail { get; set; }
+        public string AuthenticationProfile { get; set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
         public bool WeakKey { get; set; }
         public bool Sha1Signature { get; set; }
         public bool PresentInCtLogs { get; set; }
@@ -160,6 +163,9 @@ namespace DomainDetective {
                 IsSelfSigned = entry.IsSelfSigned,
                 IsKnownCertificateAuthority = entry.IsKnownCertificateAuthority,
                 AllowsServerAuthentication = entry.AllowsServerAuthentication,
+                AllowsClientAuthentication = entry.AllowsClientAuthentication,
+                AllowsSecureEmail = entry.AllowsSecureEmail,
+                AuthenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(entry),
                 WeakKey = entry.WeakKey,
                 Sha1Signature = entry.Sha1Signature,
                 PresentInCtLogs = entry.PresentInCtLogs
