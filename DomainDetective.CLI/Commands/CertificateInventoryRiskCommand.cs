@@ -158,6 +158,36 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--hostname-mismatch-only")]
     public bool HostnameMismatchOnly { get; set; }
 
+    /// <summary>Only include endpoints using self-signed certificates.</summary>
+    [Description("Only include endpoints using self-signed certificates.")]
+    [CommandOption("--self-signed-only")]
+    public bool SelfSignedOnly { get; set; }
+
+    /// <summary>Only include endpoints using CA-signed certificates.</summary>
+    [Description("Only include endpoints using CA-signed certificates.")]
+    [CommandOption("--ca-signed-only")]
+    public bool CaSignedOnly { get; set; }
+
+    /// <summary>Only include endpoints with weak keys.</summary>
+    [Description("Only include endpoints with weak keys.")]
+    [CommandOption("--weak-key-only")]
+    public bool WeakKeyOnly { get; set; }
+
+    /// <summary>Only include endpoints without weak keys.</summary>
+    [Description("Only include endpoints without weak keys.")]
+    [CommandOption("--strong-key-only")]
+    public bool StrongKeyOnly { get; set; }
+
+    /// <summary>Only include endpoints using SHA-1 signatures.</summary>
+    [Description("Only include endpoints using SHA-1 signatures.")]
+    [CommandOption("--sha1-signature-only")]
+    public bool Sha1SignatureOnly { get; set; }
+
+    /// <summary>Only include endpoints not using SHA-1 signatures.</summary>
+    [Description("Only include endpoints not using SHA-1 signatures.")]
+    [CommandOption("--non-sha1-signature-only")]
+    public bool NonSha1SignatureOnly { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Description("Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).")]
     [CommandOption("--auth-profile <NAME>")]
@@ -251,6 +281,18 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--hostname-match-only cannot be combined with --hostname-mismatch-only.[/]");
             return Task.FromResult(1);
         }
+        if (settings.SelfSignedOnly && settings.CaSignedOnly) {
+            AnsiConsole.MarkupLine("[red]--self-signed-only cannot be combined with --ca-signed-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.WeakKeyOnly && settings.StrongKeyOnly) {
+            AnsiConsole.MarkupLine("[red]--weak-key-only cannot be combined with --strong-key-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.Sha1SignatureOnly && settings.NonSha1SignatureOnly) {
+            AnsiConsole.MarkupLine("[red]--sha1-signature-only cannot be combined with --non-sha1-signature-only.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.KnownCaOnly && settings.UnknownCaOnly) {
             AnsiConsole.MarkupLine("[red]--known-ca-only cannot be combined with --unknown-ca-only.[/]");
             return Task.FromResult(1);
@@ -300,6 +342,9 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             chainCompleteOnly: settings.ChainCompleteOnly ? true : settings.ChainIncompleteOnly ? false : null,
             reachableOnly: settings.ReachableOnly ? true : settings.UnreachableOnly ? false : null,
             hostnameMatchOnly: settings.HostnameMatchOnly ? true : settings.HostnameMismatchOnly ? false : null,
+            selfSignedOnly: settings.SelfSignedOnly ? true : settings.CaSignedOnly ? false : null,
+            weakKeyOnly: settings.WeakKeyOnly ? true : settings.StrongKeyOnly ? false : null,
+            sha1SignatureOnly: settings.Sha1SignatureOnly ? true : settings.NonSha1SignatureOnly ? false : null,
             knownAuthorityOnly: settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
             knownRootAuthorityOnly: settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
             authenticationProfileEquals: settings.AuthenticationProfileEquals,
