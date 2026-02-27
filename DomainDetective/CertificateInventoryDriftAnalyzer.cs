@@ -12,6 +12,7 @@ namespace DomainDetective {
         public int EndpointCount { get; set; }
         public int EndpointsMatchingFilters { get; set; }
         public List<string> AppliedChangeKinds { get; set; } = new();
+        public string AppliedChangeKindMatchMode { get; set; } = "Any";
         public int EndpointsWithAnyChange { get; set; }
         public int EndpointsWithHighSeverityDrift { get; set; }
         public int EndpointsWithMediumSeverityDrift { get; set; }
@@ -71,6 +72,8 @@ namespace DomainDetective {
         private const string ChangeKindService = "service";
         private const string ChangeKindAuthProfile = "auth-profile";
         private const string ChangeKindChainSource = "chain-source";
+        private const string ChangeKindMatchAny = "Any";
+        private const string ChangeKindMatchAll = "All";
 
         private sealed class Observation {
             public DateTimeOffset CapturedAtUtc { get; init; }
@@ -82,13 +85,16 @@ namespace DomainDetective {
             bool changedOnly = false,
             int maxEndpoints = 200,
             string? minimumSeverity = null,
-            IEnumerable<string>? requiredChangeKinds = null) {
+            IEnumerable<string>? requiredChangeKinds = null,
+            string? changeKindMatchMode = null) {
             var summary = new CertificateInventoryDriftSummary();
             var grouped = new Dictionary<string, List<Observation>>(StringComparer.OrdinalIgnoreCase);
             var minimumSeverityRank = ParseMinimumSeverityRank(minimumSeverity);
             var normalizedChangeKinds = ParseRequiredChangeKinds(requiredChangeKinds);
             var normalizedChangeKindSet = new HashSet<string>(normalizedChangeKinds, StringComparer.OrdinalIgnoreCase);
+            var normalizedChangeKindMatchMode = ParseChangeKindMatchMode(changeKindMatchMode);
             summary.AppliedChangeKinds.AddRange(normalizedChangeKinds);
+            summary.AppliedChangeKindMatchMode = normalizedChangeKindMatchMode;
 
             foreach (var snapshot in snapshots ?? Array.Empty<CertificateInventorySnapshot>()) {
                 if (snapshot == null) {
@@ -204,8 +210,14 @@ namespace DomainDetective {
                     continue;
                 }
 
-                if (normalizedChangeKindSet.Count > 0 && !row.ChangeKinds.Any(kind => normalizedChangeKindSet.Contains(kind))) {
-                    continue;
+                if (normalizedChangeKindSet.Count > 0) {
+                    var rowChangeKindSet = new HashSet<string>(row.ChangeKinds, StringComparer.OrdinalIgnoreCase);
+                    var include = normalizedChangeKindMatchMode.Equals(ChangeKindMatchAll, StringComparison.OrdinalIgnoreCase)
+                        ? normalizedChangeKindSet.All(kind => rowChangeKindSet.Contains(kind))
+                        : row.ChangeKinds.Any(kind => normalizedChangeKindSet.Contains(kind));
+                    if (!include) {
+                        continue;
+                    }
                 }
 
                 driftRows.Add(row);
@@ -449,6 +461,31 @@ namespace DomainDetective {
             return false;
         }
 
+        /// <summary>
+        /// Attempts to normalize change-kind match mode to one of the canonical values: Any or All.
+        /// </summary>
+        /// <param name="value">Input match mode text; null/whitespace defaults to Any.</param>
+        /// <param name="normalized">Canonical match mode value when recognized.</param>
+        /// <returns><c>true</c> when input is empty or a recognized mode; otherwise <c>false</c>.</returns>
+        public static bool TryNormalizeChangeKindMatchMode(string? value, out string normalized) {
+            normalized = ChangeKindMatchAny;
+            if (string.IsNullOrWhiteSpace(value)) {
+                return true;
+            }
+
+            var trimmed = value!.Trim();
+            if (trimmed.Equals(ChangeKindMatchAny, StringComparison.OrdinalIgnoreCase)) {
+                normalized = ChangeKindMatchAny;
+                return true;
+            }
+            if (trimmed.Equals(ChangeKindMatchAll, StringComparison.OrdinalIgnoreCase)) {
+                normalized = ChangeKindMatchAll;
+                return true;
+            }
+
+            return false;
+        }
+
         private static int GetSeverityRank(string severity) {
             if (severity.Equals(DriftSeverityNone, StringComparison.OrdinalIgnoreCase)) {
                 return 0;
@@ -483,6 +520,14 @@ namespace DomainDetective {
                 if (dedupe.Add(normalizedValue)) {
                     normalized.Add(normalizedValue);
                 }
+            }
+
+            return normalized;
+        }
+
+        private static string ParseChangeKindMatchMode(string? changeKindMatchMode) {
+            if (!TryNormalizeChangeKindMatchMode(changeKindMatchMode, out var normalized)) {
+                throw new ArgumentException("changeKindMatchMode must be one of: Any, All.", nameof(changeKindMatchMode));
             }
 
             return normalized;

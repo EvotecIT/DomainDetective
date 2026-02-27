@@ -47,6 +47,11 @@ internal sealed class CertificateInventoryDriftSettings : CommandSettings {
     [CommandOption("--change-kind <KIND>")]
     public string[]? ChangeKinds { get; set; }
 
+    /// <summary>Optional change-kind matching mode (any or all).</summary>
+    [Description("Optional change-kind matching mode (any or all).")]
+    [CommandOption("--change-kind-match <MODE>")]
+    public string? ChangeKindMatchMode { get; set; }
+
     /// <summary>Output JSON instead of tables.</summary>
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
@@ -71,6 +76,11 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
 
         if (!CertificateInventoryDriftAnalyzer.TryNormalizeSeverity(settings.MinimumSeverity, out var minimumSeverity)) {
             AnsiConsole.MarkupLine("[red]--minimum-severity must be one of: none, low, medium, high.[/]");
+            return Task.FromResult(1);
+        }
+
+        if (!CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode(settings.ChangeKindMatchMode, out var changeKindMatchMode)) {
+            AnsiConsole.MarkupLine("[red]--change-kind-match must be one of: any, all.[/]");
             return Task.FromResult(1);
         }
 
@@ -99,7 +109,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             changedOnly: settings.ChangedOnly,
             maxEndpoints: settings.MaxEndpoints,
             minimumSeverity: minimumSeverity,
-            requiredChangeKinds: normalizedChangeKinds);
+            requiredChangeKinds: normalizedChangeKinds,
+            changeKindMatchMode: changeKindMatchMode);
 
         if (settings.Json) {
             var json = JsonSerializer.Serialize(drift, JsonOptions.Default);
@@ -121,6 +132,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
         summary.AddRow("Minimum Severity", minimumSeverity ?? "None");
         summary.AddRow("Change Kind Filter", drift.AppliedChangeKinds.Count == 0 ? "Any" : string.Join(", ", drift.AppliedChangeKinds));
+        summary.AddRow("Change Kind Match", drift.AppliedChangeKindMatchMode);
         summary.AddRow("Any Change", drift.EndpointsWithAnyChange.ToString());
         summary.AddRow("High Severity", drift.EndpointsWithHighSeverityDrift.ToString());
         summary.AddRow("Medium Severity", drift.EndpointsWithMediumSeverityDrift.ToString());
