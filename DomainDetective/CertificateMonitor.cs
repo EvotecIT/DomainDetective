@@ -387,7 +387,8 @@ namespace DomainDetective {
                 AllowsSecureEmail = analysis.AllowsSecureEmail,
                 AuthenticationProfile = analysis.AuthenticationProfile,
                 CertificateChainSource = analysis.ChainSource,
-                CtDiscoverySources = analysis.CtDiscoverySources.ToArray()
+                CtDiscoverySources = analysis.CtDiscoverySources.ToArray(),
+                CtTemplateFormatErrors = analysis.CtTemplateFormatErrors.ToArray()
             };
             snapshotEntry.CertificateChainSources.AddRange(analysis.ChainSourceHistory);
             snapshotEntry.ExtendedKeyUsageOids.AddRange(analysis.ExtendedKeyUsageOids);
@@ -626,6 +627,16 @@ namespace DomainDetective {
                                      !string.IsNullOrWhiteSpace(source) &&
                                      source.IndexOf(ctNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
                 if (!hasCtMatch) {
+                    return false;
+                }
+            }
+
+            var ctTemplateErrorContains = query.CtTemplateErrorContains;
+            if (!string.IsNullOrWhiteSpace(ctTemplateErrorContains)) {
+                var ctTemplateErrorNeedle = ctTemplateErrorContains!.Trim();
+                var hasTemplateErrorMatch = CertificateInventoryEntryHelpers.EnumerateCtTemplateFormatErrors(entry).Any(error =>
+                    error.IndexOf(ctTemplateErrorNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (!hasTemplateErrorMatch) {
                     return false;
                 }
             }

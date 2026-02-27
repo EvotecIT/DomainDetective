@@ -17,12 +17,14 @@ namespace DomainDetective {
         public int SecureEmailEndpointCount { get; set; }
         public int SelfSignedEndpointCount { get; set; }
         public int IncompleteChainEndpointCount { get; set; }
+        public int CtTemplateErrorEndpointCount { get; set; }
         public Dictionary<string, int> ServiceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> IssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> RootIssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> AuthenticationProfileCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> ChainSourceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> CtSourceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> CtTemplateErrorCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<CertificateExpiringEndpoint> ExpiringSoon { get; set; } = new();
     }
 
@@ -95,6 +97,9 @@ namespace DomainDetective {
                 Increment(summary.AuthenticationProfileCounts, CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(entry));
                 Increment(summary.ChainSourceCounts, CertificateInventoryEntryHelpers.PickChainSource(entry));
                 IncrementCtSources(summary.CtSourceCounts, entry);
+                if (IncrementCtTemplateErrors(summary.CtTemplateErrorCounts, entry)) {
+                    summary.CtTemplateErrorEndpointCount++;
+                }
 
                 if (!entry.AllowsServerAuthentication) {
                     summary.MissingServerAuthEndpointCount++;
@@ -209,6 +214,26 @@ namespace DomainDetective {
             if (seen.Count == 0) {
                 Increment(counters, "none");
             }
+        }
+
+        private static bool IncrementCtTemplateErrors(Dictionary<string, int> counters, CertificateInventoryEntry entry) {
+            var hadErrors = false;
+            foreach (var error in CertificateInventoryEntryHelpers.EnumerateCtTemplateFormatErrors(entry)) {
+                hadErrors = true;
+                Increment(counters, ExtractCtTemplateErrorCategory(error));
+            }
+
+            return hadErrors;
+        }
+
+        private static string ExtractCtTemplateErrorCategory(string error) {
+            var separatorIndex = error.IndexOf(':');
+            if (separatorIndex <= 0) {
+                return "unknown";
+            }
+
+            var category = error.Substring(0, separatorIndex).Trim();
+            return string.IsNullOrWhiteSpace(category) ? "unknown" : category;
         }
     }
 }

@@ -58,6 +58,7 @@ namespace DomainDetective.Tests {
                             IsKnownRootCertificateAuthority = false,
                             SubjectAlternativeNames = new List<string> { "internal.example.com", "mtls.example.com" },
                             CtDiscoverySources = new List<string>(),
+                            CtTemplateFormatErrors = new List<string> { "CensysApiUrlTemplate: source enabled but template is empty." },
                             CertificateChainSource = "local-build-no-check",
                             CertificateChainSources = new List<string> { "local-build-no-check" },
                             NotAfterUtc = now.AddDays(50),
@@ -210,6 +211,14 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, ctSourceFilter.MatchedEntryCount);
                 Assert.Single(ctSourceFilter.Entries);
                 Assert.Equal("api.example.com", ctSourceFilter.Entries[0].Entry.Host);
+
+                var ctTemplateErrorFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    CtTemplateErrorContains = "censysapiurltemplate",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, ctTemplateErrorFilter.MatchedEntryCount);
+                Assert.Single(ctTemplateErrorFilter.Entries);
+                Assert.Equal("internal.example.com", ctTemplateErrorFilter.Entries[0].Entry.Host);
 
                 var chainSourceFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     ChainSourceContains = "handshake",

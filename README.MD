@@ -382,6 +382,7 @@ The `CertificateAnalysis` result now includes:
 - `IsSelfSigned` when the certificate subject equals the issuer and the chain length is one.
 - With `CaptureTlsDetails` enabled, `TlsProtocol`, `CipherAlgorithm` and `CipherStrength` describe the negotiated cipher-suite.
 - `PresentInCtLogs` when the certificate appears in public CT logs.
+- `CtTemplateFormatErrors` for CT source template/configuration issues encountered during discovery.
 - `CtLogApiTemplates` allows customizing the list of CT log APIs queried.
 - `SkipRevocation` disables CRL and OCSP checks. Use with care as revoked certificates may appear valid.
 

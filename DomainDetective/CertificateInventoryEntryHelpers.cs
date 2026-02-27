@@ -62,4 +62,27 @@ internal static class CertificateInventoryEntryHelpers
 
         return "unknown";
     }
+
+    public static IEnumerable<string> EnumerateCtTemplateFormatErrors(CertificateInventoryEntry entry)
+    {
+        if (entry.CtTemplateFormatErrors == null)
+        {
+            yield break;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var error in entry.CtTemplateFormatErrors)
+        {
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                continue;
+            }
+
+            var normalized = error.Trim();
+            if (seen.Add(normalized))
+            {
+                yield return normalized;
+            }
+        }
+    }
 }

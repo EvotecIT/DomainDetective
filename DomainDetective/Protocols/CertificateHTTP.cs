@@ -165,9 +165,12 @@ namespace DomainDetective {
         }
         /// <summary>Discovery sources queried for certificate evidence in the latest CT lookup.</summary>
         public IReadOnlyList<string> CtDiscoverySources => _ctDiscoverySources;
+        /// <summary>Template-format errors captured during the latest CT lookup.</summary>
+        public IReadOnlyList<string> CtTemplateFormatErrors => _ctTemplateFormatErrors;
 
         private readonly List<JsonElement> _ctLogEntries = new();
         private volatile string[] _ctDiscoverySources = Array.Empty<string>();
+        private volatile string[] _ctTemplateFormatErrors = Array.Empty<string>();
         private readonly CtLogAggregator _ctLogAggregator = new();
         private const string ChainSourceTlsHandshake = "tls-handshake";
         private const string ChainSourceSslStreamBuild = "sslstream-build";
@@ -444,6 +447,7 @@ namespace DomainDetective {
             PresentInCtLogs = false;
             _ctLogEntries.Clear();
             _ctDiscoverySources = Array.Empty<string>();
+            _ctTemplateFormatErrors = Array.Empty<string>();
             if (Certificate == null)
             {
                 return;
@@ -469,6 +473,10 @@ namespace DomainDetective {
             _ctLogEntries.AddRange(entries);
             _ctDiscoverySources = _ctLogAggregator.LastQueriedSources
                 .Where(source => !string.IsNullOrWhiteSpace(source))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            _ctTemplateFormatErrors = _ctLogAggregator.LastTemplateFormatErrors
+                .Where(error => !string.IsNullOrWhiteSpace(error))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             PresentInCtLogs = _ctLogEntries.Count > 0;

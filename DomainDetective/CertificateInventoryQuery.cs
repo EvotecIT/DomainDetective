@@ -28,6 +28,8 @@ namespace DomainDetective {
         public string? RootAuthorityFamilyEquals { get; set; }
         /// <summary>Case-insensitive CT source substring filter (matches any configured discovery source).</summary>
         public string? CtSourceContains { get; set; }
+        /// <summary>Case-insensitive CT template-error substring filter (matches any captured template/configuration error).</summary>
+        public string? CtTemplateErrorContains { get; set; }
         /// <summary>Case-insensitive chain source substring filter (matches the latest or historical chain source).</summary>
         public string? ChainSourceContains { get; set; }
         /// <summary>Leaf certificate thumbprint exact-match filter.</summary>

@@ -55,10 +55,35 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--issuer-contains <TEXT>")]
     public string? IssuerContains { get; set; }
 
+    /// <summary>Leaf authority family exact-match filter (for example DigiCert, LetsEncrypt).</summary>
+    [Description("Leaf authority family exact-match filter (for example DigiCert, LetsEncrypt).")]
+    [CommandOption("--authority-family <NAME>")]
+    public string? AuthorityFamilyEquals { get; set; }
+
     /// <summary>Root issuer/subject substring filter.</summary>
     [Description("Root issuer/subject substring filter.")]
     [CommandOption("--root-contains <TEXT>")]
     public string? RootContains { get; set; }
+
+    /// <summary>Root authority family exact-match filter (for example DigiCert, LetsEncrypt).</summary>
+    [Description("Root authority family exact-match filter (for example DigiCert, LetsEncrypt).")]
+    [CommandOption("--root-authority-family <NAME>")]
+    public string? RootAuthorityFamilyEquals { get; set; }
+
+    /// <summary>CT source substring filter (for example crt.sh, shodan, censys).</summary>
+    [Description("CT source substring filter (for example crt.sh, shodan, censys).")]
+    [CommandOption("--ct-source-contains <TEXT>")]
+    public string? CtSourceContains { get; set; }
+
+    /// <summary>CT template/configuration error substring filter.</summary>
+    [Description("CT template/configuration error substring filter.")]
+    [CommandOption("--ct-template-error-contains <TEXT>")]
+    public string? CtTemplateErrorContains { get; set; }
+
+    /// <summary>Certificate chain source substring filter (for example tls-handshake).</summary>
+    [Description("Certificate chain source substring filter (for example tls-handshake).")]
+    [CommandOption("--chain-source-contains <TEXT>")]
+    public string? ChainSourceContains { get; set; }
 
     /// <summary>Leaf certificate thumbprint exact-match filter.</summary>
     [Description("Leaf certificate thumbprint exact-match filter.")]
@@ -69,6 +94,11 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [Description("Only include certificates from recognized public CAs.")]
     [CommandOption("--known-ca-only")]
     public bool KnownCaOnly { get; set; }
+
+    /// <summary>Only include certificates chaining to recognized public root CAs.</summary>
+    [Description("Only include certificates chaining to recognized public root CAs.")]
+    [CommandOption("--known-root-ca-only")]
+    public bool KnownRootCaOnly { get; set; }
 
     /// <summary>Only include entries where certificate validation succeeded.</summary>
     [Description("Only include entries where certificate validation succeeded.")]
@@ -125,6 +155,11 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--expiring-within-days <DAYS>")]
     public int? ExpiringWithinDays { get; set; }
 
+    /// <summary>Authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
+    [Description("Authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).")]
+    [CommandOption("--auth-profile <NAME>")]
+    public string? AuthenticationProfileEquals { get; set; }
+
     /// <summary>Maximum number of results returned.</summary>
     [Description("Maximum number of results returned.")]
     [CommandOption("--max-results <N>")]
@@ -175,9 +210,15 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             SanContains = settings.SanContains,
             ServiceEquals = settings.ServiceEquals,
             IssuerContains = settings.IssuerContains,
+            AuthorityFamilyEquals = settings.AuthorityFamilyEquals,
             RootContains = settings.RootContains,
+            RootAuthorityFamilyEquals = settings.RootAuthorityFamilyEquals,
+            CtSourceContains = settings.CtSourceContains,
+            CtTemplateErrorContains = settings.CtTemplateErrorContains,
+            ChainSourceContains = settings.ChainSourceContains,
             ThumbprintEquals = settings.ThumbprintEquals,
             KnownAuthorityOnly = settings.KnownCaOnly ? true : null,
+            KnownRootAuthorityOnly = settings.KnownRootCaOnly ? true : null,
             ValidOnly = settings.ValidOnly ? true : null,
             ExpiredOnly = settings.ExpiredOnly ? true : null,
             ChainCompleteOnly = settings.ChainIncompleteOnly ? false : null,
@@ -189,6 +230,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             AllowsClientAuthOnly = settings.ClientAuthOnly ? true : null,
             AllowsSecureEmailOnly = settings.SecureEmailOnly ? true : null,
             ExpiringWithinDays = settings.ExpiringWithinDays,
+            AuthenticationProfileEquals = settings.AuthenticationProfileEquals,
             MaxResults = settings.MaxResults
         };
         var result = monitor.QueryInventoryEntries(query);

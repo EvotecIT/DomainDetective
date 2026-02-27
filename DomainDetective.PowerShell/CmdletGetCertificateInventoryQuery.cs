@@ -14,6 +14,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Find likely mTLS issues</summary>
 ///   <code>Get-DDCertificateInventoryQuery -ClientAuthOnly -ChainIncompleteOnly -HostnameMismatchOnly</code>
 /// </example>
+/// <example>
+///   <summary>Filter by CA families and CT source</summary>
+///   <code>Get-DDCertificateInventoryQuery -AuthorityFamilyEquals LetsEncrypt -KnownRootCaOnly -CtSourceContains shodan</code>
+/// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryQuery")]
 [Alias("Get-CertificateInventoryQuery")]
 [OutputType(typeof(CertificateInventoryQueryResult))]
@@ -50,9 +54,29 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? IssuerContains { get; set; }
 
+    /// <summary>Leaf authority family exact-match filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? AuthorityFamilyEquals { get; set; }
+
     /// <summary>Root issuer/subject substring filter.</summary>
     [Parameter(Mandatory = false)]
     public string? RootContains { get; set; }
+
+    /// <summary>Root authority family exact-match filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? RootAuthorityFamilyEquals { get; set; }
+
+    /// <summary>CT source substring filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? CtSourceContains { get; set; }
+
+    /// <summary>CT template/configuration error substring filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? CtTemplateErrorContains { get; set; }
+
+    /// <summary>Certificate chain source substring filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? ChainSourceContains { get; set; }
 
     /// <summary>Leaf certificate thumbprint exact-match filter.</summary>
     [Parameter(Mandatory = false)]
@@ -61,6 +85,10 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     /// <summary>Only include certificates from recognized public CAs.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter KnownCaOnly { get; set; }
+
+    /// <summary>Only include certificates chaining to recognized public root CAs.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter KnownRootCaOnly { get; set; }
 
     /// <summary>Only include entries with valid certificates.</summary>
     [Parameter(Mandatory = false)]
@@ -107,6 +135,10 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     [ValidateRange(0, int.MaxValue)]
     public int? ExpiringWithinDays { get; set; }
 
+    /// <summary>Authentication profile exact-match filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? AuthenticationProfileEquals { get; set; }
+
     /// <summary>Maximum number of results returned.</summary>
     [Parameter(Mandatory = false)]
     [ValidateRange(0, int.MaxValue)]
@@ -146,9 +178,15 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
             SanContains = SanContains,
             ServiceEquals = ServiceEquals,
             IssuerContains = IssuerContains,
+            AuthorityFamilyEquals = AuthorityFamilyEquals,
             RootContains = RootContains,
+            RootAuthorityFamilyEquals = RootAuthorityFamilyEquals,
+            CtSourceContains = CtSourceContains,
+            CtTemplateErrorContains = CtTemplateErrorContains,
+            ChainSourceContains = ChainSourceContains,
             ThumbprintEquals = ThumbprintEquals,
             KnownAuthorityOnly = KnownCaOnly.IsPresent ? true : null,
+            KnownRootAuthorityOnly = KnownRootCaOnly.IsPresent ? true : null,
             ValidOnly = ValidOnly.IsPresent ? true : null,
             ExpiredOnly = ExpiredOnly.IsPresent ? true : null,
             ChainCompleteOnly = ChainIncompleteOnly.IsPresent ? false : null,
@@ -160,6 +198,7 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
             AllowsClientAuthOnly = ClientAuthOnly.IsPresent ? true : null,
             AllowsSecureEmailOnly = SecureEmailOnly.IsPresent ? true : null,
             ExpiringWithinDays = ExpiringWithinDays,
+            AuthenticationProfileEquals = AuthenticationProfileEquals,
             MaxResults = MaxResults
         };
 
