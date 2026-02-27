@@ -534,8 +534,10 @@ namespace DomainDetective {
                     result.ScannedEntryCount++;
                     string? endpointKey = null;
                     if (latestOnly) {
+                        var latestObservedEndpointKeys = observedEndpointKeys!;
                         endpointKey = BuildEndpointKey(entry);
-                        if (observedEndpointKeys == null || !observedEndpointKeys.Add(endpointKey)) {
+                        if (!latestObservedEndpointKeys.Add(endpointKey)) {
+                            result.SkippedByLatestPerEndpointCount++;
                             continue;
                         }
                     }

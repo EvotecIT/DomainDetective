@@ -264,6 +264,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         summary.AddRow("Truncated", result.Truncated ? "Yes" : "No");
         if (settings.LatestOnly) {
             summary.AddRow("Latest Per Endpoint", "Yes");
+            summary.AddRow("Skipped Older Endpoint Entries", result.SkippedByLatestPerEndpointCount.ToString());
         }
         AnsiConsole.Write(summary);
 
