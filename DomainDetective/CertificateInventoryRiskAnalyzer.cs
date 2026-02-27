@@ -257,6 +257,8 @@ namespace DomainDetective {
                     }
                 }
                 if (hasChainSourceFilter) {
+                    // Check primary source separately: ChainSources represents observed source history
+                    // and may not include the primary ChainSource value.
                     var matchesChainSource =
                         row.ChainSource.IndexOf(chainSourceNeedle, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         row.ChainSources.Any(source =>
@@ -329,7 +331,7 @@ namespace DomainDetective {
                 AllowsClientAuthentication = entry.AllowsClientAuthentication,
                 AllowsSecureEmail = entry.AllowsSecureEmail,
                 AuthenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(entry),
-                ChainSource = entry.CertificateChainSource ?? string.Empty,
+                ChainSource = entry.CertificateChainSource?.Trim() ?? string.Empty,
                 ChainSources = NormalizeDistinctValues(entry.CertificateChainSources),
                 CtDiscoverySources = NormalizeDistinctValues(entry.CtDiscoverySources),
                 CtTemplateFormatErrors = NormalizeDistinctValues(entry.CtTemplateFormatErrors),

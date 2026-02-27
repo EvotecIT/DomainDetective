@@ -1435,6 +1435,7 @@ namespace DomainDetective.Tests {
                 ctSourceContains: "   ",
                 ctTemplateErrorContains: "   ",
                 chainSourceContains: "   ");
+            // Whitespace-only source filters are treated as absent, so all three risk-bearing entries are returned.
             Assert.Equal(3, filteredByWhitespaceSourceFilters.Endpoints.Count);
         }
     }
