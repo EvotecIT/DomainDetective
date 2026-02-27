@@ -364,5 +364,55 @@ namespace DomainDetective.Tests {
             Assert.False(endpoint.AllowsSecureEmail);
             Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAndClientAuth, endpoint.AuthenticationProfile);
         }
+
+        [Fact]
+        public void BuildRiskDerivesAuthenticationProfileFromEkuFlagsWhenProfileMissing() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "derived-auth.example.com",
+                            ResolvedHost = "derived-auth.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            HasEnhancedKeyUsageExtension = true,
+                            HasAnyExtendedKeyUsageOid = false,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = string.Empty
+                        }
+                    }
+                }
+            };
+
+            var risk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100);
+
+            Assert.Equal(1, risk.EndpointCount);
+            Assert.Single(risk.Endpoints);
+
+            var endpoint = risk.Endpoints[0];
+            Assert.Equal("derived-auth.example.com", endpoint.Host);
+            Assert.True(endpoint.AllowsServerAuthentication);
+            Assert.True(endpoint.AllowsClientAuthentication);
+            Assert.False(endpoint.AllowsSecureEmail);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAndClientAuth, endpoint.AuthenticationProfile);
+        }
     }
 }
