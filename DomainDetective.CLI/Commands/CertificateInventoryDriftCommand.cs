@@ -92,6 +92,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddRow("Issuer Change", drift.EndpointsWithIssuerChange.ToString());
         summary.AddRow("Expiry Change", drift.EndpointsWithExpiryChange.ToString());
         summary.AddRow("Service Change", drift.EndpointsWithServiceChange.ToString());
+        summary.AddRow("Auth Profile Change", drift.EndpointsWithAuthenticationProfileChange.ToString());
+        summary.AddRow("Chain Source Change", drift.EndpointsWithChainSourceChange.ToString());
         AnsiConsole.Write(summary);
 
         if (drift.Endpoints.Count == 0) {
@@ -109,6 +111,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         rows.AddColumn("Last Change");
         rows.AddColumn("Current Issuer");
         rows.AddColumn("Current Expiry");
+        rows.AddColumn("Auth Profile");
+        rows.AddColumn("Chain Source");
         foreach (var endpoint in drift.Endpoints
                      .OrderByDescending(x => x.LastChangedAtUtc ?? DateTimeOffset.MinValue)
                      .ThenBy(x => x.Host, StringComparer.OrdinalIgnoreCase)) {
@@ -123,9 +127,12 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
                 changed,
                 lastChange,
                 string.IsNullOrWhiteSpace(endpoint.CurrentIssuer) ? "-" : endpoint.CurrentIssuer!,
-                expiry);
+                expiry,
+                string.IsNullOrWhiteSpace(endpoint.CurrentAuthenticationProfile) ? "-" : endpoint.CurrentAuthenticationProfile!,
+                NormalizeChainSource(endpoint.CurrentChainSource));
         }
         AnsiConsole.Write(rows);
+        AnsiConsole.MarkupLine("[grey]Flags: C=Certificate, I=Issuer, E=Expiry, S=Service, A=AuthProfile, H=ChainSource[/]");
 
         return Task.FromResult(0);
     }
@@ -144,8 +151,26 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         if (endpoint.ServiceChanged) {
             flags += "S";
         }
+        if (endpoint.AuthenticationProfileChanged) {
+            flags += "A";
+        }
+        if (endpoint.ChainSourceChanged) {
+            flags += "H";
+        }
 
         return flags.Length == 0 ? "-" : flags;
+    }
+
+    private static string NormalizeChainSource(string? source) {
+        if (string.IsNullOrWhiteSpace(source)) {
+            return "-";
+        }
+
+        if (source.Equals("unknown", StringComparison.OrdinalIgnoreCase)) {
+            return "-";
+        }
+
+        return source;
     }
 
     private static string ResolveCacheDirectory(string? configured) {
