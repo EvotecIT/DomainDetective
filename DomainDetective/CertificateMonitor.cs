@@ -476,6 +476,8 @@ namespace DomainDetective {
         /// <param name="minimumSeverity">Optional minimum endpoint severity filter (None, Low, Medium, High, Critical). Applied after includeNoRisk filtering.</param>
         /// <param name="reasonContains">Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).</param>
         /// <param name="issuerContains">Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</param>
+        /// <param name="authorityFamilyEquals">Optional leaf authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
+        /// <param name="rootAuthorityFamilyEquals">Optional root authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
         /// <param name="serverAuthOnly">When true, only returns endpoint rows whose certificate allows server authentication EKU.</param>
         /// <param name="clientAuthOnly">When true, only returns endpoint rows whose certificate allows client authentication EKU.</param>
         /// <param name="secureEmailOnly">When true, only returns endpoint rows whose certificate allows secure-email EKU.</param>
@@ -488,6 +490,8 @@ namespace DomainDetective {
             string? minimumSeverity = null,
             string? reasonContains = null,
             string? issuerContains = null,
+            string? authorityFamilyEquals = null,
+            string? rootAuthorityFamilyEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -501,6 +505,8 @@ namespace DomainDetective {
                 minimumSeverity,
                 reasonContains,
                 issuerContains,
+                authorityFamilyEquals,
+                rootAuthorityFamilyEquals,
                 serverAuthOnly,
                 clientAuthOnly,
                 secureEmailOnly);

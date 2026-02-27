@@ -34,6 +34,8 @@ namespace DomainDetective {
         public string Service { get; set; } = string.Empty;
         public string Issuer { get; set; } = string.Empty;
         public string RootIssuer { get; set; } = string.Empty;
+        public string AuthorityFamily { get; set; } = string.Empty;
+        public string RootAuthorityFamily { get; set; } = string.Empty;
         /// <summary>Certificate validity start timestamp in UTC from the observed endpoint certificate.</summary>
         public DateTimeOffset? NotBeforeUtc { get; set; }
         public DateTimeOffset? NotAfterUtc { get; set; }
@@ -123,6 +125,8 @@ namespace DomainDetective {
             string? minimumSeverity = null,
             string? reasonContains = null,
             string? issuerContains = null,
+            string? authorityFamilyEquals = null,
+            string? rootAuthorityFamilyEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -136,6 +140,10 @@ namespace DomainDetective {
             var reasonNeedle = hasReasonFilter ? reasonContains!.Trim() : string.Empty;
             var hasIssuerFilter = !string.IsNullOrWhiteSpace(issuerContains);
             var issuerNeedle = hasIssuerFilter ? issuerContains!.Trim() : string.Empty;
+            var hasAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(authorityFamilyEquals);
+            var authorityFamilyExpected = hasAuthorityFamilyFilter ? authorityFamilyEquals!.Trim() : string.Empty;
+            var hasRootAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(rootAuthorityFamilyEquals);
+            var rootAuthorityFamilyExpected = hasRootAuthorityFamilyFilter ? rootAuthorityFamilyEquals!.Trim() : string.Empty;
             // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
             // Example: includeNoRisk=true with minimumSeverity=Low still excludes score=0 endpoints.
 
@@ -205,6 +213,16 @@ namespace DomainDetective {
                         continue;
                     }
                 }
+                if (hasAuthorityFamilyFilter) {
+                    if (!string.Equals(row.AuthorityFamily, authorityFamilyExpected, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                }
+                if (hasRootAuthorityFamilyFilter) {
+                    if (!string.Equals(row.RootAuthorityFamily, rootAuthorityFamilyExpected, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                }
                 // Auth-usage filters only narrow returned endpoint rows.
                 // Summary counts/reason distributions stay computed across the full endpoint set.
                 if (serverAuthOnly && !row.AllowsServerAuthentication) {
@@ -254,6 +272,8 @@ namespace DomainDetective {
                     : entry.Service!,
                 Issuer = PickIssuer(entry),
                 RootIssuer = PickRoot(entry),
+                AuthorityFamily = entry.CertificateAuthorityFamily ?? string.Empty,
+                RootAuthorityFamily = entry.CertificateRootAuthorityFamily ?? string.Empty,
                 NotBeforeUtc = entry.NotBeforeUtc,
                 NotAfterUtc = entry.NotAfterUtc,
                 Valid = entry.Valid,

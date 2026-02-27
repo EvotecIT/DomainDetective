@@ -1082,5 +1082,187 @@ namespace DomainDetective.Tests {
             Assert.Single(serverAndClient.Endpoints);
             Assert.Equal("full-auth.example.com", serverAndClient.Endpoints[0].Host);
         }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByAuthorityFamilyFilters() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "letsencrypt-risk.example.com",
+                            ResolvedHost = "letsencrypt-risk.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateAuthorityFamily = "LetsEncrypt",
+                            CertificateRootAuthorityFamily = "LetsEncrypt",
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "digicert-risk.example.com",
+                            ResolvedHost = "digicert-risk.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateAuthorityFamily = "DigiCert",
+                            CertificateRootAuthorityFamily = "DigiCert",
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "gts-risk.example.com",
+                            ResolvedHost = "gts-risk.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateAuthorityFamily = "GoogleTrustServices",
+                            CertificateRootAuthorityFamily = "GoogleTrustServices",
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "letsencrypt-healthy.example.com",
+                            ResolvedHost = "letsencrypt-healthy.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateAuthorityFamily = "LetsEncrypt",
+                            CertificateRootAuthorityFamily = "LetsEncrypt"
+                        },
+                        new() {
+                            Host = "unknown-family-risk.example.com",
+                            ResolvedHost = "unknown-family-risk.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var filteredByLeafFamily = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: "letsencrypt");
+            Assert.Single(filteredByLeafFamily.Endpoints);
+            Assert.Equal("letsencrypt-risk.example.com", filteredByLeafFamily.Endpoints[0].Host);
+            Assert.DoesNotContain(filteredByLeafFamily.Endpoints, endpoint => string.Equals(endpoint.Host, "unknown-family-risk.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByLeafFamilyIncludingHealthy = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: "letsencrypt");
+            Assert.Equal(2, filteredByLeafFamilyIncludingHealthy.Endpoints.Count);
+            Assert.Contains(filteredByLeafFamilyIncludingHealthy.Endpoints, endpoint => string.Equals(endpoint.Host, "letsencrypt-risk.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(filteredByLeafFamilyIncludingHealthy.Endpoints, endpoint => string.Equals(endpoint.Host, "letsencrypt-healthy.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(filteredByLeafFamilyIncludingHealthy.Endpoints, endpoint => string.Equals(endpoint.Host, "unknown-family-risk.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByRootFamily = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: "digicert");
+            Assert.Single(filteredByRootFamily.Endpoints);
+            Assert.Equal("digicert-risk.example.com", filteredByRootFamily.Endpoints[0].Host);
+
+            var filteredByBothFamilies = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: "LetsEncrypt",
+                rootAuthorityFamilyEquals: "LetsEncrypt");
+            Assert.Single(filteredByBothFamilies.Endpoints);
+            Assert.Equal("letsencrypt-risk.example.com", filteredByBothFamilies.Endpoints[0].Host);
+
+            var filteredByMissingFamily = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: "not-present");
+            Assert.Empty(filteredByMissingFamily.Endpoints);
+
+            var filteredByWhitespaceFamily = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: "   ",
+                rootAuthorityFamilyEquals: "   ");
+            Assert.Equal(5, filteredByWhitespaceFamily.Endpoints.Count);
+        }
     }
 }
