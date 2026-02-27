@@ -5,7 +5,7 @@ using System.Management.Automation;
 namespace DomainDetective.PowerShell;
 
 /// <summary>Builds endpoint-level certificate drift from persisted inventory snapshots.</summary>
-/// <para>Detects certificate rotation and issuer/expiry/service/auth-profile/chain-source drift between observations for each endpoint.</para>
+/// <para>Detects certificate rotation and issuer/expiry/service/auth-profile/chain-source drift between observations for each endpoint, including severity and change-kind classification.</para>
 /// <example>
 ///   <summary>Show only changed endpoints from the last 14 days</summary>
 ///   <code>Get-DDCertificateInventoryDrift -SinceUtc (Get-Date).ToUniversalTime().AddDays(-14) -ChangedOnly</code>

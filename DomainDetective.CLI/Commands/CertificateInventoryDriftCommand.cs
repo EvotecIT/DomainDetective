@@ -88,6 +88,9 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddRow("Endpoints (Total)", drift.EndpointCount.ToString());
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
         summary.AddRow("Any Change", drift.EndpointsWithAnyChange.ToString());
+        summary.AddRow("High Severity", drift.EndpointsWithHighSeverityDrift.ToString());
+        summary.AddRow("Medium Severity", drift.EndpointsWithMediumSeverityDrift.ToString());
+        summary.AddRow("Low Severity", drift.EndpointsWithLowSeverityDrift.ToString());
         summary.AddRow("Certificate Change", drift.EndpointsWithCertificateChange.ToString());
         summary.AddRow("Issuer Change", drift.EndpointsWithIssuerChange.ToString());
         summary.AddRow("Expiry Change", drift.EndpointsWithExpiryChange.ToString());
@@ -107,6 +110,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         rows.AddColumn("Port");
         rows.AddColumn("Obs");
         rows.AddColumn("Distinct Certs");
+        rows.AddColumn("Severity");
+        rows.AddColumn("Changes");
         rows.AddColumn("Changed");
         rows.AddColumn("Last Change");
         rows.AddColumn("Current Issuer");
@@ -124,6 +129,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
                 endpoint.Port.ToString(),
                 endpoint.ObservationCount.ToString(),
                 endpoint.DistinctCertificateCount.ToString(),
+                endpoint.DriftSeverity,
+                BuildChangeKinds(endpoint),
                 changed,
                 lastChange,
                 string.IsNullOrWhiteSpace(endpoint.CurrentIssuer) ? "-" : endpoint.CurrentIssuer!,
@@ -159,6 +166,14 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         }
 
         return flags.Length == 0 ? "-" : flags;
+    }
+
+    private static string BuildChangeKinds(CertificateInventoryEndpointDrift endpoint) {
+        if (endpoint.ChangeKinds == null || endpoint.ChangeKinds.Count == 0) {
+            return "-";
+        }
+
+        return string.Join(", ", endpoint.ChangeKinds);
     }
 
     private static string NormalizeChainSource(string? source) {
