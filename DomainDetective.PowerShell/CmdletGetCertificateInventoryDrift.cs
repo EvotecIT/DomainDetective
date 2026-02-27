@@ -35,7 +35,7 @@ public sealed class CmdletGetCertificateInventoryDrift : PSCmdlet {
     [ValidateRange(0, int.MaxValue)]
     public int MaxEndpoints { get; set; } = 200;
 
-    /// <summary>Optional minimum drift severity filter.</summary>
+    /// <summary>Optional minimum drift severity filter (None is equivalent to omitting this parameter).</summary>
     [Parameter(Mandatory = false)]
     [ValidateSet("None", "Low", "Medium", "High")]
     public string? MinimumSeverity { get; set; }

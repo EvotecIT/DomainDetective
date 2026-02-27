@@ -97,7 +97,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddColumn("Value");
         summary.AddRow("Snapshots", drift.SnapshotCount.ToString());
         summary.AddRow("Endpoints (Total)", drift.EndpointCount.ToString());
-        summary.AddRow("Endpoints Matching Filters", drift.FilteredEndpointCount.ToString());
+        summary.AddRow("Endpoints Matching Filters", drift.EndpointsMatchingFilters.ToString());
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
         summary.AddRow("Minimum Severity", minimumSeverity ?? "None");
         summary.AddRow("Any Change", drift.EndpointsWithAnyChange.ToString());
@@ -131,9 +131,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         rows.AddColumn("Current Expiry");
         rows.AddColumn("Auth Profile");
         rows.AddColumn("Chain Source");
-        foreach (var endpoint in drift.Endpoints
-                     .OrderByDescending(x => x.LastChangedAtUtc ?? DateTimeOffset.MinValue)
-                     .ThenBy(x => x.Host, StringComparer.OrdinalIgnoreCase)) {
+        foreach (var endpoint in drift.Endpoints) {
             var changed = BuildChangedFlags(endpoint);
             var lastChange = endpoint.LastChangedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-";
             var expiry = endpoint.CurrentNotAfterUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";

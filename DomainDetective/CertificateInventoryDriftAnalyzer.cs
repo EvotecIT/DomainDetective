@@ -10,7 +10,7 @@ namespace DomainDetective {
     public sealed class CertificateInventoryDriftSummary {
         public int SnapshotCount { get; set; }
         public int EndpointCount { get; set; }
-        public int FilteredEndpointCount { get; set; }
+        public int EndpointsMatchingFilters { get; set; }
         public int EndpointsWithAnyChange { get; set; }
         public int EndpointsWithHighSeverityDrift { get; set; }
         public int EndpointsWithMediumSeverityDrift { get; set; }
@@ -197,7 +197,7 @@ namespace DomainDetective {
             }
 
             summary.EndpointCount = grouped.Count;
-            summary.FilteredEndpointCount = driftRows.Count;
+            summary.EndpointsMatchingFilters = driftRows.Count;
             summary.EndpointsWithCertificateChange = driftRows.Count(row => row.CertificateChanged);
             summary.EndpointsWithIssuerChange = driftRows.Count(row => row.IssuerChanged);
             summary.EndpointsWithExpiryChange = driftRows.Count(row => row.ExpiryChanged);
@@ -363,7 +363,7 @@ namespace DomainDetective {
                 return true;
             }
 
-            var trimmed = (value ?? string.Empty).Trim();
+            var trimmed = value!.Trim();
             if (trimmed.Equals(DriftSeverityNone, StringComparison.OrdinalIgnoreCase)) {
                 normalized = DriftSeverityNone;
                 return true;
