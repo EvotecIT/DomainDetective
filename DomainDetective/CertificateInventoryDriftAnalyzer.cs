@@ -10,6 +10,7 @@ namespace DomainDetective {
     public sealed class CertificateInventoryDriftSummary {
         public int SnapshotCount { get; set; }
         public int EndpointCount { get; set; }
+        public int FilteredEndpointCount { get; set; }
         public int EndpointsWithAnyChange { get; set; }
         public int EndpointsWithHighSeverityDrift { get; set; }
         public int EndpointsWithMediumSeverityDrift { get; set; }
@@ -196,6 +197,7 @@ namespace DomainDetective {
             }
 
             summary.EndpointCount = grouped.Count;
+            summary.FilteredEndpointCount = driftRows.Count;
             summary.EndpointsWithCertificateChange = driftRows.Count(row => row.CertificateChanged);
             summary.EndpointsWithIssuerChange = driftRows.Count(row => row.IssuerChanged);
             summary.EndpointsWithExpiryChange = driftRows.Count(row => row.ExpiryChanged);
@@ -344,26 +346,41 @@ namespace DomainDetective {
         }
 
         private static int ParseMinimumSeverityRank(string? minimumSeverity) {
-            var trimmed = minimumSeverity?.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed)) {
+            if (!TryNormalizeSeverity(minimumSeverity, out var normalized)) {
+                throw new ArgumentException("minimumSeverity must be one of: None, Low, Medium, High.", nameof(minimumSeverity));
+            }
+
+            if (string.IsNullOrWhiteSpace(normalized)) {
                 return GetSeverityRank(DriftSeverityNone);
             }
 
-            var normalized = trimmed!;
-            if (normalized.Equals(DriftSeverityNone, StringComparison.OrdinalIgnoreCase)) {
-                return GetSeverityRank(DriftSeverityNone);
-            }
-            if (normalized.Equals(DriftSeverityLow, StringComparison.OrdinalIgnoreCase)) {
-                return GetSeverityRank(DriftSeverityLow);
-            }
-            if (normalized.Equals(DriftSeverityMedium, StringComparison.OrdinalIgnoreCase)) {
-                return GetSeverityRank(DriftSeverityMedium);
-            }
-            if (normalized.Equals(DriftSeverityHigh, StringComparison.OrdinalIgnoreCase)) {
-                return GetSeverityRank(DriftSeverityHigh);
+            return GetSeverityRank(normalized!);
+        }
+
+        public static bool TryNormalizeSeverity(string? value, out string? normalized) {
+            normalized = null;
+            if (string.IsNullOrWhiteSpace(value)) {
+                return true;
             }
 
-            throw new ArgumentException("minimumSeverity must be one of: None, Low, Medium, High.", nameof(minimumSeverity));
+            var trimmed = (value ?? string.Empty).Trim();
+            if (trimmed.Equals(DriftSeverityNone, StringComparison.OrdinalIgnoreCase)) {
+                normalized = DriftSeverityNone;
+                return true;
+            }
+            if (trimmed.Equals(DriftSeverityLow, StringComparison.OrdinalIgnoreCase)) {
+                normalized = DriftSeverityLow;
+                return true;
+            }
+            if (trimmed.Equals(DriftSeverityMedium, StringComparison.OrdinalIgnoreCase)) {
+                normalized = DriftSeverityMedium;
+                return true;
+            }
+            if (trimmed.Equals(DriftSeverityHigh, StringComparison.OrdinalIgnoreCase)) {
+                normalized = DriftSeverityHigh;
+                return true;
+            }
+            return false;
         }
 
         private static int GetSeverityRank(string severity) {
@@ -379,7 +396,7 @@ namespace DomainDetective {
             if (severity.Equals(DriftSeverityHigh, StringComparison.OrdinalIgnoreCase)) {
                 return 3;
             }
-            return 0;
+            throw new ArgumentException("severity must be one of: None, Low, Medium, High.", nameof(severity));
         }
     }
 }

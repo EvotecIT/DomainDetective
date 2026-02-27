@@ -63,7 +63,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             return Task.FromResult(1);
         }
 
-        if (!TryNormalizeSeverity(settings.MinimumSeverity, out var minimumSeverity)) {
+        if (!CertificateInventoryDriftAnalyzer.TryNormalizeSeverity(settings.MinimumSeverity, out var minimumSeverity)) {
             AnsiConsole.MarkupLine("[red]--minimum-severity must be one of: none, low, medium, high.[/]");
             return Task.FromResult(1);
         }
@@ -97,6 +97,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddColumn("Value");
         summary.AddRow("Snapshots", drift.SnapshotCount.ToString());
         summary.AddRow("Endpoints (Total)", drift.EndpointCount.ToString());
+        summary.AddRow("Endpoints Matching Filters", drift.FilteredEndpointCount.ToString());
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
         summary.AddRow("Minimum Severity", minimumSeverity ?? "None");
         summary.AddRow("Any Change", drift.EndpointsWithAnyChange.ToString());
@@ -220,30 +221,4 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         return dt.ToUniversalTime();
     }
 
-    private static bool TryNormalizeSeverity(string? value, out string? normalized) {
-        normalized = null;
-        if (string.IsNullOrWhiteSpace(value)) {
-            return true;
-        }
-
-        var trimmed = value.Trim();
-        if (trimmed.Equals("none", StringComparison.OrdinalIgnoreCase)) {
-            normalized = "None";
-            return true;
-        }
-        if (trimmed.Equals("low", StringComparison.OrdinalIgnoreCase)) {
-            normalized = "Low";
-            return true;
-        }
-        if (trimmed.Equals("medium", StringComparison.OrdinalIgnoreCase)) {
-            normalized = "Medium";
-            return true;
-        }
-        if (trimmed.Equals("high", StringComparison.OrdinalIgnoreCase)) {
-            normalized = "High";
-            return true;
-        }
-
-        return false;
-    }
 }
