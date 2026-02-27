@@ -149,10 +149,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         rows.AddColumn("Expiry");
         rows.AddColumn("Issuer");
         rows.AddColumn("Reasons");
-        foreach (var endpoint in risk.Endpoints
-                     .OrderByDescending(x => x.Score)
-                     .ThenBy(x => x.Host, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(x => x.Port)) {
+        foreach (var endpoint in risk.Endpoints) {
             var validFrom = endpoint.NotBeforeUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
             if (endpoint.DaysUntilValid.HasValue && endpoint.DaysUntilValid.Value > 0) {
                 validFrom = $"{validFrom} (in {endpoint.DaysUntilValid.Value}d)";

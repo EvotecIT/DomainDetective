@@ -255,5 +255,66 @@ namespace DomainDetective.Tests {
             Assert.True(risk.ReasonCounts.TryGetValue("CertificateNotYetValid", out var notYetValidCount) && notYetValidCount == 1);
             Assert.False(risk.ReasonCounts.ContainsKey("CertificateValidationFailed"));
         }
+
+        [Fact]
+        public void BuildRiskOrdersEqualScoresByDaysUntilValid() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "later-valid.example.com",
+                            ResolvedHost = "later-valid.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(3),
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        },
+                        new() {
+                            Host = "sooner-valid.example.com",
+                            ResolvedHost = "sooner-valid.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(1),
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        }
+                    }
+                }
+            };
+
+            var risk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100);
+
+            Assert.Equal(2, risk.EndpointCount);
+            Assert.Equal(2, risk.HighCount);
+            Assert.Equal(2, risk.Endpoints.Count);
+
+            Assert.Equal("sooner-valid.example.com", risk.Endpoints[0].Host);
+            Assert.Equal(1, risk.Endpoints[0].DaysUntilValid);
+            Assert.Equal("later-valid.example.com", risk.Endpoints[1].Host);
+            Assert.Equal(3, risk.Endpoints[1].DaysUntilValid);
+        }
     }
 }
