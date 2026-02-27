@@ -6,6 +6,7 @@ using System.Linq;
 namespace DomainDetective {
     /// <summary>
     /// Endpoint-level drift summary over persisted certificate inventory snapshots.
+    /// <para>Aggregate counts are calculated before <see cref="Endpoints"/> is capped by max endpoints.</para>
     /// </summary>
     public sealed class CertificateInventoryDriftSummary {
         public int SnapshotCount { get; set; }
@@ -85,6 +86,16 @@ namespace DomainDetective {
             public CertificateInventoryEntry Entry { get; init; } = null!;
         }
 
+        /// <summary>
+        /// Builds endpoint-level drift summary across certificate inventory snapshots.
+        /// </summary>
+        /// <param name="snapshots">Snapshots to evaluate for endpoint drift.</param>
+        /// <param name="changedOnly">When true, only endpoints with at least one detected change are included.</param>
+        /// <param name="maxEndpoints">Maximum number of drift rows to return. Values below 0 are clamped to 0.</param>
+        /// <param name="minimumSeverity">Optional minimum severity threshold. Accepted values: none, low, medium, high.</param>
+        /// <param name="requiredChangeKinds">Optional change-kind filters.</param>
+        /// <param name="changeKindMatchMode">Optional change-kind match mode: any or all.</param>
+        /// <returns>Calculated drift summary and endpoint rows.</returns>
         public static CertificateInventoryDriftSummary BuildDrift(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             bool changedOnly = false,
