@@ -103,6 +103,21 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--serial-number <HEX>")]
     public string? SerialNumberEquals { get; set; }
 
+    /// <summary>Optional case-insensitive host substring filter.</summary>
+    [Description("Optional case-insensitive host substring filter.")]
+    [CommandOption("--host-contains <TEXT>")]
+    public string? HostContains { get; set; }
+
+    /// <summary>Optional case-insensitive service exact-match filter (for example HTTPS, HTTPS-Alt, Custom TLS).</summary>
+    [Description("Optional case-insensitive service exact-match filter (for example HTTPS, HTTPS-Alt, Custom TLS).")]
+    [CommandOption("--service <NAME>")]
+    public string? ServiceEquals { get; set; }
+
+    /// <summary>Optional endpoint port exact-match filter (1-65535).</summary>
+    [Description("Optional endpoint port exact-match filter (1-65535).")]
+    [CommandOption("--port <N>")]
+    public int? PortEquals { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Description("Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).")]
     [CommandOption("--auth-profile <NAME>")]
@@ -176,6 +191,10 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--critical-expiring-within-days cannot be greater than --expiring-within-days.[/]");
             return Task.FromResult(1);
         }
+        if (settings.PortEquals.HasValue && (settings.PortEquals.Value <= 0 || settings.PortEquals.Value > 65535)) {
+            AnsiConsole.MarkupLine("[red]--port must be between 1 and 65535.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.KnownCaOnly && settings.UnknownCaOnly) {
             AnsiConsole.MarkupLine("[red]--known-ca-only cannot be combined with --unknown-ca-only.[/]");
             return Task.FromResult(1);
@@ -218,6 +237,9 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             thumbprintEquals: settings.ThumbprintEquals,
             rootThumbprintEquals: settings.RootThumbprintEquals,
             serialNumberEquals: settings.SerialNumberEquals,
+            hostContains: settings.HostContains,
+            serviceEquals: settings.ServiceEquals,
+            portEquals: settings.PortEquals,
             knownAuthorityOnly: settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
             knownRootAuthorityOnly: settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
             authenticationProfileEquals: settings.AuthenticationProfileEquals,

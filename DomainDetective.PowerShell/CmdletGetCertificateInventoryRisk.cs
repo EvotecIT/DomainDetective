@@ -94,6 +94,19 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? SerialNumberEquals { get; set; }
 
+    /// <summary>Optional case-insensitive host substring filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? HostContains { get; set; }
+
+    /// <summary>Optional case-insensitive service exact-match filter (for example HTTPS, HTTPS-Alt, Custom TLS).</summary>
+    [Parameter(Mandatory = false)]
+    public string? ServiceEquals { get; set; }
+
+    /// <summary>Optional endpoint port exact-match filter (1-65535).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 65535)]
+    public int? PortEquals { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Parameter(Mandatory = false)]
     public string? AuthenticationProfileEquals { get; set; }
@@ -180,6 +193,9 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             thumbprintEquals: ThumbprintEquals,
             rootThumbprintEquals: RootThumbprintEquals,
             serialNumberEquals: SerialNumberEquals,
+            hostContains: HostContains,
+            serviceEquals: ServiceEquals,
+            portEquals: PortEquals,
             knownAuthorityOnly: KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
             knownRootAuthorityOnly: KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,
             authenticationProfileEquals: AuthenticationProfileEquals,

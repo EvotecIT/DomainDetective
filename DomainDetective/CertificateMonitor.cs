@@ -484,6 +484,9 @@ namespace DomainDetective {
         /// <param name="thumbprintEquals">Optional leaf-certificate thumbprint exact-match filter (hex string expected).</param>
         /// <param name="rootThumbprintEquals">Optional root-certificate thumbprint exact-match filter (hex string expected).</param>
         /// <param name="serialNumberEquals">Optional leaf-certificate serial-number exact-match filter (hex string expected).</param>
+        /// <param name="hostContains">Optional case-insensitive host substring filter.</param>
+        /// <param name="serviceEquals">Optional case-insensitive service exact-match filter (for example HTTPS, HTTPS-Alt, Custom TLS).</param>
+        /// <param name="portEquals">Optional endpoint port exact-match filter (1-65535).</param>
         /// <param name="knownAuthorityOnly">When set, only returns endpoint rows whose recognized-issuer state equals this value.</param>
         /// <param name="knownRootAuthorityOnly">When set, only returns endpoint rows whose recognized-root-issuer state equals this value.</param>
         /// <param name="authenticationProfileEquals">Optional authentication-profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</param>
@@ -507,6 +510,9 @@ namespace DomainDetective {
             string? thumbprintEquals = null,
             string? rootThumbprintEquals = null,
             string? serialNumberEquals = null,
+            string? hostContains = null,
+            string? serviceEquals = null,
+            int? portEquals = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -531,6 +537,9 @@ namespace DomainDetective {
                 thumbprintEquals,
                 rootThumbprintEquals,
                 serialNumberEquals,
+                hostContains,
+                serviceEquals,
+                portEquals,
                 knownAuthorityOnly,
                 knownRootAuthorityOnly,
                 authenticationProfileEquals,
