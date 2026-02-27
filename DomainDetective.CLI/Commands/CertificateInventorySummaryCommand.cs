@@ -102,6 +102,9 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
         RenderCountTable("Service Distribution", summary.ServiceCounts);
         RenderCountTable("Issuer Distribution", summary.IssuerCounts);
         RenderCountTable("Root Distribution", summary.RootIssuerCounts);
+        RenderCountTable("Authentication Profiles", summary.AuthenticationProfileCounts);
+        RenderCountTable("Chain Sources", summary.ChainSourceCounts);
+        RenderCountTable("CT Sources", summary.CtSourceCounts);
         RenderCountTable("CT Template Error Categories", summary.CtTemplateErrorCounts);
 
         if (summary.ExpiringSoon.Count > 0) {
