@@ -123,6 +123,22 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter ChainIncompleteOnly { get; set; }
 
+    /// <summary>Only include endpoints reachable on the scanned endpoint.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ReachableOnly { get; set; }
+
+    /// <summary>Only include endpoints that were not reachable on the scanned endpoint.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter UnreachableOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificate matches the requested hostname.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter HostnameMatchOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificate does not match the requested hostname.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter HostnameMismatchOnly { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Parameter(Mandatory = false)]
     public string? AuthenticationProfileEquals { get; set; }
@@ -197,6 +213,22 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 ChainIncompleteOnly));
             return;
         }
+        if (ReachableOnly.IsPresent && UnreachableOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ReachableOnly cannot be combined with -UnreachableOnly.", nameof(UnreachableOnly)),
+                "ReachabilityConflict",
+                ErrorCategory.InvalidArgument,
+                UnreachableOnly));
+            return;
+        }
+        if (HostnameMatchOnly.IsPresent && HostnameMismatchOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-HostnameMatchOnly cannot be combined with -HostnameMismatchOnly.", nameof(HostnameMismatchOnly)),
+                "HostnameValidationConflict",
+                ErrorCategory.InvalidArgument,
+                HostnameMismatchOnly));
+            return;
+        }
 
         var monitor = new CertificateMonitor {
             CacheDirectory = ResolveCacheDirectory(CacheDirectory),
@@ -230,6 +262,8 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             portEquals: PortEquals,
             ctObservedOnly: CtObservedOnly.IsPresent ? true : CtMissingOnly.IsPresent ? false : null,
             chainCompleteOnly: ChainCompleteOnly.IsPresent ? true : ChainIncompleteOnly.IsPresent ? false : null,
+            reachableOnly: ReachableOnly.IsPresent ? true : UnreachableOnly.IsPresent ? false : null,
+            hostnameMatchOnly: HostnameMatchOnly.IsPresent ? true : HostnameMismatchOnly.IsPresent ? false : null,
             knownAuthorityOnly: KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
             knownRootAuthorityOnly: KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,
             authenticationProfileEquals: AuthenticationProfileEquals,
