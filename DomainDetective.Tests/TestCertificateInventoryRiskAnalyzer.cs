@@ -97,6 +97,79 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskExposesMatchedAndTruncatedEndpointCounts() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "expired-truncation.example.com",
+                            ResolvedHost = "expired-truncation.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(-3),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        },
+                        new() {
+                            Host = "weak-truncation.example.com",
+                            ResolvedHost = "weak-truncation.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(60),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "sha1-truncation.example.com",
+                            ResolvedHost = "sha1-truncation.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(60),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            Sha1Signature = true
+                        }
+                    }
+                }
+            };
+
+            var risk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 2);
+
+            Assert.Equal(3, risk.EndpointCount);
+            Assert.Equal(3, risk.MatchedEndpointCount);
+            Assert.Equal(1, risk.EndpointsTruncatedByMaxEndpoints);
+            Assert.True(risk.Truncated);
+            Assert.Equal(2, risk.Endpoints.Count);
+        }
+
+        [Fact]
         public void BuildRiskCanIncludeHealthyEndpoints() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

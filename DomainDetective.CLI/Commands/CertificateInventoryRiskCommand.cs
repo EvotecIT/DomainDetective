@@ -132,7 +132,9 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         summary.AddColumn("Value");
         summary.AddRow("Snapshots", risk.SnapshotCount.ToString());
         summary.AddRow("Endpoints (Total)", risk.EndpointCount.ToString());
+        summary.AddRow("Matched Endpoints", risk.MatchedEndpointCount.ToString());
         summary.AddRow("Returned Endpoints", risk.Endpoints.Count.ToString());
+        summary.AddRow("Truncated Endpoints", risk.EndpointsTruncatedByMaxEndpoints.ToString());
         summary.AddRow("Critical", risk.CriticalCount.ToString());
         summary.AddRow("High", risk.HighCount.ToString());
         summary.AddRow("Medium", risk.MediumCount.ToString());
@@ -158,6 +160,10 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         if (risk.Endpoints.Count == 0) {
             AnsiConsole.MarkupLine("[yellow]No endpoint risk rows to display.[/]");
             return Task.FromResult(0);
+        }
+
+        if (risk.Truncated) {
+            AnsiConsole.MarkupLine($"[yellow]Endpoint rows truncated by --max-endpoints:[/] {risk.EndpointsTruncatedByMaxEndpoints}");
         }
 
         var rows = new Table().Border(TableBorder.Rounded);

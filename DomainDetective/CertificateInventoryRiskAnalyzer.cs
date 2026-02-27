@@ -9,6 +9,12 @@ namespace DomainDetective {
     public sealed class CertificateInventoryRiskSummary {
         public int SnapshotCount { get; set; }
         public int EndpointCount { get; set; }
+        /// <summary>Number of endpoints that matched row-level filters before max-endpoint limiting.</summary>
+        public int MatchedEndpointCount { get; set; }
+        /// <summary>Number of matched endpoints omitted because of max-endpoint limiting.</summary>
+        public int EndpointsTruncatedByMaxEndpoints { get; set; }
+        /// <summary>True when matched endpoint rows were truncated by max-endpoint limiting.</summary>
+        public bool Truncated { get; set; }
         public int CriticalCount { get; set; }
         public int HighCount { get; set; }
         public int MediumCount { get; set; }
@@ -191,13 +197,18 @@ namespace DomainDetective {
                 summary.AverageScore = Math.Round(totalScore / summary.EndpointCount, 2);
             }
 
+            var normalizedMaxEndpoints = Math.Max(0, maxEndpoints);
+            summary.MatchedEndpointCount = rows.Count;
+            summary.EndpointsTruncatedByMaxEndpoints = Math.Max(0, summary.MatchedEndpointCount - normalizedMaxEndpoints);
+            summary.Truncated = summary.EndpointsTruncatedByMaxEndpoints > 0;
+
             summary.Endpoints = rows
                 .OrderByDescending(row => row.Score)
                 .ThenBy(row => row.DaysUntilValid ?? int.MaxValue)
                 .ThenBy(row => row.DaysToExpire ?? int.MaxValue)
                 .ThenBy(row => row.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(row => row.Port)
-                .Take(Math.Max(0, maxEndpoints))
+                .Take(normalizedMaxEndpoints)
                 .ToList();
 
             return summary;
