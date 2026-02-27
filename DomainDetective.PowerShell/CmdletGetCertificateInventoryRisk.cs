@@ -107,6 +107,22 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [ValidateRange(1, 65535)]
     public int? PortEquals { get; set; }
 
+    /// <summary>Only include endpoints whose certificates were observed in CT logs.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter CtObservedOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificates were not observed in CT logs.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter CtMissingOnly { get; set; }
+
+    /// <summary>Only include endpoints with complete certificate chains.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ChainCompleteOnly { get; set; }
+
+    /// <summary>Only include endpoints with incomplete certificate chains.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ChainIncompleteOnly { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Parameter(Mandatory = false)]
     public string? AuthenticationProfileEquals { get; set; }
@@ -165,6 +181,22 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 UnknownRootCaOnly));
             return;
         }
+        if (CtObservedOnly.IsPresent && CtMissingOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-CtObservedOnly cannot be combined with -CtMissingOnly.", nameof(CtMissingOnly)),
+                "CtObservationConflict",
+                ErrorCategory.InvalidArgument,
+                CtMissingOnly));
+            return;
+        }
+        if (ChainCompleteOnly.IsPresent && ChainIncompleteOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ChainCompleteOnly cannot be combined with -ChainIncompleteOnly.", nameof(ChainIncompleteOnly)),
+                "ChainCompletenessConflict",
+                ErrorCategory.InvalidArgument,
+                ChainIncompleteOnly));
+            return;
+        }
 
         var monitor = new CertificateMonitor {
             CacheDirectory = ResolveCacheDirectory(CacheDirectory),
@@ -196,6 +228,8 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             hostContains: HostContains,
             serviceEquals: ServiceEquals,
             portEquals: PortEquals,
+            ctObservedOnly: CtObservedOnly.IsPresent ? true : CtMissingOnly.IsPresent ? false : null,
+            chainCompleteOnly: ChainCompleteOnly.IsPresent ? true : ChainIncompleteOnly.IsPresent ? false : null,
             knownAuthorityOnly: KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
             knownRootAuthorityOnly: KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,
             authenticationProfileEquals: AuthenticationProfileEquals,

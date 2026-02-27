@@ -118,6 +118,26 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--port <N>")]
     public int? PortEquals { get; set; }
 
+    /// <summary>Only include endpoints whose certificates were observed in CT logs.</summary>
+    [Description("Only include endpoints whose certificates were observed in CT logs.")]
+    [CommandOption("--ct-observed-only")]
+    public bool CtObservedOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificates were not observed in CT logs.</summary>
+    [Description("Only include endpoints whose certificates were not observed in CT logs.")]
+    [CommandOption("--ct-missing-only")]
+    public bool CtMissingOnly { get; set; }
+
+    /// <summary>Only include endpoints with complete certificate chains.</summary>
+    [Description("Only include endpoints with complete certificate chains.")]
+    [CommandOption("--chain-complete-only")]
+    public bool ChainCompleteOnly { get; set; }
+
+    /// <summary>Only include endpoints with incomplete certificate chains.</summary>
+    [Description("Only include endpoints with incomplete certificate chains.")]
+    [CommandOption("--chain-incomplete-only")]
+    public bool ChainIncompleteOnly { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Description("Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).")]
     [CommandOption("--auth-profile <NAME>")]
@@ -195,6 +215,14 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--port must be between 1 and 65535.[/]");
             return Task.FromResult(1);
         }
+        if (settings.CtObservedOnly && settings.CtMissingOnly) {
+            AnsiConsole.MarkupLine("[red]--ct-observed-only cannot be combined with --ct-missing-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ChainCompleteOnly && settings.ChainIncompleteOnly) {
+            AnsiConsole.MarkupLine("[red]--chain-complete-only cannot be combined with --chain-incomplete-only.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.KnownCaOnly && settings.UnknownCaOnly) {
             AnsiConsole.MarkupLine("[red]--known-ca-only cannot be combined with --unknown-ca-only.[/]");
             return Task.FromResult(1);
@@ -240,6 +268,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             hostContains: settings.HostContains,
             serviceEquals: settings.ServiceEquals,
             portEquals: settings.PortEquals,
+            ctObservedOnly: settings.CtObservedOnly ? true : settings.CtMissingOnly ? false : null,
+            chainCompleteOnly: settings.ChainCompleteOnly ? true : settings.ChainIncompleteOnly ? false : null,
             knownAuthorityOnly: settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
             knownRootAuthorityOnly: settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
             authenticationProfileEquals: settings.AuthenticationProfileEquals,

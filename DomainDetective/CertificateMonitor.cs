@@ -487,6 +487,8 @@ namespace DomainDetective {
         /// <param name="hostContains">Optional case-insensitive host substring filter.</param>
         /// <param name="serviceEquals">Optional case-insensitive service exact-match filter (for example HTTPS, HTTPS-Alt, Custom TLS).</param>
         /// <param name="portEquals">Optional endpoint port exact-match filter (1-65535).</param>
+        /// <param name="ctObservedOnly">When set, only returns endpoint rows whose CT-observation state equals this value.</param>
+        /// <param name="chainCompleteOnly">When set, only returns endpoint rows whose chain-completeness state equals this value.</param>
         /// <param name="knownAuthorityOnly">When set, only returns endpoint rows whose recognized-issuer state equals this value.</param>
         /// <param name="knownRootAuthorityOnly">When set, only returns endpoint rows whose recognized-root-issuer state equals this value.</param>
         /// <param name="authenticationProfileEquals">Optional authentication-profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</param>
@@ -513,6 +515,8 @@ namespace DomainDetective {
             string? hostContains = null,
             string? serviceEquals = null,
             int? portEquals = null,
+            bool? ctObservedOnly = null,
+            bool? chainCompleteOnly = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -540,6 +544,8 @@ namespace DomainDetective {
                 hostContains,
                 serviceEquals,
                 portEquals,
+                ctObservedOnly,
+                chainCompleteOnly,
                 knownAuthorityOnly,
                 knownRootAuthorityOnly,
                 authenticationProfileEquals,
