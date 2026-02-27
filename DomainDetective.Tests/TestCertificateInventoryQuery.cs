@@ -233,6 +233,35 @@ namespace DomainDetective.Tests {
                 Assert.Single(validCt.Entries);
                 Assert.Equal("api.example.com", validCt.Entries[0].Entry.Host);
 
+                var noServerAuthOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsServerAuthOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, noServerAuthOnly.MatchedEntryCount);
+                Assert.Single(noServerAuthOnly.Entries);
+                Assert.Equal("internal.example.com", noServerAuthOnly.Entries[0].Entry.Host);
+                Assert.Equal(noServerAuthOnly.LoadedSnapshotCount, noServerAuthOnly.ScannedSnapshotCount + noServerAuthOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(noServerAuthOnly.EvaluatedEntryCount, noServerAuthOnly.MatchedEntryCount + noServerAuthOnly.ExcludedByFiltersCount);
+
+                var noClientAuthOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsClientAuthOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, noClientAuthOnly.MatchedEntryCount);
+                Assert.Equal(2, noClientAuthOnly.Entries.Count);
+                Assert.DoesNotContain(noClientAuthOnly.Entries, observed => string.Equals(observed.Entry.Host, "internal.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Equal(noClientAuthOnly.LoadedSnapshotCount, noClientAuthOnly.ScannedSnapshotCount + noClientAuthOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(noClientAuthOnly.EvaluatedEntryCount, noClientAuthOnly.MatchedEntryCount + noClientAuthOnly.ExcludedByFiltersCount);
+
+                var noSecureEmailOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsSecureEmailOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(3, noSecureEmailOnly.MatchedEntryCount);
+                Assert.Equal(3, noSecureEmailOnly.Entries.Count);
+                Assert.Equal(noSecureEmailOnly.LoadedSnapshotCount, noSecureEmailOnly.ScannedSnapshotCount + noSecureEmailOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(noSecureEmailOnly.EvaluatedEntryCount, noSecureEmailOnly.MatchedEntryCount + noSecureEmailOnly.ExcludedByFiltersCount);
+
                 var invalidOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     ValidOnly = false,
                     MaxResults = 10
@@ -527,6 +556,85 @@ namespace DomainDetective.Tests {
                 Assert.Equal(4, weakAndSha1.ExcludedByFiltersCount);
                 Assert.Equal(weakAndSha1.LoadedSnapshotCount, weakAndSha1.ScannedSnapshotCount + weakAndSha1.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(weakAndSha1.EvaluatedEntryCount, weakAndSha1.MatchedEntryCount + weakAndSha1.ExcludedByFiltersCount);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void QueryInventoryEntriesSupportsSecureEmailNegativeFilter() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var snapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "server-only.example.com",
+                            ResolvedHost = "server-only.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "server-only.example.com" },
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "secure-email.example.com",
+                            ResolvedHost = "secure-email.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "secure-email.example.com" },
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.MixedOrCustom
+                        }
+                    }
+                };
+
+                var file = Path.Combine(inventoryDir, $"{snapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(file, JsonSerializer.Serialize(snapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var noSecureEmailOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsSecureEmailOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, noSecureEmailOnly.MatchedEntryCount);
+                Assert.Single(noSecureEmailOnly.Entries);
+                Assert.Equal("server-only.example.com", noSecureEmailOnly.Entries[0].Entry.Host);
+                Assert.DoesNotContain(noSecureEmailOnly.Entries, observed => string.Equals(observed.Entry.Host, "secure-email.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var secureEmailOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsSecureEmailOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, secureEmailOnly.MatchedEntryCount);
+                Assert.Single(secureEmailOnly.Entries);
+                Assert.Equal("secure-email.example.com", secureEmailOnly.Entries[0].Entry.Host);
+                Assert.DoesNotContain(secureEmailOnly.Entries, observed => string.Equals(observed.Entry.Host, "server-only.example.com", StringComparison.OrdinalIgnoreCase));
             } finally {
                 if (Directory.Exists(tempDir)) {
                     Directory.Delete(tempDir, true);

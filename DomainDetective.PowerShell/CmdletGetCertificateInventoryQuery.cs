@@ -162,13 +162,25 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter ServerAuthOnly { get; set; }
 
+    /// <summary>Only include certificates that do not allow server authentication EKU.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NoServerAuthOnly { get; set; }
+
     /// <summary>Only include certificates allowing client authentication EKU.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter ClientAuthOnly { get; set; }
 
+    /// <summary>Only include certificates that do not allow client authentication EKU.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NoClientAuthOnly { get; set; }
+
     /// <summary>Only include certificates allowing secure email EKU.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter SecureEmailOnly { get; set; }
+
+    /// <summary>Only include certificates that do not allow secure email EKU.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NoSecureEmailOnly { get; set; }
 
     /// <summary>Only include certificates that use weak keys.</summary>
     [Parameter(Mandatory = false)]
@@ -266,6 +278,30 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
                 CtMissingOnly));
             return;
         }
+        if (ServerAuthOnly.IsPresent && NoServerAuthOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ServerAuthOnly cannot be combined with -NoServerAuthOnly.", nameof(NoServerAuthOnly)),
+                "ServerAuthAndNoServerAuthConflict",
+                ErrorCategory.InvalidArgument,
+                NoServerAuthOnly));
+            return;
+        }
+        if (ClientAuthOnly.IsPresent && NoClientAuthOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ClientAuthOnly cannot be combined with -NoClientAuthOnly.", nameof(NoClientAuthOnly)),
+                "ClientAuthAndNoClientAuthConflict",
+                ErrorCategory.InvalidArgument,
+                NoClientAuthOnly));
+            return;
+        }
+        if (SecureEmailOnly.IsPresent && NoSecureEmailOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-SecureEmailOnly cannot be combined with -NoSecureEmailOnly.", nameof(NoSecureEmailOnly)),
+                "SecureEmailAndNoSecureEmailConflict",
+                ErrorCategory.InvalidArgument,
+                NoSecureEmailOnly));
+            return;
+        }
         if (ExpiredOnly.IsPresent && ExpiringWithinDays.HasValue) {
             ThrowTerminatingError(new ErrorRecord(
                 new ArgumentException("-ExpiredOnly cannot be combined with -ExpiringWithinDays.", nameof(ExpiringWithinDays)),
@@ -330,9 +366,9 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
             SelfSignedOnly = SelfSignedOnly.IsPresent ? true : NotSelfSignedOnly.IsPresent ? false : null,
             ReachableOnly = UnreachableOnly.IsPresent ? false : ReachableOnly.IsPresent ? true : null,
             PresentInCtOnly = CtOnly.IsPresent ? true : CtMissingOnly.IsPresent ? false : null,
-            AllowsServerAuthOnly = ServerAuthOnly.IsPresent ? true : null,
-            AllowsClientAuthOnly = ClientAuthOnly.IsPresent ? true : null,
-            AllowsSecureEmailOnly = SecureEmailOnly.IsPresent ? true : null,
+            AllowsServerAuthOnly = ServerAuthOnly.IsPresent ? true : NoServerAuthOnly.IsPresent ? false : null,
+            AllowsClientAuthOnly = ClientAuthOnly.IsPresent ? true : NoClientAuthOnly.IsPresent ? false : null,
+            AllowsSecureEmailOnly = SecureEmailOnly.IsPresent ? true : NoSecureEmailOnly.IsPresent ? false : null,
             WeakKeyOnly = WeakKeyOnly.IsPresent ? true : null,
             Sha1SignatureOnly = Sha1SignatureOnly.IsPresent ? true : null,
             NotYetValidOnly = NotYetValidOnly.IsPresent ? true : null,
