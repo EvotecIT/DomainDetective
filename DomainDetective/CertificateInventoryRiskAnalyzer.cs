@@ -148,6 +148,8 @@ namespace DomainDetective {
             string? hostContains = null,
             string? serviceEquals = null,
             int? portEquals = null,
+            bool? ctObservedOnly = null,
+            bool? chainCompleteOnly = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -325,6 +327,12 @@ namespace DomainDetective {
                     continue;
                 }
                 if (hasPortFilter && row.Port != portExpected) {
+                    continue;
+                }
+                if (ctObservedOnly.HasValue && row.PresentInCtLogs != ctObservedOnly.Value) {
+                    continue;
+                }
+                if (chainCompleteOnly.HasValue && row.ChainComplete != chainCompleteOnly.Value) {
                     continue;
                 }
                 if (knownAuthorityOnly.HasValue && knownAuthorityOnly.Value != row.IsKnownCertificateAuthority) {

@@ -1065,6 +1065,105 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByCtObservationAndChainCompleteness() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "public-complete.example.com",
+                            ResolvedHost = "public-complete.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "private-complete.example.com",
+                            ResolvedHost = "private-complete.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = false,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "public-incomplete.example.com",
+                            ResolvedHost = "public-incomplete.example.com",
+                            Port = 8443,
+                            Service = "HTTPS-Alt",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = false,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var ctObserved = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                ctObservedOnly: true);
+            Assert.Equal(2, ctObserved.Endpoints.Count);
+            Assert.Contains(ctObserved.Endpoints, endpoint => endpoint.Host.Equals("public-complete.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(ctObserved.Endpoints, endpoint => endpoint.Host.Equals("public-incomplete.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var ctMissing = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                ctObservedOnly: false);
+            Assert.Single(ctMissing.Endpoints);
+            Assert.Equal("private-complete.example.com", ctMissing.Endpoints[0].Host);
+
+            var chainComplete = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                chainCompleteOnly: true);
+            Assert.Equal(2, chainComplete.Endpoints.Count);
+            Assert.Contains(chainComplete.Endpoints, endpoint => endpoint.Host.Equals("public-complete.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(chainComplete.Endpoints, endpoint => endpoint.Host.Equals("private-complete.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var chainIncomplete = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                chainCompleteOnly: false);
+            Assert.Single(chainIncomplete.Endpoints);
+            Assert.Equal("public-incomplete.example.com", chainIncomplete.Endpoints[0].Host);
+
+            var ctObservedAndChainIncomplete = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                ctObservedOnly: true,
+                chainCompleteOnly: false);
+            Assert.Single(ctObservedAndChainIncomplete.Endpoints);
+            Assert.Equal("public-incomplete.example.com", ctObservedAndChainIncomplete.Endpoints[0].Host);
+        }
+
+        [Fact]
         public void BuildRiskFiltersReturnedEndpointsByAuthUsageFlags() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {
