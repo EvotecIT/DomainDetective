@@ -263,7 +263,9 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             summary.AddRow("Skipped Older Endpoint Entries", result.SkippedByLatestPerEndpointCount.ToString());
         }
         summary.AddRow("Evaluated Entries", result.EvaluatedEntryCount.ToString());
-        summary.AddRow("Excluded by Filters", result.ExcludedByFiltersCount.ToString());
+        if (result.ExcludedByFiltersCount > 0) {
+            summary.AddRow("Excluded by Filters", result.ExcludedByFiltersCount.ToString());
+        }
         summary.AddRow("Matched Entries", result.MatchedEntryCount.ToString());
         summary.AddRow("Matched Unique Endpoints", result.MatchedUniqueEndpointCount.ToString());
         summary.AddRow("Returned Entries", result.Entries.Count.ToString());
