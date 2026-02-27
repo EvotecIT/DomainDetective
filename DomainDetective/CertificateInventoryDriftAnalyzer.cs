@@ -357,6 +357,12 @@ namespace DomainDetective {
             return GetSeverityRank(normalized!);
         }
 
+        /// <summary>
+        /// Attempts to normalize severity text to one of the canonical values: None, Low, Medium, High.
+        /// </summary>
+        /// <param name="value">Input severity text; null/whitespace is treated as no explicit filter.</param>
+        /// <param name="normalized">Canonical severity value, or null when no explicit severity was provided.</param>
+        /// <returns><c>true</c> when input is empty or a recognized severity value; otherwise <c>false</c>.</returns>
         public static bool TryNormalizeSeverity(string? value, out string? normalized) {
             normalized = null;
             if (string.IsNullOrWhiteSpace(value)) {
