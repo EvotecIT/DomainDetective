@@ -11,6 +11,7 @@ namespace DomainDetective {
         public int SnapshotCount { get; set; }
         public int EndpointCount { get; set; }
         public int EndpointsMatchingFilters { get; set; }
+        public List<string> AppliedChangeKinds { get; set; } = new();
         public int EndpointsWithAnyChange { get; set; }
         public int EndpointsWithHighSeverityDrift { get; set; }
         public int EndpointsWithMediumSeverityDrift { get; set; }
@@ -64,6 +65,12 @@ namespace DomainDetective {
         private const string DriftSeverityHigh = "High";
         private const string DriftSeverityMedium = "Medium";
         private const string DriftSeverityLow = "Low";
+        private const string ChangeKindCertificate = "certificate";
+        private const string ChangeKindIssuer = "issuer";
+        private const string ChangeKindExpiry = "expiry";
+        private const string ChangeKindService = "service";
+        private const string ChangeKindAuthProfile = "auth-profile";
+        private const string ChangeKindChainSource = "chain-source";
 
         private sealed class Observation {
             public DateTimeOffset CapturedAtUtc { get; init; }
@@ -74,10 +81,14 @@ namespace DomainDetective {
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             bool changedOnly = false,
             int maxEndpoints = 200,
-            string? minimumSeverity = null) {
+            string? minimumSeverity = null,
+            IEnumerable<string>? requiredChangeKinds = null) {
             var summary = new CertificateInventoryDriftSummary();
             var grouped = new Dictionary<string, List<Observation>>(StringComparer.OrdinalIgnoreCase);
             var minimumSeverityRank = ParseMinimumSeverityRank(minimumSeverity);
+            var normalizedChangeKinds = ParseRequiredChangeKinds(requiredChangeKinds);
+            var normalizedChangeKindSet = new HashSet<string>(normalizedChangeKinds, StringComparer.OrdinalIgnoreCase);
+            summary.AppliedChangeKinds.AddRange(normalizedChangeKinds);
 
             foreach (var snapshot in snapshots ?? Array.Empty<CertificateInventorySnapshot>()) {
                 if (snapshot == null) {
@@ -193,6 +204,10 @@ namespace DomainDetective {
                     continue;
                 }
 
+                if (normalizedChangeKindSet.Count > 0 && !row.ChangeKinds.Any(kind => normalizedChangeKindSet.Contains(kind))) {
+                    continue;
+                }
+
                 driftRows.Add(row);
             }
 
@@ -305,22 +320,22 @@ namespace DomainDetective {
         private static List<string> BuildChangeKinds(CertificateInventoryEndpointDrift row) {
             var kinds = new List<string>();
             if (row.CertificateChanged) {
-                kinds.Add("certificate");
+                kinds.Add(ChangeKindCertificate);
             }
             if (row.IssuerChanged) {
-                kinds.Add("issuer");
+                kinds.Add(ChangeKindIssuer);
             }
             if (row.ExpiryChanged) {
-                kinds.Add("expiry");
+                kinds.Add(ChangeKindExpiry);
             }
             if (row.ServiceChanged) {
-                kinds.Add("service");
+                kinds.Add(ChangeKindService);
             }
             if (row.AuthenticationProfileChanged) {
-                kinds.Add("auth-profile");
+                kinds.Add(ChangeKindAuthProfile);
             }
             if (row.ChainSourceChanged) {
-                kinds.Add("chain-source");
+                kinds.Add(ChangeKindChainSource);
             }
             return kinds;
         }
@@ -389,6 +404,51 @@ namespace DomainDetective {
             return false;
         }
 
+        /// <summary>
+        /// Attempts to normalize change-kind text to one of the canonical values:
+        /// certificate, issuer, expiry, service, auth-profile, chain-source.
+        /// </summary>
+        /// <param name="value">Input change-kind text.</param>
+        /// <param name="normalized">Canonical change-kind value when recognized; otherwise null.</param>
+        /// <returns><c>true</c> when input is a recognized change kind; otherwise <c>false</c>.</returns>
+        public static bool TryNormalizeChangeKind(string? value, out string? normalized) {
+            normalized = null;
+            if (string.IsNullOrWhiteSpace(value)) {
+                return false;
+            }
+
+            var trimmed = value!.Trim();
+            if (trimmed.Equals(ChangeKindCertificate, StringComparison.OrdinalIgnoreCase)) {
+                normalized = ChangeKindCertificate;
+                return true;
+            }
+            if (trimmed.Equals(ChangeKindIssuer, StringComparison.OrdinalIgnoreCase)) {
+                normalized = ChangeKindIssuer;
+                return true;
+            }
+            if (trimmed.Equals(ChangeKindExpiry, StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("expiration", StringComparison.OrdinalIgnoreCase)) {
+                normalized = ChangeKindExpiry;
+                return true;
+            }
+            if (trimmed.Equals(ChangeKindService, StringComparison.OrdinalIgnoreCase)) {
+                normalized = ChangeKindService;
+                return true;
+            }
+            if (trimmed.Equals(ChangeKindAuthProfile, StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("authprofile", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("authenticationprofile", StringComparison.OrdinalIgnoreCase)) {
+                normalized = ChangeKindAuthProfile;
+                return true;
+            }
+            if (trimmed.Equals(ChangeKindChainSource, StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("chainsource", StringComparison.OrdinalIgnoreCase)) {
+                normalized = ChangeKindChainSource;
+                return true;
+            }
+            return false;
+        }
+
         private static int GetSeverityRank(string severity) {
             if (severity.Equals(DriftSeverityNone, StringComparison.OrdinalIgnoreCase)) {
                 return 0;
@@ -403,6 +463,29 @@ namespace DomainDetective {
                 return 3;
             }
             throw new ArgumentException("severity must be one of: None, Low, Medium, High.", nameof(severity));
+        }
+
+        private static List<string> ParseRequiredChangeKinds(IEnumerable<string>? requiredChangeKinds) {
+            var normalized = new List<string>();
+            if (requiredChangeKinds == null) {
+                return normalized;
+            }
+
+            var dedupe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var raw in requiredChangeKinds) {
+                if (!TryNormalizeChangeKind(raw, out var normalizedChangeKind) || string.IsNullOrWhiteSpace(normalizedChangeKind)) {
+                    throw new ArgumentException(
+                        "requiredChangeKinds must contain only: certificate, issuer, expiry, service, auth-profile, chain-source.",
+                        nameof(requiredChangeKinds));
+                }
+
+                var normalizedValue = normalizedChangeKind!;
+                if (dedupe.Add(normalizedValue)) {
+                    normalized.Add(normalizedValue);
+                }
+            }
+
+            return normalized;
         }
     }
 }

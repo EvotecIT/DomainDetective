@@ -427,17 +427,20 @@ namespace DomainDetective {
         /// <param name="changedOnly">When true, only returns endpoints with observed changes.</param>
         /// <param name="maxEndpoints">Maximum number of endpoint rows returned.</param>
         /// <param name="minimumSeverity">Optional minimum drift severity filter (None, Low, Medium, High).</param>
+        /// <param name="requiredChangeKinds">Optional list of required drift change kinds (certificate, issuer, expiry, service, auth-profile, chain-source).</param>
         public CertificateInventoryDriftSummary BuildInventoryDrift(
             DateTimeOffset? sinceUtc = null,
             bool changedOnly = false,
             int maxEndpoints = 200,
-            string? minimumSeverity = null) {
+            string? minimumSeverity = null,
+            IEnumerable<string>? requiredChangeKinds = null) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
             return CertificateInventoryDriftAnalyzer.BuildDrift(
                 snapshots,
                 changedOnly,
                 maxEndpoints,
-                minimumSeverity);
+                minimumSeverity,
+                requiredChangeKinds);
         }
 
         /// <summary>Builds a point-in-time diff between two inventory snapshots.</summary>

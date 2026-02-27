@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Management.Automation;
 
@@ -13,6 +14,10 @@ namespace DomainDetective.PowerShell;
 /// <example>
 ///   <summary>Show only medium and high severity drift rows</summary>
 ///   <code>Get-DDCertificateInventoryDrift -MinimumSeverity Medium</code>
+/// </example>
+/// <example>
+///   <summary>Show only certificate and auth-profile drift kinds</summary>
+///   <code>Get-DDCertificateInventoryDrift -ChangeKind Certificate,AuthProfile</code>
 /// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryDrift")]
 [Alias("Get-CertificateInventoryDrift")]
@@ -40,6 +45,11 @@ public sealed class CmdletGetCertificateInventoryDrift : PSCmdlet {
     [ValidateSet("None", "Low", "Medium", "High")]
     public string? MinimumSeverity { get; set; }
 
+    /// <summary>Optional list of required drift change kinds.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateSet("Certificate", "Issuer", "Expiry", "Service", "AuthProfile", "ChainSource")]
+    public string[]? ChangeKind { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         var monitor = new CertificateMonitor {
@@ -52,11 +62,28 @@ public sealed class CmdletGetCertificateInventoryDrift : PSCmdlet {
             since = new DateTimeOffset(DateTime.SpecifyKind(SinceUtc.Value, DateTimeKind.Utc));
         }
 
+        List<string>? requiredChangeKinds = null;
+        if (ChangeKind != null && ChangeKind.Length > 0) {
+            requiredChangeKinds = new List<string>(ChangeKind.Length);
+            var dedupe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var value in ChangeKind) {
+                if (!CertificateInventoryDriftAnalyzer.TryNormalizeChangeKind(value, out var normalized) || string.IsNullOrWhiteSpace(normalized)) {
+                    throw new PSArgumentException("ChangeKind contains an unsupported value.");
+                }
+
+                var normalizedValue = normalized!;
+                if (dedupe.Add(normalizedValue)) {
+                    requiredChangeKinds.Add(normalizedValue);
+                }
+            }
+        }
+
         var summary = monitor.BuildInventoryDrift(
             sinceUtc: since,
             changedOnly: ChangedOnly.IsPresent,
             maxEndpoints: MaxEndpoints,
-            minimumSeverity: MinimumSeverity);
+            minimumSeverity: MinimumSeverity,
+            requiredChangeKinds: requiredChangeKinds);
         WriteObject(summary);
     }
 
