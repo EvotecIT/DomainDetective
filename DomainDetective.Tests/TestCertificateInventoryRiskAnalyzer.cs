@@ -1164,6 +1164,105 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByReachabilityAndHostnameValidation() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "reachable-match.example.com",
+                            ResolvedHost = "reachable-match.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "unreachable-match.example.com",
+                            ResolvedHost = "unreachable-match.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = false,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "reachable-mismatch.example.com",
+                            ResolvedHost = "reachable-mismatch.example.com",
+                            Port = 8443,
+                            Service = "HTTPS-Alt",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = false,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var reachable = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                reachableOnly: true);
+            Assert.Equal(2, reachable.Endpoints.Count);
+            Assert.Contains(reachable.Endpoints, endpoint => endpoint.Host.Equals("reachable-match.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(reachable.Endpoints, endpoint => endpoint.Host.Equals("reachable-mismatch.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var unreachable = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                reachableOnly: false);
+            Assert.Single(unreachable.Endpoints);
+            Assert.Equal("unreachable-match.example.com", unreachable.Endpoints[0].Host);
+
+            var hostnameMatch = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                hostnameMatchOnly: true);
+            Assert.Equal(2, hostnameMatch.Endpoints.Count);
+            Assert.Contains(hostnameMatch.Endpoints, endpoint => endpoint.Host.Equals("reachable-match.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(hostnameMatch.Endpoints, endpoint => endpoint.Host.Equals("unreachable-match.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var hostnameMismatch = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                hostnameMatchOnly: false);
+            Assert.Single(hostnameMismatch.Endpoints);
+            Assert.Equal("reachable-mismatch.example.com", hostnameMismatch.Endpoints[0].Host);
+
+            var reachableAndHostnameMismatch = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                reachableOnly: true,
+                hostnameMatchOnly: false);
+            Assert.Single(reachableAndHostnameMismatch.Endpoints);
+            Assert.Equal("reachable-mismatch.example.com", reachableAndHostnameMismatch.Endpoints[0].Host);
+        }
+
+        [Fact]
         public void BuildRiskFiltersReturnedEndpointsByAuthUsageFlags() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

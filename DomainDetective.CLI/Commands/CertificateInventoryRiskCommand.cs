@@ -138,6 +138,26 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--chain-incomplete-only")]
     public bool ChainIncompleteOnly { get; set; }
 
+    /// <summary>Only include endpoints reachable on the scanned endpoint.</summary>
+    [Description("Only include endpoints reachable on the scanned endpoint.")]
+    [CommandOption("--reachable-only")]
+    public bool ReachableOnly { get; set; }
+
+    /// <summary>Only include endpoints that were not reachable on the scanned endpoint.</summary>
+    [Description("Only include endpoints that were not reachable on the scanned endpoint.")]
+    [CommandOption("--unreachable-only")]
+    public bool UnreachableOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificate matches the requested hostname.</summary>
+    [Description("Only include endpoints whose certificate matches the requested hostname.")]
+    [CommandOption("--hostname-match-only")]
+    public bool HostnameMatchOnly { get; set; }
+
+    /// <summary>Only include endpoints whose certificate does not match the requested hostname.</summary>
+    [Description("Only include endpoints whose certificate does not match the requested hostname.")]
+    [CommandOption("--hostname-mismatch-only")]
+    public bool HostnameMismatchOnly { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Description("Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).")]
     [CommandOption("--auth-profile <NAME>")]
@@ -223,6 +243,14 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--chain-complete-only cannot be combined with --chain-incomplete-only.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ReachableOnly && settings.UnreachableOnly) {
+            AnsiConsole.MarkupLine("[red]--reachable-only cannot be combined with --unreachable-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.HostnameMatchOnly && settings.HostnameMismatchOnly) {
+            AnsiConsole.MarkupLine("[red]--hostname-match-only cannot be combined with --hostname-mismatch-only.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.KnownCaOnly && settings.UnknownCaOnly) {
             AnsiConsole.MarkupLine("[red]--known-ca-only cannot be combined with --unknown-ca-only.[/]");
             return Task.FromResult(1);
@@ -270,6 +298,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             portEquals: settings.PortEquals,
             ctObservedOnly: settings.CtObservedOnly ? true : settings.CtMissingOnly ? false : null,
             chainCompleteOnly: settings.ChainCompleteOnly ? true : settings.ChainIncompleteOnly ? false : null,
+            reachableOnly: settings.ReachableOnly ? true : settings.UnreachableOnly ? false : null,
+            hostnameMatchOnly: settings.HostnameMatchOnly ? true : settings.HostnameMismatchOnly ? false : null,
             knownAuthorityOnly: settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
             knownRootAuthorityOnly: settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
             authenticationProfileEquals: settings.AuthenticationProfileEquals,

@@ -150,6 +150,8 @@ namespace DomainDetective {
             int? portEquals = null,
             bool? ctObservedOnly = null,
             bool? chainCompleteOnly = null,
+            bool? reachableOnly = null,
+            bool? hostnameMatchOnly = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -333,6 +335,12 @@ namespace DomainDetective {
                     continue;
                 }
                 if (chainCompleteOnly.HasValue && row.ChainComplete != chainCompleteOnly.Value) {
+                    continue;
+                }
+                if (reachableOnly.HasValue && row.IsReachable != reachableOnly.Value) {
+                    continue;
+                }
+                if (hostnameMatchOnly.HasValue && row.HostnameMatch != hostnameMatchOnly.Value) {
                     continue;
                 }
                 if (knownAuthorityOnly.HasValue && knownAuthorityOnly.Value != row.IsKnownCertificateAuthority) {
