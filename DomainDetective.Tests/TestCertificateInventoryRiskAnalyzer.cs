@@ -340,8 +340,8 @@ namespace DomainDetective.Tests {
                             PresentInCtLogs = true,
                             AllowsServerAuthentication = true,
                             AllowsClientAuthentication = true,
-                            AllowsSecureEmail = false,
-                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAndClientAuth
+                            AllowsSecureEmail = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.MixedOrCustom
                         }
                     }
                 }
@@ -361,8 +361,8 @@ namespace DomainDetective.Tests {
             Assert.Equal("mtls.example.com", endpoint.Host);
             Assert.True(endpoint.AllowsServerAuthentication);
             Assert.True(endpoint.AllowsClientAuthentication);
-            Assert.False(endpoint.AllowsSecureEmail);
-            Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAndClientAuth, endpoint.AuthenticationProfile);
+            Assert.True(endpoint.AllowsSecureEmail);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.MixedOrCustom, endpoint.AuthenticationProfile);
         }
 
         [Fact]
