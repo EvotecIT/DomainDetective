@@ -58,6 +58,10 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? ReasonContains { get; set; }
 
+    /// <summary>Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</summary>
+    [Parameter(Mandatory = false)]
+    public string? IssuerContains { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         if (CriticalExpiringWithinDays > ExpiringWithinDays) {
@@ -86,7 +90,8 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             criticalExpiringWithinDays: CriticalExpiringWithinDays,
             maxEndpoints: MaxEndpoints,
             minimumSeverity: MinimumSeverity,
-            reasonContains: ReasonContains);
+            reasonContains: ReasonContains,
+            issuerContains: IssuerContains);
         WriteObject(risk);
     }
 

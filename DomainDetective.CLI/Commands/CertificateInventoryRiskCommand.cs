@@ -58,6 +58,11 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--reason-contains <TEXT>")]
     public string? ReasonContains { get; set; }
 
+    /// <summary>Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</summary>
+    [Description("Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).")]
+    [CommandOption("--issuer-contains <TEXT>")]
+    public string? IssuerContains { get; set; }
+
     /// <summary>Output JSON instead of tables.</summary>
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
@@ -115,7 +120,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             criticalExpiringWithinDays: settings.CriticalExpiringWithinDays,
             maxEndpoints: settings.MaxEndpoints,
             minimumSeverity: normalizedMinimumSeverity,
-            reasonContains: settings.ReasonContains);
+            reasonContains: settings.ReasonContains,
+            issuerContains: settings.IssuerContains);
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(risk, JsonOptions.Default));

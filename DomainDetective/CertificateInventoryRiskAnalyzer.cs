@@ -121,7 +121,8 @@ namespace DomainDetective {
             int criticalExpiringWithinDays = 7,
             int maxEndpoints = 300,
             string? minimumSeverity = null,
-            string? reasonContains = null) {
+            string? reasonContains = null,
+            string? issuerContains = null) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
             var hasMinimumSeverity = TryResolveMinimumSeverity(minimumSeverity, out var minimumSeverityScore, out _);
@@ -130,6 +131,8 @@ namespace DomainDetective {
             }
             var hasReasonFilter = !string.IsNullOrWhiteSpace(reasonContains);
             var reasonNeedle = hasReasonFilter ? reasonContains!.Trim() : string.Empty;
+            var hasIssuerFilter = !string.IsNullOrWhiteSpace(issuerContains);
+            var issuerNeedle = hasIssuerFilter ? issuerContains!.Trim() : string.Empty;
             // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
             // Example: includeNoRisk=true with minimumSeverity=Low still excludes score=0 endpoints.
 
@@ -186,6 +189,16 @@ namespace DomainDetective {
                     var matchesReason = row.Reasons.Any(reason =>
                         reason.IndexOf(reasonNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
                     if (!matchesReason) {
+                        continue;
+                    }
+                }
+                if (hasIssuerFilter) {
+                    var leafIssuer = row.Issuer ?? string.Empty;
+                    var rootIssuer = row.RootIssuer ?? string.Empty;
+                    var matchesIssuer =
+                        leafIssuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        rootIssuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (!matchesIssuer) {
                         continue;
                     }
                 }

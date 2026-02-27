@@ -474,7 +474,8 @@ namespace DomainDetective {
         /// <param name="criticalExpiringWithinDays">Critical window for expiring certificates.</param>
         /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
         /// <param name="minimumSeverity">Optional minimum endpoint severity filter (None, Low, Medium, High, Critical). Applied after includeNoRisk filtering.</param>
-        /// <param name="reasonContains">Optional case-insensitive reason substring filter (for example Expired, WeakKey, CtNotObserved).</param>
+        /// <param name="reasonContains">Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).</param>
+        /// <param name="issuerContains">Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</param>
         public CertificateInventoryRiskSummary BuildInventoryRisk(
             DateTimeOffset? sinceUtc = null,
             bool includeNoRisk = false,
@@ -482,7 +483,8 @@ namespace DomainDetective {
             int criticalExpiringWithinDays = 7,
             int maxEndpoints = 300,
             string? minimumSeverity = null,
-            string? reasonContains = null) {
+            string? reasonContains = null,
+            string? issuerContains = null) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
             return CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
@@ -491,7 +493,8 @@ namespace DomainDetective {
                 criticalExpiringWithinDays,
                 maxEndpoints,
                 minimumSeverity,
-                reasonContains);
+                reasonContains,
+                issuerContains);
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>
