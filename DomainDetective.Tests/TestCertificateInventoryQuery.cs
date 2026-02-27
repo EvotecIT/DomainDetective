@@ -305,6 +305,135 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void QueryInventoryEntriesSupportsCryptoRiskFilters() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var snapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-10),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "weak.example.com",
+                            ResolvedHost = "weak.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "weak.example.com" },
+                            NotBeforeUtc = now.AddDays(-10),
+                            NotAfterUtc = now.AddDays(30),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            WeakKey = true,
+                            Sha1Signature = false,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "sha1.example.com",
+                            ResolvedHost = "sha1.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "sha1.example.com" },
+                            NotBeforeUtc = now.AddDays(-20),
+                            NotAfterUtc = now.AddDays(40),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            WeakKey = false,
+                            Sha1Signature = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "future.example.com",
+                            ResolvedHost = "future.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "future.example.com" },
+                            NotBeforeUtc = now.AddHours(4),
+                            NotAfterUtc = now.AddDays(60),
+                            Valid = false,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            WeakKey = false,
+                            Sha1Signature = false,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+
+                var file = Path.Combine(inventoryDir, $"{snapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(file, JsonSerializer.Serialize(snapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var weakOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    WeakKeyOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, weakOnly.LoadedSnapshotCount);
+                Assert.Equal(1, weakOnly.ScannedSnapshotCount);
+                Assert.Equal(0, weakOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(3, weakOnly.ScannedEntryCount);
+                Assert.Equal(3, weakOnly.EvaluatedEntryCount);
+                Assert.Equal(2, weakOnly.ExcludedByFiltersCount);
+                Assert.Equal(1, weakOnly.MatchedEntryCount);
+                Assert.Equal(0, weakOnly.EntriesTruncatedByMaxResults);
+                Assert.Equal(weakOnly.LoadedSnapshotCount, weakOnly.ScannedSnapshotCount + weakOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(weakOnly.EvaluatedEntryCount, weakOnly.MatchedEntryCount + weakOnly.ExcludedByFiltersCount);
+                Assert.Single(weakOnly.Entries);
+                Assert.Equal("weak.example.com", weakOnly.Entries[0].Entry.Host);
+
+                var sha1Only = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    Sha1SignatureOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, sha1Only.MatchedEntryCount);
+                Assert.Single(sha1Only.Entries);
+                Assert.Equal("sha1.example.com", sha1Only.Entries[0].Entry.Host);
+                Assert.Equal(sha1Only.LoadedSnapshotCount, sha1Only.ScannedSnapshotCount + sha1Only.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(sha1Only.EvaluatedEntryCount, sha1Only.MatchedEntryCount + sha1Only.ExcludedByFiltersCount);
+
+                var notYetValidOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    NotYetValidOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, notYetValidOnly.MatchedEntryCount);
+                Assert.Single(notYetValidOnly.Entries);
+                Assert.Equal("future.example.com", notYetValidOnly.Entries[0].Entry.Host);
+                Assert.Equal(notYetValidOnly.LoadedSnapshotCount, notYetValidOnly.ScannedSnapshotCount + notYetValidOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(notYetValidOnly.EvaluatedEntryCount, notYetValidOnly.MatchedEntryCount + notYetValidOnly.ExcludedByFiltersCount);
+
+                var weakAndSha1 = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    WeakKeyOnly = true,
+                    Sha1SignatureOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(0, weakAndSha1.MatchedEntryCount);
+                Assert.Empty(weakAndSha1.Entries);
+                Assert.Equal(3, weakAndSha1.ExcludedByFiltersCount);
+                Assert.Equal(weakAndSha1.LoadedSnapshotCount, weakAndSha1.ScannedSnapshotCount + weakAndSha1.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(weakAndSha1.EvaluatedEntryCount, weakAndSha1.MatchedEntryCount + weakAndSha1.ExcludedByFiltersCount);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
         public void QueryInventoryEntriesLatestPerEndpointOnlyUsesNewestObservation() {
             var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
             var inventoryDir = Path.Combine(tempDir, "inventory");

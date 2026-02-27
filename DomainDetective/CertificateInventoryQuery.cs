@@ -58,6 +58,12 @@ namespace DomainDetective {
         public bool? AllowsClientAuthOnly { get; set; }
         /// <summary>When set, include only entries whose secure-email EKU state equals this value.</summary>
         public bool? AllowsSecureEmailOnly { get; set; }
+        /// <summary>When set, include only entries whose weak-key state equals this value.</summary>
+        public bool? WeakKeyOnly { get; set; }
+        /// <summary>When set, include only entries whose SHA-1 signature state equals this value.</summary>
+        public bool? Sha1SignatureOnly { get; set; }
+        /// <summary>When set, include only entries whose not-yet-valid state equals this value (NotBeforeUtc is in the future).</summary>
+        public bool? NotYetValidOnly { get; set; }
         /// <summary>Case-insensitive authentication profile exact-match filter.</summary>
         public string? AuthenticationProfileEquals { get; set; }
         /// <summary>Only include certificates expiring within this many days (future dates only).</summary>
