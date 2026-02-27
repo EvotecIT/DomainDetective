@@ -54,6 +54,10 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? RootContains { get; set; }
 
+    /// <summary>CT template/configuration error substring filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? CtTemplateErrorContains { get; set; }
+
     /// <summary>Leaf certificate thumbprint exact-match filter.</summary>
     [Parameter(Mandatory = false)]
     public string? ThumbprintEquals { get; set; }
@@ -147,6 +151,7 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
             ServiceEquals = ServiceEquals,
             IssuerContains = IssuerContains,
             RootContains = RootContains,
+            CtTemplateErrorContains = CtTemplateErrorContains,
             ThumbprintEquals = ThumbprintEquals,
             KnownAuthorityOnly = KnownCaOnly.IsPresent ? true : null,
             ValidOnly = ValidOnly.IsPresent ? true : null,

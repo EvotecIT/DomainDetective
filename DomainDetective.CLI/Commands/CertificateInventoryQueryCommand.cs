@@ -60,6 +60,11 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--root-contains <TEXT>")]
     public string? RootContains { get; set; }
 
+    /// <summary>CT template/configuration error substring filter.</summary>
+    [Description("CT template/configuration error substring filter.")]
+    [CommandOption("--ct-template-error-contains <TEXT>")]
+    public string? CtTemplateErrorContains { get; set; }
+
     /// <summary>Leaf certificate thumbprint exact-match filter.</summary>
     [Description("Leaf certificate thumbprint exact-match filter.")]
     [CommandOption("--thumbprint <HEX>")]
@@ -176,6 +181,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             ServiceEquals = settings.ServiceEquals,
             IssuerContains = settings.IssuerContains,
             RootContains = settings.RootContains,
+            CtTemplateErrorContains = settings.CtTemplateErrorContains,
             ThumbprintEquals = settings.ThumbprintEquals,
             KnownAuthorityOnly = settings.KnownCaOnly ? true : null,
             ValidOnly = settings.ValidOnly ? true : null,

@@ -57,6 +57,7 @@ namespace DomainDetective.Tests {
                         AllowsServerAuthentication = false,
                         AllowsClientAuthentication = true,
                         AuthenticationProfile = CertificateAuthenticationProfileClassifier.ClientAuthOnly,
+                        CtTemplateFormatErrors = new List<string> { "CensysApiUrlTemplate: source enabled but template is empty." },
                         CertificateChainSource = "local-build-no-check",
                         CertificateIssuer = "CN=DigiCert TLS RSA SHA256 2020 CA1, O=DigiCert Inc, C=US",
                         CertificateRootIssuerNormalized = "DigiCert Global Root G2"
@@ -92,6 +93,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, summary.SecureEmailEndpointCount);
             Assert.Equal(1, summary.SelfSignedEndpointCount);
             Assert.Equal(1, summary.IncompleteChainEndpointCount);
+            Assert.Equal(1, summary.CtTemplateErrorEndpointCount);
             Assert.Equal(2, summary.ServiceCounts["HTTPS"]);
             Assert.Equal(1, summary.ServiceCounts["HTTPS-Alt"]);
             Assert.Equal(1, summary.IssuerCounts["Let's Encrypt"]);
@@ -108,6 +110,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, summary.CtSourceCounts["crt.sh"]);
             Assert.Equal(1, summary.CtSourceCounts["shodan"]);
             Assert.Equal(2, summary.CtSourceCounts["none"]);
+            Assert.Equal(1, summary.CtTemplateErrorCounts["CensysApiUrlTemplate"]);
             Assert.Single(summary.ExpiringSoon);
             Assert.Equal("mail.example.com", summary.ExpiringSoon[0].Host);
         }

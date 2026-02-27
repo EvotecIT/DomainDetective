@@ -26,6 +26,7 @@ public class TestCtLogIntegration
         Assert.True(analysis.PresentInCtLogs);
         Assert.Single(analysis.CtLogEntries);
         Assert.Contains("override", analysis.CtDiscoverySources);
+        Assert.Empty(analysis.CtTemplateFormatErrors);
         Assert.Equal(5, analysis.CtLogEntries[0].GetProperty("id").GetInt32());
     }
 
@@ -165,6 +166,28 @@ public class TestCtLogIntegration
         Assert.Contains("crt.sh", analysis.CtDiscoverySources);
         Assert.Contains("censys", analysis.CtDiscoverySources);
         Assert.Equal(2, handler.RequestUrls.Count);
+    }
+
+    [Fact]
+    public async Task CertificateAnalysisExposesCtTemplateFormatErrors()
+    {
+        var cert = new X509Certificate2("Data/wildcard.pem");
+        var analysis = new CertificateAnalysis
+        {
+            SkipRevocation = true,
+            EnableCensysCtSource = true,
+            CensysApiId = "id",
+            CensysApiSecret = "secret",
+            CensysCtApiUrlTemplate = string.Empty
+        };
+        analysis.CtLogApiTemplates.Clear();
+
+        await analysis.AnalyzeCertificate(cert);
+
+        Assert.False(analysis.PresentInCtLogs);
+        Assert.Empty(analysis.CtDiscoverySources);
+        Assert.Contains(analysis.CtTemplateFormatErrors, error =>
+            error.IndexOf("CensysApiUrlTemplate", System.StringComparison.OrdinalIgnoreCase) >= 0);
     }
 
     private static HttpResponseMessage CreateJsonResponse(HttpStatusCode statusCode, string json)

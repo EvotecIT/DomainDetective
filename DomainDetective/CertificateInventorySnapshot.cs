@@ -52,6 +52,8 @@ namespace DomainDetective {
         public bool PresentInCtLogs { get; set; }
         /// <summary>CT/discovery sources queried when evaluating certificate presence.</summary>
         public IReadOnlyList<string> CtDiscoverySources { get; set; } = Array.Empty<string>();
+        /// <summary>CT template-format/configuration errors observed during CT discovery.</summary>
+        public IReadOnlyList<string> CtTemplateFormatErrors { get; set; } = Array.Empty<string>();
         /// <summary>Days to expiry as observed at snapshot capture time.</summary>
         public int DaysToExpire { get; set; }
         public int DaysValid { get; set; }

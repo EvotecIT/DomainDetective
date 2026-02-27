@@ -38,6 +38,7 @@ namespace DomainDetective.Tests {
                     Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAuthOnly, entry.AuthenticationProfile);
                     Assert.Contains(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid, entry.ExtendedKeyUsageOids);
                     Assert.Contains("override", entry.CtDiscoverySources);
+                    Assert.Empty(entry.CtTemplateFormatErrors);
                     Assert.Equal("HTTPS", entry.Service);
                     Assert.Equal(443, entry.Port);
                     Assert.Equal("https", entry.Scheme);
@@ -55,6 +56,46 @@ namespace DomainDetective.Tests {
                     Assert.True(entry.CertificateChainIssuers.Count >= 1);
                     Assert.True(entry.CertificateChainThumbprints.Count >= 1);
                 });
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task AnalyzePersistsCtTemplateFormatErrorsInInventorySnapshot() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                using var cert = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = true,
+                    AnalysisOverride = async (host, port, logger, cancellationToken) => {
+                        var analysis = new CertificateAnalysis {
+                            SkipRevocation = true,
+                            EnableCensysCtSource = true,
+                            CensysApiId = "id",
+                            CensysApiSecret = "secret",
+                            CensysCtApiUrlTemplate = string.Empty
+                        };
+                        analysis.CtLogApiTemplates.Clear();
+                        await analysis.AnalyzeCertificate(cert, cancellationToken);
+                        analysis.Url = host;
+                        analysis.IsReachable = true;
+                        return analysis;
+                    }
+                };
+
+                await monitor.Analyze(new[] { "https://template-errors.example.test" }, 443, showProgress: false);
+                var snapshots = monitor.LoadInventorySnapshots();
+
+                Assert.Single(snapshots);
+                Assert.Single(snapshots[0].Entries);
+                var entry = snapshots[0].Entries[0];
+                Assert.Contains(entry.CtTemplateFormatErrors, error =>
+                    error.IndexOf("CensysApiUrlTemplate", StringComparison.OrdinalIgnoreCase) >= 0);
             } finally {
                 if (Directory.Exists(tempDir)) {
                     Directory.Delete(tempDir, true);
