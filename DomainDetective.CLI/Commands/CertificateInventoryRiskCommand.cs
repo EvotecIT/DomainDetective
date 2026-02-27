@@ -48,6 +48,11 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [DefaultValue(300)]
     public int MaxEndpoints { get; set; } = 300;
 
+    /// <summary>Optional minimum severity filter (None means no additional score filter).</summary>
+    [Description("Optional minimum severity filter (None means no additional score filter; other values: Low, Medium, High, Critical).")]
+    [CommandOption("--minimum-severity <LEVEL>")]
+    public string? MinimumSeverity { get; set; }
+
     /// <summary>Output JSON instead of tables.</summary>
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
@@ -81,6 +86,16 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--critical-expiring-within-days cannot be greater than --expiring-within-days.[/]");
             return Task.FromResult(1);
         }
+        var normalizedMinimumSeverity = settings.MinimumSeverity;
+        if (!string.IsNullOrWhiteSpace(settings.MinimumSeverity)) {
+            if (!CertificateInventoryRiskAnalyzer.TryResolveMinimumSeverity(settings.MinimumSeverity, out _, out var normalized)) {
+                AnsiConsole.MarkupLine($"[red]--minimum-severity must be one of: {CertificateInventoryRiskAnalyzer.MinimumSeverityAcceptedValues}.[/]");
+                return Task.FromResult(1);
+            }
+
+            // Validate early for user-friendly CLI messaging; analyzer validates again for API callers.
+            normalizedMinimumSeverity = normalized;
+        }
 
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {
@@ -93,7 +108,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             includeNoRisk: settings.IncludeHealthy,
             expiringWithinDays: settings.ExpiringWithinDays,
             criticalExpiringWithinDays: settings.CriticalExpiringWithinDays,
-            maxEndpoints: settings.MaxEndpoints);
+            maxEndpoints: settings.MaxEndpoints,
+            minimumSeverity: normalizedMinimumSeverity);
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(risk, JsonOptions.Default));

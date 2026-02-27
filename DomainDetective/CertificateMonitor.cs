@@ -473,19 +473,22 @@ namespace DomainDetective {
         /// <param name="expiringWithinDays">Warning window for expiring certificates.</param>
         /// <param name="criticalExpiringWithinDays">Critical window for expiring certificates.</param>
         /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
+        /// <param name="minimumSeverity">Optional minimum endpoint severity filter (None, Low, Medium, High, Critical). Applied after includeNoRisk filtering.</param>
         public CertificateInventoryRiskSummary BuildInventoryRisk(
             DateTimeOffset? sinceUtc = null,
             bool includeNoRisk = false,
             int expiringWithinDays = 30,
             int criticalExpiringWithinDays = 7,
-            int maxEndpoints = 300) {
+            int maxEndpoints = 300,
+            string? minimumSeverity = null) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
             return CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
                 includeNoRisk,
                 expiringWithinDays,
                 criticalExpiringWithinDays,
-                maxEndpoints);
+                maxEndpoints,
+                minimumSeverity);
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>

@@ -62,9 +62,50 @@ namespace DomainDetective {
     /// Computes endpoint-level risk posture from persisted inventory snapshots.
     /// </summary>
     public static class CertificateInventoryRiskAnalyzer {
+        private static readonly IReadOnlyList<(string Name, int Score)> SeverityThresholds = new[] {
+            ("None", 0),
+            ("Low", 1),
+            ("Medium", 30),
+            ("High", 60),
+            ("Critical", 85)
+        };
+
+        public static readonly string MinimumSeverityAcceptedValues =
+            string.Join(", ", SeverityThresholds.Select(level => level.Name));
+
+        private static readonly Dictionary<string, int> SeverityScoreThresholds =
+            SeverityThresholds.ToDictionary(level => level.Name, level => level.Score, StringComparer.OrdinalIgnoreCase);
+
         private sealed class LatestEntryState {
             public DateTimeOffset CapturedAtUtc { get; init; }
             public CertificateInventoryEntry Entry { get; init; } = null!;
+        }
+
+        /// <summary>
+        /// Attempts to resolve a severity label to its minimum score threshold.
+        /// Returns false for null/empty input and unrecognized labels.
+        /// </summary>
+        public static bool TryResolveMinimumSeverity(string? severity, out int minimumScore, out string normalizedSeverity) {
+            minimumScore = 0;
+            normalizedSeverity = string.Empty;
+            if (severity == null) {
+                return false;
+            }
+
+            var candidate = severity.Trim();
+            if (candidate.Length == 0) {
+                return false;
+            }
+
+            foreach (var pair in SeverityScoreThresholds) {
+                if (string.Equals(pair.Key, candidate, StringComparison.OrdinalIgnoreCase)) {
+                    minimumScore = pair.Value;
+                    normalizedSeverity = pair.Key;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public static CertificateInventoryRiskSummary BuildRisk(
@@ -72,9 +113,16 @@ namespace DomainDetective {
             bool includeNoRisk = false,
             int expiringWithinDays = 30,
             int criticalExpiringWithinDays = 7,
-            int maxEndpoints = 300) {
+            int maxEndpoints = 300,
+            string? minimumSeverity = null) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
+            var hasMinimumSeverity = TryResolveMinimumSeverity(minimumSeverity, out var minimumSeverityScore, out _);
+            if (!string.IsNullOrWhiteSpace(minimumSeverity) && !hasMinimumSeverity) {
+                throw new ArgumentException($"minimumSeverity must be one of: {MinimumSeverityAcceptedValues}.", nameof(minimumSeverity));
+            }
+            // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
+            // Example: includeNoRisk=true with minimumSeverity=Low still excludes score=0 endpoints.
 
             foreach (var snapshot in snapshots ?? Array.Empty<CertificateInventorySnapshot>()) {
                 if (snapshot == null) {
@@ -118,6 +166,9 @@ namespace DomainDetective {
                 }
 
                 if (!includeNoRisk && row.Score <= 0) {
+                    continue;
+                }
+                if (hasMinimumSeverity && row.Score < minimumSeverityScore) {
                     continue;
                 }
 
