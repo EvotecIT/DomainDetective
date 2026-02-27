@@ -233,6 +233,35 @@ namespace DomainDetective.Tests {
                 Assert.Single(validCt.Entries);
                 Assert.Equal("api.example.com", validCt.Entries[0].Entry.Host);
 
+                var noServerAuthOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsServerAuthOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, noServerAuthOnly.MatchedEntryCount);
+                Assert.Single(noServerAuthOnly.Entries);
+                Assert.Equal("internal.example.com", noServerAuthOnly.Entries[0].Entry.Host);
+                Assert.Equal(noServerAuthOnly.LoadedSnapshotCount, noServerAuthOnly.ScannedSnapshotCount + noServerAuthOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(noServerAuthOnly.EvaluatedEntryCount, noServerAuthOnly.MatchedEntryCount + noServerAuthOnly.ExcludedByFiltersCount);
+
+                var noClientAuthOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsClientAuthOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, noClientAuthOnly.MatchedEntryCount);
+                Assert.Equal(2, noClientAuthOnly.Entries.Count);
+                Assert.DoesNotContain(noClientAuthOnly.Entries, observed => string.Equals(observed.Entry.Host, "internal.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Equal(noClientAuthOnly.LoadedSnapshotCount, noClientAuthOnly.ScannedSnapshotCount + noClientAuthOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(noClientAuthOnly.EvaluatedEntryCount, noClientAuthOnly.MatchedEntryCount + noClientAuthOnly.ExcludedByFiltersCount);
+
+                var noSecureEmailOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsSecureEmailOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(3, noSecureEmailOnly.MatchedEntryCount);
+                Assert.Equal(3, noSecureEmailOnly.Entries.Count);
+                Assert.Equal(noSecureEmailOnly.LoadedSnapshotCount, noSecureEmailOnly.ScannedSnapshotCount + noSecureEmailOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(noSecureEmailOnly.EvaluatedEntryCount, noSecureEmailOnly.MatchedEntryCount + noSecureEmailOnly.ExcludedByFiltersCount);
+
                 var invalidOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     ValidOnly = false,
                     MaxResults = 10

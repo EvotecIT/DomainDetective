@@ -181,15 +181,30 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--server-auth-only")]
     public bool ServerAuthOnly { get; set; }
 
+    /// <summary>Only include certificates that do not allow server authentication EKU.</summary>
+    [Description("Only include certificates that do not allow server authentication EKU.")]
+    [CommandOption("--no-server-auth-only")]
+    public bool NoServerAuthOnly { get; set; }
+
     /// <summary>Only include certificates that allow client authentication EKU.</summary>
     [Description("Only include certificates that allow client authentication EKU.")]
     [CommandOption("--client-auth-only")]
     public bool ClientAuthOnly { get; set; }
 
+    /// <summary>Only include certificates that do not allow client authentication EKU.</summary>
+    [Description("Only include certificates that do not allow client authentication EKU.")]
+    [CommandOption("--no-client-auth-only")]
+    public bool NoClientAuthOnly { get; set; }
+
     /// <summary>Only include certificates that allow secure email EKU.</summary>
     [Description("Only include certificates that allow secure email EKU.")]
     [CommandOption("--secure-email-only")]
     public bool SecureEmailOnly { get; set; }
+
+    /// <summary>Only include certificates that do not allow secure email EKU.</summary>
+    [Description("Only include certificates that do not allow secure email EKU.")]
+    [CommandOption("--no-secure-email-only")]
+    public bool NoSecureEmailOnly { get; set; }
 
     /// <summary>Only include certificates that use weak keys.</summary>
     [Description("Only include certificates that use weak keys.")]
@@ -285,6 +300,18 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             AnsiConsole.MarkupLine("[red]--ct-only cannot be combined with --ct-missing-only.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ServerAuthOnly && settings.NoServerAuthOnly) {
+            AnsiConsole.MarkupLine("[red]--server-auth-only cannot be combined with --no-server-auth-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ClientAuthOnly && settings.NoClientAuthOnly) {
+            AnsiConsole.MarkupLine("[red]--client-auth-only cannot be combined with --no-client-auth-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.SecureEmailOnly && settings.NoSecureEmailOnly) {
+            AnsiConsole.MarkupLine("[red]--secure-email-only cannot be combined with --no-secure-email-only.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.ExpiringWithinDays.HasValue && settings.ExpiringWithinDays.Value < 0) {
             AnsiConsole.MarkupLine("[red]--expiring-within-days must be 0 or greater.[/]");
             return Task.FromResult(1);
@@ -332,9 +359,9 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             SelfSignedOnly = settings.SelfSignedOnly ? true : settings.NotSelfSignedOnly ? false : null,
             ReachableOnly = settings.UnreachableOnly ? false : settings.ReachableOnly ? true : null,
             PresentInCtOnly = settings.CtOnly ? true : settings.CtMissingOnly ? false : null,
-            AllowsServerAuthOnly = settings.ServerAuthOnly ? true : null,
-            AllowsClientAuthOnly = settings.ClientAuthOnly ? true : null,
-            AllowsSecureEmailOnly = settings.SecureEmailOnly ? true : null,
+            AllowsServerAuthOnly = settings.ServerAuthOnly ? true : settings.NoServerAuthOnly ? false : null,
+            AllowsClientAuthOnly = settings.ClientAuthOnly ? true : settings.NoClientAuthOnly ? false : null,
+            AllowsSecureEmailOnly = settings.SecureEmailOnly ? true : settings.NoSecureEmailOnly ? false : null,
             WeakKeyOnly = settings.WeakKeyOnly ? true : null,
             Sha1SignatureOnly = settings.Sha1SignatureOnly ? true : null,
             NotYetValidOnly = settings.NotYetValidOnly ? true : null,
