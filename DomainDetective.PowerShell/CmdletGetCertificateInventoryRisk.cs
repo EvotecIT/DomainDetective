@@ -94,6 +94,10 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? SerialNumberEquals { get; set; }
 
+    /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
+    [Parameter(Mandatory = false)]
+    public string? AuthenticationProfileEquals { get; set; }
+
     /// <summary>Only include endpoints with recognized public CAs as the leaf issuer.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter KnownCaOnly { get; set; }
@@ -178,6 +182,7 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             serialNumberEquals: SerialNumberEquals,
             knownAuthorityOnly: KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
             knownRootAuthorityOnly: KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,
+            authenticationProfileEquals: AuthenticationProfileEquals,
             serverAuthOnly: ServerAuthOnly.IsPresent,
             clientAuthOnly: ClientAuthOnly.IsPresent,
             secureEmailOnly: SecureEmailOnly.IsPresent);

@@ -486,6 +486,7 @@ namespace DomainDetective {
         /// <param name="serialNumberEquals">Optional leaf-certificate serial-number exact-match filter (hex string expected).</param>
         /// <param name="knownAuthorityOnly">When set, only returns endpoint rows whose recognized-issuer state equals this value.</param>
         /// <param name="knownRootAuthorityOnly">When set, only returns endpoint rows whose recognized-root-issuer state equals this value.</param>
+        /// <param name="authenticationProfileEquals">Optional authentication-profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</param>
         /// <param name="serverAuthOnly">When true, only returns endpoint rows whose certificate allows server authentication EKU.</param>
         /// <param name="clientAuthOnly">When true, only returns endpoint rows whose certificate allows client authentication EKU.</param>
         /// <param name="secureEmailOnly">When true, only returns endpoint rows whose certificate allows secure-email EKU.</param>
@@ -508,6 +509,7 @@ namespace DomainDetective {
             string? serialNumberEquals = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
+            string? authenticationProfileEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -531,6 +533,7 @@ namespace DomainDetective {
                 serialNumberEquals,
                 knownAuthorityOnly,
                 knownRootAuthorityOnly,
+                authenticationProfileEquals,
                 serverAuthOnly,
                 clientAuthOnly,
                 secureEmailOnly);

@@ -147,6 +147,7 @@ namespace DomainDetective {
             string? serialNumberEquals = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
+            string? authenticationProfileEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -176,6 +177,8 @@ namespace DomainDetective {
             var rootThumbprintExpected = hasRootThumbprintFilter ? NormalizeHexIdentifier(rootThumbprintEquals) : string.Empty;
             var hasSerialNumberFilter = !string.IsNullOrWhiteSpace(serialNumberEquals);
             var serialNumberExpected = hasSerialNumberFilter ? NormalizeHexIdentifier(serialNumberEquals) : string.Empty;
+            var hasAuthenticationProfileFilter = !string.IsNullOrWhiteSpace(authenticationProfileEquals);
+            var authenticationProfileExpected = hasAuthenticationProfileFilter ? authenticationProfileEquals!.Trim() : string.Empty;
             // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
             // Example: includeNoRisk=true with minimumSeverity=Low still excludes score=0 endpoints.
 
@@ -307,6 +310,10 @@ namespace DomainDetective {
                     continue;
                 }
                 if (knownRootAuthorityOnly.HasValue && knownRootAuthorityOnly.Value != row.IsKnownRootCertificateAuthority) {
+                    continue;
+                }
+                if (hasAuthenticationProfileFilter &&
+                    !string.Equals(row.AuthenticationProfile, authenticationProfileExpected, StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }
                 // Auth-usage filters only narrow returned endpoint rows.
