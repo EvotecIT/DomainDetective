@@ -259,11 +259,9 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         // Loaded snapshots equals scanned snapshots when UntilUtc does not exclude anything.
         if (result.SkippedSnapshotCountByUntilUtc > 0) {
             summary.AddRow("Loaded Snapshots", result.LoadedSnapshotCount.ToString());
-        }
-        summary.AddRow("Scanned Snapshots", result.ScannedSnapshotCount.ToString());
-        if (result.SkippedSnapshotCountByUntilUtc > 0) {
             summary.AddRow("Skipped by UntilUtc", result.SkippedSnapshotCountByUntilUtc.ToString());
         }
+        summary.AddRow("Scanned Snapshots", result.ScannedSnapshotCount.ToString());
         summary.AddRow("Scanned Entries", result.ScannedEntryCount.ToString());
         if (settings.LatestOnly) {
             summary.AddRow("Latest Per Endpoint", "Yes");

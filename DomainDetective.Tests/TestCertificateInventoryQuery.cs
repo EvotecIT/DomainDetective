@@ -399,6 +399,9 @@ namespace DomainDetective.Tests {
                     LatestPerEndpointOnly = true,
                     MaxResults = 10
                 });
+                Assert.Equal(2, latestOnly.LoadedSnapshotCount);
+                Assert.Equal(2, latestOnly.ScannedSnapshotCount);
+                Assert.Equal(0, latestOnly.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(2, latestOnly.MatchedEntryCount);
                 Assert.Equal(2, latestOnly.MatchedUniqueEndpointCount);
                 Assert.Equal(1, latestOnly.SkippedByLatestPerEndpointCount);
@@ -418,6 +421,9 @@ namespace DomainDetective.Tests {
                     LatestPerEndpointOnly = true,
                     MaxResults = 10
                 });
+                Assert.Equal(2, latestOnlyOldCa.LoadedSnapshotCount);
+                Assert.Equal(2, latestOnlyOldCa.ScannedSnapshotCount);
+                Assert.Equal(0, latestOnlyOldCa.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(0, latestOnlyOldCa.MatchedEntryCount);
                 Assert.Equal(1, latestOnlyOldCa.SkippedByLatestPerEndpointCount);
                 Assert.Equal(2, latestOnlyOldCa.EvaluatedEntryCount);
@@ -514,6 +520,93 @@ namespace DomainDetective.Tests {
                 Assert.Equal(filteredByUntil.EvaluatedEntryCount, filteredByUntil.MatchedEntryCount + filteredByUntil.ExcludedByFiltersCount);
                 var entry = Assert.Single(filteredByUntil.Entries);
                 Assert.Equal("older.example.com", entry.Entry.Host);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void QueryInventoryEntriesUntilUtcCanExcludeAllSnapshots() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var firstSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "first.example.com",
+                            ResolvedHost = "first.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "First CA",
+                            SubjectAlternativeNames = new List<string> { "first.example.com" },
+                            NotAfterUtc = now.AddDays(20),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+                var secondSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-15),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "second.example.com",
+                            ResolvedHost = "second.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Second CA",
+                            SubjectAlternativeNames = new List<string> { "second.example.com" },
+                            NotAfterUtc = now.AddDays(10),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+
+                var firstFile = Path.Combine(inventoryDir, $"{firstSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(firstFile, JsonSerializer.Serialize(firstSnapshot, JsonOptions.Default), Encoding.UTF8);
+                var secondFile = Path.Combine(inventoryDir, $"{secondSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(secondFile, JsonSerializer.Serialize(secondSnapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var fullySkipped = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostContains = "example.com",
+                    UntilUtc = now.AddMinutes(-30),
+                    MaxResults = 10
+                });
+
+                Assert.Equal(2, fullySkipped.LoadedSnapshotCount);
+                Assert.Equal(0, fullySkipped.ScannedSnapshotCount);
+                Assert.Equal(2, fullySkipped.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(0, fullySkipped.ScannedEntryCount);
+                Assert.Equal(0, fullySkipped.SkippedByLatestPerEndpointCount);
+                Assert.Equal(0, fullySkipped.EvaluatedEntryCount);
+                Assert.Equal(0, fullySkipped.ExcludedByFiltersCount);
+                Assert.Equal(0, fullySkipped.MatchedEntryCount);
+                Assert.Equal(0, fullySkipped.MatchedUniqueEndpointCount);
+                Assert.Equal(0, fullySkipped.EntriesTruncatedByMaxResults);
+                Assert.False(fullySkipped.Truncated);
+                Assert.Equal(fullySkipped.LoadedSnapshotCount, fullySkipped.ScannedSnapshotCount + fullySkipped.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(fullySkipped.ScannedEntryCount, fullySkipped.SkippedByLatestPerEndpointCount + fullySkipped.EvaluatedEntryCount);
+                Assert.Equal(fullySkipped.EvaluatedEntryCount, fullySkipped.MatchedEntryCount + fullySkipped.ExcludedByFiltersCount);
+                Assert.Empty(fullySkipped.Entries);
             } finally {
                 if (Directory.Exists(tempDir)) {
                     Directory.Delete(tempDir, true);
