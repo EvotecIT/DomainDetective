@@ -28,6 +28,7 @@ namespace DomainDetective {
         public string Service { get; set; } = string.Empty;
         public string Issuer { get; set; } = string.Empty;
         public string RootIssuer { get; set; } = string.Empty;
+        /// <summary>Certificate validity start timestamp in UTC from the observed endpoint certificate.</summary>
         public DateTimeOffset? NotBeforeUtc { get; set; }
         public DateTimeOffset? NotAfterUtc { get; set; }
         public int? DaysToExpire { get; set; }
@@ -35,6 +36,10 @@ namespace DomainDetective {
         public string Severity { get; set; } = "None";
         public bool Valid { get; set; }
         public bool Expired { get; set; }
+        /// <summary>
+        /// True when <see cref="NotBeforeUtc"/> is in the future at risk-evaluation time.
+        /// This is derived from timestamps and does not rely on the persisted <see cref="Valid"/> flag.
+        /// </summary>
         public bool NotYetValid { get; set; }
         public bool ChainComplete { get; set; }
         public bool HostnameMatch { get; set; }
@@ -163,6 +168,8 @@ namespace DomainDetective {
                 row.Reasons.Add("EndpointUnreachable");
             }
 
+            // Derive this from timestamps so future-dated certificates are flagged consistently,
+            // even when upstream snapshots incorrectly persist Valid=true.
             if (row.NotBeforeUtc.HasValue && row.NotBeforeUtc.Value > now) {
                 row.NotYetValid = true;
                 score += 60;

@@ -195,5 +195,61 @@ namespace DomainDetective.Tests {
             Assert.Contains("CertificateValidationFailed", future.Reasons);
             Assert.True(risk.ReasonCounts.TryGetValue("CertificateNotYetValid", out var count) && count == 1);
         }
+
+        [Fact]
+        public void BuildRiskDerivesNotYetValidFromNotBeforeEvenWhenValidFlagIsTrue() {
+            var now = DateTimeOffset.UtcNow;
+            var notBeforeUtc = now.AddHours(12);
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "future-valid-flag.example.com",
+                            ResolvedHost = "future-valid-flag.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = notBeforeUtc,
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateIssuerNormalized = "Issuer Future Flag"
+                        }
+                    }
+                }
+            };
+
+            var risk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100);
+
+            Assert.Equal(1, risk.EndpointCount);
+            Assert.Equal(0, risk.CriticalCount);
+            Assert.Equal(1, risk.HighCount);
+            Assert.Equal(0, risk.MediumCount);
+            Assert.Equal(0, risk.LowCount);
+            Assert.Equal(0, risk.NoRiskCount);
+            Assert.Single(risk.Endpoints);
+
+            var future = risk.Endpoints[0];
+            Assert.Equal(notBeforeUtc, future.NotBeforeUtc);
+            Assert.True(future.NotYetValid);
+            Assert.Equal(60, future.Score);
+            Assert.Equal("High", future.Severity);
+            Assert.Contains("CertificateNotYetValid", future.Reasons);
+            Assert.DoesNotContain("CertificateValidationFailed", future.Reasons);
+            Assert.True(risk.ReasonCounts.TryGetValue("CertificateNotYetValid", out var notYetValidCount) && notYetValidCount == 1);
+            Assert.False(risk.ReasonCounts.ContainsKey("CertificateValidationFailed"));
+        }
     }
 }
