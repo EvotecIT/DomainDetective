@@ -34,6 +34,8 @@ namespace DomainDetective {
         public string Service { get; set; } = string.Empty;
         public string Issuer { get; set; } = string.Empty;
         public string RootIssuer { get; set; } = string.Empty;
+        public string AuthorityFamily { get; set; } = string.Empty;
+        public string RootAuthorityFamily { get; set; } = string.Empty;
         /// <summary>Certificate validity start timestamp in UTC from the observed endpoint certificate.</summary>
         public DateTimeOffset? NotBeforeUtc { get; set; }
         public DateTimeOffset? NotAfterUtc { get; set; }
@@ -212,14 +214,12 @@ namespace DomainDetective {
                     }
                 }
                 if (hasAuthorityFamilyFilter) {
-                    var actualAuthorityFamily = latest.Entry.CertificateAuthorityFamily ?? string.Empty;
-                    if (!string.Equals(actualAuthorityFamily, authorityFamilyExpected, StringComparison.OrdinalIgnoreCase)) {
+                    if (!string.Equals(row.AuthorityFamily, authorityFamilyExpected, StringComparison.OrdinalIgnoreCase)) {
                         continue;
                     }
                 }
                 if (hasRootAuthorityFamilyFilter) {
-                    var actualRootAuthorityFamily = latest.Entry.CertificateRootAuthorityFamily ?? string.Empty;
-                    if (!string.Equals(actualRootAuthorityFamily, rootAuthorityFamilyExpected, StringComparison.OrdinalIgnoreCase)) {
+                    if (!string.Equals(row.RootAuthorityFamily, rootAuthorityFamilyExpected, StringComparison.OrdinalIgnoreCase)) {
                         continue;
                     }
                 }
@@ -272,6 +272,8 @@ namespace DomainDetective {
                     : entry.Service!,
                 Issuer = PickIssuer(entry),
                 RootIssuer = PickRoot(entry),
+                AuthorityFamily = entry.CertificateAuthorityFamily ?? string.Empty,
+                RootAuthorityFamily = entry.CertificateRootAuthorityFamily ?? string.Empty,
                 NotBeforeUtc = entry.NotBeforeUtc,
                 NotAfterUtc = entry.NotAfterUtc,
                 Valid = entry.Valid,
