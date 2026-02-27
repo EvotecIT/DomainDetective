@@ -59,6 +59,11 @@ namespace DomainDetective {
     /// Computes per-endpoint certificate drift from persisted snapshots.
     /// </summary>
     public static class CertificateInventoryDriftAnalyzer {
+        private const string DriftSeverityNone = "None";
+        private const string DriftSeverityHigh = "High";
+        private const string DriftSeverityMedium = "Medium";
+        private const string DriftSeverityLow = "Low";
+
         private sealed class Observation {
             public DateTimeOffset CapturedAtUtc { get; init; }
             public CertificateInventoryEntry Entry { get; init; } = null!;
@@ -191,16 +196,10 @@ namespace DomainDetective {
             summary.EndpointsWithServiceChange = driftRows.Count(row => row.ServiceChanged);
             summary.EndpointsWithAuthenticationProfileChange = driftRows.Count(row => row.AuthenticationProfileChanged);
             summary.EndpointsWithChainSourceChange = driftRows.Count(row => row.ChainSourceChanged);
-            summary.EndpointsWithAnyChange = driftRows.Count(row =>
-                row.CertificateChanged ||
-                row.IssuerChanged ||
-                row.ExpiryChanged ||
-                row.ServiceChanged ||
-                row.AuthenticationProfileChanged ||
-                row.ChainSourceChanged);
-            summary.EndpointsWithHighSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals("High", StringComparison.OrdinalIgnoreCase));
-            summary.EndpointsWithMediumSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals("Medium", StringComparison.OrdinalIgnoreCase));
-            summary.EndpointsWithLowSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals("Low", StringComparison.OrdinalIgnoreCase));
+            summary.EndpointsWithAnyChange = driftRows.Count(row => row.ChangeKinds.Count > 0);
+            summary.EndpointsWithHighSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals(DriftSeverityHigh, StringComparison.OrdinalIgnoreCase));
+            summary.EndpointsWithMediumSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals(DriftSeverityMedium, StringComparison.OrdinalIgnoreCase));
+            summary.EndpointsWithLowSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals(DriftSeverityLow, StringComparison.OrdinalIgnoreCase));
 
             summary.Endpoints = driftRows
                 .OrderByDescending(row => row.LastChangedAtUtc ?? DateTimeOffset.MinValue)
@@ -320,26 +319,22 @@ namespace DomainDetective {
 
         private static string ClassifyDriftSeverity(CertificateInventoryEndpointDrift row) {
             if (row.ChangeKinds.Count == 0) {
-                return "None";
+                return DriftSeverityNone;
             }
 
             if (row.AuthenticationProfileChanged) {
-                return "High";
+                return DriftSeverityHigh;
             }
 
             if (row.CertificateChanged && row.IssuerChanged) {
-                return "High";
+                return DriftSeverityHigh;
             }
 
             if (row.ServiceChanged || row.ChainSourceChanged || row.CertificateChanged || row.IssuerChanged) {
-                return "Medium";
+                return DriftSeverityMedium;
             }
 
-            if (row.ExpiryChanged) {
-                return "Low";
-            }
-
-            return "Low";
+            return DriftSeverityLow;
         }
     }
 }

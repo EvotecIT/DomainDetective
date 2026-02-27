@@ -173,7 +173,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             return "-";
         }
 
-        return string.Join(",", endpoint.ChangeKinds);
+        return string.Join(", ", endpoint.ChangeKinds);
     }
 
     private static string NormalizeChainSource(string? source) {

@@ -270,5 +270,55 @@ namespace DomainDetective.Tests {
             Assert.Equal("Low", endpoint.DriftSeverity);
             Assert.Equal(new[] { "expiry" }, endpoint.ChangeKinds);
         }
+
+        [Fact]
+        public void BuildDriftClassifiesCertificateAndChainSourceAsMediumSeverity() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-6),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "medium.example.com",
+                            ResolvedHost = "medium.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "OLD-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(45),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "medium.example.com",
+                            ResolvedHost = "medium.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "NEW-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(45),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "local-build-online"
+                        }
+                    }
+                }
+            };
+
+            var drift = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots, changedOnly: false, maxEndpoints: 100);
+            Assert.Equal(1, drift.EndpointsWithAnyChange);
+            Assert.Equal(0, drift.EndpointsWithHighSeverityDrift);
+            Assert.Equal(1, drift.EndpointsWithMediumSeverityDrift);
+            Assert.Equal(0, drift.EndpointsWithLowSeverityDrift);
+            var endpoint = Assert.Single(drift.Endpoints);
+            Assert.Equal("Medium", endpoint.DriftSeverity);
+            Assert.Equal(new[] { "certificate", "chain-source" }, endpoint.ChangeKinds);
+        }
     }
 }
