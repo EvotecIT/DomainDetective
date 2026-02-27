@@ -123,6 +123,8 @@ namespace DomainDetective {
             string? minimumSeverity = null,
             string? reasonContains = null,
             string? issuerContains = null,
+            string? authorityFamilyEquals = null,
+            string? rootAuthorityFamilyEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -136,6 +138,10 @@ namespace DomainDetective {
             var reasonNeedle = hasReasonFilter ? reasonContains!.Trim() : string.Empty;
             var hasIssuerFilter = !string.IsNullOrWhiteSpace(issuerContains);
             var issuerNeedle = hasIssuerFilter ? issuerContains!.Trim() : string.Empty;
+            var hasAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(authorityFamilyEquals);
+            var authorityFamilyExpected = hasAuthorityFamilyFilter ? authorityFamilyEquals!.Trim() : string.Empty;
+            var hasRootAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(rootAuthorityFamilyEquals);
+            var rootAuthorityFamilyExpected = hasRootAuthorityFamilyFilter ? rootAuthorityFamilyEquals!.Trim() : string.Empty;
             // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
             // Example: includeNoRisk=true with minimumSeverity=Low still excludes score=0 endpoints.
 
@@ -202,6 +208,18 @@ namespace DomainDetective {
                         row.Issuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         row.RootIssuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0;
                     if (!matchesIssuer) {
+                        continue;
+                    }
+                }
+                if (hasAuthorityFamilyFilter) {
+                    var actualAuthorityFamily = latest.Entry.CertificateAuthorityFamily ?? string.Empty;
+                    if (!string.Equals(actualAuthorityFamily, authorityFamilyExpected, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                }
+                if (hasRootAuthorityFamilyFilter) {
+                    var actualRootAuthorityFamily = latest.Entry.CertificateRootAuthorityFamily ?? string.Empty;
+                    if (!string.Equals(actualRootAuthorityFamily, rootAuthorityFamilyExpected, StringComparison.OrdinalIgnoreCase)) {
                         continue;
                     }
                 }

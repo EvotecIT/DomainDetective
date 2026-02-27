@@ -63,6 +63,16 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--issuer-contains <TEXT>")]
     public string? IssuerContains { get; set; }
 
+    /// <summary>Optional leaf authority family exact-match filter (for example DigiCert, LetsEncrypt).</summary>
+    [Description("Optional leaf authority family exact-match filter (for example DigiCert, LetsEncrypt).")]
+    [CommandOption("--authority-family <NAME>")]
+    public string? AuthorityFamilyEquals { get; set; }
+
+    /// <summary>Optional root authority family exact-match filter (for example DigiCert, LetsEncrypt).</summary>
+    [Description("Optional root authority family exact-match filter (for example DigiCert, LetsEncrypt).")]
+    [CommandOption("--root-authority-family <NAME>")]
+    public string? RootAuthorityFamilyEquals { get; set; }
+
     /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
     [Description("Only include endpoints whose certificate allows server authentication EKU.")]
     [CommandOption("--server-auth-only")]
@@ -137,6 +147,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             minimumSeverity: normalizedMinimumSeverity,
             reasonContains: settings.ReasonContains,
             issuerContains: settings.IssuerContains,
+            authorityFamilyEquals: settings.AuthorityFamilyEquals,
+            rootAuthorityFamilyEquals: settings.RootAuthorityFamilyEquals,
             serverAuthOnly: settings.ServerAuthOnly,
             clientAuthOnly: settings.ClientAuthOnly,
             secureEmailOnly: settings.SecureEmailOnly);

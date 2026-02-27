@@ -204,6 +204,7 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryRisk", "--since-utc", "2026-01-01" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--expiring-within-days", "45", "--critical-expiring-within-days", "10", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--issuer-contains", "digicert", "--minimum-severity", "Medium", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--authority-family", "LetsEncrypt", "--root-authority-family", "LetsEncrypt", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--client-auth-only", "--minimum-severity", "High", "--json" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryRiskCommand>("cert-inventory-risk")
                 .WithDescription("Assess certificate risk posture across persisted snapshots (alias)");

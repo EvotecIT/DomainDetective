@@ -62,6 +62,14 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? IssuerContains { get; set; }
 
+    /// <summary>Optional leaf authority family exact-match filter (for example DigiCert, LetsEncrypt).</summary>
+    [Parameter(Mandatory = false)]
+    public string? AuthorityFamilyEquals { get; set; }
+
+    /// <summary>Optional root authority family exact-match filter (for example DigiCert, LetsEncrypt).</summary>
+    [Parameter(Mandatory = false)]
+    public string? RootAuthorityFamilyEquals { get; set; }
+
     /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter ServerAuthOnly { get; set; }
@@ -104,6 +112,8 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             minimumSeverity: MinimumSeverity,
             reasonContains: ReasonContains,
             issuerContains: IssuerContains,
+            authorityFamilyEquals: AuthorityFamilyEquals,
+            rootAuthorityFamilyEquals: RootAuthorityFamilyEquals,
             serverAuthOnly: ServerAuthOnly.IsPresent,
             clientAuthOnly: ClientAuthOnly.IsPresent,
             secureEmailOnly: SecureEmailOnly.IsPresent);
