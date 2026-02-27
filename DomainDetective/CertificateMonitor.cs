@@ -517,9 +517,7 @@ namespace DomainDetective {
             var maxResults = Math.Max(0, effectiveQuery.MaxResults);
             var matchedEndpointKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var latestOnly = effectiveQuery.LatestPerEndpointOnly;
-            var observedEndpointKeys = latestOnly
-                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                : null;
+            var observedEndpointKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var snapshots = LoadInventorySnapshots(effectiveQuery.SinceUtc)
                 .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
                 .ToList();
@@ -535,7 +533,7 @@ namespace DomainDetective {
                     string? endpointKey = null;
                     if (latestOnly) {
                         endpointKey = BuildEndpointKey(entry);
-                        if (observedEndpointKeys == null || !observedEndpointKeys.Add(endpointKey)) {
+                        if (!observedEndpointKeys.Add(endpointKey)) {
                             result.SkippedByLatestPerEndpointCount++;
                             continue;
                         }
