@@ -103,6 +103,26 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--serial-number <HEX>")]
     public string? SerialNumberEquals { get; set; }
 
+    /// <summary>Only include endpoints with recognized public CAs as the leaf issuer.</summary>
+    [Description("Only include endpoints with recognized public CAs as the leaf issuer.")]
+    [CommandOption("--known-ca-only")]
+    public bool KnownCaOnly { get; set; }
+
+    /// <summary>Only include endpoints with unrecognized/private CAs as the leaf issuer.</summary>
+    [Description("Only include endpoints with unrecognized/private CAs as the leaf issuer.")]
+    [CommandOption("--unknown-ca-only")]
+    public bool UnknownCaOnly { get; set; }
+
+    /// <summary>Only include endpoints chaining to recognized public root CAs.</summary>
+    [Description("Only include endpoints chaining to recognized public root CAs.")]
+    [CommandOption("--known-root-ca-only")]
+    public bool KnownRootCaOnly { get; set; }
+
+    /// <summary>Only include endpoints chaining to unrecognized/private root CAs.</summary>
+    [Description("Only include endpoints chaining to unrecognized/private root CAs.")]
+    [CommandOption("--unknown-root-ca-only")]
+    public bool UnknownRootCaOnly { get; set; }
+
     /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
     [Description("Only include endpoints whose certificate allows server authentication EKU.")]
     [CommandOption("--server-auth-only")]
@@ -151,6 +171,14 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--critical-expiring-within-days cannot be greater than --expiring-within-days.[/]");
             return Task.FromResult(1);
         }
+        if (settings.KnownCaOnly && settings.UnknownCaOnly) {
+            AnsiConsole.MarkupLine("[red]--known-ca-only cannot be combined with --unknown-ca-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.KnownRootCaOnly && settings.UnknownRootCaOnly) {
+            AnsiConsole.MarkupLine("[red]--known-root-ca-only cannot be combined with --unknown-root-ca-only.[/]");
+            return Task.FromResult(1);
+        }
         var normalizedMinimumSeverity = settings.MinimumSeverity;
         if (!string.IsNullOrWhiteSpace(settings.MinimumSeverity)) {
             if (!CertificateInventoryRiskAnalyzer.TryResolveMinimumSeverity(settings.MinimumSeverity, out _, out var normalized)) {
@@ -185,6 +213,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             thumbprintEquals: settings.ThumbprintEquals,
             rootThumbprintEquals: settings.RootThumbprintEquals,
             serialNumberEquals: settings.SerialNumberEquals,
+            knownAuthorityOnly: settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
+            knownRootAuthorityOnly: settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
             serverAuthOnly: settings.ServerAuthOnly,
             clientAuthOnly: settings.ClientAuthOnly,
             secureEmailOnly: settings.SecureEmailOnly);

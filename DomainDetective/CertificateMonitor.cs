@@ -484,6 +484,8 @@ namespace DomainDetective {
         /// <param name="thumbprintEquals">Optional leaf-certificate thumbprint exact-match filter (hex string expected).</param>
         /// <param name="rootThumbprintEquals">Optional root-certificate thumbprint exact-match filter (hex string expected).</param>
         /// <param name="serialNumberEquals">Optional leaf-certificate serial-number exact-match filter (hex string expected).</param>
+        /// <param name="knownAuthorityOnly">When set, only returns endpoint rows whose recognized-issuer state equals this value.</param>
+        /// <param name="knownRootAuthorityOnly">When set, only returns endpoint rows whose recognized-root-issuer state equals this value.</param>
         /// <param name="serverAuthOnly">When true, only returns endpoint rows whose certificate allows server authentication EKU.</param>
         /// <param name="clientAuthOnly">When true, only returns endpoint rows whose certificate allows client authentication EKU.</param>
         /// <param name="secureEmailOnly">When true, only returns endpoint rows whose certificate allows secure-email EKU.</param>
@@ -504,6 +506,8 @@ namespace DomainDetective {
             string? thumbprintEquals = null,
             string? rootThumbprintEquals = null,
             string? serialNumberEquals = null,
+            bool? knownAuthorityOnly = null,
+            bool? knownRootAuthorityOnly = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -525,6 +529,8 @@ namespace DomainDetective {
                 thumbprintEquals,
                 rootThumbprintEquals,
                 serialNumberEquals,
+                knownAuthorityOnly,
+                knownRootAuthorityOnly,
                 serverAuthOnly,
                 clientAuthOnly,
                 secureEmailOnly);

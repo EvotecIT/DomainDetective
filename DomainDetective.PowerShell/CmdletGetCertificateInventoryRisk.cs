@@ -94,6 +94,22 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? SerialNumberEquals { get; set; }
 
+    /// <summary>Only include endpoints with recognized public CAs as the leaf issuer.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter KnownCaOnly { get; set; }
+
+    /// <summary>Only include endpoints with unrecognized/private CAs as the leaf issuer.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter UnknownCaOnly { get; set; }
+
+    /// <summary>Only include endpoints chaining to recognized public root CAs.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter KnownRootCaOnly { get; set; }
+
+    /// <summary>Only include endpoints chaining to unrecognized/private root CAs.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter UnknownRootCaOnly { get; set; }
+
     /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter ServerAuthOnly { get; set; }
@@ -114,6 +130,22 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 "CriticalExpiringWindowTooLarge",
                 ErrorCategory.InvalidArgument,
                 CriticalExpiringWithinDays));
+            return;
+        }
+        if (KnownCaOnly.IsPresent && UnknownCaOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-KnownCaOnly cannot be combined with -UnknownCaOnly.", nameof(UnknownCaOnly)),
+                "KnownAndUnknownCaConflict",
+                ErrorCategory.InvalidArgument,
+                UnknownCaOnly));
+            return;
+        }
+        if (KnownRootCaOnly.IsPresent && UnknownRootCaOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-KnownRootCaOnly cannot be combined with -UnknownRootCaOnly.", nameof(UnknownRootCaOnly)),
+                "KnownAndUnknownRootCaConflict",
+                ErrorCategory.InvalidArgument,
+                UnknownRootCaOnly));
             return;
         }
 
@@ -144,6 +176,8 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             thumbprintEquals: ThumbprintEquals,
             rootThumbprintEquals: RootThumbprintEquals,
             serialNumberEquals: SerialNumberEquals,
+            knownAuthorityOnly: KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
+            knownRootAuthorityOnly: KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,
             serverAuthOnly: ServerAuthOnly.IsPresent,
             clientAuthOnly: ClientAuthOnly.IsPresent,
             secureEmailOnly: SecureEmailOnly.IsPresent);
