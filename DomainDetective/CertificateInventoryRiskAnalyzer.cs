@@ -122,7 +122,10 @@ namespace DomainDetective {
             int maxEndpoints = 300,
             string? minimumSeverity = null,
             string? reasonContains = null,
-            string? issuerContains = null) {
+            string? issuerContains = null,
+            bool serverAuthOnly = false,
+            bool clientAuthOnly = false,
+            bool secureEmailOnly = false) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
             var hasMinimumSeverity = TryResolveMinimumSeverity(minimumSeverity, out var minimumSeverityScore, out _);
@@ -201,6 +204,17 @@ namespace DomainDetective {
                     if (!matchesIssuer) {
                         continue;
                     }
+                }
+                // Auth-usage filters only narrow returned endpoint rows.
+                // Summary counts/reason distributions stay computed across the full endpoint set.
+                if (serverAuthOnly && !row.AllowsServerAuthentication) {
+                    continue;
+                }
+                if (clientAuthOnly && !row.AllowsClientAuthentication) {
+                    continue;
+                }
+                if (secureEmailOnly && !row.AllowsSecureEmail) {
+                    continue;
                 }
 
                 rows.Add(row);
