@@ -88,6 +88,7 @@ namespace DomainDetective {
         /// <summary>
         /// Number of snapshots loaded for evaluation after <see cref="CertificateInventoryQuery.SinceUtc"/> filtering.
         /// Includes snapshots later skipped by <see cref="CertificateInventoryQuery.UntilUtc"/>.
+        /// Snapshots excluded by <see cref="CertificateInventoryQuery.SinceUtc"/> are not counted separately.
         /// </summary>
         public int LoadedSnapshotCount { get; set; }
         /// <summary>Number of loaded snapshots skipped because they are newer than <see cref="CertificateInventoryQuery.UntilUtc"/>.</summary>
