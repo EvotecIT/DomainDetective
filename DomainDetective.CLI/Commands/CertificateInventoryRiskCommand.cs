@@ -145,6 +145,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         rows.AddColumn("Service");
         rows.AddColumn("Score");
         rows.AddColumn("Severity");
+        rows.AddColumn("Valid From");
         rows.AddColumn("Expiry");
         rows.AddColumn("Issuer");
         rows.AddColumn("Reasons");
@@ -152,6 +153,11 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
                      .OrderByDescending(x => x.Score)
                      .ThenBy(x => x.Host, StringComparer.OrdinalIgnoreCase)
                      .ThenBy(x => x.Port)) {
+            var validFrom = endpoint.NotBeforeUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
+            if (endpoint.DaysUntilValid.HasValue && endpoint.DaysUntilValid.Value > 0) {
+                validFrom = $"{validFrom} (in {endpoint.DaysUntilValid.Value}d)";
+            }
+
             var expiry = endpoint.NotAfterUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
             if (endpoint.DaysToExpire.HasValue) {
                 expiry = $"{expiry} ({endpoint.DaysToExpire.Value}d)";
@@ -164,6 +170,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
                 endpoint.Service,
                 endpoint.Score.ToString(),
                 endpoint.Severity,
+                validFrom,
                 expiry,
                 endpoint.Issuer,
                 reasons);

@@ -136,6 +136,7 @@ namespace DomainDetective.Tests {
             Assert.Single(risk.Endpoints);
             Assert.Equal("None", risk.Endpoints[0].Severity);
             Assert.Equal(0, risk.Endpoints[0].Score);
+            Assert.Null(risk.Endpoints[0].DaysUntilValid);
             Assert.Empty(risk.Endpoints[0].Reasons);
         }
 
@@ -188,6 +189,7 @@ namespace DomainDetective.Tests {
             Assert.Equal("future.example.com", future.Host);
             Assert.Equal(notBeforeUtc, future.NotBeforeUtc);
             Assert.True(future.NotYetValid);
+            Assert.Equal(2, future.DaysUntilValid);
             // 60 (not yet valid) + 45 (validation failed) is capped to 100 by design.
             Assert.Equal(100, future.Score);
             Assert.Equal("Critical", future.Severity);
@@ -242,8 +244,10 @@ namespace DomainDetective.Tests {
             Assert.Single(risk.Endpoints);
 
             var future = risk.Endpoints[0];
+            Assert.Equal("future-valid-flag.example.com", future.Host);
             Assert.Equal(notBeforeUtc, future.NotBeforeUtc);
             Assert.True(future.NotYetValid);
+            Assert.Equal(1, future.DaysUntilValid);
             Assert.Equal(60, future.Score);
             Assert.Equal("High", future.Severity);
             Assert.Contains("CertificateNotYetValid", future.Reasons);
