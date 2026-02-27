@@ -11,6 +11,9 @@ namespace DomainDetective {
         public int SnapshotCount { get; set; }
         public int EndpointCount { get; set; }
         public int EndpointsWithAnyChange { get; set; }
+        public int EndpointsWithHighSeverityDrift { get; set; }
+        public int EndpointsWithMediumSeverityDrift { get; set; }
+        public int EndpointsWithLowSeverityDrift { get; set; }
         public int EndpointsWithCertificateChange { get; set; }
         public int EndpointsWithIssuerChange { get; set; }
         public int EndpointsWithExpiryChange { get; set; }
@@ -47,6 +50,8 @@ namespace DomainDetective {
         public string? PreviousChainSource { get; set; }
         public string? CurrentChainSource { get; set; }
         public bool ChainSourceChanged { get; set; }
+        public string DriftSeverity { get; set; } = "None";
+        public List<string> ChangeKinds { get; set; } = new();
         public DateTimeOffset? LastChangedAtUtc { get; set; }
     }
 
@@ -169,14 +174,10 @@ namespace DomainDetective {
                     ChainSourceChanged = chainSources.Count > 1,
                     LastChangedAtUtc = FindLastChangedAt(observations)
                 };
+                row.ChangeKinds = BuildChangeKinds(row);
+                row.DriftSeverity = ClassifyDriftSeverity(row);
 
-                if (changedOnly &&
-                    !row.CertificateChanged &&
-                    !row.IssuerChanged &&
-                    !row.ExpiryChanged &&
-                    !row.ServiceChanged &&
-                    !row.AuthenticationProfileChanged &&
-                    !row.ChainSourceChanged) {
+                if (changedOnly && row.ChangeKinds.Count == 0) {
                     continue;
                 }
 
@@ -197,6 +198,9 @@ namespace DomainDetective {
                 row.ServiceChanged ||
                 row.AuthenticationProfileChanged ||
                 row.ChainSourceChanged);
+            summary.EndpointsWithHighSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals("High", StringComparison.OrdinalIgnoreCase));
+            summary.EndpointsWithMediumSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals("Medium", StringComparison.OrdinalIgnoreCase));
+            summary.EndpointsWithLowSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals("Low", StringComparison.OrdinalIgnoreCase));
 
             summary.Endpoints = driftRows
                 .OrderByDescending(row => row.LastChangedAtUtc ?? DateTimeOffset.MinValue)
@@ -289,6 +293,53 @@ namespace DomainDetective {
             var notBefore = entry.NotBeforeUtc?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
             var notAfter = entry.NotAfterUtc?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
             return $"{subject}|{issuer}|{notBefore}|{notAfter}";
+        }
+
+        private static List<string> BuildChangeKinds(CertificateInventoryEndpointDrift row) {
+            var kinds = new List<string>();
+            if (row.CertificateChanged) {
+                kinds.Add("certificate");
+            }
+            if (row.IssuerChanged) {
+                kinds.Add("issuer");
+            }
+            if (row.ExpiryChanged) {
+                kinds.Add("expiry");
+            }
+            if (row.ServiceChanged) {
+                kinds.Add("service");
+            }
+            if (row.AuthenticationProfileChanged) {
+                kinds.Add("auth-profile");
+            }
+            if (row.ChainSourceChanged) {
+                kinds.Add("chain-source");
+            }
+            return kinds;
+        }
+
+        private static string ClassifyDriftSeverity(CertificateInventoryEndpointDrift row) {
+            if (row.ChangeKinds.Count == 0) {
+                return "None";
+            }
+
+            if (row.AuthenticationProfileChanged) {
+                return "High";
+            }
+
+            if (row.CertificateChanged && row.IssuerChanged) {
+                return "High";
+            }
+
+            if (row.ServiceChanged || row.ChainSourceChanged || row.CertificateChanged || row.IssuerChanged) {
+                return "Medium";
+            }
+
+            if (row.ExpiryChanged) {
+                return "Low";
+            }
+
+            return "Low";
         }
     }
 }
