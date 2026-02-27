@@ -267,5 +267,113 @@ namespace DomainDetective.Tests {
                 }
             }
         }
+
+        [Fact]
+        public void QueryInventoryEntriesLatestPerEndpointOnlyUsesNewestObservation() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var latestSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "api.example.com",
+                            ResolvedHost = "api.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "New CA",
+                            SubjectAlternativeNames = new List<string> { "api.example.com" },
+                            NotAfterUtc = now.AddDays(20),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+                var olderSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-30),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "api.example.com",
+                            ResolvedHost = "api.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Old CA",
+                            SubjectAlternativeNames = new List<string> { "api.example.com" },
+                            NotAfterUtc = now.AddDays(10),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "legacy.example.com",
+                            ResolvedHost = "legacy.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Legacy CA",
+                            SubjectAlternativeNames = new List<string> { "legacy.example.com" },
+                            NotAfterUtc = now.AddDays(5),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+
+                var latestFile = Path.Combine(inventoryDir, $"{latestSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(latestFile, JsonSerializer.Serialize(latestSnapshot, JsonOptions.Default), Encoding.UTF8);
+                var olderFile = Path.Combine(inventoryDir, $"{olderSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(olderFile, JsonSerializer.Serialize(olderSnapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var withoutLatestOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    IssuerContains = "old ca",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, withoutLatestOnly.MatchedEntryCount);
+                Assert.Single(withoutLatestOnly.Entries);
+                Assert.Equal("api.example.com", withoutLatestOnly.Entries[0].Entry.Host);
+
+                var latestOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostContains = "example.com",
+                    LatestPerEndpointOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, latestOnly.MatchedEntryCount);
+                Assert.Equal(2, latestOnly.MatchedUniqueEndpointCount);
+                Assert.Equal(2, latestOnly.Entries.Count);
+                Assert.Equal(1, latestOnly.MatchedIssuerCounts["New CA"]);
+                Assert.Equal(1, latestOnly.MatchedIssuerCounts["Legacy CA"]);
+                Assert.False(latestOnly.MatchedIssuerCounts.ContainsKey("Old CA"));
+
+                var latestOnlyOldCa = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    IssuerContains = "old ca",
+                    LatestPerEndpointOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(0, latestOnlyOldCa.MatchedEntryCount);
+                Assert.Empty(latestOnlyOldCa.Entries);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
     }
 }

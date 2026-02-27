@@ -161,6 +161,11 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--auth-profile <NAME>")]
     public string? AuthenticationProfileEquals { get; set; }
 
+    /// <summary>Only evaluate the latest observed entry per endpoint (host+port) in the selected snapshot window.</summary>
+    [Description("Only evaluate the latest observed entry per endpoint (host+port) in the selected snapshot window.")]
+    [CommandOption("--latest-only")]
+    public bool LatestOnly { get; set; }
+
     /// <summary>Maximum number of results returned.</summary>
     [Description("Maximum number of results returned.")]
     [CommandOption("--max-results <N>")]
@@ -237,6 +242,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             AllowsSecureEmailOnly = settings.SecureEmailOnly ? true : null,
             ExpiringWithinDays = settings.ExpiringWithinDays,
             AuthenticationProfileEquals = settings.AuthenticationProfileEquals,
+            LatestPerEndpointOnly = settings.LatestOnly,
             MaxResults = settings.MaxResults
         };
         var result = monitor.QueryInventoryEntries(query);
@@ -256,6 +262,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         summary.AddRow("Matched Unique Endpoints", result.MatchedUniqueEndpointCount.ToString());
         summary.AddRow("Returned Entries", result.Entries.Count.ToString());
         summary.AddRow("Truncated", result.Truncated ? "Yes" : "No");
+        summary.AddRow("Latest Per Endpoint", settings.LatestOnly ? "Yes" : "No");
         AnsiConsole.Write(summary);
 
         if (result.Entries.Count == 0) {
