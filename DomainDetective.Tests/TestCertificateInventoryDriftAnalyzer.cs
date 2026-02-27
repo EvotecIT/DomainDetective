@@ -84,6 +84,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(0, drift.EndpointsExcludedByMinimumSeverity);
             Assert.Equal(0, drift.EndpointsExcludedByChangeKindFilter);
             Assert.Equal(0, drift.EndpointsExcludedByFilters);
+            Assert.Equal(drift.EndpointCount, drift.EndpointsMatchingFilters + drift.EndpointsExcludedByFilters);
             Assert.Equal(2, drift.Endpoints.Count);
 
             var api = drift.Endpoints.Single(x => x.Host == "api.example.com");
@@ -784,6 +785,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, summary.EndpointsExcludedByMinimumSeverity);
             Assert.Equal(1, summary.EndpointsExcludedByChangeKindFilter);
             Assert.Equal(3, summary.EndpointsExcludedByFilters);
+            Assert.Equal(summary.EndpointCount, summary.EndpointsMatchingFilters + summary.EndpointsExcludedByFilters);
             var endpoint = Assert.Single(summary.Endpoints);
             Assert.Equal("included.example.com", endpoint.Host);
         }
