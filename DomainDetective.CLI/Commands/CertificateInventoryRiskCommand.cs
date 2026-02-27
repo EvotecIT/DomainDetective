@@ -176,6 +176,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
                 reasons);
         }
         AnsiConsole.Write(rows);
+        AnsiConsole.MarkupLine("[grey]Auth flags: S=ServerAuth, C=ClientAuth, E=SecureEmail.[/]");
 
         return Task.FromResult(0);
     }
