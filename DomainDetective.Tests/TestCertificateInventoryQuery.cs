@@ -123,16 +123,41 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, result.ScannedSnapshotCount);
                 Assert.Equal(3, result.ScannedEntryCount);
                 Assert.Equal(1, result.MatchedEntryCount);
+                Assert.Equal(1, result.MatchedUniqueEndpointCount);
                 Assert.Single(result.Entries);
                 Assert.Equal("api.example.com", result.Entries[0].Entry.Host);
+                Assert.Equal(1, result.MatchedServiceCounts["HTTPS"]);
+                Assert.Equal(1, result.MatchedIssuerCounts["DigiCert"]);
+                Assert.Equal(1, result.MatchedRootIssuerCounts["ISRG Root X1"]);
+                Assert.Equal(1, result.MatchedAuthenticationProfileCounts[CertificateAuthenticationProfileClassifier.ServerAuthOnly]);
+                Assert.Equal(1, result.MatchedChainSourceCounts["tls-handshake"]);
+                Assert.Equal(1, result.MatchedCtSourceCounts["crt.sh"]);
+                Assert.Equal(1, result.MatchedCtSourceCounts["shodan"]);
+                Assert.Empty(result.MatchedCtTemplateErrorCounts);
 
                 var limited = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     HostContains = "example.com",
                     MaxResults = 1
                 });
                 Assert.Equal(3, limited.MatchedEntryCount);
+                Assert.Equal(3, limited.MatchedUniqueEndpointCount);
                 Assert.True(limited.Truncated);
                 Assert.Single(limited.Entries);
+                Assert.Equal(2, limited.MatchedServiceCounts["HTTPS"]);
+                Assert.Equal(1, limited.MatchedServiceCounts["Custom TLS"]);
+                Assert.Equal(2, limited.MatchedIssuerCounts["DigiCert"]);
+                Assert.Equal(1, limited.MatchedIssuerCounts["Contoso PKI"]);
+                Assert.Equal(1, limited.MatchedRootIssuerCounts["ISRG Root X1"]);
+                Assert.Equal(1, limited.MatchedRootIssuerCounts["Contoso Root CA"]);
+                Assert.Equal(1, limited.MatchedRootIssuerCounts["DigiCert Global Root G2"]);
+                Assert.Equal(2, limited.MatchedAuthenticationProfileCounts[CertificateAuthenticationProfileClassifier.ServerAuthOnly]);
+                Assert.Equal(1, limited.MatchedAuthenticationProfileCounts[CertificateAuthenticationProfileClassifier.ClientAuthOnly]);
+                Assert.Equal(2, limited.MatchedChainSourceCounts["tls-handshake"]);
+                Assert.Equal(1, limited.MatchedChainSourceCounts["local-build-no-check"]);
+                Assert.Equal(2, limited.MatchedCtSourceCounts["crt.sh"]);
+                Assert.Equal(1, limited.MatchedCtSourceCounts["shodan"]);
+                Assert.Equal(1, limited.MatchedCtSourceCounts["none"]);
+                Assert.Equal(1, limited.MatchedCtTemplateErrorCounts["CensysApiUrlTemplate"]);
 
                 var expired = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     ExpiredOnly = true,
