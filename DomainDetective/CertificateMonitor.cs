@@ -662,6 +662,24 @@ namespace DomainDetective {
                 certificateReuseCrossPortOnly);
         }
 
+        /// <summary>Builds endpoint-level certificate policy posture from persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="baselineProfile">Policy baseline profile (Strict, Balanced, Legacy).</param>
+        /// <param name="includeCompliant">When true, includes endpoints with no policy violations.</param>
+        /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
+        public CertificateInventoryPolicySummary BuildInventoryPolicy(
+            DateTimeOffset? sinceUtc = null,
+            string? baselineProfile = "Balanced",
+            bool includeCompliant = false,
+            int maxEndpoints = 300) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile,
+                includeCompliant,
+                maxEndpoints);
+        }
+
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>
         /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
         /// <param name="includeSingleEndpointCertificates">When true, includes certificates used by only one endpoint.</param>

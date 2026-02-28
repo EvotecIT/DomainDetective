@@ -237,6 +237,14 @@ internal static class Program {
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryRiskCommand>("cert-inventory-risk")
                 .WithDescription("Assess certificate risk posture across persisted snapshots (alias)");
 
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyCommand>("CertificateInventoryPolicy")
+                .WithDescription("Evaluate certificate inventory against baseline policy profiles")
+                .WithExample(new[] { "CertificateInventoryPolicy", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Strict", "--json" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Legacy", "--include-compliant", "--max-endpoints", "500" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyCommand>("cert-inventory-policy")
+                .WithDescription("Evaluate certificate inventory against baseline policy profiles (alias)");
+
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("CertificateInventoryReuse")
                 .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots")
                 .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01" })
