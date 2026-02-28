@@ -497,6 +497,10 @@ namespace DomainDetective {
         /// <param name="expiredOnly">When set, only returns endpoint rows whose expiry state equals this value.</param>
         /// <param name="notYetValidOnly">When set, only returns endpoint rows whose not-yet-valid state equals this value.</param>
         /// <param name="currentlyValidOnly">When set, only returns endpoint rows whose current validity-window state equals this value.</param>
+        /// <param name="daysToExpireMin">When set, only returns endpoint rows whose days-to-expire is greater than or equal to this value.</param>
+        /// <param name="daysToExpireMax">When set, only returns endpoint rows whose days-to-expire is less than or equal to this value.</param>
+        /// <param name="daysUntilValidMin">When set, only returns endpoint rows whose days-until-valid is greater than or equal to this value.</param>
+        /// <param name="daysUntilValidMax">When set, only returns endpoint rows whose days-until-valid is less than or equal to this value.</param>
         /// <param name="knownAuthorityOnly">When set, only returns endpoint rows whose recognized-issuer state equals this value.</param>
         /// <param name="knownRootAuthorityOnly">When set, only returns endpoint rows whose recognized-root-issuer state equals this value.</param>
         /// <param name="authenticationProfileEquals">Optional authentication-profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</param>
@@ -533,6 +537,10 @@ namespace DomainDetective {
             bool? expiredOnly = null,
             bool? notYetValidOnly = null,
             bool? currentlyValidOnly = null,
+            int? daysToExpireMin = null,
+            int? daysToExpireMax = null,
+            int? daysUntilValidMin = null,
+            int? daysUntilValidMax = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -570,6 +578,10 @@ namespace DomainDetective {
                 expiredOnly,
                 notYetValidOnly,
                 currentlyValidOnly,
+                daysToExpireMin,
+                daysToExpireMax,
+                daysUntilValidMin,
+                daysUntilValidMax,
                 knownAuthorityOnly,
                 knownRootAuthorityOnly,
                 authenticationProfileEquals,

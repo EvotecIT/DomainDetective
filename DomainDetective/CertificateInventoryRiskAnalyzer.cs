@@ -158,6 +158,10 @@ namespace DomainDetective {
             bool? expiredOnly = null,
             bool? notYetValidOnly = null,
             bool? currentlyValidOnly = null,
+            int? daysToExpireMin = null,
+            int? daysToExpireMax = null,
+            int? daysUntilValidMin = null,
+            int? daysUntilValidMax = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -198,6 +202,26 @@ namespace DomainDetective {
             var portExpected = hasPortFilter ? portEquals!.Value : 0;
             if (hasPortFilter && (portExpected <= 0 || portExpected > 65535)) {
                 throw new ArgumentOutOfRangeException(nameof(portEquals), "portEquals must be between 1 and 65535.");
+            }
+            var hasDaysToExpireMinFilter = daysToExpireMin.HasValue;
+            var daysToExpireMinExpected = hasDaysToExpireMinFilter ? daysToExpireMin!.Value : 0;
+            var hasDaysToExpireMaxFilter = daysToExpireMax.HasValue;
+            var daysToExpireMaxExpected = hasDaysToExpireMaxFilter ? daysToExpireMax!.Value : 0;
+            if (hasDaysToExpireMinFilter && hasDaysToExpireMaxFilter && daysToExpireMinExpected > daysToExpireMaxExpected) {
+                throw new ArgumentException("daysToExpireMin cannot be greater than daysToExpireMax.", nameof(daysToExpireMin));
+            }
+            var hasDaysUntilValidMinFilter = daysUntilValidMin.HasValue;
+            var daysUntilValidMinExpected = hasDaysUntilValidMinFilter ? daysUntilValidMin!.Value : 0;
+            if (hasDaysUntilValidMinFilter && daysUntilValidMinExpected < 0) {
+                throw new ArgumentOutOfRangeException(nameof(daysUntilValidMin), "daysUntilValidMin must be 0 or greater.");
+            }
+            var hasDaysUntilValidMaxFilter = daysUntilValidMax.HasValue;
+            var daysUntilValidMaxExpected = hasDaysUntilValidMaxFilter ? daysUntilValidMax!.Value : 0;
+            if (hasDaysUntilValidMaxFilter && daysUntilValidMaxExpected < 0) {
+                throw new ArgumentOutOfRangeException(nameof(daysUntilValidMax), "daysUntilValidMax must be 0 or greater.");
+            }
+            if (hasDaysUntilValidMinFilter && hasDaysUntilValidMaxFilter && daysUntilValidMinExpected > daysUntilValidMaxExpected) {
+                throw new ArgumentException("daysUntilValidMin cannot be greater than daysUntilValidMax.", nameof(daysUntilValidMin));
             }
             var hasAuthenticationProfileFilter = !string.IsNullOrWhiteSpace(authenticationProfileEquals);
             var authenticationProfileExpected = hasAuthenticationProfileFilter ? authenticationProfileEquals!.Trim() : string.Empty;
@@ -367,6 +391,26 @@ namespace DomainDetective {
                 var currentlyValid = !row.Expired && !row.NotYetValid;
                 if (currentlyValidOnly.HasValue && currentlyValid != currentlyValidOnly.Value) {
                     continue;
+                }
+                if (hasDaysToExpireMinFilter) {
+                    if (!row.DaysToExpire.HasValue || row.DaysToExpire.Value < daysToExpireMinExpected) {
+                        continue;
+                    }
+                }
+                if (hasDaysToExpireMaxFilter) {
+                    if (!row.DaysToExpire.HasValue || row.DaysToExpire.Value > daysToExpireMaxExpected) {
+                        continue;
+                    }
+                }
+                if (hasDaysUntilValidMinFilter) {
+                    if (!row.DaysUntilValid.HasValue || row.DaysUntilValid.Value < daysUntilValidMinExpected) {
+                        continue;
+                    }
+                }
+                if (hasDaysUntilValidMaxFilter) {
+                    if (!row.DaysUntilValid.HasValue || row.DaysUntilValid.Value > daysUntilValidMaxExpected) {
+                        continue;
+                    }
                 }
                 if (knownAuthorityOnly.HasValue && knownAuthorityOnly.Value != row.IsKnownCertificateAuthority) {
                     continue;

@@ -218,6 +218,26 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--currently-invalid-only")]
     public bool CurrentlyInvalidOnly { get; set; }
 
+    /// <summary>Only include endpoints whose days-to-expire is greater than or equal to this value.</summary>
+    [Description("Only include endpoints whose days-to-expire is greater than or equal to this value.")]
+    [CommandOption("--days-to-expire-min <N>")]
+    public int? DaysToExpireMin { get; set; }
+
+    /// <summary>Only include endpoints whose days-to-expire is less than or equal to this value.</summary>
+    [Description("Only include endpoints whose days-to-expire is less than or equal to this value.")]
+    [CommandOption("--days-to-expire-max <N>")]
+    public int? DaysToExpireMax { get; set; }
+
+    /// <summary>Only include endpoints whose days-until-valid is greater than or equal to this value.</summary>
+    [Description("Only include endpoints whose days-until-valid is greater than or equal to this value.")]
+    [CommandOption("--days-until-valid-min <N>")]
+    public int? DaysUntilValidMin { get; set; }
+
+    /// <summary>Only include endpoints whose days-until-valid is less than or equal to this value.</summary>
+    [Description("Only include endpoints whose days-until-valid is less than or equal to this value.")]
+    [CommandOption("--days-until-valid-max <N>")]
+    public int? DaysUntilValidMax { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Description("Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).")]
     [CommandOption("--auth-profile <NAME>")]
@@ -335,6 +355,22 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--currently-valid-only cannot be combined with --currently-invalid-only.[/]");
             return Task.FromResult(1);
         }
+        if (settings.DaysToExpireMin.HasValue && settings.DaysToExpireMax.HasValue && settings.DaysToExpireMin.Value > settings.DaysToExpireMax.Value) {
+            AnsiConsole.MarkupLine("[red]--days-to-expire-min cannot be greater than --days-to-expire-max.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.DaysUntilValidMin.HasValue && settings.DaysUntilValidMin.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--days-until-valid-min must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.DaysUntilValidMax.HasValue && settings.DaysUntilValidMax.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--days-until-valid-max must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.DaysUntilValidMin.HasValue && settings.DaysUntilValidMax.HasValue && settings.DaysUntilValidMin.Value > settings.DaysUntilValidMax.Value) {
+            AnsiConsole.MarkupLine("[red]--days-until-valid-min cannot be greater than --days-until-valid-max.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.KnownCaOnly && settings.UnknownCaOnly) {
             AnsiConsole.MarkupLine("[red]--known-ca-only cannot be combined with --unknown-ca-only.[/]");
             return Task.FromResult(1);
@@ -390,6 +426,10 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             expiredOnly: settings.ExpiredOnly ? true : settings.NotExpiredOnly ? false : null,
             notYetValidOnly: settings.NotYetValidOnly ? true : settings.AlreadyValidOnly ? false : null,
             currentlyValidOnly: settings.CurrentlyValidOnly ? true : settings.CurrentlyInvalidOnly ? false : null,
+            daysToExpireMin: settings.DaysToExpireMin,
+            daysToExpireMax: settings.DaysToExpireMax,
+            daysUntilValidMin: settings.DaysUntilValidMin,
+            daysUntilValidMax: settings.DaysUntilValidMax,
             knownAuthorityOnly: settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
             knownRootAuthorityOnly: settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
             authenticationProfileEquals: settings.AuthenticationProfileEquals,
