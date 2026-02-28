@@ -4,7 +4,9 @@ using Spectre.Console.Cli;
 using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -49,6 +51,11 @@ internal sealed class CertificateInventoryDiffSettings : CommandSettings {
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
     public bool Json { get; set; }
+
+    /// <summary>Optional CSV output path for endpoint diff rows.</summary>
+    [Description("Optional CSV output path for endpoint diff rows.")]
+    [CommandOption("--csv-path <PATH>")]
+    public string? CsvPath { get; set; }
 }
 
 /// <summary>
@@ -79,6 +86,16 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
             currentCapturedAtUtc: CertificateInventoryCommandHelpers.ToUtc(settings.CurrentUtc),
             includeUnchanged: settings.IncludeUnchanged,
             maxEndpoints: settings.MaxEndpoints);
+
+        if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
+            try {
+                WriteCsv(diff, settings.CsvPath!);
+                AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(diff, JsonOptions.Default));
@@ -151,4 +168,74 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
         return Task.FromResult(0);
     }
 
+    private static void WriteCsv(CertificateInventoryDiffSummary diff, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var warnings = string.Join("|", diff.Warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)));
+        var requestedPrevious = diff.RequestedPreviousCapturedAtUtc?.UtcDateTime.ToString("O") ?? string.Empty;
+        var requestedCurrent = diff.RequestedCurrentCapturedAtUtc?.UtcDateTime.ToString("O") ?? string.Empty;
+        var previousSnapshot = diff.PreviousCapturedAtUtc?.UtcDateTime.ToString("O") ?? string.Empty;
+        var currentSnapshot = diff.CurrentCapturedAtUtc?.UtcDateTime.ToString("O") ?? string.Empty;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Host,Port,Status,ChangeReasons,PreviousService,CurrentService,PreviousIssuer,CurrentIssuer,PreviousRoot,CurrentRoot,PreviousThumbprint,CurrentThumbprint,PreviousNotAfterUtc,CurrentNotAfterUtc,PreviousValid,CurrentValid,PreviousChainComplete,CurrentChainComplete,PreviousHostnameMatch,CurrentHostnameMatch,RequestedPreviousSnapshotUtc,RequestedCurrentSnapshotUtc,PreviousSnapshotUtc,CurrentSnapshotUtc,Warnings");
+        foreach (var endpoint in diff.Endpoints) {
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Host));
+            sb.Append(',');
+            sb.Append(endpoint.Port);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Status));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.ChangeReasons)));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousService));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentService));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousIssuer));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentIssuer));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousRoot));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentRoot));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousThumbprint));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentThumbprint));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousNotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentNotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousValid?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentValid?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousChainComplete?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentChainComplete?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousHostnameMatch?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentHostnameMatch?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(requestedPrevious));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(requestedCurrent));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(previousSnapshot));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(currentSnapshot));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(warnings));
+            sb.AppendLine();
+        }
+
+        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
+    }
 }
