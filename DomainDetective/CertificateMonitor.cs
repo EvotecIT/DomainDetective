@@ -523,6 +523,9 @@ namespace DomainDetective {
         /// <param name="serverAuthOnly">When true, only returns endpoint rows whose certificate allows server authentication EKU.</param>
         /// <param name="clientAuthOnly">When true, only returns endpoint rows whose certificate allows client authentication EKU.</param>
         /// <param name="secureEmailOnly">When true, only returns endpoint rows whose certificate allows secure-email EKU.</param>
+        /// <param name="certificateReuseEndpointCountMin">Optional minimum certificate-reuse endpoint-count filter (1 or greater).</param>
+        /// <param name="certificateReuseEndpointCountMax">Optional maximum certificate-reuse endpoint-count filter (1 or greater).</param>
+        /// <param name="certificateReuseCrossServiceOnly">When set, only returns endpoint rows whose certificate is reused across more than one distinct service when true, or within a single service when false.</param>
         public CertificateInventoryRiskSummary BuildInventoryRisk(
             DateTimeOffset? sinceUtc = null,
             bool includeNoRisk = false,
@@ -578,7 +581,10 @@ namespace DomainDetective {
             string[]? issuerContainsAllOf = null,
             string? rootIssuerContains = null,
             string[]? rootIssuerContainsAnyOf = null,
-            string[]? rootIssuerContainsAllOf = null) {
+            string[]? rootIssuerContainsAllOf = null,
+            int? certificateReuseEndpointCountMin = null,
+            int? certificateReuseEndpointCountMax = null,
+            bool? certificateReuseCrossServiceOnly = null) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
             return CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
@@ -635,7 +641,10 @@ namespace DomainDetective {
                 issuerContainsAllOf,
                 rootIssuerContains,
                 rootIssuerContainsAnyOf,
-                rootIssuerContainsAllOf);
+                rootIssuerContainsAllOf,
+                certificateReuseEndpointCountMin,
+                certificateReuseEndpointCountMax,
+                certificateReuseCrossServiceOnly);
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>

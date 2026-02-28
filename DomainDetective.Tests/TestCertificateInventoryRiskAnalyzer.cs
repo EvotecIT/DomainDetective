@@ -741,6 +741,36 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskThrowsForInvalidCertificateReuseRange() {
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = DateTimeOffset.UtcNow,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                }
+            };
+
+            var reuseMin = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseEndpointCountMin: 0));
+            Assert.Equal("certificateReuseEndpointCountMin", reuseMin.ParamName);
+
+            var reuseMax = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseEndpointCountMax: 0));
+            Assert.Equal("certificateReuseEndpointCountMax", reuseMax.ParamName);
+
+            var reuseRange = Assert.Throws<ArgumentException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseEndpointCountMin: 5,
+                certificateReuseEndpointCountMax: 2));
+            Assert.Equal("certificateReuseEndpointCountMin", reuseRange.ParamName);
+        }
+
+        [Fact]
         public void BuildRiskAppliesRiskProfilesAndSupportsExplicitOverrides() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {
@@ -1127,6 +1157,128 @@ namespace DomainDetective.Tests {
             Assert.Single(zeroReasonOnly.Endpoints);
             Assert.Equal("healthy-zero-reasons.example.com", zeroReasonOnly.Endpoints[0].Host);
             Assert.Empty(zeroReasonOnly.Endpoints[0].Reasons);
+        }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByCertificateReuse() {
+            var now = DateTimeOffset.UtcNow;
+            const string reusedThumbprint = "AA11BB22CC33DD44EE55FF6677889900AABBCCDD";
+            const string singletonThumbprint = "11AA22BB33CC44DD55EE66FF77889900AABBCCDD";
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "reuse-a.example.com",
+                            ResolvedHost = "reuse-a.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateThumbprint = reusedThumbprint
+                        },
+                        new() {
+                            Host = "reuse-b.example.com",
+                            ResolvedHost = "reuse-b.example.com",
+                            Port = 8443,
+                            Service = "HTTPS-Alt",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateThumbprint = reusedThumbprint
+                        },
+                        new() {
+                            Host = "reuse-c.example.com",
+                            ResolvedHost = "reuse-c.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateThumbprint = reusedThumbprint
+                        },
+                        new() {
+                            Host = "singleton.example.com",
+                            ResolvedHost = "singleton.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateThumbprint = singletonThumbprint
+                        }
+                    }
+                }
+            };
+
+            var allEndpoints = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true);
+            Assert.Equal(4, allEndpoints.Endpoints.Count);
+
+            var reused = allEndpoints.Endpoints.Single(endpoint => endpoint.Host == "reuse-a.example.com");
+            Assert.Equal(3, reused.CertificateReuseEndpointCount);
+            Assert.Equal(2, reused.CertificateReuseDistinctServiceCount);
+            Assert.Equal(2, reused.CertificateReuseDistinctPortCount);
+
+            var singleton = allEndpoints.Endpoints.Single(endpoint => endpoint.Host == "singleton.example.com");
+            Assert.Equal(1, singleton.CertificateReuseEndpointCount);
+            Assert.Equal(1, singleton.CertificateReuseDistinctServiceCount);
+            Assert.Equal(1, singleton.CertificateReuseDistinctPortCount);
+
+            var reusedOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseEndpointCountMin: 2);
+            Assert.Equal(3, reusedOnly.Endpoints.Count);
+            Assert.All(reusedOnly.Endpoints, endpoint => Assert.Equal(3, endpoint.CertificateReuseEndpointCount));
+
+            var singletonOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseEndpointCountMax: 1);
+            Assert.Single(singletonOnly.Endpoints);
+            Assert.Equal("singleton.example.com", singletonOnly.Endpoints[0].Host);
+
+            var crossServiceOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseCrossServiceOnly: true);
+            Assert.Equal(3, crossServiceOnly.Endpoints.Count);
+            Assert.All(crossServiceOnly.Endpoints, endpoint => Assert.True(endpoint.CertificateReuseDistinctServiceCount > 1));
+
+            var singleServiceOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseCrossServiceOnly: false);
+            Assert.Single(singleServiceOnly.Endpoints);
+            Assert.Equal("singleton.example.com", singleServiceOnly.Endpoints[0].Host);
         }
 
         [Fact]

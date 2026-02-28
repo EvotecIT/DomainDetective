@@ -73,6 +73,26 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--reason-count-max <N>")]
     public int? ReasonCountMax { get; set; }
 
+    /// <summary>Optional minimum certificate-reuse endpoint-count filter (1 or greater).</summary>
+    [Description("Optional minimum certificate-reuse endpoint-count filter (1 or greater).")]
+    [CommandOption("--reuse-endpoint-min <N>")]
+    public int? ReuseEndpointCountMin { get; set; }
+
+    /// <summary>Optional maximum certificate-reuse endpoint-count filter (1 or greater).</summary>
+    [Description("Optional maximum certificate-reuse endpoint-count filter (1 or greater).")]
+    [CommandOption("--reuse-endpoint-max <N>")]
+    public int? ReuseEndpointCountMax { get; set; }
+
+    /// <summary>Only include endpoints where the same certificate is reused across more than one distinct service.</summary>
+    [Description("Only include endpoints where the same certificate is reused across more than one distinct service.")]
+    [CommandOption("--reuse-cross-service-only")]
+    public bool ReuseCrossServiceOnly { get; set; }
+
+    /// <summary>Only include endpoints where the same certificate is reused within a single distinct service.</summary>
+    [Description("Only include endpoints where the same certificate is reused within a single distinct service.")]
+    [CommandOption("--reuse-single-service-only")]
+    public bool ReuseSingleServiceOnly { get; set; }
+
     /// <summary>Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</summary>
     [Description("Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).")]
     [CommandOption("--risk-profile <NAME>")]
@@ -419,6 +439,22 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--reason-count-min cannot be greater than --reason-count-max.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ReuseEndpointCountMin.HasValue && settings.ReuseEndpointCountMin.Value < 1) {
+            AnsiConsole.MarkupLine("[red]--reuse-endpoint-min must be 1 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReuseEndpointCountMax.HasValue && settings.ReuseEndpointCountMax.Value < 1) {
+            AnsiConsole.MarkupLine("[red]--reuse-endpoint-max must be 1 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReuseEndpointCountMin.HasValue && settings.ReuseEndpointCountMax.HasValue && settings.ReuseEndpointCountMin.Value > settings.ReuseEndpointCountMax.Value) {
+            AnsiConsole.MarkupLine("[red]--reuse-endpoint-min cannot be greater than --reuse-endpoint-max.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReuseCrossServiceOnly && settings.ReuseSingleServiceOnly) {
+            AnsiConsole.MarkupLine("[red]--reuse-cross-service-only cannot be combined with --reuse-single-service-only.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.ChainLengthMin.HasValue && settings.ChainLengthMin.Value < 0) {
             AnsiConsole.MarkupLine("[red]--chain-length-min must be 0 or greater.[/]");
             return Task.FromResult(1);
@@ -544,6 +580,9 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             scoreMax: settings.ScoreMax,
             reasonCountMin: settings.ReasonCountMin,
             reasonCountMax: settings.ReasonCountMax,
+            certificateReuseEndpointCountMin: settings.ReuseEndpointCountMin,
+            certificateReuseEndpointCountMax: settings.ReuseEndpointCountMax,
+            certificateReuseCrossServiceOnly: settings.ReuseCrossServiceOnly ? true : settings.ReuseSingleServiceOnly ? false : null,
             riskProfile: normalizedRiskProfile,
             reasonContains: settings.ReasonContains,
             reasonAnyOf: settings.ReasonAnyOf,
@@ -644,6 +683,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         rows.AddColumn("Host");
         rows.AddColumn("Port");
         rows.AddColumn("Service");
+        rows.AddColumn("Reuse");
         rows.AddColumn("Chain");
         rows.AddColumn("Score");
         rows.AddColumn("Severity");
@@ -666,12 +706,14 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             var chain = endpoint.ChainLength > 0
                 ? $"{endpoint.ChainLength}/{endpoint.IntermediateCount}"
                 : "-";
+            var reuse = $"{endpoint.CertificateReuseEndpointCount}ep/{endpoint.CertificateReuseDistinctServiceCount}svc/{endpoint.CertificateReuseDistinctPortCount}prt";
             var auth = BuildAuthSummary(endpoint);
             var reasons = endpoint.Reasons.Count > 0 ? string.Join(",", endpoint.Reasons) : "-";
             rows.AddRow(
                 endpoint.Host,
                 endpoint.Port.ToString(),
                 endpoint.Service,
+                reuse,
                 chain,
                 endpoint.Score.ToString(),
                 endpoint.Severity,

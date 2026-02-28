@@ -74,6 +74,16 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [ValidateRange(0, int.MaxValue)]
     public int? ReasonCountMax { get; set; }
 
+    /// <summary>Optional minimum certificate-reuse endpoint-count filter (1 or greater).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, int.MaxValue)]
+    public int? ReuseEndpointCountMin { get; set; }
+
+    /// <summary>Optional maximum certificate-reuse endpoint-count filter (1 or greater).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, int.MaxValue)]
+    public int? ReuseEndpointCountMax { get; set; }
+
     /// <summary>Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</summary>
     [Parameter(Mandatory = false)]
     [ValidateSet("Renewal14d", "Renewal30d", "FutureNotYetValid", "Expired", "HighRiskActive")]
@@ -310,6 +320,14 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter SecureEmailOnly { get; set; }
 
+    /// <summary>Only include endpoints where the same certificate is reused across more than one distinct service.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ReuseCrossServiceOnly { get; set; }
+
+    /// <summary>Only include endpoints where the same certificate is reused within a single distinct service.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ReuseSingleServiceOnly { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         if (CriticalExpiringWithinDays > ExpiringWithinDays) {
@@ -440,6 +458,22 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 ReasonCountMin));
             return;
         }
+        if (ReuseEndpointCountMin.HasValue && ReuseEndpointCountMax.HasValue && ReuseEndpointCountMin.Value > ReuseEndpointCountMax.Value) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ReuseEndpointCountMin cannot be greater than -ReuseEndpointCountMax.", nameof(ReuseEndpointCountMin)),
+                "ReuseEndpointCountRangeConflict",
+                ErrorCategory.InvalidArgument,
+                ReuseEndpointCountMin));
+            return;
+        }
+        if (ReuseCrossServiceOnly.IsPresent && ReuseSingleServiceOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ReuseCrossServiceOnly cannot be combined with -ReuseSingleServiceOnly.", nameof(ReuseSingleServiceOnly)),
+                "ReuseServiceSpreadConflict",
+                ErrorCategory.InvalidArgument,
+                ReuseSingleServiceOnly));
+            return;
+        }
         if (ChainLengthMin.HasValue && ChainLengthMax.HasValue && ChainLengthMin.Value > ChainLengthMax.Value) {
             ThrowTerminatingError(new ErrorRecord(
                 new ArgumentException("-ChainLengthMin cannot be greater than -ChainLengthMax.", nameof(ChainLengthMin)),
@@ -486,6 +520,9 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             scoreMax: ScoreMax,
             reasonCountMin: ReasonCountMin,
             reasonCountMax: ReasonCountMax,
+            certificateReuseEndpointCountMin: ReuseEndpointCountMin,
+            certificateReuseEndpointCountMax: ReuseEndpointCountMax,
+            certificateReuseCrossServiceOnly: ReuseCrossServiceOnly.IsPresent ? true : ReuseSingleServiceOnly.IsPresent ? false : null,
             riskProfile: RiskProfile,
             reasonContains: ReasonContains,
             reasonAnyOf: ReasonAnyOf,
