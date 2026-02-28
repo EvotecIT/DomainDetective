@@ -203,6 +203,8 @@ namespace DomainDetective {
             string? minimumSeverity = null,
             int? scoreMin = null,
             int? scoreMax = null,
+            int? reasonCountMin = null,
+            int? reasonCountMax = null,
             string? riskProfile = null,
             string? reasonContains = null,
             string? issuerContains = null,
@@ -284,6 +286,19 @@ namespace DomainDetective {
             }
             if (hasScoreMinFilter && hasScoreMaxFilter && scoreMinExpected > scoreMaxExpected) {
                 throw new ArgumentException("scoreMin cannot be greater than scoreMax.", nameof(scoreMin));
+            }
+            var hasReasonCountMinFilter = reasonCountMin.HasValue;
+            var reasonCountMinExpected = hasReasonCountMinFilter ? reasonCountMin!.Value : 0;
+            if (hasReasonCountMinFilter && reasonCountMinExpected < 0) {
+                throw new ArgumentOutOfRangeException(nameof(reasonCountMin), "reasonCountMin must be 0 or greater.");
+            }
+            var hasReasonCountMaxFilter = reasonCountMax.HasValue;
+            var reasonCountMaxExpected = hasReasonCountMaxFilter ? reasonCountMax!.Value : 0;
+            if (hasReasonCountMaxFilter && reasonCountMaxExpected < 0) {
+                throw new ArgumentOutOfRangeException(nameof(reasonCountMax), "reasonCountMax must be 0 or greater.");
+            }
+            if (hasReasonCountMinFilter && hasReasonCountMaxFilter && reasonCountMinExpected > reasonCountMaxExpected) {
+                throw new ArgumentException("reasonCountMin cannot be greater than reasonCountMax.", nameof(reasonCountMin));
             }
             var hasReasonFilter = !string.IsNullOrWhiteSpace(reasonContains);
             var reasonNeedle = hasReasonFilter ? reasonContains!.Trim() : string.Empty;
@@ -436,6 +451,13 @@ namespace DomainDetective {
                     continue;
                 }
                 if (hasScoreMaxFilter && row.Score > scoreMaxExpected) {
+                    continue;
+                }
+                var reasonCount = row.Reasons.Count;
+                if (hasReasonCountMinFilter && reasonCount < reasonCountMinExpected) {
+                    continue;
+                }
+                if (hasReasonCountMaxFilter && reasonCount > reasonCountMaxExpected) {
                     continue;
                 }
                 if (hasReasonFilter) {

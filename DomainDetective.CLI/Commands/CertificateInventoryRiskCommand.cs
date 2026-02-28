@@ -63,6 +63,16 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--score-max <N>")]
     public int? ScoreMax { get; set; }
 
+    /// <summary>Optional minimum reason-count filter (0 or greater).</summary>
+    [Description("Optional minimum reason-count filter (0 or greater).")]
+    [CommandOption("--reason-count-min <N>")]
+    public int? ReasonCountMin { get; set; }
+
+    /// <summary>Optional maximum reason-count filter (0 or greater).</summary>
+    [Description("Optional maximum reason-count filter (0 or greater).")]
+    [CommandOption("--reason-count-max <N>")]
+    public int? ReasonCountMax { get; set; }
+
     /// <summary>Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</summary>
     [Description("Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).")]
     [CommandOption("--risk-profile <NAME>")]
@@ -397,6 +407,18 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--score-min cannot be greater than --score-max.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ReasonCountMin.HasValue && settings.ReasonCountMin.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--reason-count-min must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReasonCountMax.HasValue && settings.ReasonCountMax.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--reason-count-max must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReasonCountMin.HasValue && settings.ReasonCountMax.HasValue && settings.ReasonCountMin.Value > settings.ReasonCountMax.Value) {
+            AnsiConsole.MarkupLine("[red]--reason-count-min cannot be greater than --reason-count-max.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.ChainLengthMin.HasValue && settings.ChainLengthMin.Value < 0) {
             AnsiConsole.MarkupLine("[red]--chain-length-min must be 0 or greater.[/]");
             return Task.FromResult(1);
@@ -520,6 +542,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             minimumSeverity: normalizedMinimumSeverity,
             scoreMin: settings.ScoreMin,
             scoreMax: settings.ScoreMax,
+            reasonCountMin: settings.ReasonCountMin,
+            reasonCountMax: settings.ReasonCountMax,
             riskProfile: normalizedRiskProfile,
             reasonContains: settings.ReasonContains,
             reasonAnyOf: settings.ReasonAnyOf,

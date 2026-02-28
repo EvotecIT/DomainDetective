@@ -64,6 +64,16 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [ValidateRange(0, 100)]
     public int? ScoreMax { get; set; }
 
+    /// <summary>Optional minimum reason-count filter (0 or greater).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? ReasonCountMin { get; set; }
+
+    /// <summary>Optional maximum reason-count filter (0 or greater).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? ReasonCountMax { get; set; }
+
     /// <summary>Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</summary>
     [Parameter(Mandatory = false)]
     [ValidateSet("Renewal14d", "Renewal30d", "FutureNotYetValid", "Expired", "HighRiskActive")]
@@ -422,6 +432,14 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 ScoreMin));
             return;
         }
+        if (ReasonCountMin.HasValue && ReasonCountMax.HasValue && ReasonCountMin.Value > ReasonCountMax.Value) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ReasonCountMin cannot be greater than -ReasonCountMax.", nameof(ReasonCountMin)),
+                "ReasonCountRangeConflict",
+                ErrorCategory.InvalidArgument,
+                ReasonCountMin));
+            return;
+        }
         if (ChainLengthMin.HasValue && ChainLengthMax.HasValue && ChainLengthMin.Value > ChainLengthMax.Value) {
             ThrowTerminatingError(new ErrorRecord(
                 new ArgumentException("-ChainLengthMin cannot be greater than -ChainLengthMax.", nameof(ChainLengthMin)),
@@ -466,6 +484,8 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             minimumSeverity: MinimumSeverity,
             scoreMin: ScoreMin,
             scoreMax: ScoreMax,
+            reasonCountMin: ReasonCountMin,
+            reasonCountMax: ReasonCountMax,
             riskProfile: RiskProfile,
             reasonContains: ReasonContains,
             reasonAnyOf: ReasonAnyOf,
