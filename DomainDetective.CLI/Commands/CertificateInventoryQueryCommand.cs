@@ -5,7 +5,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -256,6 +258,11 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--json")]
     public bool Json { get; set; }
 
+    /// <summary>Optional CSV output path for matched query entries.</summary>
+    [Description("Optional CSV output path for matched query entries.")]
+    [CommandOption("--csv-path <PATH>")]
+    public string? CsvPath { get; set; }
+
     /// <summary>Show matched-entry breakdown tables (service/issuer/auth/chain/CT) for table output (ignored with --json).</summary>
     [Description("Show matched-entry breakdown tables (service/issuer/auth/chain/CT) for table output (ignored with --json).")]
     [CommandOption("--show-breakdown")]
@@ -383,6 +390,16 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         };
         var result = monitor.QueryInventoryEntries(query);
 
+        if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
+            try {
+                WriteCsv(result, settings.CsvPath!);
+                AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
+
         if (settings.Json) {
             var json = JsonSerializer.Serialize(result, JsonOptions.Default);
             Console.WriteLine(json);
@@ -479,6 +496,110 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         }
 
         return flags.Length == 0 ? "-" : flags;
+    }
+
+    private static void WriteCsv(CertificateInventoryQueryResult result, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("CapturedAtUtc,Host,ResolvedHost,Port,Service,Url,Scheme,Subject,Issuer,RootIssuer,AuthorityFamily,RootAuthorityFamily,NotBeforeUtc,NotAfterUtc,DaysToExpire,IsKnownCertificateAuthority,IsKnownRootCertificateAuthority,Valid,Expired,ChainComplete,CertificateChainLength,CertificateIntermediateCount,HostnameMatch,IsReachable,IsSelfSigned,PresentInCtLogs,Protocol,KeyAlgorithm,KeySize,WeakKey,Sha1Signature,RsaPssSignature,AllowsServerAuthentication,AllowsClientAuthentication,AllowsSecureEmail,AuthenticationProfile,CertificateThumbprint,CertificateRootThumbprint,CertificateSerialNumber,CertificateChainSource,CertificateChainSources,CtDiscoverySources,CtTemplateFormatErrors,SubjectAlternativeNames");
+        foreach (var observed in result.Entries.OrderByDescending(x => x.CapturedAtUtc)) {
+            var entry = observed.Entry;
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(observed.CapturedAtUtc.UtcDateTime.ToString("O")));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Host));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.ResolvedHost));
+            sb.Append(',');
+            sb.Append(entry.Port);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Service));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Url));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Scheme));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateSubject));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateIssuer));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateRootIssuer));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateAuthorityFamily));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateRootAuthorityFamily));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.NotBeforeUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.NotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(entry.DaysToExpire);
+            sb.Append(',');
+            sb.Append(entry.IsKnownCertificateAuthority ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.IsKnownRootCertificateAuthority ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.Valid ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.Expired ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.ChainComplete ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.CertificateChainLength);
+            sb.Append(',');
+            sb.Append(entry.CertificateIntermediateCount);
+            sb.Append(',');
+            sb.Append(entry.HostnameMatch ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.IsReachable ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.IsSelfSigned ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.PresentInCtLogs ? "true" : "false");
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Protocol));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.KeyAlgorithm));
+            sb.Append(',');
+            sb.Append(entry.KeySize);
+            sb.Append(',');
+            sb.Append(entry.WeakKey ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.Sha1Signature ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.RsaPssSignature ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.AllowsServerAuthentication ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.AllowsClientAuthentication ? "true" : "false");
+            sb.Append(',');
+            sb.Append(entry.AllowsSecureEmail ? "true" : "false");
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.AuthenticationProfile));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateThumbprint));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateRootThumbprint));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateSerialNumber));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateChainSource));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.CertificateChainSources)));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.CtDiscoverySources ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.CtTemplateFormatErrors ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.SubjectAlternativeNames)));
+            sb.AppendLine();
+        }
+
+        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
     }
 
     private static void RenderCountTable(string title, Dictionary<string, int> counters) {
