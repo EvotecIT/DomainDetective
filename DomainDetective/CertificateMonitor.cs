@@ -481,6 +481,9 @@ namespace DomainDetective {
         /// <param name="issuerContains">Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</param>
         /// <param name="issuerContainsAnyOf">Optional case-insensitive issuer/root-issuer substring filters (any match).</param>
         /// <param name="issuerContainsAllOf">Optional case-insensitive issuer/root-issuer substring filters (all must match).</param>
+        /// <param name="rootIssuerContains">Optional case-insensitive root-issuer substring filter (for example ISRG Root, DigiCert Global Root).</param>
+        /// <param name="rootIssuerContainsAnyOf">Optional case-insensitive root-issuer substring filters (any match).</param>
+        /// <param name="rootIssuerContainsAllOf">Optional case-insensitive root-issuer substring filters (all must match).</param>
         /// <param name="authorityFamilyEquals">Optional leaf authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
         /// <param name="rootAuthorityFamilyEquals">Optional root authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
         /// <param name="ctSourceContains">Optional CT/discovery source substring filter (for example crt.sh, shodan, censys).</param>
@@ -564,7 +567,10 @@ namespace DomainDetective {
             string[]? reasonAnyOf = null,
             string[]? reasonAllOf = null,
             string[]? issuerContainsAnyOf = null,
-            string[]? issuerContainsAllOf = null) {
+            string[]? issuerContainsAllOf = null,
+            string? rootIssuerContains = null,
+            string[]? rootIssuerContainsAnyOf = null,
+            string[]? rootIssuerContainsAllOf = null) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
             return CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
@@ -614,7 +620,10 @@ namespace DomainDetective {
                 reasonAnyOf,
                 reasonAllOf,
                 issuerContainsAnyOf,
-                issuerContainsAllOf);
+                issuerContainsAllOf,
+                rootIssuerContains,
+                rootIssuerContainsAnyOf,
+                rootIssuerContainsAllOf);
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>

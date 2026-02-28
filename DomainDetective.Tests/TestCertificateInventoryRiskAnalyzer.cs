@@ -1397,6 +1397,61 @@ namespace DomainDetective.Tests {
                 issuerContainsAllOf: new[] { "   " });
             Assert.Single(filteredByWhitespaceIssuerLists.Endpoints);
             Assert.Equal("digicert-issuer.example.com", filteredByWhitespaceIssuerLists.Endpoints[0].Host);
+
+            var filteredByRootIssuerContains = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                rootIssuerContains: "isrg root");
+            Assert.Single(filteredByRootIssuerContains.Endpoints);
+            Assert.Equal("isrg-root.example.com", filteredByRootIssuerContains.Endpoints[0].Host);
+
+            var filteredByRootIssuerAnyOf = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                rootIssuerContainsAnyOf: new[] { "global root", "root x1" });
+            Assert.Equal(2, filteredByRootIssuerAnyOf.Endpoints.Count);
+            Assert.Contains(filteredByRootIssuerAnyOf.Endpoints, endpoint => string.Equals(endpoint.Host, "digicert-issuer.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(filteredByRootIssuerAnyOf.Endpoints, endpoint => string.Equals(endpoint.Host, "isrg-root.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByRootIssuerAllOf = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                rootIssuerContainsAllOf: new[] { "contoso", "root" });
+            Assert.Equal(2, filteredByRootIssuerAllOf.Endpoints.Count);
+            Assert.Contains(filteredByRootIssuerAllOf.Endpoints, endpoint => string.Equals(endpoint.Host, "other-issuer.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(filteredByRootIssuerAllOf.Endpoints, endpoint => string.Equals(endpoint.Host, "healthy-contoso-issuer.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByWhitespaceRootIssuerLists = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                rootIssuerContainsAnyOf: new[] { "   ", "isrg root", "ISRG ROOT" },
+                rootIssuerContainsAllOf: new[] { "   " });
+            Assert.Single(filteredByWhitespaceRootIssuerLists.Endpoints);
+            Assert.Equal("isrg-root.example.com", filteredByWhitespaceRootIssuerLists.Endpoints[0].Host);
         }
 
         [Fact]

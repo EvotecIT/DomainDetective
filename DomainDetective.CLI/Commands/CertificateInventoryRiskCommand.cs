@@ -88,6 +88,21 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--issuer-all <TEXT>")]
     public string[]? IssuerContainsAllOf { get; set; }
 
+    /// <summary>Optional case-insensitive root-issuer substring filter.</summary>
+    [Description("Optional case-insensitive root-issuer substring filter (for example ISRG Root, DigiCert Global Root).")]
+    [CommandOption("--root-issuer-contains <TEXT>")]
+    public string? RootIssuerContains { get; set; }
+
+    /// <summary>Optional case-insensitive root-issuer substring filters where any value can match (repeat option).</summary>
+    [Description("Optional case-insensitive root-issuer substring filters where any value can match (repeat option).")]
+    [CommandOption("--root-issuer-any <TEXT>")]
+    public string[]? RootIssuerContainsAnyOf { get; set; }
+
+    /// <summary>Optional case-insensitive root-issuer substring filters where all values must match (repeat option).</summary>
+    [Description("Optional case-insensitive root-issuer substring filters where all values must match (repeat option).")]
+    [CommandOption("--root-issuer-all <TEXT>")]
+    public string[]? RootIssuerContainsAllOf { get; set; }
+
     /// <summary>Optional leaf authority family exact-match filter (for example DigiCert, LetsEncrypt).</summary>
     [Description("Optional leaf authority family exact-match filter (for example DigiCert, LetsEncrypt).")]
     [CommandOption("--authority-family <NAME>")]
@@ -488,6 +503,9 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             issuerContains: settings.IssuerContains,
             issuerContainsAnyOf: settings.IssuerContainsAnyOf,
             issuerContainsAllOf: settings.IssuerContainsAllOf,
+            rootIssuerContains: settings.RootIssuerContains,
+            rootIssuerContainsAnyOf: settings.RootIssuerContainsAnyOf,
+            rootIssuerContainsAllOf: settings.RootIssuerContainsAllOf,
             authorityFamilyEquals: settings.AuthorityFamilyEquals,
             rootAuthorityFamilyEquals: settings.RootAuthorityFamilyEquals,
             ctSourceContains: settings.CtSourceContains,
