@@ -190,7 +190,8 @@ internal static class Program {
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDriftCommand>("CertificateInventoryDrift")
                 .WithDescription("Analyze certificate drift and rotation across persisted snapshots")
                 .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--changed-only" })
-                .WithExample(new[] { "CertificateInventoryDrift", "--max-endpoints", "500", "--json" });
+                .WithExample(new[] { "CertificateInventoryDrift", "--max-endpoints", "500", "--json" })
+                .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-drift.csv" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDriftCommand>("cert-inventory-drift")
                 .WithDescription("Analyze certificate drift and rotation across persisted snapshots (alias)");
 
