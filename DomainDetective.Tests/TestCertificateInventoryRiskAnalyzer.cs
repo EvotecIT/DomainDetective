@@ -225,6 +225,10 @@ namespace DomainDetective.Tests {
             Assert.Equal(0d, risk.ReusedCertificateIdentityPercentage);
             Assert.Equal(0, risk.EndpointsWithReusedCertificateCount);
             Assert.Equal(0d, risk.EndpointsWithReusedCertificatePercentage);
+            Assert.Equal(0, risk.CrossServiceReusedCertificateIdentityCount);
+            Assert.Equal(0, risk.CrossPortReusedCertificateIdentityCount);
+            Assert.Equal(0, risk.EndpointsWithCrossServiceReuseCount);
+            Assert.Equal(0, risk.EndpointsWithCrossPortReuseCount);
             Assert.Equal(0, risk.MaxCertificateReuseEndpointCount);
             Assert.Equal(0, risk.MaxCertificateReuseDistinctServiceCount);
             Assert.Equal(0, risk.MaxCertificateReuseDistinctPortCount);
@@ -1301,6 +1305,10 @@ namespace DomainDetective.Tests {
             Assert.Equal(50d, allEndpoints.ReusedCertificateIdentityPercentage);
             Assert.Equal(3, allEndpoints.EndpointsWithReusedCertificateCount);
             Assert.Equal(75d, allEndpoints.EndpointsWithReusedCertificatePercentage);
+            Assert.Equal(1, allEndpoints.CrossServiceReusedCertificateIdentityCount);
+            Assert.Equal(1, allEndpoints.CrossPortReusedCertificateIdentityCount);
+            Assert.Equal(3, allEndpoints.EndpointsWithCrossServiceReuseCount);
+            Assert.Equal(3, allEndpoints.EndpointsWithCrossPortReuseCount);
             Assert.Equal(3, allEndpoints.MaxCertificateReuseEndpointCount);
             Assert.Equal(2, allEndpoints.MaxCertificateReuseDistinctServiceCount);
             Assert.Equal(2, allEndpoints.MaxCertificateReuseDistinctPortCount);
