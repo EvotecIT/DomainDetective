@@ -247,6 +247,96 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDriftSingleSnapshotTreatsEndpointsAsAdded() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "single.example.com",
+                            ResolvedHost = "single.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-20),
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            WeakKey = true,
+                            CertificateIssuerNormalized = "Issuer Single",
+                            CertificateRootIssuerNormalized = "Root Single",
+                            CertificateThumbprint = "10012233445566778899AABBCCDDEEFF00112233"
+                        }
+                    }
+                }
+            };
+
+            var drift = CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
+                snapshots,
+                baselineProfile: "Balanced",
+                changedOnly: false,
+                maxEndpoints: 100);
+
+            Assert.Equal(1, drift.SnapshotCount);
+            Assert.Null(drift.PreviousCapturedAtUtc);
+            Assert.Equal(now, drift.CurrentCapturedAtUtc);
+            Assert.Equal(0, drift.PreviousEndpointCount);
+            Assert.Equal(1, drift.CurrentEndpointCount);
+            Assert.Equal(1, drift.EndpointCount);
+            Assert.Equal(1, drift.AddedViolationEndpointCount);
+            Assert.Empty(drift.Warnings);
+
+            var endpoint = drift.Endpoints.Single();
+            Assert.Equal("Added", endpoint.Status);
+            Assert.Contains(CertificateInventoryPolicyViolationCodes.WeakKey, endpoint.NewViolationCodes);
+        }
+
+        [Fact]
+        public void BuildDriftAddsWarningWhenRequestedPreviousSnapshotIsUnavailable() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshot1 = new CertificateInventorySnapshot {
+                CapturedAtUtc = now.AddDays(-2),
+                Port = 443,
+                Entries = new List<CertificateInventoryEntry> {
+                    BuildHealthyEntry(now, "warning.example.com", "20012233445566778899AABBCCDDEEFF00112233")
+                }
+            };
+            var snapshot2 = new CertificateInventorySnapshot {
+                CapturedAtUtc = now.AddDays(-1),
+                Port = 443,
+                Entries = new List<CertificateInventoryEntry> {
+                    BuildHealthyEntry(now, "warning.example.com", "20012233445566778899AABBCCDDEEFF00112233")
+                }
+            };
+            var requestedPrevious = now.AddDays(-30);
+            var requestedCurrent = now.AddDays(-1);
+
+            var drift = CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
+                new[] { snapshot1, snapshot2 },
+                baselineProfile: "Balanced",
+                previousCapturedAtUtc: requestedPrevious,
+                currentCapturedAtUtc: requestedCurrent,
+                changedOnly: false,
+                maxEndpoints: 100);
+
+            Assert.Equal(requestedPrevious, drift.RequestedPreviousCapturedAtUtc);
+            Assert.Equal(requestedCurrent, drift.RequestedCurrentCapturedAtUtc);
+            Assert.Null(drift.PreviousCapturedAtUtc);
+            Assert.Equal(snapshot2.CapturedAtUtc, drift.CurrentCapturedAtUtc);
+            Assert.Contains(drift.Warnings, warning =>
+                warning.Contains("Requested previous snapshot", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
         public void BuildDriftAppliesSuppressionOverridesToViolationDeltas() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

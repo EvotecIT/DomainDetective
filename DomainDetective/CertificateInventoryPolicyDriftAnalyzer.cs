@@ -9,6 +9,8 @@ namespace DomainDetective {
     public sealed class CertificateInventoryPolicyDriftSummary {
         public string BaselineProfile { get; set; } = "Balanced";
         public int SnapshotCount { get; set; }
+        public DateTimeOffset? RequestedPreviousCapturedAtUtc { get; set; }
+        public DateTimeOffset? RequestedCurrentCapturedAtUtc { get; set; }
         public DateTimeOffset? PreviousCapturedAtUtc { get; set; }
         public DateTimeOffset? CurrentCapturedAtUtc { get; set; }
         public int PreviousEndpointCount { get; set; }
@@ -26,6 +28,7 @@ namespace DomainDetective {
         public int EndpointsExcludedByChangedOnly { get; set; }
         public int EndpointsTruncatedByMaxEndpoints { get; set; }
         public bool Truncated { get; set; }
+        public List<string> Warnings { get; set; } = new();
         public Dictionary<string, int> NewViolationCodeCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> ResolvedViolationCodeCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<CertificateInventoryEndpointPolicyDrift> Endpoints { get; set; } = new();
@@ -92,7 +95,9 @@ namespace DomainDetective {
             }
 
             var summary = new CertificateInventoryPolicyDriftSummary {
-                BaselineProfile = normalizedBaselineProfile
+                BaselineProfile = normalizedBaselineProfile,
+                RequestedPreviousCapturedAtUtc = previousCapturedAtUtc,
+                RequestedCurrentCapturedAtUtc = currentCapturedAtUtc
             };
 
             var ordered = (snapshots ?? Array.Empty<CertificateInventorySnapshot>())
@@ -104,12 +109,21 @@ namespace DomainDetective {
                 return summary;
             }
 
-            var current = ResolveCurrentSnapshot(ordered, currentCapturedAtUtc);
+            var current = ResolveCurrentSnapshot(ordered, currentCapturedAtUtc, out var usedCurrentFallback);
             var previous = previousCapturedAtUtc.HasValue
                 ? ResolveSnapshotAtOrBefore(ordered, previousCapturedAtUtc.Value)
                 : ResolvePreviousSnapshot(ordered, current);
 
-            summary.CurrentCapturedAtUtc = current?.CapturedAtUtc;
+            if (currentCapturedAtUtc.HasValue && usedCurrentFallback) {
+                summary.Warnings.Add(
+                    $"Requested current snapshot at or before {currentCapturedAtUtc.Value.UtcDateTime:yyyy-MM-dd HH:mm:ss} UTC was not found; using latest snapshot {current.CapturedAtUtc.UtcDateTime:yyyy-MM-dd HH:mm:ss} UTC.");
+            }
+            if (previousCapturedAtUtc.HasValue && previous == null) {
+                summary.Warnings.Add(
+                    $"Requested previous snapshot at or before {previousCapturedAtUtc.Value.UtcDateTime:yyyy-MM-dd HH:mm:ss} UTC was not found.");
+            }
+
+            summary.CurrentCapturedAtUtc = current.CapturedAtUtc;
             summary.PreviousCapturedAtUtc = previous?.CapturedAtUtc;
 
             var previousMap = BuildEndpointPolicyMap(previous, normalizedBaselineProfile, policyOverrides);
@@ -149,6 +163,8 @@ namespace DomainDetective {
                         summary.ResolvedViolationEndpointCount++;
                     }
 
+                    // These counters are intentionally overlapping dimensions:
+                    // compliance transition (added/resolved) and count delta (increased/decreased/unchanged).
                     if (row.CurrentViolationCount > row.PreviousViolationCount) {
                         summary.IncreasedViolationEndpointCount++;
                     } else if (row.CurrentViolationCount < row.PreviousViolationCount) {
@@ -196,23 +212,28 @@ namespace DomainDetective {
             return summary;
         }
 
-        private static CertificateInventorySnapshot? ResolveCurrentSnapshot(
+        private static CertificateInventorySnapshot ResolveCurrentSnapshot(
             IReadOnlyList<CertificateInventorySnapshot> ordered,
-            DateTimeOffset? currentCapturedAtUtc) {
+            DateTimeOffset? currentCapturedAtUtc,
+            out bool usedFallbackToLatest) {
             if (!currentCapturedAtUtc.HasValue) {
+                usedFallbackToLatest = false;
                 return ordered[ordered.Count - 1];
             }
 
-            return ResolveSnapshotAtOrBefore(ordered, currentCapturedAtUtc.Value) ?? ordered[ordered.Count - 1];
+            var resolved = ResolveSnapshotAtOrBefore(ordered, currentCapturedAtUtc.Value);
+            if (resolved != null) {
+                usedFallbackToLatest = false;
+                return resolved;
+            }
+
+            usedFallbackToLatest = true;
+            return ordered[ordered.Count - 1];
         }
 
         private static CertificateInventorySnapshot? ResolvePreviousSnapshot(
             IReadOnlyList<CertificateInventorySnapshot> ordered,
-            CertificateInventorySnapshot? current) {
-            if (current == null) {
-                return null;
-            }
-
+            CertificateInventorySnapshot current) {
             var index = -1;
             for (var i = 0; i < ordered.Count; i++) {
                 if (ReferenceEquals(ordered[i], current)) {
