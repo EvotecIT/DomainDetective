@@ -54,6 +54,11 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [ValidateSet("None", "Low", "Medium", "High", "Critical")]
     public string? MinimumSeverity { get; set; }
 
+    /// <summary>Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateSet("Renewal14d", "Renewal30d", "FutureNotYetValid", "Expired", "HighRiskActive")]
+    public string? RiskProfile { get; set; }
+
     /// <summary>Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).</summary>
     [Parameter(Mandatory = false)]
     public string? ReasonContains { get; set; }
@@ -377,6 +382,7 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             criticalExpiringWithinDays: CriticalExpiringWithinDays,
             maxEndpoints: MaxEndpoints,
             minimumSeverity: MinimumSeverity,
+            riskProfile: RiskProfile,
             reasonContains: ReasonContains,
             issuerContains: IssuerContains,
             authorityFamilyEquals: AuthorityFamilyEquals,

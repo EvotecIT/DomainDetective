@@ -586,6 +586,23 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskThrowsForInvalidRiskProfile() {
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = DateTimeOffset.UtcNow,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                }
+            };
+
+            var ex = Assert.Throws<ArgumentException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                riskProfile: "UnknownProfile"));
+            Assert.Equal("riskProfile", ex.ParamName);
+        }
+
+        [Fact]
         public void BuildRiskThrowsForInvalidPortEquals() {
             var snapshots = new[] {
                 new CertificateInventorySnapshot {
@@ -624,6 +641,125 @@ namespace DomainDetective.Tests {
                 includeNoRisk: true,
                 daysUntilValidMin: -1));
             Assert.Equal("daysUntilValidMin", daysUntilValidMin.ParamName);
+        }
+
+        [Fact]
+        public void BuildRiskAppliesRiskProfilesAndSupportsExplicitOverrides() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "renewal-7.example.com",
+                            ResolvedHost = "renewal-7.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-20),
+                            NotAfterUtc = now.AddDays(7),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "renewal-25.example.com",
+                            ResolvedHost = "renewal-25.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-20),
+                            NotAfterUtc = now.AddDays(25),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "future-6.example.com",
+                            ResolvedHost = "future-6.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(6),
+                            NotAfterUtc = now.AddDays(100),
+                            Valid = false,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "expired-1.example.com",
+                            ResolvedHost = "expired-1.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-40),
+                            NotAfterUtc = now.AddDays(-1),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var renewal14 = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                riskProfile: "Renewal14d");
+            Assert.Single(renewal14.Endpoints);
+            Assert.Equal("renewal-7.example.com", renewal14.Endpoints[0].Host);
+
+            var renewal30 = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                riskProfile: "renewal30D");
+            Assert.Equal(2, renewal30.Endpoints.Count);
+            Assert.Contains(renewal30.Endpoints, endpoint => endpoint.Host.Equals("renewal-7.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(renewal30.Endpoints, endpoint => endpoint.Host.Equals("renewal-25.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var futureNotYetValid = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                riskProfile: "FutureNotYetValid");
+            Assert.Single(futureNotYetValid.Endpoints);
+            Assert.Equal("future-6.example.com", futureNotYetValid.Endpoints[0].Host);
+
+            var expired = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                riskProfile: "Expired");
+            Assert.Single(expired.Endpoints);
+            Assert.Equal("expired-1.example.com", expired.Endpoints[0].Host);
+
+            var renewal14WithOverride = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                riskProfile: "Renewal14d",
+                daysToExpireMax: 30);
+            Assert.Equal(2, renewal14WithOverride.Endpoints.Count);
+            Assert.Contains(renewal14WithOverride.Endpoints, endpoint => endpoint.Host.Equals("renewal-7.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(renewal14WithOverride.Endpoints, endpoint => endpoint.Host.Equals("renewal-25.example.com", StringComparison.OrdinalIgnoreCase));
         }
 
         [Fact]

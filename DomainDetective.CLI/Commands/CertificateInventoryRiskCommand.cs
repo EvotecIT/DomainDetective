@@ -53,6 +53,11 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--minimum-severity <LEVEL>")]
     public string? MinimumSeverity { get; set; }
 
+    /// <summary>Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</summary>
+    [Description("Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).")]
+    [CommandOption("--risk-profile <NAME>")]
+    public string? RiskProfile { get; set; }
+
     /// <summary>Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).</summary>
     [Description("Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).")]
     [CommandOption("--reason-contains <TEXT>")]
@@ -389,6 +394,15 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             // Validate early for user-friendly CLI messaging; analyzer validates again for API callers.
             normalizedMinimumSeverity = normalized;
         }
+        var normalizedRiskProfile = settings.RiskProfile;
+        if (!string.IsNullOrWhiteSpace(settings.RiskProfile)) {
+            if (!CertificateInventoryRiskAnalyzer.TryResolveRiskProfile(settings.RiskProfile, out var normalized)) {
+                AnsiConsole.MarkupLine($"[red]--risk-profile must be one of: {CertificateInventoryRiskAnalyzer.RiskProfileAcceptedValues}.[/]");
+                return Task.FromResult(1);
+            }
+
+            normalizedRiskProfile = normalized;
+        }
 
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {
@@ -403,6 +417,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             criticalExpiringWithinDays: settings.CriticalExpiringWithinDays,
             maxEndpoints: settings.MaxEndpoints,
             minimumSeverity: normalizedMinimumSeverity,
+            riskProfile: normalizedRiskProfile,
             reasonContains: settings.ReasonContains,
             issuerContains: settings.IssuerContains,
             authorityFamilyEquals: settings.AuthorityFamilyEquals,
