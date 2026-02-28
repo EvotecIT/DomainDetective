@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace DomainDetective {
@@ -62,6 +63,12 @@ namespace DomainDetective {
         public bool IsSelfSigned { get; set; }
         public bool IsKnownCertificateAuthority { get; set; }
         public bool IsKnownRootCertificateAuthority { get; set; }
+        /// <summary>How many endpoints currently reuse the same certificate identity.</summary>
+        public int CertificateReuseEndpointCount { get; set; }
+        /// <summary>How many distinct services currently reuse the same certificate identity.</summary>
+        public int CertificateReuseDistinctServiceCount { get; set; }
+        /// <summary>How many distinct ports currently reuse the same certificate identity.</summary>
+        public int CertificateReuseDistinctPortCount { get; set; }
         public bool AllowsServerAuthentication { get; set; }
         public bool AllowsClientAuthentication { get; set; }
         public bool AllowsSecureEmail { get; set; }
@@ -140,6 +147,12 @@ namespace DomainDetective {
         private sealed class LatestEntryState {
             public DateTimeOffset CapturedAtUtc { get; init; }
             public CertificateInventoryEntry Entry { get; init; } = null!;
+        }
+
+        private sealed class CertificateReuseStats {
+            public int EndpointCount { get; init; }
+            public int DistinctServiceCount { get; init; }
+            public int DistinctPortCount { get; init; }
         }
 
         /// <summary>
@@ -249,7 +262,10 @@ namespace DomainDetective {
             string[]? issuerContainsAllOf = null,
             string? rootIssuerContains = null,
             string[]? rootIssuerContainsAnyOf = null,
-            string[]? rootIssuerContainsAllOf = null) {
+            string[]? rootIssuerContainsAllOf = null,
+            int? certificateReuseEndpointCountMin = null,
+            int? certificateReuseEndpointCountMax = null,
+            bool? certificateReuseCrossServiceOnly = null) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
 
@@ -299,6 +315,23 @@ namespace DomainDetective {
             }
             if (hasReasonCountMinFilter && hasReasonCountMaxFilter && reasonCountMinExpected > reasonCountMaxExpected) {
                 throw new ArgumentException("reasonCountMin cannot be greater than reasonCountMax.", nameof(reasonCountMin));
+            }
+            var hasCertificateReuseEndpointCountMinFilter = certificateReuseEndpointCountMin.HasValue;
+            var certificateReuseEndpointCountMinExpected = hasCertificateReuseEndpointCountMinFilter ? certificateReuseEndpointCountMin!.Value : 0;
+            if (hasCertificateReuseEndpointCountMinFilter && certificateReuseEndpointCountMinExpected < 1) {
+                throw new ArgumentOutOfRangeException(nameof(certificateReuseEndpointCountMin), "certificateReuseEndpointCountMin must be 1 or greater.");
+            }
+            var hasCertificateReuseEndpointCountMaxFilter = certificateReuseEndpointCountMax.HasValue;
+            var certificateReuseEndpointCountMaxExpected = hasCertificateReuseEndpointCountMaxFilter ? certificateReuseEndpointCountMax!.Value : 0;
+            if (hasCertificateReuseEndpointCountMaxFilter && certificateReuseEndpointCountMaxExpected < 1) {
+                throw new ArgumentOutOfRangeException(nameof(certificateReuseEndpointCountMax), "certificateReuseEndpointCountMax must be 1 or greater.");
+            }
+            if (hasCertificateReuseEndpointCountMinFilter &&
+                hasCertificateReuseEndpointCountMaxFilter &&
+                certificateReuseEndpointCountMinExpected > certificateReuseEndpointCountMaxExpected) {
+                throw new ArgumentException(
+                    "certificateReuseEndpointCountMin cannot be greater than certificateReuseEndpointCountMax.",
+                    nameof(certificateReuseEndpointCountMin));
             }
             var hasReasonFilter = !string.IsNullOrWhiteSpace(reasonContains);
             var reasonNeedle = hasReasonFilter ? reasonContains!.Trim() : string.Empty;
@@ -423,6 +456,7 @@ namespace DomainDetective {
             }
 
             summary.EndpointCount = latestByEndpoint.Count;
+            var certificateReuseById = BuildCertificateReuseStats(latestByEndpoint.Values);
             var now = DateTimeOffset.UtcNow;
             var normalizedExpiringDays = Math.Max(0, expiringWithinDays);
             var normalizedCriticalDays = Math.Max(0, criticalExpiringWithinDays);
@@ -434,6 +468,16 @@ namespace DomainDetective {
             var totalScore = 0d;
             foreach (var latest in latestByEndpoint.Values) {
                 var row = BuildEndpointRisk(latest.Entry, now, normalizedExpiringDays, normalizedCriticalDays);
+                var certificateId = BuildCertificateId(latest.Entry);
+                if (certificateReuseById.TryGetValue(certificateId, out var certificateReuseStats)) {
+                    row.CertificateReuseEndpointCount = certificateReuseStats.EndpointCount;
+                    row.CertificateReuseDistinctServiceCount = certificateReuseStats.DistinctServiceCount;
+                    row.CertificateReuseDistinctPortCount = certificateReuseStats.DistinctPortCount;
+                } else {
+                    row.CertificateReuseEndpointCount = 1;
+                    row.CertificateReuseDistinctServiceCount = 1;
+                    row.CertificateReuseDistinctPortCount = 1;
+                }
                 totalScore += row.Score;
 
                 IncrementSeverity(summary, row.Severity);
@@ -459,6 +503,20 @@ namespace DomainDetective {
                 }
                 if (hasReasonCountMaxFilter && reasonCount > reasonCountMaxExpected) {
                     continue;
+                }
+                if (hasCertificateReuseEndpointCountMinFilter &&
+                    row.CertificateReuseEndpointCount < certificateReuseEndpointCountMinExpected) {
+                    continue;
+                }
+                if (hasCertificateReuseEndpointCountMaxFilter &&
+                    row.CertificateReuseEndpointCount > certificateReuseEndpointCountMaxExpected) {
+                    continue;
+                }
+                if (certificateReuseCrossServiceOnly.HasValue) {
+                    var reuseCrossService = row.CertificateReuseDistinctServiceCount > 1;
+                    if (reuseCrossService != certificateReuseCrossServiceOnly.Value) {
+                        continue;
+                    }
                 }
                 if (hasReasonFilter) {
                     // Like minimum severity, reason filtering only narrows returned endpoint rows.
@@ -872,6 +930,65 @@ namespace DomainDetective {
             var host = entry.ResolvedHost ?? entry.Host;
             var port = entry.Port > 0 ? entry.Port : 443;
             return $"{host}:{port}";
+        }
+
+        private static Dictionary<string, CertificateReuseStats> BuildCertificateReuseStats(IEnumerable<LatestEntryState> latestStates) {
+            var grouped = new Dictionary<string, List<CertificateInventoryEntry>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var latest in latestStates ?? Enumerable.Empty<LatestEntryState>()) {
+                if (latest?.Entry == null) {
+                    continue;
+                }
+
+                var certificateId = BuildCertificateId(latest.Entry);
+                if (!grouped.TryGetValue(certificateId, out var entries)) {
+                    entries = new List<CertificateInventoryEntry>();
+                    grouped[certificateId] = entries;
+                }
+                entries.Add(latest.Entry);
+            }
+
+            var results = new Dictionary<string, CertificateReuseStats>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in grouped) {
+                var entries = pair.Value;
+                if (entries.Count == 0) {
+                    continue;
+                }
+
+                var distinctServices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var distinctPorts = new HashSet<int>();
+                foreach (var entry in entries) {
+                    distinctServices.Add(PickService(entry));
+                    distinctPorts.Add(entry.Port > 0 ? entry.Port : 443);
+                }
+
+                results[pair.Key] = new CertificateReuseStats {
+                    EndpointCount = entries.Count,
+                    DistinctServiceCount = distinctServices.Count,
+                    DistinctPortCount = distinctPorts.Count
+                };
+            }
+
+            return results;
+        }
+
+        private static string BuildCertificateId(CertificateInventoryEntry entry) {
+            if (!string.IsNullOrWhiteSpace(entry.CertificateThumbprint)) {
+                return NormalizeHexIdentifier(entry.CertificateThumbprint);
+            }
+
+            var subject = entry.CertificateSubject ?? string.Empty;
+            var issuer = PickIssuer(entry);
+            var notBefore = entry.NotBeforeUtc?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
+            var notAfter = entry.NotAfterUtc?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
+            return $"{subject}|{issuer}|{notBefore}|{notAfter}";
+        }
+
+        private static string PickService(CertificateInventoryEntry entry) {
+            if (!string.IsNullOrWhiteSpace(entry.Service)) {
+                return entry.Service!;
+            }
+
+            return CertificateServiceClassifier.GuessService(entry.Scheme ?? "https", entry.Port);
         }
 
         private static List<string> NormalizeDistinctValues(IEnumerable<string>? values) {
