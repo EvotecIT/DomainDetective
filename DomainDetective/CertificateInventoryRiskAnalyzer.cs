@@ -90,8 +90,47 @@ namespace DomainDetective {
             ("Critical", 85)
         };
 
+        private sealed class RiskProfileDefaults {
+            public string? MinimumSeverity { get; init; }
+            public bool? ExpiredOnly { get; init; }
+            public bool? NotYetValidOnly { get; init; }
+            public bool? CurrentlyValidOnly { get; init; }
+            public int? DaysToExpireMin { get; init; }
+            public int? DaysToExpireMax { get; init; }
+            public int? DaysUntilValidMin { get; init; }
+            public int? DaysUntilValidMax { get; init; }
+        }
+
+        private static readonly Dictionary<string, RiskProfileDefaults> RiskProfileDefinitions =
+            new(StringComparer.OrdinalIgnoreCase) {
+                ["Renewal14d"] = new RiskProfileDefaults {
+                    CurrentlyValidOnly = true,
+                    DaysToExpireMin = 0,
+                    DaysToExpireMax = 14
+                },
+                ["Renewal30d"] = new RiskProfileDefaults {
+                    CurrentlyValidOnly = true,
+                    DaysToExpireMin = 0,
+                    DaysToExpireMax = 30
+                },
+                ["FutureNotYetValid"] = new RiskProfileDefaults {
+                    NotYetValidOnly = true,
+                    DaysUntilValidMin = 0
+                },
+                ["Expired"] = new RiskProfileDefaults {
+                    ExpiredOnly = true
+                },
+                ["HighRiskActive"] = new RiskProfileDefaults {
+                    CurrentlyValidOnly = true,
+                    MinimumSeverity = "High"
+                }
+            };
+
         public static readonly string MinimumSeverityAcceptedValues =
             string.Join(", ", SeverityThresholds.Select(level => level.Name));
+
+        public static readonly string RiskProfileAcceptedValues =
+            string.Join(", ", RiskProfileDefinitions.Keys);
 
         private static readonly Dictionary<string, int> SeverityScoreThresholds =
             SeverityThresholds.ToDictionary(level => level.Name, level => level.Score, StringComparer.OrdinalIgnoreCase);
@@ -128,6 +167,31 @@ namespace DomainDetective {
             return false;
         }
 
+        /// <summary>
+        /// Attempts to resolve a risk profile label to a known profile.
+        /// Returns false for null/empty input and unrecognized labels.
+        /// </summary>
+        public static bool TryResolveRiskProfile(string? riskProfile, out string normalizedRiskProfile) {
+            normalizedRiskProfile = string.Empty;
+            if (riskProfile == null) {
+                return false;
+            }
+
+            var candidate = riskProfile.Trim();
+            if (candidate.Length == 0) {
+                return false;
+            }
+
+            foreach (var profile in RiskProfileDefinitions.Keys) {
+                if (string.Equals(profile, candidate, StringComparison.OrdinalIgnoreCase)) {
+                    normalizedRiskProfile = profile;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public static CertificateInventoryRiskSummary BuildRisk(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             bool includeNoRisk = false,
@@ -135,6 +199,7 @@ namespace DomainDetective {
             int criticalExpiringWithinDays = 7,
             int maxEndpoints = 300,
             string? minimumSeverity = null,
+            string? riskProfile = null,
             string? reasonContains = null,
             string? issuerContains = null,
             string? authorityFamilyEquals = null,
@@ -170,8 +235,26 @@ namespace DomainDetective {
             bool secureEmailOnly = false) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
-            var hasMinimumSeverity = TryResolveMinimumSeverity(minimumSeverity, out var minimumSeverityScore, out _);
-            if (!string.IsNullOrWhiteSpace(minimumSeverity) && !hasMinimumSeverity) {
+
+            var hasRiskProfile = TryResolveRiskProfile(riskProfile, out var normalizedRiskProfile);
+            if (!string.IsNullOrWhiteSpace(riskProfile) && !hasRiskProfile) {
+                throw new ArgumentException($"riskProfile must be one of: {RiskProfileAcceptedValues}.", nameof(riskProfile));
+            }
+            var profileDefaults = hasRiskProfile ? RiskProfileDefinitions[normalizedRiskProfile] : null;
+
+            var effectiveMinimumSeverity = !string.IsNullOrWhiteSpace(minimumSeverity)
+                ? minimumSeverity
+                : profileDefaults?.MinimumSeverity;
+            var effectiveExpiredOnly = expiredOnly ?? profileDefaults?.ExpiredOnly;
+            var effectiveNotYetValidOnly = notYetValidOnly ?? profileDefaults?.NotYetValidOnly;
+            var effectiveCurrentlyValidOnly = currentlyValidOnly ?? profileDefaults?.CurrentlyValidOnly;
+            var effectiveDaysToExpireMin = daysToExpireMin ?? profileDefaults?.DaysToExpireMin;
+            var effectiveDaysToExpireMax = daysToExpireMax ?? profileDefaults?.DaysToExpireMax;
+            var effectiveDaysUntilValidMin = daysUntilValidMin ?? profileDefaults?.DaysUntilValidMin;
+            var effectiveDaysUntilValidMax = daysUntilValidMax ?? profileDefaults?.DaysUntilValidMax;
+
+            var hasMinimumSeverity = TryResolveMinimumSeverity(effectiveMinimumSeverity, out var minimumSeverityScore, out _);
+            if (!string.IsNullOrWhiteSpace(effectiveMinimumSeverity) && !hasMinimumSeverity) {
                 throw new ArgumentException($"minimumSeverity must be one of: {MinimumSeverityAcceptedValues}.", nameof(minimumSeverity));
             }
             var hasReasonFilter = !string.IsNullOrWhiteSpace(reasonContains);
@@ -203,20 +286,20 @@ namespace DomainDetective {
             if (hasPortFilter && (portExpected <= 0 || portExpected > 65535)) {
                 throw new ArgumentOutOfRangeException(nameof(portEquals), "portEquals must be between 1 and 65535.");
             }
-            var hasDaysToExpireMinFilter = daysToExpireMin.HasValue;
-            var daysToExpireMinExpected = hasDaysToExpireMinFilter ? daysToExpireMin!.Value : 0;
-            var hasDaysToExpireMaxFilter = daysToExpireMax.HasValue;
-            var daysToExpireMaxExpected = hasDaysToExpireMaxFilter ? daysToExpireMax!.Value : 0;
+            var hasDaysToExpireMinFilter = effectiveDaysToExpireMin.HasValue;
+            var daysToExpireMinExpected = hasDaysToExpireMinFilter ? effectiveDaysToExpireMin!.Value : 0;
+            var hasDaysToExpireMaxFilter = effectiveDaysToExpireMax.HasValue;
+            var daysToExpireMaxExpected = hasDaysToExpireMaxFilter ? effectiveDaysToExpireMax!.Value : 0;
             if (hasDaysToExpireMinFilter && hasDaysToExpireMaxFilter && daysToExpireMinExpected > daysToExpireMaxExpected) {
                 throw new ArgumentException("daysToExpireMin cannot be greater than daysToExpireMax.", nameof(daysToExpireMin));
             }
-            var hasDaysUntilValidMinFilter = daysUntilValidMin.HasValue;
-            var daysUntilValidMinExpected = hasDaysUntilValidMinFilter ? daysUntilValidMin!.Value : 0;
+            var hasDaysUntilValidMinFilter = effectiveDaysUntilValidMin.HasValue;
+            var daysUntilValidMinExpected = hasDaysUntilValidMinFilter ? effectiveDaysUntilValidMin!.Value : 0;
             if (hasDaysUntilValidMinFilter && daysUntilValidMinExpected < 0) {
                 throw new ArgumentOutOfRangeException(nameof(daysUntilValidMin), "daysUntilValidMin must be 0 or greater.");
             }
-            var hasDaysUntilValidMaxFilter = daysUntilValidMax.HasValue;
-            var daysUntilValidMaxExpected = hasDaysUntilValidMaxFilter ? daysUntilValidMax!.Value : 0;
+            var hasDaysUntilValidMaxFilter = effectiveDaysUntilValidMax.HasValue;
+            var daysUntilValidMaxExpected = hasDaysUntilValidMaxFilter ? effectiveDaysUntilValidMax!.Value : 0;
             if (hasDaysUntilValidMaxFilter && daysUntilValidMaxExpected < 0) {
                 throw new ArgumentOutOfRangeException(nameof(daysUntilValidMax), "daysUntilValidMax must be 0 or greater.");
             }
@@ -382,14 +465,14 @@ namespace DomainDetective {
                 if (sha1SignatureOnly.HasValue && row.Sha1Signature != sha1SignatureOnly.Value) {
                     continue;
                 }
-                if (expiredOnly.HasValue && row.Expired != expiredOnly.Value) {
+                if (effectiveExpiredOnly.HasValue && row.Expired != effectiveExpiredOnly.Value) {
                     continue;
                 }
-                if (notYetValidOnly.HasValue && row.NotYetValid != notYetValidOnly.Value) {
+                if (effectiveNotYetValidOnly.HasValue && row.NotYetValid != effectiveNotYetValidOnly.Value) {
                     continue;
                 }
                 var currentlyValid = !row.Expired && !row.NotYetValid;
-                if (currentlyValidOnly.HasValue && currentlyValid != currentlyValidOnly.Value) {
+                if (effectiveCurrentlyValidOnly.HasValue && currentlyValid != effectiveCurrentlyValidOnly.Value) {
                     continue;
                 }
                 if (hasDaysToExpireMinFilter) {
