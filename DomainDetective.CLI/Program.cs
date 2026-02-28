@@ -213,6 +213,7 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryRisk", "--self-signed-only", "--weak-key-only", "--sha1-signature-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--expired-only", "--currently-invalid-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--days-to-expire-min", "0", "--days-to-expire-max", "14", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--score-min", "60", "--score-max", "100", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--risk-profile", "Renewal14d", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--reason-any", "CertificateExpired", "--reason-any", "WeakKey", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--reason-all", "CertificateExpired", "--reason-all", "CertificateValidationFailed", "--json" })

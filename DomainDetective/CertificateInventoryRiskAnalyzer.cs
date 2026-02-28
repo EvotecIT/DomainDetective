@@ -201,6 +201,8 @@ namespace DomainDetective {
             int criticalExpiringWithinDays = 7,
             int maxEndpoints = 300,
             string? minimumSeverity = null,
+            int? scoreMin = null,
+            int? scoreMax = null,
             string? riskProfile = null,
             string? reasonContains = null,
             string? issuerContains = null,
@@ -269,6 +271,19 @@ namespace DomainDetective {
             var hasMinimumSeverity = TryResolveMinimumSeverity(effectiveMinimumSeverity, out var minimumSeverityScore, out _);
             if (!string.IsNullOrWhiteSpace(effectiveMinimumSeverity) && !hasMinimumSeverity) {
                 throw new ArgumentException($"minimumSeverity must be one of: {MinimumSeverityAcceptedValues}.", nameof(minimumSeverity));
+            }
+            var hasScoreMinFilter = scoreMin.HasValue;
+            var scoreMinExpected = hasScoreMinFilter ? scoreMin!.Value : 0;
+            if (hasScoreMinFilter && (scoreMinExpected < 0 || scoreMinExpected > 100)) {
+                throw new ArgumentOutOfRangeException(nameof(scoreMin), "scoreMin must be between 0 and 100.");
+            }
+            var hasScoreMaxFilter = scoreMax.HasValue;
+            var scoreMaxExpected = hasScoreMaxFilter ? scoreMax!.Value : 0;
+            if (hasScoreMaxFilter && (scoreMaxExpected < 0 || scoreMaxExpected > 100)) {
+                throw new ArgumentOutOfRangeException(nameof(scoreMax), "scoreMax must be between 0 and 100.");
+            }
+            if (hasScoreMinFilter && hasScoreMaxFilter && scoreMinExpected > scoreMaxExpected) {
+                throw new ArgumentException("scoreMin cannot be greater than scoreMax.", nameof(scoreMin));
             }
             var hasReasonFilter = !string.IsNullOrWhiteSpace(reasonContains);
             var reasonNeedle = hasReasonFilter ? reasonContains!.Trim() : string.Empty;
@@ -415,6 +430,12 @@ namespace DomainDetective {
                     continue;
                 }
                 if (hasMinimumSeverity && row.Score < minimumSeverityScore) {
+                    continue;
+                }
+                if (hasScoreMinFilter && row.Score < scoreMinExpected) {
+                    continue;
+                }
+                if (hasScoreMaxFilter && row.Score > scoreMaxExpected) {
                     continue;
                 }
                 if (hasReasonFilter) {
