@@ -476,6 +476,8 @@ namespace DomainDetective {
         /// <param name="minimumSeverity">Optional minimum endpoint severity filter (None, Low, Medium, High, Critical). Applied after includeNoRisk filtering.</param>
         /// <param name="riskProfile">Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</param>
         /// <param name="reasonContains">Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).</param>
+        /// <param name="reasonAnyOf">Optional exact reason filters (any match). Repeat values like CertificateExpired, WeakKey, CtNotObserved.</param>
+        /// <param name="reasonAllOf">Optional exact reason filters (all must match). Repeat values like CertificateExpired, WeakKey.</param>
         /// <param name="issuerContains">Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</param>
         /// <param name="authorityFamilyEquals">Optional leaf authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
         /// <param name="rootAuthorityFamilyEquals">Optional root authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
@@ -548,7 +550,9 @@ namespace DomainDetective {
             string? authenticationProfileEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
-            bool secureEmailOnly = false) {
+            bool secureEmailOnly = false,
+            string[]? reasonAnyOf = null,
+            string[]? reasonAllOf = null) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
             return CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
@@ -590,7 +594,9 @@ namespace DomainDetective {
                 authenticationProfileEquals,
                 serverAuthOnly,
                 clientAuthOnly,
-                secureEmailOnly);
+                secureEmailOnly,
+                reasonAnyOf,
+                reasonAllOf);
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>

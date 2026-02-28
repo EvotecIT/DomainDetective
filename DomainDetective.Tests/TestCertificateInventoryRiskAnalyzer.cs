@@ -965,6 +965,191 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByReasonAnyOfAndReasonAllOf() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "expired-only-reason-list.example.com",
+                            ResolvedHost = "expired-only-reason-list.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(-2),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        },
+                        new() {
+                            Host = "weak-only-reason-list.example.com",
+                            ResolvedHost = "weak-only-reason-list.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "expired-weak-reason-list.example.com",
+                            ResolvedHost = "expired-weak-reason-list.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(-3),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "healthy-reason-list.example.com",
+                            ResolvedHost = "healthy-reason-list.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        }
+                    }
+                }
+            };
+
+            var filteredByAnyReason = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                reasonAnyOf: new[] { "WeakKey", "Sha1Signature" });
+            Assert.Equal(2, filteredByAnyReason.Endpoints.Count);
+            Assert.Contains(filteredByAnyReason.Endpoints, endpoint => string.Equals(endpoint.Host, "weak-only-reason-list.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(filteredByAnyReason.Endpoints, endpoint => string.Equals(endpoint.Host, "expired-weak-reason-list.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByAllReasons = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                reasonAllOf: new[] { "CertificateExpired", "WeakKey" });
+            Assert.Single(filteredByAllReasons.Endpoints);
+            Assert.Equal("expired-weak-reason-list.example.com", filteredByAllReasons.Endpoints[0].Host);
+            Assert.Contains("CertificateExpired", filteredByAllReasons.Endpoints[0].Reasons);
+            Assert.Contains("WeakKey", filteredByAllReasons.Endpoints[0].Reasons);
+
+            var filteredByReasonContainsAndAnyReason = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: "validation",
+                reasonAnyOf: new[] { "CertificateExpired" });
+            Assert.Equal(2, filteredByReasonContainsAndAnyReason.Endpoints.Count);
+            Assert.Contains(filteredByReasonContainsAndAnyReason.Endpoints, endpoint => string.Equals(endpoint.Host, "expired-only-reason-list.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(filteredByReasonContainsAndAnyReason.Endpoints, endpoint => string.Equals(endpoint.Host, "expired-weak-reason-list.example.com", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public void BuildRiskTreatsWhitespaceReasonAnyOfAndReasonAllOfAsAbsent() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "expired-whitespace-reason-list.example.com",
+                            ResolvedHost = "expired-whitespace-reason-list.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(-2),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        },
+                        new() {
+                            Host = "weak-whitespace-reason-list.example.com",
+                            ResolvedHost = "weak-whitespace-reason-list.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var filteredByReasonAnyWithWhitespace = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                reasonAnyOf: new[] { "  ", "WeakKey", "weakkey" },
+                reasonAllOf: new[] { "   " });
+            Assert.Single(filteredByReasonAnyWithWhitespace.Endpoints);
+            Assert.Equal("weak-whitespace-reason-list.example.com", filteredByReasonAnyWithWhitespace.Endpoints[0].Host);
+
+            var filteredByOnlyWhitespaceReasonLists = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                reasonAnyOf: new[] { "   " },
+                reasonAllOf: new[] { "   " });
+            // Whitespace-only reason lists are treated as absent, so all risk-bearing entries are returned.
+            Assert.Equal(2, filteredByOnlyWhitespaceReasonLists.Endpoints.Count);
+        }
+
+        [Fact]
         public void BuildRiskFiltersReturnedEndpointsByIssuerContains() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {
