@@ -4,7 +4,6 @@ using Spectre.Console.Cli;
 using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -621,14 +620,14 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             normalizedRiskProfile = normalized;
         }
 
-        var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
+        var cacheDirectory = CertificateInventoryCommandHelpers.ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {
             CacheDirectory = cacheDirectory,
             PersistInventorySnapshots = false
         };
 
         var risk = monitor.BuildInventoryRisk(
-            sinceUtc: ToUtc(settings.SinceUtc),
+            sinceUtc: CertificateInventoryCommandHelpers.ToUtc(settings.SinceUtc),
             includeNoRisk: settings.IncludeHealthy,
             expiringWithinDays: settings.ExpiringWithinDays,
             criticalExpiringWithinDays: settings.CriticalExpiringWithinDays,
@@ -806,26 +805,6 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         AnsiConsole.MarkupLine("[grey]Auth flags: S=ServerAuth, C=ClientAuth, E=SecureEmail.[/]");
 
         return Task.FromResult(0);
-    }
-
-    private static string ResolveCacheDirectory(string? configured) {
-        if (!string.IsNullOrWhiteSpace(configured)) {
-            return configured;
-        }
-
-        return Path.Combine(Path.GetTempPath(), "DomainDetective", "cert-monitor");
-    }
-
-    private static DateTimeOffset? ToUtc(DateTime? value) {
-        if (!value.HasValue) {
-            return null;
-        }
-
-        var dt = value.Value;
-        if (dt.Kind == DateTimeKind.Unspecified) {
-            dt = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
-        }
-        return dt.ToUniversalTime();
     }
 
     private static string BuildAuthSummary(CertificateInventoryEndpointRisk endpoint) {

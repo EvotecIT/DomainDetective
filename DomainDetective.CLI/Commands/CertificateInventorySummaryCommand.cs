@@ -4,7 +4,6 @@ using Spectre.Console.Cli;
 using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -63,13 +62,13 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
             return Task.FromResult(1);
         }
 
-        var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
+        var cacheDirectory = CertificateInventoryCommandHelpers.ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {
             CacheDirectory = cacheDirectory,
             PersistInventorySnapshots = false
         };
 
-        var sinceUtc = ToUtc(settings.SinceUtc);
+        var sinceUtc = CertificateInventoryCommandHelpers.ToUtc(settings.SinceUtc);
         var summary = monitor.BuildInventorySummary(sinceUtc, settings.ExpiringWithinDays, settings.MaxExpiring);
 
         if (settings.Json) {
@@ -143,23 +142,4 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
         AnsiConsole.Write(table);
     }
 
-    private static string ResolveCacheDirectory(string? configured) {
-        if (!string.IsNullOrWhiteSpace(configured)) {
-            return configured;
-        }
-
-        return Path.Combine(Path.GetTempPath(), "DomainDetective", "cert-monitor");
-    }
-
-    private static DateTimeOffset? ToUtc(DateTime? value) {
-        if (!value.HasValue) {
-            return null;
-        }
-
-        var dt = value.Value;
-        if (dt.Kind == DateTimeKind.Unspecified) {
-            dt = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
-        }
-        return dt.ToUniversalTime();
-    }
 }
