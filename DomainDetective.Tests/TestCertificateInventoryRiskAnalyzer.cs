@@ -603,6 +603,30 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskThrowsForInvalidValidityDayWindows() {
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = DateTimeOffset.UtcNow,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                }
+            };
+
+            var daysToExpireRange = Assert.Throws<ArgumentException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                daysToExpireMin: 10,
+                daysToExpireMax: 5));
+            Assert.Equal("daysToExpireMin", daysToExpireRange.ParamName);
+
+            var daysUntilValidMin = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                daysUntilValidMin: -1));
+            Assert.Equal("daysUntilValidMin", daysUntilValidMin.ParamName);
+        }
+
+        [Fact]
         public void BuildRiskTreatsNoneAsNoAdditionalFilterAndSupportsCaseInsensitiveSeverity() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {
@@ -1498,6 +1522,125 @@ namespace DomainDetective.Tests {
                 expiredOnly: false);
             Assert.Single(currentlyInvalidAndNotExpired.Endpoints);
             Assert.Equal("notyetvalid.example.com", currentlyInvalidAndNotExpired.Endpoints[0].Host);
+        }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByValidityDayWindows() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "expired-window.example.com",
+                            ResolvedHost = "expired-window.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-60),
+                            NotAfterUtc = now.AddDays(-2),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "expiring-window.example.com",
+                            ResolvedHost = "expiring-window.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(8),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "long-valid-window.example.com",
+                            ResolvedHost = "long-valid-window.example.com",
+                            Port = 8443,
+                            Service = "HTTPS-Alt",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(45),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "future-window.example.com",
+                            ResolvedHost = "future-window.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(5),
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = false,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var expiringSoon = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                daysToExpireMin: 0,
+                daysToExpireMax: 14);
+            Assert.Single(expiringSoon.Endpoints);
+            Assert.Equal("expiring-window.example.com", expiringSoon.Endpoints[0].Host);
+
+            var alreadyExpired = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                daysToExpireMax: -1);
+            Assert.Single(alreadyExpired.Endpoints);
+            Assert.Equal("expired-window.example.com", alreadyExpired.Endpoints[0].Host);
+
+            var longCurrentlyValid = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                daysToExpireMin: 30,
+                currentlyValidOnly: true);
+            Assert.Single(longCurrentlyValid.Endpoints);
+            Assert.Equal("long-valid-window.example.com", longCurrentlyValid.Endpoints[0].Host);
+
+            var futureByDaysUntilValid = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                daysUntilValidMin: 0,
+                daysUntilValidMax: 10);
+            Assert.Single(futureByDaysUntilValid.Endpoints);
+            Assert.Equal("future-window.example.com", futureByDaysUntilValid.Endpoints[0].Host);
+
+            var noFutureInShortWindow = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                daysUntilValidMin: 0,
+                daysUntilValidMax: 2);
+            Assert.Empty(noFutureInShortWindow.Endpoints);
         }
 
         [Fact]

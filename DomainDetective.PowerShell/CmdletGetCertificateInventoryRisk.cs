@@ -187,6 +187,24 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter CurrentlyInvalidOnly { get; set; }
 
+    /// <summary>Only include endpoints whose days-to-expire is greater than or equal to this value.</summary>
+    [Parameter(Mandatory = false)]
+    public int? DaysToExpireMin { get; set; }
+
+    /// <summary>Only include endpoints whose days-to-expire is less than or equal to this value.</summary>
+    [Parameter(Mandatory = false)]
+    public int? DaysToExpireMax { get; set; }
+
+    /// <summary>Only include endpoints whose days-until-valid is greater than or equal to this value.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? DaysUntilValidMin { get; set; }
+
+    /// <summary>Only include endpoints whose days-until-valid is less than or equal to this value.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? DaysUntilValidMax { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Parameter(Mandatory = false)]
     public string? AuthenticationProfileEquals { get; set; }
@@ -325,6 +343,22 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 CurrentlyInvalidOnly));
             return;
         }
+        if (DaysToExpireMin.HasValue && DaysToExpireMax.HasValue && DaysToExpireMin.Value > DaysToExpireMax.Value) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-DaysToExpireMin cannot be greater than -DaysToExpireMax.", nameof(DaysToExpireMin)),
+                "DaysToExpireRangeConflict",
+                ErrorCategory.InvalidArgument,
+                DaysToExpireMin));
+            return;
+        }
+        if (DaysUntilValidMin.HasValue && DaysUntilValidMax.HasValue && DaysUntilValidMin.Value > DaysUntilValidMax.Value) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-DaysUntilValidMin cannot be greater than -DaysUntilValidMax.", nameof(DaysUntilValidMin)),
+                "DaysUntilValidRangeConflict",
+                ErrorCategory.InvalidArgument,
+                DaysUntilValidMin));
+            return;
+        }
 
         var monitor = new CertificateMonitor {
             CacheDirectory = ResolveCacheDirectory(CacheDirectory),
@@ -366,6 +400,10 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             expiredOnly: ExpiredOnly.IsPresent ? true : NotExpiredOnly.IsPresent ? false : null,
             notYetValidOnly: NotYetValidOnly.IsPresent ? true : AlreadyValidOnly.IsPresent ? false : null,
             currentlyValidOnly: CurrentlyValidOnly.IsPresent ? true : CurrentlyInvalidOnly.IsPresent ? false : null,
+            daysToExpireMin: DaysToExpireMin,
+            daysToExpireMax: DaysToExpireMax,
+            daysUntilValidMin: DaysUntilValidMin,
+            daysUntilValidMax: DaysUntilValidMax,
             knownAuthorityOnly: KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
             knownRootAuthorityOnly: KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,
             authenticationProfileEquals: AuthenticationProfileEquals,

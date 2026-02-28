@@ -212,6 +212,7 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryRisk", "--unreachable-only", "--hostname-mismatch-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--self-signed-only", "--weak-key-only", "--sha1-signature-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--expired-only", "--currently-invalid-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--days-to-expire-min", "0", "--days-to-expire-max", "14", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--unknown-ca-only", "--unknown-root-ca-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--host-contains", "api.example.com", "--service", "HTTPS", "--port", "443", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--thumbprint", "AA11BB22CC33DD44EE55FF6677889900AABBCCDD", "--json" })
