@@ -216,6 +216,8 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryRisk", "--risk-profile", "Renewal14d", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--reason-any", "CertificateExpired", "--reason-any", "WeakKey", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--reason-all", "CertificateExpired", "--reason-all", "CertificateValidationFailed", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--issuer-any", "digicert", "--issuer-any", "isrg", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--issuer-all", "contoso", "--issuer-all", "root", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--chain-length-min", "2", "--intermediate-count-max", "1", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--unknown-ca-only", "--unknown-root-ca-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--host-contains", "api.example.com", "--service", "HTTPS", "--port", "443", "--json" })

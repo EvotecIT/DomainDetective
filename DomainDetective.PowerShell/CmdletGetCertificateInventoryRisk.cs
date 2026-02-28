@@ -75,6 +75,14 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? IssuerContains { get; set; }
 
+    /// <summary>Optional case-insensitive issuer/root-issuer substring filters where any value can match.</summary>
+    [Parameter(Mandatory = false)]
+    public string[]? IssuerContainsAnyOf { get; set; }
+
+    /// <summary>Optional case-insensitive issuer/root-issuer substring filters where all values must match.</summary>
+    [Parameter(Mandatory = false)]
+    public string[]? IssuerContainsAllOf { get; set; }
+
     /// <summary>Optional leaf authority family exact-match filter (for example DigiCert, LetsEncrypt).</summary>
     [Parameter(Mandatory = false)]
     public string? AuthorityFamilyEquals { get; set; }
@@ -431,6 +439,8 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             reasonAnyOf: ReasonAnyOf,
             reasonAllOf: ReasonAllOf,
             issuerContains: IssuerContains,
+            issuerContainsAnyOf: IssuerContainsAnyOf,
+            issuerContainsAllOf: IssuerContainsAllOf,
             authorityFamilyEquals: AuthorityFamilyEquals,
             rootAuthorityFamilyEquals: RootAuthorityFamilyEquals,
             ctSourceContains: CtSourceContains,
