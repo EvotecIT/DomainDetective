@@ -240,7 +240,9 @@ namespace DomainDetective {
             bool clientAuthOnly = false,
             bool secureEmailOnly = false,
             string[]? reasonAnyOf = null,
-            string[]? reasonAllOf = null) {
+            string[]? reasonAllOf = null,
+            string[]? issuerContainsAnyOf = null,
+            string[]? issuerContainsAllOf = null) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
 
@@ -279,6 +281,10 @@ namespace DomainDetective {
                 : null;
             var hasIssuerFilter = !string.IsNullOrWhiteSpace(issuerContains);
             var issuerNeedle = hasIssuerFilter ? issuerContains!.Trim() : string.Empty;
+            var normalizedIssuerContainsAnyOf = NormalizeDistinctValues(issuerContainsAnyOf);
+            var hasIssuerAnyOfFilter = normalizedIssuerContainsAnyOf.Count > 0;
+            var normalizedIssuerContainsAllOf = NormalizeDistinctValues(issuerContainsAllOf);
+            var hasIssuerAllOfFilter = normalizedIssuerContainsAllOf.Count > 0;
             var hasAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(authorityFamilyEquals);
             var authorityFamilyExpected = hasAuthorityFamilyFilter ? authorityFamilyEquals!.Trim() : string.Empty;
             var hasRootAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(rootAuthorityFamilyEquals);
@@ -431,6 +437,22 @@ namespace DomainDetective {
                         row.Issuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         row.RootIssuer.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) >= 0;
                     if (!matchesIssuer) {
+                        continue;
+                    }
+                }
+                if (hasIssuerAnyOfFilter) {
+                    var matchesAnyIssuer = normalizedIssuerContainsAnyOf.Any(needle =>
+                        row.Issuer.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        row.RootIssuer.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!matchesAnyIssuer) {
+                        continue;
+                    }
+                }
+                if (hasIssuerAllOfFilter) {
+                    var matchesAllIssuer = normalizedIssuerContainsAllOf.All(needle =>
+                        row.Issuer.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        row.RootIssuer.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!matchesAllIssuer) {
                         continue;
                     }
                 }

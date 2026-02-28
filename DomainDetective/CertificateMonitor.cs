@@ -479,6 +479,8 @@ namespace DomainDetective {
         /// <param name="reasonAnyOf">Optional exact reason filters (any match). Repeat values like CertificateExpired, WeakKey, CtNotObserved.</param>
         /// <param name="reasonAllOf">Optional exact reason filters (all must match). Repeat values like CertificateExpired, WeakKey.</param>
         /// <param name="issuerContains">Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</param>
+        /// <param name="issuerContainsAnyOf">Optional case-insensitive issuer/root-issuer substring filters (any match).</param>
+        /// <param name="issuerContainsAllOf">Optional case-insensitive issuer/root-issuer substring filters (all must match).</param>
         /// <param name="authorityFamilyEquals">Optional leaf authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
         /// <param name="rootAuthorityFamilyEquals">Optional root authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
         /// <param name="ctSourceContains">Optional CT/discovery source substring filter (for example crt.sh, shodan, censys).</param>
@@ -560,7 +562,9 @@ namespace DomainDetective {
             bool clientAuthOnly = false,
             bool secureEmailOnly = false,
             string[]? reasonAnyOf = null,
-            string[]? reasonAllOf = null) {
+            string[]? reasonAllOf = null,
+            string[]? issuerContainsAnyOf = null,
+            string[]? issuerContainsAllOf = null) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
             return CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
@@ -608,7 +612,9 @@ namespace DomainDetective {
                 clientAuthOnly,
                 secureEmailOnly,
                 reasonAnyOf,
-                reasonAllOf);
+                reasonAllOf,
+                issuerContainsAnyOf,
+                issuerContainsAllOf);
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>
