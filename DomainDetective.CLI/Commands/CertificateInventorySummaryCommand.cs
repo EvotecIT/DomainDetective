@@ -4,7 +4,9 @@ using Spectre.Console.Cli;
 using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -40,6 +42,11 @@ internal sealed class CertificateInventorySummarySettings : CommandSettings {
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
     public bool Json { get; set; }
+
+    /// <summary>Optional CSV output path for summary metrics, distributions, and expiring endpoints.</summary>
+    [Description("Optional CSV output path for summary metrics, distributions, and expiring endpoints.")]
+    [CommandOption("--csv-path <PATH>")]
+    public string? CsvPath { get; set; }
 }
 
 /// <summary>
@@ -70,6 +77,16 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
 
         var sinceUtc = CertificateInventoryCommandHelpers.ToUtc(settings.SinceUtc);
         var summary = monitor.BuildInventorySummary(sinceUtc, settings.ExpiringWithinDays, settings.MaxExpiring);
+
+        if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
+            try {
+                WriteCsv(summary, settings.CsvPath!);
+                AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
 
         if (settings.Json) {
             var json = JsonSerializer.Serialize(summary, JsonOptions.Default);
@@ -129,6 +146,85 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
         }
 
         return Task.FromResult(0);
+    }
+
+    private static void WriteCsv(CertificateInventorySummary summary, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("RowType,Category,Name,Count,Host,Port,Service,NotAfterUtc,DaysToExpire,Issuer,SnapshotCount,SampleCount,UniqueEndpointCount,ExpiredEndpointCount,ExpiringSoonEndpointCount,MissingServerAuthEndpointCount,ClientAuthEndpointCount,SecureEmailEndpointCount,SelfSignedEndpointCount,IncompleteChainEndpointCount,CtTemplateErrorEndpointCount");
+
+        var summaryRow = NewCsvRow();
+        summaryRow[0] = "Summary";
+        summaryRow[10] = summary.SnapshotCount.ToString();
+        summaryRow[11] = summary.SampleCount.ToString();
+        summaryRow[12] = summary.UniqueEndpointCount.ToString();
+        summaryRow[13] = summary.ExpiredEndpointCount.ToString();
+        summaryRow[14] = summary.ExpiringSoonEndpointCount.ToString();
+        summaryRow[15] = summary.MissingServerAuthEndpointCount.ToString();
+        summaryRow[16] = summary.ClientAuthEndpointCount.ToString();
+        summaryRow[17] = summary.SecureEmailEndpointCount.ToString();
+        summaryRow[18] = summary.SelfSignedEndpointCount.ToString();
+        summaryRow[19] = summary.IncompleteChainEndpointCount.ToString();
+        summaryRow[20] = summary.CtTemplateErrorEndpointCount.ToString();
+        AppendCsvRow(sb, summaryRow);
+
+        AppendCounterRows(sb, "Service", summary.ServiceCounts);
+        AppendCounterRows(sb, "Issuer", summary.IssuerCounts);
+        AppendCounterRows(sb, "RootIssuer", summary.RootIssuerCounts);
+        AppendCounterRows(sb, "AuthenticationProfile", summary.AuthenticationProfileCounts);
+        AppendCounterRows(sb, "ChainSource", summary.ChainSourceCounts);
+        AppendCounterRows(sb, "CtSource", summary.CtSourceCounts);
+        AppendCounterRows(sb, "CtTemplateErrorCategory", summary.CtTemplateErrorCounts);
+
+        foreach (var endpoint in summary.ExpiringSoon) {
+            var endpointRow = NewCsvRow();
+            endpointRow[0] = "ExpiringEndpoint";
+            endpointRow[1] = "ExpiringSoon";
+            endpointRow[4] = endpoint.Host;
+            endpointRow[5] = endpoint.Port.ToString();
+            endpointRow[6] = endpoint.Service;
+            endpointRow[7] = endpoint.NotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty;
+            endpointRow[8] = endpoint.DaysToExpire.ToString();
+            endpointRow[9] = endpoint.Issuer;
+            AppendCsvRow(sb, endpointRow);
+        }
+
+        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
+    }
+
+    private static void AppendCounterRows(StringBuilder sb, string category, System.Collections.Generic.Dictionary<string, int> counters) {
+        foreach (var kv in counters.OrderByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)) {
+            var counterRow = NewCsvRow();
+            counterRow[0] = "Counter";
+            counterRow[1] = category;
+            counterRow[2] = kv.Key;
+            counterRow[3] = kv.Value.ToString();
+            AppendCsvRow(sb, counterRow);
+        }
+    }
+
+    private static string[] NewCsvRow() {
+        return new string[21];
+    }
+
+    private static void AppendCsvRow(StringBuilder sb, string[] columns) {
+        if (columns.Length != 21) {
+            throw new ArgumentException("CSV row must have 21 columns.", nameof(columns));
+        }
+
+        for (var i = 0; i < columns.Length; i++) {
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(columns[i]));
+            if (i < columns.Length - 1) {
+                sb.Append(',');
+            }
+        }
+
+        sb.AppendLine();
     }
 
     private static void RenderCountTable(string title, System.Collections.Generic.Dictionary<string, int> counters) {
