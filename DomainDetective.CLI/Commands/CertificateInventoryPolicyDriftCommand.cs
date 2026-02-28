@@ -2,6 +2,7 @@ using DomainDetective.Helpers;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -31,10 +32,20 @@ internal sealed class CertificateInventoryPolicyDriftSettings : CommandSettings 
     [CommandOption("--previous-utc <UTC>")]
     public DateTime? PreviousUtc { get; set; }
 
+    /// <summary>Optional zero-based selector for previous snapshot from latest to oldest (0 = latest).</summary>
+    [Description("Optional zero-based selector for previous snapshot from latest to oldest (0 = latest).")]
+    [CommandOption("--previous-index <N>")]
+    public int? PreviousIndex { get; set; }
+
     /// <summary>Optional current snapshot UTC selector (latest snapshot at or before timestamp).</summary>
     [Description("Optional current snapshot UTC selector (latest snapshot at or before timestamp).")]
     [CommandOption("--current-utc <UTC>")]
     public DateTime? CurrentUtc { get; set; }
+
+    /// <summary>Optional zero-based selector for current snapshot from latest to oldest (0 = latest).</summary>
+    [Description("Optional zero-based selector for current snapshot from latest to oldest (0 = latest).")]
+    [CommandOption("--current-index <N>")]
+    public int? CurrentIndex { get; set; }
 
     /// <summary>Baseline policy profile (Strict, Balanced, Legacy).</summary>
     [Description("Baseline policy profile (Strict, Balanced, Legacy).")]
@@ -89,6 +100,22 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
             AnsiConsole.MarkupLine("[red]--max-endpoints must be 0 or greater.[/]");
             return Task.FromResult(1);
         }
+        if (settings.PreviousIndex.HasValue && settings.PreviousIndex.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--previous-index must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.CurrentIndex.HasValue && settings.CurrentIndex.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--current-index must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.PreviousUtc.HasValue && settings.PreviousIndex.HasValue) {
+            AnsiConsole.MarkupLine("[red]Use either --previous-utc or --previous-index, not both.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.CurrentUtc.HasValue && settings.CurrentIndex.HasValue) {
+            AnsiConsole.MarkupLine("[red]Use either --current-utc or --current-index, not both.[/]");
+            return Task.FromResult(1);
+        }
 
         if (!CertificateInventoryPolicyAnalyzer.TryResolveBaselineProfile(settings.BaselineProfile, out var normalizedProfile)) {
             AnsiConsole.MarkupLine($"[red]--baseline-profile must be one of: {CertificateInventoryPolicyAnalyzer.BaselineProfileAcceptedValues}.[/]");
@@ -110,12 +137,37 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
             CacheDirectory = cacheDirectory,
             PersistInventorySnapshots = false
         };
+        var sinceUtc = CertificateInventoryCommandHelpers.ToUtc(settings.SinceUtc);
+        var previousCapturedAtUtc = CertificateInventoryCommandHelpers.ToUtc(settings.PreviousUtc);
+        var currentCapturedAtUtc = CertificateInventoryCommandHelpers.ToUtc(settings.CurrentUtc);
+        if (settings.PreviousIndex.HasValue || settings.CurrentIndex.HasValue) {
+            var snapshotIndex = monitor
+                .LoadInventorySnapshots(sinceUtc)
+                .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
+                .ToList();
+
+            if (settings.PreviousIndex.HasValue) {
+                if (!TryResolveSnapshotByIndex(snapshotIndex, settings.PreviousIndex.Value, out var selectedSnapshot)) {
+                    AnsiConsole.MarkupLine($"[red]--previous-index {settings.PreviousIndex.Value} is out of range.[/] Available snapshots: {snapshotIndex.Count}");
+                    return Task.FromResult(1);
+                }
+                previousCapturedAtUtc = selectedSnapshot.CapturedAtUtc;
+            }
+
+            if (settings.CurrentIndex.HasValue) {
+                if (!TryResolveSnapshotByIndex(snapshotIndex, settings.CurrentIndex.Value, out var selectedSnapshot)) {
+                    AnsiConsole.MarkupLine($"[red]--current-index {settings.CurrentIndex.Value} is out of range.[/] Available snapshots: {snapshotIndex.Count}");
+                    return Task.FromResult(1);
+                }
+                currentCapturedAtUtc = selectedSnapshot.CapturedAtUtc;
+            }
+        }
 
         var drift = monitor.BuildInventoryPolicyDrift(
-            sinceUtc: CertificateInventoryCommandHelpers.ToUtc(settings.SinceUtc),
+            sinceUtc: sinceUtc,
             baselineProfile: normalizedProfile,
-            previousCapturedAtUtc: CertificateInventoryCommandHelpers.ToUtc(settings.PreviousUtc),
-            currentCapturedAtUtc: CertificateInventoryCommandHelpers.ToUtc(settings.CurrentUtc),
+            previousCapturedAtUtc: previousCapturedAtUtc,
+            currentCapturedAtUtc: currentCapturedAtUtc,
             changedOnly: settings.ChangedOnly,
             maxEndpoints: settings.MaxEndpoints,
             policyOverrides: policyOverrides);
@@ -326,6 +378,19 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+    }
+
+    private static bool TryResolveSnapshotByIndex(
+        IReadOnlyList<CertificateInventorySnapshot> snapshots,
+        int index,
+        out CertificateInventorySnapshot selectedSnapshot) {
+        selectedSnapshot = null!;
+        if (index < 0 || index >= snapshots.Count) {
+            return false;
+        }
+
+        selectedSnapshot = snapshots[index];
+        return true;
     }
 }
 
