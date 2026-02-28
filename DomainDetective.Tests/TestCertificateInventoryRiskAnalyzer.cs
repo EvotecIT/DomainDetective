@@ -214,6 +214,21 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskExposesZeroReuseSummaryMetricsWhenNoEndpointsExist() {
+            var risk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots: null,
+                includeNoRisk: true);
+
+            Assert.Equal(0, risk.EndpointCount);
+            Assert.Equal(0, risk.UniqueCertificateIdentityCount);
+            Assert.Equal(0, risk.ReusedCertificateIdentityCount);
+            Assert.Equal(0, risk.EndpointsWithReusedCertificateCount);
+            Assert.Equal(0, risk.MaxCertificateReuseEndpointCount);
+            Assert.Equal(0, risk.MaxCertificateReuseDistinctServiceCount);
+            Assert.Equal(0, risk.MaxCertificateReuseDistinctPortCount);
+        }
+
+        [Fact]
         public void BuildRiskFlagsNotYetValidCertificates() {
             var now = DateTimeOffset.UtcNow;
             var notBeforeUtc = now.AddDays(2);
@@ -1279,6 +1294,12 @@ namespace DomainDetective.Tests {
                 snapshots,
                 includeNoRisk: true);
             Assert.Equal(4, allEndpoints.Endpoints.Count);
+            Assert.Equal(2, allEndpoints.UniqueCertificateIdentityCount);
+            Assert.Equal(1, allEndpoints.ReusedCertificateIdentityCount);
+            Assert.Equal(3, allEndpoints.EndpointsWithReusedCertificateCount);
+            Assert.Equal(3, allEndpoints.MaxCertificateReuseEndpointCount);
+            Assert.Equal(2, allEndpoints.MaxCertificateReuseDistinctServiceCount);
+            Assert.Equal(2, allEndpoints.MaxCertificateReuseDistinctPortCount);
 
             var reused = allEndpoints.Endpoints.Single(endpoint => endpoint.Host == "reuse-a.example.com");
             Assert.Equal(3, reused.CertificateReuseEndpointCount);
