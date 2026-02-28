@@ -526,6 +526,11 @@ namespace DomainDetective {
         /// <param name="certificateReuseEndpointCountMin">Optional minimum certificate-reuse endpoint-count filter (1 or greater).</param>
         /// <param name="certificateReuseEndpointCountMax">Optional maximum certificate-reuse endpoint-count filter (1 or greater).</param>
         /// <param name="certificateReuseCrossServiceOnly">When set, only returns endpoint rows whose certificate is reused across more than one distinct service when true, or within a single service when false.</param>
+        /// <param name="certificateReuseDistinctServiceCountMin">Optional minimum certificate-reuse distinct-service-count filter (1 or greater).</param>
+        /// <param name="certificateReuseDistinctServiceCountMax">Optional maximum certificate-reuse distinct-service-count filter (1 or greater).</param>
+        /// <param name="certificateReuseDistinctPortCountMin">Optional minimum certificate-reuse distinct-port-count filter (1 or greater).</param>
+        /// <param name="certificateReuseDistinctPortCountMax">Optional maximum certificate-reuse distinct-port-count filter (1 or greater).</param>
+        /// <param name="certificateReuseCrossPortOnly">When set, only returns endpoint rows whose certificate is reused across more than one distinct port when true, or within a single port when false.</param>
         public CertificateInventoryRiskSummary BuildInventoryRisk(
             DateTimeOffset? sinceUtc = null,
             bool includeNoRisk = false,
@@ -584,7 +589,12 @@ namespace DomainDetective {
             string[]? rootIssuerContainsAllOf = null,
             int? certificateReuseEndpointCountMin = null,
             int? certificateReuseEndpointCountMax = null,
-            bool? certificateReuseCrossServiceOnly = null) {
+            bool? certificateReuseCrossServiceOnly = null,
+            int? certificateReuseDistinctServiceCountMin = null,
+            int? certificateReuseDistinctServiceCountMax = null,
+            int? certificateReuseDistinctPortCountMin = null,
+            int? certificateReuseDistinctPortCountMax = null,
+            bool? certificateReuseCrossPortOnly = null) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
             return CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
@@ -644,7 +654,12 @@ namespace DomainDetective {
                 rootIssuerContainsAllOf,
                 certificateReuseEndpointCountMin,
                 certificateReuseEndpointCountMax,
-                certificateReuseCrossServiceOnly);
+                certificateReuseCrossServiceOnly,
+                certificateReuseDistinctServiceCountMin,
+                certificateReuseDistinctServiceCountMax,
+                certificateReuseDistinctPortCountMin,
+                certificateReuseDistinctPortCountMax,
+                certificateReuseCrossPortOnly);
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>

@@ -328,6 +328,34 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter ReuseSingleServiceOnly { get; set; }
 
+    /// <summary>Optional minimum certificate-reuse distinct-service-count filter (1 or greater).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, int.MaxValue)]
+    public int? ReuseDistinctServiceCountMin { get; set; }
+
+    /// <summary>Optional maximum certificate-reuse distinct-service-count filter (1 or greater).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, int.MaxValue)]
+    public int? ReuseDistinctServiceCountMax { get; set; }
+
+    /// <summary>Optional minimum certificate-reuse distinct-port-count filter (1 or greater).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, int.MaxValue)]
+    public int? ReuseDistinctPortCountMin { get; set; }
+
+    /// <summary>Optional maximum certificate-reuse distinct-port-count filter (1 or greater).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, int.MaxValue)]
+    public int? ReuseDistinctPortCountMax { get; set; }
+
+    /// <summary>Only include endpoints where the same certificate is reused across more than one distinct port.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ReuseCrossPortOnly { get; set; }
+
+    /// <summary>Only include endpoints where the same certificate is reused within a single distinct port.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ReuseSinglePortOnly { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         if (CriticalExpiringWithinDays > ExpiringWithinDays) {
@@ -474,6 +502,30 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 ReuseSingleServiceOnly));
             return;
         }
+        if (ReuseDistinctServiceCountMin.HasValue && ReuseDistinctServiceCountMax.HasValue && ReuseDistinctServiceCountMin.Value > ReuseDistinctServiceCountMax.Value) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ReuseDistinctServiceCountMin cannot be greater than -ReuseDistinctServiceCountMax.", nameof(ReuseDistinctServiceCountMin)),
+                "ReuseDistinctServiceCountRangeConflict",
+                ErrorCategory.InvalidArgument,
+                ReuseDistinctServiceCountMin));
+            return;
+        }
+        if (ReuseDistinctPortCountMin.HasValue && ReuseDistinctPortCountMax.HasValue && ReuseDistinctPortCountMin.Value > ReuseDistinctPortCountMax.Value) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ReuseDistinctPortCountMin cannot be greater than -ReuseDistinctPortCountMax.", nameof(ReuseDistinctPortCountMin)),
+                "ReuseDistinctPortCountRangeConflict",
+                ErrorCategory.InvalidArgument,
+                ReuseDistinctPortCountMin));
+            return;
+        }
+        if (ReuseCrossPortOnly.IsPresent && ReuseSinglePortOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ReuseCrossPortOnly cannot be combined with -ReuseSinglePortOnly.", nameof(ReuseSinglePortOnly)),
+                "ReusePortSpreadConflict",
+                ErrorCategory.InvalidArgument,
+                ReuseSinglePortOnly));
+            return;
+        }
         if (ChainLengthMin.HasValue && ChainLengthMax.HasValue && ChainLengthMin.Value > ChainLengthMax.Value) {
             ThrowTerminatingError(new ErrorRecord(
                 new ArgumentException("-ChainLengthMin cannot be greater than -ChainLengthMax.", nameof(ChainLengthMin)),
@@ -523,6 +575,11 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             certificateReuseEndpointCountMin: ReuseEndpointCountMin,
             certificateReuseEndpointCountMax: ReuseEndpointCountMax,
             certificateReuseCrossServiceOnly: ReuseCrossServiceOnly.IsPresent ? true : ReuseSingleServiceOnly.IsPresent ? false : null,
+            certificateReuseDistinctServiceCountMin: ReuseDistinctServiceCountMin,
+            certificateReuseDistinctServiceCountMax: ReuseDistinctServiceCountMax,
+            certificateReuseDistinctPortCountMin: ReuseDistinctPortCountMin,
+            certificateReuseDistinctPortCountMax: ReuseDistinctPortCountMax,
+            certificateReuseCrossPortOnly: ReuseCrossPortOnly.IsPresent ? true : ReuseSinglePortOnly.IsPresent ? false : null,
             riskProfile: RiskProfile,
             reasonContains: ReasonContains,
             reasonAnyOf: ReasonAnyOf,
