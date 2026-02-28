@@ -235,7 +235,7 @@ internal sealed class CertificateInventoryReuseCommand : AsyncCommand<Certificat
 
         var sb = new StringBuilder();
         foreach (var certificate in reuse.Certificates) {
-            sb.AppendLine(JsonSerializer.Serialize(certificate, JsonOptions.Default));
+            sb.AppendLine(CertificateInventoryCommandHelpers.SerializeJsonLine(certificate));
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());

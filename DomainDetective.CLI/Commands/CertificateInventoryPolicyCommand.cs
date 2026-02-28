@@ -309,7 +309,7 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
 
         var sb = new StringBuilder();
         foreach (var endpoint in policy.Endpoints) {
-            sb.AppendLine(JsonSerializer.Serialize(endpoint, JsonOptions.Default));
+            sb.AppendLine(CertificateInventoryCommandHelpers.SerializeJsonLine(endpoint));
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
