@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -46,6 +47,11 @@ internal sealed class CertificateInventoryPolicySettings : CommandSettings {
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
     public bool Json { get; set; }
+
+    /// <summary>Optional CSV output path for endpoint policy rows.</summary>
+    [Description("Optional CSV output path for endpoint policy rows.")]
+    [CommandOption("--csv-path <PATH>")]
+    public string? CsvPath { get; set; }
 }
 
 /// <summary>
@@ -80,6 +86,16 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
             baselineProfile: normalizedProfile,
             includeCompliant: settings.IncludeCompliant,
             maxEndpoints: settings.MaxEndpoints);
+
+        if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
+            try {
+                WriteCsv(policy, settings.CsvPath!);
+                AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(policy, JsonOptions.Default));
@@ -187,5 +203,87 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
         }
 
         return dt.ToUniversalTime();
+    }
+
+    private static void WriteCsv(CertificateInventoryPolicySummary policy, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Host,Port,Service,Compliant,ViolationCount,MaxViolationSeverity,RiskScore,RiskSeverity,Issuer,RootIssuer,NotBeforeUtc,NotAfterUtc,DaysUntilValid,DaysToExpire,AuthenticationProfile,CertificateReuseEndpointCount,CertificateReuseDistinctServiceCount,CertificateReuseDistinctPortCount,ViolationCodes,ViolationSeverities,ViolationMessages,RiskReasons");
+
+        foreach (var endpoint in policy.Endpoints) {
+            var violationCodes = endpoint.Violations.Count == 0
+                ? string.Empty
+                : string.Join("|", endpoint.Violations.Select(violation => violation.Code));
+            var violationSeverities = endpoint.Violations.Count == 0
+                ? string.Empty
+                : string.Join("|", endpoint.Violations.Select(violation => violation.Severity));
+            var violationMessages = endpoint.Violations.Count == 0
+                ? string.Empty
+                : string.Join("|", endpoint.Violations.Select(violation => violation.Message));
+            var riskReasons = endpoint.RiskReasons.Count == 0
+                ? string.Empty
+                : string.Join("|", endpoint.RiskReasons);
+
+            sb.Append(EscapeCsv(endpoint.Host));
+            sb.Append(',');
+            sb.Append(endpoint.Port);
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.Service));
+            sb.Append(',');
+            sb.Append(endpoint.Compliant ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.ViolationCount);
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.MaxViolationSeverity));
+            sb.Append(',');
+            sb.Append(endpoint.RiskScore);
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.RiskSeverity));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.Issuer));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.RootIssuer));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.NotBeforeUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.NotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.DaysUntilValid?.ToString() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.DaysToExpire?.ToString() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.AuthenticationProfile));
+            sb.Append(',');
+            sb.Append(endpoint.CertificateReuseEndpointCount);
+            sb.Append(',');
+            sb.Append(endpoint.CertificateReuseDistinctServiceCount);
+            sb.Append(',');
+            sb.Append(endpoint.CertificateReuseDistinctPortCount);
+            sb.Append(',');
+            sb.Append(EscapeCsv(violationCodes));
+            sb.Append(',');
+            sb.Append(EscapeCsv(violationSeverities));
+            sb.Append(',');
+            sb.Append(EscapeCsv(violationMessages));
+            sb.Append(',');
+            sb.Append(EscapeCsv(riskReasons));
+            sb.AppendLine();
+        }
+
+        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
+    }
+
+    private static string EscapeCsv(string? value) {
+        var text = value ?? string.Empty;
+        if (text.IndexOfAny(new[] { ',', '"', '\r', '\n' }) >= 0) {
+            return "\"" + text.Replace("\"", "\"\"") + "\"";
+        }
+
+        return text;
     }
 }

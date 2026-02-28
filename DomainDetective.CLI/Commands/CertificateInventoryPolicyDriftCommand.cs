@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -56,6 +57,11 @@ internal sealed class CertificateInventoryPolicyDriftSettings : CommandSettings 
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
     public bool Json { get; set; }
+
+    /// <summary>Optional CSV output path for endpoint policy drift rows.</summary>
+    [Description("Optional CSV output path for endpoint policy drift rows.")]
+    [CommandOption("--csv-path <PATH>")]
+    public string? CsvPath { get; set; }
 }
 
 /// <summary>
@@ -92,6 +98,16 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
             currentCapturedAtUtc: ToUtc(settings.CurrentUtc),
             changedOnly: settings.ChangedOnly,
             maxEndpoints: settings.MaxEndpoints);
+
+        if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
+            try {
+                WriteCsv(drift, settings.CsvPath!);
+                AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(drift, JsonOptions.Default));
@@ -213,5 +229,74 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
         }
 
         return dt.ToUniversalTime();
+    }
+
+    private static void WriteCsv(CertificateInventoryPolicyDriftSummary drift, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Host,Port,Status,PreviousCompliant,CurrentCompliant,PreviousViolationCount,CurrentViolationCount,PreviousMaxViolationSeverity,CurrentMaxViolationSeverity,PreviousRiskScore,CurrentRiskScore,PreviousRiskSeverity,CurrentRiskSeverity,PreviousIssuer,CurrentIssuer,PreviousNotAfterUtc,CurrentNotAfterUtc,PreviousViolationCodes,CurrentViolationCodes,NewViolationCodes,ResolvedViolationCodes,ChangeKinds");
+
+        foreach (var endpoint in drift.Endpoints) {
+            sb.Append(EscapeCsv(endpoint.Host));
+            sb.Append(',');
+            sb.Append(endpoint.Port);
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.Status));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.PreviousCompliant?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.CurrentCompliant?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(',');
+            sb.Append(endpoint.PreviousViolationCount);
+            sb.Append(',');
+            sb.Append(endpoint.CurrentViolationCount);
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.PreviousMaxViolationSeverity));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.CurrentMaxViolationSeverity));
+            sb.Append(',');
+            sb.Append(endpoint.PreviousRiskScore);
+            sb.Append(',');
+            sb.Append(endpoint.CurrentRiskScore);
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.PreviousRiskSeverity));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.CurrentRiskSeverity));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.PreviousIssuer));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.CurrentIssuer));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.PreviousNotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.CurrentNotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(EscapeCsv(string.Join("|", endpoint.PreviousViolationCodes)));
+            sb.Append(',');
+            sb.Append(EscapeCsv(string.Join("|", endpoint.CurrentViolationCodes)));
+            sb.Append(',');
+            sb.Append(EscapeCsv(string.Join("|", endpoint.NewViolationCodes)));
+            sb.Append(',');
+            sb.Append(EscapeCsv(string.Join("|", endpoint.ResolvedViolationCodes)));
+            sb.Append(',');
+            sb.Append(EscapeCsv(string.Join("|", endpoint.ChangeKinds)));
+            sb.AppendLine();
+        }
+
+        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
+    }
+
+    private static string EscapeCsv(string? value) {
+        var text = value ?? string.Empty;
+        if (text.IndexOfAny(new[] { ',', '"', '\r', '\n' }) >= 0) {
+            return "\"" + text.Replace("\"", "\"\"") + "\"";
+        }
+
+        return text;
     }
 }
