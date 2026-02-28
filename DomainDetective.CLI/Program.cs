@@ -195,7 +195,8 @@ internal static class Program {
                 .WithDescription("Analyze certificate drift and rotation across persisted snapshots")
                 .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--changed-only" })
                 .WithExample(new[] { "CertificateInventoryDrift", "--max-endpoints", "500", "--json" })
-                .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-drift.csv" });
+                .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-drift.csv" })
+                .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--ndjson-path", "./artifacts/cert-drift.ndjson" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDriftCommand>("cert-inventory-drift")
                 .WithDescription("Analyze certificate drift and rotation across persisted snapshots (alias)");
 
@@ -269,7 +270,8 @@ internal static class Program {
                 .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots")
                 .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01" })
                 .WithExample(new[] { "CertificateInventoryReuse", "--include-singletons", "--max-certificates", "500", "--json" })
-                .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-reuse.csv" });
+                .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-reuse.csv" })
+                .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01", "--ndjson-path", "./artifacts/cert-reuse.ndjson" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("cert-inventory-reuse")
                 .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots (alias)");
         });
