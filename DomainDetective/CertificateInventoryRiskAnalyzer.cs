@@ -22,6 +22,18 @@ namespace DomainDetective {
         public int LowCount { get; set; }
         public int NoRiskCount { get; set; }
         public double AverageScore { get; set; }
+        /// <summary>Number of distinct certificate identities observed across latest endpoints.</summary>
+        public int UniqueCertificateIdentityCount { get; set; }
+        /// <summary>Number of distinct certificate identities used by more than one endpoint.</summary>
+        public int ReusedCertificateIdentityCount { get; set; }
+        /// <summary>Number of endpoints whose certificate identity is reused by at least one other endpoint.</summary>
+        public int EndpointsWithReusedCertificateCount { get; set; }
+        /// <summary>Maximum endpoint fan-out observed for a single certificate identity.</summary>
+        public int MaxCertificateReuseEndpointCount { get; set; }
+        /// <summary>Maximum distinct service spread observed for a single certificate identity.</summary>
+        public int MaxCertificateReuseDistinctServiceCount { get; set; }
+        /// <summary>Maximum distinct port spread observed for a single certificate identity.</summary>
+        public int MaxCertificateReuseDistinctPortCount { get; set; }
         public Dictionary<string, int> ReasonCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<CertificateInventoryEndpointRisk> Endpoints { get; set; } = new();
     }
@@ -496,6 +508,16 @@ namespace DomainDetective {
 
             summary.EndpointCount = latestByEndpoint.Count;
             var certificateReuseById = BuildCertificateReuseStats(latestByEndpoint.Values);
+            summary.UniqueCertificateIdentityCount = certificateReuseById.Count;
+            if (certificateReuseById.Count > 0) {
+                summary.ReusedCertificateIdentityCount = certificateReuseById.Count(pair => pair.Value.EndpointCount > 1);
+                summary.EndpointsWithReusedCertificateCount = certificateReuseById.Values
+                    .Where(stats => stats.EndpointCount > 1)
+                    .Sum(stats => stats.EndpointCount);
+                summary.MaxCertificateReuseEndpointCount = certificateReuseById.Values.Max(stats => stats.EndpointCount);
+                summary.MaxCertificateReuseDistinctServiceCount = certificateReuseById.Values.Max(stats => stats.DistinctServiceCount);
+                summary.MaxCertificateReuseDistinctPortCount = certificateReuseById.Values.Max(stats => stats.DistinctPortCount);
+            }
             var now = DateTimeOffset.UtcNow;
             var normalizedExpiringDays = Math.Max(0, expiringWithinDays);
             var normalizedCriticalDays = Math.Max(0, criticalExpiringWithinDays);
