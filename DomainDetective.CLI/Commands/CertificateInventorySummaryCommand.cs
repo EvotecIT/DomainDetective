@@ -194,7 +194,7 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
             AppendCsvRow(sb, endpointRow);
         }
 
-        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
     }
 
     private static void AppendCounterRows(StringBuilder sb, string category, System.Collections.Generic.Dictionary<string, int> counters) {
@@ -239,3 +239,4 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
     }
 
 }
+

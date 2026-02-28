@@ -236,6 +236,7 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
             sb.AppendLine();
         }
 
-        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
     }
 }
+

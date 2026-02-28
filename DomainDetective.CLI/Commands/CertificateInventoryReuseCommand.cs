@@ -208,7 +208,7 @@ internal sealed class CertificateInventoryReuseCommand : AsyncCommand<Certificat
             sb.AppendLine();
         }
 
-        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
     }
 
     private static string BuildFlags(CertificateInventoryCertificateReuse certificate) {
@@ -229,3 +229,4 @@ internal sealed class CertificateInventoryReuseCommand : AsyncCommand<Certificat
     }
 
 }
+
