@@ -183,7 +183,8 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryQuery", "--sha1-signature-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--serial-number", "00AA11BB22CC33DD44EE55FF66778899", "--json" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--root-thumbprint", "5A3F4D2C1B0099887766554433221100AABBCCDD", "--json" })
-                .WithExample(new[] { "CertificateInventoryQuery", "--ct-template-error-contains", "CensysApiUrlTemplate", "--json" });
+                .WithExample(new[] { "CertificateInventoryQuery", "--ct-template-error-contains", "CensysApiUrlTemplate", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--since-utc", "2026-01-01", "--latest-only", "--csv-path", "./artifacts/cert-query.csv" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryQueryCommand>("cert-inventory-query")
                 .WithDescription("Query persisted certificate inventory snapshots (alias)");
 
