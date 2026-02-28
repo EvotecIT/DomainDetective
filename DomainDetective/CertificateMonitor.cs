@@ -700,7 +700,7 @@ namespace DomainDetective {
             int maxEndpoints = 300,
             CertificateInventoryPolicyOverrides? policyOverrides = null) {
             var snapshots = LoadInventorySnapshots(sinceUtc);
-            return CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
+            var summary = CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
                 snapshots,
                 baselineProfile,
                 previousCapturedAtUtc,
@@ -708,6 +708,82 @@ namespace DomainDetective {
                 changedOnly,
                 maxEndpoints,
                 policyOverrides);
+            AppendPolicyDriftSinceUtcSelectorWarnings(summary, sinceUtc, previousCapturedAtUtc, currentCapturedAtUtc);
+            return summary;
+        }
+
+        private void AppendPolicyDriftSinceUtcSelectorWarnings(
+            CertificateInventoryPolicyDriftSummary summary,
+            DateTimeOffset? sinceUtc,
+            DateTimeOffset? previousCapturedAtUtc,
+            DateTimeOffset? currentCapturedAtUtc) {
+            if (summary == null) {
+                throw new ArgumentNullException(nameof(summary));
+            }
+
+            if (!sinceUtc.HasValue) {
+                return;
+            }
+
+            if (!previousCapturedAtUtc.HasValue && !currentCapturedAtUtc.HasValue) {
+                return;
+            }
+
+            var allSnapshots = LoadInventorySnapshots();
+            if (allSnapshots.Count == 0) {
+                return;
+            }
+
+            var sinceCutoff = sinceUtc.Value;
+            if (previousCapturedAtUtc.HasValue && !summary.PreviousCapturedAtUtc.HasValue) {
+                var fullPrevious = ResolveSnapshotAtOrBefore(allSnapshots, previousCapturedAtUtc.Value);
+                if (fullPrevious != null && fullPrevious.CapturedAtUtc < sinceCutoff) {
+                    AddWarningIfMissing(summary, string.Format(
+                        "Requested previous snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC resolves to {1:yyyy-MM-dd HH:mm:ss} UTC, but --since-utc ({2:yyyy-MM-dd HH:mm:ss} UTC) excluded it.",
+                        previousCapturedAtUtc.Value.UtcDateTime,
+                        fullPrevious.CapturedAtUtc.UtcDateTime,
+                        sinceCutoff.UtcDateTime));
+                }
+            }
+
+            if (currentCapturedAtUtc.HasValue && summary.CurrentCapturedAtUtc.HasValue) {
+                var fullCurrent = ResolveSnapshotAtOrBefore(allSnapshots, currentCapturedAtUtc.Value);
+                if (fullCurrent != null &&
+                    fullCurrent.CapturedAtUtc < sinceCutoff &&
+                    summary.CurrentCapturedAtUtc.Value != fullCurrent.CapturedAtUtc) {
+                    AddWarningIfMissing(summary, string.Format(
+                        "Requested current snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC resolves to {1:yyyy-MM-dd HH:mm:ss} UTC, but --since-utc ({2:yyyy-MM-dd HH:mm:ss} UTC) excluded it.",
+                        currentCapturedAtUtc.Value.UtcDateTime,
+                        fullCurrent.CapturedAtUtc.UtcDateTime,
+                        sinceCutoff.UtcDateTime));
+                }
+            }
+        }
+
+        private static void AddWarningIfMissing(CertificateInventoryPolicyDriftSummary summary, string warning) {
+            if (string.IsNullOrWhiteSpace(warning)) {
+                return;
+            }
+
+            foreach (var existing in summary.Warnings) {
+                if (string.Equals(existing, warning, StringComparison.OrdinalIgnoreCase)) {
+                    return;
+                }
+            }
+
+            summary.Warnings.Add(warning);
+        }
+
+        private static CertificateInventorySnapshot? ResolveSnapshotAtOrBefore(
+            IReadOnlyList<CertificateInventorySnapshot> orderedSnapshots,
+            DateTimeOffset targetUtc) {
+            for (var i = orderedSnapshots.Count - 1; i >= 0; i--) {
+                if (orderedSnapshots[i].CapturedAtUtc <= targetUtc) {
+                    return orderedSnapshots[i];
+                }
+            }
+
+            return null;
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>

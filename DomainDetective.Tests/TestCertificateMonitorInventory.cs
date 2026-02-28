@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.Tests {
     public class TestCertificateMonitorInventory {
@@ -251,6 +255,58 @@ namespace DomainDetective.Tests {
             Assert.Contains("https://portal.example.test/", capturedUrls);
         }
 
+        [Fact]
+        public void BuildInventoryPolicyDriftAddsSinceUtcWarningsWhenRequestedSelectorsAreExcluded() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var historicalSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-10),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001122")
+                    }
+                };
+                var latestSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001122")
+                    }
+                };
+                WriteInventorySnapshot(tempDir, historicalSnapshot);
+                WriteInventorySnapshot(tempDir, latestSnapshot);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = false
+                };
+                var sinceUtc = now.AddDays(-2);
+                var requestedPrevious = now.AddDays(-5);
+                var requestedCurrent = now.AddDays(-5);
+
+                var drift = monitor.BuildInventoryPolicyDrift(
+                    sinceUtc: sinceUtc,
+                    baselineProfile: "Balanced",
+                    previousCapturedAtUtc: requestedPrevious,
+                    currentCapturedAtUtc: requestedCurrent,
+                    changedOnly: false,
+                    maxEndpoints: 100);
+
+                Assert.Contains(drift.Warnings, warning =>
+                    warning.Contains("Requested previous snapshot", StringComparison.OrdinalIgnoreCase) &&
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(drift.Warnings, warning =>
+                    warning.Contains("Requested current snapshot", StringComparison.OrdinalIgnoreCase) &&
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
         private static X509Certificate2 CreateSelfSignedWithEku(string oidValue) {
             using var rsa = RSA.Create(2048);
             var request = new CertificateRequest("CN=monitor.test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -260,6 +316,42 @@ namespace DomainDetective.Tests {
             request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(oids, false));
             var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
             return new X509Certificate2(cert.Export(X509ContentType.Cert));
+        }
+
+        private static void WriteInventorySnapshot(string cacheDirectory, CertificateInventorySnapshot snapshot) {
+            var inventoryDirectory = Path.Combine(cacheDirectory, "inventory");
+            Directory.CreateDirectory(inventoryDirectory);
+            var fileName = string.Format(
+                "{0:yyyyMMddTHHmmssfffffffZ}_{1}.json",
+                snapshot.CapturedAtUtc.UtcDateTime,
+                snapshot.Port);
+            var filePath = Path.Combine(inventoryDirectory, fileName);
+            var json = JsonSerializer.Serialize(snapshot, JsonOptions.Default);
+            File.WriteAllText(filePath, json, Encoding.UTF8);
+        }
+
+        private static CertificateInventoryEntry BuildHealthyEntry(DateTimeOffset now, string host, string thumbprint) {
+            return new CertificateInventoryEntry {
+                Host = host,
+                ResolvedHost = host,
+                Port = 443,
+                Service = "HTTPS",
+                NotBeforeUtc = now.AddDays(-20),
+                NotAfterUtc = now.AddDays(120),
+                Valid = true,
+                Expired = false,
+                ChainComplete = true,
+                IsReachable = true,
+                HostnameMatch = true,
+                IsSelfSigned = false,
+                IsKnownCertificateAuthority = true,
+                IsKnownRootCertificateAuthority = true,
+                PresentInCtLogs = true,
+                AllowsServerAuthentication = true,
+                CertificateIssuerNormalized = "Issuer Healthy",
+                CertificateRootIssuerNormalized = "Root Healthy",
+                CertificateThumbprint = thumbprint
+            };
         }
     }
 }
