@@ -920,7 +920,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             sb.AppendLine();
         }
 
-        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
     }
 
     private static string BuildAuthSummary(CertificateInventoryEndpointRisk endpoint) {
@@ -946,3 +946,4 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         return $"{flags} ({endpoint.AuthenticationProfile})";
     }
 }
+

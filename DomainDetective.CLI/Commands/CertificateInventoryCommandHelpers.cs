@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.IO.Compression;
+using System.Text;
 
 namespace DomainDetective.CLI.Commands;
 
@@ -37,5 +39,25 @@ internal static class CertificateInventoryCommandHelpers {
         }
 
         return text;
+    }
+
+    internal static void WriteUtf8Text(string fullPath, string content) {
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        if (fullPath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)) {
+            using (var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                using (var gzipStream = new GZipStream(fileStream, CompressionLevel.Optimal)) {
+                    using (var writer = new StreamWriter(gzipStream, new UTF8Encoding(true))) {
+                        writer.Write(content);
+                    }
+                }
+            }
+            return;
+        }
+
+        File.WriteAllText(fullPath, content, Encoding.UTF8);
     }
 }
