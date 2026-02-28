@@ -73,8 +73,6 @@ internal sealed class CertificateInventoryPolicyDriftSettings : CommandSettings 
 /// Displays endpoint-level policy drift between two persisted inventory snapshots.
 /// </summary>
 internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<CertificateInventoryPolicyDriftSettings> {
-    private static readonly char[] CsvSpecialChars = { ',', '"', '\r', '\n' };
-
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     public override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryPolicyDriftSettings settings) {
@@ -92,7 +90,7 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
             return Task.FromResult(1);
         }
 
-        var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
+        var cacheDirectory = CertificateInventoryCommandHelpers.ResolveCacheDirectory(settings.CacheDirectory);
         CertificateInventoryPolicyOverrides? policyOverrides = null;
         if (!string.IsNullOrWhiteSpace(settings.PolicyOverridesPath)) {
             try {
@@ -109,10 +107,10 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
         };
 
         var drift = monitor.BuildInventoryPolicyDrift(
-            sinceUtc: ToUtc(settings.SinceUtc),
+            sinceUtc: CertificateInventoryCommandHelpers.ToUtc(settings.SinceUtc),
             baselineProfile: normalizedProfile,
-            previousCapturedAtUtc: ToUtc(settings.PreviousUtc),
-            currentCapturedAtUtc: ToUtc(settings.CurrentUtc),
+            previousCapturedAtUtc: CertificateInventoryCommandHelpers.ToUtc(settings.PreviousUtc),
+            currentCapturedAtUtc: CertificateInventoryCommandHelpers.ToUtc(settings.CurrentUtc),
             changedOnly: settings.ChangedOnly,
             maxEndpoints: settings.MaxEndpoints,
             policyOverrides: policyOverrides);
@@ -240,27 +238,6 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
         return Task.FromResult(0);
     }
 
-    private static string ResolveCacheDirectory(string? configured) {
-        if (!string.IsNullOrWhiteSpace(configured)) {
-            return configured;
-        }
-
-        return Path.Combine(Path.GetTempPath(), "DomainDetective", "cert-monitor");
-    }
-
-    private static DateTimeOffset? ToUtc(DateTime? value) {
-        if (!value.HasValue) {
-            return null;
-        }
-
-        var dt = value.Value;
-        if (dt.Kind == DateTimeKind.Unspecified) {
-            dt = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
-        }
-
-        return dt.ToUniversalTime();
-    }
-
     private static void WriteCsv(CertificateInventoryPolicyDriftSummary drift, string path) {
         var fullPath = Path.GetFullPath(path);
         var directory = Path.GetDirectoryName(fullPath);
@@ -272,61 +249,52 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
         sb.AppendLine("Host,Port,Status,PreviousCompliant,CurrentCompliant,PreviousViolationCount,CurrentViolationCount,PreviousMaxViolationSeverity,CurrentMaxViolationSeverity,PreviousRiskScore,CurrentRiskScore,PreviousRiskSeverity,CurrentRiskSeverity,PreviousIssuer,CurrentIssuer,PreviousNotAfterUtc,CurrentNotAfterUtc,PreviousViolationCodes,CurrentViolationCodes,NewViolationCodes,ResolvedViolationCodes,ChangeKinds");
 
         foreach (var endpoint in drift.Endpoints) {
-            sb.Append(EscapeCsv(endpoint.Host));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Host));
             sb.Append(',');
             sb.Append(endpoint.Port);
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.Status));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Status));
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.PreviousCompliant?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousCompliant?.ToString().ToLowerInvariant() ?? string.Empty));
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.CurrentCompliant?.ToString().ToLowerInvariant() ?? string.Empty));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentCompliant?.ToString().ToLowerInvariant() ?? string.Empty));
             sb.Append(',');
             sb.Append(endpoint.PreviousViolationCount);
             sb.Append(',');
             sb.Append(endpoint.CurrentViolationCount);
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.PreviousMaxViolationSeverity));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousMaxViolationSeverity));
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.CurrentMaxViolationSeverity));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentMaxViolationSeverity));
             sb.Append(',');
             sb.Append(endpoint.PreviousRiskScore);
             sb.Append(',');
             sb.Append(endpoint.CurrentRiskScore);
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.PreviousRiskSeverity));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousRiskSeverity));
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.CurrentRiskSeverity));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentRiskSeverity));
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.PreviousIssuer));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousIssuer));
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.CurrentIssuer));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentIssuer));
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.PreviousNotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.PreviousNotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
             sb.Append(',');
-            sb.Append(EscapeCsv(endpoint.CurrentNotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CurrentNotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
             sb.Append(',');
-            sb.Append(EscapeCsv(string.Join("|", endpoint.PreviousViolationCodes)));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.PreviousViolationCodes)));
             sb.Append(',');
-            sb.Append(EscapeCsv(string.Join("|", endpoint.CurrentViolationCodes)));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.CurrentViolationCodes)));
             sb.Append(',');
-            sb.Append(EscapeCsv(string.Join("|", endpoint.NewViolationCodes)));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.NewViolationCodes)));
             sb.Append(',');
-            sb.Append(EscapeCsv(string.Join("|", endpoint.ResolvedViolationCodes)));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.ResolvedViolationCodes)));
             sb.Append(',');
-            sb.Append(EscapeCsv(string.Join("|", endpoint.ChangeKinds)));
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.ChangeKinds)));
             sb.AppendLine();
         }
 
         File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
-    }
-
-    private static string EscapeCsv(string? value) {
-        var text = value ?? string.Empty;
-        if (text.IndexOfAny(CsvSpecialChars) >= 0) {
-            return "\"" + text.Replace("\"", "\"\"") + "\"";
-        }
-
-        return text;
     }
 }

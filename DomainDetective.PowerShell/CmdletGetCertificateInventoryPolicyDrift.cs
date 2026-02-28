@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Management.Automation;
 
 namespace DomainDetective.PowerShell;
@@ -68,7 +67,7 @@ public sealed class CmdletGetCertificateInventoryPolicyDrift : PSCmdlet {
         }
 
         var monitor = new CertificateMonitor {
-            CacheDirectory = ResolveCacheDirectory(CacheDirectory),
+            CacheDirectory = CertificateInventoryCmdletHelpers.ResolveCacheDirectory(CacheDirectory),
             PersistInventorySnapshots = false
         };
 
@@ -87,34 +86,13 @@ public sealed class CmdletGetCertificateInventoryPolicyDrift : PSCmdlet {
         }
 
         var summary = monitor.BuildInventoryPolicyDrift(
-            sinceUtc: ToUtc(SinceUtc),
+            sinceUtc: CertificateInventoryCmdletHelpers.ToUtc(SinceUtc),
             baselineProfile: normalizedProfile,
-            previousCapturedAtUtc: ToUtc(PreviousUtc),
-            currentCapturedAtUtc: ToUtc(CurrentUtc),
+            previousCapturedAtUtc: CertificateInventoryCmdletHelpers.ToUtc(PreviousUtc),
+            currentCapturedAtUtc: CertificateInventoryCmdletHelpers.ToUtc(CurrentUtc),
             changedOnly: ChangedOnly.IsPresent,
             maxEndpoints: MaxEndpoints,
             policyOverrides: policyOverrides);
         WriteObject(summary);
-    }
-
-    private static DateTimeOffset? ToUtc(DateTime? value) {
-        if (!value.HasValue) {
-            return null;
-        }
-
-        var dt = value.Value;
-        if (dt.Kind == DateTimeKind.Unspecified) {
-            dt = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
-        }
-
-        return dt.ToUniversalTime();
-    }
-
-    private static string ResolveCacheDirectory(string? configured) {
-        if (!string.IsNullOrWhiteSpace(configured)) {
-            return configured!;
-        }
-
-        return Path.Combine(Path.GetTempPath(), "DomainDetective", "cert-monitor");
     }
 }

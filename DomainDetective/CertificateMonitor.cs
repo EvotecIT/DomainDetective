@@ -699,8 +699,15 @@ namespace DomainDetective {
             bool changedOnly = true,
             int maxEndpoints = 300,
             CertificateInventoryPolicyOverrides? policyOverrides = null) {
-            var snapshots = LoadInventorySnapshots(sinceUtc);
-            return CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
+            var allSnapshots = LoadInventorySnapshots();
+            var snapshots = allSnapshots;
+            if (sinceUtc.HasValue) {
+                snapshots = allSnapshots
+                    .Where(snapshot => snapshot.CapturedAtUtc >= sinceUtc.Value)
+                    .ToList();
+            }
+
+            var summary = CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
                 snapshots,
                 baselineProfile,
                 previousCapturedAtUtc,
@@ -708,6 +715,105 @@ namespace DomainDetective {
                 changedOnly,
                 maxEndpoints,
                 policyOverrides);
+            AppendPolicyDriftSinceUtcSelectorWarnings(summary, allSnapshots, sinceUtc, previousCapturedAtUtc, currentCapturedAtUtc);
+            return summary;
+        }
+
+        private static void AppendPolicyDriftSinceUtcSelectorWarnings(
+            CertificateInventoryPolicyDriftSummary summary,
+            IReadOnlyList<CertificateInventorySnapshot> allSnapshots,
+            DateTimeOffset? sinceUtc,
+            DateTimeOffset? previousCapturedAtUtc,
+            DateTimeOffset? currentCapturedAtUtc) {
+            if (!sinceUtc.HasValue) {
+                return;
+            }
+
+            if (!previousCapturedAtUtc.HasValue && !currentCapturedAtUtc.HasValue) {
+                return;
+            }
+
+            if (allSnapshots.Count == 0) {
+                return;
+            }
+
+            var sinceCutoff = sinceUtc.Value;
+            if (previousCapturedAtUtc.HasValue) {
+                var fullPrevious = ResolveSnapshotAtOrBefore(allSnapshots, previousCapturedAtUtc.Value);
+                if (fullPrevious != null &&
+                    fullPrevious.CapturedAtUtc < sinceCutoff &&
+                    (!summary.PreviousCapturedAtUtc.HasValue || summary.PreviousCapturedAtUtc.Value != fullPrevious.CapturedAtUtc)) {
+                    var warning = string.Format(
+                        "Requested previous snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC resolves to {1:yyyy-MM-dd HH:mm:ss} UTC, but --since-utc ({2:yyyy-MM-dd HH:mm:ss} UTC) excluded it.",
+                        previousCapturedAtUtc.Value.UtcDateTime,
+                        fullPrevious.CapturedAtUtc.UtcDateTime,
+                        sinceCutoff.UtcDateTime);
+                    ReplaceWarningIfMissing(
+                        summary,
+                        string.Format("Requested previous snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC", previousCapturedAtUtc.Value.UtcDateTime),
+                        warning);
+                }
+            }
+
+            if (currentCapturedAtUtc.HasValue) {
+                var fullCurrent = ResolveSnapshotAtOrBefore(allSnapshots, currentCapturedAtUtc.Value);
+                if (fullCurrent != null &&
+                    fullCurrent.CapturedAtUtc < sinceCutoff &&
+                    (!summary.CurrentCapturedAtUtc.HasValue || summary.CurrentCapturedAtUtc.Value != fullCurrent.CapturedAtUtc)) {
+                    var warning = string.Format(
+                        "Requested current snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC resolves to {1:yyyy-MM-dd HH:mm:ss} UTC, but --since-utc ({2:yyyy-MM-dd HH:mm:ss} UTC) excluded it.",
+                        currentCapturedAtUtc.Value.UtcDateTime,
+                        fullCurrent.CapturedAtUtc.UtcDateTime,
+                        sinceCutoff.UtcDateTime);
+                    ReplaceWarningIfMissing(
+                        summary,
+                        string.Format("Requested current snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC", currentCapturedAtUtc.Value.UtcDateTime),
+                        warning);
+                }
+            }
+        }
+
+        private static void ReplaceWarningIfMissing(
+            CertificateInventoryPolicyDriftSummary summary,
+            string warningPrefix,
+            string warning) {
+            if (!string.IsNullOrWhiteSpace(warningPrefix)) {
+                for (var i = summary.Warnings.Count - 1; i >= 0; i--) {
+                    var existing = summary.Warnings[i];
+                    if (!string.IsNullOrWhiteSpace(existing) &&
+                        existing.StartsWith(warningPrefix, StringComparison.OrdinalIgnoreCase)) {
+                        summary.Warnings.RemoveAt(i);
+                    }
+                }
+            }
+
+            AddWarningIfMissing(summary, warning);
+        }
+
+        private static void AddWarningIfMissing(CertificateInventoryPolicyDriftSummary summary, string warning) {
+            if (string.IsNullOrWhiteSpace(warning)) {
+                return;
+            }
+
+            foreach (var existing in summary.Warnings) {
+                if (string.Equals(existing, warning, StringComparison.OrdinalIgnoreCase)) {
+                    return;
+                }
+            }
+
+            summary.Warnings.Add(warning);
+        }
+
+        private static CertificateInventorySnapshot? ResolveSnapshotAtOrBefore(
+            IReadOnlyList<CertificateInventorySnapshot> orderedSnapshots,
+            DateTimeOffset targetUtc) {
+            for (var i = orderedSnapshots.Count - 1; i >= 0; i--) {
+                if (orderedSnapshots[i].CapturedAtUtc <= targetUtc) {
+                    return orderedSnapshots[i];
+                }
+            }
+
+            return null;
         }
 
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>

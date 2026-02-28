@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Management.Automation;
 
 namespace DomainDetective.PowerShell;
@@ -46,24 +45,15 @@ public sealed class CmdletGetCertificateInventoryDiff : PSCmdlet {
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         var monitor = new CertificateMonitor {
-            CacheDirectory = ResolveCacheDirectory(CacheDirectory),
+            CacheDirectory = CertificateInventoryCmdletHelpers.ResolveCacheDirectory(CacheDirectory),
             PersistInventorySnapshots = false
         };
 
-        DateTimeOffset? since = null;
-        if (SinceUtc.HasValue) {
-            since = new DateTimeOffset(DateTime.SpecifyKind(SinceUtc.Value, DateTimeKind.Utc));
-        }
+        var since = CertificateInventoryCmdletHelpers.ToUtc(SinceUtc);
 
-        DateTimeOffset? previous = null;
-        if (PreviousUtc.HasValue) {
-            previous = new DateTimeOffset(DateTime.SpecifyKind(PreviousUtc.Value, DateTimeKind.Utc));
-        }
+        var previous = CertificateInventoryCmdletHelpers.ToUtc(PreviousUtc);
 
-        DateTimeOffset? current = null;
-        if (CurrentUtc.HasValue) {
-            current = new DateTimeOffset(DateTime.SpecifyKind(CurrentUtc.Value, DateTimeKind.Utc));
-        }
+        var current = CertificateInventoryCmdletHelpers.ToUtc(CurrentUtc);
 
         var diff = monitor.BuildInventoryDiff(
             sinceUtc: since,
@@ -72,13 +62,5 @@ public sealed class CmdletGetCertificateInventoryDiff : PSCmdlet {
             includeUnchanged: IncludeUnchanged.IsPresent,
             maxEndpoints: MaxEndpoints);
         WriteObject(diff);
-    }
-
-    private static string ResolveCacheDirectory(string? configured) {
-        if (!string.IsNullOrWhiteSpace(configured)) {
-            return configured!;
-        }
-
-        return Path.Combine(Path.GetTempPath(), "DomainDetective", "cert-monitor");
     }
 }
