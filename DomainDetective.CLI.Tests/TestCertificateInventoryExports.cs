@@ -250,6 +250,104 @@ public class TestCertificateInventoryExports {
         }
     }
 
+    [Fact]
+    public async Task DiffCommand_UsesSnapshotIndexesForSelection() {
+        var tempDirectory = CreateTempDirectory();
+        try {
+            var cacheDirectory = Path.Combine(tempDirectory, "cache");
+            var inventoryDirectory = Path.Combine(cacheDirectory, "inventory");
+            Directory.CreateDirectory(inventoryDirectory);
+
+            var oldestSnapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = new DateTimeOffset(2026, 1, 10, 12, 0, 0, TimeSpan.Zero),
+                Port = 443,
+                Entries = new List<CertificateInventoryEntry> {
+                    new CertificateInventoryEntry {
+                        Host = "index.example.com",
+                        ResolvedHost = "index.example.com",
+                        Port = 443,
+                        Service = "HTTPS",
+                        CertificateIssuerNormalized = "Issuer A",
+                        CertificateRootIssuerNormalized = "Root A",
+                        CertificateThumbprint = "AA:AA",
+                        NotAfterUtc = new DateTimeOffset(2026, 3, 1, 12, 0, 0, TimeSpan.Zero),
+                        Valid = true,
+                        ChainComplete = true,
+                        HostnameMatch = true
+                    }
+                }
+            };
+
+            var middleSnapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero),
+                Port = 443,
+                Entries = new List<CertificateInventoryEntry> {
+                    new CertificateInventoryEntry {
+                        Host = "index.example.com",
+                        ResolvedHost = "index.example.com",
+                        Port = 443,
+                        Service = "HTTPS",
+                        CertificateIssuerNormalized = "Issuer B",
+                        CertificateRootIssuerNormalized = "Root B",
+                        CertificateThumbprint = "BB:BB",
+                        NotAfterUtc = new DateTimeOffset(2026, 4, 1, 12, 0, 0, TimeSpan.Zero),
+                        Valid = true,
+                        ChainComplete = true,
+                        HostnameMatch = true
+                    }
+                }
+            };
+
+            var latestSnapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = new DateTimeOffset(2026, 1, 20, 12, 0, 0, TimeSpan.Zero),
+                Port = 443,
+                Entries = new List<CertificateInventoryEntry> {
+                    new CertificateInventoryEntry {
+                        Host = "index.example.com",
+                        ResolvedHost = "index.example.com",
+                        Port = 443,
+                        Service = "HTTPS",
+                        CertificateIssuerNormalized = "Issuer C",
+                        CertificateRootIssuerNormalized = "Root C",
+                        CertificateThumbprint = "CC:CC",
+                        NotAfterUtc = new DateTimeOffset(2026, 5, 1, 12, 0, 0, TimeSpan.Zero),
+                        Valid = true,
+                        ChainComplete = true,
+                        HostnameMatch = true
+                    }
+                }
+            };
+
+            WriteSnapshot(inventoryDirectory, "snapshot-oldest.json", oldestSnapshot);
+            WriteSnapshot(inventoryDirectory, "snapshot-middle.json", middleSnapshot);
+            WriteSnapshot(inventoryDirectory, "snapshot-latest.json", latestSnapshot);
+
+            var csvPath = Path.Combine(tempDirectory, "out", "diff-index.csv");
+            var command = new CertificateInventoryDiffCommand();
+            var settings = new CertificateInventoryDiffSettings {
+                CacheDirectory = cacheDirectory,
+                PreviousIndex = 2,
+                CurrentIndex = 1,
+                CsvPath = csvPath,
+                Json = true,
+                MaxEndpoints = 100
+            };
+
+            var result = await command.ExecuteAsync(null!, settings);
+
+            Assert.Equal(0, result);
+            Assert.True(File.Exists(csvPath));
+
+            var csv = File.ReadAllText(csvPath, Encoding.UTF8);
+            Assert.Contains("index.example.com", csv);
+            Assert.Contains("2026-01-10T12:00:00.0000000Z", csv);
+            Assert.Contains("2026-01-15T12:00:00.0000000Z", csv);
+            Assert.DoesNotContain("2026-01-20T12:00:00.0000000Z", csv);
+        } finally {
+            DeleteDirectory(tempDirectory);
+        }
+    }
+
     private static void WriteSnapshot(string directory, string fileName, CertificateInventorySnapshot snapshot) {
         var path = Path.Combine(directory, fileName);
         var json = JsonSerializer.Serialize(snapshot, JsonOptions.Default);

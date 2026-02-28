@@ -215,6 +215,7 @@ internal static class Program {
                 .WithDescription("Compare two certificate inventory snapshots")
                 .WithExample(new[] { "CertificateInventoryDiff", "--since-utc", "2026-01-01" })
                 .WithExample(new[] { "CertificateInventoryDiff", "--previous-utc", "2026-02-01", "--current-utc", "2026-02-15", "--json" })
+                .WithExample(new[] { "CertificateInventoryDiff", "--previous-index", "2", "--current-index", "1", "--json" })
                 .WithExample(new[] { "CertificateInventoryDiff", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-diff.csv" })
                 .WithExample(new[] { "CertificateInventoryDiff", "--since-utc", "2026-01-01", "--ndjson-path", "./artifacts/cert-diff.ndjson" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDiffCommand>("cert-inventory-diff")
@@ -274,6 +275,7 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryPolicyDrift", "--changed-only" })
                 .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Strict", "--since-utc", "2026-01-01", "--json" })
                 .WithExample(new[] { "CertificateInventoryPolicyDrift", "--previous-utc", "2026-02-01", "--current-utc", "2026-02-15", "--changed-only" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--previous-index", "2", "--current-index", "1", "--json" })
                 .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Balanced", "--csv-path", "./artifacts/policy-drift.csv" })
                 .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Balanced", "--policy-overrides-path", "./policy-overrides.json", "--json" })
                 .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Balanced", "--ndjson-path", "./artifacts/policy-drift.ndjson" });
