@@ -47,6 +47,11 @@ internal sealed class CertificateInventorySummarySettings : CommandSettings {
     [Description("Optional CSV output path for summary metrics, distributions, and expiring endpoints.")]
     [CommandOption("--csv-path <PATH>")]
     public string? CsvPath { get; set; }
+
+    /// <summary>Optional NDJSON output path for summary metrics and rows (one JSON object per line).</summary>
+    [Description("Optional NDJSON output path for summary metrics and rows (one JSON object per line).")]
+    [CommandOption("--ndjson-path <PATH>")]
+    public string? NdjsonPath { get; set; }
 }
 
 /// <summary>
@@ -84,6 +89,16 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
                 AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
             } catch (Exception ex) {
                 AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.NdjsonPath)) {
+            try {
+                WriteNdjson(summary, settings.NdjsonPath!);
+                AnsiConsole.MarkupLine($"[grey]NDJSON written:[/] {settings.NdjsonPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write NDJSON:[/] {ex.Message}");
                 return Task.FromResult(1);
             }
         }
@@ -197,6 +212,52 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
     }
 
+    private static void WriteNdjson(CertificateInventorySummary summary, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine(JsonSerializer.Serialize(new {
+            RowType = "Summary",
+            summary.SnapshotCount,
+            summary.SampleCount,
+            summary.UniqueEndpointCount,
+            summary.ExpiredEndpointCount,
+            summary.ExpiringSoonEndpointCount,
+            summary.MissingServerAuthEndpointCount,
+            summary.ClientAuthEndpointCount,
+            summary.SecureEmailEndpointCount,
+            summary.SelfSignedEndpointCount,
+            summary.IncompleteChainEndpointCount,
+            summary.CtTemplateErrorEndpointCount
+        }, JsonOptions.Default));
+
+        AppendCounterNdjson(sb, "Service", summary.ServiceCounts);
+        AppendCounterNdjson(sb, "Issuer", summary.IssuerCounts);
+        AppendCounterNdjson(sb, "RootIssuer", summary.RootIssuerCounts);
+        AppendCounterNdjson(sb, "AuthenticationProfile", summary.AuthenticationProfileCounts);
+        AppendCounterNdjson(sb, "ChainSource", summary.ChainSourceCounts);
+        AppendCounterNdjson(sb, "CtSource", summary.CtSourceCounts);
+        AppendCounterNdjson(sb, "CtTemplateErrorCategory", summary.CtTemplateErrorCounts);
+
+        foreach (var endpoint in summary.ExpiringSoon) {
+            sb.AppendLine(JsonSerializer.Serialize(new {
+                RowType = "ExpiringEndpoint",
+                endpoint.Host,
+                endpoint.Port,
+                endpoint.Service,
+                endpoint.NotAfterUtc,
+                endpoint.DaysToExpire,
+                endpoint.Issuer
+            }, JsonOptions.Default));
+        }
+
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+    }
+
     private static void AppendCounterRows(StringBuilder sb, string category, System.Collections.Generic.Dictionary<string, int> counters) {
         foreach (var kv in counters.OrderByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)) {
             var counterRow = NewCsvRow();
@@ -205,6 +266,17 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
             counterRow[2] = kv.Key;
             counterRow[3] = kv.Value.ToString();
             AppendCsvRow(sb, counterRow);
+        }
+    }
+
+    private static void AppendCounterNdjson(StringBuilder sb, string category, System.Collections.Generic.Dictionary<string, int> counters) {
+        foreach (var kv in counters.OrderByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)) {
+            sb.AppendLine(JsonSerializer.Serialize(new {
+                RowType = "Counter",
+                Category = category,
+                Name = kv.Key,
+                Count = kv.Value
+            }, JsonOptions.Default));
         }
     }
 
