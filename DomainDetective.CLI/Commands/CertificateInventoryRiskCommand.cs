@@ -63,6 +63,16 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--reason-contains <TEXT>")]
     public string? ReasonContains { get; set; }
 
+    /// <summary>Optional exact reason filters where any value can match (repeat option).</summary>
+    [Description("Optional exact reason filters where any value can match (repeat option). Example: CertificateExpired, WeakKey, CtNotObserved.")]
+    [CommandOption("--reason-any <REASON>")]
+    public string[]? ReasonAnyOf { get; set; }
+
+    /// <summary>Optional exact reason filters where all values must match (repeat option).</summary>
+    [Description("Optional exact reason filters where all values must match (repeat option). Example: CertificateExpired, WeakKey.")]
+    [CommandOption("--reason-all <REASON>")]
+    public string[]? ReasonAllOf { get; set; }
+
     /// <summary>Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</summary>
     [Description("Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).")]
     [CommandOption("--issuer-contains <TEXT>")]
@@ -419,6 +429,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             minimumSeverity: normalizedMinimumSeverity,
             riskProfile: normalizedRiskProfile,
             reasonContains: settings.ReasonContains,
+            reasonAnyOf: settings.ReasonAnyOf,
+            reasonAllOf: settings.ReasonAllOf,
             issuerContains: settings.IssuerContains,
             authorityFamilyEquals: settings.AuthorityFamilyEquals,
             rootAuthorityFamilyEquals: settings.RootAuthorityFamilyEquals,

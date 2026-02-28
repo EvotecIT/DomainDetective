@@ -232,7 +232,9 @@ namespace DomainDetective {
             string? authenticationProfileEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
-            bool secureEmailOnly = false) {
+            bool secureEmailOnly = false,
+            string[]? reasonAnyOf = null,
+            string[]? reasonAllOf = null) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
 
@@ -259,6 +261,16 @@ namespace DomainDetective {
             }
             var hasReasonFilter = !string.IsNullOrWhiteSpace(reasonContains);
             var reasonNeedle = hasReasonFilter ? reasonContains!.Trim() : string.Empty;
+            var normalizedReasonAnyOf = NormalizeDistinctValues(reasonAnyOf);
+            var hasReasonAnyOfFilter = normalizedReasonAnyOf.Count > 0;
+            var reasonAnyOfSet = hasReasonAnyOfFilter
+                ? new HashSet<string>(normalizedReasonAnyOf, StringComparer.OrdinalIgnoreCase)
+                : null;
+            var normalizedReasonAllOf = NormalizeDistinctValues(reasonAllOf);
+            var hasReasonAllOfFilter = normalizedReasonAllOf.Count > 0;
+            var reasonAllOfSet = hasReasonAllOfFilter
+                ? new HashSet<string>(normalizedReasonAllOf, StringComparer.OrdinalIgnoreCase)
+                : null;
             var hasIssuerFilter = !string.IsNullOrWhiteSpace(issuerContains);
             var issuerNeedle = hasIssuerFilter ? issuerContains!.Trim() : string.Empty;
             var hasAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(authorityFamilyEquals);
@@ -364,6 +376,19 @@ namespace DomainDetective {
                     var matchesReason = row.Reasons.Any(reason =>
                         reason.IndexOf(reasonNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
                     if (!matchesReason) {
+                        continue;
+                    }
+                }
+                if (hasReasonAnyOfFilter) {
+                    var matchesAnyReason = row.Reasons.Any(reason => reasonAnyOfSet!.Contains(reason));
+                    if (!matchesAnyReason) {
+                        continue;
+                    }
+                }
+                if (hasReasonAllOfFilter) {
+                    var rowReasonSet = new HashSet<string>(row.Reasons, StringComparer.OrdinalIgnoreCase);
+                    var matchesAllReasons = reasonAllOfSet!.All(rowReasonSet.Contains);
+                    if (!matchesAllReasons) {
                         continue;
                     }
                 }
