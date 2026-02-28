@@ -414,6 +414,11 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--json")]
     public bool Json { get; set; }
 
+    /// <summary>Optional NDJSON output path for endpoint risk rows (one JSON object per line).</summary>
+    [Description("Optional NDJSON output path for endpoint risk rows (one JSON object per line).")]
+    [CommandOption("--ndjson-path <PATH>")]
+    public string? NdjsonPath { get; set; }
+
     /// <summary>Optional CSV output path for endpoint risk rows.</summary>
     [Description("Optional CSV output path for endpoint risk rows.")]
     [CommandOption("--csv-path <PATH>")]
@@ -708,6 +713,16 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(settings.NdjsonPath)) {
+            try {
+                WriteNdjson(risk, settings.NdjsonPath!);
+                AnsiConsole.MarkupLine($"[grey]NDJSON written:[/] {settings.NdjsonPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write NDJSON:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
+
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(risk, JsonOptions.Default));
             return Task.FromResult(0);
@@ -918,6 +933,21 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             sb.Append(',');
             sb.Append(endpoint.PresentInCtLogs ? "true" : "false");
             sb.AppendLine();
+        }
+
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+    }
+
+    private static void WriteNdjson(CertificateInventoryRiskSummary risk, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        foreach (var endpoint in risk.Endpoints) {
+            sb.AppendLine(JsonSerializer.Serialize(endpoint, JsonOptions.Default));
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
