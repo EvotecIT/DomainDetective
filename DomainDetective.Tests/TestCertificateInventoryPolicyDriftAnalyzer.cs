@@ -306,6 +306,37 @@ namespace DomainDetective.Tests {
             Assert.Equal(0, drift.AddedViolationEndpointCount);
         }
 
+        [Fact]
+        public void BuildDriftRemovedCompliantEndpointDoesNotMarkViolationsChangeKind() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-4),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "removed-healthy.example.com", "99112233445566778899AABBCCDDEEFF00112233")
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                }
+            };
+
+            var drift = CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
+                snapshots,
+                baselineProfile: "Balanced",
+                changedOnly: false,
+                maxEndpoints: 100);
+
+            var removed = drift.Endpoints.Single(row => row.Host == "removed-healthy.example.com");
+            Assert.Equal("Removed", removed.Status);
+            Assert.Contains("endpoint", removed.ChangeKinds);
+            Assert.DoesNotContain("violations", removed.ChangeKinds);
+            Assert.Empty(removed.ResolvedViolationCodes);
+        }
+
         private static CertificateInventoryEntry BuildHealthyEntry(DateTimeOffset now, string host, string thumbprint) {
             return new CertificateInventoryEntry {
                 Host = host,

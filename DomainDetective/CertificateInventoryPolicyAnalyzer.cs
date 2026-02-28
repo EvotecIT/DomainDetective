@@ -109,6 +109,8 @@ namespace DomainDetective {
     /// Evaluates certificate inventory endpoints against baseline policy profiles.
     /// </summary>
     public static class CertificateInventoryPolicyAnalyzer {
+        private static readonly string[] BaselineProfileNames = { "Strict", "Balanced", "Legacy" };
+
         private sealed class BaselineProfileDefinition {
             public int RenewalWindowDays { get; init; }
             public int MaxReuseEndpointCount { get; init; }
@@ -180,7 +182,7 @@ namespace DomainDetective {
             };
 
         public static readonly string BaselineProfileAcceptedValues =
-            string.Join(", ", BaselineProfileDefinitions.Keys);
+            string.Join(", ", BaselineProfileNames);
 
         /// <summary>
         /// Attempts to resolve a baseline profile label to a known profile.
@@ -197,7 +199,7 @@ namespace DomainDetective {
                 return false;
             }
 
-            foreach (var profile in BaselineProfileDefinitions.Keys) {
+            foreach (var profile in BaselineProfileNames) {
                 if (string.Equals(profile, candidate, StringComparison.OrdinalIgnoreCase)) {
                     normalizedBaselineProfile = profile;
                     return true;

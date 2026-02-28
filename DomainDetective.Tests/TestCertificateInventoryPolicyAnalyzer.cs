@@ -177,11 +177,87 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, policy.EndpointCount);
             Assert.Equal(1, policy.ViolationEndpointCount);
             Assert.Equal(0, policy.CompliantEndpointCount);
-            Assert.True(policy.TotalViolationCount >= 4);
-            Assert.True(policy.CriticalViolationCount >= 1);
+            Assert.Equal(6, policy.TotalViolationCount);
+            Assert.Equal(1, policy.CriticalViolationCount);
+            Assert.Equal(5, policy.HighViolationCount);
+            Assert.Equal(0, policy.MediumViolationCount);
+            Assert.Equal(0, policy.LowViolationCount);
             Assert.True(policy.ViolationCodeCounts.TryGetValue(CertificateInventoryPolicyViolationCodes.CertificateExpired, out var expiredCount) && expiredCount == 1);
             Assert.True(policy.ViolationCodeCounts.ContainsKey(CertificateInventoryPolicyViolationCodes.WeakKey));
             Assert.True(policy.ViolationCodeCounts.ContainsKey(CertificateInventoryPolicyViolationCodes.HostnameMismatch));
+        }
+
+        [Fact]
+        public void BuildPolicyHandlesNullSnapshotsAsEmptySummary() {
+            var policy = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots: null,
+                baselineProfile: "Balanced",
+                includeCompliant: true,
+                maxEndpoints: 100);
+
+            Assert.Equal("Balanced", policy.BaselineProfile);
+            Assert.Equal(0, policy.SnapshotCount);
+            Assert.Equal(0, policy.EndpointCount);
+            Assert.Equal(0, policy.ViolationEndpointCount);
+            Assert.Equal(0, policy.TotalViolationCount);
+            Assert.Equal(0, policy.MatchedEndpointCount);
+            Assert.False(policy.Truncated);
+            Assert.Empty(policy.Endpoints);
+        }
+
+        [Fact]
+        public void BuildPolicySupportsMaxEndpointsZero() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildReusableEntry(now, "zero-1.example.com", 443, "HTTPS", "00AA223344556677889900AABBCCDDEEFF001122"),
+                        BuildReusableEntry(now, "zero-2.example.com", 443, "HTTPS", "11AA223344556677889900AABBCCDDEEFF001122")
+                    }
+                }
+            };
+
+            var policy = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Balanced",
+                includeCompliant: false,
+                maxEndpoints: 0);
+
+            Assert.Equal(2, policy.EndpointCount);
+            Assert.Equal(2, policy.ViolationEndpointCount);
+            Assert.Equal(2, policy.MatchedEndpointCount);
+            Assert.True(policy.Truncated);
+            Assert.Equal(2, policy.EndpointsTruncatedByMaxEndpoints);
+            Assert.Empty(policy.Endpoints);
+        }
+
+        [Fact]
+        public void BuildPolicyTracksTruncationCounters() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildReusableEntry(now, "truncate-1.example.com", 443, "HTTPS", "AAAB223344556677889900AABBCCDDEEFF001122"),
+                        BuildReusableEntry(now, "truncate-2.example.com", 443, "HTTPS", "BBAB223344556677889900AABBCCDDEEFF001122"),
+                        BuildReusableEntry(now, "truncate-3.example.com", 443, "HTTPS", "CCAB223344556677889900AABBCCDDEEFF001122")
+                    }
+                }
+            };
+
+            var policy = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Balanced",
+                includeCompliant: false,
+                maxEndpoints: 1);
+
+            Assert.Equal(3, policy.MatchedEndpointCount);
+            Assert.True(policy.Truncated);
+            Assert.Equal(2, policy.EndpointsTruncatedByMaxEndpoints);
+            Assert.Single(policy.Endpoints);
         }
 
         [Fact]

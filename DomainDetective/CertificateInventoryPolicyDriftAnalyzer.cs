@@ -280,7 +280,9 @@ namespace DomainDetective {
                 PopulateCurrent(row, after);
                 row.NewViolationCodes = row.CurrentViolationCodes.ToList();
                 row.ChangeKinds.Add("endpoint");
-                row.ChangeKinds.Add("violations");
+                if (row.NewViolationCodes.Count > 0) {
+                    row.ChangeKinds.Add("violations");
+                }
                 return row;
             }
 
@@ -289,7 +291,9 @@ namespace DomainDetective {
                 PopulatePrevious(row, before);
                 row.ResolvedViolationCodes = row.PreviousViolationCodes.ToList();
                 row.ChangeKinds.Add("endpoint");
-                row.ChangeKinds.Add("violations");
+                if (row.ResolvedViolationCodes.Count > 0) {
+                    row.ChangeKinds.Add("violations");
+                }
                 return row;
             }
 

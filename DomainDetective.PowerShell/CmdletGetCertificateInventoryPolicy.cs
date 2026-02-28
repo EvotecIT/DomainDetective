@@ -64,11 +64,6 @@ public sealed class CmdletGetCertificateInventoryPolicy : PSCmdlet {
             PersistInventorySnapshots = false
         };
 
-        DateTimeOffset? since = null;
-        if (SinceUtc.HasValue) {
-            since = new DateTimeOffset(DateTime.SpecifyKind(SinceUtc.Value, DateTimeKind.Utc));
-        }
-
         CertificateInventoryPolicyOverrides? policyOverrides = null;
         if (!string.IsNullOrWhiteSpace(PolicyOverridesPath)) {
             try {
@@ -84,12 +79,25 @@ public sealed class CmdletGetCertificateInventoryPolicy : PSCmdlet {
         }
 
         var policy = monitor.BuildInventoryPolicy(
-            sinceUtc: since,
+            sinceUtc: ToUtc(SinceUtc),
             baselineProfile: normalizedProfile,
             includeCompliant: IncludeCompliant.IsPresent,
             maxEndpoints: MaxEndpoints,
             policyOverrides: policyOverrides);
         WriteObject(policy);
+    }
+
+    private static DateTimeOffset? ToUtc(DateTime? value) {
+        if (!value.HasValue) {
+            return null;
+        }
+
+        var dt = value.Value;
+        if (dt.Kind == DateTimeKind.Unspecified) {
+            dt = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+        }
+
+        return dt.ToUniversalTime();
     }
 
     private static string ResolveCacheDirectory(string? configured) {
