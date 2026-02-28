@@ -644,6 +644,43 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskThrowsForInvalidChainSizeRanges() {
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = DateTimeOffset.UtcNow,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                }
+            };
+
+            var chainLengthMin = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                chainLengthMin: -1));
+            Assert.Equal("chainLengthMin", chainLengthMin.ParamName);
+
+            var chainLengthRange = Assert.Throws<ArgumentException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                chainLengthMin: 3,
+                chainLengthMax: 2));
+            Assert.Equal("chainLengthMin", chainLengthRange.ParamName);
+
+            var intermediateCountMin = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                intermediateCountMin: -1));
+            Assert.Equal("intermediateCountMin", intermediateCountMin.ParamName);
+
+            var intermediateCountRange = Assert.Throws<ArgumentException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                intermediateCountMin: 2,
+                intermediateCountMax: 1));
+            Assert.Equal("intermediateCountMin", intermediateCountRange.ParamName);
+        }
+
+        [Fact]
         public void BuildRiskAppliesRiskProfilesAndSupportsExplicitOverrides() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {
@@ -1407,6 +1444,112 @@ namespace DomainDetective.Tests {
                 hostContains: "   ",
                 serviceEquals: "   ");
             Assert.Equal(3, filteredByWhitespaceHostAndService.Endpoints.Count);
+        }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByChainLengthAndIntermediateCount() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "chain-length-1.example.com",
+                            ResolvedHost = "chain-length-1.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateChainLength = 1,
+                            CertificateIntermediateCount = 0,
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = false,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "chain-length-2.example.com",
+                            ResolvedHost = "chain-length-2.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateChainLength = 2,
+                            CertificateIntermediateCount = 0,
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "chain-length-3.example.com",
+                            ResolvedHost = "chain-length-3.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateChainLength = 3,
+                            CertificateIntermediateCount = 1,
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var allRiskRows = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false);
+            Assert.Equal(3, allRiskRows.Endpoints.Count);
+            var chainLengthThree = allRiskRows.Endpoints.Single(endpoint => string.Equals(endpoint.Host, "chain-length-3.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(3, chainLengthThree.ChainLength);
+            Assert.Equal(1, chainLengthThree.IntermediateCount);
+
+            var filteredByChainLengthMin = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                chainLengthMin: 2);
+            Assert.Equal(2, filteredByChainLengthMin.Endpoints.Count);
+            Assert.Contains(filteredByChainLengthMin.Endpoints, endpoint => string.Equals(endpoint.Host, "chain-length-2.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(filteredByChainLengthMin.Endpoints, endpoint => string.Equals(endpoint.Host, "chain-length-3.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByChainLengthMax = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                chainLengthMax: 2);
+            Assert.Equal(2, filteredByChainLengthMax.Endpoints.Count);
+            Assert.Contains(filteredByChainLengthMax.Endpoints, endpoint => string.Equals(endpoint.Host, "chain-length-1.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(filteredByChainLengthMax.Endpoints, endpoint => string.Equals(endpoint.Host, "chain-length-2.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByIntermediateCountMin = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                intermediateCountMin: 1);
+            Assert.Single(filteredByIntermediateCountMin.Endpoints);
+            Assert.Equal("chain-length-3.example.com", filteredByIntermediateCountMin.Endpoints[0].Host);
+
+            var filteredByChainAndIntermediate = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                chainLengthMin: 2,
+                intermediateCountMax: 0);
+            Assert.Single(filteredByChainAndIntermediate.Endpoints);
+            Assert.Equal("chain-length-2.example.com", filteredByChainAndIntermediate.Endpoints[0].Host);
         }
 
         [Fact]
