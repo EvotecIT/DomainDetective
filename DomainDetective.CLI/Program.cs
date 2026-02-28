@@ -197,7 +197,8 @@ internal static class Program {
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDiffCommand>("CertificateInventoryDiff")
                 .WithDescription("Compare two certificate inventory snapshots")
                 .WithExample(new[] { "CertificateInventoryDiff", "--since-utc", "2026-01-01" })
-                .WithExample(new[] { "CertificateInventoryDiff", "--previous-utc", "2026-02-01", "--current-utc", "2026-02-15", "--json" });
+                .WithExample(new[] { "CertificateInventoryDiff", "--previous-utc", "2026-02-01", "--current-utc", "2026-02-15", "--json" })
+                .WithExample(new[] { "CertificateInventoryDiff", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-diff.csv" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDiffCommand>("cert-inventory-diff")
                 .WithDescription("Compare two certificate inventory snapshots (alias)");
 
