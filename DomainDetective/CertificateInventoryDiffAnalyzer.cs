@@ -8,6 +8,8 @@ namespace DomainDetective {
     /// Point-in-time diff summary between two certificate inventory snapshots.
     /// </summary>
     public sealed class CertificateInventoryDiffSummary {
+        public DateTimeOffset? RequestedPreviousCapturedAtUtc { get; set; }
+        public DateTimeOffset? RequestedCurrentCapturedAtUtc { get; set; }
         public DateTimeOffset? PreviousCapturedAtUtc { get; set; }
         public DateTimeOffset? CurrentCapturedAtUtc { get; set; }
         public int PreviousEndpointCount { get; set; }
@@ -16,6 +18,7 @@ namespace DomainDetective {
         public int RemovedCount { get; set; }
         public int ChangedCount { get; set; }
         public int UnchangedCount { get; set; }
+        public List<string> Warnings { get; set; } = new();
         public List<CertificateInventoryEndpointDiff> Endpoints { get; set; } = new();
     }
 
@@ -55,7 +58,10 @@ namespace DomainDetective {
             DateTimeOffset? currentCapturedAtUtc = null,
             bool includeUnchanged = false,
             int maxEndpoints = 500) {
-            var summary = new CertificateInventoryDiffSummary();
+            var summary = new CertificateInventoryDiffSummary {
+                RequestedPreviousCapturedAtUtc = previousCapturedAtUtc,
+                RequestedCurrentCapturedAtUtc = currentCapturedAtUtc
+            };
             var ordered = (snapshots ?? Array.Empty<CertificateInventorySnapshot>())
                 .Where(snapshot => snapshot != null)
                 .OrderBy(snapshot => snapshot.CapturedAtUtc)
@@ -64,12 +70,21 @@ namespace DomainDetective {
                 return summary;
             }
 
-            var current = ResolveCurrentSnapshot(ordered, currentCapturedAtUtc);
+            var current = ResolveCurrentSnapshot(ordered, currentCapturedAtUtc, out var usedCurrentFallback);
             CertificateInventorySnapshot? previous;
             if (previousCapturedAtUtc.HasValue) {
                 previous = ResolveSnapshotAtOrBefore(ordered, previousCapturedAtUtc.Value);
             } else {
                 previous = ResolvePreviousSnapshot(ordered, current);
+            }
+
+            if (currentCapturedAtUtc.HasValue && usedCurrentFallback) {
+                summary.Warnings.Add(
+                    $"Requested current snapshot at or before {currentCapturedAtUtc.Value.UtcDateTime:yyyy-MM-dd HH:mm:ss} UTC was not found; using latest snapshot {current.CapturedAtUtc.UtcDateTime:yyyy-MM-dd HH:mm:ss} UTC.");
+            }
+            if (previousCapturedAtUtc.HasValue && previous == null) {
+                summary.Warnings.Add(
+                    $"Requested previous snapshot at or before {previousCapturedAtUtc.Value.UtcDateTime:yyyy-MM-dd HH:mm:ss} UTC was not found.");
             }
 
             summary.CurrentCapturedAtUtc = current?.CapturedAtUtc;
@@ -140,15 +155,23 @@ namespace DomainDetective {
             return summary;
         }
 
-        private static CertificateInventorySnapshot? ResolveCurrentSnapshot(
+        private static CertificateInventorySnapshot ResolveCurrentSnapshot(
             IReadOnlyList<CertificateInventorySnapshot> ordered,
-            DateTimeOffset? currentCapturedAtUtc) {
+            DateTimeOffset? currentCapturedAtUtc,
+            out bool usedFallbackToLatest) {
             if (!currentCapturedAtUtc.HasValue) {
+                usedFallbackToLatest = false;
                 return ordered[ordered.Count - 1];
             }
 
             var selected = ResolveSnapshotAtOrBefore(ordered, currentCapturedAtUtc.Value);
-            return selected ?? ordered[ordered.Count - 1];
+            if (selected != null) {
+                usedFallbackToLatest = false;
+                return selected;
+            }
+
+            usedFallbackToLatest = true;
+            return ordered[ordered.Count - 1];
         }
 
         private static CertificateInventorySnapshot? ResolvePreviousSnapshot(

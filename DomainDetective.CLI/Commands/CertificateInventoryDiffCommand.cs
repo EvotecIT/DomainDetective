@@ -93,6 +93,8 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
         var summary = new Table().Border(TableBorder.Rounded);
         summary.AddColumn("Metric");
         summary.AddColumn("Value");
+        summary.AddRow("Requested Previous Snapshot", diff.RequestedPreviousCapturedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-");
+        summary.AddRow("Requested Current Snapshot", diff.RequestedCurrentCapturedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-");
         summary.AddRow("Previous Snapshot", diff.PreviousCapturedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-");
         summary.AddRow("Current Snapshot", diff.CurrentCapturedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-");
         summary.AddRow("Previous Endpoints", diff.PreviousEndpointCount.ToString());
@@ -103,6 +105,16 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
         summary.AddRow("Unchanged", diff.UnchangedCount.ToString());
         summary.AddRow("Returned Rows", diff.Endpoints.Count.ToString());
         AnsiConsole.Write(summary);
+
+        if (diff.Warnings.Count > 0) {
+            foreach (var warning in diff.Warnings) {
+                if (string.IsNullOrWhiteSpace(warning)) {
+                    continue;
+                }
+
+                AnsiConsole.MarkupLine($"[yellow]Warning:[/] {Markup.Escape(warning)}");
+            }
+        }
 
         if (diff.Endpoints.Count == 0) {
             AnsiConsole.MarkupLine("[yellow]No endpoint deltas to display.[/]");

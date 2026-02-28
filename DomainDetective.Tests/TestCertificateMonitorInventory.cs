@@ -462,6 +462,99 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public void BuildInventoryDiffAddsSinceUtcWarningsWhenRequestedSelectorsAreExcluded() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-10),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "diff.example.test", "BB11223344556677889900AABBCCDDEEFF001122")
+                    }
+                });
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "diff.example.test", "BB11223344556677889900AABBCCDDEEFF001123")
+                    }
+                });
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = false
+                };
+                var requestedSelector = now.AddDays(-5);
+
+                var diff = monitor.BuildInventoryDiff(
+                    sinceUtc: now.AddDays(-2),
+                    previousCapturedAtUtc: requestedSelector,
+                    currentCapturedAtUtc: requestedSelector,
+                    includeUnchanged: false,
+                    maxEndpoints: 100);
+
+                Assert.Contains(diff.Warnings, warning =>
+                    warning.Contains("Requested previous snapshot", StringComparison.OrdinalIgnoreCase) &&
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(diff.Warnings, warning =>
+                    warning.Contains("Requested current snapshot", StringComparison.OrdinalIgnoreCase) &&
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+                Assert.DoesNotContain(diff.Warnings, warning =>
+                    warning.Contains("was not found", StringComparison.OrdinalIgnoreCase));
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void BuildInventoryDiffDoesNotAddSinceUtcWarningsWhenSelectorsAreWithinRange() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var snapshot1 = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-3),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "diff.example.test", "BB11223344556677889900AABBCCDDEEFF001124")
+                    }
+                };
+                var snapshot2 = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "diff.example.test", "BB11223344556677889900AABBCCDDEEFF001125")
+                    }
+                };
+                WriteInventorySnapshot(tempDir, snapshot1);
+                WriteInventorySnapshot(tempDir, snapshot2);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = false
+                };
+
+                var diff = monitor.BuildInventoryDiff(
+                    sinceUtc: now.AddDays(-4),
+                    previousCapturedAtUtc: snapshot1.CapturedAtUtc,
+                    currentCapturedAtUtc: snapshot2.CapturedAtUtc,
+                    includeUnchanged: false,
+                    maxEndpoints: 100);
+
+                Assert.DoesNotContain(diff.Warnings, warning =>
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
         private static X509Certificate2 CreateSelfSignedWithEku(string oidValue) {
             using var rsa = RSA.Create(2048);
             var request = new CertificateRequest("CN=monitor.test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
