@@ -263,6 +263,11 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--csv-path <PATH>")]
     public string? CsvPath { get; set; }
 
+    /// <summary>Optional NDJSON output path for matched query entries (one JSON object per line).</summary>
+    [Description("Optional NDJSON output path for matched query entries (one JSON object per line).")]
+    [CommandOption("--ndjson-path <PATH>")]
+    public string? NdjsonPath { get; set; }
+
     /// <summary>Show matched-entry breakdown tables (service/issuer/auth/chain/CT) for table output (ignored with --json).</summary>
     [Description("Show matched-entry breakdown tables (service/issuer/auth/chain/CT) for table output (ignored with --json).")]
     [CommandOption("--show-breakdown")]
@@ -396,6 +401,16 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
                 AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
             } catch (Exception ex) {
                 AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.NdjsonPath)) {
+            try {
+                WriteNdjson(result, settings.NdjsonPath!);
+                AnsiConsole.MarkupLine($"[grey]NDJSON written:[/] {settings.NdjsonPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write NDJSON:[/] {ex.Message}");
                 return Task.FromResult(1);
             }
         }
@@ -597,6 +612,21 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             sb.Append(',');
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.SubjectAlternativeNames)));
             sb.AppendLine();
+        }
+
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+    }
+
+    private static void WriteNdjson(CertificateInventoryQueryResult result, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        foreach (var observed in result.Entries.OrderByDescending(x => x.CapturedAtUtc)) {
+            sb.AppendLine(JsonSerializer.Serialize(observed, JsonOptions.Default));
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
