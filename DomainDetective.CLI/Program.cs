@@ -263,7 +263,8 @@ internal static class Program {
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("CertificateInventoryReuse")
                 .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots")
                 .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01" })
-                .WithExample(new[] { "CertificateInventoryReuse", "--include-singletons", "--max-certificates", "500", "--json" });
+                .WithExample(new[] { "CertificateInventoryReuse", "--include-singletons", "--max-certificates", "500", "--json" })
+                .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-reuse.csv" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("cert-inventory-reuse")
                 .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots (alias)");
         });
