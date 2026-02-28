@@ -718,7 +718,9 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         summary.AddRow("Average Score", risk.AverageScore.ToString("0.00"));
         summary.AddRow("Unique Cert Identities", risk.UniqueCertificateIdentityCount.ToString());
         summary.AddRow("Reused Cert Identities", risk.ReusedCertificateIdentityCount.ToString());
+        summary.AddRow("Reused Cert Identities %", risk.ReusedCertificateIdentityPercentage.ToString("0.00"));
         summary.AddRow("Endpoints with Reuse", risk.EndpointsWithReusedCertificateCount.ToString());
+        summary.AddRow("Endpoints with Reuse %", risk.EndpointsWithReusedCertificatePercentage.ToString("0.00"));
         summary.AddRow("Max Reuse Endpoint Count", risk.MaxCertificateReuseEndpointCount.ToString());
         summary.AddRow("Max Reuse Service Spread", risk.MaxCertificateReuseDistinctServiceCount.ToString());
         summary.AddRow("Max Reuse Port Spread", risk.MaxCertificateReuseDistinctPortCount.ToString());
