@@ -300,6 +300,161 @@ namespace DomainDetective.Tests {
                 Assert.Contains(drift.Warnings, warning =>
                     warning.Contains("Requested current snapshot", StringComparison.OrdinalIgnoreCase) &&
                     warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+                Assert.DoesNotContain(drift.Warnings, warning =>
+                    warning.Contains("was not found", StringComparison.OrdinalIgnoreCase));
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void BuildInventoryPolicyDriftAddsSinceUtcWarningWhenOnlyPreviousSelectorIsExcluded() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-10),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001123")
+                    }
+                });
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-1.5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001123")
+                    }
+                });
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001123")
+                    }
+                });
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = false
+                };
+
+                var drift = monitor.BuildInventoryPolicyDrift(
+                    sinceUtc: now.AddDays(-2),
+                    baselineProfile: "Balanced",
+                    previousCapturedAtUtc: now.AddDays(-5),
+                    currentCapturedAtUtc: now.AddDays(-1),
+                    changedOnly: false,
+                    maxEndpoints: 100);
+
+                Assert.Contains(drift.Warnings, warning =>
+                    warning.Contains("Requested previous snapshot", StringComparison.OrdinalIgnoreCase) &&
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+                Assert.DoesNotContain(drift.Warnings, warning =>
+                    warning.Contains("Requested current snapshot", StringComparison.OrdinalIgnoreCase) &&
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void BuildInventoryPolicyDriftAddsSinceUtcWarningWhenOnlyCurrentSelectorIsExcluded() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-10),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001124")
+                    }
+                });
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-1.5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001124")
+                    }
+                });
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001124")
+                    }
+                });
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = false
+                };
+
+                var drift = monitor.BuildInventoryPolicyDrift(
+                    sinceUtc: now.AddDays(-2),
+                    baselineProfile: "Balanced",
+                    previousCapturedAtUtc: now.AddDays(-1.5),
+                    currentCapturedAtUtc: now.AddDays(-5),
+                    changedOnly: false,
+                    maxEndpoints: 100);
+
+                Assert.Contains(drift.Warnings, warning =>
+                    warning.Contains("Requested current snapshot", StringComparison.OrdinalIgnoreCase) &&
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+                Assert.DoesNotContain(drift.Warnings, warning =>
+                    warning.Contains("Requested previous snapshot", StringComparison.OrdinalIgnoreCase) &&
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void BuildInventoryPolicyDriftDoesNotAddSinceUtcWarningsWhenSelectorsAreWithinRange() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var snapshot1 = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-3),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001125")
+                    }
+                };
+                var snapshot2 = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "api.example.test", "AA11223344556677889900AABBCCDDEEFF001125")
+                    }
+                };
+                WriteInventorySnapshot(tempDir, snapshot1);
+                WriteInventorySnapshot(tempDir, snapshot2);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = false
+                };
+
+                var drift = monitor.BuildInventoryPolicyDrift(
+                    sinceUtc: now.AddDays(-4),
+                    baselineProfile: "Balanced",
+                    previousCapturedAtUtc: snapshot1.CapturedAtUtc,
+                    currentCapturedAtUtc: snapshot2.CapturedAtUtc,
+                    changedOnly: false,
+                    maxEndpoints: 100);
+
+                Assert.DoesNotContain(drift.Warnings, warning =>
+                    warning.Contains("--since-utc", StringComparison.OrdinalIgnoreCase));
             } finally {
                 if (Directory.Exists(tempDir)) {
                     Directory.Delete(tempDir, true);
