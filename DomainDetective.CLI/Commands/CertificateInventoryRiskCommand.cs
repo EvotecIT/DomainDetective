@@ -722,9 +722,13 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         summary.AddRow("Endpoints with Reuse", risk.EndpointsWithReusedCertificateCount.ToString());
         summary.AddRow("Endpoints with Reuse %", risk.EndpointsWithReusedCertificatePercentage.ToString("0.00"));
         summary.AddRow("Cross-Service Reused Certs", risk.CrossServiceReusedCertificateIdentityCount.ToString());
+        summary.AddRow("Cross-Service Reused Certs %", risk.CrossServiceReusedCertificateIdentityPercentage.ToString("0.00"));
         summary.AddRow("Cross-Port Reused Certs", risk.CrossPortReusedCertificateIdentityCount.ToString());
+        summary.AddRow("Cross-Port Reused Certs %", risk.CrossPortReusedCertificateIdentityPercentage.ToString("0.00"));
         summary.AddRow("Endpoints with Cross-Service Reuse", risk.EndpointsWithCrossServiceReuseCount.ToString());
+        summary.AddRow("Endpoints with Cross-Service Reuse %", risk.EndpointsWithCrossServiceReusePercentage.ToString("0.00"));
         summary.AddRow("Endpoints with Cross-Port Reuse", risk.EndpointsWithCrossPortReuseCount.ToString());
+        summary.AddRow("Endpoints with Cross-Port Reuse %", risk.EndpointsWithCrossPortReusePercentage.ToString("0.00"));
         summary.AddRow("Max Reuse Endpoint Count", risk.MaxCertificateReuseEndpointCount.ToString());
         summary.AddRow("Max Reuse Service Spread", risk.MaxCertificateReuseDistinctServiceCount.ToString());
         summary.AddRow("Max Reuse Port Spread", risk.MaxCertificateReuseDistinctPortCount.ToString());

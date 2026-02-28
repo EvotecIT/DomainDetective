@@ -34,12 +34,20 @@ namespace DomainDetective {
         public double EndpointsWithReusedCertificatePercentage { get; set; }
         /// <summary>Number of distinct certificate identities reused across more than one distinct service.</summary>
         public int CrossServiceReusedCertificateIdentityCount { get; set; }
+        /// <summary>Percentage of distinct certificate identities reused across more than one distinct service.</summary>
+        public double CrossServiceReusedCertificateIdentityPercentage { get; set; }
         /// <summary>Number of distinct certificate identities reused across more than one distinct port.</summary>
         public int CrossPortReusedCertificateIdentityCount { get; set; }
+        /// <summary>Percentage of distinct certificate identities reused across more than one distinct port.</summary>
+        public double CrossPortReusedCertificateIdentityPercentage { get; set; }
         /// <summary>Number of endpoints whose certificate identity is reused across more than one distinct service.</summary>
         public int EndpointsWithCrossServiceReuseCount { get; set; }
+        /// <summary>Percentage of endpoints whose certificate identity is reused across more than one distinct service.</summary>
+        public double EndpointsWithCrossServiceReusePercentage { get; set; }
         /// <summary>Number of endpoints whose certificate identity is reused across more than one distinct port.</summary>
         public int EndpointsWithCrossPortReuseCount { get; set; }
+        /// <summary>Percentage of endpoints whose certificate identity is reused across more than one distinct port.</summary>
+        public double EndpointsWithCrossPortReusePercentage { get; set; }
         /// <summary>Maximum endpoint fan-out observed for a single certificate identity.</summary>
         public int MaxCertificateReuseEndpointCount { get; set; }
         /// <summary>Maximum distinct service spread observed for a single certificate identity.</summary>
@@ -531,6 +539,12 @@ namespace DomainDetective {
                     .Sum(stats => stats.EndpointCount);
                 summary.CrossServiceReusedCertificateIdentityCount = certificateReuseById.Count(pair => pair.Value.DistinctServiceCount > 1);
                 summary.CrossPortReusedCertificateIdentityCount = certificateReuseById.Count(pair => pair.Value.DistinctPortCount > 1);
+                summary.CrossServiceReusedCertificateIdentityPercentage = Math.Round(
+                    100d * summary.CrossServiceReusedCertificateIdentityCount / summary.UniqueCertificateIdentityCount,
+                    2);
+                summary.CrossPortReusedCertificateIdentityPercentage = Math.Round(
+                    100d * summary.CrossPortReusedCertificateIdentityCount / summary.UniqueCertificateIdentityCount,
+                    2);
                 summary.EndpointsWithCrossServiceReuseCount = certificateReuseById.Values
                     .Where(stats => stats.DistinctServiceCount > 1)
                     .Sum(stats => stats.EndpointCount);
@@ -849,6 +863,12 @@ namespace DomainDetective {
                 summary.AverageScore = Math.Round(totalScore / summary.EndpointCount, 2);
                 summary.EndpointsWithReusedCertificatePercentage = Math.Round(
                     100d * summary.EndpointsWithReusedCertificateCount / summary.EndpointCount,
+                    2);
+                summary.EndpointsWithCrossServiceReusePercentage = Math.Round(
+                    100d * summary.EndpointsWithCrossServiceReuseCount / summary.EndpointCount,
+                    2);
+                summary.EndpointsWithCrossPortReusePercentage = Math.Round(
+                    100d * summary.EndpointsWithCrossPortReuseCount / summary.EndpointCount,
                     2);
             }
 
