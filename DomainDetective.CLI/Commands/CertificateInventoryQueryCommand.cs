@@ -626,7 +626,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
 
         var sb = new StringBuilder();
         foreach (var observed in result.Entries.OrderByDescending(x => x.CapturedAtUtc)) {
-            sb.AppendLine(JsonSerializer.Serialize(observed, JsonOptions.Default));
+            sb.AppendLine(CertificateInventoryCommandHelpers.SerializeJsonLine(observed));
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());

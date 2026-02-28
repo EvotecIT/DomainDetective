@@ -263,7 +263,7 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
 
         var sb = new StringBuilder();
         foreach (var endpoint in diff.Endpoints) {
-            sb.AppendLine(JsonSerializer.Serialize(endpoint, JsonOptions.Default));
+            sb.AppendLine(CertificateInventoryCommandHelpers.SerializeJsonLine(endpoint));
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());

@@ -220,7 +220,7 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine(JsonSerializer.Serialize(new {
+        sb.AppendLine(CertificateInventoryCommandHelpers.SerializeJsonLine(new {
             RowType = "Summary",
             summary.SnapshotCount,
             summary.SampleCount,
@@ -233,7 +233,7 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
             summary.SelfSignedEndpointCount,
             summary.IncompleteChainEndpointCount,
             summary.CtTemplateErrorEndpointCount
-        }, JsonOptions.Default));
+        }));
 
         AppendCounterNdjson(sb, "Service", summary.ServiceCounts);
         AppendCounterNdjson(sb, "Issuer", summary.IssuerCounts);
@@ -244,7 +244,7 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
         AppendCounterNdjson(sb, "CtTemplateErrorCategory", summary.CtTemplateErrorCounts);
 
         foreach (var endpoint in summary.ExpiringSoon) {
-            sb.AppendLine(JsonSerializer.Serialize(new {
+            sb.AppendLine(CertificateInventoryCommandHelpers.SerializeJsonLine(new {
                 RowType = "ExpiringEndpoint",
                 endpoint.Host,
                 endpoint.Port,
@@ -252,7 +252,7 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
                 endpoint.NotAfterUtc,
                 endpoint.DaysToExpire,
                 endpoint.Issuer
-            }, JsonOptions.Default));
+            }));
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
@@ -271,12 +271,12 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
 
     private static void AppendCounterNdjson(StringBuilder sb, string category, System.Collections.Generic.Dictionary<string, int> counters) {
         foreach (var kv in counters.OrderByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)) {
-            sb.AppendLine(JsonSerializer.Serialize(new {
+            sb.AppendLine(CertificateInventoryCommandHelpers.SerializeJsonLine(new {
                 RowType = "Counter",
                 Category = category,
                 Name = kv.Key,
                 Count = kv.Value
-            }, JsonOptions.Default));
+            }));
         }
     }
 

@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.CLI.Commands;
 
@@ -10,6 +12,9 @@ namespace DomainDetective.CLI.Commands;
 /// </summary>
 internal static class CertificateInventoryCommandHelpers {
     private static readonly char[] CsvSpecialChars = { ',', '"', '\r', '\n' };
+    private static readonly JsonSerializerOptions NdjsonOptions = new(JsonOptions.Default) {
+        WriteIndented = false
+    };
 
     internal static string ResolveCacheDirectory(string? configured) {
         if (!string.IsNullOrWhiteSpace(configured)) {
@@ -59,5 +64,9 @@ internal static class CertificateInventoryCommandHelpers {
         }
 
         File.WriteAllText(fullPath, content, Encoding.UTF8);
+    }
+
+    internal static string SerializeJsonLine<T>(T value) {
+        return JsonSerializer.Serialize(value, NdjsonOptions);
     }
 }

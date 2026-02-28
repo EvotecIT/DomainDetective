@@ -322,7 +322,7 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
 
         var sb = new StringBuilder();
         foreach (var endpoint in drift.Endpoints) {
-            sb.AppendLine(JsonSerializer.Serialize(endpoint, JsonOptions.Default));
+            sb.AppendLine(CertificateInventoryCommandHelpers.SerializeJsonLine(endpoint));
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
