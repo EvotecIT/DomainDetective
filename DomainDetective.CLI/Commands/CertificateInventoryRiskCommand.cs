@@ -4,7 +4,9 @@ using Spectre.Console.Cli;
 using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -411,6 +413,11 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
     public bool Json { get; set; }
+
+    /// <summary>Optional CSV output path for endpoint risk rows.</summary>
+    [Description("Optional CSV output path for endpoint risk rows.")]
+    [CommandOption("--csv-path <PATH>")]
+    public string? CsvPath { get; set; }
 }
 
 /// <summary>
@@ -691,6 +698,16 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             clientAuthOnly: settings.ClientAuthOnly,
             secureEmailOnly: settings.SecureEmailOnly);
 
+        if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
+            try {
+                WriteCsv(risk, settings.CsvPath!);
+                AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
+
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(risk, JsonOptions.Default));
             return Task.FromResult(0);
@@ -805,6 +822,105 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         AnsiConsole.MarkupLine("[grey]Auth flags: S=ServerAuth, C=ClientAuth, E=SecureEmail.[/]");
 
         return Task.FromResult(0);
+    }
+
+    private static void WriteCsv(CertificateInventoryRiskSummary risk, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Host,Port,Service,Score,Severity,Reasons,CertificateThumbprint,CertificateRootThumbprint,CertificateSerialNumber,Issuer,RootIssuer,AuthorityFamily,RootAuthorityFamily,NotBeforeUtc,NotAfterUtc,DaysUntilValid,DaysToExpire,Valid,Expired,NotYetValid,ChainComplete,ChainLength,IntermediateCount,HostnameMatch,IsReachable,IsSelfSigned,IsKnownCertificateAuthority,IsKnownRootCertificateAuthority,CertificateReuseEndpointCount,CertificateReuseDistinctServiceCount,CertificateReuseDistinctPortCount,AllowsServerAuthentication,AllowsClientAuthentication,AllowsSecureEmail,AuthenticationProfile,ChainSource,ChainSources,CtDiscoverySources,CtTemplateFormatErrors,WeakKey,Sha1Signature,PresentInCtLogs");
+        foreach (var endpoint in risk.Endpoints) {
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Host));
+            sb.Append(',');
+            sb.Append(endpoint.Port);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Service));
+            sb.Append(',');
+            sb.Append(endpoint.Score);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Severity));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.Reasons)));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CertificateThumbprint));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CertificateRootThumbprint));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.CertificateSerialNumber));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Issuer));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.RootIssuer));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.AuthorityFamily));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.RootAuthorityFamily));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.NotBeforeUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.NotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(endpoint.DaysUntilValid?.ToString() ?? string.Empty);
+            sb.Append(',');
+            sb.Append(endpoint.DaysToExpire?.ToString() ?? string.Empty);
+            sb.Append(',');
+            sb.Append(endpoint.Valid ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.Expired ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.NotYetValid ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.ChainComplete ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.ChainLength);
+            sb.Append(',');
+            sb.Append(endpoint.IntermediateCount);
+            sb.Append(',');
+            sb.Append(endpoint.HostnameMatch ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.IsReachable ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.IsSelfSigned ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.IsKnownCertificateAuthority ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.IsKnownRootCertificateAuthority ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.CertificateReuseEndpointCount);
+            sb.Append(',');
+            sb.Append(endpoint.CertificateReuseDistinctServiceCount);
+            sb.Append(',');
+            sb.Append(endpoint.CertificateReuseDistinctPortCount);
+            sb.Append(',');
+            sb.Append(endpoint.AllowsServerAuthentication ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.AllowsClientAuthentication ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.AllowsSecureEmail ? "true" : "false");
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.AuthenticationProfile));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.ChainSource));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.ChainSources)));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.CtDiscoverySources)));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", endpoint.CtTemplateFormatErrors)));
+            sb.Append(',');
+            sb.Append(endpoint.WeakKey ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.Sha1Signature ? "true" : "false");
+            sb.Append(',');
+            sb.Append(endpoint.PresentInCtLogs ? "true" : "false");
+            sb.AppendLine();
+        }
+
+        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
     }
 
     private static string BuildAuthSummary(CertificateInventoryEndpointRisk endpoint) {
