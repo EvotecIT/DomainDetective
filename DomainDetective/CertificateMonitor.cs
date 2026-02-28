@@ -680,6 +680,30 @@ namespace DomainDetective {
                 maxEndpoints);
         }
 
+        /// <summary>Builds endpoint-level certificate policy drift between two persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="baselineProfile">Policy baseline profile (Strict, Balanced, Legacy).</param>
+        /// <param name="previousCapturedAtUtc">Optional previous snapshot timestamp selector (selects latest snapshot at or before timestamp).</param>
+        /// <param name="currentCapturedAtUtc">Optional current snapshot timestamp selector (selects latest snapshot at or before timestamp).</param>
+        /// <param name="changedOnly">When true, only returns endpoint rows with detected policy drift.</param>
+        /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
+        public CertificateInventoryPolicyDriftSummary BuildInventoryPolicyDrift(
+            DateTimeOffset? sinceUtc = null,
+            string? baselineProfile = "Balanced",
+            DateTimeOffset? previousCapturedAtUtc = null,
+            DateTimeOffset? currentCapturedAtUtc = null,
+            bool changedOnly = true,
+            int maxEndpoints = 300) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
+                snapshots,
+                baselineProfile,
+                previousCapturedAtUtc,
+                currentCapturedAtUtc,
+                changedOnly,
+                maxEndpoints);
+        }
+
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>
         /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
         /// <param name="includeSingleEndpointCertificates">When true, includes certificates used by only one endpoint.</param>

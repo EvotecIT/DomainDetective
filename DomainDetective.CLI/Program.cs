@@ -245,6 +245,14 @@ internal static class Program {
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyCommand>("cert-inventory-policy")
                 .WithDescription("Evaluate certificate inventory against baseline policy profiles (alias)");
 
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyDriftCommand>("CertificateInventoryPolicyDrift")
+                .WithDescription("Compare policy drift between two certificate inventory snapshots")
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--changed-only" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Strict", "--since-utc", "2026-01-01", "--json" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--previous-utc", "2026-02-01", "--current-utc", "2026-02-15", "--changed-only" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyDriftCommand>("cert-inventory-policy-drift")
+                .WithDescription("Compare policy drift between two certificate inventory snapshots (alias)");
+
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("CertificateInventoryReuse")
                 .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots")
                 .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01" })
