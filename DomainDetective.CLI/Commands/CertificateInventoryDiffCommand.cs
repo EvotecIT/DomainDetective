@@ -56,6 +56,11 @@ internal sealed class CertificateInventoryDiffSettings : CommandSettings {
     [Description("Optional CSV output path for endpoint diff rows.")]
     [CommandOption("--csv-path <PATH>")]
     public string? CsvPath { get; set; }
+
+    /// <summary>Optional NDJSON output path for endpoint diff rows (one JSON object per line).</summary>
+    [Description("Optional NDJSON output path for endpoint diff rows (one JSON object per line).")]
+    [CommandOption("--ndjson-path <PATH>")]
+    public string? NdjsonPath { get; set; }
 }
 
 /// <summary>
@@ -93,6 +98,16 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
                 AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
             } catch (Exception ex) {
                 AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.NdjsonPath)) {
+            try {
+                WriteNdjson(diff, settings.NdjsonPath!);
+                AnsiConsole.MarkupLine($"[grey]NDJSON written:[/] {settings.NdjsonPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write NDJSON:[/] {ex.Message}");
                 return Task.FromResult(1);
             }
         }
@@ -234,6 +249,21 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
             sb.Append(',');
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(warnings));
             sb.AppendLine();
+        }
+
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+    }
+
+    private static void WriteNdjson(CertificateInventoryDiffSummary diff, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        foreach (var endpoint in diff.Endpoints) {
+            sb.AppendLine(JsonSerializer.Serialize(endpoint, JsonOptions.Default));
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
