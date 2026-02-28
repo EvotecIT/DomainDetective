@@ -73,6 +73,8 @@ internal sealed class CertificateInventoryPolicyDriftSettings : CommandSettings 
 /// Displays endpoint-level policy drift between two persisted inventory snapshots.
 /// </summary>
 internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<CertificateInventoryPolicyDriftSettings> {
+    private static readonly char[] CsvSpecialChars = { ',', '"', '\r', '\n' };
+
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     public override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryPolicyDriftSettings settings) {
@@ -210,16 +212,16 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
         rows.AddColumn("Changes");
         foreach (var endpoint in drift.Endpoints) {
             rows.AddRow(
-                endpoint.Host,
+                Markup.Escape(endpoint.Host),
                 endpoint.Port.ToString(),
-                endpoint.Status,
+                Markup.Escape(endpoint.Status),
                 endpoint.PreviousViolationCount.ToString(),
                 endpoint.CurrentViolationCount.ToString(),
-                endpoint.PreviousMaxViolationSeverity,
-                endpoint.CurrentMaxViolationSeverity,
-                endpoint.NewViolationCodes.Count == 0 ? "-" : string.Join(",", endpoint.NewViolationCodes),
-                endpoint.ResolvedViolationCodes.Count == 0 ? "-" : string.Join(",", endpoint.ResolvedViolationCodes),
-                endpoint.ChangeKinds.Count == 0 ? "-" : string.Join(",", endpoint.ChangeKinds));
+                Markup.Escape(endpoint.PreviousMaxViolationSeverity),
+                Markup.Escape(endpoint.CurrentMaxViolationSeverity),
+                Markup.Escape(endpoint.NewViolationCodes.Count == 0 ? "-" : string.Join(",", endpoint.NewViolationCodes)),
+                Markup.Escape(endpoint.ResolvedViolationCodes.Count == 0 ? "-" : string.Join(",", endpoint.ResolvedViolationCodes)),
+                Markup.Escape(endpoint.ChangeKinds.Count == 0 ? "-" : string.Join(",", endpoint.ChangeKinds)));
         }
         AnsiConsole.Write(rows);
 
@@ -309,7 +311,7 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
 
     private static string EscapeCsv(string? value) {
         var text = value ?? string.Empty;
-        if (text.IndexOfAny(new[] { ',', '"', '\r', '\n' }) >= 0) {
+        if (text.IndexOfAny(CsvSpecialChars) >= 0) {
             return "\"" + text.Replace("\"", "\"\"") + "\"";
         }
 

@@ -63,6 +63,8 @@ internal sealed class CertificateInventoryPolicySettings : CommandSettings {
 /// Evaluates persisted certificate inventory snapshots against a baseline policy profile.
 /// </summary>
 internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<CertificateInventoryPolicySettings> {
+    private static readonly char[] CsvSpecialChars = { ',', '"', '\r', '\n' };
+
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     public override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryPolicySettings settings) {
@@ -185,15 +187,15 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
             var risk = $"{endpoint.RiskSeverity}/{endpoint.RiskScore}";
 
             rows.AddRow(
-                endpoint.Host,
+                Markup.Escape(endpoint.Host),
                 endpoint.Port.ToString(),
-                endpoint.Service,
+                Markup.Escape(endpoint.Service),
                 status,
                 severity,
                 endpoint.ViolationCount.ToString(),
                 risk,
-                endpoint.Issuer,
-                codes);
+                Markup.Escape(endpoint.Issuer),
+                Markup.Escape(codes));
         }
 
         AnsiConsole.Write(rows);
@@ -308,7 +310,7 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
 
     private static string EscapeCsv(string? value) {
         var text = value ?? string.Empty;
-        if (text.IndexOfAny(new[] { ',', '"', '\r', '\n' }) >= 0) {
+        if (text.IndexOfAny(CsvSpecialChars) >= 0) {
             return "\"" + text.Replace("\"", "\"\"") + "\"";
         }
 
