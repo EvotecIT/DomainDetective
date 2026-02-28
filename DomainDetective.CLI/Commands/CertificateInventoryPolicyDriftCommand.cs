@@ -142,6 +142,8 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
         summary.AddColumn("Value");
         summary.AddRow("Baseline Profile", drift.BaselineProfile);
         summary.AddRow("Snapshots", drift.SnapshotCount.ToString());
+        summary.AddRow("Requested Previous Snapshot", drift.RequestedPreviousCapturedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-");
+        summary.AddRow("Requested Current Snapshot", drift.RequestedCurrentCapturedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-");
         summary.AddRow("Previous Snapshot", drift.PreviousCapturedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-");
         summary.AddRow("Current Snapshot", drift.CurrentCapturedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-");
         summary.AddRow("Previous Endpoints", drift.PreviousEndpointCount.ToString());
@@ -160,6 +162,16 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
         summary.AddRow("Truncated Endpoints", drift.EndpointsTruncatedByMaxEndpoints.ToString());
         AnsiConsole.Write(summary);
+
+        if (drift.Warnings.Count > 0) {
+            foreach (var warning in drift.Warnings) {
+                if (string.IsNullOrWhiteSpace(warning)) {
+                    continue;
+                }
+
+                AnsiConsole.MarkupLine($"[yellow]Warning:[/] {Markup.Escape(warning)}");
+            }
+        }
 
         if (drift.NewViolationCodeCounts.Count > 0) {
             var addedCodes = new Table().Border(TableBorder.Rounded);
