@@ -164,7 +164,8 @@ internal static class Program {
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySummaryCommand>("CertificateInventorySummary")
                 .WithDescription("Summarize persisted certificate inventory snapshots")
                 .WithExample(new[] { "CertificateInventorySummary", "--since-utc", "2026-01-01" })
-                .WithExample(new[] { "CertificateInventorySummary", "--cache-dir", "./cert-monitor", "--json" });
+                .WithExample(new[] { "CertificateInventorySummary", "--cache-dir", "./cert-monitor", "--json" })
+                .WithExample(new[] { "CertificateInventorySummary", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-summary.csv" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySummaryCommand>("cert-inventory-summary")
                 .WithDescription("Summarize persisted certificate inventory snapshots (alias)");
 
