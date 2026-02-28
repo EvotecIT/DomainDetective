@@ -53,6 +53,16 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--minimum-severity <LEVEL>")]
     public string? MinimumSeverity { get; set; }
 
+    /// <summary>Optional minimum endpoint risk score filter (0-100).</summary>
+    [Description("Optional minimum endpoint risk score filter (0-100).")]
+    [CommandOption("--score-min <N>")]
+    public int? ScoreMin { get; set; }
+
+    /// <summary>Optional maximum endpoint risk score filter (0-100).</summary>
+    [Description("Optional maximum endpoint risk score filter (0-100).")]
+    [CommandOption("--score-max <N>")]
+    public int? ScoreMax { get; set; }
+
     /// <summary>Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</summary>
     [Description("Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).")]
     [CommandOption("--risk-profile <NAME>")]
@@ -375,6 +385,18 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--port must be between 1 and 65535.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ScoreMin.HasValue && (settings.ScoreMin.Value < 0 || settings.ScoreMin.Value > 100)) {
+            AnsiConsole.MarkupLine("[red]--score-min must be between 0 and 100.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ScoreMax.HasValue && (settings.ScoreMax.Value < 0 || settings.ScoreMax.Value > 100)) {
+            AnsiConsole.MarkupLine("[red]--score-max must be between 0 and 100.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ScoreMin.HasValue && settings.ScoreMax.HasValue && settings.ScoreMin.Value > settings.ScoreMax.Value) {
+            AnsiConsole.MarkupLine("[red]--score-min cannot be greater than --score-max.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.ChainLengthMin.HasValue && settings.ChainLengthMin.Value < 0) {
             AnsiConsole.MarkupLine("[red]--chain-length-min must be 0 or greater.[/]");
             return Task.FromResult(1);
@@ -496,6 +518,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             criticalExpiringWithinDays: settings.CriticalExpiringWithinDays,
             maxEndpoints: settings.MaxEndpoints,
             minimumSeverity: normalizedMinimumSeverity,
+            scoreMin: settings.ScoreMin,
+            scoreMax: settings.ScoreMax,
             riskProfile: normalizedRiskProfile,
             reasonContains: settings.ReasonContains,
             reasonAnyOf: settings.ReasonAnyOf,
