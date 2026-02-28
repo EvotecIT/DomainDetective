@@ -476,6 +476,8 @@ namespace DomainDetective {
         /// <param name="minimumSeverity">Optional minimum endpoint severity filter (None, Low, Medium, High, Critical). Applied after includeNoRisk filtering.</param>
         /// <param name="scoreMin">Optional minimum endpoint score filter (0-100).</param>
         /// <param name="scoreMax">Optional maximum endpoint score filter (0-100).</param>
+        /// <param name="reasonCountMin">Optional minimum reason-count filter (0 or greater).</param>
+        /// <param name="reasonCountMax">Optional maximum reason-count filter (0 or greater).</param>
         /// <param name="riskProfile">Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</param>
         /// <param name="reasonContains">Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).</param>
         /// <param name="reasonAnyOf">Optional exact reason filters (any match). Repeat values like CertificateExpired, WeakKey, CtNotObserved.</param>
@@ -530,6 +532,8 @@ namespace DomainDetective {
             string? minimumSeverity = null,
             int? scoreMin = null,
             int? scoreMax = null,
+            int? reasonCountMin = null,
+            int? reasonCountMax = null,
             string? riskProfile = null,
             string? reasonContains = null,
             string? issuerContains = null,
@@ -585,6 +589,8 @@ namespace DomainDetective {
                 minimumSeverity,
                 scoreMin,
                 scoreMax,
+                reasonCountMin,
+                reasonCountMax,
                 riskProfile,
                 reasonContains,
                 issuerContains,

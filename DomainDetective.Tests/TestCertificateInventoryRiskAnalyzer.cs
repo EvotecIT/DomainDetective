@@ -711,6 +711,36 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskThrowsForInvalidReasonCountRange() {
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = DateTimeOffset.UtcNow,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                }
+            };
+
+            var reasonCountMin = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                reasonCountMin: -1));
+            Assert.Equal("reasonCountMin", reasonCountMin.ParamName);
+
+            var reasonCountMax = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                reasonCountMax: -1));
+            Assert.Equal("reasonCountMax", reasonCountMax.ParamName);
+
+            var reasonCountRange = Assert.Throws<ArgumentException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                reasonCountMin: 3,
+                reasonCountMax: 1));
+            Assert.Equal("reasonCountMin", reasonCountRange.ParamName);
+        }
+
+        [Fact]
         public void BuildRiskAppliesRiskProfilesAndSupportsExplicitOverrides() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {
@@ -1012,6 +1042,91 @@ namespace DomainDetective.Tests {
             Assert.Single(healthyScores.Endpoints);
             Assert.Equal("healthy-score.example.com", healthyScores.Endpoints[0].Host);
             Assert.Equal(0, healthyScores.Endpoints[0].Score);
+        }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByReasonCountRange() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "expired-many-reasons.example.com",
+                            ResolvedHost = "expired-many-reasons.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(-2),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = false,
+                            IsReachable = true,
+                            HostnameMatch = false,
+                            AllowsServerAuthentication = false,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        },
+                        new() {
+                            Host = "weak-single-reason.example.com",
+                            ResolvedHost = "weak-single-reason.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "healthy-zero-reasons.example.com",
+                            ResolvedHost = "healthy-zero-reasons.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        }
+                    }
+                }
+            };
+
+            var atLeastTwoReasons = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                reasonCountMin: 2);
+            Assert.Single(atLeastTwoReasons.Endpoints);
+            Assert.Equal("expired-many-reasons.example.com", atLeastTwoReasons.Endpoints[0].Host);
+            Assert.True(atLeastTwoReasons.Endpoints[0].Reasons.Count >= 2);
+
+            var oneReasonOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                reasonCountMin: 1,
+                reasonCountMax: 1);
+            Assert.Single(oneReasonOnly.Endpoints);
+            Assert.Equal("weak-single-reason.example.com", oneReasonOnly.Endpoints[0].Host);
+            Assert.Single(oneReasonOnly.Endpoints[0].Reasons);
+
+            var zeroReasonOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                reasonCountMin: 0,
+                reasonCountMax: 0);
+            Assert.Single(zeroReasonOnly.Endpoints);
+            Assert.Equal("healthy-zero-reasons.example.com", zeroReasonOnly.Endpoints[0].Host);
+            Assert.Empty(zeroReasonOnly.Endpoints[0].Reasons);
         }
 
         [Fact]
