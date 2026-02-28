@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Management.Automation;
 
 namespace DomainDetective.PowerShell;
@@ -552,14 +551,11 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
         }
 
         var monitor = new CertificateMonitor {
-            CacheDirectory = ResolveCacheDirectory(CacheDirectory),
+            CacheDirectory = CertificateInventoryCmdletHelpers.ResolveCacheDirectory(CacheDirectory),
             PersistInventorySnapshots = false
         };
 
-        DateTimeOffset? since = null;
-        if (SinceUtc.HasValue) {
-            since = new DateTimeOffset(DateTime.SpecifyKind(SinceUtc.Value, DateTimeKind.Utc));
-        }
+        var since = CertificateInventoryCmdletHelpers.ToUtc(SinceUtc);
 
         var risk = monitor.BuildInventoryRisk(
             sinceUtc: since,
@@ -626,13 +622,5 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             clientAuthOnly: ClientAuthOnly.IsPresent,
             secureEmailOnly: SecureEmailOnly.IsPresent);
         WriteObject(risk);
-    }
-
-    private static string ResolveCacheDirectory(string? configured) {
-        if (!string.IsNullOrWhiteSpace(configured)) {
-            return configured!;
-        }
-
-        return Path.Combine(Path.GetTempPath(), "DomainDetective", "cert-monitor");
     }
 }
