@@ -32,6 +32,14 @@ namespace DomainDetective {
         public int EndpointsWithReusedCertificateCount { get; set; }
         /// <summary>Percentage of endpoints whose certificate identity is reused by at least one other endpoint.</summary>
         public double EndpointsWithReusedCertificatePercentage { get; set; }
+        /// <summary>Number of distinct certificate identities reused across more than one distinct service.</summary>
+        public int CrossServiceReusedCertificateIdentityCount { get; set; }
+        /// <summary>Number of distinct certificate identities reused across more than one distinct port.</summary>
+        public int CrossPortReusedCertificateIdentityCount { get; set; }
+        /// <summary>Number of endpoints whose certificate identity is reused across more than one distinct service.</summary>
+        public int EndpointsWithCrossServiceReuseCount { get; set; }
+        /// <summary>Number of endpoints whose certificate identity is reused across more than one distinct port.</summary>
+        public int EndpointsWithCrossPortReuseCount { get; set; }
         /// <summary>Maximum endpoint fan-out observed for a single certificate identity.</summary>
         public int MaxCertificateReuseEndpointCount { get; set; }
         /// <summary>Maximum distinct service spread observed for a single certificate identity.</summary>
@@ -520,6 +528,14 @@ namespace DomainDetective {
                     2);
                 summary.EndpointsWithReusedCertificateCount = certificateReuseById.Values
                     .Where(stats => stats.EndpointCount > 1)
+                    .Sum(stats => stats.EndpointCount);
+                summary.CrossServiceReusedCertificateIdentityCount = certificateReuseById.Count(pair => pair.Value.DistinctServiceCount > 1);
+                summary.CrossPortReusedCertificateIdentityCount = certificateReuseById.Count(pair => pair.Value.DistinctPortCount > 1);
+                summary.EndpointsWithCrossServiceReuseCount = certificateReuseById.Values
+                    .Where(stats => stats.DistinctServiceCount > 1)
+                    .Sum(stats => stats.EndpointCount);
+                summary.EndpointsWithCrossPortReuseCount = certificateReuseById.Values
+                    .Where(stats => stats.DistinctPortCount > 1)
                     .Sum(stats => stats.EndpointCount);
                 summary.MaxCertificateReuseEndpointCount = certificateReuseById.Values.Max(stats => stats.EndpointCount);
                 summary.MaxCertificateReuseDistinctServiceCount = certificateReuseById.Values.Max(stats => stats.DistinctServiceCount);
