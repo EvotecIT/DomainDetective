@@ -662,6 +662,54 @@ namespace DomainDetective {
                 certificateReuseCrossPortOnly);
         }
 
+        /// <summary>Builds endpoint-level certificate policy posture from persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="baselineProfile">Policy baseline profile (Strict, Balanced, Legacy).</param>
+        /// <param name="includeCompliant">When true, includes endpoints with no policy violations.</param>
+        /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
+        /// <param name="policyOverrides">Optional organization override rules for baseline/profile suppression.</param>
+        public CertificateInventoryPolicySummary BuildInventoryPolicy(
+            DateTimeOffset? sinceUtc = null,
+            string? baselineProfile = "Balanced",
+            bool includeCompliant = false,
+            int maxEndpoints = 300,
+            CertificateInventoryPolicyOverrides? policyOverrides = null) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile,
+                includeCompliant,
+                maxEndpoints,
+                policyOverrides);
+        }
+
+        /// <summary>Builds endpoint-level certificate policy drift between two persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="baselineProfile">Policy baseline profile (Strict, Balanced, Legacy).</param>
+        /// <param name="previousCapturedAtUtc">Optional previous snapshot timestamp selector (selects latest snapshot at or before timestamp).</param>
+        /// <param name="currentCapturedAtUtc">Optional current snapshot timestamp selector (selects latest snapshot at or before timestamp).</param>
+        /// <param name="changedOnly">When true, only returns endpoint rows with detected policy drift.</param>
+        /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
+        /// <param name="policyOverrides">Optional organization override rules for baseline/profile suppression.</param>
+        public CertificateInventoryPolicyDriftSummary BuildInventoryPolicyDrift(
+            DateTimeOffset? sinceUtc = null,
+            string? baselineProfile = "Balanced",
+            DateTimeOffset? previousCapturedAtUtc = null,
+            DateTimeOffset? currentCapturedAtUtc = null,
+            bool changedOnly = true,
+            int maxEndpoints = 300,
+            CertificateInventoryPolicyOverrides? policyOverrides = null) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
+                snapshots,
+                baselineProfile,
+                previousCapturedAtUtc,
+                currentCapturedAtUtc,
+                changedOnly,
+                maxEndpoints,
+                policyOverrides);
+        }
+
         /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>
         /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
         /// <param name="includeSingleEndpointCertificates">When true, includes certificates used by only one endpoint.</param>

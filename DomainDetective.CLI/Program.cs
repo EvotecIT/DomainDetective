@@ -237,6 +237,26 @@ internal static class Program {
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryRiskCommand>("cert-inventory-risk")
                 .WithDescription("Assess certificate risk posture across persisted snapshots (alias)");
 
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyCommand>("CertificateInventoryPolicy")
+                .WithDescription("Evaluate certificate inventory against baseline policy profiles")
+                .WithExample(new[] { "CertificateInventoryPolicy", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Strict", "--json" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Legacy", "--include-compliant", "--max-endpoints", "500" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Balanced", "--csv-path", "./artifacts/policy.csv" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Balanced", "--policy-overrides-path", "./policy-overrides.json", "--json" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyCommand>("cert-inventory-policy")
+                .WithDescription("Evaluate certificate inventory against baseline policy profiles (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyDriftCommand>("CertificateInventoryPolicyDrift")
+                .WithDescription("Compare policy drift between two certificate inventory snapshots")
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--changed-only" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Strict", "--since-utc", "2026-01-01", "--json" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--previous-utc", "2026-02-01", "--current-utc", "2026-02-15", "--changed-only" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Balanced", "--csv-path", "./artifacts/policy-drift.csv" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Balanced", "--policy-overrides-path", "./policy-overrides.json", "--json" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyDriftCommand>("cert-inventory-policy-drift")
+                .WithDescription("Compare policy drift between two certificate inventory snapshots (alias)");
+
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("CertificateInventoryReuse")
                 .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots")
                 .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01" })
