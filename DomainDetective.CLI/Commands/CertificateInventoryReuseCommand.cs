@@ -4,7 +4,9 @@ using Spectre.Console.Cli;
 using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -51,6 +53,11 @@ internal sealed class CertificateInventoryReuseSettings : CommandSettings {
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
     public bool Json { get; set; }
+
+    /// <summary>Optional CSV output path for certificate reuse rows.</summary>
+    [Description("Optional CSV output path for certificate reuse rows.")]
+    [CommandOption("--csv-path <PATH>")]
+    public string? CsvPath { get; set; }
 }
 
 /// <summary>
@@ -89,6 +96,16 @@ internal sealed class CertificateInventoryReuseCommand : AsyncCommand<Certificat
             minEndpointCount: settings.MinEndpoints,
             maxCertificates: settings.MaxCertificates,
             maxEndpointsPerCertificate: settings.MaxEndpointsPerCertificate);
+
+        if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
+            try {
+                WriteCsv(reuse, settings.CsvPath!);
+                AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(reuse, JsonOptions.Default));
@@ -148,6 +165,50 @@ internal sealed class CertificateInventoryReuseCommand : AsyncCommand<Certificat
         AnsiConsole.Write(rows);
 
         return Task.FromResult(0);
+    }
+
+    private static void WriteCsv(CertificateInventoryReuseSummary reuse, string path) {
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("CertificateId,Thumbprint,Subject,Issuer,RootIssuer,NotAfterUtc,IsKnownCertificateAuthority,HasWildcardSan,AllowsServerAuthentication,AllowsClientAuthentication,EndpointCount,DistinctServiceCount,DistinctPortCount,Endpoints");
+        foreach (var certificate in reuse.Certificates) {
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(certificate.CertificateId));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(certificate.Thumbprint));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(certificate.Subject));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(certificate.Issuer));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(certificate.RootIssuer));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(certificate.NotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(certificate.IsKnownCertificateAuthority ? "true" : "false");
+            sb.Append(',');
+            sb.Append(certificate.HasWildcardSan ? "true" : "false");
+            sb.Append(',');
+            sb.Append(certificate.AllowsServerAuthentication ? "true" : "false");
+            sb.Append(',');
+            sb.Append(certificate.AllowsClientAuthentication ? "true" : "false");
+            sb.Append(',');
+            sb.Append(certificate.EndpointCount);
+            sb.Append(',');
+            sb.Append(certificate.DistinctServiceCount);
+            sb.Append(',');
+            sb.Append(certificate.DistinctPortCount);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", certificate.Endpoints.Select(endpoint =>
+                $"{endpoint.Host}:{endpoint.Port}:{endpoint.Service}:{endpoint.LastObservedUtc.UtcDateTime:O}"))));
+            sb.AppendLine();
+        }
+
+        File.WriteAllText(fullPath, sb.ToString(), Encoding.UTF8);
     }
 
     private static string BuildFlags(CertificateInventoryCertificateReuse certificate) {
