@@ -242,7 +242,10 @@ namespace DomainDetective {
             string[]? reasonAnyOf = null,
             string[]? reasonAllOf = null,
             string[]? issuerContainsAnyOf = null,
-            string[]? issuerContainsAllOf = null) {
+            string[]? issuerContainsAllOf = null,
+            string? rootIssuerContains = null,
+            string[]? rootIssuerContainsAnyOf = null,
+            string[]? rootIssuerContainsAllOf = null) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
 
@@ -285,6 +288,12 @@ namespace DomainDetective {
             var hasIssuerAnyOfFilter = normalizedIssuerContainsAnyOf.Count > 0;
             var normalizedIssuerContainsAllOf = NormalizeDistinctValues(issuerContainsAllOf);
             var hasIssuerAllOfFilter = normalizedIssuerContainsAllOf.Count > 0;
+            var hasRootIssuerFilter = !string.IsNullOrWhiteSpace(rootIssuerContains);
+            var rootIssuerNeedle = hasRootIssuerFilter ? rootIssuerContains!.Trim() : string.Empty;
+            var normalizedRootIssuerContainsAnyOf = NormalizeDistinctValues(rootIssuerContainsAnyOf);
+            var hasRootIssuerAnyOfFilter = normalizedRootIssuerContainsAnyOf.Count > 0;
+            var normalizedRootIssuerContainsAllOf = NormalizeDistinctValues(rootIssuerContainsAllOf);
+            var hasRootIssuerAllOfFilter = normalizedRootIssuerContainsAllOf.Count > 0;
             var hasAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(authorityFamilyEquals);
             var authorityFamilyExpected = hasAuthorityFamilyFilter ? authorityFamilyEquals!.Trim() : string.Empty;
             var hasRootAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(rootAuthorityFamilyEquals);
@@ -453,6 +462,24 @@ namespace DomainDetective {
                         row.Issuer.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         row.RootIssuer.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0);
                     if (!matchesAllIssuer) {
+                        continue;
+                    }
+                }
+                if (hasRootIssuerFilter &&
+                    row.RootIssuer.IndexOf(rootIssuerNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    continue;
+                }
+                if (hasRootIssuerAnyOfFilter) {
+                    var matchesRootIssuerAny = normalizedRootIssuerContainsAnyOf.Any(needle =>
+                        row.RootIssuer.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!matchesRootIssuerAny) {
+                        continue;
+                    }
+                }
+                if (hasRootIssuerAllOfFilter) {
+                    var matchesRootIssuerAll = normalizedRootIssuerContainsAllOf.All(needle =>
+                        row.RootIssuer.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!matchesRootIssuerAll) {
                         continue;
                     }
                 }
