@@ -161,6 +161,16 @@ internal static class Program {
                 .WithExample(new[] { "RunsOpen", "--dir", "/path/to/run" });
 
             // Certificate inventory utilities
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySnapshotsCommand>("CertificateInventorySnapshots")
+                .WithDescription("List persisted certificate inventory snapshots and key metrics")
+                .WithExample(new[] { "CertificateInventorySnapshots" })
+                .WithExample(new[] { "CertificateInventorySnapshots", "--since-utc", "2026-01-01", "--until-utc", "2026-02-01" })
+                .WithExample(new[] { "CertificateInventorySnapshots", "--max-snapshots", "100", "--json" })
+                .WithExample(new[] { "CertificateInventorySnapshots", "--csv-path", "./artifacts/cert-snapshots.csv" })
+                .WithExample(new[] { "CertificateInventorySnapshots", "--ndjson-path", "./artifacts/cert-snapshots.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySnapshotsCommand>("cert-inventory-snapshots")
+                .WithDescription("List persisted certificate inventory snapshots and key metrics (alias)");
+
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySummaryCommand>("CertificateInventorySummary")
                 .WithDescription("Summarize persisted certificate inventory snapshots")
                 .WithExample(new[] { "CertificateInventorySummary", "--since-utc", "2026-01-01" })

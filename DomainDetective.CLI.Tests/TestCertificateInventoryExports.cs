@@ -175,6 +175,81 @@ public class TestCertificateInventoryExports {
         }
     }
 
+    [Fact]
+    public async Task SnapshotsCommand_WritesCsvAndNdjson_WithUntilFilter() {
+        var tempDirectory = CreateTempDirectory();
+        try {
+            var cacheDirectory = Path.Combine(tempDirectory, "cache");
+            var inventoryDirectory = Path.Combine(cacheDirectory, "inventory");
+            Directory.CreateDirectory(inventoryDirectory);
+
+            var oldestSnapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = new DateTimeOffset(2026, 1, 10, 12, 0, 0, TimeSpan.Zero),
+                Port = 443,
+                Entries = new List<CertificateInventoryEntry> {
+                    new CertificateInventoryEntry {
+                        Host = "old.example.com",
+                        ResolvedHost = "old.example.com",
+                        Port = 443,
+                        Valid = true,
+                        AllowsServerAuthentication = true
+                    }
+                }
+            };
+
+            var latestSnapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = new DateTimeOffset(2026, 1, 20, 12, 0, 0, TimeSpan.Zero),
+                Port = 443,
+                Entries = new List<CertificateInventoryEntry> {
+                    new CertificateInventoryEntry {
+                        Host = "latest.example.com",
+                        ResolvedHost = "latest.example.com",
+                        Port = 443,
+                        Valid = true,
+                        AllowsServerAuthentication = true
+                    }
+                }
+            };
+
+            WriteSnapshot(inventoryDirectory, "snapshot-oldest.json", oldestSnapshot);
+            WriteSnapshot(inventoryDirectory, "snapshot-latest.json", latestSnapshot);
+
+            var csvPath = Path.Combine(tempDirectory, "out", "snapshots.csv");
+            var ndjsonPath = Path.Combine(tempDirectory, "out", "snapshots.ndjson.gz");
+            var command = new CertificateInventorySnapshotsCommand();
+            var settings = new CertificateInventorySnapshotsSettings {
+                CacheDirectory = cacheDirectory,
+                UntilUtc = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc),
+                CsvPath = csvPath,
+                NdjsonPath = ndjsonPath,
+                Json = true
+            };
+
+            var result = await command.ExecuteAsync(null!, settings);
+
+            Assert.Equal(0, result);
+            Assert.True(File.Exists(csvPath));
+            Assert.True(File.Exists(ndjsonPath));
+
+            var csv = File.ReadAllText(csvPath, Encoding.UTF8);
+            Assert.Contains("CapturedAtUtc,Port,EntryCount,UniqueEndpointCount", csv);
+            Assert.Contains("2026-01-10T12:00:00.0000000Z", csv);
+            Assert.DoesNotContain("2026-01-20T12:00:00.0000000Z", csv);
+
+            var ndjson = ReadGzipText(ndjsonPath);
+            var lines = ndjson.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            Assert.Single(lines);
+
+            using var doc = JsonDocument.Parse(lines[0]);
+            var root = doc.RootElement;
+            Assert.Equal("Snapshot", root.GetProperty("RowType").GetString());
+            Assert.Equal(1, root.GetProperty("ReturnedSnapshotCount").GetInt32());
+            Assert.Equal(1, root.GetProperty("ExcludedByUntilCount").GetInt32());
+        } finally {
+            DeleteDirectory(tempDirectory);
+        }
+    }
+
     private static void WriteSnapshot(string directory, string fileName, CertificateInventorySnapshot snapshot) {
         var path = Path.Combine(directory, fileName);
         var json = JsonSerializer.Serialize(snapshot, JsonOptions.Default);
