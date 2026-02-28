@@ -265,7 +265,12 @@ namespace DomainDetective {
             string[]? rootIssuerContainsAllOf = null,
             int? certificateReuseEndpointCountMin = null,
             int? certificateReuseEndpointCountMax = null,
-            bool? certificateReuseCrossServiceOnly = null) {
+            bool? certificateReuseCrossServiceOnly = null,
+            int? certificateReuseDistinctServiceCountMin = null,
+            int? certificateReuseDistinctServiceCountMax = null,
+            int? certificateReuseDistinctPortCountMin = null,
+            int? certificateReuseDistinctPortCountMax = null,
+            bool? certificateReuseCrossPortOnly = null) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
 
@@ -332,6 +337,40 @@ namespace DomainDetective {
                 throw new ArgumentException(
                     "certificateReuseEndpointCountMin cannot be greater than certificateReuseEndpointCountMax.",
                     nameof(certificateReuseEndpointCountMin));
+            }
+            var hasCertificateReuseDistinctServiceCountMinFilter = certificateReuseDistinctServiceCountMin.HasValue;
+            var certificateReuseDistinctServiceCountMinExpected = hasCertificateReuseDistinctServiceCountMinFilter ? certificateReuseDistinctServiceCountMin!.Value : 0;
+            if (hasCertificateReuseDistinctServiceCountMinFilter && certificateReuseDistinctServiceCountMinExpected < 1) {
+                throw new ArgumentOutOfRangeException(nameof(certificateReuseDistinctServiceCountMin), "certificateReuseDistinctServiceCountMin must be 1 or greater.");
+            }
+            var hasCertificateReuseDistinctServiceCountMaxFilter = certificateReuseDistinctServiceCountMax.HasValue;
+            var certificateReuseDistinctServiceCountMaxExpected = hasCertificateReuseDistinctServiceCountMaxFilter ? certificateReuseDistinctServiceCountMax!.Value : 0;
+            if (hasCertificateReuseDistinctServiceCountMaxFilter && certificateReuseDistinctServiceCountMaxExpected < 1) {
+                throw new ArgumentOutOfRangeException(nameof(certificateReuseDistinctServiceCountMax), "certificateReuseDistinctServiceCountMax must be 1 or greater.");
+            }
+            if (hasCertificateReuseDistinctServiceCountMinFilter &&
+                hasCertificateReuseDistinctServiceCountMaxFilter &&
+                certificateReuseDistinctServiceCountMinExpected > certificateReuseDistinctServiceCountMaxExpected) {
+                throw new ArgumentException(
+                    "certificateReuseDistinctServiceCountMin cannot be greater than certificateReuseDistinctServiceCountMax.",
+                    nameof(certificateReuseDistinctServiceCountMin));
+            }
+            var hasCertificateReuseDistinctPortCountMinFilter = certificateReuseDistinctPortCountMin.HasValue;
+            var certificateReuseDistinctPortCountMinExpected = hasCertificateReuseDistinctPortCountMinFilter ? certificateReuseDistinctPortCountMin!.Value : 0;
+            if (hasCertificateReuseDistinctPortCountMinFilter && certificateReuseDistinctPortCountMinExpected < 1) {
+                throw new ArgumentOutOfRangeException(nameof(certificateReuseDistinctPortCountMin), "certificateReuseDistinctPortCountMin must be 1 or greater.");
+            }
+            var hasCertificateReuseDistinctPortCountMaxFilter = certificateReuseDistinctPortCountMax.HasValue;
+            var certificateReuseDistinctPortCountMaxExpected = hasCertificateReuseDistinctPortCountMaxFilter ? certificateReuseDistinctPortCountMax!.Value : 0;
+            if (hasCertificateReuseDistinctPortCountMaxFilter && certificateReuseDistinctPortCountMaxExpected < 1) {
+                throw new ArgumentOutOfRangeException(nameof(certificateReuseDistinctPortCountMax), "certificateReuseDistinctPortCountMax must be 1 or greater.");
+            }
+            if (hasCertificateReuseDistinctPortCountMinFilter &&
+                hasCertificateReuseDistinctPortCountMaxFilter &&
+                certificateReuseDistinctPortCountMinExpected > certificateReuseDistinctPortCountMaxExpected) {
+                throw new ArgumentException(
+                    "certificateReuseDistinctPortCountMin cannot be greater than certificateReuseDistinctPortCountMax.",
+                    nameof(certificateReuseDistinctPortCountMin));
             }
             var hasReasonFilter = !string.IsNullOrWhiteSpace(reasonContains);
             var reasonNeedle = hasReasonFilter ? reasonContains!.Trim() : string.Empty;
@@ -515,6 +554,28 @@ namespace DomainDetective {
                 if (certificateReuseCrossServiceOnly.HasValue) {
                     var reuseCrossService = row.CertificateReuseDistinctServiceCount > 1;
                     if (reuseCrossService != certificateReuseCrossServiceOnly.Value) {
+                        continue;
+                    }
+                }
+                if (hasCertificateReuseDistinctServiceCountMinFilter &&
+                    row.CertificateReuseDistinctServiceCount < certificateReuseDistinctServiceCountMinExpected) {
+                    continue;
+                }
+                if (hasCertificateReuseDistinctServiceCountMaxFilter &&
+                    row.CertificateReuseDistinctServiceCount > certificateReuseDistinctServiceCountMaxExpected) {
+                    continue;
+                }
+                if (hasCertificateReuseDistinctPortCountMinFilter &&
+                    row.CertificateReuseDistinctPortCount < certificateReuseDistinctPortCountMinExpected) {
+                    continue;
+                }
+                if (hasCertificateReuseDistinctPortCountMaxFilter &&
+                    row.CertificateReuseDistinctPortCount > certificateReuseDistinctPortCountMaxExpected) {
+                    continue;
+                }
+                if (certificateReuseCrossPortOnly.HasValue) {
+                    var reuseCrossPort = row.CertificateReuseDistinctPortCount > 1;
+                    if (reuseCrossPort != certificateReuseCrossPortOnly.Value) {
                         continue;
                     }
                 }

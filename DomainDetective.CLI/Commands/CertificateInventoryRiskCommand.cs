@@ -93,6 +93,36 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--reuse-single-service-only")]
     public bool ReuseSingleServiceOnly { get; set; }
 
+    /// <summary>Optional minimum certificate-reuse distinct-service-count filter (1 or greater).</summary>
+    [Description("Optional minimum certificate-reuse distinct-service-count filter (1 or greater).")]
+    [CommandOption("--reuse-service-min <N>")]
+    public int? ReuseServiceCountMin { get; set; }
+
+    /// <summary>Optional maximum certificate-reuse distinct-service-count filter (1 or greater).</summary>
+    [Description("Optional maximum certificate-reuse distinct-service-count filter (1 or greater).")]
+    [CommandOption("--reuse-service-max <N>")]
+    public int? ReuseServiceCountMax { get; set; }
+
+    /// <summary>Optional minimum certificate-reuse distinct-port-count filter (1 or greater).</summary>
+    [Description("Optional minimum certificate-reuse distinct-port-count filter (1 or greater).")]
+    [CommandOption("--reuse-port-min <N>")]
+    public int? ReusePortCountMin { get; set; }
+
+    /// <summary>Optional maximum certificate-reuse distinct-port-count filter (1 or greater).</summary>
+    [Description("Optional maximum certificate-reuse distinct-port-count filter (1 or greater).")]
+    [CommandOption("--reuse-port-max <N>")]
+    public int? ReusePortCountMax { get; set; }
+
+    /// <summary>Only include endpoints where the same certificate is reused across more than one distinct port.</summary>
+    [Description("Only include endpoints where the same certificate is reused across more than one distinct port.")]
+    [CommandOption("--reuse-cross-port-only")]
+    public bool ReuseCrossPortOnly { get; set; }
+
+    /// <summary>Only include endpoints where the same certificate is reused within a single distinct port.</summary>
+    [Description("Only include endpoints where the same certificate is reused within a single distinct port.")]
+    [CommandOption("--reuse-single-port-only")]
+    public bool ReuseSinglePortOnly { get; set; }
+
     /// <summary>Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).</summary>
     [Description("Optional risk profile preset (Renewal14d, Renewal30d, FutureNotYetValid, Expired, HighRiskActive).")]
     [CommandOption("--risk-profile <NAME>")]
@@ -455,6 +485,34 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--reuse-cross-service-only cannot be combined with --reuse-single-service-only.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ReuseServiceCountMin.HasValue && settings.ReuseServiceCountMin.Value < 1) {
+            AnsiConsole.MarkupLine("[red]--reuse-service-min must be 1 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReuseServiceCountMax.HasValue && settings.ReuseServiceCountMax.Value < 1) {
+            AnsiConsole.MarkupLine("[red]--reuse-service-max must be 1 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReuseServiceCountMin.HasValue && settings.ReuseServiceCountMax.HasValue && settings.ReuseServiceCountMin.Value > settings.ReuseServiceCountMax.Value) {
+            AnsiConsole.MarkupLine("[red]--reuse-service-min cannot be greater than --reuse-service-max.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReusePortCountMin.HasValue && settings.ReusePortCountMin.Value < 1) {
+            AnsiConsole.MarkupLine("[red]--reuse-port-min must be 1 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReusePortCountMax.HasValue && settings.ReusePortCountMax.Value < 1) {
+            AnsiConsole.MarkupLine("[red]--reuse-port-max must be 1 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReusePortCountMin.HasValue && settings.ReusePortCountMax.HasValue && settings.ReusePortCountMin.Value > settings.ReusePortCountMax.Value) {
+            AnsiConsole.MarkupLine("[red]--reuse-port-min cannot be greater than --reuse-port-max.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ReuseCrossPortOnly && settings.ReuseSinglePortOnly) {
+            AnsiConsole.MarkupLine("[red]--reuse-cross-port-only cannot be combined with --reuse-single-port-only.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.ChainLengthMin.HasValue && settings.ChainLengthMin.Value < 0) {
             AnsiConsole.MarkupLine("[red]--chain-length-min must be 0 or greater.[/]");
             return Task.FromResult(1);
@@ -583,6 +641,11 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             certificateReuseEndpointCountMin: settings.ReuseEndpointCountMin,
             certificateReuseEndpointCountMax: settings.ReuseEndpointCountMax,
             certificateReuseCrossServiceOnly: settings.ReuseCrossServiceOnly ? true : settings.ReuseSingleServiceOnly ? false : null,
+            certificateReuseDistinctServiceCountMin: settings.ReuseServiceCountMin,
+            certificateReuseDistinctServiceCountMax: settings.ReuseServiceCountMax,
+            certificateReuseDistinctPortCountMin: settings.ReusePortCountMin,
+            certificateReuseDistinctPortCountMax: settings.ReusePortCountMax,
+            certificateReuseCrossPortOnly: settings.ReuseCrossPortOnly ? true : settings.ReuseSinglePortOnly ? false : null,
             riskProfile: normalizedRiskProfile,
             reasonContains: settings.ReasonContains,
             reasonAnyOf: settings.ReasonAnyOf,

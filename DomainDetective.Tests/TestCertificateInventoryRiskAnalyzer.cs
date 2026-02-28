@@ -768,6 +768,44 @@ namespace DomainDetective.Tests {
                 certificateReuseEndpointCountMin: 5,
                 certificateReuseEndpointCountMax: 2));
             Assert.Equal("certificateReuseEndpointCountMin", reuseRange.ParamName);
+
+            var reuseDistinctServiceMin = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseDistinctServiceCountMin: 0));
+            Assert.Equal("certificateReuseDistinctServiceCountMin", reuseDistinctServiceMin.ParamName);
+
+            var reuseDistinctServiceMax = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseDistinctServiceCountMax: 0));
+            Assert.Equal("certificateReuseDistinctServiceCountMax", reuseDistinctServiceMax.ParamName);
+
+            var reuseDistinctServiceRange = Assert.Throws<ArgumentException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseDistinctServiceCountMin: 3,
+                certificateReuseDistinctServiceCountMax: 1));
+            Assert.Equal("certificateReuseDistinctServiceCountMin", reuseDistinctServiceRange.ParamName);
+
+            var reuseDistinctPortMin = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseDistinctPortCountMin: 0));
+            Assert.Equal("certificateReuseDistinctPortCountMin", reuseDistinctPortMin.ParamName);
+
+            var reuseDistinctPortMax = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseDistinctPortCountMax: 0));
+            Assert.Equal("certificateReuseDistinctPortCountMax", reuseDistinctPortMax.ParamName);
+
+            var reuseDistinctPortRange = Assert.Throws<ArgumentException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseDistinctPortCountMin: 3,
+                certificateReuseDistinctPortCountMax: 1));
+            Assert.Equal("certificateReuseDistinctPortCountMin", reuseDistinctPortRange.ParamName);
         }
 
         [Fact]
@@ -1279,6 +1317,43 @@ namespace DomainDetective.Tests {
                 certificateReuseCrossServiceOnly: false);
             Assert.Single(singleServiceOnly.Endpoints);
             Assert.Equal("singleton.example.com", singleServiceOnly.Endpoints[0].Host);
+
+            var distinctServiceFiltered = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseDistinctServiceCountMin: 2,
+                certificateReuseDistinctServiceCountMax: 2);
+            Assert.Equal(3, distinctServiceFiltered.Endpoints.Count);
+            Assert.All(distinctServiceFiltered.Endpoints, endpoint => Assert.Equal(2, endpoint.CertificateReuseDistinctServiceCount));
+
+            var distinctServiceSingle = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseDistinctServiceCountMax: 1);
+            Assert.Single(distinctServiceSingle.Endpoints);
+            Assert.Equal("singleton.example.com", distinctServiceSingle.Endpoints[0].Host);
+
+            var distinctPortFiltered = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseDistinctPortCountMin: 2,
+                certificateReuseDistinctPortCountMax: 2);
+            Assert.Equal(3, distinctPortFiltered.Endpoints.Count);
+            Assert.All(distinctPortFiltered.Endpoints, endpoint => Assert.Equal(2, endpoint.CertificateReuseDistinctPortCount));
+
+            var crossPortOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseCrossPortOnly: true);
+            Assert.Equal(3, crossPortOnly.Endpoints.Count);
+            Assert.All(crossPortOnly.Endpoints, endpoint => Assert.True(endpoint.CertificateReuseDistinctPortCount > 1));
+
+            var singlePortOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                certificateReuseCrossPortOnly: false);
+            Assert.Single(singlePortOnly.Endpoints);
+            Assert.Equal("singleton.example.com", singlePortOnly.Endpoints[0].Host);
         }
 
         [Fact]
