@@ -14,6 +14,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Compare selected snapshot timestamps with strict baseline</summary>
 ///   <code>Get-DDCertificateInventoryPolicyDrift -BaselineProfile Strict -PreviousUtc (Get-Date).ToUniversalTime().AddDays(-7) -CurrentUtc (Get-Date).ToUniversalTime()</code>
 /// </example>
+/// <example>
+///   <summary>Apply policy overrides while comparing drift</summary>
+///   <code>Get-DDCertificateInventoryPolicyDrift -PolicyOverridesPath .\policy-overrides.json -ChangedOnly</code>
+/// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryPolicyDrift")]
 [Alias("Get-CertificateInventoryPolicyDrift")]
 [OutputType(typeof(CertificateInventoryPolicyDriftSummary))]
@@ -48,6 +52,10 @@ public sealed class CmdletGetCertificateInventoryPolicyDrift : PSCmdlet {
     [ValidateRange(0, int.MaxValue)]
     public int MaxEndpoints { get; set; } = 300;
 
+    /// <summary>Optional JSON file path with policy override rules.</summary>
+    [Parameter(Mandatory = false)]
+    public string? PolicyOverridesPath { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         if (!CertificateInventoryPolicyAnalyzer.TryResolveBaselineProfile(BaselineProfile, out var normalizedProfile)) {
@@ -64,13 +72,28 @@ public sealed class CmdletGetCertificateInventoryPolicyDrift : PSCmdlet {
             PersistInventorySnapshots = false
         };
 
+        CertificateInventoryPolicyOverrides? policyOverrides = null;
+        if (!string.IsNullOrWhiteSpace(PolicyOverridesPath)) {
+            try {
+                policyOverrides = CertificateInventoryPolicyOverrides.Load(PolicyOverridesPath!);
+            } catch (Exception ex) {
+                ThrowTerminatingError(new ErrorRecord(
+                    ex,
+                    "PolicyOverridesLoadFailed",
+                    ErrorCategory.InvalidData,
+                    PolicyOverridesPath));
+                return;
+            }
+        }
+
         var summary = monitor.BuildInventoryPolicyDrift(
             sinceUtc: ToUtc(SinceUtc),
             baselineProfile: normalizedProfile,
             previousCapturedAtUtc: ToUtc(PreviousUtc),
             currentCapturedAtUtc: ToUtc(CurrentUtc),
             changedOnly: ChangedOnly.IsPresent,
-            maxEndpoints: MaxEndpoints);
+            maxEndpoints: MaxEndpoints,
+            policyOverrides: policyOverrides);
         WriteObject(summary);
     }
 

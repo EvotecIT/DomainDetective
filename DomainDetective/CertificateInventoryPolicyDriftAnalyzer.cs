@@ -78,7 +78,8 @@ namespace DomainDetective {
             DateTimeOffset? previousCapturedAtUtc = null,
             DateTimeOffset? currentCapturedAtUtc = null,
             bool changedOnly = true,
-            int maxEndpoints = 300) {
+            int maxEndpoints = 300,
+            CertificateInventoryPolicyOverrides? policyOverrides = null) {
             if (maxEndpoints < 0) {
                 throw new ArgumentOutOfRangeException(nameof(maxEndpoints), "maxEndpoints must be 0 or greater.");
             }
@@ -111,8 +112,8 @@ namespace DomainDetective {
             summary.CurrentCapturedAtUtc = current?.CapturedAtUtc;
             summary.PreviousCapturedAtUtc = previous?.CapturedAtUtc;
 
-            var previousMap = BuildEndpointPolicyMap(previous, normalizedBaselineProfile);
-            var currentMap = BuildEndpointPolicyMap(current, normalizedBaselineProfile);
+            var previousMap = BuildEndpointPolicyMap(previous, normalizedBaselineProfile, policyOverrides);
+            var currentMap = BuildEndpointPolicyMap(current, normalizedBaselineProfile, policyOverrides);
 
             summary.PreviousEndpointCount = previousMap.Count;
             summary.CurrentEndpointCount = currentMap.Count;
@@ -241,7 +242,8 @@ namespace DomainDetective {
 
         private static Dictionary<string, CertificateInventoryEndpointPolicy> BuildEndpointPolicyMap(
             CertificateInventorySnapshot? snapshot,
-            string normalizedBaselineProfile) {
+            string normalizedBaselineProfile,
+            CertificateInventoryPolicyOverrides? policyOverrides) {
             var map = new Dictionary<string, CertificateInventoryEndpointPolicy>(StringComparer.OrdinalIgnoreCase);
             if (snapshot == null) {
                 return map;
@@ -251,7 +253,8 @@ namespace DomainDetective {
                 new[] { snapshot },
                 baselineProfile: normalizedBaselineProfile,
                 includeCompliant: true,
-                maxEndpoints: int.MaxValue);
+                maxEndpoints: int.MaxValue,
+                policyOverrides: policyOverrides);
 
             foreach (var endpoint in policy.Endpoints) {
                 map[BuildEndpointKey(endpoint)] = endpoint;

@@ -246,6 +246,66 @@ namespace DomainDetective.Tests {
             Assert.True(drift.ResolvedViolationCodeCounts.ContainsKey(CertificateInventoryPolicyViolationCodes.CertificateExpired));
         }
 
+        [Fact]
+        public void BuildDriftAppliesSuppressionOverridesToViolationDeltas() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-4),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildHealthyEntry(now, "override-drift.example.com", "00112233445566778899AABBCCDDEEFF00112244")
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "override-drift.example.com",
+                            ResolvedHost = "override-drift.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-20),
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            WeakKey = true,
+                            CertificateIssuerNormalized = "Issuer Healthy",
+                            CertificateRootIssuerNormalized = "Root Healthy",
+                            CertificateThumbprint = "00112233445566778899AABBCCDDEEFF00112244"
+                        }
+                    }
+                }
+            };
+            var overrides = new CertificateInventoryPolicyOverrides {
+                Defaults = new CertificateInventoryPolicyOverrideAction {
+                    SuppressViolationCodes = new[] { CertificateInventoryPolicyViolationCodes.WeakKey }
+                }
+            };
+
+            var drift = CertificateInventoryPolicyDriftAnalyzer.BuildDrift(
+                snapshots,
+                baselineProfile: "Balanced",
+                changedOnly: false,
+                maxEndpoints: 100,
+                policyOverrides: overrides);
+
+            var endpoint = drift.Endpoints.Single(row => row.Host == "override-drift.example.com");
+            Assert.Equal("Changed", endpoint.Status);
+            Assert.Empty(endpoint.NewViolationCodes);
+            Assert.False(drift.NewViolationCodeCounts.ContainsKey(CertificateInventoryPolicyViolationCodes.WeakKey));
+            Assert.Equal(0, drift.AddedViolationEndpointCount);
+        }
+
         private static CertificateInventoryEntry BuildHealthyEntry(DateTimeOffset now, string host, string thumbprint) {
             return new CertificateInventoryEntry {
                 Host = host,

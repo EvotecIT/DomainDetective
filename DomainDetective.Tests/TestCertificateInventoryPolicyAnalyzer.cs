@@ -184,6 +184,126 @@ namespace DomainDetective.Tests {
             Assert.True(policy.ViolationCodeCounts.ContainsKey(CertificateInventoryPolicyViolationCodes.HostnameMismatch));
         }
 
+        [Fact]
+        public void BuildPolicyAppliesHostSuffixOverrideAndSuppression() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "api.example.com",
+                            ResolvedHost = "api.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = false,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = true,
+                            CertificateIssuerNormalized = "Issuer Override",
+                            CertificateRootIssuerNormalized = "Root Override",
+                            CertificateThumbprint = "11AA223344556677889900AABBCCDDEEFF001122"
+                        }
+                    }
+                }
+            };
+            var overrides = new CertificateInventoryPolicyOverrides {
+                Rules = new List<CertificateInventoryPolicyOverrideRule> {
+                    new() {
+                        Name = "strict-example",
+                        Match = new CertificateInventoryPolicyOverrideMatch {
+                            HostSuffixes = new[] { "example.com" }
+                        },
+                        Action = new CertificateInventoryPolicyOverrideAction {
+                            BaselineProfile = "Strict",
+                            SuppressViolationCodes = new[] { CertificateInventoryPolicyViolationCodes.CtNotObserved }
+                        }
+                    }
+                }
+            };
+
+            var policy = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Balanced",
+                includeCompliant: true,
+                maxEndpoints: 100,
+                policyOverrides: overrides);
+
+            var endpoint = policy.Endpoints.Single();
+            Assert.Equal("Strict", endpoint.EffectiveBaselineProfile);
+            Assert.Contains("strict-example", endpoint.AppliedPolicyOverrideRules);
+            Assert.Contains(CertificateInventoryPolicyViolationCodes.CtNotObserved, endpoint.SuppressedViolationCodes);
+            Assert.DoesNotContain(endpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.CtNotObserved);
+            Assert.Contains(endpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent);
+            Assert.Contains(endpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.SecureEmailEkuPresent);
+        }
+
+        [Fact]
+        public void BuildPolicySuppressesDefaultViolationCodes() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "suppressed.example.com",
+                            ResolvedHost = "suppressed.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            WeakKey = true,
+                            CertificateIssuerNormalized = "Issuer Suppressed",
+                            CertificateRootIssuerNormalized = "Root Suppressed",
+                            CertificateThumbprint = "22AA223344556677889900AABBCCDDEEFF001122"
+                        }
+                    }
+                }
+            };
+            var overrides = new CertificateInventoryPolicyOverrides {
+                Defaults = new CertificateInventoryPolicyOverrideAction {
+                    SuppressViolationCodes = new[] { CertificateInventoryPolicyViolationCodes.WeakKey }
+                }
+            };
+
+            var policy = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Balanced",
+                includeCompliant: true,
+                maxEndpoints: 100,
+                policyOverrides: overrides);
+
+            var endpoint = policy.Endpoints.Single();
+            Assert.True(endpoint.Compliant);
+            Assert.Equal(0, endpoint.ViolationCount);
+            Assert.Contains(CertificateInventoryPolicyViolationCodes.WeakKey, endpoint.SuppressedViolationCodes);
+            Assert.DoesNotContain(endpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.WeakKey);
+        }
+
         private static CertificateInventoryEntry BuildReusableEntry(
             DateTimeOffset now,
             string host,

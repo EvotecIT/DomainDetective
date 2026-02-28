@@ -86,6 +86,9 @@ namespace DomainDetective {
         public int CertificateReuseEndpointCount { get; set; }
         public int CertificateReuseDistinctServiceCount { get; set; }
         public int CertificateReuseDistinctPortCount { get; set; }
+        public string EffectiveBaselineProfile { get; set; } = "Balanced";
+        public List<string> SuppressedViolationCodes { get; set; } = new();
+        public List<string> AppliedPolicyOverrideRules { get; set; } = new();
         public bool Compliant { get; set; }
         public int ViolationCount { get; set; }
         public string MaxViolationSeverity { get; set; } = "None";
@@ -211,7 +214,8 @@ namespace DomainDetective {
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             string? baselineProfile = "Balanced",
             bool includeCompliant = false,
-            int maxEndpoints = 300) {
+            int maxEndpoints = 300,
+            CertificateInventoryPolicyOverrides? policyOverrides = null) {
             if (maxEndpoints < 0) {
                 throw new ArgumentOutOfRangeException(nameof(maxEndpoints), "maxEndpoints must be 0 or greater.");
             }
@@ -221,7 +225,6 @@ namespace DomainDetective {
                 throw new ArgumentException($"baselineProfile must be one of: {BaselineProfileAcceptedValues}.", nameof(baselineProfile));
             }
 
-            var profile = BaselineProfileDefinitions[normalizedBaselineProfile];
             var risk = CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
                 includeNoRisk: true,
@@ -235,7 +238,30 @@ namespace DomainDetective {
 
             var rows = new List<CertificateInventoryEndpointPolicy>(risk.Endpoints.Count);
             foreach (var endpoint in risk.Endpoints) {
-                var row = EvaluateEndpoint(endpoint, profile);
+                var resolvedOverride = policyOverrides?.ResolveForEndpoint(
+                    endpoint.Host,
+                    endpoint.Service,
+                    endpoint.Port,
+                    normalizedBaselineProfile);
+
+                var effectiveProfileName = resolvedOverride?.EffectiveBaselineProfile ?? normalizedBaselineProfile;
+                if (!TryResolveBaselineProfile(effectiveProfileName, out var normalizedEffectiveProfileName)) {
+                    throw new InvalidOperationException(
+                        $"Policy override baseline profile '{effectiveProfileName}' must be one of: {BaselineProfileAcceptedValues}.");
+                }
+
+                var endpointProfile = BaselineProfileDefinitions[normalizedEffectiveProfileName];
+                var suppressedCodes = resolvedOverride?.SuppressedViolationCodes?.Count > 0
+                    ? new HashSet<string>(resolvedOverride.SuppressedViolationCodes, StringComparer.OrdinalIgnoreCase)
+                    : null;
+                var appliedRules = resolvedOverride?.AppliedRuleNames ?? new List<string>();
+
+                var row = EvaluateEndpoint(
+                    endpoint,
+                    endpointProfile,
+                    normalizedEffectiveProfileName,
+                    suppressedCodes,
+                    appliedRules);
 
                 if (!row.Compliant) {
                     summary.ViolationEndpointCount++;
@@ -271,7 +297,10 @@ namespace DomainDetective {
 
         private static CertificateInventoryEndpointPolicy EvaluateEndpoint(
             CertificateInventoryEndpointRisk endpoint,
-            BaselineProfileDefinition profile) {
+            BaselineProfileDefinition profile,
+            string effectiveBaselineProfile,
+            HashSet<string>? suppressedViolationCodes,
+            List<string> appliedPolicyOverrideRules) {
             var row = new CertificateInventoryEndpointPolicy {
                 Host = endpoint.Host,
                 Port = endpoint.Port,
@@ -303,6 +332,11 @@ namespace DomainDetective {
                 CertificateReuseEndpointCount = endpoint.CertificateReuseEndpointCount,
                 CertificateReuseDistinctServiceCount = endpoint.CertificateReuseDistinctServiceCount,
                 CertificateReuseDistinctPortCount = endpoint.CertificateReuseDistinctPortCount,
+                EffectiveBaselineProfile = effectiveBaselineProfile,
+                SuppressedViolationCodes = suppressedViolationCodes == null
+                    ? new List<string>()
+                    : suppressedViolationCodes.OrderBy(code => code, StringComparer.OrdinalIgnoreCase).ToList(),
+                AppliedPolicyOverrideRules = (appliedPolicyOverrideRules ?? new List<string>()).ToList(),
                 RiskReasons = endpoint.Reasons.ToList()
             };
 
@@ -311,7 +345,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.EndpointUnreachable,
                     "Critical",
-                    "Endpoint is unreachable during certificate collection.");
+                    "Endpoint is unreachable during certificate collection.",
+                    suppressedViolationCodes);
             }
 
             if (row.NotYetValid) {
@@ -319,7 +354,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.CertificateNotYetValid,
                     "Critical",
-                    "Certificate validity window starts in the future.");
+                    "Certificate validity window starts in the future.",
+                    suppressedViolationCodes);
             }
 
             if (row.Expired) {
@@ -327,13 +363,15 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.CertificateExpired,
                     "Critical",
-                    "Certificate is expired.");
+                    "Certificate is expired.",
+                    suppressedViolationCodes);
             } else if (row.DaysToExpire.HasValue && row.DaysToExpire.Value >= 0 && row.DaysToExpire.Value <= profile.RenewalWindowDays) {
                 AddViolation(
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.CertificateExpiringSoon,
                     profile.ExpiringSoonSeverity,
-                    $"Certificate expires within {profile.RenewalWindowDays} days.");
+                    $"Certificate expires within {profile.RenewalWindowDays} days.",
+                    suppressedViolationCodes);
             }
 
             if (!row.Valid && row.IsReachable) {
@@ -341,7 +379,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.CertificateValidationFailed,
                     "High",
-                    "Certificate validation failed for reachable endpoint.");
+                    "Certificate validation failed for reachable endpoint.",
+                    suppressedViolationCodes);
             }
 
             if (!row.ChainComplete && row.IsReachable && !row.IsSelfSigned) {
@@ -349,7 +388,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.ChainIncomplete,
                     "High",
-                    "Certificate chain appears incomplete.");
+                    "Certificate chain appears incomplete.",
+                    suppressedViolationCodes);
             }
 
             if (!row.HostnameMatch && row.IsReachable) {
@@ -357,7 +397,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.HostnameMismatch,
                     "High",
-                    "Certificate subject/SAN does not match requested hostname.");
+                    "Certificate subject/SAN does not match requested hostname.",
+                    suppressedViolationCodes);
             }
 
             if (!row.AllowsServerAuthentication && row.IsReachable) {
@@ -365,7 +406,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.MissingServerAuthEku,
                     "High",
-                    "Certificate is missing Server Authentication EKU usage.");
+                    "Certificate is missing Server Authentication EKU usage.",
+                    suppressedViolationCodes);
             }
 
             if (row.IsSelfSigned) {
@@ -373,7 +415,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.SelfSignedCertificate,
                     "High",
-                    "Endpoint uses a self-signed certificate.");
+                    "Endpoint uses a self-signed certificate.",
+                    suppressedViolationCodes);
             }
 
             if (row.WeakKey) {
@@ -381,7 +424,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.WeakKey,
                     "High",
-                    "Certificate key strength is below policy expectations.");
+                    "Certificate key strength is below policy expectations.",
+                    suppressedViolationCodes);
             }
 
             if (row.Sha1Signature) {
@@ -389,7 +433,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.Sha1Signature,
                     "High",
-                    "Certificate uses SHA-1 signature algorithm.");
+                    "Certificate uses SHA-1 signature algorithm.",
+                    suppressedViolationCodes);
             }
 
             if (profile.FlagUnknownAuthority && row.IsReachable && !row.IsSelfSigned && !row.IsKnownCertificateAuthority) {
@@ -397,7 +442,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.UnknownAuthority,
                     "Medium",
-                    "Certificate issuer is not recognized as a known public CA.");
+                    "Certificate issuer is not recognized as a known public CA.",
+                    suppressedViolationCodes);
             }
 
             if (profile.FlagUnknownRootAuthority && row.IsReachable && !row.IsSelfSigned && !row.IsKnownRootCertificateAuthority) {
@@ -405,7 +451,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.UnknownRootAuthority,
                     "Medium",
-                    "Certificate root issuer is not recognized as a known public root CA.");
+                    "Certificate root issuer is not recognized as a known public root CA.",
+                    suppressedViolationCodes);
             }
 
             if (profile.RequireCtForKnownAuthority && row.IsReachable && row.IsKnownCertificateAuthority && !row.PresentInCtLogs) {
@@ -413,7 +460,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.CtNotObserved,
                     "Medium",
-                    "Certificate was not observed in certificate transparency sources.");
+                    "Certificate was not observed in certificate transparency sources.",
+                    suppressedViolationCodes);
             }
 
             if (profile.FlagClientAuthUsage && row.AllowsClientAuthentication) {
@@ -421,7 +469,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent,
                     "Medium",
-                    "Certificate allows Client Authentication EKU under strict baseline.");
+                    "Certificate allows Client Authentication EKU under strict baseline.",
+                    suppressedViolationCodes);
             }
 
             if (profile.FlagSecureEmailUsage && row.AllowsSecureEmail) {
@@ -429,7 +478,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.SecureEmailEkuPresent,
                     "Low",
-                    "Certificate allows Secure Email EKU under strict baseline.");
+                    "Certificate allows Secure Email EKU under strict baseline.",
+                    suppressedViolationCodes);
             }
 
             if (row.CertificateReuseEndpointCount > profile.MaxReuseEndpointCount) {
@@ -437,7 +487,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.ReuseEndpointFanout,
                     profile.ReuseEndpointFanoutSeverity,
-                    $"Certificate is reused by {row.CertificateReuseEndpointCount} endpoints (policy max {profile.MaxReuseEndpointCount}).");
+                    $"Certificate is reused by {row.CertificateReuseEndpointCount} endpoints (policy max {profile.MaxReuseEndpointCount}).",
+                    suppressedViolationCodes);
             }
 
             if (profile.FlagCrossServiceReuse && row.CertificateReuseDistinctServiceCount > 1) {
@@ -445,7 +496,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.ReuseCrossService,
                     profile.CrossReuseSeverity,
-                    "Certificate is reused across multiple services.");
+                    "Certificate is reused across multiple services.",
+                    suppressedViolationCodes);
             }
 
             if (profile.FlagCrossPortReuse && row.CertificateReuseDistinctPortCount > 1) {
@@ -453,7 +505,8 @@ namespace DomainDetective {
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.ReuseCrossPort,
                     profile.CrossReuseSeverity,
-                    "Certificate is reused across multiple ports.");
+                    "Certificate is reused across multiple ports.",
+                    suppressedViolationCodes);
             }
 
             row.ViolationCount = row.Violations.Count;
@@ -466,7 +519,13 @@ namespace DomainDetective {
             List<CertificateInventoryPolicyViolation> violations,
             string code,
             string severity,
-            string message) {
+            string message,
+            HashSet<string>? suppressedViolationCodes = null) {
+            if (suppressedViolationCodes != null &&
+                suppressedViolationCodes.Contains(code)) {
+                return;
+            }
+
             if (violations.Any(existing => string.Equals(existing.Code, code, StringComparison.OrdinalIgnoreCase))) {
                 return;
             }

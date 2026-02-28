@@ -14,6 +14,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Run strict baseline and include compliant endpoints</summary>
 ///   <code>Get-DDCertificateInventoryPolicy -BaselineProfile Strict -IncludeCompliant -MaxEndpoints 500</code>
 /// </example>
+/// <example>
+///   <summary>Apply policy overrides from a JSON file</summary>
+///   <code>Get-DDCertificateInventoryPolicy -BaselineProfile Balanced -PolicyOverridesPath .\policy-overrides.json</code>
+/// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryPolicy")]
 [Alias("Get-CertificateInventoryPolicy")]
 [OutputType(typeof(CertificateInventoryPolicySummary))]
@@ -40,6 +44,10 @@ public sealed class CmdletGetCertificateInventoryPolicy : PSCmdlet {
     [ValidateRange(0, int.MaxValue)]
     public int MaxEndpoints { get; set; } = 300;
 
+    /// <summary>Optional JSON file path with policy override rules.</summary>
+    [Parameter(Mandatory = false)]
+    public string? PolicyOverridesPath { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         if (!CertificateInventoryPolicyAnalyzer.TryResolveBaselineProfile(BaselineProfile, out var normalizedProfile)) {
@@ -61,11 +69,26 @@ public sealed class CmdletGetCertificateInventoryPolicy : PSCmdlet {
             since = new DateTimeOffset(DateTime.SpecifyKind(SinceUtc.Value, DateTimeKind.Utc));
         }
 
+        CertificateInventoryPolicyOverrides? policyOverrides = null;
+        if (!string.IsNullOrWhiteSpace(PolicyOverridesPath)) {
+            try {
+                policyOverrides = CertificateInventoryPolicyOverrides.Load(PolicyOverridesPath!);
+            } catch (Exception ex) {
+                ThrowTerminatingError(new ErrorRecord(
+                    ex,
+                    "PolicyOverridesLoadFailed",
+                    ErrorCategory.InvalidData,
+                    PolicyOverridesPath));
+                return;
+            }
+        }
+
         var policy = monitor.BuildInventoryPolicy(
             sinceUtc: since,
             baselineProfile: normalizedProfile,
             includeCompliant: IncludeCompliant.IsPresent,
-            maxEndpoints: MaxEndpoints);
+            maxEndpoints: MaxEndpoints,
+            policyOverrides: policyOverrides);
         WriteObject(policy);
     }
 

@@ -62,6 +62,11 @@ internal sealed class CertificateInventoryPolicyDriftSettings : CommandSettings 
     [Description("Optional CSV output path for endpoint policy drift rows.")]
     [CommandOption("--csv-path <PATH>")]
     public string? CsvPath { get; set; }
+
+    /// <summary>Optional JSON file path with policy override rules.</summary>
+    [Description("Optional JSON file path with policy override rules.")]
+    [CommandOption("--policy-overrides-path <PATH>")]
+    public string? PolicyOverridesPath { get; set; }
 }
 
 /// <summary>
@@ -86,6 +91,16 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
         }
 
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
+        CertificateInventoryPolicyOverrides? policyOverrides = null;
+        if (!string.IsNullOrWhiteSpace(settings.PolicyOverridesPath)) {
+            try {
+                policyOverrides = CertificateInventoryPolicyOverrides.Load(settings.PolicyOverridesPath!);
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to load policy overrides:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
+
         var monitor = new CertificateMonitor {
             CacheDirectory = cacheDirectory,
             PersistInventorySnapshots = false
@@ -97,7 +112,8 @@ internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<Cert
             previousCapturedAtUtc: ToUtc(settings.PreviousUtc),
             currentCapturedAtUtc: ToUtc(settings.CurrentUtc),
             changedOnly: settings.ChangedOnly,
-            maxEndpoints: settings.MaxEndpoints);
+            maxEndpoints: settings.MaxEndpoints,
+            policyOverrides: policyOverrides);
 
         if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
             try {

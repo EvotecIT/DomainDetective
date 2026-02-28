@@ -52,6 +52,11 @@ internal sealed class CertificateInventoryPolicySettings : CommandSettings {
     [Description("Optional CSV output path for endpoint policy rows.")]
     [CommandOption("--csv-path <PATH>")]
     public string? CsvPath { get; set; }
+
+    /// <summary>Optional JSON file path with policy override rules.</summary>
+    [Description("Optional JSON file path with policy override rules.")]
+    [CommandOption("--policy-overrides-path <PATH>")]
+    public string? PolicyOverridesPath { get; set; }
 }
 
 /// <summary>
@@ -76,6 +81,16 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
         }
 
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
+        CertificateInventoryPolicyOverrides? policyOverrides = null;
+        if (!string.IsNullOrWhiteSpace(settings.PolicyOverridesPath)) {
+            try {
+                policyOverrides = CertificateInventoryPolicyOverrides.Load(settings.PolicyOverridesPath!);
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to load policy overrides:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+        }
+
         var monitor = new CertificateMonitor {
             CacheDirectory = cacheDirectory,
             PersistInventorySnapshots = false
@@ -85,7 +100,8 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
             sinceUtc: ToUtc(settings.SinceUtc),
             baselineProfile: normalizedProfile,
             includeCompliant: settings.IncludeCompliant,
-            maxEndpoints: settings.MaxEndpoints);
+            maxEndpoints: settings.MaxEndpoints,
+            policyOverrides: policyOverrides);
 
         if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
             try {
@@ -213,7 +229,7 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("Host,Port,Service,Compliant,ViolationCount,MaxViolationSeverity,RiskScore,RiskSeverity,Issuer,RootIssuer,NotBeforeUtc,NotAfterUtc,DaysUntilValid,DaysToExpire,AuthenticationProfile,CertificateReuseEndpointCount,CertificateReuseDistinctServiceCount,CertificateReuseDistinctPortCount,ViolationCodes,ViolationSeverities,ViolationMessages,RiskReasons");
+        sb.AppendLine("Host,Port,Service,Compliant,EffectiveBaselineProfile,ViolationCount,MaxViolationSeverity,RiskScore,RiskSeverity,Issuer,RootIssuer,NotBeforeUtc,NotAfterUtc,DaysUntilValid,DaysToExpire,AuthenticationProfile,CertificateReuseEndpointCount,CertificateReuseDistinctServiceCount,CertificateReuseDistinctPortCount,SuppressedViolationCodes,AppliedPolicyOverrideRules,ViolationCodes,ViolationSeverities,ViolationMessages,RiskReasons");
 
         foreach (var endpoint in policy.Endpoints) {
             var violationCodes = endpoint.Violations.Count == 0
@@ -228,6 +244,12 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
             var riskReasons = endpoint.RiskReasons.Count == 0
                 ? string.Empty
                 : string.Join("|", endpoint.RiskReasons);
+            var suppressedViolationCodes = endpoint.SuppressedViolationCodes.Count == 0
+                ? string.Empty
+                : string.Join("|", endpoint.SuppressedViolationCodes);
+            var appliedOverrideRules = endpoint.AppliedPolicyOverrideRules.Count == 0
+                ? string.Empty
+                : string.Join("|", endpoint.AppliedPolicyOverrideRules);
 
             sb.Append(EscapeCsv(endpoint.Host));
             sb.Append(',');
@@ -236,6 +258,8 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
             sb.Append(EscapeCsv(endpoint.Service));
             sb.Append(',');
             sb.Append(endpoint.Compliant ? "true" : "false");
+            sb.Append(',');
+            sb.Append(EscapeCsv(endpoint.EffectiveBaselineProfile));
             sb.Append(',');
             sb.Append(endpoint.ViolationCount);
             sb.Append(',');
@@ -264,6 +288,10 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
             sb.Append(endpoint.CertificateReuseDistinctServiceCount);
             sb.Append(',');
             sb.Append(endpoint.CertificateReuseDistinctPortCount);
+            sb.Append(',');
+            sb.Append(EscapeCsv(suppressedViolationCodes));
+            sb.Append(',');
+            sb.Append(EscapeCsv(appliedOverrideRules));
             sb.Append(',');
             sb.Append(EscapeCsv(violationCodes));
             sb.Append(',');
