@@ -490,6 +490,10 @@ namespace DomainDetective {
         /// <param name="hostContains">Optional case-insensitive host substring filter.</param>
         /// <param name="serviceEquals">Optional case-insensitive service exact-match filter (for example HTTPS, HTTPS-Alt, Custom TLS).</param>
         /// <param name="portEquals">Optional endpoint port exact-match filter (1-65535).</param>
+        /// <param name="chainLengthMin">When set, only returns endpoint rows whose observed chain length is greater than or equal to this value.</param>
+        /// <param name="chainLengthMax">When set, only returns endpoint rows whose observed chain length is less than or equal to this value.</param>
+        /// <param name="intermediateCountMin">When set, only returns endpoint rows whose observed intermediate-count is greater than or equal to this value.</param>
+        /// <param name="intermediateCountMax">When set, only returns endpoint rows whose observed intermediate-count is less than or equal to this value.</param>
         /// <param name="ctObservedOnly">When set, only returns endpoint rows whose CT-observation state equals this value.</param>
         /// <param name="chainCompleteOnly">When set, only returns endpoint rows whose chain-completeness state equals this value.</param>
         /// <param name="reachableOnly">When set, only returns endpoint rows whose network-reachability state equals this value.</param>
@@ -531,6 +535,10 @@ namespace DomainDetective {
             string? hostContains = null,
             string? serviceEquals = null,
             int? portEquals = null,
+            int? chainLengthMin = null,
+            int? chainLengthMax = null,
+            int? intermediateCountMin = null,
+            int? intermediateCountMax = null,
             bool? ctObservedOnly = null,
             bool? chainCompleteOnly = null,
             bool? reachableOnly = null,
@@ -575,6 +583,10 @@ namespace DomainDetective {
                 hostContains,
                 serviceEquals,
                 portEquals,
+                chainLengthMin,
+                chainLengthMax,
+                intermediateCountMin,
+                intermediateCountMax,
                 ctObservedOnly,
                 chainCompleteOnly,
                 reachableOnly,

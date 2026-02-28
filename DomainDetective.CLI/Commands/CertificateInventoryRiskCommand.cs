@@ -133,6 +133,26 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--port <N>")]
     public int? PortEquals { get; set; }
 
+    /// <summary>Only include endpoints whose observed chain length is greater than or equal to this value.</summary>
+    [Description("Only include endpoints whose observed chain length is greater than or equal to this value.")]
+    [CommandOption("--chain-length-min <N>")]
+    public int? ChainLengthMin { get; set; }
+
+    /// <summary>Only include endpoints whose observed chain length is less than or equal to this value.</summary>
+    [Description("Only include endpoints whose observed chain length is less than or equal to this value.")]
+    [CommandOption("--chain-length-max <N>")]
+    public int? ChainLengthMax { get; set; }
+
+    /// <summary>Only include endpoints whose observed intermediate count is greater than or equal to this value.</summary>
+    [Description("Only include endpoints whose observed intermediate count is greater than or equal to this value.")]
+    [CommandOption("--intermediate-count-min <N>")]
+    public int? IntermediateCountMin { get; set; }
+
+    /// <summary>Only include endpoints whose observed intermediate count is less than or equal to this value.</summary>
+    [Description("Only include endpoints whose observed intermediate count is less than or equal to this value.")]
+    [CommandOption("--intermediate-count-max <N>")]
+    public int? IntermediateCountMax { get; set; }
+
     /// <summary>Only include endpoints whose certificates were observed in CT logs.</summary>
     [Description("Only include endpoints whose certificates were observed in CT logs.")]
     [CommandOption("--ct-observed-only")]
@@ -330,6 +350,30 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--port must be between 1 and 65535.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ChainLengthMin.HasValue && settings.ChainLengthMin.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--chain-length-min must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ChainLengthMax.HasValue && settings.ChainLengthMax.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--chain-length-max must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ChainLengthMin.HasValue && settings.ChainLengthMax.HasValue && settings.ChainLengthMin.Value > settings.ChainLengthMax.Value) {
+            AnsiConsole.MarkupLine("[red]--chain-length-min cannot be greater than --chain-length-max.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.IntermediateCountMin.HasValue && settings.IntermediateCountMin.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--intermediate-count-min must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.IntermediateCountMax.HasValue && settings.IntermediateCountMax.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--intermediate-count-max must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.IntermediateCountMin.HasValue && settings.IntermediateCountMax.HasValue && settings.IntermediateCountMin.Value > settings.IntermediateCountMax.Value) {
+            AnsiConsole.MarkupLine("[red]--intermediate-count-min cannot be greater than --intermediate-count-max.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.CtObservedOnly && settings.CtMissingOnly) {
             AnsiConsole.MarkupLine("[red]--ct-observed-only cannot be combined with --ct-missing-only.[/]");
             return Task.FromResult(1);
@@ -443,6 +487,10 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             hostContains: settings.HostContains,
             serviceEquals: settings.ServiceEquals,
             portEquals: settings.PortEquals,
+            chainLengthMin: settings.ChainLengthMin,
+            chainLengthMax: settings.ChainLengthMax,
+            intermediateCountMin: settings.IntermediateCountMin,
+            intermediateCountMax: settings.IntermediateCountMax,
             ctObservedOnly: settings.CtObservedOnly ? true : settings.CtMissingOnly ? false : null,
             chainCompleteOnly: settings.ChainCompleteOnly ? true : settings.ChainIncompleteOnly ? false : null,
             reachableOnly: settings.ReachableOnly ? true : settings.UnreachableOnly ? false : null,
@@ -518,6 +566,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         rows.AddColumn("Host");
         rows.AddColumn("Port");
         rows.AddColumn("Service");
+        rows.AddColumn("Chain");
         rows.AddColumn("Score");
         rows.AddColumn("Severity");
         rows.AddColumn("Valid From");
@@ -536,12 +585,16 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
                 expiry = $"{expiry} ({endpoint.DaysToExpire.Value}d)";
             }
 
+            var chain = endpoint.ChainLength > 0
+                ? $"{endpoint.ChainLength}/{endpoint.IntermediateCount}"
+                : "-";
             var auth = BuildAuthSummary(endpoint);
             var reasons = endpoint.Reasons.Count > 0 ? string.Join(",", endpoint.Reasons) : "-";
             rows.AddRow(
                 endpoint.Host,
                 endpoint.Port.ToString(),
                 endpoint.Service,
+                chain,
                 endpoint.Score.ToString(),
                 endpoint.Severity,
                 validFrom,

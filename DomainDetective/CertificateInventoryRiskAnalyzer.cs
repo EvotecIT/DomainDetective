@@ -55,6 +55,8 @@ namespace DomainDetective {
         /// </summary>
         public bool NotYetValid { get; set; }
         public bool ChainComplete { get; set; }
+        public int ChainLength { get; set; }
+        public int IntermediateCount { get; set; }
         public bool HostnameMatch { get; set; }
         public bool IsReachable { get; set; }
         public bool IsSelfSigned { get; set; }
@@ -213,6 +215,10 @@ namespace DomainDetective {
             string? hostContains = null,
             string? serviceEquals = null,
             int? portEquals = null,
+            int? chainLengthMin = null,
+            int? chainLengthMax = null,
+            int? intermediateCountMin = null,
+            int? intermediateCountMax = null,
             bool? ctObservedOnly = null,
             bool? chainCompleteOnly = null,
             bool? reachableOnly = null,
@@ -297,6 +303,32 @@ namespace DomainDetective {
             var portExpected = hasPortFilter ? portEquals!.Value : 0;
             if (hasPortFilter && (portExpected <= 0 || portExpected > 65535)) {
                 throw new ArgumentOutOfRangeException(nameof(portEquals), "portEquals must be between 1 and 65535.");
+            }
+            var hasChainLengthMinFilter = chainLengthMin.HasValue;
+            var chainLengthMinExpected = hasChainLengthMinFilter ? chainLengthMin!.Value : 0;
+            if (hasChainLengthMinFilter && chainLengthMinExpected < 0) {
+                throw new ArgumentOutOfRangeException(nameof(chainLengthMin), "chainLengthMin must be 0 or greater.");
+            }
+            var hasChainLengthMaxFilter = chainLengthMax.HasValue;
+            var chainLengthMaxExpected = hasChainLengthMaxFilter ? chainLengthMax!.Value : 0;
+            if (hasChainLengthMaxFilter && chainLengthMaxExpected < 0) {
+                throw new ArgumentOutOfRangeException(nameof(chainLengthMax), "chainLengthMax must be 0 or greater.");
+            }
+            if (hasChainLengthMinFilter && hasChainLengthMaxFilter && chainLengthMinExpected > chainLengthMaxExpected) {
+                throw new ArgumentException("chainLengthMin cannot be greater than chainLengthMax.", nameof(chainLengthMin));
+            }
+            var hasIntermediateCountMinFilter = intermediateCountMin.HasValue;
+            var intermediateCountMinExpected = hasIntermediateCountMinFilter ? intermediateCountMin!.Value : 0;
+            if (hasIntermediateCountMinFilter && intermediateCountMinExpected < 0) {
+                throw new ArgumentOutOfRangeException(nameof(intermediateCountMin), "intermediateCountMin must be 0 or greater.");
+            }
+            var hasIntermediateCountMaxFilter = intermediateCountMax.HasValue;
+            var intermediateCountMaxExpected = hasIntermediateCountMaxFilter ? intermediateCountMax!.Value : 0;
+            if (hasIntermediateCountMaxFilter && intermediateCountMaxExpected < 0) {
+                throw new ArgumentOutOfRangeException(nameof(intermediateCountMax), "intermediateCountMax must be 0 or greater.");
+            }
+            if (hasIntermediateCountMinFilter && hasIntermediateCountMaxFilter && intermediateCountMinExpected > intermediateCountMaxExpected) {
+                throw new ArgumentException("intermediateCountMin cannot be greater than intermediateCountMax.", nameof(intermediateCountMin));
             }
             var hasDaysToExpireMinFilter = effectiveDaysToExpireMin.HasValue;
             var daysToExpireMinExpected = hasDaysToExpireMinFilter ? effectiveDaysToExpireMin!.Value : 0;
@@ -469,6 +501,18 @@ namespace DomainDetective {
                 if (hasPortFilter && row.Port != portExpected) {
                     continue;
                 }
+                if (hasChainLengthMinFilter && row.ChainLength < chainLengthMinExpected) {
+                    continue;
+                }
+                if (hasChainLengthMaxFilter && row.ChainLength > chainLengthMaxExpected) {
+                    continue;
+                }
+                if (hasIntermediateCountMinFilter && row.IntermediateCount < intermediateCountMinExpected) {
+                    continue;
+                }
+                if (hasIntermediateCountMaxFilter && row.IntermediateCount > intermediateCountMaxExpected) {
+                    continue;
+                }
                 if (ctObservedOnly.HasValue && row.PresentInCtLogs != ctObservedOnly.Value) {
                     continue;
                 }
@@ -589,6 +633,8 @@ namespace DomainDetective {
                 Valid = entry.Valid,
                 Expired = entry.Expired,
                 ChainComplete = entry.ChainComplete,
+                ChainLength = Math.Max(0, entry.CertificateChainLength),
+                IntermediateCount = Math.Max(0, entry.CertificateIntermediateCount),
                 HostnameMatch = entry.HostnameMatch,
                 IsReachable = entry.IsReachable,
                 IsSelfSigned = entry.IsSelfSigned,

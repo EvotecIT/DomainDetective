@@ -120,6 +120,26 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [ValidateRange(1, 65535)]
     public int? PortEquals { get; set; }
 
+    /// <summary>Only include endpoints whose observed chain length is greater than or equal to this value.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? ChainLengthMin { get; set; }
+
+    /// <summary>Only include endpoints whose observed chain length is less than or equal to this value.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? ChainLengthMax { get; set; }
+
+    /// <summary>Only include endpoints whose observed intermediate count is greater than or equal to this value.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? IntermediateCountMin { get; set; }
+
+    /// <summary>Only include endpoints whose observed intermediate count is less than or equal to this value.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? IntermediateCountMax { get; set; }
+
     /// <summary>Only include endpoints whose certificates were observed in CT logs.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter CtObservedOnly { get; set; }
@@ -364,6 +384,22 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 DaysToExpireMin));
             return;
         }
+        if (ChainLengthMin.HasValue && ChainLengthMax.HasValue && ChainLengthMin.Value > ChainLengthMax.Value) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ChainLengthMin cannot be greater than -ChainLengthMax.", nameof(ChainLengthMin)),
+                "ChainLengthRangeConflict",
+                ErrorCategory.InvalidArgument,
+                ChainLengthMin));
+            return;
+        }
+        if (IntermediateCountMin.HasValue && IntermediateCountMax.HasValue && IntermediateCountMin.Value > IntermediateCountMax.Value) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-IntermediateCountMin cannot be greater than -IntermediateCountMax.", nameof(IntermediateCountMin)),
+                "IntermediateCountRangeConflict",
+                ErrorCategory.InvalidArgument,
+                IntermediateCountMin));
+            return;
+        }
         if (DaysUntilValidMin.HasValue && DaysUntilValidMax.HasValue && DaysUntilValidMin.Value > DaysUntilValidMax.Value) {
             ThrowTerminatingError(new ErrorRecord(
                 new ArgumentException("-DaysUntilValidMin cannot be greater than -DaysUntilValidMax.", nameof(DaysUntilValidMin)),
@@ -406,6 +442,10 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             hostContains: HostContains,
             serviceEquals: ServiceEquals,
             portEquals: PortEquals,
+            chainLengthMin: ChainLengthMin,
+            chainLengthMax: ChainLengthMax,
+            intermediateCountMin: IntermediateCountMin,
+            intermediateCountMax: IntermediateCountMax,
             ctObservedOnly: CtObservedOnly.IsPresent ? true : CtMissingOnly.IsPresent ? false : null,
             chainCompleteOnly: ChainCompleteOnly.IsPresent ? true : ChainIncompleteOnly.IsPresent ? false : null,
             reachableOnly: ReachableOnly.IsPresent ? true : UnreachableOnly.IsPresent ? false : null,
