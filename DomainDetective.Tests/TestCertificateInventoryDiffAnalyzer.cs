@@ -88,6 +88,8 @@ namespace DomainDetective.Tests {
 
             var diff = CertificateInventoryDiffAnalyzer.BuildDiff(new[] { previous, current });
 
+            Assert.Null(diff.RequestedPreviousCapturedAtUtc);
+            Assert.Null(diff.RequestedCurrentCapturedAtUtc);
             Assert.Equal(previous.CapturedAtUtc, diff.PreviousCapturedAtUtc);
             Assert.Equal(current.CapturedAtUtc, diff.CurrentCapturedAtUtc);
             Assert.Equal(3, diff.PreviousEndpointCount);
@@ -96,6 +98,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, diff.RemovedCount);
             Assert.Equal(1, diff.ChangedCount);
             Assert.Equal(1, diff.UnchangedCount);
+            Assert.Empty(diff.Warnings);
 
             var api = diff.Endpoints.Single(x => x.Host == "api.example.com");
             Assert.Equal("Changed", api.Status);
@@ -176,6 +179,8 @@ namespace DomainDetective.Tests {
                 previousCapturedAtUtc: now.AddDays(-10),
                 currentCapturedAtUtc: now);
 
+            Assert.Equal(now.AddDays(-10), diff.RequestedPreviousCapturedAtUtc);
+            Assert.Equal(now, diff.RequestedCurrentCapturedAtUtc);
             Assert.Null(diff.PreviousCapturedAtUtc);
             Assert.Equal(now.AddHours(-1), diff.CurrentCapturedAtUtc);
             Assert.Equal(0, diff.PreviousEndpointCount);
@@ -183,6 +188,37 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, diff.AddedCount);
             Assert.Equal(0, diff.RemovedCount);
             Assert.Equal(0, diff.ChangedCount);
+            Assert.Contains(diff.Warnings, warning =>
+                warning.Contains("Requested previous snapshot", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public void BuildDiffAddsWarningWhenRequestedCurrentSnapshotIsUnavailable() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-2),
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() { Host = "app.example.com", ResolvedHost = "app.example.com", Port = 443, CertificateThumbprint = "A1" }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() { Host = "app.example.com", ResolvedHost = "app.example.com", Port = 443, CertificateThumbprint = "A2" }
+                    }
+                }
+            };
+
+            var diff = CertificateInventoryDiffAnalyzer.BuildDiff(
+                snapshots,
+                currentCapturedAtUtc: now.AddDays(-5));
+
+            Assert.Equal(now.AddDays(-5), diff.RequestedCurrentCapturedAtUtc);
+            Assert.Equal(now.AddHours(-1), diff.CurrentCapturedAtUtc);
+            Assert.Contains(diff.Warnings, warning =>
+                warning.Contains("Requested current snapshot", StringComparison.OrdinalIgnoreCase) &&
+                warning.Contains("using latest snapshot", StringComparison.OrdinalIgnoreCase));
         }
     }
 }

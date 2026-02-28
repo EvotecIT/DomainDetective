@@ -458,13 +458,107 @@ namespace DomainDetective {
             DateTimeOffset? currentCapturedAtUtc = null,
             bool includeUnchanged = false,
             int maxEndpoints = 500) {
-            var snapshots = LoadInventorySnapshots(sinceUtc);
-            return CertificateInventoryDiffAnalyzer.BuildDiff(
+            var allSnapshots = LoadInventorySnapshots();
+            var snapshots = allSnapshots;
+            if (sinceUtc.HasValue) {
+                snapshots = allSnapshots
+                    .Where(snapshot => snapshot.CapturedAtUtc >= sinceUtc.Value)
+                    .ToList();
+            }
+
+            var summary = CertificateInventoryDiffAnalyzer.BuildDiff(
                 snapshots,
                 previousCapturedAtUtc,
                 currentCapturedAtUtc,
                 includeUnchanged,
                 maxEndpoints);
+            AppendDiffSinceUtcSelectorWarnings(summary, allSnapshots, sinceUtc, previousCapturedAtUtc, currentCapturedAtUtc);
+            return summary;
+        }
+
+        private static void AppendDiffSinceUtcSelectorWarnings(
+            CertificateInventoryDiffSummary summary,
+            IReadOnlyList<CertificateInventorySnapshot> allSnapshots,
+            DateTimeOffset? sinceUtc,
+            DateTimeOffset? previousCapturedAtUtc,
+            DateTimeOffset? currentCapturedAtUtc) {
+            if (!sinceUtc.HasValue) {
+                return;
+            }
+
+            if (!previousCapturedAtUtc.HasValue && !currentCapturedAtUtc.HasValue) {
+                return;
+            }
+
+            if (allSnapshots.Count == 0) {
+                return;
+            }
+
+            var sinceCutoff = sinceUtc.Value;
+            if (previousCapturedAtUtc.HasValue) {
+                var fullPrevious = ResolveSnapshotAtOrBefore(allSnapshots, previousCapturedAtUtc.Value);
+                if (fullPrevious != null &&
+                    fullPrevious.CapturedAtUtc < sinceCutoff &&
+                    (!summary.PreviousCapturedAtUtc.HasValue || summary.PreviousCapturedAtUtc.Value != fullPrevious.CapturedAtUtc)) {
+                    var warning = string.Format(
+                        "Requested previous snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC resolves to {1:yyyy-MM-dd HH:mm:ss} UTC, but --since-utc ({2:yyyy-MM-dd HH:mm:ss} UTC) excluded it.",
+                        previousCapturedAtUtc.Value.UtcDateTime,
+                        fullPrevious.CapturedAtUtc.UtcDateTime,
+                        sinceCutoff.UtcDateTime);
+                    ReplaceDiffWarningIfMissing(
+                        summary,
+                        string.Format("Requested previous snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC", previousCapturedAtUtc.Value.UtcDateTime),
+                        warning);
+                }
+            }
+
+            if (currentCapturedAtUtc.HasValue) {
+                var fullCurrent = ResolveSnapshotAtOrBefore(allSnapshots, currentCapturedAtUtc.Value);
+                if (fullCurrent != null &&
+                    fullCurrent.CapturedAtUtc < sinceCutoff &&
+                    (!summary.CurrentCapturedAtUtc.HasValue || summary.CurrentCapturedAtUtc.Value != fullCurrent.CapturedAtUtc)) {
+                    var warning = string.Format(
+                        "Requested current snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC resolves to {1:yyyy-MM-dd HH:mm:ss} UTC, but --since-utc ({2:yyyy-MM-dd HH:mm:ss} UTC) excluded it.",
+                        currentCapturedAtUtc.Value.UtcDateTime,
+                        fullCurrent.CapturedAtUtc.UtcDateTime,
+                        sinceCutoff.UtcDateTime);
+                    ReplaceDiffWarningIfMissing(
+                        summary,
+                        string.Format("Requested current snapshot at or before {0:yyyy-MM-dd HH:mm:ss} UTC", currentCapturedAtUtc.Value.UtcDateTime),
+                        warning);
+                }
+            }
+        }
+
+        private static void ReplaceDiffWarningIfMissing(
+            CertificateInventoryDiffSummary summary,
+            string warningPrefix,
+            string warning) {
+            if (!string.IsNullOrWhiteSpace(warningPrefix)) {
+                for (var i = summary.Warnings.Count - 1; i >= 0; i--) {
+                    var existing = summary.Warnings[i];
+                    if (!string.IsNullOrWhiteSpace(existing) &&
+                        existing.StartsWith(warningPrefix, StringComparison.OrdinalIgnoreCase)) {
+                        summary.Warnings.RemoveAt(i);
+                    }
+                }
+            }
+
+            AddDiffWarningIfMissing(summary, warning);
+        }
+
+        private static void AddDiffWarningIfMissing(CertificateInventoryDiffSummary summary, string warning) {
+            if (string.IsNullOrWhiteSpace(warning)) {
+                return;
+            }
+
+            foreach (var existing in summary.Warnings) {
+                if (string.Equals(existing, warning, StringComparison.OrdinalIgnoreCase)) {
+                    return;
+                }
+            }
+
+            summary.Warnings.Add(warning);
         }
 
         /// <summary>Builds endpoint-level certificate risk posture from persisted inventory snapshots.</summary>
