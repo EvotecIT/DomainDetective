@@ -222,7 +222,9 @@ namespace DomainDetective.Tests {
             Assert.Equal(0, risk.EndpointCount);
             Assert.Equal(0, risk.UniqueCertificateIdentityCount);
             Assert.Equal(0, risk.ReusedCertificateIdentityCount);
+            Assert.Equal(0d, risk.ReusedCertificateIdentityPercentage);
             Assert.Equal(0, risk.EndpointsWithReusedCertificateCount);
+            Assert.Equal(0d, risk.EndpointsWithReusedCertificatePercentage);
             Assert.Equal(0, risk.MaxCertificateReuseEndpointCount);
             Assert.Equal(0, risk.MaxCertificateReuseDistinctServiceCount);
             Assert.Equal(0, risk.MaxCertificateReuseDistinctPortCount);
@@ -1296,7 +1298,9 @@ namespace DomainDetective.Tests {
             Assert.Equal(4, allEndpoints.Endpoints.Count);
             Assert.Equal(2, allEndpoints.UniqueCertificateIdentityCount);
             Assert.Equal(1, allEndpoints.ReusedCertificateIdentityCount);
+            Assert.Equal(50d, allEndpoints.ReusedCertificateIdentityPercentage);
             Assert.Equal(3, allEndpoints.EndpointsWithReusedCertificateCount);
+            Assert.Equal(75d, allEndpoints.EndpointsWithReusedCertificatePercentage);
             Assert.Equal(3, allEndpoints.MaxCertificateReuseEndpointCount);
             Assert.Equal(2, allEndpoints.MaxCertificateReuseDistinctServiceCount);
             Assert.Equal(2, allEndpoints.MaxCertificateReuseDistinctPortCount);

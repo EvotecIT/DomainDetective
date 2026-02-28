@@ -26,8 +26,12 @@ namespace DomainDetective {
         public int UniqueCertificateIdentityCount { get; set; }
         /// <summary>Number of distinct certificate identities used by more than one endpoint.</summary>
         public int ReusedCertificateIdentityCount { get; set; }
+        /// <summary>Percentage of distinct certificate identities reused by more than one endpoint.</summary>
+        public double ReusedCertificateIdentityPercentage { get; set; }
         /// <summary>Number of endpoints whose certificate identity is reused by at least one other endpoint.</summary>
         public int EndpointsWithReusedCertificateCount { get; set; }
+        /// <summary>Percentage of endpoints whose certificate identity is reused by at least one other endpoint.</summary>
+        public double EndpointsWithReusedCertificatePercentage { get; set; }
         /// <summary>Maximum endpoint fan-out observed for a single certificate identity.</summary>
         public int MaxCertificateReuseEndpointCount { get; set; }
         /// <summary>Maximum distinct service spread observed for a single certificate identity.</summary>
@@ -511,6 +515,9 @@ namespace DomainDetective {
             summary.UniqueCertificateIdentityCount = certificateReuseById.Count;
             if (certificateReuseById.Count > 0) {
                 summary.ReusedCertificateIdentityCount = certificateReuseById.Count(pair => pair.Value.EndpointCount > 1);
+                summary.ReusedCertificateIdentityPercentage = Math.Round(
+                    100d * summary.ReusedCertificateIdentityCount / summary.UniqueCertificateIdentityCount,
+                    2);
                 summary.EndpointsWithReusedCertificateCount = certificateReuseById.Values
                     .Where(stats => stats.EndpointCount > 1)
                     .Sum(stats => stats.EndpointCount);
@@ -824,6 +831,9 @@ namespace DomainDetective {
 
             if (summary.EndpointCount > 0) {
                 summary.AverageScore = Math.Round(totalScore / summary.EndpointCount, 2);
+                summary.EndpointsWithReusedCertificatePercentage = Math.Round(
+                    100d * summary.EndpointsWithReusedCertificateCount / summary.EndpointCount,
+                    2);
             }
 
             var normalizedMaxEndpoints = Math.Max(0, maxEndpoints);
