@@ -1,0 +1,933 @@
+using DnsClientX;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading;
+using System.Threading.Tasks;
+using DomainDetective.Helpers;
+
+namespace DomainDetective;
+
+/// <summary>
+/// Options controlling certificate inventory capture from domain lists and discovered endpoints.
+/// </summary>
+public sealed class CertificateInventoryCaptureOptions {
+    /// <summary>Certificate monitor cache directory (inventory snapshots are saved under the inventory subfolder).</summary>
+    public string CacheDirectory { get; set; } = CertificateInventoryCmdletPathDefaults.DefaultCacheDirectory;
+
+    /// <summary>DNS endpoint used for MX discovery.</summary>
+    public DnsEndpoint DnsEndpoint { get; set; } = DnsEndpoint.System;
+
+    /// <summary>When true, probes apex domains over HTTPS.</summary>
+    public bool IncludeApexHttps { get; set; } = true;
+
+    /// <summary>When true, probes www.&lt;domain&gt; over HTTPS.</summary>
+    public bool IncludeWwwHttps { get; set; } = true;
+
+    /// <summary>When true, discovers MX hosts from DNS.</summary>
+    public bool IncludeMxHosts { get; set; } = true;
+
+    /// <summary>When true, also probes discovered MX hosts over HTTPS.</summary>
+    public bool IncludeMxHttps { get; set; }
+
+    /// <summary>When true, probes discovered MX hosts for SMTP STARTTLS on <see cref="SmtpPort"/>.</summary>
+    public bool IncludeSmtpStartTls { get; set; } = true;
+
+    /// <summary>When true, probes discovered MX hosts for SMTP STARTTLS on <see cref="SubmissionPort"/>.</summary>
+    public bool IncludeSubmissionStartTls { get; set; } = true;
+
+    /// <summary>When true, probes discovered MX hosts for IMAP TLS on <see cref="ImapPort"/>.</summary>
+    public bool IncludeImapTls { get; set; }
+
+    /// <summary>When true, probes discovered MX hosts for POP3 TLS on <see cref="Pop3Port"/>.</summary>
+    public bool IncludePop3Tls { get; set; }
+
+    /// <summary>Default HTTPS port for host-only targets.</summary>
+    public int HttpsPort { get; set; } = 443;
+
+    /// <summary>SMTP STARTTLS port.</summary>
+    public int SmtpPort { get; set; } = 25;
+
+    /// <summary>SMTP submission STARTTLS port.</summary>
+    public int SubmissionPort { get; set; } = 587;
+
+    /// <summary>IMAP TLS port.</summary>
+    public int ImapPort { get; set; } = 993;
+
+    /// <summary>POP3 TLS port.</summary>
+    public int Pop3Port { get; set; } = 995;
+
+    /// <summary>Maximum MX hosts retained per domain (0 means unlimited).</summary>
+    public int MaxMxHostsPerDomain { get; set; } = 50;
+
+    /// <summary>Maximum number of concurrent probe operations.</summary>
+    public int MaxParallelism { get; set; } = 16;
+
+    /// <summary>Maximum number of concurrent domain discovery operations.</summary>
+    public int DiscoveryParallelism { get; set; } = 20;
+
+    /// <summary>Timeout applied to mail TLS probes.</summary>
+    public TimeSpan MailTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>When true, skips revocation checks for HTTPS certificate analysis.</summary>
+    public bool SkipRevocation { get; set; }
+
+    /// <summary>When true, persists a snapshot to inventory storage.</summary>
+    public bool PersistSnapshot { get; set; } = true;
+
+    /// <summary>
+    /// Additional endpoints to probe.
+    /// Supported forms:
+    /// - https://host[:port], http://host[:port]
+    /// - smtp://host[:port], submission://host[:port], imap://host[:port], pop3://host[:port], imaps://host[:port], pop3s://host[:port]
+    /// - host or host:port (treated as HTTPS).
+    /// </summary>
+    public List<string> AdditionalEndpoints { get; } = new();
+}
+
+/// <summary>
+/// Result returned after a certificate inventory capture run.
+/// </summary>
+public sealed class CertificateInventoryCaptureResult {
+    /// <summary>Timestamp of snapshot capture (UTC).</summary>
+    public DateTimeOffset CapturedAtUtc { get; set; }
+
+    /// <summary>Snapshot file path when persistence is enabled and succeeds.</summary>
+    public string SnapshotPath { get; set; } = string.Empty;
+
+    /// <summary>Input domains considered for discovery.</summary>
+    public int DomainCount { get; set; }
+
+    /// <summary>Discovered MX host count.</summary>
+    public int MxHostCount { get; set; }
+
+    /// <summary>HTTPS endpoint probe count.</summary>
+    public int HttpsEndpointCount { get; set; }
+
+    /// <summary>Mail endpoint probe count.</summary>
+    public int MailEndpointCount { get; set; }
+
+    /// <summary>Total snapshot entry count.</summary>
+    public int EntryCount { get; set; }
+
+    /// <summary>Unique endpoint count (host+port).</summary>
+    public int UniqueEndpointCount { get; set; }
+
+    /// <summary>Entries with valid certificates.</summary>
+    public int ValidCount { get; set; }
+
+    /// <summary>Entries with expired certificates.</summary>
+    public int ExpiredCount { get; set; }
+
+    /// <summary>Entries where no certificate was retrieved.</summary>
+    public int FailedCount { get; set; }
+
+    /// <summary>Domains included in the run.</summary>
+    public IReadOnlyList<string> Domains { get; set; } = Array.Empty<string>();
+
+    /// <summary>Discovered MX hosts.</summary>
+    public IReadOnlyList<string> MxHosts { get; set; } = Array.Empty<string>();
+
+    /// <summary>HTTPS endpoints probed in this run.</summary>
+    public IReadOnlyList<string> HttpsEndpoints { get; set; } = Array.Empty<string>();
+
+    /// <summary>Mail endpoints probed in this run.</summary>
+    public IReadOnlyList<string> MailEndpoints { get; set; } = Array.Empty<string>();
+
+    /// <summary>Non-fatal warnings captured during discovery/probing.</summary>
+    public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
+
+    /// <summary>Captured snapshot object.</summary>
+    public CertificateInventorySnapshot Snapshot { get; set; } = new();
+}
+
+/// <summary>
+/// Captures certificate inventory snapshots from explicit domains and discovered service endpoints.
+/// </summary>
+public sealed class CertificateInventoryCapture {
+    private sealed class MailEndpointTarget {
+        public string Host { get; set; } = string.Empty;
+        public int Port { get; set; }
+        public MailTlsAnalysis.MailProtocol Protocol { get; set; }
+        public string Service { get; set; } = string.Empty;
+        public string Scheme { get; set; } = string.Empty;
+        public string ChainSource { get; set; } = string.Empty;
+    }
+
+    internal Func<string, DnsConfiguration, int, CancellationToken, Task<IReadOnlyList<string>>>? MxLookupOverride { get; set; }
+    internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<CertificateMonitor.Entry>>>? HttpsProbeOverride { get; set; }
+    internal Func<CertificateInventorySnapshot, string, InternalLogger?, string>? PersistSnapshotOverride { get; set; }
+
+    /// <summary>
+    /// Captures one certificate inventory snapshot from the provided domains and discovery options.
+    /// </summary>
+    /// <param name="domains">Input domains for discovery.</param>
+    /// <param name="options">Capture options.</param>
+    /// <param name="logger">Optional logger instance.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Capture result with counts, warnings and the snapshot object.</returns>
+    public async Task<CertificateInventoryCaptureResult> CaptureAsync(
+        IEnumerable<string> domains,
+        CertificateInventoryCaptureOptions options,
+        InternalLogger? logger = null,
+        CancellationToken cancellationToken = default) {
+        if (domains == null) {
+            throw new ArgumentNullException(nameof(domains));
+        }
+        if (options == null) {
+            throw new ArgumentNullException(nameof(options));
+        }
+        if (options.HttpsPort < 1 || options.HttpsPort > 65535) {
+            throw new ArgumentOutOfRangeException(nameof(options.HttpsPort), "HTTPS port must be between 1 and 65535.");
+        }
+        if (options.SmtpPort < 1 || options.SmtpPort > 65535) {
+            throw new ArgumentOutOfRangeException(nameof(options.SmtpPort), "SMTP port must be between 1 and 65535.");
+        }
+        if (options.SubmissionPort < 1 || options.SubmissionPort > 65535) {
+            throw new ArgumentOutOfRangeException(nameof(options.SubmissionPort), "Submission port must be between 1 and 65535.");
+        }
+        if (options.ImapPort < 1 || options.ImapPort > 65535) {
+            throw new ArgumentOutOfRangeException(nameof(options.ImapPort), "IMAP port must be between 1 and 65535.");
+        }
+        if (options.Pop3Port < 1 || options.Pop3Port > 65535) {
+            throw new ArgumentOutOfRangeException(nameof(options.Pop3Port), "POP3 port must be between 1 and 65535.");
+        }
+
+        logger ??= new InternalLogger(false);
+
+        var warnings = new List<string>();
+        var normalizedDomains = NormalizeDomains(domains, warnings);
+        var mxHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var httpsTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var mailTargets = new Dictionary<string, MailEndpointTarget>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var domain in normalizedDomains) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (options.IncludeApexHttps) {
+                httpsTargets.Add(BuildHttpsUrl(domain, options.HttpsPort));
+            }
+            if (options.IncludeWwwHttps) {
+                httpsTargets.Add(BuildHttpsUrl($"www.{domain}", options.HttpsPort));
+            }
+        }
+
+        if (options.IncludeMxHosts || options.IncludeMxHttps || options.IncludeSmtpStartTls || options.IncludeSubmissionStartTls || options.IncludeImapTls || options.IncludePop3Tls) {
+            var dnsConfiguration = new DnsConfiguration {
+                DnsEndpoint = options.DnsEndpoint
+            };
+            var maxLookupParallelism = Math.Max(1, options.DiscoveryParallelism);
+            using var gate = new SemaphoreSlim(maxLookupParallelism, maxLookupParallelism);
+            var tasks = new List<Task>(normalizedDomains.Count);
+            var mxByDomain = new ConcurrentDictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var domain in normalizedDomains) {
+                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                tasks.Add(Task.Run(async () => {
+                    try {
+                        IReadOnlyList<string> hosts;
+                        if (MxLookupOverride != null) {
+                            hosts = await MxLookupOverride(domain, dnsConfiguration, options.MaxMxHostsPerDomain, cancellationToken).ConfigureAwait(false);
+                        } else {
+                            hosts = await ResolveMxHostsAsync(domain, dnsConfiguration, options.MaxMxHostsPerDomain, cancellationToken).ConfigureAwait(false);
+                        }
+                        mxByDomain[domain] = hosts;
+                    } catch (Exception ex) {
+                        lock (warnings) {
+                            warnings.Add($"MX discovery failed for {domain}: {ex.Message}");
+                        }
+                    } finally {
+                        gate.Release();
+                    }
+                }, cancellationToken));
+            }
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+
+            foreach (var kv in mxByDomain) {
+                foreach (var host in kv.Value) {
+                    if (!string.IsNullOrWhiteSpace(host)) {
+                        mxHosts.Add(host);
+                    }
+                }
+            }
+        }
+
+        if (options.IncludeMxHttps) {
+            foreach (var mxHost in mxHosts) {
+                httpsTargets.Add(BuildHttpsUrl(mxHost, options.HttpsPort));
+            }
+        }
+
+        foreach (var mxHost in mxHosts) {
+            AddMailTargetsForHost(mxHost, options, mailTargets);
+        }
+
+        ApplyAdditionalEndpoints(options, httpsTargets, mailTargets, warnings);
+
+        IReadOnlyList<CertificateMonitor.Entry> httpsEntries;
+        if (HttpsProbeOverride != null) {
+            httpsEntries = await HttpsProbeOverride(httpsTargets.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(), options, logger, cancellationToken).ConfigureAwait(false);
+        } else {
+            httpsEntries = await ProbeHttpsAsync(httpsTargets, options, logger, cancellationToken).ConfigureAwait(false);
+        }
+
+        var mailEntries = await ProbeMailAsync(mailTargets.Values.ToList(), options, logger, cancellationToken).ConfigureAwait(false);
+
+        var allEntries = new List<CertificateInventoryEntry>(httpsEntries.Count + mailEntries.Count);
+        foreach (var httpsEntry in httpsEntries) {
+            allEntries.Add(CertificateMonitor.ToInventoryEntry(httpsEntry));
+        }
+        allEntries.AddRange(mailEntries);
+
+        var deduped = DeduplicateEntries(allEntries);
+        var capturedAtUtc = DateTimeOffset.UtcNow;
+        var distinctPorts = deduped
+            .Select(e => e.Port)
+            .Where(port => port > 0)
+            .Distinct()
+            .OrderBy(port => port)
+            .ToList();
+        var snapshot = new CertificateInventorySnapshot {
+            CapturedAtUtc = capturedAtUtc,
+            Port = distinctPorts.Count == 1 ? distinctPorts[0] : 0,
+            Entries = deduped
+        };
+
+        var snapshotPath = string.Empty;
+        if (options.PersistSnapshot) {
+            if (PersistSnapshotOverride != null) {
+                snapshotPath = PersistSnapshotOverride(snapshot, options.CacheDirectory, logger);
+            } else {
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = options.CacheDirectory,
+                    PersistInventorySnapshots = false
+                };
+                snapshotPath = monitor.SaveInventorySnapshot(snapshot, logger);
+            }
+        }
+
+        var uniqueEndpoints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var validCount = 0;
+        var expiredCount = 0;
+        var failedCount = 0;
+        foreach (var entry in deduped) {
+            var host = !string.IsNullOrWhiteSpace(entry.ResolvedHost) ? entry.ResolvedHost! : entry.Host;
+            uniqueEndpoints.Add($"{host}:{entry.Port}");
+            if (entry.Valid) {
+                validCount++;
+            }
+            if (entry.Expired) {
+                expiredCount++;
+            }
+            if (string.IsNullOrWhiteSpace(entry.CertificateThumbprint)) {
+                failedCount++;
+            }
+        }
+
+        return new CertificateInventoryCaptureResult {
+            CapturedAtUtc = capturedAtUtc,
+            SnapshotPath = snapshotPath,
+            DomainCount = normalizedDomains.Count,
+            MxHostCount = mxHosts.Count,
+            HttpsEndpointCount = httpsTargets.Count,
+            MailEndpointCount = mailTargets.Count,
+            EntryCount = deduped.Count,
+            UniqueEndpointCount = uniqueEndpoints.Count,
+            ValidCount = validCount,
+            ExpiredCount = expiredCount,
+            FailedCount = failedCount,
+            Domains = normalizedDomains,
+            MxHosts = mxHosts.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            HttpsEndpoints = httpsTargets.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            MailEndpoints = mailTargets.Values
+                .OrderBy(x => x.Host, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Port)
+                .Select(BuildMailTargetLabel)
+                .ToList(),
+            Warnings = warnings,
+            Snapshot = snapshot
+        };
+    }
+
+    private static List<string> NormalizeDomains(IEnumerable<string> domains, List<string> warnings) {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rawDomain in domains) {
+            if (string.IsNullOrWhiteSpace(rawDomain)) {
+                continue;
+            }
+            var candidate = rawDomain.Trim();
+            if (candidate.IndexOf("://", StringComparison.Ordinal) >= 0 && Uri.TryCreate(candidate, UriKind.Absolute, out var uri)) {
+                candidate = uri.Host;
+            }
+            candidate = candidate.Trim().Trim('.');
+            if (string.IsNullOrWhiteSpace(candidate)) {
+                continue;
+            }
+
+            try {
+                var normalized = DomainHelper.ValidateIdn(candidate);
+                if (!string.IsNullOrWhiteSpace(normalized)) {
+                    set.Add(normalized.TrimEnd('.'));
+                }
+            } catch (Exception ex) {
+                warnings.Add($"Skipping invalid domain '{candidate}': {ex.Message}");
+            }
+        }
+        return set.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static string BuildHttpsUrl(string host, int defaultPort) {
+        if (host.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            host.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+            if (Uri.TryCreate(host, UriKind.Absolute, out var existing)) {
+                var builder = new UriBuilder(existing) {
+                    Scheme = Uri.UriSchemeHttps,
+                    Port = existing.IsDefaultPort ? defaultPort : existing.Port
+                };
+                return builder.Uri.ToString();
+            }
+        }
+
+        var candidate = host;
+        if (!candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+            candidate = $"https://{candidate}";
+        }
+        var parsed = new UriBuilder(candidate) {
+            Scheme = Uri.UriSchemeHttps
+        };
+        if (parsed.Port <= 0 || parsed.Port == 80) {
+            parsed.Port = defaultPort;
+        }
+        return parsed.Uri.ToString();
+    }
+
+    private static void AddMailTargetsForHost(string host, CertificateInventoryCaptureOptions options, Dictionary<string, MailEndpointTarget> targets) {
+        if (options.IncludeSmtpStartTls) {
+            AddMailTarget(targets, new MailEndpointTarget {
+                Host = host,
+                Port = options.SmtpPort,
+                Protocol = MailTlsAnalysis.MailProtocol.Smtp,
+                Service = "SMTP-STARTTLS",
+                Scheme = "smtp",
+                ChainSource = "mailtls-starttls"
+            });
+        }
+        if (options.IncludeSubmissionStartTls) {
+            AddMailTarget(targets, new MailEndpointTarget {
+                Host = host,
+                Port = options.SubmissionPort,
+                Protocol = MailTlsAnalysis.MailProtocol.Smtp,
+                Service = "SMTP-SUBMISSION-STARTTLS",
+                Scheme = "submission",
+                ChainSource = "mailtls-starttls"
+            });
+        }
+        if (options.IncludeImapTls) {
+            AddMailTarget(targets, new MailEndpointTarget {
+                Host = host,
+                Port = options.ImapPort,
+                Protocol = MailTlsAnalysis.MailProtocol.Imap,
+                Service = "IMAPS",
+                Scheme = "imaps",
+                ChainSource = "mailtls-directtls"
+            });
+        }
+        if (options.IncludePop3Tls) {
+            AddMailTarget(targets, new MailEndpointTarget {
+                Host = host,
+                Port = options.Pop3Port,
+                Protocol = MailTlsAnalysis.MailProtocol.Pop3,
+                Service = "POP3S",
+                Scheme = "pop3s",
+                ChainSource = "mailtls-directtls"
+            });
+        }
+    }
+
+    private static void AddMailTarget(Dictionary<string, MailEndpointTarget> targets, MailEndpointTarget target) {
+        var key = BuildMailTargetKey(target.Host, target.Port, target.Service);
+        targets[key] = target;
+    }
+
+    private static string BuildMailTargetKey(string host, int port, string service) {
+        return $"{host.Trim().ToLowerInvariant()}|{port}|{service.Trim().ToUpperInvariant()}";
+    }
+
+    private static string BuildMailTargetLabel(MailEndpointTarget target) {
+        return $"{target.Scheme}://{target.Host}:{target.Port}";
+    }
+
+    private static void ApplyAdditionalEndpoints(
+        CertificateInventoryCaptureOptions options,
+        HashSet<string> httpsTargets,
+        Dictionary<string, MailEndpointTarget> mailTargets,
+        List<string> warnings) {
+        foreach (var raw in options.AdditionalEndpoints) {
+            if (string.IsNullOrWhiteSpace(raw)) {
+                continue;
+            }
+            var value = raw.Trim();
+            if (value.IndexOf("://", StringComparison.Ordinal) >= 0) {
+                if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Host)) {
+                    warnings.Add($"Skipping invalid endpoint '{value}'.");
+                    continue;
+                }
+
+                var scheme = uri.Scheme.ToLowerInvariant();
+                if (scheme == Uri.UriSchemeHttp || scheme == Uri.UriSchemeHttps) {
+                    var builder = new UriBuilder(uri) {
+                        Scheme = Uri.UriSchemeHttps,
+                        Port = uri.IsDefaultPort ? options.HttpsPort : uri.Port
+                    };
+                    httpsTargets.Add(builder.Uri.ToString());
+                    continue;
+                }
+
+                if (TryCreateMailTargetFromScheme(uri, options, out var target)) {
+                    AddMailTarget(mailTargets, target!);
+                    continue;
+                }
+
+                warnings.Add($"Skipping unsupported endpoint scheme in '{value}'.");
+                continue;
+            }
+
+            if (TryParseHostAndPort(value, out var hostWithPort, out var parsedPort)) {
+                if (TryCreateMailTargetFromPort(hostWithPort, parsedPort, out var targetByPort)) {
+                    AddMailTarget(mailTargets, targetByPort!);
+                } else {
+                    httpsTargets.Add(BuildHttpsUrl($"{hostWithPort}:{parsedPort}", options.HttpsPort));
+                }
+            } else {
+                httpsTargets.Add(BuildHttpsUrl(value, options.HttpsPort));
+            }
+        }
+    }
+
+    private static bool TryCreateMailTargetFromScheme(Uri uri, CertificateInventoryCaptureOptions options, out MailEndpointTarget? target) {
+        target = null;
+        var host = uri.Host.Trim().TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(host)) {
+            return false;
+        }
+        var scheme = uri.Scheme.ToLowerInvariant();
+        if (scheme == "smtp") {
+            target = new MailEndpointTarget {
+                Host = host,
+                Port = uri.IsDefaultPort ? options.SmtpPort : uri.Port,
+                Protocol = MailTlsAnalysis.MailProtocol.Smtp,
+                Service = "SMTP-STARTTLS",
+                Scheme = "smtp",
+                ChainSource = "mailtls-starttls"
+            };
+            return true;
+        }
+        if (scheme == "submission") {
+            target = new MailEndpointTarget {
+                Host = host,
+                Port = uri.IsDefaultPort ? options.SubmissionPort : uri.Port,
+                Protocol = MailTlsAnalysis.MailProtocol.Smtp,
+                Service = "SMTP-SUBMISSION-STARTTLS",
+                Scheme = "submission",
+                ChainSource = "mailtls-starttls"
+            };
+            return true;
+        }
+        if (scheme == "imap" || scheme == "imaps") {
+            target = new MailEndpointTarget {
+                Host = host,
+                Port = uri.IsDefaultPort ? options.ImapPort : uri.Port,
+                Protocol = MailTlsAnalysis.MailProtocol.Imap,
+                Service = "IMAPS",
+                Scheme = "imaps",
+                ChainSource = "mailtls-directtls"
+            };
+            return true;
+        }
+        if (scheme == "pop3" || scheme == "pop3s") {
+            target = new MailEndpointTarget {
+                Host = host,
+                Port = uri.IsDefaultPort ? options.Pop3Port : uri.Port,
+                Protocol = MailTlsAnalysis.MailProtocol.Pop3,
+                Service = "POP3S",
+                Scheme = "pop3s",
+                ChainSource = "mailtls-directtls"
+            };
+            return true;
+        }
+        return false;
+    }
+
+    private static bool TryCreateMailTargetFromPort(string host, int port, out MailEndpointTarget? target) {
+        target = null;
+        var normalized = host.Trim().TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(normalized)) {
+            return false;
+        }
+
+        if (port == 25) {
+            target = new MailEndpointTarget {
+                Host = normalized,
+                Port = port,
+                Protocol = MailTlsAnalysis.MailProtocol.Smtp,
+                Service = "SMTP-STARTTLS",
+                Scheme = "smtp",
+                ChainSource = "mailtls-starttls"
+            };
+            return true;
+        }
+        if (port == 587) {
+            target = new MailEndpointTarget {
+                Host = normalized,
+                Port = port,
+                Protocol = MailTlsAnalysis.MailProtocol.Smtp,
+                Service = "SMTP-SUBMISSION-STARTTLS",
+                Scheme = "submission",
+                ChainSource = "mailtls-starttls"
+            };
+            return true;
+        }
+        if (port == 993) {
+            target = new MailEndpointTarget {
+                Host = normalized,
+                Port = port,
+                Protocol = MailTlsAnalysis.MailProtocol.Imap,
+                Service = "IMAPS",
+                Scheme = "imaps",
+                ChainSource = "mailtls-directtls"
+            };
+            return true;
+        }
+        if (port == 995) {
+            target = new MailEndpointTarget {
+                Host = normalized,
+                Port = port,
+                Protocol = MailTlsAnalysis.MailProtocol.Pop3,
+                Service = "POP3S",
+                Scheme = "pop3s",
+                ChainSource = "mailtls-directtls"
+            };
+            return true;
+        }
+        return false;
+    }
+
+    private static bool TryParseHostAndPort(string value, out string host, out int port) {
+        host = string.Empty;
+        port = 0;
+        var idx = value.LastIndexOf(':');
+        if (idx <= 0 || idx >= value.Length - 1) {
+            return false;
+        }
+        var maybeHost = value.Substring(0, idx).Trim();
+        var maybePort = value.Substring(idx + 1).Trim();
+        if (!int.TryParse(maybePort, out var parsed) || parsed < 1 || parsed > 65535) {
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(maybeHost)) {
+            return false;
+        }
+        host = maybeHost;
+        port = parsed;
+        return true;
+    }
+
+    private static async Task<IReadOnlyList<string>> ResolveMxHostsAsync(string domain, DnsConfiguration dnsConfiguration, int maxMxHostsPerDomain, CancellationToken cancellationToken) {
+        var answers = await dnsConfiguration.QueryDNS(domain, DnsRecordType.MX, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var hosts = new List<string>();
+        foreach (var answer in answers) {
+            var raw = !string.IsNullOrWhiteSpace(answer.Data) ? answer.Data : answer.DataRaw;
+            if (string.IsNullOrWhiteSpace(raw)) {
+                continue;
+            }
+            var parts = raw.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            string host;
+            if (parts.Length >= 2) {
+                host = parts[1].Trim();
+            } else if (parts.Length == 1) {
+                host = parts[0].Trim();
+            } else {
+                continue;
+            }
+            host = host.TrimEnd('.');
+            if (string.IsNullOrWhiteSpace(host) || host == ".") {
+                continue;
+            }
+            hosts.Add(host);
+        }
+
+        var distinct = hosts
+            .Where(h => !string.IsNullOrWhiteSpace(h))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(h => h, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (maxMxHostsPerDomain > 0 && distinct.Count > maxMxHostsPerDomain) {
+            distinct = distinct.Take(maxMxHostsPerDomain).ToList();
+        }
+        return distinct;
+    }
+
+    private static async Task<IReadOnlyList<CertificateMonitor.Entry>> ProbeHttpsAsync(
+        IEnumerable<string> httpsTargets,
+        CertificateInventoryCaptureOptions options,
+        InternalLogger logger,
+        CancellationToken cancellationToken) {
+        var list = httpsTargets.Where(target => !string.IsNullOrWhiteSpace(target)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (list.Count == 0) {
+            return Array.Empty<CertificateMonitor.Entry>();
+        }
+
+        using var monitor = new CertificateMonitor {
+            CacheDirectory = options.CacheDirectory,
+            PersistInventorySnapshots = false,
+            MaxParallelism = Math.Max(1, options.MaxParallelism)
+        };
+        if (options.SkipRevocation) {
+            monitor.AnalysisOverride = async (url, port, internalLogger, token) => {
+                var analysis = new CertificateAnalysis {
+                    CaptureTlsDetails = true,
+                    SkipRevocation = true
+                };
+                await analysis.AnalyzeUrl(url, port, internalLogger, token).ConfigureAwait(false);
+                return analysis;
+            };
+        }
+
+        await monitor.Analyze(list, options.HttpsPort, logger, cancellationToken, showProgress: false).ConfigureAwait(false);
+        return monitor.Results.ToList();
+    }
+
+    private static async Task<IReadOnlyList<CertificateInventoryEntry>> ProbeMailAsync(
+        IReadOnlyList<MailEndpointTarget> mailTargets,
+        CertificateInventoryCaptureOptions options,
+        InternalLogger logger,
+        CancellationToken cancellationToken) {
+        if (mailTargets == null || mailTargets.Count == 0) {
+            return Array.Empty<CertificateInventoryEntry>();
+        }
+
+        var results = new ConcurrentBag<CertificateInventoryEntry>();
+        var parallelism = Math.Max(1, options.MaxParallelism);
+        using var gate = new SemaphoreSlim(parallelism, parallelism);
+        var tasks = new List<Task>(mailTargets.Count);
+        foreach (var target in mailTargets) {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            tasks.Add(Task.Run(async () => {
+                try {
+                    var analysis = new MailTlsAnalysis {
+                        Timeout = options.MailTimeout
+                    };
+                    await analysis.AnalyzeServer(target.Protocol, target.Host, target.Port, logger, cancellationToken).ConfigureAwait(false);
+                    var key = $"{target.Host}:{target.Port}";
+                    if (analysis.ServerResults.TryGetValue(key, out var tlsResult)) {
+                        results.Add(ToInventoryEntry(target, tlsResult));
+                    } else {
+                        results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult()));
+                    }
+                } catch {
+                    results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult()));
+                } finally {
+                    gate.Release();
+                }
+            }, cancellationToken));
+        }
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        return results.ToList();
+    }
+
+    private static List<CertificateInventoryEntry> DeduplicateEntries(List<CertificateInventoryEntry> entries) {
+        var byEndpoint = new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in entries) {
+            if (entry == null) {
+                continue;
+            }
+            var host = !string.IsNullOrWhiteSpace(entry.ResolvedHost) ? entry.ResolvedHost! : entry.Host;
+            var key = $"{host}|{entry.Port}|{entry.Service}";
+            if (!byEndpoint.TryGetValue(key, out var existing)) {
+                byEndpoint[key] = entry;
+                continue;
+            }
+
+            if (GetEntryScore(entry) > GetEntryScore(existing)) {
+                byEndpoint[key] = entry;
+            }
+        }
+
+        return byEndpoint.Values
+            .OrderBy(e => e.Host, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(e => e.Port)
+            .ThenBy(e => e.Service, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static int GetEntryScore(CertificateInventoryEntry entry) {
+        var score = 0;
+        if (!string.IsNullOrWhiteSpace(entry.CertificateThumbprint)) {
+            score += 10;
+        }
+        if (entry.IsReachable) {
+            score += 4;
+        }
+        if (entry.Valid) {
+            score += 6;
+        }
+        if (entry.ChainComplete) {
+            score += 2;
+        }
+        return score;
+    }
+
+    private static CertificateInventoryEntry ToInventoryEntry(MailEndpointTarget target, MailTlsAnalysis.TlsResult result) {
+        var certificate = result.Certificate;
+        var chain = result.Chain != null && result.Chain.Count > 0
+            ? result.Chain
+            : (certificate != null ? new List<X509Certificate2> { certificate } : new List<X509Certificate2>());
+        var root = chain.Count > 0 ? chain[chain.Count - 1] : null;
+
+        var issuerIdentity = CertificateIssuerClassifier.Classify(certificate);
+        var rootIdentity = CertificateIssuerClassifier.Classify(root);
+        var eku = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
+
+        var keyAlgorithm = !string.IsNullOrWhiteSpace(result.PublicKeyAlgorithm)
+            ? result.PublicKeyAlgorithm!
+            : (certificate?.PublicKey?.Oid?.FriendlyName ?? certificate?.PublicKey?.Oid?.Value ?? string.Empty);
+        var keySize = result.PublicKeySize ?? GetPublicKeySize(certificate);
+        var signatureOid = certificate?.SignatureAlgorithm?.Value ?? string.Empty;
+        var sha1Signature = signatureOid == "1.2.840.113549.1.1.5" ||
+                            signatureOid == "1.2.840.10040.4.3" ||
+                            signatureOid == "1.3.14.3.2.29";
+        var rsaPssSignature = signatureOid == "1.2.840.113549.1.1.10";
+        var authenticationProfile = string.IsNullOrWhiteSpace(eku.AuthenticationProfile)
+            ? CertificateAuthenticationProfileClassifier.Classify(eku)
+            : eku.AuthenticationProfile;
+
+        var notBeforeUtc = certificate != null
+            ? new DateTimeOffset(certificate.NotBefore.ToUniversalTime())
+            : (result.CertificateNotBefore.HasValue ? new DateTimeOffset(result.CertificateNotBefore.Value.ToUniversalTime()) : (DateTimeOffset?)null);
+        var notAfterUtc = certificate != null
+            ? new DateTimeOffset(certificate.NotAfter.ToUniversalTime())
+            : (result.CertificateNotAfter.HasValue ? new DateTimeOffset(result.CertificateNotAfter.Value.ToUniversalTime()) : (DateTimeOffset?)null);
+        var isReachable = result.StartTlsAdvertised || certificate != null;
+        var valid = certificate != null && result.CertificateValid && !result.IsExpired;
+        var chainComplete = certificate != null && result.ChainValid && chain.Count > 1;
+
+        var entry = new CertificateInventoryEntry {
+            Host = target.Host,
+            ResolvedHost = target.Host,
+            Url = $"{target.Scheme}://{target.Host}:{target.Port}",
+            Scheme = target.Scheme,
+            Port = target.Port,
+            Service = target.Service,
+            CertificateSubject = certificate?.Subject ?? result.CertificateSubject,
+            CertificateIssuer = certificate?.Issuer ?? result.CertificateIssuer,
+            CertificateThumbprint = certificate?.Thumbprint ?? result.CertificateThumbprint,
+            CertificateSerialNumber = certificate?.SerialNumber ?? result.CertificateSerialNumber,
+            CertificateIssuerCommonName = issuerIdentity.CommonName,
+            CertificateIssuerOrganization = issuerIdentity.Organization,
+            CertificateIssuerNormalized = issuerIdentity.NormalizedName,
+            CertificateAuthorityFamily = issuerIdentity.AuthorityFamily,
+            CertificateRootSubject = root?.Subject,
+            CertificateRootIssuer = root?.Issuer,
+            CertificateRootThumbprint = root?.Thumbprint,
+            CertificateRootIssuerCommonName = rootIdentity.CommonName,
+            CertificateRootIssuerOrganization = rootIdentity.Organization,
+            CertificateRootIssuerNormalized = rootIdentity.NormalizedName,
+            CertificateRootAuthorityFamily = rootIdentity.AuthorityFamily,
+            CertificateChainLength = chain.Count,
+            CertificateIntermediateCount = Math.Max(0, chain.Count - 2),
+            IsKnownCertificateAuthority = issuerIdentity.IsKnownAuthority,
+            IsKnownRootCertificateAuthority = rootIdentity.IsKnownAuthority,
+            NotBeforeUtc = notBeforeUtc,
+            NotAfterUtc = notAfterUtc,
+            Valid = valid,
+            Expired = result.IsExpired,
+            ChainComplete = chainComplete,
+            IsReachable = isReachable,
+            IsSelfSigned = IsSelfSigned(certificate),
+            HostnameMatch = certificate != null && result.HostnameMatch,
+            PresentInCtLogs = false,
+            DaysToExpire = result.DaysToExpire,
+            DaysValid = result.DaysValid,
+            Protocol = result.Protocol.ToString(),
+            KeyAlgorithm = keyAlgorithm,
+            KeySize = keySize,
+            WeakKey = keySize > 0 && keySize < 2048,
+            Sha1Signature = sha1Signature,
+            RsaPssSignature = rsaPssSignature,
+            HasEnhancedKeyUsageExtension = eku.HasEnhancedKeyUsageExtension,
+            HasAnyExtendedKeyUsageOid = eku.HasAnyExtendedKeyUsageOid,
+            AllowsServerAuthentication = eku.AllowsServerAuthentication,
+            AllowsClientAuthentication = eku.AllowsClientAuthentication,
+            AllowsSecureEmail = eku.AllowsSecureEmail,
+            AuthenticationProfile = authenticationProfile,
+            CertificateChainSource = target.ChainSource
+        };
+        entry.CertificateChainSources.Add(target.ChainSource);
+        if (eku.Oids.Count > 0) {
+            entry.ExtendedKeyUsageOids.AddRange(eku.Oids);
+        }
+        if (result.CertificateDnsNames.Count > 0) {
+            entry.SubjectAlternativeNames.AddRange(result.CertificateDnsNames.Distinct(StringComparer.OrdinalIgnoreCase));
+        }
+        foreach (var chainElement in chain) {
+            if (!string.IsNullOrWhiteSpace(chainElement.Subject)) {
+                entry.CertificateChainSubjects.Add(chainElement.Subject);
+            }
+            if (!string.IsNullOrWhiteSpace(chainElement.Issuer)) {
+                entry.CertificateChainIssuers.Add(chainElement.Issuer);
+            }
+            if (!string.IsNullOrWhiteSpace(chainElement.Thumbprint)) {
+                entry.CertificateChainThumbprints.Add(chainElement.Thumbprint);
+            }
+        }
+
+        return entry;
+    }
+
+    private static int GetPublicKeySize(X509Certificate2? certificate) {
+        if (certificate == null) {
+            return 0;
+        }
+        try {
+            using (var rsa = certificate.GetRSAPublicKey()) {
+                if (rsa != null) {
+                    return rsa.KeySize;
+                }
+            }
+        } catch {
+        }
+        try {
+            using (var ecdsa = certificate.GetECDsaPublicKey()) {
+                if (ecdsa != null) {
+                    return ecdsa.KeySize;
+                }
+            }
+        } catch {
+        }
+        try {
+            using (var dsa = certificate.GetDSAPublicKey()) {
+                if (dsa != null) {
+                    return dsa.KeySize;
+                }
+            }
+        } catch {
+        }
+        return 0;
+    }
+
+    private static bool IsSelfSigned(X509Certificate2? certificate) {
+        if (certificate == null) {
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(certificate.Subject) || string.IsNullOrWhiteSpace(certificate.Issuer)) {
+            return false;
+        }
+        return string.Equals(certificate.Subject, certificate.Issuer, StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+internal static class CertificateInventoryCmdletPathDefaults {
+    internal static string DefaultCacheDirectory => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "DomainDetective", "cert-monitor");
+}

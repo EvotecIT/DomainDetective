@@ -309,26 +309,43 @@ namespace DomainDetective {
         }
 
         private void SaveInventorySnapshot(int port, InternalLogger? logger) {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow,
+                Port = port
+            };
+            foreach (var entry in Results) {
+                snapshot.Entries.Add(ToInventoryEntry(entry));
+            }
+            SaveInventorySnapshot(snapshot, logger);
+        }
+
+        /// <summary>Persists the provided inventory snapshot to disk.</summary>
+        /// <param name="snapshot">Snapshot to persist.</param>
+        /// <param name="logger">Optional logger for non-terminating persistence errors.</param>
+        /// <returns>Absolute path of the saved snapshot file, or an empty string when persistence fails.</returns>
+        public string SaveInventorySnapshot(CertificateInventorySnapshot snapshot, InternalLogger? logger = null) {
+            if (snapshot == null) {
+                throw new ArgumentNullException(nameof(snapshot));
+            }
+            if (snapshot.CapturedAtUtc == default) {
+                snapshot.CapturedAtUtc = DateTimeOffset.UtcNow;
+            }
+
             try {
                 Directory.CreateDirectory(InventoryDirectory);
-                var snapshot = new CertificateInventorySnapshot {
-                    CapturedAtUtc = DateTimeOffset.UtcNow,
-                    Port = port
-                };
-                foreach (var entry in Results) {
-                    snapshot.Entries.Add(ToInventoryEntry(entry));
-                }
-
-                var fileName = $"{snapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_{port}.json";
+                var effectivePort = snapshot.Port;
+                var fileName = $"{snapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_{effectivePort}.json";
                 var filePath = Path.Combine(InventoryDirectory, fileName);
                 var json = JsonSerializer.Serialize(snapshot, JsonOptions.Default);
                 File.WriteAllText(filePath, json, Encoding.UTF8);
+                return filePath;
             } catch (Exception ex) {
                 logger?.WriteWarning("Failed to persist certificate inventory snapshot: {0}", ex.Message);
+                return string.Empty;
             }
         }
 
-        private static CertificateInventoryEntry ToInventoryEntry(Entry entry) {
+        public static CertificateInventoryEntry ToInventoryEntry(Entry entry) {
             var analysis = entry.Analysis;
             var certificate = analysis.Certificate;
             var issuerIdentity = CertificateIssuerClassifier.Classify(certificate);

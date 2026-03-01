@@ -261,6 +261,7 @@ Optional controls:
 | `Get-DDTlsRptReportsTimeSeries`   | `Get-TlsRptReportsTimeSeries`   | TLS-RPT reports time-series view (report section)   |
 | `Import-DDRegistrationSnapshot`   | `Import-RegistrationSnapshot`   | WHOIS/RDAP registration snapshot → store            |
 | `Get-DDRegistrationDrift`         | `Get-RegistrationDrift`         | Registration structured drift view (report section) |
+| `Import-DDCertificateInventorySnapshot` | `Import-CertificateInventorySnapshot` | Capture certificate inventory snapshot from domains/endpoints |
 
 ## Reports / Exporting
 
@@ -283,6 +284,7 @@ Import-Module ./Module/DomainDetective.psd1 -Force
 Import-DDDmarcAggregateSnapshot -StorePath .\\Store -Path .\\Reports\\DMARC
 Import-DDTlsRptReportSnapshot   -DomainName example.com -StorePath .\\Store -Path .\\Reports\\TLSRPT
 Import-DDRegistrationSnapshot   -DomainName example.com -StorePath .\\Store
+Import-DDCertificateInventorySnapshot -DomainName example.com,example.org -CacheDirectory .\\cert-monitor
 
 # Build report sections from the store
 $dmarcAgg = Get-DDDmarcAggregateTimeSeries -DomainName example.com -StorePath .\\Store

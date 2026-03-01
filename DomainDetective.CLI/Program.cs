@@ -161,6 +161,14 @@ internal static class Program {
                 .WithExample(new[] { "RunsOpen", "--dir", "/path/to/run" });
 
             // Certificate inventory utilities
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCaptureCommand>("CertificateInventoryCapture")
+                .WithDescription("Capture certificate inventory snapshot from domains and discovered endpoints")
+                .WithExample(new[] { "CertificateInventoryCapture", "example.com", "example.org" })
+                .WithExample(new[] { "CertificateInventoryCapture", "--domains-file", "./domains.txt", "--json" })
+                .WithExample(new[] { "CertificateInventoryCapture", "example.com", "--endpoint", "https://api.example.com:8443", "--csv-path", "./artifacts/cert-capture.csv" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCaptureCommand>("cert-inventory-capture")
+                .WithDescription("Capture certificate inventory snapshot from domains and discovered endpoints (alias)");
+
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySnapshotsCommand>("CertificateInventorySnapshots")
                 .WithDescription("List persisted certificate inventory snapshots and key metrics")
                 .WithExample(new[] { "CertificateInventorySnapshots" })
