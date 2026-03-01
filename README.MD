@@ -264,6 +264,8 @@ Optional controls:
 | `Invoke-DDCertificateInventory` | - | Capture certificate inventory snapshot from domains/endpoints |
 | `Get-DDCertificateInventorySnapshot` | - | Read raw persisted certificate inventory snapshots |
 
+For a full certificate inventory playbook (capture, CT enrichment, snapshot analytics, policy/risk/drift, and alerting patterns with both PowerShell and C#), see [Docs/CERTIFICATE_INVENTORY.MD](Docs/CERTIFICATE_INVENTORY.MD).
+
 ## Reports / Exporting
 
 - Compose any mix via pipeline:

@@ -29,6 +29,9 @@ Multi-resolver DNS propagation visibility with map visualization and rollups.
 ### 9. [DESIRED_STATE.MD](DESIRED_STATE.MD)
 Custom baselines (desired state configuration) for drift/non-conformance detection.
 
+### 10. [CERTIFICATE_INVENTORY.MD](CERTIFICATE_INVENTORY.MD)
+End-to-end certificate inventory/discovery usage (live capture, snapshots, risk/drift/policy) with PowerShell and C# examples.
+
 ## Main TODO
 The comprehensive TODO for the reporting system is located at:
 **[../TODO.md](../TODO.md)**
