@@ -124,6 +124,49 @@ public class TestCertificateInventoryCapture {
         Assert.False(string.IsNullOrWhiteSpace(result.Snapshot.Entries[0].CertificateThumbprint));
     }
 
+    [Fact]
+    public void ConfigureHttpsAnalysis_DisabledProfileTurnsOffCtSources() {
+        var analysis = new CertificateAnalysis();
+        var options = new CertificateInventoryCaptureOptions {
+            CtProfile = CertificateCtEnrichmentProfile.Disabled,
+            EnableCensysCtSource = true,
+            EnableShodanCtSource = true,
+            CensysApiId = "id",
+            CensysApiSecret = "secret",
+            ShodanApiKey = "key"
+        };
+
+        CertificateInventoryCapture.ConfigureHttpsAnalysis(analysis, options);
+
+        Assert.Empty(analysis.CtLogApiTemplates);
+        Assert.False(analysis.EnableCensysCtSource);
+        Assert.False(analysis.EnableShodanCtSource);
+        Assert.Null(analysis.CensysApiId);
+        Assert.Null(analysis.CensysApiSecret);
+        Assert.Null(analysis.ShodanApiKey);
+    }
+
+    [Fact]
+    public void ConfigureHttpsAnalysis_ExtendedProfileAutoEnablesCommercialSources_WhenCredentialsProvided() {
+        var analysis = new CertificateAnalysis();
+        var options = new CertificateInventoryCaptureOptions {
+            CtProfile = CertificateCtEnrichmentProfile.Extended,
+            IncludeDefaultCtTemplate = true,
+            CensysApiId = "id",
+            CensysApiSecret = "secret",
+            CensysCtApiUrlTemplate = "https://search.censys.io/api/v1/view/certificates/{0}",
+            ShodanApiKey = "key"
+        };
+        options.CtApiTemplates.Add("https://crt.sh/?identity=%25.{0}&output=json");
+
+        CertificateInventoryCapture.ConfigureHttpsAnalysis(analysis, options);
+
+        Assert.True(analysis.EnableCensysCtSource);
+        Assert.True(analysis.EnableShodanCtSource);
+        Assert.Contains("https://crt.sh/?sha256={0}&output=json", analysis.CtLogApiTemplates);
+        Assert.Contains("https://crt.sh/?identity=%25.{0}&output=json", analysis.CtLogApiTemplates);
+    }
+
     private static CertificateMonitor.Entry CreateHttpsEntry(string url, X509Certificate2 certificate) {
         var uri = new Uri(url);
         var analysis = new CertificateAnalysis {

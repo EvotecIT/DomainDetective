@@ -94,6 +94,54 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [CommandOption("--skip-revocation")]
     public bool SkipRevocation { get; set; }
 
+    [Description("CT enrichment profile: Default, Disabled, Public, Extended.")]
+    [CommandOption("--ct-profile <PROFILE>")]
+    public CertificateCtEnrichmentProfile CtProfile { get; set; } = CertificateCtEnrichmentProfile.Default;
+
+    [Description("Disable default crt.sh template during CT lookups.")]
+    [CommandOption("--disable-default-ct-template")]
+    public bool DisableDefaultCtTemplate { get; set; }
+
+    [Description("Additional CT API template(s). Repeat option for multiple values.")]
+    [CommandOption("--ct-template <TEMPLATE>")]
+    public string[] CtApiTemplates { get; set; } = Array.Empty<string>();
+
+    [Description("Enable Censys CT source.")]
+    [CommandOption("--enable-censys-ct")]
+    public bool EnableCensysCtSource { get; set; }
+
+    [Description("Censys API identifier.")]
+    [CommandOption("--censys-api-id <ID>")]
+    public string? CensysApiId { get; set; }
+
+    [Description("Censys API secret.")]
+    [CommandOption("--censys-api-secret <SECRET>")]
+    public string? CensysApiSecret { get; set; }
+
+    [Description("Environment variable containing Censys API secret.")]
+    [CommandOption("--censys-api-secret-env <ENV>")]
+    public string? CensysApiSecretEnv { get; set; }
+
+    [Description("Censys CT URL template containing {0} fingerprint placeholder.")]
+    [CommandOption("--censys-ct-url-template <TEMPLATE>")]
+    public string? CensysCtApiUrlTemplate { get; set; }
+
+    [Description("Enable Shodan CT source.")]
+    [CommandOption("--enable-shodan-ct")]
+    public bool EnableShodanCtSource { get; set; }
+
+    [Description("Shodan API key.")]
+    [CommandOption("--shodan-api-key <KEY>")]
+    public string? ShodanApiKey { get; set; }
+
+    [Description("Environment variable containing Shodan API key.")]
+    [CommandOption("--shodan-api-key-env <ENV>")]
+    public string? ShodanApiKeyEnv { get; set; }
+
+    [Description("Shodan CT URL template containing {0} fingerprint and {1} API key placeholders.")]
+    [CommandOption("--shodan-ct-url-template <TEMPLATE>")]
+    public string? ShodanCtApiUrlTemplate { get; set; }
+
     [Description("Do not persist snapshot file; only print output.")]
     [CommandOption("--no-persist")]
     public bool NoPersist { get; set; }
@@ -141,6 +189,8 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--mail-timeout-seconds must be between 1 and 300.[/]");
             return 1;
         }
+        var censysSecret = ResolveSecret(settings.CensysApiSecret, settings.CensysApiSecretEnv);
+        var shodanApiKey = ResolveSecret(settings.ShodanApiKey, settings.ShodanApiKeyEnv);
 
         var domains = new List<string>();
         if (settings.Domains != null && settings.Domains.Length > 0) {
@@ -186,10 +236,22 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             DiscoveryParallelism = settings.DiscoveryParallelism,
             MailTimeout = TimeSpan.FromSeconds(settings.MailTimeoutSeconds),
             SkipRevocation = settings.SkipRevocation,
+            CtProfile = settings.CtProfile,
+            IncludeDefaultCtTemplate = !settings.DisableDefaultCtTemplate,
+            EnableCensysCtSource = settings.EnableCensysCtSource,
+            CensysApiId = settings.CensysApiId,
+            CensysApiSecret = censysSecret,
+            CensysCtApiUrlTemplate = settings.CensysCtApiUrlTemplate,
+            EnableShodanCtSource = settings.EnableShodanCtSource,
+            ShodanApiKey = shodanApiKey,
+            ShodanCtApiUrlTemplate = settings.ShodanCtApiUrlTemplate,
             PersistSnapshot = !settings.NoPersist
         };
         if (settings.AdditionalEndpoints != null && settings.AdditionalEndpoints.Length > 0) {
             options.AdditionalEndpoints.AddRange(settings.AdditionalEndpoints.Where(endpoint => !string.IsNullOrWhiteSpace(endpoint)).Select(endpoint => endpoint.Trim()));
+        }
+        if (settings.CtApiTemplates != null && settings.CtApiTemplates.Length > 0) {
+            options.CtApiTemplates.AddRange(settings.CtApiTemplates.Where(template => !string.IsNullOrWhiteSpace(template)).Select(template => template.Trim()));
         }
 
         var capture = new CertificateInventoryCapture();
@@ -357,5 +419,19 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             }));
         }
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+    }
+
+    private static string? ResolveSecret(string? directValue, string? envVariableName) {
+        if (!string.IsNullOrWhiteSpace(directValue)) {
+            return directValue;
+        }
+        if (envVariableName == null) {
+            return null;
+        }
+        var trimmedName = envVariableName.Trim();
+        if (trimmedName.Length == 0) {
+            return null;
+        }
+        return Environment.GetEnvironmentVariable(trimmedName);
     }
 }

@@ -75,6 +75,36 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>When true, skips revocation checks for HTTPS certificate analysis.</summary>
     public bool SkipRevocation { get; set; }
 
+    /// <summary>Baseline CT enrichment profile for HTTPS probes.</summary>
+    public CertificateCtEnrichmentProfile CtProfile { get; set; } = CertificateCtEnrichmentProfile.Default;
+
+    /// <summary>When true, keeps the default crt.sh API template in CT discovery.</summary>
+    public bool IncludeDefaultCtTemplate { get; set; } = true;
+
+    /// <summary>Additional CT API templates to query. Templates should include a {0} fingerprint placeholder.</summary>
+    public List<string> CtApiTemplates { get; } = new();
+
+    /// <summary>When true, enables Censys CT source integration.</summary>
+    public bool EnableCensysCtSource { get; set; }
+
+    /// <summary>Censys API identifier.</summary>
+    public string? CensysApiId { get; set; }
+
+    /// <summary>Censys API secret.</summary>
+    public string? CensysApiSecret { get; set; }
+
+    /// <summary>Censys CT API URL template. Should contain a {0} fingerprint placeholder.</summary>
+    public string? CensysCtApiUrlTemplate { get; set; }
+
+    /// <summary>When true, enables Shodan CT source integration.</summary>
+    public bool EnableShodanCtSource { get; set; }
+
+    /// <summary>Shodan API key.</summary>
+    public string? ShodanApiKey { get; set; }
+
+    /// <summary>Shodan CT API URL template. Should contain {0} fingerprint and {1} API key placeholders.</summary>
+    public string? ShodanCtApiUrlTemplate { get; set; }
+
     /// <summary>When true, persists a snapshot to inventory storage.</summary>
     public bool PersistSnapshot { get; set; } = true;
 
@@ -199,6 +229,7 @@ public sealed class CertificateInventoryCapture {
         logger ??= new InternalLogger(false);
 
         var warnings = new List<string>();
+        AppendCtConfigurationWarnings(options, warnings);
         var normalizedDomains = NormalizeDomains(domains, warnings);
         var mxHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var httpsTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -684,19 +715,113 @@ public sealed class CertificateInventoryCapture {
             PersistInventorySnapshots = false,
             MaxParallelism = Math.Max(1, options.MaxParallelism)
         };
-        if (options.SkipRevocation) {
-            monitor.AnalysisOverride = async (url, port, internalLogger, token) => {
-                var analysis = new CertificateAnalysis {
-                    CaptureTlsDetails = true,
-                    SkipRevocation = true
-                };
-                await analysis.AnalyzeUrl(url, port, internalLogger, token).ConfigureAwait(false);
-                return analysis;
+        monitor.AnalysisOverride = async (url, port, internalLogger, token) => {
+            var analysis = new CertificateAnalysis {
+                CaptureTlsDetails = true
             };
-        }
+            ConfigureHttpsAnalysis(analysis, options);
+            await analysis.AnalyzeUrl(url, port, internalLogger, token).ConfigureAwait(false);
+            return analysis;
+        };
 
         await monitor.Analyze(list, options.HttpsPort, logger, cancellationToken, showProgress: false).ConfigureAwait(false);
         return monitor.Results.ToList();
+    }
+
+    internal static void ConfigureHttpsAnalysis(CertificateAnalysis analysis, CertificateInventoryCaptureOptions options) {
+        if (analysis == null) {
+            throw new ArgumentNullException(nameof(analysis));
+        }
+        if (options == null) {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        analysis.SkipRevocation = options.SkipRevocation;
+
+        if (options.CtProfile == CertificateCtEnrichmentProfile.Disabled) {
+            analysis.CtLogApiTemplates.Clear();
+            analysis.EnableCensysCtSource = false;
+            analysis.CensysApiId = null;
+            analysis.CensysApiSecret = null;
+            analysis.CensysCtApiUrlTemplate = string.Empty;
+            analysis.EnableShodanCtSource = false;
+            analysis.ShodanApiKey = null;
+            analysis.ShodanCtApiUrlTemplate = string.Empty;
+            return;
+        }
+
+        if (options.CtProfile == CertificateCtEnrichmentProfile.Public || !options.IncludeDefaultCtTemplate) {
+            analysis.CtLogApiTemplates.Clear();
+        }
+        if (options.IncludeDefaultCtTemplate) {
+            AddCtTemplateIfMissing(analysis.CtLogApiTemplates, "https://crt.sh/?sha256={0}&output=json");
+        }
+        foreach (var template in options.CtApiTemplates) {
+            AddCtTemplateIfMissing(analysis.CtLogApiTemplates, template);
+        }
+
+        var autoEnableCommercialSources = options.CtProfile == CertificateCtEnrichmentProfile.Extended;
+        var hasCensysCredentials = !string.IsNullOrWhiteSpace(options.CensysApiId) &&
+                                   !string.IsNullOrWhiteSpace(options.CensysApiSecret);
+        var hasShodanCredentials = !string.IsNullOrWhiteSpace(options.ShodanApiKey);
+
+        analysis.EnableCensysCtSource = options.EnableCensysCtSource || (autoEnableCommercialSources && hasCensysCredentials);
+        analysis.CensysApiId = options.CensysApiId;
+        analysis.CensysApiSecret = options.CensysApiSecret;
+        if (!string.IsNullOrWhiteSpace(options.CensysCtApiUrlTemplate)) {
+            analysis.CensysCtApiUrlTemplate = options.CensysCtApiUrlTemplate!;
+        }
+
+        analysis.EnableShodanCtSource = options.EnableShodanCtSource || (autoEnableCommercialSources && hasShodanCredentials);
+        analysis.ShodanApiKey = options.ShodanApiKey;
+        if (!string.IsNullOrWhiteSpace(options.ShodanCtApiUrlTemplate)) {
+            analysis.ShodanCtApiUrlTemplate = options.ShodanCtApiUrlTemplate!;
+        }
+    }
+
+    private static void AddCtTemplateIfMissing(ICollection<string> templates, string? template) {
+        if (template == null) {
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(template)) {
+            return;
+        }
+        var trimmed = template.Trim();
+        foreach (var existing in templates) {
+            if (string.Equals(existing, trimmed, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+        }
+        templates.Add(trimmed);
+    }
+
+    private static void AppendCtConfigurationWarnings(CertificateInventoryCaptureOptions options, List<string> warnings) {
+        if (options.CtProfile == CertificateCtEnrichmentProfile.Disabled) {
+            return;
+        }
+
+        if (options.EnableCensysCtSource) {
+            if (string.IsNullOrWhiteSpace(options.CensysApiId) || string.IsNullOrWhiteSpace(options.CensysApiSecret)) {
+                warnings.Add("Censys CT source is enabled but CensysApiId/CensysApiSecret are missing; Censys source will not be used.");
+            }
+            if (string.IsNullOrWhiteSpace(options.CensysCtApiUrlTemplate)) {
+                warnings.Add("Censys CT source is enabled but CensysCtApiUrlTemplate is empty; source may report template errors.");
+            }
+        } else if (options.CtProfile == CertificateCtEnrichmentProfile.Extended) {
+            if (string.IsNullOrWhiteSpace(options.CensysApiId) || string.IsNullOrWhiteSpace(options.CensysApiSecret)) {
+                warnings.Add("CT profile 'Extended' can auto-enable Censys when credentials are present. Censys credentials are not configured.");
+            }
+        }
+
+        if (options.EnableShodanCtSource) {
+            if (string.IsNullOrWhiteSpace(options.ShodanApiKey)) {
+                warnings.Add("Shodan CT source is enabled but ShodanApiKey is missing; Shodan source will not be used.");
+            }
+        } else if (options.CtProfile == CertificateCtEnrichmentProfile.Extended) {
+            if (string.IsNullOrWhiteSpace(options.ShodanApiKey)) {
+                warnings.Add("CT profile 'Extended' can auto-enable Shodan when credentials are present. Shodan API key is not configured.");
+            }
+        }
     }
 
     private static async Task<IReadOnlyList<CertificateInventoryEntry>> ProbeMailAsync(

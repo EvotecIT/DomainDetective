@@ -18,6 +18,9 @@ $Capture = Import-CertificateInventorySnapshot `
     -CacheDirectory $CacheDirectory `
     -MaxParallelism 24 `
     -DiscoveryParallelism 32 `
+    -CtProfile Extended `
+    -EnableShodanCtSource `
+    -ShodanApiKeyEnv SHODAN_API_KEY `
     -IncludeImapTls `
     -IncludePop3Tls
 

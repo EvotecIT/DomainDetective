@@ -285,6 +285,8 @@ Import-DDDmarcAggregateSnapshot -StorePath .\\Store -Path .\\Reports\\DMARC
 Import-DDTlsRptReportSnapshot   -DomainName example.com -StorePath .\\Store -Path .\\Reports\\TLSRPT
 Import-DDRegistrationSnapshot   -DomainName example.com -StorePath .\\Store
 Import-DDCertificateInventorySnapshot -DomainName example.com,example.org -CacheDirectory .\\cert-monitor
+# Optional CT enrichment profile for inventory capture (public + optional commercial sources):
+Import-DDCertificateInventorySnapshot -DomainName example.com -CacheDirectory .\\cert-monitor -CtProfile Extended -EnableShodanCtSource -ShodanApiKeyEnv SHODAN_API_KEY
 
 # Build report sections from the store
 $dmarcAgg = Get-DDDmarcAggregateTimeSeries -DomainName example.com -StorePath .\\Store

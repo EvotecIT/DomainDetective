@@ -16,6 +16,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Capture snapshot from file and export captured entries</summary>
 ///   <code>Import-DDCertificateInventorySnapshot -DomainsFile .\domains.txt -Endpoint https://api.example.com:8443</code>
 /// </example>
+/// <example>
+///   <summary>Capture snapshot with extended CT enrichment</summary>
+///   <code>Import-DDCertificateInventorySnapshot -DomainName example.com -CtProfile Extended -EnableShodanCtSource -ShodanApiKeyEnv SHODAN_API_KEY</code>
+/// </example>
 [Cmdlet(VerbsData.Import, "DDCertificateInventorySnapshot")]
 [Alias("Import-CertificateInventorySnapshot")]
 [OutputType(typeof(CertificateInventoryCaptureResult))]
@@ -98,6 +102,54 @@ public sealed class CmdletImportCertificateInventorySnapshot : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter SkipRevocation { get; set; }
 
+    /// <summary>CT enrichment profile. Values: Default, Disabled, Public, Extended.</summary>
+    [Parameter(Mandatory = false)]
+    public CertificateCtEnrichmentProfile CtProfile { get; set; } = CertificateCtEnrichmentProfile.Default;
+
+    /// <summary>Disable the default crt.sh template during CT lookups.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter DisableDefaultCtTemplate { get; set; }
+
+    /// <summary>Additional CT API templates (must include a {0} fingerprint placeholder).</summary>
+    [Parameter(Mandatory = false)]
+    public string[] CtApiTemplate { get; set; } = Array.Empty<string>();
+
+    /// <summary>Enable Censys CT source.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter EnableCensysCtSource { get; set; }
+
+    /// <summary>Censys API identifier.</summary>
+    [Parameter(Mandatory = false)]
+    public string? CensysApiId { get; set; }
+
+    /// <summary>Censys API secret. Prefer CensysApiSecretEnv for safer automation.</summary>
+    [Parameter(Mandatory = false)]
+    public string? CensysApiSecret { get; set; }
+
+    /// <summary>Environment variable name containing Censys API secret.</summary>
+    [Parameter(Mandatory = false)]
+    public string? CensysApiSecretEnv { get; set; }
+
+    /// <summary>Censys CT API URL template containing a {0} fingerprint placeholder.</summary>
+    [Parameter(Mandatory = false)]
+    public string? CensysCtApiUrlTemplate { get; set; }
+
+    /// <summary>Enable Shodan CT source.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter EnableShodanCtSource { get; set; }
+
+    /// <summary>Shodan API key. Prefer ShodanApiKeyEnv for safer automation.</summary>
+    [Parameter(Mandatory = false)]
+    public string? ShodanApiKey { get; set; }
+
+    /// <summary>Environment variable name containing Shodan API key.</summary>
+    [Parameter(Mandatory = false)]
+    public string? ShodanApiKeyEnv { get; set; }
+
+    /// <summary>Shodan CT API URL template containing {0} fingerprint and {1} API key placeholders.</summary>
+    [Parameter(Mandatory = false)]
+    public string? ShodanCtApiUrlTemplate { get; set; }
+
     /// <summary>Do not persist snapshot file; only return in-memory result.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter NoPersist { get; set; }
@@ -163,12 +215,28 @@ public sealed class CmdletImportCertificateInventorySnapshot : PSCmdlet {
             DiscoveryParallelism = DiscoveryParallelism,
             MailTimeout = TimeSpan.FromSeconds(MailTimeoutSeconds),
             SkipRevocation = SkipRevocation.IsPresent,
+            CtProfile = CtProfile,
+            IncludeDefaultCtTemplate = !DisableDefaultCtTemplate.IsPresent,
+            EnableCensysCtSource = EnableCensysCtSource.IsPresent,
+            CensysApiId = CensysApiId,
+            CensysApiSecret = ResolveSecret(CensysApiSecret, CensysApiSecretEnv),
+            CensysCtApiUrlTemplate = CensysCtApiUrlTemplate,
+            EnableShodanCtSource = EnableShodanCtSource.IsPresent,
+            ShodanApiKey = ResolveSecret(ShodanApiKey, ShodanApiKeyEnv),
+            ShodanCtApiUrlTemplate = ShodanCtApiUrlTemplate,
             PersistSnapshot = !NoPersist.IsPresent
         };
         if (Endpoint != null && Endpoint.Length > 0) {
             foreach (var endpoint in Endpoint) {
                 if (!string.IsNullOrWhiteSpace(endpoint)) {
                     options.AdditionalEndpoints.Add(endpoint.Trim());
+                }
+            }
+        }
+        if (CtApiTemplate != null && CtApiTemplate.Length > 0) {
+            foreach (var template in CtApiTemplate) {
+                if (!string.IsNullOrWhiteSpace(template)) {
+                    options.CtApiTemplates.Add(template.Trim());
                 }
             }
         }
@@ -184,5 +252,19 @@ public sealed class CmdletImportCertificateInventorySnapshot : PSCmdlet {
                 ErrorCategory.InvalidOperation,
                 domains));
         }
+    }
+
+    private static string? ResolveSecret(string? directValue, string? envVariableName) {
+        if (!string.IsNullOrWhiteSpace(directValue)) {
+            return directValue;
+        }
+        if (envVariableName == null) {
+            return null;
+        }
+        var trimmedName = envVariableName.Trim();
+        if (trimmedName.Length == 0) {
+            return null;
+        }
+        return Environment.GetEnvironmentVariable(trimmedName);
     }
 }
