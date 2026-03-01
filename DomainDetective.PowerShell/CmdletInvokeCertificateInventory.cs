@@ -30,6 +30,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Run a throttled test capture</summary>
 ///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -Limit 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose</code>
 /// </example>
+/// <example>
+///   <summary>Reuse recent captured endpoints to reduce repeated probing</summary>
+///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14</code>
+/// </example>
 [Cmdlet(VerbsLifecycle.Invoke, "DDCertificateInventory")]
 [OutputType(typeof(CertificateInventoryCaptureResult))]
 public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
@@ -140,6 +144,20 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [Parameter(Mandatory = false)]
     [ValidateRange(0, 10000)]
     public int MaxProbeStartsPerSecond { get; set; }
+
+    /// <summary>Reuse recent persisted endpoint results to avoid re-probing unchanged endpoints.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ReuseRecentResults { get; set; }
+
+    /// <summary>How old persisted snapshot entries can be to qualify for reuse.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 24 * 365)]
+    public int RecentResultTtlHours { get; set; } = 24;
+
+    /// <summary>Always re-probe endpoints with certificates expiring within this many days.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, 3650)]
+    public int ReprobeExpiringWithinDays { get; set; } = 14;
 
     /// <summary>Skip revocation checks for HTTPS probes.</summary>
     [Parameter(Mandatory = false)]
@@ -263,6 +281,9 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             MailTimeout = TimeSpan.FromSeconds(MailTimeoutSeconds),
             MaxTargets = MaxTargets,
             MaxProbeStartsPerSecond = MaxProbeStartsPerSecond,
+            ReuseRecentSnapshotEntries = ReuseRecentResults.IsPresent,
+            RecentSnapshotTtl = TimeSpan.FromHours(RecentResultTtlHours),
+            ReprobeExpiringWithinDays = ReprobeExpiringWithinDays,
             SkipRevocation = SkipRevocation.IsPresent,
             CtProfile = CtProfile,
             IncludeDefaultCtTemplate = !DisableDefaultCtTemplate.IsPresent,

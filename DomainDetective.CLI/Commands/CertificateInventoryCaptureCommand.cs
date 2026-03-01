@@ -118,6 +118,20 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [DefaultValue(0)]
     public int MaxProbeStartsPerSecond { get; set; }
 
+    [Description("Reuse recent persisted endpoint results to avoid re-probing unchanged endpoints.")]
+    [CommandOption("--reuse-recent-results")]
+    public bool ReuseRecentResults { get; set; }
+
+    [Description("Maximum age in hours of persisted endpoint results used for reuse.")]
+    [CommandOption("--recent-result-ttl-hours <N>")]
+    [DefaultValue(24)]
+    public int RecentResultTtlHours { get; set; } = 24;
+
+    [Description("Always re-probe endpoints with certificates expiring within this many days.")]
+    [CommandOption("--reprobe-expiring-within-days <N>")]
+    [DefaultValue(14)]
+    public int ReprobeExpiringWithinDays { get; set; } = 14;
+
     [Description("Skip revocation checks for HTTPS probes.")]
     [CommandOption("--skip-revocation")]
     public bool SkipRevocation { get; set; }
@@ -225,6 +239,14 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--max-probe-starts-per-second must be 0 or greater.[/]");
             return 1;
         }
+        if (settings.RecentResultTtlHours < 1) {
+            AnsiConsole.MarkupLine("[red]--recent-result-ttl-hours must be 1 or greater.[/]");
+            return 1;
+        }
+        if (settings.ReprobeExpiringWithinDays < 0) {
+            AnsiConsole.MarkupLine("[red]--reprobe-expiring-within-days must be 0 or greater.[/]");
+            return 1;
+        }
         if (settings.MaxCtRowsPerDomain < 0) {
             AnsiConsole.MarkupLine("[red]--ct-max-rows-per-domain must be 0 or greater.[/]");
             return 1;
@@ -285,6 +307,9 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             MailTimeout = TimeSpan.FromSeconds(settings.MailTimeoutSeconds),
             MaxTargets = settings.MaxTargets,
             MaxProbeStartsPerSecond = settings.MaxProbeStartsPerSecond,
+            ReuseRecentSnapshotEntries = settings.ReuseRecentResults,
+            RecentSnapshotTtl = TimeSpan.FromHours(settings.RecentResultTtlHours),
+            ReprobeExpiringWithinDays = settings.ReprobeExpiringWithinDays,
             SkipRevocation = settings.SkipRevocation,
             CtProfile = settings.CtProfile,
             IncludeDefaultCtTemplate = !settings.DisableDefaultCtTemplate,

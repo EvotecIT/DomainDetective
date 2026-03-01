@@ -58,6 +58,8 @@ Notes:
 - MX hosts are often inbound-only and may not expose `587/993/995`; empty certificate fields on those rows usually indicate service not reachable on that endpoint, not parser failure.
 - Endpoint probe errors are expected on large CT-expanded scans (historical/internal hosts). Use `-MaxProbeErrorWarnings` to limit warning noise.
 - Use `-MaxTargets` for quick/safe test runs and `-MaxProbeStartsPerSecond` as an anti-hammer throttle.
+- Use `-ReuseRecentResults` with `-RecentResultTtlHours` to skip re-probing endpoints already captured recently.
+- `-ReprobeExpiringWithinDays` keeps near-expiry certificates fresh even when cache reuse is enabled.
 
 ## PowerShell end-to-end examples
 
@@ -78,6 +80,9 @@ $domains = @(
 $capture = Invoke-DDCertificateInventory `
     -DomainName $domains `
     -CacheDirectory .\cert-monitor `
+    -ReuseRecentResults `
+    -RecentResultTtlHours 24 `
+    -ReprobeExpiringWithinDays 14 `
     -CtProfile Extended `
     -IncludeCtSubdomains `
     -VerifyCtSubdomains `
@@ -102,6 +107,8 @@ Invoke-DDCertificateInventory `
     -DomainName eurofins.com `
     -CacheDirectory .\cert-monitor `
     -IncludeCtSubdomains `
+    -ReuseRecentResults `
+    -RecentResultTtlHours 24 `
     -MaxTargets 150 `
     -MaxProbeStartsPerSecond 20 `
     -MaxProbeErrorWarnings 10 `

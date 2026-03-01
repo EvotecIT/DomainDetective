@@ -291,7 +291,7 @@ Invoke-DDCertificateInventory -DomainName example.com,example.org -CacheDirector
 # Optional CT enrichment profile for inventory capture (public + optional commercial sources):
 Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-monitor -CtProfile Extended -EnableShodanCtSource -ShodanApiKeyEnv SHODAN_API_KEY
 # Optional: include CT-discovered subdomains and show progress/verbose stream:
-Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-monitor -IncludeCtSubdomains -VerifyCtSubdomains -MaxTargets 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose
+Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-monitor -IncludeCtSubdomains -VerifyCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14 -MaxTargets 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose
 # Read latest raw snapshot (full entries) or metadata only:
 Get-DDCertificateInventorySnapshot -CacheDirectory .\\cert-monitor -Latest
 Get-DDCertificateInventorySnapshot -CacheDirectory .\\cert-monitor -SinceUtc (Get-Date).ToUniversalTime().AddDays(-7) -WithoutEntries

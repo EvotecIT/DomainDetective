@@ -90,6 +90,15 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Maximum number of probe starts per second; 0 means unlimited.</summary>
     public int MaxProbeStartsPerSecond { get; set; }
 
+    /// <summary>When true, reuses recent persisted snapshot endpoint results to avoid re-probing unchanged endpoints.</summary>
+    public bool ReuseRecentSnapshotEntries { get; set; }
+
+    /// <summary>Maximum age of persisted snapshots considered for endpoint reuse.</summary>
+    public TimeSpan RecentSnapshotTtl { get; set; } = TimeSpan.FromHours(24);
+
+    /// <summary>Do not reuse cached endpoint results when certificate expires within this many days.</summary>
+    public int ReprobeExpiringWithinDays { get; set; } = 14;
+
     /// <summary>When true, skips revocation checks for HTTPS certificate analysis.</summary>
     public bool SkipRevocation { get; set; }
 
@@ -251,6 +260,7 @@ public sealed class CertificateInventoryCapture {
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<CertificateMonitor.Entry>>>? HttpsProbeOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<string>>>? CtSubdomainDiscoveryOverride { get; set; }
     internal Func<CertificateInventorySnapshot, string, InternalLogger?, string>? PersistSnapshotOverride { get; set; }
+    internal Func<CertificateInventoryCaptureOptions, DateTimeOffset, InternalLogger?, IReadOnlyDictionary<string, CertificateInventoryEntry>>? RecentSnapshotLookupOverride { get; set; }
 
     /// <summary>
     /// Captures one certificate inventory snapshot from the provided domains and discovery options.
@@ -292,12 +302,18 @@ public sealed class CertificateInventoryCapture {
         if (options.MaxProbeStartsPerSecond < 0) {
             throw new ArgumentOutOfRangeException(nameof(options.MaxProbeStartsPerSecond), "MaxProbeStartsPerSecond must be 0 or greater.");
         }
+        if (options.RecentSnapshotTtl < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.RecentSnapshotTtl), "RecentSnapshotTtl must be non-negative.");
+        }
+        if (options.ReprobeExpiringWithinDays < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.ReprobeExpiringWithinDays), "ReprobeExpiringWithinDays must be 0 or greater.");
+        }
 
         logger ??= new InternalLogger(false);
 
         var warnings = new List<string>();
         var ctDiscoveredSubdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        const int totalStages = 8;
+        const int totalStages = 9;
         var stage = 0;
         void AdvanceStage(string currentOperation) {
             stage++;
@@ -410,20 +426,68 @@ public sealed class CertificateInventoryCapture {
         AdvanceStage("Endpoint expansion");
         logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
 
+        var cachedEntries = new List<CertificateInventoryEntry>();
+        var httpsTargetsToProbe = httpsTargets.ToList();
+        var mailTargetsToProbe = mailTargets.Values.ToList();
+        if (options.ReuseRecentSnapshotEntries && options.RecentSnapshotTtl > TimeSpan.Zero) {
+            var now = DateTimeOffset.UtcNow;
+            IReadOnlyDictionary<string, CertificateInventoryEntry> recentByEndpoint;
+            if (RecentSnapshotLookupOverride != null) {
+                recentByEndpoint = RecentSnapshotLookupOverride(options, now, logger);
+            } else {
+                recentByEndpoint = LoadRecentSnapshotEntries(options, now);
+            }
+
+            if (recentByEndpoint.Count > 0) {
+                var reusedHttps = 0;
+                var reusedMail = 0;
+
+                var filteredHttps = new List<string>(httpsTargetsToProbe.Count);
+                foreach (var target in httpsTargetsToProbe) {
+                    if (TryBuildHttpsEndpointKey(target, out var key) &&
+                        recentByEndpoint.TryGetValue(key, out var cached) &&
+                        ShouldReuseCachedEntry(cached, now, options.ReprobeExpiringWithinDays)) {
+                        cachedEntries.Add(cached);
+                        reusedHttps++;
+                    } else {
+                        filteredHttps.Add(target);
+                    }
+                }
+                httpsTargetsToProbe = filteredHttps;
+
+                var filteredMail = new List<MailEndpointTarget>(mailTargetsToProbe.Count);
+                foreach (var target in mailTargetsToProbe) {
+                    var key = BuildEndpointKey(target.Host, target.Port, target.Service);
+                    if (recentByEndpoint.TryGetValue(key, out var cached) &&
+                        ShouldReuseCachedEntry(cached, now, options.ReprobeExpiringWithinDays)) {
+                        cachedEntries.Add(cached);
+                        reusedMail++;
+                    } else {
+                        filteredMail.Add(target);
+                    }
+                }
+                mailTargetsToProbe = filteredMail;
+
+                logger.WriteVerbose("Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}).", reusedHttps + reusedMail, reusedHttps, reusedMail);
+            }
+        }
+        AdvanceStage("Recent snapshot cache");
+
         IReadOnlyList<CertificateMonitor.Entry> httpsEntries;
         if (HttpsProbeOverride != null) {
-            httpsEntries = await HttpsProbeOverride(httpsTargets.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(), options, logger, cancellationToken).ConfigureAwait(false);
+            httpsEntries = await HttpsProbeOverride(httpsTargetsToProbe.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(), options, logger, cancellationToken).ConfigureAwait(false);
         } else {
-            httpsEntries = await ProbeHttpsAsync(httpsTargets, options, logger, cancellationToken).ConfigureAwait(false);
+            httpsEntries = await ProbeHttpsAsync(httpsTargetsToProbe, options, logger, cancellationToken).ConfigureAwait(false);
         }
         AdvanceStage("HTTPS probing");
         logger.WriteVerbose("HTTPS probing produced {0} observation(s).", httpsEntries.Count);
 
-        var mailEntries = await ProbeMailAsync(mailTargets.Values.ToList(), options, logger, cancellationToken).ConfigureAwait(false);
+        var mailEntries = await ProbeMailAsync(mailTargetsToProbe, options, logger, cancellationToken).ConfigureAwait(false);
         AdvanceStage("Mail TLS probing");
         logger.WriteVerbose("Mail TLS probing produced {0} observation(s).", mailEntries.Count);
 
-        var allEntries = new List<CertificateInventoryEntry>(httpsEntries.Count + mailEntries.Count);
+        var allEntries = new List<CertificateInventoryEntry>(cachedEntries.Count + httpsEntries.Count + mailEntries.Count);
+        allEntries.AddRange(cachedEntries);
         foreach (var httpsEntry in httpsEntries) {
             allEntries.Add(CertificateMonitor.ToInventoryEntry(httpsEntry));
         }
@@ -609,6 +673,87 @@ public sealed class CertificateInventoryCapture {
 
     private static string BuildMailTargetLabel(MailEndpointTarget target) {
         return $"{target.Scheme}://{target.Host}:{target.Port}";
+    }
+
+    private static string BuildEndpointKey(string host, int port, string service) {
+        return $"{host.Trim().TrimEnd('.').ToLowerInvariant()}|{port}|{service.Trim().ToUpperInvariant()}";
+    }
+
+    private static bool TryBuildHttpsEndpointKey(string target, out string key) {
+        key = string.Empty;
+        if (string.IsNullOrWhiteSpace(target)) {
+            return false;
+        }
+
+        if (!Uri.TryCreate(target, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Host)) {
+            return false;
+        }
+
+        var port = uri.IsDefaultPort ? 443 : uri.Port;
+        var service = CertificateServiceClassifier.GuessService(Uri.UriSchemeHttps, port);
+        key = BuildEndpointKey(uri.Host, port, service);
+        return true;
+    }
+
+    private static bool ShouldReuseCachedEntry(CertificateInventoryEntry entry, DateTimeOffset now, int reprobeExpiringWithinDays) {
+        if (entry == null) {
+            return false;
+        }
+        if (!entry.IsReachable) {
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(entry.CertificateThumbprint)) {
+            return false;
+        }
+        if (entry.Expired) {
+            return false;
+        }
+        if (entry.NotAfterUtc.HasValue) {
+            var cutoff = now.AddDays(Math.Max(0, reprobeExpiringWithinDays));
+            var notAfter = entry.NotAfterUtc.Value;
+            if (notAfter <= cutoff) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static IReadOnlyDictionary<string, CertificateInventoryEntry> LoadRecentSnapshotEntries(CertificateInventoryCaptureOptions options, DateTimeOffset now) {
+        if (options == null || !options.ReuseRecentSnapshotEntries || options.RecentSnapshotTtl <= TimeSpan.Zero) {
+            return new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        using var monitor = new CertificateMonitor {
+            CacheDirectory = options.CacheDirectory,
+            PersistInventorySnapshots = false
+        };
+
+        var since = now - options.RecentSnapshotTtl;
+        var snapshots = monitor.LoadInventorySnapshots(sinceUtc: since, latestOnly: false);
+        if (snapshots.Count == 0) {
+            return new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var ordered = snapshots.OrderBy(snapshot => snapshot.CapturedAtUtc).ToList();
+        var byEndpoint = new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var snapshot in ordered) {
+            if (snapshot.Entries == null || snapshot.Entries.Count == 0) {
+                continue;
+            }
+            foreach (var entry in snapshot.Entries) {
+                if (entry == null) {
+                    continue;
+                }
+                var host = !string.IsNullOrWhiteSpace(entry.ResolvedHost) ? entry.ResolvedHost! : entry.Host;
+                if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(entry.Service) || entry.Port <= 0) {
+                    continue;
+                }
+                var key = BuildEndpointKey(host, entry.Port, entry.Service);
+                byEndpoint[key] = entry;
+            }
+        }
+
+        return byEndpoint;
     }
 
     private static void ApplyTargetLimit(

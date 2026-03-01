@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -229,6 +230,76 @@ public class TestCertificateInventoryCapture {
         Assert.Equal(0, result.MailEndpointCount);
         Assert.Equal(2, result.EntryCount);
         Assert.Contains(result.Warnings, warning => warning.Contains("capped", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ReusesRecentSnapshotEntries_WhenEnabled() {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                Port = 443
+            };
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "api.example.com",
+                ResolvedHost = "api.example.com",
+                Url = "https://api.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = "ABC123",
+                IsReachable = true,
+                Valid = true,
+                Expired = false,
+                NotAfterUtc = DateTimeOffset.UtcNow.AddDays(120)
+            });
+
+            using (var monitor = new CertificateMonitor {
+                CacheDirectory = cacheDirectory,
+                PersistInventorySnapshots = false
+            }) {
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            var observedHttpsTargets = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                    observedHttpsTargets = httpsTargets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                ReuseRecentSnapshotEntries = true,
+                RecentSnapshotTtl = TimeSpan.FromHours(24),
+                ReprobeExpiringWithinDays = 14,
+                PersistSnapshot = false
+            };
+            options.AdditionalEndpoints.Add("https://api.example.com");
+
+            var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+            Assert.Equal(0, observedHttpsTargets);
+            Assert.Equal(1, result.EntryCount);
+            Assert.Equal(1, result.ValidCount);
+            Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("api.example.com", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            try {
+                Directory.Delete(cacheDirectory, true);
+            } catch {
+                // no-op
+            }
+        }
     }
 
     [Fact]
