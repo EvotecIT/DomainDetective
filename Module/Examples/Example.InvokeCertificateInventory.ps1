@@ -13,7 +13,7 @@ $Domains = @(
 
 $CacheDirectory = Join-Path $PSScriptRoot 'cert-monitor'
 
-$Capture = Import-CertificateInventorySnapshot `
+$Capture = Invoke-DDCertificateInventory `
     -DomainName $Domains `
     -CacheDirectory $CacheDirectory `
     -MaxParallelism 24 `

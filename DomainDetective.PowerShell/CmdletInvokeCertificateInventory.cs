@@ -10,20 +10,19 @@ namespace DomainDetective.PowerShell;
 /// <para>Discovers HTTPS and mail TLS endpoints (for example MX-derived STARTTLS) and stores normalized certificate evidence in the inventory snapshot format used by certificate inventory analytics cmdlets.</para>
 /// <example>
 ///   <summary>Capture snapshot for explicit domains</summary>
-///   <code>Import-DDCertificateInventorySnapshot -DomainName evotec.xyz,evotec.pl -CacheDirectory .\cert-monitor</code>
+///   <code>Invoke-DDCertificateInventory -DomainName evotec.xyz,evotec.pl -CacheDirectory .\cert-monitor</code>
 /// </example>
 /// <example>
 ///   <summary>Capture snapshot from file and export captured entries</summary>
-///   <code>Import-DDCertificateInventorySnapshot -DomainsFile .\domains.txt -Endpoint https://api.example.com:8443</code>
+///   <code>Invoke-DDCertificateInventory -DomainsFile .\domains.txt -Endpoint https://api.example.com:8443</code>
 /// </example>
 /// <example>
 ///   <summary>Capture snapshot with extended CT enrichment</summary>
-///   <code>Import-DDCertificateInventorySnapshot -DomainName example.com -CtProfile Extended -EnableShodanCtSource -ShodanApiKeyEnv SHODAN_API_KEY</code>
+///   <code>Invoke-DDCertificateInventory -DomainName example.com -CtProfile Extended -EnableShodanCtSource -ShodanApiKeyEnv SHODAN_API_KEY</code>
 /// </example>
-[Cmdlet(VerbsData.Import, "DDCertificateInventorySnapshot")]
-[Alias("Import-CertificateInventorySnapshot")]
+[Cmdlet(VerbsLifecycle.Invoke, "DDCertificateInventory")]
 [OutputType(typeof(CertificateInventoryCaptureResult))]
-public sealed class CmdletImportCertificateInventorySnapshot : PSCmdlet {
+public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     private readonly List<string> _domains = new();
 
     /// <summary>Domain list to scan. Can be provided from pipeline.</summary>
