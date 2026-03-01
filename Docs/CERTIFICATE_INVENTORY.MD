@@ -55,6 +55,7 @@ Notes:
 - `crt.sh` is used by default via `https://crt.sh/?sha256={0}&output=json`.
 - `crt.sh` is public and does not require API credentials in this flow.
 - For commercial sources, credentials are required (for example Shodan/Censys).
+- MX hosts are often inbound-only and may not expose `587/993/995`; empty certificate fields on those rows usually indicate service not reachable on that endpoint, not parser failure.
 
 ## PowerShell end-to-end examples
 
@@ -76,14 +77,28 @@ $capture = Invoke-DDCertificateInventory `
     -DomainName $domains `
     -CacheDirectory .\cert-monitor `
     -CtProfile Extended `
+    -IncludeCtSubdomains `
+    -VerifyCtSubdomains `
     -EnableShodanCtSource `
     -ShodanApiKeyEnv SHODAN_API_KEY `
     -IncludeImapTls `
     -IncludePop3Tls `
     -MaxParallelism 24 `
-    -DiscoveryParallelism 32
+    -DiscoveryParallelism 32 `
+    -Verbose
 
 $capture | Format-List CapturedAtUtc,SnapshotPath,DomainCount,MxHostCount,EntryCount,ValidCount,ExpiredCount,FailedCount
+```
+
+For large domains where you want CT-seen hostnames added to scan scope:
+
+```powershell
+Invoke-DDCertificateInventory `
+    -DomainName eurofins.com `
+    -CacheDirectory .\cert-monitor `
+    -IncludeCtSubdomains `
+    -MaxCtSubdomainsPerDomain 5000 `
+    -MaxCtRowsPerDomain 20000
 ```
 
 ### 2. Read raw snapshots (metadata or full entries)

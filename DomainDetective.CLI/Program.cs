@@ -166,7 +166,8 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryCapture", "example.com", "example.org" })
                 .WithExample(new[] { "CertificateInventoryCapture", "--domains-file", "./domains.txt", "--json" })
                 .WithExample(new[] { "CertificateInventoryCapture", "example.com", "--endpoint", "https://api.example.com:8443", "--csv-path", "./artifacts/cert-capture.csv" })
-                .WithExample(new[] { "CertificateInventoryCapture", "example.com", "--ct-profile", "Extended", "--enable-shodan-ct", "--shodan-api-key-env", "SHODAN_API_KEY" });
+                .WithExample(new[] { "CertificateInventoryCapture", "example.com", "--ct-profile", "Extended", "--enable-shodan-ct", "--shodan-api-key-env", "SHODAN_API_KEY" })
+                .WithExample(new[] { "CertificateInventoryCapture", "example.com", "--include-ct-subdomains", "--verify-ct-subdomains", "--ct-max-subdomains-per-domain", "5000" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCaptureCommand>("cert-inventory-capture")
                 .WithDescription("Capture certificate inventory snapshot from domains and discovered endpoints (alias)");
 

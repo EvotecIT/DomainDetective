@@ -125,6 +125,77 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_DoesNotDiscoverMx_WhenIncludeMxHostsIsDisabled() {
+        var mxLookupCalled = false;
+        var capture = new CertificateInventoryCapture {
+            MxLookupOverride = (domain, dnsConfiguration, maxMxHostsPerDomain, cancellationToken) => {
+                mxLookupCalled = true;
+                IReadOnlyList<string> hosts = new[] { "mx1.example.com" };
+                return Task.FromResult(hosts);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = true,
+            IncludeSubmissionStartTls = true,
+            IncludeImapTls = true,
+            IncludePop3Tls = true,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.False(mxLookupCalled);
+        Assert.Equal(0, result.MxHostCount);
+        Assert.Equal(0, result.MailEndpointCount);
+        Assert.Equal(0, result.EntryCount);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_IncludesCtDiscoveredSubdomains_WhenEnabled() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        var capture = new CertificateInventoryCapture {
+            CtSubdomainDiscoveryOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<string> discovered = new[] { "portal.example.com", "api.example.com", "portal.example.com" };
+                return Task.FromResult(discovered);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    entries.Add(CreateHttpsEntry(target, certificate));
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.Equal(2, result.CtDiscoveredSubdomainCount);
+        Assert.Equal(2, result.HttpsEndpointCount);
+        Assert.Equal(2, result.EntryCount);
+        Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("portal.example.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("api.example.com", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void ConfigureHttpsAnalysis_DisabledProfileTurnsOffCtSources() {
         var analysis = new CertificateAnalysis();
         var options = new CertificateInventoryCaptureOptions {

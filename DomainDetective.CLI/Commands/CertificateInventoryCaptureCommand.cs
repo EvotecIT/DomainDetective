@@ -66,6 +66,24 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [CommandOption("--include-pop3-tls")]
     public bool IncludePop3Tls { get; set; }
 
+    [Description("Discover CT-observed subdomains and probe them over HTTPS.")]
+    [CommandOption("--include-ct-subdomains")]
+    public bool IncludeCtSubdomains { get; set; }
+
+    [Description("When CT subdomain discovery is enabled, only include CT subdomains that currently resolve in DNS.")]
+    [CommandOption("--verify-ct-subdomains")]
+    public bool VerifyCtSubdomains { get; set; }
+
+    [Description("Maximum CT rows processed per domain for CT subdomain discovery (0 means no explicit cap override).")]
+    [CommandOption("--ct-max-rows-per-domain <N>")]
+    [DefaultValue(10000)]
+    public int MaxCtRowsPerDomain { get; set; } = 10000;
+
+    [Description("Maximum CT subdomains retained per domain for CT subdomain discovery (0 means no explicit cap override).")]
+    [CommandOption("--ct-max-subdomains-per-domain <N>")]
+    [DefaultValue(2000)]
+    public int MaxCtSubdomainsPerDomain { get; set; } = 2000;
+
     [Description("Additional endpoint(s) to probe. Repeat option for multiple values.")]
     [CommandOption("--endpoint <ENDPOINT>")]
     public string[] AdditionalEndpoints { get; set; } = Array.Empty<string>();
@@ -189,6 +207,14 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--mail-timeout-seconds must be between 1 and 300.[/]");
             return 1;
         }
+        if (settings.MaxCtRowsPerDomain < 0) {
+            AnsiConsole.MarkupLine("[red]--ct-max-rows-per-domain must be 0 or greater.[/]");
+            return 1;
+        }
+        if (settings.MaxCtSubdomainsPerDomain < 0) {
+            AnsiConsole.MarkupLine("[red]--ct-max-subdomains-per-domain must be 0 or greater.[/]");
+            return 1;
+        }
         var censysSecret = ResolveSecret(settings.CensysApiSecret, settings.CensysApiSecretEnv);
         var shodanApiKey = ResolveSecret(settings.ShodanApiKey, settings.ShodanApiKeyEnv);
 
@@ -231,6 +257,10 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             IncludeSubmissionStartTls = !settings.DisableSubmissionStartTls,
             IncludeImapTls = settings.IncludeImapTls,
             IncludePop3Tls = settings.IncludePop3Tls,
+            IncludeCtDiscoveredSubdomains = settings.IncludeCtSubdomains,
+            VerifyCtDiscoveredSubdomains = settings.VerifyCtSubdomains,
+            MaxCtRowsPerDomain = settings.MaxCtRowsPerDomain,
+            MaxCtSubdomainsPerDomain = settings.MaxCtSubdomainsPerDomain,
             MaxMxHostsPerDomain = settings.MaxMxHostsPerDomain,
             MaxParallelism = settings.MaxParallelism,
             DiscoveryParallelism = settings.DiscoveryParallelism,
@@ -298,6 +328,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         summary.AddRow("Domains", result.DomainCount.ToString());
         summary.AddRow("MX Hosts", result.MxHostCount.ToString());
         summary.AddRow("HTTPS Endpoints", result.HttpsEndpointCount.ToString());
+        summary.AddRow("CT Subdomains", result.CtDiscoveredSubdomainCount.ToString());
         summary.AddRow("Mail Endpoints", result.MailEndpointCount.ToString());
         summary.AddRow("Snapshot Entries", result.EntryCount.ToString());
         summary.AddRow("Unique Endpoints", result.UniqueEndpointCount.ToString());

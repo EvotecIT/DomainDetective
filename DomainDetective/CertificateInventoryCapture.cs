@@ -27,6 +27,18 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>When true, probes www.&lt;domain&gt; over HTTPS.</summary>
     public bool IncludeWwwHttps { get; set; } = true;
 
+    /// <summary>When true, discovers CT-observed subdomains and probes them over HTTPS.</summary>
+    public bool IncludeCtDiscoveredSubdomains { get; set; }
+
+    /// <summary>When true, CT-discovered subdomains are DNS-verified before inclusion.</summary>
+    public bool VerifyCtDiscoveredSubdomains { get; set; }
+
+    /// <summary>Maximum CT rows processed per domain while discovering CT subdomains (0 means no explicit cap override).</summary>
+    public int MaxCtRowsPerDomain { get; set; } = 10_000;
+
+    /// <summary>Maximum CT-discovered subdomains retained per domain (0 means no explicit cap override).</summary>
+    public int MaxCtSubdomainsPerDomain { get; set; } = 2_000;
+
     /// <summary>When true, discovers MX hosts from DNS.</summary>
     public bool IncludeMxHosts { get; set; } = true;
 
@@ -143,6 +155,9 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>Total snapshot entry count.</summary>
     public int EntryCount { get; set; }
 
+    /// <summary>CT-discovered subdomain count included for HTTPS probing.</summary>
+    public int CtDiscoveredSubdomainCount { get; set; }
+
     /// <summary>Unique endpoint count (host+port).</summary>
     public int UniqueEndpointCount { get; set; }
 
@@ -163,6 +178,9 @@ public sealed class CertificateInventoryCaptureResult {
 
     /// <summary>HTTPS endpoints probed in this run.</summary>
     public IReadOnlyList<string> HttpsEndpoints { get; set; } = Array.Empty<string>();
+
+    /// <summary>CT-discovered subdomains included for HTTPS probing.</summary>
+    public IReadOnlyList<string> CtDiscoveredSubdomains { get; set; } = Array.Empty<string>();
 
     /// <summary>Mail endpoints probed in this run.</summary>
     public IReadOnlyList<string> MailEndpoints { get; set; } = Array.Empty<string>();
@@ -189,6 +207,7 @@ public sealed class CertificateInventoryCapture {
 
     internal Func<string, DnsConfiguration, int, CancellationToken, Task<IReadOnlyList<string>>>? MxLookupOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<CertificateMonitor.Entry>>>? HttpsProbeOverride { get; set; }
+    internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<string>>>? CtSubdomainDiscoveryOverride { get; set; }
     internal Func<CertificateInventorySnapshot, string, InternalLogger?, string>? PersistSnapshotOverride { get; set; }
 
     /// <summary>
@@ -229,8 +248,19 @@ public sealed class CertificateInventoryCapture {
         logger ??= new InternalLogger(false);
 
         var warnings = new List<string>();
+        var ctDiscoveredSubdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        const int totalStages = 8;
+        var stage = 0;
+        void AdvanceStage(string currentOperation) {
+            stage++;
+            logger.WriteProgress("CertificateInventoryCapture", currentOperation, stage * 100d / totalStages, stage, totalStages);
+        }
+
         AppendCtConfigurationWarnings(options, warnings);
         var normalizedDomains = NormalizeDomains(domains, warnings);
+        logger.WriteVerbose("Certificate inventory capture started for {0} normalized domain(s).", normalizedDomains.Count);
+        AdvanceStage("Domain normalization");
+
         var mxHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var httpsTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var mailTargets = new Dictionary<string, MailEndpointTarget>(StringComparer.OrdinalIgnoreCase);
@@ -245,11 +275,32 @@ public sealed class CertificateInventoryCapture {
             }
         }
 
-        if (options.IncludeMxHosts || options.IncludeMxHttps || options.IncludeSmtpStartTls || options.IncludeSubmissionStartTls || options.IncludeImapTls || options.IncludePop3Tls) {
+        if (options.IncludeCtDiscoveredSubdomains && normalizedDomains.Count > 0) {
+            IReadOnlyList<string> discoveredSubdomains;
+            if (CtSubdomainDiscoveryOverride != null) {
+                discoveredSubdomains = await CtSubdomainDiscoveryOverride(normalizedDomains, options, logger, cancellationToken).ConfigureAwait(false);
+            } else {
+                discoveredSubdomains = await DiscoverCtSubdomainsAsync(normalizedDomains, options, warnings, logger, cancellationToken).ConfigureAwait(false);
+            }
+
+            foreach (var subdomain in discoveredSubdomains) {
+                if (!string.IsNullOrWhiteSpace(subdomain)) {
+                    ctDiscoveredSubdomains.Add(subdomain);
+                    httpsTargets.Add(BuildHttpsUrl(subdomain, options.HttpsPort));
+                }
+            }
+
+            logger.WriteVerbose("CT subdomain discovery returned {0} unique candidate(s).", ctDiscoveredSubdomains.Count);
+        }
+        AdvanceStage("CT subdomain discovery");
+
+        if (options.IncludeMxHosts || options.IncludeMxHttps) {
             var dnsConfiguration = new DnsConfiguration {
                 DnsEndpoint = options.DnsEndpoint
             };
             var maxLookupParallelism = Math.Max(1, options.DiscoveryParallelism);
+            var totalLookups = normalizedDomains.Count;
+            var completedLookups = 0;
             using var gate = new SemaphoreSlim(maxLookupParallelism, maxLookupParallelism);
             var tasks = new List<Task>(normalizedDomains.Count);
             var mxByDomain = new ConcurrentDictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
@@ -257,6 +308,7 @@ public sealed class CertificateInventoryCapture {
                 await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 tasks.Add(Task.Run(async () => {
                     try {
+                        logger.WriteVerbose("Resolving MX records for {0}.", domain);
                         IReadOnlyList<string> hosts;
                         if (MxLookupOverride != null) {
                             hosts = await MxLookupOverride(domain, dnsConfiguration, options.MaxMxHostsPerDomain, cancellationToken).ConfigureAwait(false);
@@ -264,11 +316,19 @@ public sealed class CertificateInventoryCapture {
                             hosts = await ResolveMxHostsAsync(domain, dnsConfiguration, options.MaxMxHostsPerDomain, cancellationToken).ConfigureAwait(false);
                         }
                         mxByDomain[domain] = hosts;
+                        logger.WriteVerbose("Resolved {0} MX host(s) for {1}.", hosts.Count, domain);
                     } catch (Exception ex) {
                         lock (warnings) {
                             warnings.Add($"MX discovery failed for {domain}: {ex.Message}");
                         }
                     } finally {
+                        var completed = Interlocked.Increment(ref completedLookups);
+                        logger.WriteProgress(
+                            "CertificateInventoryCapture.MxDiscovery",
+                            domain,
+                            totalLookups == 0 ? 100d : completed * 100d / totalLookups,
+                            completed,
+                            totalLookups);
                         gate.Release();
                     }
                 }, cancellationToken));
@@ -283,6 +343,8 @@ public sealed class CertificateInventoryCapture {
                 }
             }
         }
+        AdvanceStage("MX discovery");
+        logger.WriteVerbose("Discovered {0} MX host(s).", mxHosts.Count);
 
         if (options.IncludeMxHttps) {
             foreach (var mxHost in mxHosts) {
@@ -295,6 +357,8 @@ public sealed class CertificateInventoryCapture {
         }
 
         ApplyAdditionalEndpoints(options, httpsTargets, mailTargets, warnings);
+        AdvanceStage("Endpoint expansion");
+        logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
 
         IReadOnlyList<CertificateMonitor.Entry> httpsEntries;
         if (HttpsProbeOverride != null) {
@@ -302,8 +366,12 @@ public sealed class CertificateInventoryCapture {
         } else {
             httpsEntries = await ProbeHttpsAsync(httpsTargets, options, logger, cancellationToken).ConfigureAwait(false);
         }
+        AdvanceStage("HTTPS probing");
+        logger.WriteVerbose("HTTPS probing produced {0} observation(s).", httpsEntries.Count);
 
         var mailEntries = await ProbeMailAsync(mailTargets.Values.ToList(), options, logger, cancellationToken).ConfigureAwait(false);
+        AdvanceStage("Mail TLS probing");
+        logger.WriteVerbose("Mail TLS probing produced {0} observation(s).", mailEntries.Count);
 
         var allEntries = new List<CertificateInventoryEntry>(httpsEntries.Count + mailEntries.Count);
         foreach (var httpsEntry in httpsEntries) {
@@ -324,6 +392,7 @@ public sealed class CertificateInventoryCapture {
             Port = distinctPorts.Count == 1 ? distinctPorts[0] : 0,
             Entries = deduped
         };
+        AdvanceStage("Snapshot synthesis");
 
         var snapshotPath = string.Empty;
         if (options.PersistSnapshot) {
@@ -337,6 +406,7 @@ public sealed class CertificateInventoryCapture {
                 snapshotPath = monitor.SaveInventorySnapshot(snapshot, logger);
             }
         }
+        AdvanceStage("Snapshot persistence");
 
         var uniqueEndpoints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var validCount = 0;
@@ -364,6 +434,7 @@ public sealed class CertificateInventoryCapture {
             HttpsEndpointCount = httpsTargets.Count,
             MailEndpointCount = mailTargets.Count,
             EntryCount = deduped.Count,
+            CtDiscoveredSubdomainCount = ctDiscoveredSubdomains.Count,
             UniqueEndpointCount = uniqueEndpoints.Count,
             ValidCount = validCount,
             ExpiredCount = expiredCount,
@@ -371,6 +442,7 @@ public sealed class CertificateInventoryCapture {
             Domains = normalizedDomains,
             MxHosts = mxHosts.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
             HttpsEndpoints = httpsTargets.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            CtDiscoveredSubdomains = ctDiscoveredSubdomains.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
             MailEndpoints = mailTargets.Values
                 .OrderBy(x => x.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.Port)
@@ -700,6 +772,82 @@ public sealed class CertificateInventoryCapture {
         return distinct;
     }
 
+    private static async Task<IReadOnlyList<string>> DiscoverCtSubdomainsAsync(
+        IReadOnlyList<string> domains,
+        CertificateInventoryCaptureOptions options,
+        List<string> warnings,
+        InternalLogger logger,
+        CancellationToken cancellationToken) {
+        if (domains == null || domains.Count == 0 || !options.IncludeCtDiscoveredSubdomains) {
+            return Array.Empty<string>();
+        }
+
+        var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var warningLock = new object();
+        var discoveredLock = new object();
+        var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
+        using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
+        var tasks = new List<Task>(domains.Count);
+        foreach (var domain in domains) {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            tasks.Add(Task.Run(async () => {
+                try {
+                    var analysis = new SubdomainsAnalysis {
+                        DnsConfiguration = new DnsConfiguration {
+                            DnsEndpoint = options.DnsEndpoint
+                        },
+                        VerifyStillResolves = options.VerifyCtDiscoveredSubdomains,
+                        DetectSensitiveSubdomains = false,
+                        ScanSensitiveSubdomainTxt = false,
+                        DetectAiInfrastructureExposure = false
+                    };
+                    if (options.MaxCtRowsPerDomain > 0) {
+                        analysis.MaxCtRowsToProcess = options.MaxCtRowsPerDomain;
+                    }
+                    if (options.MaxCtSubdomainsPerDomain > 0) {
+                        analysis.MaxSubdomains = options.MaxCtSubdomainsPerDomain;
+                        analysis.MaxResolutionChecks = options.MaxCtSubdomainsPerDomain;
+                    }
+
+                    await analysis.AnalyzeAsync(domain, logger, cancellationToken).ConfigureAwait(false);
+                    if (!analysis.QuerySucceeded && !string.IsNullOrWhiteSpace(analysis.FailureReason)) {
+                        lock (warningLock) {
+                            warnings.Add($"CT subdomain discovery failed for {domain}: {analysis.FailureReason}");
+                        }
+                    } else if (analysis.ResultsCapped) {
+                        lock (warningLock) {
+                            warnings.Add($"CT subdomain discovery results were capped for {domain}.");
+                        }
+                    }
+
+                    var candidates = analysis.Subdomains ?? Array.Empty<SubdomainDiscoveryEntry>();
+                    foreach (var candidate in candidates) {
+                        if (candidate == null || string.IsNullOrWhiteSpace(candidate.Name)) {
+                            continue;
+                        }
+                        if (options.VerifyCtDiscoveredSubdomains &&
+                            candidate.ResolutionStatus != SubdomainResolutionStatus.Resolves) {
+                            continue;
+                        }
+
+                        lock (discoveredLock) {
+                            discovered.Add(candidate.Name);
+                        }
+                    }
+                } catch (Exception ex) {
+                    lock (warningLock) {
+                        warnings.Add($"CT subdomain discovery failed for {domain}: {ex.Message}");
+                    }
+                } finally {
+                    gate.Release();
+                }
+            }, cancellationToken));
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        return discovered.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     private static async Task<IReadOnlyList<CertificateMonitor.Entry>> ProbeHttpsAsync(
         IEnumerable<string> httpsTargets,
         CertificateInventoryCaptureOptions options,
@@ -715,6 +863,7 @@ public sealed class CertificateInventoryCapture {
             PersistInventorySnapshots = false,
             MaxParallelism = Math.Max(1, options.MaxParallelism)
         };
+        logger.WriteVerbose("Starting HTTPS probe for {0} endpoint(s).", list.Count);
         monitor.AnalysisOverride = async (url, port, internalLogger, token) => {
             var analysis = new CertificateAnalysis {
                 CaptureTlsDetails = true
@@ -724,7 +873,8 @@ public sealed class CertificateInventoryCapture {
             return analysis;
         };
 
-        await monitor.Analyze(list, options.HttpsPort, logger, cancellationToken, showProgress: false).ConfigureAwait(false);
+        await monitor.Analyze(list, options.HttpsPort, logger, cancellationToken, showProgress: true).ConfigureAwait(false);
+        logger.WriteVerbose("Completed HTTPS probe for {0} endpoint(s).", list.Count);
         return monitor.Results.ToList();
     }
 
@@ -835,12 +985,16 @@ public sealed class CertificateInventoryCapture {
 
         var results = new ConcurrentBag<CertificateInventoryEntry>();
         var parallelism = Math.Max(1, options.MaxParallelism);
+        var totalTargets = mailTargets.Count;
+        var completedTargets = 0;
+        logger.WriteVerbose("Starting mail TLS probe for {0} endpoint(s).", totalTargets);
         using var gate = new SemaphoreSlim(parallelism, parallelism);
         var tasks = new List<Task>(mailTargets.Count);
         foreach (var target in mailTargets) {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             tasks.Add(Task.Run(async () => {
                 try {
+                    logger.WriteVerbose("Probing mail endpoint {0}:{1} ({2}).", target.Host, target.Port, target.Service);
                     var analysis = new MailTlsAnalysis {
                         Timeout = options.MailTimeout
                     };
@@ -854,11 +1008,19 @@ public sealed class CertificateInventoryCapture {
                 } catch {
                     results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult()));
                 } finally {
+                    var completed = Interlocked.Increment(ref completedTargets);
+                    logger.WriteProgress(
+                        "CertificateInventoryCapture.Mail",
+                        $"{target.Service} {target.Host}:{target.Port}",
+                        totalTargets == 0 ? 100d : completed * 100d / totalTargets,
+                        completed,
+                        totalTargets);
                     gate.Release();
                 }
             }, cancellationToken));
         }
         await Task.WhenAll(tasks).ConfigureAwait(false);
+        logger.WriteVerbose("Completed mail TLS probe for {0} endpoint(s).", totalTargets);
         return results.ToList();
     }
 

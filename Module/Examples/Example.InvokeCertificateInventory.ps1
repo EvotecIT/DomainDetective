@@ -19,6 +19,8 @@ $Capture = Invoke-DDCertificateInventory `
     -MaxParallelism 24 `
     -DiscoveryParallelism 32 `
     -CtProfile Extended `
+    -IncludeCtSubdomains `
+    -VerifyCtSubdomains `
     -EnableShodanCtSource `
     -ShodanApiKeyEnv SHODAN_API_KEY `
     -IncludeImapTls `

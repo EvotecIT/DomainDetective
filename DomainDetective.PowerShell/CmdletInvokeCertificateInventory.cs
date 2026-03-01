@@ -1,8 +1,10 @@
 using DnsClientX;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Management.Automation;
+using System.Threading;
 
 namespace DomainDetective.PowerShell;
 
@@ -19,6 +21,10 @@ namespace DomainDetective.PowerShell;
 /// <example>
 ///   <summary>Capture snapshot with extended CT enrichment</summary>
 ///   <code>Invoke-DDCertificateInventory -DomainName example.com -CtProfile Extended -EnableShodanCtSource -ShodanApiKeyEnv SHODAN_API_KEY</code>
+/// </example>
+/// <example>
+///   <summary>Capture snapshot including CT-discovered subdomains</summary>
+///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -VerifyCtSubdomains -MaxCtSubdomainsPerDomain 5000 -Verbose</code>
 /// </example>
 [Cmdlet(VerbsLifecycle.Invoke, "DDCertificateInventory")]
 [OutputType(typeof(CertificateInventoryCaptureResult))]
@@ -72,6 +78,24 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     /// <summary>Enable POP3 TLS probing on port 995.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter IncludePop3Tls { get; set; }
+
+    /// <summary>Discover CT-observed subdomains for each input domain and probe them over HTTPS.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter IncludeCtSubdomains { get; set; }
+
+    /// <summary>When used with -IncludeCtSubdomains, only include CT subdomains that currently resolve in DNS.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter VerifyCtSubdomains { get; set; }
+
+    /// <summary>Maximum CT rows processed per domain when CT subdomain discovery is enabled (0 means no explicit cap override).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int MaxCtRowsPerDomain { get; set; } = 10000;
+
+    /// <summary>Maximum CT subdomains retained per domain when CT subdomain discovery is enabled (0 means no explicit cap override).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int MaxCtSubdomainsPerDomain { get; set; } = 2000;
 
     /// <summary>Additional endpoint(s) to probe (supports https:// and mail schemes).</summary>
     [Parameter(Mandatory = false)]
@@ -209,6 +233,10 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             IncludeSubmissionStartTls = !DisableSubmissionStartTls.IsPresent,
             IncludeImapTls = IncludeImapTls.IsPresent,
             IncludePop3Tls = IncludePop3Tls.IsPresent,
+            IncludeCtDiscoveredSubdomains = IncludeCtSubdomains.IsPresent,
+            VerifyCtDiscoveredSubdomains = VerifyCtSubdomains.IsPresent,
+            MaxCtRowsPerDomain = MaxCtRowsPerDomain,
+            MaxCtSubdomainsPerDomain = MaxCtSubdomainsPerDomain,
             MaxMxHostsPerDomain = MaxMxHostsPerDomain,
             MaxParallelism = MaxParallelism,
             DiscoveryParallelism = DiscoveryParallelism,
@@ -242,7 +270,39 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
 
         try {
             var capture = new CertificateInventoryCapture();
-            var result = capture.CaptureAsync(domains, options, new InternalLogger(false)).GetAwaiter().GetResult();
+            var logger = new InternalLogger(false);
+
+            var verboseQueue = new ConcurrentQueue<string>();
+            var warningQueue = new ConcurrentQueue<string>();
+            var errorQueue = new ConcurrentQueue<string>();
+            var progressQueue = new ConcurrentQueue<LogEventArgs>();
+
+            logger.OnVerboseMessage += (_, e) => {
+                if (!string.IsNullOrWhiteSpace(e.Message)) {
+                    verboseQueue.Enqueue(e.Message);
+                }
+            };
+            logger.OnWarningMessage += (_, e) => {
+                if (!string.IsNullOrWhiteSpace(e.Message)) {
+                    warningQueue.Enqueue(e.Message);
+                }
+            };
+            logger.OnErrorMessage += (_, e) => {
+                if (!string.IsNullOrWhiteSpace(e.Message)) {
+                    errorQueue.Enqueue(e.Message);
+                }
+            };
+            logger.OnProgressMessage += (_, e) => progressQueue.Enqueue(e);
+
+            var task = capture.CaptureAsync(domains, options, logger);
+            while (!task.IsCompleted) {
+                FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue);
+                Thread.Sleep(75);
+            }
+
+            FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue);
+            var result = task.GetAwaiter().GetResult();
+            FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue);
             WriteObject(result);
         } catch (Exception ex) {
             ThrowTerminatingError(new ErrorRecord(
@@ -250,6 +310,39 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
                 "CertificateInventoryCaptureFailed",
                 ErrorCategory.InvalidOperation,
                 domains));
+        }
+
+        void FlushQueues(
+            ConcurrentQueue<string> verboseQueueLocal,
+            ConcurrentQueue<string> warningQueueLocal,
+            ConcurrentQueue<string> errorQueueLocal,
+            ConcurrentQueue<LogEventArgs> progressQueueLocal) {
+            while (verboseQueueLocal.TryDequeue(out var message)) {
+                WriteVerbose(message);
+            }
+
+            while (warningQueueLocal.TryDequeue(out var warning)) {
+                WriteWarning(warning);
+            }
+
+            while (errorQueueLocal.TryDequeue(out var error)) {
+                WriteWarning($"[capture-error] {error}");
+            }
+
+            while (progressQueueLocal.TryDequeue(out var progress)) {
+                var activity = string.IsNullOrWhiteSpace(progress.ProgressActivity)
+                    ? "CertificateInventoryCapture"
+                    : progress.ProgressActivity!;
+                var operation = string.IsNullOrWhiteSpace(progress.ProgressCurrentOperation)
+                    ? "Processing"
+                    : progress.ProgressCurrentOperation!;
+                var record = new ProgressRecord(1, activity, operation);
+                record.PercentComplete = progress.ProgressPercentage.GetValueOrDefault(0);
+                if (record.PercentComplete >= 100) {
+                    record.RecordType = ProgressRecordType.Completed;
+                }
+                WriteProgress(record);
+            }
         }
     }
 
