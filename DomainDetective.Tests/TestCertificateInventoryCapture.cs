@@ -196,6 +196,42 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_AppliesMaxTargetsLimit_WhenConfigured() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    entries.Add(CreateHttpsEntry(target, certificate));
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = true,
+            IncludeWwwHttps = true,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            MaxTargets = 2,
+            PersistSnapshot = false
+        };
+        options.AdditionalEndpoints.Add("https://api.example.com:8443");
+        options.AdditionalEndpoints.Add("https://portal.example.com:9443");
+
+        var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.Equal(2, result.HttpsEndpointCount);
+        Assert.Equal(0, result.MailEndpointCount);
+        Assert.Equal(2, result.EntryCount);
+        Assert.Contains(result.Warnings, warning => warning.Contains("capped", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void ConfigureHttpsAnalysis_DisabledProfileTurnsOffCtSources() {
         var analysis = new CertificateAnalysis();
         var options = new CertificateInventoryCaptureOptions {

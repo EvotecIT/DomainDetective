@@ -26,6 +26,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Capture snapshot including CT-discovered subdomains</summary>
 ///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -VerifyCtSubdomains -MaxCtSubdomainsPerDomain 5000 -Verbose</code>
 /// </example>
+/// <example>
+///   <summary>Run a throttled test capture</summary>
+///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -Limit 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose</code>
+/// </example>
 [Cmdlet(VerbsLifecycle.Invoke, "DDCertificateInventory")]
 [OutputType(typeof(CertificateInventoryCaptureResult))]
 public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
@@ -120,6 +124,22 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [Parameter(Mandatory = false)]
     [ValidateRange(1, 300)]
     public int MailTimeoutSeconds { get; set; } = 15;
+
+    /// <summary>Maximum number of detailed endpoint probe error warnings to emit (0 emits only a summary warning).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, 10000)]
+    public int MaxProbeErrorWarnings { get; set; } = 25;
+
+    /// <summary>Maximum total probe targets (HTTPS + mail) kept after discovery; useful for quick test runs (0 means unlimited).</summary>
+    [Parameter(Mandatory = false)]
+    [Alias("Limit")]
+    [ValidateRange(0, int.MaxValue)]
+    public int MaxTargets { get; set; }
+
+    /// <summary>Maximum number of probe starts per second (0 means unlimited).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, 10000)]
+    public int MaxProbeStartsPerSecond { get; set; }
 
     /// <summary>Skip revocation checks for HTTPS probes.</summary>
     [Parameter(Mandatory = false)]
@@ -241,6 +261,8 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             MaxParallelism = MaxParallelism,
             DiscoveryParallelism = DiscoveryParallelism,
             MailTimeout = TimeSpan.FromSeconds(MailTimeoutSeconds),
+            MaxTargets = MaxTargets,
+            MaxProbeStartsPerSecond = MaxProbeStartsPerSecond,
             SkipRevocation = SkipRevocation.IsPresent,
             CtProfile = CtProfile,
             IncludeDefaultCtTemplate = !DisableDefaultCtTemplate.IsPresent,
@@ -268,14 +290,20 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             }
         }
 
-        try {
-            var capture = new CertificateInventoryCapture();
-            var logger = new InternalLogger(false);
+        var capture = new CertificateInventoryCapture();
+        var logger = new InternalLogger(false);
 
-            var verboseQueue = new ConcurrentQueue<string>();
-            var warningQueue = new ConcurrentQueue<string>();
-            var errorQueue = new ConcurrentQueue<string>();
-            var progressQueue = new ConcurrentQueue<LogEventArgs>();
+        var verboseQueue = new ConcurrentQueue<string>();
+        var warningQueue = new ConcurrentQueue<string>();
+        var errorQueue = new ConcurrentQueue<string>();
+        var progressQueue = new ConcurrentQueue<LogEventArgs>();
+        var progressRecordIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var nextProgressRecordId = 1;
+        var totalProbeErrors = 0;
+        var emittedProbeErrorWarnings = 0;
+        var suppressedProbeErrorWarnings = 0;
+
+        try {
 
             logger.OnVerboseMessage += (_, e) => {
                 if (!string.IsNullOrWhiteSpace(e.Message)) {
@@ -296,13 +324,13 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
 
             var task = capture.CaptureAsync(domains, options, logger);
             while (!task.IsCompleted) {
-                FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue);
+                FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue, false);
                 Thread.Sleep(75);
             }
 
-            FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue);
+            FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue, false);
             var result = task.GetAwaiter().GetResult();
-            FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue);
+            FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue, true);
             WriteObject(result);
         } catch (Exception ex) {
             ThrowTerminatingError(new ErrorRecord(
@@ -316,7 +344,8 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             ConcurrentQueue<string> verboseQueueLocal,
             ConcurrentQueue<string> warningQueueLocal,
             ConcurrentQueue<string> errorQueueLocal,
-            ConcurrentQueue<LogEventArgs> progressQueueLocal) {
+            ConcurrentQueue<LogEventArgs> progressQueueLocal,
+            bool finalPass) {
             while (verboseQueueLocal.TryDequeue(out var message)) {
                 WriteVerbose(message);
             }
@@ -326,7 +355,14 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             }
 
             while (errorQueueLocal.TryDequeue(out var error)) {
-                WriteWarning($"[capture-error] {error}");
+                totalProbeErrors++;
+                var compact = CompactProbeError(error);
+                if (emittedProbeErrorWarnings < MaxProbeErrorWarnings) {
+                    emittedProbeErrorWarnings++;
+                    WriteWarning($"[capture-error] {compact}");
+                } else {
+                    suppressedProbeErrorWarnings++;
+                }
             }
 
             while (progressQueueLocal.TryDequeue(out var progress)) {
@@ -336,14 +372,41 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
                 var operation = string.IsNullOrWhiteSpace(progress.ProgressCurrentOperation)
                     ? "Processing"
                     : progress.ProgressCurrentOperation!;
-                var record = new ProgressRecord(1, activity, operation);
+
+                int recordId;
+                if (!progressRecordIds.TryGetValue(activity, out recordId)) {
+                    recordId = nextProgressRecordId++;
+                    progressRecordIds[activity] = recordId;
+                }
+
+                var record = new ProgressRecord(recordId, activity, operation);
                 record.PercentComplete = progress.ProgressPercentage.GetValueOrDefault(0);
                 if (record.PercentComplete >= 100) {
                     record.RecordType = ProgressRecordType.Completed;
                 }
                 WriteProgress(record);
             }
+
+            if (finalPass && suppressedProbeErrorWarnings > 0) {
+                WriteWarning($"[capture-error] {suppressedProbeErrorWarnings} additional endpoint probe error warning(s) were suppressed (total endpoint probe errors: {totalProbeErrors}).");
+            }
         }
+    }
+
+    private static string CompactProbeError(string error) {
+        if (string.IsNullOrWhiteSpace(error)) {
+            return "Endpoint probe failed.";
+        }
+
+        var normalized = error.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        var stackIndex = normalized.IndexOf("   at ", StringComparison.Ordinal);
+        if (stackIndex > 0) {
+            normalized = normalized.Substring(0, stackIndex).Trim();
+        }
+        if (normalized.Length > 320) {
+            normalized = normalized.Substring(0, 320).TrimEnd() + "...";
+        }
+        return normalized;
     }
 
     private static string? ResolveSecret(string? directValue, string? envVariableName) {

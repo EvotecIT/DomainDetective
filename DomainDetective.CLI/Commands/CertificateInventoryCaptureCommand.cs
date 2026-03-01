@@ -108,6 +108,16 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [DefaultValue(15)]
     public int MailTimeoutSeconds { get; set; } = 15;
 
+    [Description("Maximum total probe targets (HTTPS + mail) kept after discovery (0 means unlimited).")]
+    [CommandOption("--max-targets <N>")]
+    [DefaultValue(0)]
+    public int MaxTargets { get; set; }
+
+    [Description("Maximum number of probe starts per second (0 means unlimited).")]
+    [CommandOption("--max-probe-starts-per-second <N>")]
+    [DefaultValue(0)]
+    public int MaxProbeStartsPerSecond { get; set; }
+
     [Description("Skip revocation checks for HTTPS probes.")]
     [CommandOption("--skip-revocation")]
     public bool SkipRevocation { get; set; }
@@ -207,6 +217,14 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--mail-timeout-seconds must be between 1 and 300.[/]");
             return 1;
         }
+        if (settings.MaxTargets < 0) {
+            AnsiConsole.MarkupLine("[red]--max-targets must be 0 or greater.[/]");
+            return 1;
+        }
+        if (settings.MaxProbeStartsPerSecond < 0) {
+            AnsiConsole.MarkupLine("[red]--max-probe-starts-per-second must be 0 or greater.[/]");
+            return 1;
+        }
         if (settings.MaxCtRowsPerDomain < 0) {
             AnsiConsole.MarkupLine("[red]--ct-max-rows-per-domain must be 0 or greater.[/]");
             return 1;
@@ -265,6 +283,8 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             MaxParallelism = settings.MaxParallelism,
             DiscoveryParallelism = settings.DiscoveryParallelism,
             MailTimeout = TimeSpan.FromSeconds(settings.MailTimeoutSeconds),
+            MaxTargets = settings.MaxTargets,
+            MaxProbeStartsPerSecond = settings.MaxProbeStartsPerSecond,
             SkipRevocation = settings.SkipRevocation,
             CtProfile = settings.CtProfile,
             IncludeDefaultCtTemplate = !settings.DisableDefaultCtTemplate,

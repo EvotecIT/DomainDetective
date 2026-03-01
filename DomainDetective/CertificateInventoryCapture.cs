@@ -84,6 +84,12 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Timeout applied to mail TLS probes.</summary>
     public TimeSpan MailTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
+    /// <summary>Maximum total probe targets (HTTPS + mail) kept after discovery; 0 means unlimited.</summary>
+    public int MaxTargets { get; set; }
+
+    /// <summary>Maximum number of probe starts per second; 0 means unlimited.</summary>
+    public int MaxProbeStartsPerSecond { get; set; }
+
     /// <summary>When true, skips revocation checks for HTTPS certificate analysis.</summary>
     public bool SkipRevocation { get; set; }
 
@@ -205,6 +211,42 @@ public sealed class CertificateInventoryCapture {
         public string ChainSource { get; set; } = string.Empty;
     }
 
+    private sealed class ProbeStartRateLimiter {
+        private readonly int _intervalMilliseconds;
+        private readonly object _sync = new();
+        private long _nextStartTimeUtcMilliseconds;
+
+        public ProbeStartRateLimiter(int maxStartsPerSecond) {
+            if (maxStartsPerSecond > 0) {
+                _intervalMilliseconds = (int)Math.Ceiling(1000d / maxStartsPerSecond);
+                if (_intervalMilliseconds < 1) {
+                    _intervalMilliseconds = 1;
+                }
+            }
+        }
+
+        public async Task WaitAsync(CancellationToken cancellationToken) {
+            if (_intervalMilliseconds <= 0) {
+                return;
+            }
+
+            var delay = 0;
+            lock (_sync) {
+                var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                if (_nextStartTimeUtcMilliseconds <= now) {
+                    _nextStartTimeUtcMilliseconds = now + _intervalMilliseconds;
+                } else {
+                    delay = (int)Math.Min(int.MaxValue, _nextStartTimeUtcMilliseconds - now);
+                    _nextStartTimeUtcMilliseconds += _intervalMilliseconds;
+                }
+            }
+
+            if (delay > 0) {
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
     internal Func<string, DnsConfiguration, int, CancellationToken, Task<IReadOnlyList<string>>>? MxLookupOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<CertificateMonitor.Entry>>>? HttpsProbeOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<string>>>? CtSubdomainDiscoveryOverride { get; set; }
@@ -244,6 +286,12 @@ public sealed class CertificateInventoryCapture {
         if (options.Pop3Port < 1 || options.Pop3Port > 65535) {
             throw new ArgumentOutOfRangeException(nameof(options.Pop3Port), "POP3 port must be between 1 and 65535.");
         }
+        if (options.MaxTargets < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.MaxTargets), "MaxTargets must be 0 or greater.");
+        }
+        if (options.MaxProbeStartsPerSecond < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.MaxProbeStartsPerSecond), "MaxProbeStartsPerSecond must be 0 or greater.");
+        }
 
         logger ??= new InternalLogger(false);
 
@@ -259,6 +307,7 @@ public sealed class CertificateInventoryCapture {
         AppendCtConfigurationWarnings(options, warnings);
         var normalizedDomains = NormalizeDomains(domains, warnings);
         logger.WriteVerbose("Certificate inventory capture started for {0} normalized domain(s).", normalizedDomains.Count);
+        logger.WriteVerbose("Capture settings: MaxParallelism={0}, DiscoveryParallelism={1}, MaxTargets={2}, MaxProbeStartsPerSecond={3}.", options.MaxParallelism, options.DiscoveryParallelism, options.MaxTargets, options.MaxProbeStartsPerSecond);
         AdvanceStage("Domain normalization");
 
         var mxHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -357,6 +406,7 @@ public sealed class CertificateInventoryCapture {
         }
 
         ApplyAdditionalEndpoints(options, httpsTargets, mailTargets, warnings);
+        ApplyTargetLimit(options, httpsTargets, mailTargets, warnings);
         AdvanceStage("Endpoint expansion");
         logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
 
@@ -559,6 +609,55 @@ public sealed class CertificateInventoryCapture {
 
     private static string BuildMailTargetLabel(MailEndpointTarget target) {
         return $"{target.Scheme}://{target.Host}:{target.Port}";
+    }
+
+    private static void ApplyTargetLimit(
+        CertificateInventoryCaptureOptions options,
+        HashSet<string> httpsTargets,
+        Dictionary<string, MailEndpointTarget> mailTargets,
+        List<string> warnings) {
+        if (options.MaxTargets <= 0) {
+            return;
+        }
+
+        var totalTargets = httpsTargets.Count + mailTargets.Count;
+        if (totalTargets <= options.MaxTargets) {
+            return;
+        }
+
+        var originalHttps = httpsTargets.Count;
+        var originalMail = mailTargets.Count;
+        var limit = options.MaxTargets;
+        var allowedMail = Math.Min(originalMail, limit);
+        var allowedHttps = Math.Max(0, limit - allowedMail);
+
+        if (originalMail > allowedMail) {
+            var keptMail = mailTargets.Values
+                .OrderBy(target => target.Host, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(target => target.Port)
+                .ThenBy(target => target.Service, StringComparer.OrdinalIgnoreCase)
+                .Take(allowedMail)
+                .ToList();
+
+            mailTargets.Clear();
+            foreach (var target in keptMail) {
+                AddMailTarget(mailTargets, target);
+            }
+        }
+
+        if (originalHttps > allowedHttps) {
+            var keptHttps = httpsTargets
+                .OrderBy(target => target, StringComparer.OrdinalIgnoreCase)
+                .Take(allowedHttps)
+                .ToList();
+
+            httpsTargets.Clear();
+            foreach (var target in keptHttps) {
+                httpsTargets.Add(target);
+            }
+        }
+
+        warnings.Add($"Probe target list capped from {totalTargets} to {options.MaxTargets} by MaxTargets (HTTPS: {originalHttps}->{httpsTargets.Count}, Mail: {originalMail}->{mailTargets.Count}).");
     }
 
     private static void ApplyAdditionalEndpoints(
@@ -864,7 +963,12 @@ public sealed class CertificateInventoryCapture {
             MaxParallelism = Math.Max(1, options.MaxParallelism)
         };
         logger.WriteVerbose("Starting HTTPS probe for {0} endpoint(s).", list.Count);
+        if (options.MaxProbeStartsPerSecond > 0) {
+            logger.WriteVerbose("Probe start rate limit enabled: up to {0} start(s)/second.", options.MaxProbeStartsPerSecond);
+        }
+        var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
         monitor.AnalysisOverride = async (url, port, internalLogger, token) => {
+            await rateLimiter.WaitAsync(token).ConfigureAwait(false);
             var analysis = new CertificateAnalysis {
                 CaptureTlsDetails = true
             };
@@ -988,12 +1092,14 @@ public sealed class CertificateInventoryCapture {
         var totalTargets = mailTargets.Count;
         var completedTargets = 0;
         logger.WriteVerbose("Starting mail TLS probe for {0} endpoint(s).", totalTargets);
+        var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
         using var gate = new SemaphoreSlim(parallelism, parallelism);
         var tasks = new List<Task>(mailTargets.Count);
         foreach (var target in mailTargets) {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             tasks.Add(Task.Run(async () => {
                 try {
+                    await rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false);
                     logger.WriteVerbose("Probing mail endpoint {0}:{1} ({2}).", target.Host, target.Port, target.Service);
                     var analysis = new MailTlsAnalysis {
                         Timeout = options.MailTimeout

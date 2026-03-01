@@ -56,6 +56,8 @@ Notes:
 - `crt.sh` is public and does not require API credentials in this flow.
 - For commercial sources, credentials are required (for example Shodan/Censys).
 - MX hosts are often inbound-only and may not expose `587/993/995`; empty certificate fields on those rows usually indicate service not reachable on that endpoint, not parser failure.
+- Endpoint probe errors are expected on large CT-expanded scans (historical/internal hosts). Use `-MaxProbeErrorWarnings` to limit warning noise.
+- Use `-MaxTargets` for quick/safe test runs and `-MaxProbeStartsPerSecond` as an anti-hammer throttle.
 
 ## PowerShell end-to-end examples
 
@@ -83,8 +85,11 @@ $capture = Invoke-DDCertificateInventory `
     -ShodanApiKeyEnv SHODAN_API_KEY `
     -IncludeImapTls `
     -IncludePop3Tls `
+    -MaxTargets 300 `
+    -MaxProbeStartsPerSecond 20 `
     -MaxParallelism 24 `
     -DiscoveryParallelism 32 `
+    -MaxProbeErrorWarnings 25 `
     -Verbose
 
 $capture | Format-List CapturedAtUtc,SnapshotPath,DomainCount,MxHostCount,EntryCount,ValidCount,ExpiredCount,FailedCount
@@ -97,6 +102,9 @@ Invoke-DDCertificateInventory `
     -DomainName eurofins.com `
     -CacheDirectory .\cert-monitor `
     -IncludeCtSubdomains `
+    -MaxTargets 150 `
+    -MaxProbeStartsPerSecond 20 `
+    -MaxProbeErrorWarnings 10 `
     -MaxCtSubdomainsPerDomain 5000 `
     -MaxCtRowsPerDomain 20000
 ```

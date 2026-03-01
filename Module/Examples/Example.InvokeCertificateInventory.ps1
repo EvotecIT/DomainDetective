@@ -16,6 +16,8 @@ $CacheDirectory = Join-Path $PSScriptRoot 'cert-monitor'
 $Capture = Invoke-DDCertificateInventory `
     -DomainName $Domains `
     -CacheDirectory $CacheDirectory `
+    -MaxTargets 300 `
+    -MaxProbeStartsPerSecond 20 `
     -MaxParallelism 24 `
     -DiscoveryParallelism 32 `
     -CtProfile Extended `
