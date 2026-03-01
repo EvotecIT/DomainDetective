@@ -290,7 +290,7 @@ Import-DDRegistrationSnapshot   -DomainName example.com -StorePath .\\Store
 Invoke-DDCertificateInventory -DomainName example.com,example.org -CacheDirectory .\\cert-monitor
 # Optional CT enrichment profile for inventory capture (public + optional commercial sources):
 Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-monitor -CtProfile Extended -EnableShodanCtSource -ShodanApiKeyEnv SHODAN_API_KEY
-# Optional: include CT-discovered subdomains and show progress/verbose stream:
+# Optional: include CT-discovered subdomains, reuse recent snapshot results, and keep anti-hammer limits:
 Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-monitor -IncludeCtSubdomains -VerifyCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14 -MaxTargets 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose
 # Read latest raw snapshot (full entries) or metadata only:
 Get-DDCertificateInventorySnapshot -CacheDirectory .\\cert-monitor -Latest

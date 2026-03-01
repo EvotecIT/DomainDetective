@@ -38,6 +38,24 @@ PowerShell quick check:
 Get-DDCertificateInventorySnapshot -CacheDirectory .\cert-monitor -Latest -WithoutEntries
 ```
 
+## Smart Reuse Cache (skip redundant probes)
+
+When you run repeated captures against large portfolios, you can reuse recent endpoint results instead of probing everything every time.
+
+- Enable with `-ReuseRecentResults`.
+- Reuse window is controlled by `-RecentResultTtlHours` (default `24`).
+- Near-expiry certificates are always refreshed based on `-ReprobeExpiringWithinDays` (default `14`).
+- Reuse is endpoint-based (`host + port + service`).
+
+Reuse only applies when a cached endpoint result is considered safe:
+
+- endpoint was reachable
+- certificate thumbprint exists
+- certificate is not expired
+- certificate is not inside the re-probe expiry window
+
+This keeps recurring runs fast while still refreshing risky/soon-expiring endpoints.
+
 ## Discovery coverage and sources
 
 DomainDetective combines endpoint probing and CT evidence:
@@ -60,6 +78,17 @@ Notes:
 - Use `-MaxTargets` for quick/safe test runs and `-MaxProbeStartsPerSecond` as an anti-hammer throttle.
 - Use `-ReuseRecentResults` with `-RecentResultTtlHours` to skip re-probing endpoints already captured recently.
 - `-ReprobeExpiringWithinDays` keeps near-expiry certificates fresh even when cache reuse is enabled.
+
+### Capture controls quick reference
+
+| Control | Default | Purpose |
+| --- | --- | --- |
+| `-MaxTargets` (`-Limit`) | `0` (unlimited) | Cap total discovered probe targets (HTTPS + mail) for test/safety runs |
+| `-MaxProbeStartsPerSecond` | `0` (unlimited) | Anti-hammer throttle for probe start rate |
+| `-MaxProbeErrorWarnings` | `25` | Limit verbose endpoint error warning noise |
+| `-ReuseRecentResults` | Off | Reuse recent persisted endpoint results to skip redundant probes |
+| `-RecentResultTtlHours` | `24` | How long cached endpoint results are eligible for reuse |
+| `-ReprobeExpiringWithinDays` | `14` | Always recheck endpoints whose certs expire soon |
 
 ## PowerShell end-to-end examples
 
@@ -114,6 +143,21 @@ Invoke-DDCertificateInventory `
     -MaxProbeErrorWarnings 10 `
     -MaxCtSubdomainsPerDomain 5000 `
     -MaxCtRowsPerDomain 20000
+```
+
+CLI equivalent:
+
+```bash
+DomainDetective.CLI CertificateInventoryCapture eurofins.com \
+  --include-ct-subdomains \
+  --verify-ct-subdomains \
+  --reuse-recent-results \
+  --recent-result-ttl-hours 24 \
+  --reprobe-expiring-within-days 14 \
+  --max-targets 150 \
+  --max-probe-starts-per-second 20 \
+  --ct-max-subdomains-per-domain 5000 \
+  --ct-max-rows-per-domain 20000
 ```
 
 ### 2. Read raw snapshots (metadata or full entries)
@@ -209,6 +253,9 @@ var domains = new[] { "evotec.xyz", "evotec.pl", "microsoft.com", "google.com" }
 var options = new CertificateInventoryCaptureOptions {
     CacheDirectory = @".\cert-monitor",
     DnsEndpoint = DnsEndpoint.System,
+    ReuseRecentSnapshotEntries = true,
+    RecentSnapshotTtl = TimeSpan.FromHours(24),
+    ReprobeExpiringWithinDays = 14,
     CtProfile = CertificateCtEnrichmentProfile.Extended,
     EnableShodanCtSource = true,
     ShodanApiKey = Environment.GetEnvironmentVariable("SHODAN_API_KEY"),
