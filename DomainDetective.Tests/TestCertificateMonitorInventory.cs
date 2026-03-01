@@ -256,6 +256,88 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void LoadInventorySnapshots_AppliesUntilUtcAndMaxSnapshots() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-3),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                });
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-2),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                });
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                });
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = false
+                };
+                var snapshots = monitor.LoadInventorySnapshots(
+                    sinceUtc: now.AddDays(-10),
+                    untilUtc: now.AddDays(-1.5),
+                    maxSnapshots: 1,
+                    latestOnly: false);
+
+                Assert.Single(snapshots);
+                Assert.Equal(now.AddDays(-2).UtcDateTime.Date, snapshots[0].CapturedAtUtc.UtcDateTime.Date);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void LoadInventorySnapshots_ReturnsLatestWhenRequested() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-4),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                });
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddDays(-2),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                });
+                WriteInventorySnapshot(tempDir, new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-8),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                });
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = false
+                };
+                var snapshots = monitor.LoadInventorySnapshots(
+                    sinceUtc: now.AddDays(-3),
+                    untilUtc: null,
+                    maxSnapshots: 0,
+                    latestOnly: true);
+
+                Assert.Single(snapshots);
+                Assert.Equal(now.AddHours(-8).UtcDateTime.Date, snapshots[0].CapturedAtUtc.UtcDateTime.Date);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
         public void BuildInventoryPolicyDriftAddsSinceUtcWarningsWhenRequestedSelectorsAreExcluded() {
             var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tempDir);

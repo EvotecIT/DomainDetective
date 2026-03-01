@@ -34,6 +34,9 @@ $Capture.Snapshot.Entries |
 "`nInventory summary from persisted snapshots:`n"
 Get-CertificateInventorySummary -CacheDirectory $CacheDirectory | Format-List
 
+"`nLatest raw snapshot metadata:`n"
+Get-DDCertificateInventorySnapshot -CacheDirectory $CacheDirectory -Latest -WithoutEntries | Format-List
+
 "`nLikely mTLS / client-auth usage:`n"
 Get-CertificateInventoryQuery -CacheDirectory $CacheDirectory -ClientAuthOnly -LatestOnly -MaxResults 100 |
     Select-Object -ExpandProperty Entries |

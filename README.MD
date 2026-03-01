@@ -262,6 +262,7 @@ Optional controls:
 | `Import-DDRegistrationSnapshot`   | `Import-RegistrationSnapshot`   | WHOIS/RDAP registration snapshot → store            |
 | `Get-DDRegistrationDrift`         | `Get-RegistrationDrift`         | Registration structured drift view (report section) |
 | `Invoke-DDCertificateInventory` | - | Capture certificate inventory snapshot from domains/endpoints |
+| `Get-DDCertificateInventorySnapshot` | - | Read raw persisted certificate inventory snapshots |
 
 ## Reports / Exporting
 
@@ -287,6 +288,9 @@ Import-DDRegistrationSnapshot   -DomainName example.com -StorePath .\\Store
 Invoke-DDCertificateInventory -DomainName example.com,example.org -CacheDirectory .\\cert-monitor
 # Optional CT enrichment profile for inventory capture (public + optional commercial sources):
 Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-monitor -CtProfile Extended -EnableShodanCtSource -ShodanApiKeyEnv SHODAN_API_KEY
+# Read latest raw snapshot (full entries) or metadata only:
+Get-DDCertificateInventorySnapshot -CacheDirectory .\\cert-monitor -Latest
+Get-DDCertificateInventorySnapshot -CacheDirectory .\\cert-monitor -SinceUtc (Get-Date).ToUniversalTime().AddDays(-7) -WithoutEntries
 
 # Build report sections from the store
 $dmarcAgg = Get-DDDmarcAggregateTimeSeries -DomainName example.com -StorePath .\\Store
