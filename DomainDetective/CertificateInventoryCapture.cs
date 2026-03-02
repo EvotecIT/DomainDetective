@@ -984,24 +984,10 @@ public sealed class CertificateInventoryCapture {
         var answers = await dnsConfiguration.QueryDNS(domain, DnsRecordType.MX, cancellationToken: cancellationToken).ConfigureAwait(false);
         var hosts = new List<string>();
         foreach (var answer in answers) {
-            var raw = !string.IsNullOrWhiteSpace(answer.Data) ? answer.Data : answer.DataRaw;
-            if (string.IsNullOrWhiteSpace(raw)) {
-                continue;
+            if (TryExtractMxHost(answer.DataRaw, out var host) ||
+                TryExtractMxHost(answer.Data, out host)) {
+                hosts.Add(host);
             }
-            var parts = raw.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-            string host;
-            if (parts.Length >= 2) {
-                host = parts[1].Trim();
-            } else if (parts.Length == 1) {
-                host = parts[0].Trim();
-            } else {
-                continue;
-            }
-            host = host.TrimEnd('.');
-            if (string.IsNullOrWhiteSpace(host) || host == ".") {
-                continue;
-            }
-            hosts.Add(host);
         }
 
         var distinct = hosts
@@ -1014,6 +1000,36 @@ public sealed class CertificateInventoryCapture {
             distinct = distinct.Take(maxMxHostsPerDomain).ToList();
         }
         return distinct;
+    }
+
+    internal static bool TryExtractMxHost(string? rawValue, out string host) {
+        host = string.Empty;
+        if (string.IsNullOrWhiteSpace(rawValue)) {
+            return false;
+        }
+
+        var parts = rawValue
+            .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) {
+            return false;
+        }
+
+        var candidate = parts.Length == 1 ? parts[0].Trim() : parts[parts.Length - 1].Trim();
+        if (string.Equals(candidate, ".", StringComparison.Ordinal)) {
+            return false;
+        }
+
+        candidate = candidate.Trim().TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(candidate)) {
+            return false;
+        }
+
+        if (int.TryParse(candidate, out _)) {
+            return false;
+        }
+
+        host = candidate;
+        return true;
     }
 
     private static async Task<IReadOnlyList<string>> DiscoverCtSubdomainsAsync(

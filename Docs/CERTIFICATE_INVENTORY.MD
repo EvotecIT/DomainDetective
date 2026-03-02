@@ -74,6 +74,7 @@ Notes:
 - `crt.sh` is public and does not require API credentials in this flow.
 - For commercial sources, credentials are required (for example Shodan/Censys).
 - MX hosts are often inbound-only and may not expose `587/993/995`; empty certificate fields on those rows usually indicate service not reachable on that endpoint, not parser failure.
+- Null-MX and numeric-only MX artifacts are skipped during MX host extraction (so invalid targets like `smtp://0:25` are not generated).
 - Endpoint probe errors are expected on large CT-expanded scans (historical/internal hosts). Use `-MaxProbeErrorWarnings` to limit warning noise.
 - Use `-MaxTargets` for quick/safe test runs and `-MaxProbeStartsPerSecond` as an anti-hammer throttle.
 - Use `-ReuseRecentResults` with `-RecentResultTtlHours` to skip re-probing endpoints already captured recently.

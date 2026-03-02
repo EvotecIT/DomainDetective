@@ -303,6 +303,19 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public void TryExtractMxHost_RejectsNullMxAndNumericArtifacts() {
+        Assert.True(CertificateInventoryCapture.TryExtractMxHost("10 mail.example.com.", out var hostFromPriority));
+        Assert.Equal("mail.example.com", hostFromPriority);
+
+        Assert.True(CertificateInventoryCapture.TryExtractMxHost("mail.example.com.", out var hostWithoutPriority));
+        Assert.Equal("mail.example.com", hostWithoutPriority);
+
+        Assert.False(CertificateInventoryCapture.TryExtractMxHost("0 .", out _));
+        Assert.False(CertificateInventoryCapture.TryExtractMxHost("0", out _));
+        Assert.False(CertificateInventoryCapture.TryExtractMxHost(".", out _));
+    }
+
+    [Fact]
     public void ConfigureHttpsAnalysis_DisabledProfileTurnsOffCtSources() {
         var analysis = new CertificateAnalysis();
         var options = new CertificateInventoryCaptureOptions {
