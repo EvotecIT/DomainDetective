@@ -137,6 +137,50 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [DefaultValue(0)]
     public int NativeCtRequestDelayMilliseconds { get; set; }
 
+    [Description("Maximum retry count for transient native CT HTTP failures.")]
+    [CommandOption("--native-ct-retry-count <N>")]
+    [DefaultValue(3)]
+    public int NativeCtRetryCount { get; set; } = 3;
+
+    [Description("Base delay in milliseconds between native CT retry attempts.")]
+    [CommandOption("--native-ct-retry-base-delay-ms <N>")]
+    [DefaultValue(500)]
+    public int NativeCtRetryBaseDelayMilliseconds { get; set; } = 500;
+
+    [Description("Maximum delay in milliseconds between native CT retry attempts.")]
+    [CommandOption("--native-ct-retry-max-delay-ms <N>")]
+    [DefaultValue(10000)]
+    public int NativeCtRetryMaxDelayMilliseconds { get; set; } = 10000;
+
+    [Description("Consecutive native CT failures required before opening per-log circuit breaker.")]
+    [CommandOption("--native-ct-circuit-breaker-threshold <N>")]
+    [DefaultValue(3)]
+    public int NativeCtCircuitBreakerFailureThreshold { get; set; } = 3;
+
+    [Description("Native CT circuit-breaker open duration in seconds.")]
+    [CommandOption("--native-ct-circuit-breaker-duration-seconds <N>")]
+    [DefaultValue(600)]
+    public int NativeCtCircuitBreakerDurationSeconds { get; set; } = 600;
+
+    [Description("Disable native CT catch-up mode that expands limits when cursor lag is high.")]
+    [CommandOption("--disable-native-ct-catch-up")]
+    public bool DisableNativeCtCatchUpMode { get; set; }
+
+    [Description("Native CT cursor lag threshold that enables catch-up mode.")]
+    [CommandOption("--native-ct-catch-up-lag-threshold <N>")]
+    [DefaultValue(50000)]
+    public int NativeCtCatchUpLagThreshold { get; set; } = 50000;
+
+    [Description("Maximum CT entries per log while native CT catch-up mode is active.")]
+    [CommandOption("--native-ct-catch-up-max-entries-per-log <N>")]
+    [DefaultValue(20000)]
+    public int NativeCtCatchUpMaxEntriesPerLog { get; set; } = 20000;
+
+    [Description("Maximum get-entries batch size while native CT catch-up mode is active.")]
+    [CommandOption("--native-ct-catch-up-batch-size <N>")]
+    [DefaultValue(1024)]
+    public int NativeCtCatchUpBatchSize { get; set; } = 1024;
+
     [Description("Additional endpoint(s) to probe. Repeat option for multiple values.")]
     [CommandOption("--endpoint <ENDPOINT>")]
     public string[] AdditionalEndpoints { get; set; } = Array.Empty<string>();
@@ -328,6 +372,38 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--native-ct-request-delay-ms must be between 0 and 60000.[/]");
             return 1;
         }
+        if (settings.NativeCtRetryCount < 0 || settings.NativeCtRetryCount > 20) {
+            AnsiConsole.MarkupLine("[red]--native-ct-retry-count must be between 0 and 20.[/]");
+            return 1;
+        }
+        if (settings.NativeCtRetryBaseDelayMilliseconds < 0 || settings.NativeCtRetryBaseDelayMilliseconds > 60000) {
+            AnsiConsole.MarkupLine("[red]--native-ct-retry-base-delay-ms must be between 0 and 60000.[/]");
+            return 1;
+        }
+        if (settings.NativeCtRetryMaxDelayMilliseconds < 0 || settings.NativeCtRetryMaxDelayMilliseconds > 300000) {
+            AnsiConsole.MarkupLine("[red]--native-ct-retry-max-delay-ms must be between 0 and 300000.[/]");
+            return 1;
+        }
+        if (settings.NativeCtCircuitBreakerFailureThreshold < 1 || settings.NativeCtCircuitBreakerFailureThreshold > 100) {
+            AnsiConsole.MarkupLine("[red]--native-ct-circuit-breaker-threshold must be between 1 and 100.[/]");
+            return 1;
+        }
+        if (settings.NativeCtCircuitBreakerDurationSeconds < 1 || settings.NativeCtCircuitBreakerDurationSeconds > 86400) {
+            AnsiConsole.MarkupLine("[red]--native-ct-circuit-breaker-duration-seconds must be between 1 and 86400.[/]");
+            return 1;
+        }
+        if (settings.NativeCtCatchUpLagThreshold < 1) {
+            AnsiConsole.MarkupLine("[red]--native-ct-catch-up-lag-threshold must be 1 or greater.[/]");
+            return 1;
+        }
+        if (settings.NativeCtCatchUpMaxEntriesPerLog < 0) {
+            AnsiConsole.MarkupLine("[red]--native-ct-catch-up-max-entries-per-log must be 0 or greater.[/]");
+            return 1;
+        }
+        if (settings.NativeCtCatchUpBatchSize < 1 || settings.NativeCtCatchUpBatchSize > 2048) {
+            AnsiConsole.MarkupLine("[red]--native-ct-catch-up-batch-size must be between 1 and 2048.[/]");
+            return 1;
+        }
         var censysSecret = ResolveSecret(settings.CensysApiSecret, settings.CensysApiSecretEnv);
         var shodanApiKey = ResolveSecret(settings.ShodanApiKey, settings.ShodanApiKeyEnv);
 
@@ -385,6 +461,15 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             NativeCtCursorStatePath = settings.NativeCtCursorStatePath,
             NativeCtIncludePendingLogs = settings.NativeCtIncludePendingLogs,
             NativeCtRequestDelay = TimeSpan.FromMilliseconds(settings.NativeCtRequestDelayMilliseconds),
+            NativeCtRetryCount = settings.NativeCtRetryCount,
+            NativeCtRetryBaseDelay = TimeSpan.FromMilliseconds(settings.NativeCtRetryBaseDelayMilliseconds),
+            NativeCtRetryMaxDelay = TimeSpan.FromMilliseconds(settings.NativeCtRetryMaxDelayMilliseconds),
+            NativeCtCircuitBreakerFailureThreshold = settings.NativeCtCircuitBreakerFailureThreshold,
+            NativeCtCircuitBreakerDuration = TimeSpan.FromSeconds(settings.NativeCtCircuitBreakerDurationSeconds),
+            NativeCtEnableCatchUpMode = !settings.DisableNativeCtCatchUpMode,
+            NativeCtCatchUpLagThreshold = settings.NativeCtCatchUpLagThreshold,
+            NativeCtCatchUpMaxEntriesPerLog = settings.NativeCtCatchUpMaxEntriesPerLog,
+            NativeCtCatchUpBatchSize = settings.NativeCtCatchUpBatchSize,
             MaxMxHostsPerDomain = settings.MaxMxHostsPerDomain,
             MaxParallelism = settings.MaxParallelism,
             DiscoveryParallelism = settings.DiscoveryParallelism,

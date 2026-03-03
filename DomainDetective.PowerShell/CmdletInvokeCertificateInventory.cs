@@ -162,6 +162,50 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [ValidateRange(0, 60000)]
     public int NativeCtRequestDelayMilliseconds { get; set; } = 0;
 
+    /// <summary>Maximum retry count for transient native CT HTTP failures.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, 20)]
+    public int NativeCtRetryCount { get; set; } = 3;
+
+    /// <summary>Base delay in milliseconds between native CT retry attempts.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, 60000)]
+    public int NativeCtRetryBaseDelayMilliseconds { get; set; } = 500;
+
+    /// <summary>Maximum delay in milliseconds between native CT retry attempts.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, 300000)]
+    public int NativeCtRetryMaxDelayMilliseconds { get; set; } = 10000;
+
+    /// <summary>Consecutive native CT failures required before opening the per-log circuit breaker.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 100)]
+    public int NativeCtCircuitBreakerFailureThreshold { get; set; } = 3;
+
+    /// <summary>Native CT circuit-breaker open duration in seconds.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 86400)]
+    public int NativeCtCircuitBreakerDurationSeconds { get; set; } = 600;
+
+    /// <summary>Disable native CT catch-up mode that expands limits when cursor lag is high.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter DisableNativeCtCatchUpMode { get; set; }
+
+    /// <summary>Native CT cursor lag threshold that enables catch-up mode.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, int.MaxValue)]
+    public int NativeCtCatchUpLagThreshold { get; set; } = 50000;
+
+    /// <summary>Maximum CT entries processed per log while native CT catch-up mode is active.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int NativeCtCatchUpMaxEntriesPerLog { get; set; } = 20000;
+
+    /// <summary>Maximum get-entries batch size while native CT catch-up mode is active.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 2048)]
+    public int NativeCtCatchUpBatchSize { get; set; } = 1024;
+
     /// <summary>Additional endpoint(s) to probe (supports https:// and mail schemes).</summary>
     [Parameter(Mandatory = false)]
     public string[] Endpoint { get; set; } = Array.Empty<string>();
@@ -343,6 +387,15 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             NativeCtCursorStatePath = NativeCtCursorStatePath,
             NativeCtIncludePendingLogs = NativeCtIncludePendingLogs.IsPresent,
             NativeCtRequestDelay = TimeSpan.FromMilliseconds(NativeCtRequestDelayMilliseconds),
+            NativeCtRetryCount = NativeCtRetryCount,
+            NativeCtRetryBaseDelay = TimeSpan.FromMilliseconds(NativeCtRetryBaseDelayMilliseconds),
+            NativeCtRetryMaxDelay = TimeSpan.FromMilliseconds(NativeCtRetryMaxDelayMilliseconds),
+            NativeCtCircuitBreakerFailureThreshold = NativeCtCircuitBreakerFailureThreshold,
+            NativeCtCircuitBreakerDuration = TimeSpan.FromSeconds(NativeCtCircuitBreakerDurationSeconds),
+            NativeCtEnableCatchUpMode = !DisableNativeCtCatchUpMode.IsPresent,
+            NativeCtCatchUpLagThreshold = NativeCtCatchUpLagThreshold,
+            NativeCtCatchUpMaxEntriesPerLog = NativeCtCatchUpMaxEntriesPerLog,
+            NativeCtCatchUpBatchSize = NativeCtCatchUpBatchSize,
             MaxMxHostsPerDomain = MaxMxHostsPerDomain,
             MaxParallelism = MaxParallelism,
             DiscoveryParallelism = DiscoveryParallelism,

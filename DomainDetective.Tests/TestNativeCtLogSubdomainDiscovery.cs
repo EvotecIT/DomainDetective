@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -10,6 +11,118 @@ using System.Threading.Tasks;
 namespace DomainDetective.Tests;
 
 public class TestNativeCtLogSubdomainDiscovery {
+    [Fact]
+    public async Task DiscoverForDomainsAsync_RetriesTransientRequestsBeforeSuccess() {
+        using var cert = CreateSelfSigned("portal.example.com");
+        var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
+        var getSthCalls = 0;
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log1/"" } ] } ] }");
+                }
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    getSthCalls++;
+                    if (getSthCalls < 3) {
+                        throw new HttpRequestException("Simulated transient CT failure.");
+                    }
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "example.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            RetryCount = 2,
+            RetryBaseDelay = TimeSpan.Zero,
+            RetryMaxDelay = TimeSpan.Zero
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "example.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Equal(3, getSthCalls);
+        Assert.Equal(1, result.CertificateObservationCount);
+        Assert.Contains("portal.example.com", result.SubdomainsByDomain["example.com"].Keys);
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_CircuitBreakerSkipsLogAfterFailureThreshold() {
+        var cursorPath = Path.Combine(Path.GetTempPath(), "dd-native-ct-circuit-" + Guid.NewGuid().ToString("N") + ".json");
+        var getSthCalls = 0;
+
+        try {
+            var source = new NativeCtLogSubdomainDiscovery {
+                QueryOverride = (url, _) => {
+                    if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log1/"" } ] } ] }");
+                    }
+                    if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        getSthCalls++;
+                        throw new HttpRequestException("Simulated CT outage.");
+                    }
+
+                    throw new InvalidOperationException("Unexpected URL: " + url);
+                }
+            };
+
+            var options = new NativeCtLogSubdomainDiscoveryOptions {
+                BaseDomain = "example.com",
+                LogListUrl = "https://ct-log-list.example/logs.json",
+                CursorStatePath = cursorPath,
+                RetryCount = 0,
+                CircuitBreakerFailureThreshold = 1,
+                CircuitBreakerDuration = TimeSpan.FromMinutes(5),
+                MaxCtRowsToProcess = 100,
+                MaxSubdomains = 100,
+                MaxLogsToProcess = 10,
+                MaxEntriesPerLog = 100,
+                EntryBatchSize = 100,
+                InitialBackfillEntriesPerLog = 100
+            };
+
+            var first = await source.DiscoverForDomainsAsync(
+                new[] { "example.com" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+            var second = await source.DiscoverForDomainsAsync(
+                new[] { "example.com" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.False(first.SourceSucceeded);
+            Assert.False(second.SourceSucceeded);
+            Assert.Equal(1, getSthCalls);
+            Assert.Contains(second.Warnings, warning => warning.Contains("circuit open", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            try {
+                if (File.Exists(cursorPath)) {
+                    File.Delete(cursorPath);
+                }
+            } catch {
+            }
+        }
+    }
+
     [Fact]
     public async Task DiscoverForDomainsAsync_CorrelatesEntriesAcrossDomains() {
         using var exampleCert = CreateSelfSigned("portal.example.com");

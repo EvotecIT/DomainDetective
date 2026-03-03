@@ -26,6 +26,15 @@ internal sealed class NativeCtLogSubdomainDiscoveryOptions {
     public string? CursorStatePath { get; set; }
     public bool IncludePendingLogs { get; set; }
     public TimeSpan RequestDelay { get; set; } = TimeSpan.Zero;
+    public int RetryCount { get; set; } = 3;
+    public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromMilliseconds(500);
+    public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromSeconds(10);
+    public int CircuitBreakerFailureThreshold { get; set; } = 3;
+    public TimeSpan CircuitBreakerDuration { get; set; } = TimeSpan.FromMinutes(10);
+    public bool EnableCatchUpMode { get; set; } = true;
+    public int CatchUpLagThreshold { get; set; } = 50_000;
+    public int CatchUpMaxEntriesPerLog { get; set; } = 20_000;
+    public int CatchUpBatchSize { get; set; } = 1_024;
 }
 
 internal sealed class NativeCtLogSubdomainDiscoveryResult {
@@ -79,30 +88,34 @@ internal sealed class NativeCtLogSubdomainDiscovery {
         foreach (var logUrl in logUrls) {
             cancellationToken.ThrowIfCancellationRequested();
             result.LogsAttempted++;
+            var key = NativeCtCursorState.BuildKey(baseDomain, logUrl);
 
             try {
-                var sth = await GetSignedTreeHeadAsync(logUrl, options.RequestDelay, cancellationToken).ConfigureAwait(false);
-                result.LogsSucceeded++;
-
-                var key = NativeCtCursorState.BuildKey(baseDomain, logUrl);
-                var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
-                if (start >= sth.TreeSize) {
-                    cursor.SetLastProcessedIndex(key, sth.TreeSize - 1);
+                if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                    result.Warnings.Add($"Native CT log skipped (circuit open) for {logUrl} until {openUntilUtc:O}");
                     continue;
                 }
 
+                var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
+                result.LogsSucceeded++;
+                var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
+                if (start >= sth.TreeSize) {
+                    cursor.SetLastProcessedIndex(key, sth.TreeSize - 1);
+                    cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
+                    continue;
+                }
+
+                var lag = Math.Max(0, sth.TreeSize - start);
                 long end = sth.TreeSize - 1;
-                if (options.MaxEntriesPerLog > 0) {
-                    var maxEnd = start + Math.Max(0, options.MaxEntriesPerLog - 1);
+                var maxEntriesPerLog = ComputeEffectiveMaxEntriesPerLog(options, lag);
+                if (maxEntriesPerLog > 0) {
+                    var maxEnd = start + Math.Max(0, maxEntriesPerLog - 1);
                     if (maxEnd < end) {
                         end = maxEnd;
                     }
                 }
 
-                var batchSize = options.EntryBatchSize <= 0 ? 256 : options.EntryBatchSize;
-                if (batchSize > 2048) {
-                    batchSize = 2048;
-                }
+                var batchSize = ComputeEffectiveBatchSize(options, lag);
 
                 var lastProcessed = start - 1;
                 for (long batchStart = start; batchStart <= end; ) {
@@ -113,7 +126,7 @@ internal sealed class NativeCtLogSubdomainDiscovery {
                         batchEnd = end;
                     }
 
-                    var entries = await GetEntriesAsync(logUrl, batchStart, batchEnd, options.RequestDelay, cancellationToken).ConfigureAwait(false);
+                    var entries = await GetEntriesAsync(logUrl, batchStart, batchEnd, options, cancellationToken).ConfigureAwait(false);
                     if (entries.Count == 0) {
                         break;
                     }
@@ -152,11 +165,18 @@ internal sealed class NativeCtLogSubdomainDiscovery {
                     logUrl,
                     result.CertificateObservationCount,
                     result.Subdomains.Count);
+                cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
 
                 if (result.ResultsCapped) {
                     break;
                 }
             } catch (Exception ex) {
+                cursor.RecordFailure(
+                    key,
+                    DateTimeOffset.UtcNow,
+                    ex.Message,
+                    options.CircuitBreakerFailureThreshold,
+                    options.CircuitBreakerDuration);
                 result.Warnings.Add($"Native CT log failed for {logUrl}: {ex.Message}");
                 logger?.WriteVerbose("Native CT log failed for {0}: {1}", logUrl, ex.Message);
             }
@@ -203,30 +223,34 @@ internal sealed class NativeCtLogSubdomainDiscovery {
         foreach (var logUrl in logUrls) {
             cancellationToken.ThrowIfCancellationRequested();
             result.LogsAttempted++;
+            var key = NativeCtCursorState.BuildSharedKey(logUrl);
 
             try {
-                var sth = await GetSignedTreeHeadAsync(logUrl, options.RequestDelay, cancellationToken).ConfigureAwait(false);
-                result.LogsSucceeded++;
-
-                var key = NativeCtCursorState.BuildSharedKey(logUrl);
-                var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
-                if (start >= sth.TreeSize) {
-                    cursor.SetLastProcessedIndex(key, sth.TreeSize - 1);
+                if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                    result.Warnings.Add($"Native CT shared log skipped (circuit open) for {logUrl} until {openUntilUtc:O}");
                     continue;
                 }
 
+                var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
+                result.LogsSucceeded++;
+                var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
+                if (start >= sth.TreeSize) {
+                    cursor.SetLastProcessedIndex(key, sth.TreeSize - 1);
+                    cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
+                    continue;
+                }
+
+                var lag = Math.Max(0, sth.TreeSize - start);
                 long end = sth.TreeSize - 1;
-                if (options.MaxEntriesPerLog > 0) {
-                    var maxEnd = start + Math.Max(0, options.MaxEntriesPerLog - 1);
+                var maxEntriesPerLog = ComputeEffectiveMaxEntriesPerLog(options, lag);
+                if (maxEntriesPerLog > 0) {
+                    var maxEnd = start + Math.Max(0, maxEntriesPerLog - 1);
                     if (maxEnd < end) {
                         end = maxEnd;
                     }
                 }
 
-                var batchSize = options.EntryBatchSize <= 0 ? 256 : options.EntryBatchSize;
-                if (batchSize > 2048) {
-                    batchSize = 2048;
-                }
+                var batchSize = ComputeEffectiveBatchSize(options, lag);
 
                 var lastProcessed = start - 1;
                 for (long batchStart = start; batchStart <= end; ) {
@@ -237,7 +261,7 @@ internal sealed class NativeCtLogSubdomainDiscovery {
                         batchEnd = end;
                     }
 
-                    var entries = await GetEntriesAsync(logUrl, batchStart, batchEnd, options.RequestDelay, cancellationToken).ConfigureAwait(false);
+                    var entries = await GetEntriesAsync(logUrl, batchStart, batchEnd, options, cancellationToken).ConfigureAwait(false);
                     if (entries.Count == 0) {
                         break;
                     }
@@ -275,11 +299,18 @@ internal sealed class NativeCtLogSubdomainDiscovery {
                     "Native CT shared processed log {0}: observations={1}",
                     logUrl,
                     result.CertificateObservationCount);
+                cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
 
                 if (result.ResultsCapped) {
                     break;
                 }
             } catch (Exception ex) {
+                cursor.RecordFailure(
+                    key,
+                    DateTimeOffset.UtcNow,
+                    ex.Message,
+                    options.CircuitBreakerFailureThreshold,
+                    options.CircuitBreakerDuration);
                 result.Warnings.Add($"Native CT shared log failed for {logUrl}: {ex.Message}");
                 logger?.WriteVerbose("Native CT shared log failed for {0}: {1}", logUrl, ex.Message);
             }
@@ -305,7 +336,7 @@ internal sealed class NativeCtLogSubdomainDiscovery {
             return Array.Empty<string>();
         }
 
-        var json = await FetchJsonAsync(options.LogListUrl, cancellationToken).ConfigureAwait(false);
+        var json = await FetchJsonWithRetryAsync(options.LogListUrl, options, cancellationToken).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object) {
@@ -404,10 +435,10 @@ internal sealed class NativeCtLogSubdomainDiscovery {
         return normalized;
     }
 
-    private async Task<CtSignedTreeHead> GetSignedTreeHeadAsync(string logUrl, TimeSpan requestDelay, CancellationToken cancellationToken) {
+    private async Task<CtSignedTreeHead> GetSignedTreeHeadAsync(string logUrl, NativeCtLogSubdomainDiscoveryOptions options, CancellationToken cancellationToken) {
         var url = CombineLogUrl(logUrl, "ct/v1/get-sth");
-        var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
-        await DelayIfRequestedAsync(requestDelay, cancellationToken).ConfigureAwait(false);
+        var json = await FetchJsonWithRetryAsync(url, options, cancellationToken).ConfigureAwait(false);
+        await DelayIfRequestedAsync(options.RequestDelay, cancellationToken).ConfigureAwait(false);
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -427,15 +458,15 @@ internal sealed class NativeCtLogSubdomainDiscovery {
         string logUrl,
         long start,
         long end,
-        TimeSpan requestDelay,
+        NativeCtLogSubdomainDiscoveryOptions options,
         CancellationToken cancellationToken) {
         if (start > end) {
             return Array.Empty<CtEntryPayload>();
         }
 
         var url = CombineLogUrl(logUrl, $"ct/v1/get-entries?start={start}&end={end}");
-        var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
-        await DelayIfRequestedAsync(requestDelay, cancellationToken).ConfigureAwait(false);
+        var json = await FetchJsonWithRetryAsync(url, options, cancellationToken).ConfigureAwait(false);
+        await DelayIfRequestedAsync(options.RequestDelay, cancellationToken).ConfigureAwait(false);
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -473,6 +504,173 @@ internal sealed class NativeCtLogSubdomainDiscovery {
         using var response = await SharedHttpClient.Instance.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+    }
+
+    private async Task<string> FetchJsonWithRetryAsync(
+        string url,
+        NativeCtLogSubdomainDiscoveryOptions options,
+        CancellationToken cancellationToken) {
+        var retryCount = options.RetryCount < 0 ? 0 : options.RetryCount;
+        var baseDelay = options.RetryBaseDelay < TimeSpan.Zero ? TimeSpan.Zero : options.RetryBaseDelay;
+        var maxDelay = options.RetryMaxDelay <= TimeSpan.Zero ? TimeSpan.FromSeconds(10) : options.RetryMaxDelay;
+        if (maxDelay < baseDelay) {
+            maxDelay = baseDelay;
+        }
+
+        Exception? lastException = null;
+        for (int attempt = 0; attempt <= retryCount; attempt++) {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try {
+                return await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
+            } catch (Exception ex) when (IsTransientCtException(ex, out var retryAfter)) {
+                lastException = ex;
+                if (attempt >= retryCount) {
+                    break;
+                }
+
+                var delay = ComputeRetryDelay(attempt, baseDelay, maxDelay, retryAfter);
+                if (delay > TimeSpan.Zero) {
+                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+
+        throw lastException ?? new InvalidOperationException("CT request failed after retries.");
+    }
+
+    private static bool IsTransientCtException(Exception ex, out TimeSpan? retryAfter) {
+        retryAfter = null;
+        if (ex is OperationCanceledException) {
+            return false;
+        }
+
+        if (ex is HttpRequestException httpEx) {
+            var statusCode = TryGetHttpStatusCode(httpEx);
+            if (statusCode.HasValue) {
+                var code = statusCode.Value;
+                if (code == 408 || code == 425 || code == 429 || code == 500 || code == 502 || code == 503 || code == 504) {
+                    retryAfter = TryGetRetryAfterFromMessage(httpEx.Message);
+                    return true;
+                }
+                return false;
+            }
+            return true;
+        }
+
+        if (ex is IOException) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static int? TryGetHttpStatusCode(HttpRequestException exception) {
+        if (exception == null) {
+            return null;
+        }
+
+#if NET5_0_OR_GREATER
+        if (exception.StatusCode.HasValue) {
+            return (int)exception.StatusCode.Value;
+        }
+#endif
+
+        var statusCodeProperty = exception.GetType().GetProperty("StatusCode");
+        if (statusCodeProperty == null) {
+            return null;
+        }
+
+        var rawValue = statusCodeProperty.GetValue(exception, null);
+        if (rawValue == null) {
+            return null;
+        }
+
+        if (rawValue is int intCode) {
+            return intCode;
+        }
+        if (rawValue is short shortCode) {
+            return shortCode;
+        }
+        if (rawValue is byte byteCode) {
+            return byteCode;
+        }
+
+        try {
+            return Convert.ToInt32(rawValue, CultureInfo.InvariantCulture);
+        } catch {
+            return null;
+        }
+    }
+
+    private static TimeSpan ComputeRetryDelay(int attempt, TimeSpan baseDelay, TimeSpan maxDelay, TimeSpan? retryAfter) {
+        if (retryAfter.HasValue && retryAfter.Value > TimeSpan.Zero) {
+            return retryAfter.Value > maxDelay ? maxDelay : retryAfter.Value;
+        }
+
+        if (baseDelay <= TimeSpan.Zero) {
+            return TimeSpan.Zero;
+        }
+
+        double factor = Math.Pow(2, attempt);
+        var milliseconds = baseDelay.TotalMilliseconds * factor;
+        if (milliseconds < 0) {
+            milliseconds = baseDelay.TotalMilliseconds;
+        }
+        if (milliseconds > maxDelay.TotalMilliseconds) {
+            milliseconds = maxDelay.TotalMilliseconds;
+        }
+        if (milliseconds < 0) {
+            milliseconds = 0;
+        }
+        return TimeSpan.FromMilliseconds(milliseconds);
+    }
+
+    private static TimeSpan? TryGetRetryAfterFromMessage(string? message) {
+        if (string.IsNullOrWhiteSpace(message)) {
+            return null;
+        }
+
+        var messageText = message!;
+        const string retryAfterNeedle = "Retry-After";
+        var index = messageText.IndexOf(retryAfterNeedle, StringComparison.OrdinalIgnoreCase);
+        if (index < 0) {
+            return null;
+        }
+
+        var tail = messageText.Substring(index + retryAfterNeedle.Length);
+        var digits = new string(tail.Where(char.IsDigit).Take(4).ToArray());
+        if (int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds) && seconds > 0) {
+            return TimeSpan.FromSeconds(seconds);
+        }
+
+        return null;
+    }
+
+    private static int ComputeEffectiveMaxEntriesPerLog(NativeCtLogSubdomainDiscoveryOptions options, long lag) {
+        var maxEntries = options.MaxEntriesPerLog;
+        if (options.EnableCatchUpMode && lag >= options.CatchUpLagThreshold && options.CatchUpMaxEntriesPerLog > 0) {
+            if (maxEntries <= 0 || options.CatchUpMaxEntriesPerLog > maxEntries) {
+                maxEntries = options.CatchUpMaxEntriesPerLog;
+            }
+        }
+        return maxEntries;
+    }
+
+    private static int ComputeEffectiveBatchSize(NativeCtLogSubdomainDiscoveryOptions options, long lag) {
+        var batchSize = options.EntryBatchSize <= 0 ? 256 : options.EntryBatchSize;
+        if (options.EnableCatchUpMode && lag >= options.CatchUpLagThreshold && options.CatchUpBatchSize > 0) {
+            if (options.CatchUpBatchSize > batchSize) {
+                batchSize = options.CatchUpBatchSize;
+            }
+        }
+        if (batchSize > 2048) {
+            batchSize = 2048;
+        }
+        if (batchSize < 1) {
+            batchSize = 1;
+        }
+        return batchSize;
     }
 
     private static async Task DelayIfRequestedAsync(TimeSpan requestDelay, CancellationToken cancellationToken) {
@@ -1077,13 +1275,13 @@ internal sealed class NativeCtLogSubdomainDiscovery {
 }
 
 internal sealed class NativeCtCursorState {
-    private readonly Dictionary<string, long> _lastProcessed = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, NativeCtCursorEntryState> _entries = new(StringComparer.OrdinalIgnoreCase);
 
     public long? GetLastProcessedIndex(string key) {
         if (string.IsNullOrWhiteSpace(key)) {
             return null;
         }
-        return _lastProcessed.TryGetValue(key, out var value) ? value : null;
+        return _entries.TryGetValue(key, out var entry) ? entry.LastProcessedIndex : null;
     }
 
     public void SetLastProcessedIndex(string key, long value) {
@@ -1093,7 +1291,65 @@ internal sealed class NativeCtCursorState {
         if (value < 0) {
             return;
         }
-        _lastProcessed[key] = value;
+        var entry = GetOrCreateEntry(key);
+        entry.LastProcessedIndex = value;
+    }
+
+    public bool IsCircuitOpen(string key, DateTimeOffset nowUtc, out DateTimeOffset openUntilUtc) {
+        openUntilUtc = default;
+        if (string.IsNullOrWhiteSpace(key)) {
+            return false;
+        }
+        if (!_entries.TryGetValue(key, out var entry)) {
+            return false;
+        }
+        if (!entry.CircuitOpenUntilUtc.HasValue) {
+            return false;
+        }
+        if (entry.CircuitOpenUntilUtc.Value <= nowUtc) {
+            return false;
+        }
+
+        openUntilUtc = entry.CircuitOpenUntilUtc.Value;
+        return true;
+    }
+
+    public void RecordFailure(
+        string key,
+        DateTimeOffset nowUtc,
+        string? errorMessage,
+        int threshold,
+        TimeSpan duration) {
+        if (string.IsNullOrWhiteSpace(key)) {
+            return;
+        }
+
+        var normalizedThreshold = threshold < 1 ? 1 : threshold;
+        var normalizedDuration = duration <= TimeSpan.Zero ? TimeSpan.FromMinutes(1) : duration;
+
+        var entry = GetOrCreateEntry(key);
+        entry.LastAttemptUtc = nowUtc;
+        entry.LastError = NormalizeError(errorMessage);
+        entry.ConsecutiveFailureCount++;
+        if (entry.ConsecutiveFailureCount >= normalizedThreshold) {
+            var level = entry.ConsecutiveFailureCount - normalizedThreshold;
+            var factor = Math.Pow(2, Math.Min(3, level));
+            var openFor = TimeSpan.FromMilliseconds(normalizedDuration.TotalMilliseconds * factor);
+            entry.CircuitOpenUntilUtc = nowUtc.Add(openFor);
+        }
+    }
+
+    public void RecordSuccess(string key, DateTimeOffset nowUtc) {
+        if (string.IsNullOrWhiteSpace(key)) {
+            return;
+        }
+
+        var entry = GetOrCreateEntry(key);
+        entry.LastAttemptUtc = nowUtc;
+        entry.LastSuccessUtc = nowUtc;
+        entry.ConsecutiveFailureCount = 0;
+        entry.CircuitOpenUntilUtc = null;
+        entry.LastError = null;
     }
 
     public static string BuildKey(string baseDomain, string logUrl) {
@@ -1128,9 +1384,15 @@ internal sealed class NativeCtCursorState {
                     continue;
                 }
 
-                if (item.LastProcessedIndex >= 0) {
-                    state._lastProcessed[key] = item.LastProcessedIndex;
+                var entry = state.GetOrCreateEntry(key);
+                if (item.LastProcessedIndex.HasValue && item.LastProcessedIndex.Value >= 0) {
+                    entry.LastProcessedIndex = item.LastProcessedIndex.Value;
                 }
+                entry.ConsecutiveFailureCount = item.ConsecutiveFailureCount < 0 ? 0 : item.ConsecutiveFailureCount;
+                entry.CircuitOpenUntilUtc = item.CircuitOpenUntilUtc;
+                entry.LastAttemptUtc = item.LastAttemptUtc;
+                entry.LastSuccessUtc = item.LastSuccessUtc;
+                entry.LastError = NormalizeError(item.LastError);
             }
         } catch {
             return new NativeCtCursorState();
@@ -1152,13 +1414,18 @@ internal sealed class NativeCtCursorState {
             }
 
             var payload = new NativeCtCursorStateDocument {
-                Version = 1,
+                Version = 2,
                 UpdatedAtUtc = DateTimeOffset.UtcNow,
-                Entries = _lastProcessed
+                Entries = _entries
                     .OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
                     .Select(kvp => new NativeCtCursorStateEntry {
                         Key = kvp.Key,
-                        LastProcessedIndex = kvp.Value
+                        LastProcessedIndex = kvp.Value.LastProcessedIndex,
+                        ConsecutiveFailureCount = kvp.Value.ConsecutiveFailureCount,
+                        CircuitOpenUntilUtc = kvp.Value.CircuitOpenUntilUtc,
+                        LastAttemptUtc = kvp.Value.LastAttemptUtc,
+                        LastSuccessUtc = kvp.Value.LastSuccessUtc,
+                        LastError = kvp.Value.LastError
                     })
                     .ToList()
             };
@@ -1170,14 +1437,48 @@ internal sealed class NativeCtCursorState {
         }
     }
 
+    private NativeCtCursorEntryState GetOrCreateEntry(string key) {
+        if (!_entries.TryGetValue(key, out var entry)) {
+            entry = new NativeCtCursorEntryState();
+            _entries[key] = entry;
+        }
+        return entry;
+    }
+
+    private static string? NormalizeError(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return null;
+        }
+
+        var trimmed = value!.Trim();
+        if (trimmed.Length > 512) {
+            trimmed = trimmed.Substring(0, 512);
+        }
+        return trimmed;
+    }
+
     private sealed class NativeCtCursorStateDocument {
         public int Version { get; set; }
         public DateTimeOffset UpdatedAtUtc { get; set; }
         public List<NativeCtCursorStateEntry> Entries { get; set; } = new();
     }
 
+    private sealed class NativeCtCursorEntryState {
+        public long? LastProcessedIndex { get; set; }
+        public int ConsecutiveFailureCount { get; set; }
+        public DateTimeOffset? CircuitOpenUntilUtc { get; set; }
+        public DateTimeOffset? LastAttemptUtc { get; set; }
+        public DateTimeOffset? LastSuccessUtc { get; set; }
+        public string? LastError { get; set; }
+    }
+
     private sealed class NativeCtCursorStateEntry {
         public string Key { get; set; } = string.Empty;
-        public long LastProcessedIndex { get; set; }
+        public long? LastProcessedIndex { get; set; }
+        public int ConsecutiveFailureCount { get; set; }
+        public DateTimeOffset? CircuitOpenUntilUtc { get; set; }
+        public DateTimeOffset? LastAttemptUtc { get; set; }
+        public DateTimeOffset? LastSuccessUtc { get; set; }
+        public string? LastError { get; set; }
     }
 }

@@ -75,6 +75,33 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Optional delay between native CT HTTP requests.</summary>
     public TimeSpan NativeCtRequestDelay { get; set; } = TimeSpan.Zero;
 
+    /// <summary>Maximum retry count for transient native CT HTTP failures.</summary>
+    public int NativeCtRetryCount { get; set; } = 3;
+
+    /// <summary>Base delay between native CT retry attempts.</summary>
+    public TimeSpan NativeCtRetryBaseDelay { get; set; } = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>Maximum delay between native CT retry attempts.</summary>
+    public TimeSpan NativeCtRetryMaxDelay { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Consecutive native CT failures required before opening circuit breaker for a log.</summary>
+    public int NativeCtCircuitBreakerFailureThreshold { get; set; } = 3;
+
+    /// <summary>Base native CT circuit-breaker duration per log after repeated failures.</summary>
+    public TimeSpan NativeCtCircuitBreakerDuration { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>When true, native CT polling automatically expands caps when cursor lag is large.</summary>
+    public bool NativeCtEnableCatchUpMode { get; set; } = true;
+
+    /// <summary>Cursor lag threshold at/above which native CT catch-up mode is activated.</summary>
+    public int NativeCtCatchUpLagThreshold { get; set; } = 50_000;
+
+    /// <summary>Maximum CT entries processed per log while native CT catch-up mode is active.</summary>
+    public int NativeCtCatchUpMaxEntriesPerLog { get; set; } = 20_000;
+
+    /// <summary>Maximum get-entries batch size used while native CT catch-up mode is active.</summary>
+    public int NativeCtCatchUpBatchSize { get; set; } = 1_024;
+
     /// <summary>When true, discovers MX hosts from DNS.</summary>
     public bool IncludeMxHosts { get; set; } = true;
 
@@ -343,6 +370,45 @@ public sealed class CertificateInventoryCapture {
         }
         if (options.ReprobeExpiringWithinDays < 0) {
             throw new ArgumentOutOfRangeException(nameof(options.ReprobeExpiringWithinDays), "ReprobeExpiringWithinDays must be 0 or greater.");
+        }
+        if (options.MaxCtRowsPerDomain < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.MaxCtRowsPerDomain), "MaxCtRowsPerDomain must be 0 or greater.");
+        }
+        if (options.MaxCtSubdomainsPerDomain < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.MaxCtSubdomainsPerDomain), "MaxCtSubdomainsPerDomain must be 0 or greater.");
+        }
+        if (options.NativeCtEntryBatchSize < 1 || options.NativeCtEntryBatchSize > 2048) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtEntryBatchSize), "NativeCtEntryBatchSize must be between 1 and 2048.");
+        }
+        if (options.NativeCtInitialBackfillEntriesPerLog < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtInitialBackfillEntriesPerLog), "NativeCtInitialBackfillEntriesPerLog must be 0 or greater.");
+        }
+        if (options.NativeCtRequestDelay < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtRequestDelay), "NativeCtRequestDelay must be non-negative.");
+        }
+        if (options.NativeCtRetryCount < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtRetryCount), "NativeCtRetryCount must be 0 or greater.");
+        }
+        if (options.NativeCtRetryBaseDelay < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtRetryBaseDelay), "NativeCtRetryBaseDelay must be non-negative.");
+        }
+        if (options.NativeCtRetryMaxDelay < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtRetryMaxDelay), "NativeCtRetryMaxDelay must be non-negative.");
+        }
+        if (options.NativeCtCircuitBreakerFailureThreshold < 1) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtCircuitBreakerFailureThreshold), "NativeCtCircuitBreakerFailureThreshold must be 1 or greater.");
+        }
+        if (options.NativeCtCircuitBreakerDuration <= TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtCircuitBreakerDuration), "NativeCtCircuitBreakerDuration must be greater than zero.");
+        }
+        if (options.NativeCtCatchUpLagThreshold < 1) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtCatchUpLagThreshold), "NativeCtCatchUpLagThreshold must be 1 or greater.");
+        }
+        if (options.NativeCtCatchUpMaxEntriesPerLog < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtCatchUpMaxEntriesPerLog), "NativeCtCatchUpMaxEntriesPerLog must be 0 or greater.");
+        }
+        if (options.NativeCtCatchUpBatchSize < 1 || options.NativeCtCatchUpBatchSize > 2048) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtCatchUpBatchSize), "NativeCtCatchUpBatchSize must be between 1 and 2048.");
         }
 
         logger ??= new InternalLogger(false);
@@ -1116,7 +1182,16 @@ public sealed class CertificateInventoryCapture {
                         NativeCtInitialBackfillEntriesPerLog = options.NativeCtInitialBackfillEntriesPerLog,
                         NativeCtCursorStatePath = nativeCtCursorStatePath,
                         NativeCtIncludePendingLogs = options.NativeCtIncludePendingLogs,
-                        NativeCtRequestDelay = options.NativeCtRequestDelay
+                        NativeCtRequestDelay = options.NativeCtRequestDelay,
+                        NativeCtRetryCount = options.NativeCtRetryCount,
+                        NativeCtRetryBaseDelay = options.NativeCtRetryBaseDelay,
+                        NativeCtRetryMaxDelay = options.NativeCtRetryMaxDelay,
+                        NativeCtCircuitBreakerFailureThreshold = options.NativeCtCircuitBreakerFailureThreshold,
+                        NativeCtCircuitBreakerDuration = options.NativeCtCircuitBreakerDuration,
+                        NativeCtEnableCatchUpMode = options.NativeCtEnableCatchUpMode,
+                        NativeCtCatchUpLagThreshold = options.NativeCtCatchUpLagThreshold,
+                        NativeCtCatchUpMaxEntriesPerLog = options.NativeCtCatchUpMaxEntriesPerLog,
+                        NativeCtCatchUpBatchSize = options.NativeCtCatchUpBatchSize
                     };
                     if (options.NativeCtLogUrls != null && options.NativeCtLogUrls.Count > 0) {
                         foreach (var logUrl in options.NativeCtLogUrls) {
@@ -1197,7 +1272,16 @@ public sealed class CertificateInventoryCapture {
             InitialBackfillEntriesPerLog = options.NativeCtInitialBackfillEntriesPerLog,
             CursorStatePath = nativeCtCursorStatePath,
             IncludePendingLogs = options.NativeCtIncludePendingLogs,
-            RequestDelay = options.NativeCtRequestDelay
+            RequestDelay = options.NativeCtRequestDelay,
+            RetryCount = options.NativeCtRetryCount,
+            RetryBaseDelay = options.NativeCtRetryBaseDelay,
+            RetryMaxDelay = options.NativeCtRetryMaxDelay,
+            CircuitBreakerFailureThreshold = options.NativeCtCircuitBreakerFailureThreshold,
+            CircuitBreakerDuration = options.NativeCtCircuitBreakerDuration,
+            EnableCatchUpMode = options.NativeCtEnableCatchUpMode,
+            CatchUpLagThreshold = options.NativeCtCatchUpLagThreshold,
+            CatchUpMaxEntriesPerLog = options.NativeCtCatchUpMaxEntriesPerLog,
+            CatchUpBatchSize = options.NativeCtCatchUpBatchSize
         };
 
         var batchResult = await source.DiscoverForDomainsAsync(domains, sourceOptions, logger, cancellationToken).ConfigureAwait(false);

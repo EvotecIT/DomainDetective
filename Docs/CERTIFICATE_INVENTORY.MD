@@ -82,6 +82,7 @@ Notes:
 - `-ReprobeExpiringWithinDays` keeps near-expiry certificates fresh even when cache reuse is enabled.
 - Native CT log polling supports per-domain/per-log cursor persistence (`NativeCtCursorStatePath`) to avoid reprocessing the same CT ranges.
 - With multiple domains and native CT enabled, DomainDetective reuses one shared CT ingestion pass by default (`EnableNativeCtSharedIngestion = true`) and correlates discovered names to all monitored suffixes.
+- Native CT polling now includes built-in retry/backoff, per-log circuit breaker, and catch-up mode for large cursor lag.
 
 ### Capture controls quick reference
 
@@ -94,6 +95,13 @@ Notes:
 | `-RecentResultTtlHours` | `24` | How long cached endpoint results are eligible for reuse |
 | `-ReprobeExpiringWithinDays` | `14` | Always recheck endpoints whose certs expire soon |
 | `-DisableNativeCtSharedIngestion` | Off | Disable shared native CT pass and fall back to per-domain native CT ingestion |
+| `-NativeCtRetryCount` | `3` | Retry transient native CT HTTP failures |
+| `-NativeCtCircuitBreakerFailureThreshold` | `3` | Open per-log circuit after repeated failures |
+| `-NativeCtCircuitBreakerDurationSeconds` | `600` | Pause failing CT logs before re-trying |
+| `-DisableNativeCtCatchUpMode` | Off | Disable adaptive catch-up when native CT cursor lag is high |
+| `-NativeCtCatchUpLagThreshold` | `50000` | Cursor lag threshold that enables catch-up |
+| `-NativeCtCatchUpMaxEntriesPerLog` | `20000` | Expanded per-log entry cap in catch-up mode |
+| `-NativeCtCatchUpBatchSize` | `1024` | Expanded batch size in catch-up mode |
 
 ## PowerShell end-to-end examples
 
@@ -162,6 +170,12 @@ Invoke-DDCertificateInventory `
     -NativeCtInitialBackfillEntriesPerLog 5000 `
     -NativeCtMaxLogs 12 `
     -NativeCtMaxEntriesPerLog 2000 `
+    -NativeCtRetryCount 3 `
+    -NativeCtCircuitBreakerFailureThreshold 3 `
+    -NativeCtCircuitBreakerDurationSeconds 600 `
+    -NativeCtCatchUpLagThreshold 50000 `
+    -NativeCtCatchUpMaxEntriesPerLog 20000 `
+    -NativeCtCatchUpBatchSize 1024 `
     -NativeCtCursorStatePath .\cert-monitor\inventory\ct-native-cursor.json `
     -MaxTargets 250 `
     -MaxProbeStartsPerSecond 20 `
@@ -289,6 +303,12 @@ var options = new CertificateInventoryCaptureOptions {
     NativeCtInitialBackfillEntriesPerLog = 5000,
     NativeCtMaxLogs = 12,
     NativeCtMaxEntriesPerLog = 2000,
+    NativeCtRetryCount = 3,
+    NativeCtCircuitBreakerFailureThreshold = 3,
+    NativeCtCircuitBreakerDuration = TimeSpan.FromMinutes(10),
+    NativeCtCatchUpLagThreshold = 50_000,
+    NativeCtCatchUpMaxEntriesPerLog = 20_000,
+    NativeCtCatchUpBatchSize = 1_024,
     NativeCtCursorStatePath = @".\cert-monitor\inventory\ct-native-cursor.json",
     MaxParallelism = 24,
     DiscoveryParallelism = 32,
