@@ -13,6 +13,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Find circuit-open native CT diagnostics with high lag</summary>
 ///   <code>Get-DDCertificateInventoryCtDiagnostics -State CircuitOpen -LagAfterMin 10000</code>
 /// </example>
+/// <example>
+///   <summary>Enforce alert thresholds and fail when breached</summary>
+///   <code>Get-DDCertificateInventoryCtDiagnostics -LatestOnly -MaxFailed 0 -MaxCircuitOpen 0 -MaxLagAfter 5000 -FailOnThresholdBreach</code>
+/// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryCtDiagnostics")]
 [OutputType(typeof(CertificateInventoryNativeCtDiagnosticsResult))]
 public sealed class CmdletGetCertificateInventoryCtDiagnostics : PSCmdlet {
@@ -74,6 +78,25 @@ public sealed class CmdletGetCertificateInventoryCtDiagnostics : PSCmdlet {
     [ValidateRange(0, int.MaxValue)]
     public int MaxResults { get; set; } = 2000;
 
+    /// <summary>Alert threshold: maximum allowed diagnostics in Failed state.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? MaxFailed { get; set; }
+
+    /// <summary>Alert threshold: maximum allowed diagnostics in CircuitOpen state.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? MaxCircuitOpen { get; set; }
+
+    /// <summary>Alert threshold: maximum allowed LagAfter value across matched diagnostics.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, long.MaxValue)]
+    public long? MaxLagAfter { get; set; }
+
+    /// <summary>When set, the cmdlet throws a terminating error if any configured threshold is breached.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter FailOnThresholdBreach { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         var sinceUtc = CertificateInventoryCmdletHelpers.ToUtc(SinceUtc);
@@ -131,6 +154,38 @@ public sealed class CmdletGetCertificateInventoryCtDiagnostics : PSCmdlet {
         }
 
         var result = monitor.QueryInventoryNativeCtDiagnostics(query);
+        var thresholds = BuildAlertThresholds();
+        if (thresholds != null) {
+            var evaluation = CertificateInventoryNativeCtDiagnosticsAlerts.Evaluate(result, thresholds);
+            result.AlertEvaluation = evaluation;
+            if (evaluation.HasBreach) {
+                foreach (var message in evaluation.BreachMessages) {
+                    WriteWarning($"Threshold breached: {message}");
+                }
+
+                if (FailOnThresholdBreach.IsPresent) {
+                    ThrowTerminatingError(new ErrorRecord(
+                        new InvalidOperationException($"Native CT diagnostic threshold breached: {string.Join(" ", evaluation.BreachMessages)}"),
+                        "NativeCtDiagnosticsThresholdBreached",
+                        ErrorCategory.InvalidResult,
+                        result));
+                    return;
+                }
+            }
+        }
+
         WriteObject(result);
+    }
+
+    private CertificateInventoryNativeCtDiagnosticsAlertThresholds? BuildAlertThresholds() {
+        if (!MaxFailed.HasValue && !MaxCircuitOpen.HasValue && !MaxLagAfter.HasValue) {
+            return null;
+        }
+
+        return new CertificateInventoryNativeCtDiagnosticsAlertThresholds {
+            MaxFailedDiagnostics = MaxFailed,
+            MaxCircuitOpenDiagnostics = MaxCircuitOpen,
+            MaxLagAfter = MaxLagAfter
+        };
     }
 }

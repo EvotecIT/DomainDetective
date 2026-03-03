@@ -53,6 +53,7 @@ public class TestCertificateInventoryNativeCtDiagnosticsAnalyzer {
         Assert.Equal(2, result.LoadedSnapshotCount);
         Assert.Equal(3, result.ScannedDiagnosticCount);
         Assert.Equal(1, result.MatchedDiagnosticCount);
+        Assert.Equal(20000, result.MatchedLagAfterMax);
         Assert.Single(result.Entries);
         Assert.Equal("Failed", result.Entries[0].Entry.State);
         Assert.Equal(20000, result.Entries[0].Entry.LagAfter);
@@ -117,5 +118,27 @@ public class TestCertificateInventoryNativeCtDiagnosticsAnalyzer {
         Assert.Equal(1, result.ScannedSnapshotCount);
         Assert.Single(result.Entries);
         Assert.Equal("https://ct.example/old/", result.Entries[0].Entry.LogUrl);
+    }
+
+    [Fact]
+    public void Query_TracksMaxLagAfterAcrossAllMatchedRows_WhenResultsTruncated() {
+        var snapshot = new CertificateInventorySnapshot {
+            CapturedAtUtc = new DateTimeOffset(2026, 3, 3, 9, 0, 0, TimeSpan.Zero),
+            NativeCtLogDiagnostics = new List<NativeCtLogDiagnosticEntry> {
+                new NativeCtLogDiagnosticEntry { Scope = "shared:test", State = "Failed", LogUrl = "https://ct.example/a/", LagAfter = 150 },
+                new NativeCtLogDiagnosticEntry { Scope = "shared:test", State = "Failed", LogUrl = "https://ct.example/b/", LagAfter = 12500 }
+            }
+        };
+
+        var query = new CertificateInventoryNativeCtDiagnosticsQuery {
+            MaxResults = 1
+        };
+
+        var result = CertificateInventoryNativeCtDiagnosticsAnalyzer.Query(new[] { snapshot }, query);
+
+        Assert.Equal(2, result.MatchedDiagnosticCount);
+        Assert.True(result.Truncated);
+        Assert.Single(result.Entries);
+        Assert.Equal(12500, result.MatchedLagAfterMax);
     }
 }

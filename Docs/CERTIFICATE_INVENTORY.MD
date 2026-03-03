@@ -442,6 +442,40 @@ Get-DDCertificateInventoryCtDiagnostics `
     -MaxResults 500
 ```
 
+Native CT diagnostics threshold alerting:
+
+```powershell
+# Warn on threshold breach (non-terminating by default)
+Get-DDCertificateInventoryCtDiagnostics `
+    -CacheDirectory .\cert-monitor `
+    -LatestOnly `
+    -MaxFailed 0 `
+    -MaxCircuitOpen 0 `
+    -MaxLagAfter 5000
+
+# Fail the pipeline when breached
+Get-DDCertificateInventoryCtDiagnostics `
+    -CacheDirectory .\cert-monitor `
+    -LatestOnly `
+    -MaxFailed 0 `
+    -MaxCircuitOpen 0 `
+    -MaxLagAfter 5000 `
+    -FailOnThresholdBreach
+```
+
+CLI threshold alerting (returns exit code `2` when breached):
+
+```bash
+DomainDetective.CLI CertificateInventoryCtDiagnostics \
+  --cache-dir ./cert-monitor \
+  --latest-only \
+  --max-failed 0 \
+  --max-circuit-open 0 \
+  --max-lag-after 5000
+```
+
+Use `--no-fail-on-threshold-breach` if you only want warning output in CLI runs.
+
 ## Recommended operating model for 8k+ domains
 
 - Keep one authoritative domain list and deduplicate before capture.

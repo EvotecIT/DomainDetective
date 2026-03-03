@@ -67,8 +67,10 @@ namespace DomainDetective {
         public int ScannedSnapshotCount { get; set; }
         public int ScannedDiagnosticCount { get; set; }
         public int MatchedDiagnosticCount { get; set; }
+        public long? MatchedLagAfterMax { get; set; }
         public int EntriesTruncatedByMaxResults { get; set; }
         public bool Truncated { get; set; }
+        public CertificateInventoryNativeCtDiagnosticsAlertEvaluation? AlertEvaluation { get; set; }
         public Dictionary<string, int> MatchedByState { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<CertificateInventoryNativeCtDiagnosticObservedEntry> Entries { get; } = new();
     }
@@ -120,6 +122,11 @@ namespace DomainDetective {
 
                     result.MatchedDiagnosticCount++;
                     IncrementState(result.MatchedByState, diagnostic.State);
+                    if (diagnostic.LagAfter.HasValue) {
+                        if (!result.MatchedLagAfterMax.HasValue || diagnostic.LagAfter.Value > result.MatchedLagAfterMax.Value) {
+                            result.MatchedLagAfterMax = diagnostic.LagAfter.Value;
+                        }
+                    }
                     if (result.Entries.Count >= maxResults) {
                         result.Truncated = true;
                         continue;
