@@ -270,6 +270,9 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>Native CT per-log diagnostics observed during CT subdomain discovery.</summary>
     public IReadOnlyList<string> NativeCtLogDiagnostics { get; set; } = Array.Empty<string>();
 
+    /// <summary>Structured native CT per-log diagnostics observed during CT subdomain discovery.</summary>
+    public IReadOnlyList<NativeCtLogDiagnosticEntry> NativeCtLogDiagnosticEntries { get; set; } = Array.Empty<NativeCtLogDiagnosticEntry>();
+
     /// <summary>Captured snapshot object.</summary>
     public CertificateInventorySnapshot Snapshot { get; set; } = new();
 }
@@ -419,6 +422,7 @@ public sealed class CertificateInventoryCapture {
 
         var warnings = new List<string>();
         var nativeCtLogDiagnostics = new List<string>();
+        var nativeCtLogDiagnosticEntries = new List<NativeCtLogDiagnosticEntry>();
         var ctDiscoveredSubdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         const int totalStages = 9;
         var stage = 0;
@@ -452,7 +456,14 @@ public sealed class CertificateInventoryCapture {
             if (CtSubdomainDiscoveryOverride != null) {
                 discoveredSubdomains = await CtSubdomainDiscoveryOverride(normalizedDomains, options, logger, cancellationToken).ConfigureAwait(false);
             } else {
-                discoveredSubdomains = await DiscoverCtSubdomainsAsync(normalizedDomains, options, warnings, nativeCtLogDiagnostics, logger, cancellationToken).ConfigureAwait(false);
+                discoveredSubdomains = await DiscoverCtSubdomainsAsync(
+                    normalizedDomains,
+                    options,
+                    warnings,
+                    nativeCtLogDiagnostics,
+                    nativeCtLogDiagnosticEntries,
+                    logger,
+                    cancellationToken).ConfigureAwait(false);
             }
 
             foreach (var subdomain in discoveredSubdomains) {
@@ -611,7 +622,9 @@ public sealed class CertificateInventoryCapture {
         var snapshot = new CertificateInventorySnapshot {
             CapturedAtUtc = capturedAtUtc,
             Port = distinctPorts.Count == 1 ? distinctPorts[0] : 0,
-            Entries = deduped
+            Entries = deduped,
+            NativeCtLogDiagnostics = nativeCtLogDiagnosticEntries.Select(CloneNativeCtLogDiagnosticEntry).ToList(),
+            NativeCtLogDiagnosticsRaw = nativeCtLogDiagnostics.ToList()
         };
         AdvanceStage("Snapshot synthesis");
 
@@ -671,6 +684,7 @@ public sealed class CertificateInventoryCapture {
                 .ToList(),
             Warnings = warnings,
             NativeCtLogDiagnostics = nativeCtLogDiagnostics,
+            NativeCtLogDiagnosticEntries = nativeCtLogDiagnosticEntries,
             Snapshot = snapshot
         };
     }
@@ -1145,6 +1159,7 @@ public sealed class CertificateInventoryCapture {
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
         List<string> nativeCtLogDiagnostics,
+        List<NativeCtLogDiagnosticEntry> nativeCtLogDiagnosticEntries,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (domains == null || domains.Count == 0 || !options.IncludeCtDiscoveredSubdomains) {
@@ -1155,12 +1170,20 @@ public sealed class CertificateInventoryCapture {
             options.EnableNativeCtSharedIngestion &&
             domains.Count > 1) {
             logger.WriteVerbose("Using shared native CT ingestion for {0} domain(s).", domains.Count);
-            return await DiscoverCtSubdomainsNativeSharedAsync(domains, options, warnings, nativeCtLogDiagnostics, logger, cancellationToken).ConfigureAwait(false);
+            return await DiscoverCtSubdomainsNativeSharedAsync(
+                domains,
+                options,
+                warnings,
+                nativeCtLogDiagnostics,
+                nativeCtLogDiagnosticEntries,
+                logger,
+                cancellationToken).ConfigureAwait(false);
         }
 
         var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var warningLock = new object();
         var diagnosticsLock = new object();
+        var diagnosticEntriesLock = new object();
         var discoveredLock = new object();
         var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
         var nativeCtCursorStatePath = options.NativeCtCursorStatePath;
@@ -1226,6 +1249,15 @@ public sealed class CertificateInventoryCapture {
                             }
                         }
                     }
+                    if (analysis.NativeCtLogDiagnosticEntries != null && analysis.NativeCtLogDiagnosticEntries.Count > 0) {
+                        lock (diagnosticEntriesLock) {
+                            foreach (var diagnosticEntry in analysis.NativeCtLogDiagnosticEntries) {
+                                if (diagnosticEntry != null) {
+                                    nativeCtLogDiagnosticEntries.Add(CloneNativeCtLogDiagnosticEntry(diagnosticEntry));
+                                }
+                            }
+                        }
+                    }
                     if (!analysis.QuerySucceeded && !string.IsNullOrWhiteSpace(analysis.FailureReason)) {
                         lock (warningLock) {
                             warnings.Add($"CT subdomain discovery failed for {domain}: {analysis.FailureReason}");
@@ -1269,6 +1301,7 @@ public sealed class CertificateInventoryCapture {
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
         List<string> nativeCtLogDiagnostics,
+        List<NativeCtLogDiagnosticEntry> nativeCtLogDiagnosticEntries,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         var nativeCtCursorStatePath = options.NativeCtCursorStatePath;
@@ -1307,7 +1340,13 @@ public sealed class CertificateInventoryCapture {
             warnings.Add(warning);
         }
         foreach (var status in batchResult.LogStatuses) {
-            var line = FormatNativeCtLogDiagnostic(status, domains);
+            var entry = BuildNativeCtLogDiagnosticEntry(status, domains);
+            if (entry == null) {
+                continue;
+            }
+
+            nativeCtLogDiagnosticEntries.Add(entry);
+            var line = FormatNativeCtLogDiagnostic(entry);
             if (!string.IsNullOrWhiteSpace(line)) {
                 nativeCtLogDiagnostics.Add(line!);
             }
@@ -1392,24 +1431,60 @@ public sealed class CertificateInventoryCapture {
         return cap;
     }
 
-    private static string? FormatNativeCtLogDiagnostic(NativeCtLogIngestionStatus status, IReadOnlyList<string> domains) {
+    private static NativeCtLogDiagnosticEntry? BuildNativeCtLogDiagnosticEntry(NativeCtLogIngestionStatus status, IReadOnlyList<string> domains) {
         if (status == null || string.IsNullOrWhiteSpace(status.LogUrl)) {
             return null;
         }
 
-        var scope = status.SharedIngestion
-            ? "shared:" + string.Join(",", domains.OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase))
-            : (string.IsNullOrWhiteSpace(status.DomainScope) ? "domain:unknown" : "domain:" + status.DomainScope);
-        var state = status.SkippedByCircuitBreaker ? "CircuitOpen" : (status.Succeeded ? "Succeeded" : "Failed");
-        var treeSize = status.TreeSize.HasValue ? status.TreeSize.Value.ToString(CultureInfo.InvariantCulture) : "-";
-        var lastProcessed = status.LastProcessedIndex.HasValue ? status.LastProcessedIndex.Value.ToString(CultureInfo.InvariantCulture) : "-";
-        var lagBefore = status.EstimatedLagBefore.HasValue ? status.EstimatedLagBefore.Value.ToString(CultureInfo.InvariantCulture) : "-";
-        var lagAfter = status.EstimatedLagAfter.HasValue ? status.EstimatedLagAfter.Value.ToString(CultureInfo.InvariantCulture) : "-";
-        var circuitUntil = status.CircuitOpenUntilUtc.HasValue
-            ? status.CircuitOpenUntilUtc.Value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture)
+        return new NativeCtLogDiagnosticEntry {
+            Scope = status.SharedIngestion
+                ? "shared:" + string.Join(",", domains.OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase))
+                : (string.IsNullOrWhiteSpace(status.DomainScope) ? "domain:unknown" : "domain:" + status.DomainScope),
+            SharedIngestion = status.SharedIngestion,
+            State = status.SkippedByCircuitBreaker ? "CircuitOpen" : (status.Succeeded ? "Succeeded" : "Failed"),
+            LogUrl = status.LogUrl,
+            TreeSize = status.TreeSize,
+            LastProcessedIndex = status.LastProcessedIndex,
+            LagBefore = status.EstimatedLagBefore,
+            LagAfter = status.EstimatedLagAfter,
+            CircuitOpenUntilUtc = status.CircuitOpenUntilUtc,
+            Failure = string.IsNullOrWhiteSpace(status.Failure)
+                ? null
+                : status.Failure!.Replace('\r', ' ').Replace('\n', ' ').Trim()
+        };
+    }
+
+    private static string? FormatNativeCtLogDiagnostic(NativeCtLogDiagnosticEntry entry) {
+        if (entry == null || string.IsNullOrWhiteSpace(entry.LogUrl)) {
+            return null;
+        }
+
+        var scope = string.IsNullOrWhiteSpace(entry.Scope) ? "domain:unknown" : entry.Scope;
+        var state = string.IsNullOrWhiteSpace(entry.State) ? "Unknown" : entry.State;
+        var treeSize = entry.TreeSize.HasValue ? entry.TreeSize.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var lastProcessed = entry.LastProcessedIndex.HasValue ? entry.LastProcessedIndex.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var lagBefore = entry.LagBefore.HasValue ? entry.LagBefore.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var lagAfter = entry.LagAfter.HasValue ? entry.LagAfter.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var circuitUntil = entry.CircuitOpenUntilUtc.HasValue
+            ? entry.CircuitOpenUntilUtc.Value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture)
             : "-";
-        var failure = string.IsNullOrWhiteSpace(status.Failure) ? "-" : status.Failure!.Replace('\r', ' ').Replace('\n', ' ').Trim();
-        return $"scope={scope}; state={state}; log={status.LogUrl}; tree={treeSize}; last={lastProcessed}; lagBefore={lagBefore}; lagAfter={lagAfter}; circuitUntil={circuitUntil}; failure={failure}";
+        var failure = string.IsNullOrWhiteSpace(entry.Failure) ? "-" : entry.Failure!;
+        return $"scope={scope}; state={state}; log={entry.LogUrl}; tree={treeSize}; last={lastProcessed}; lagBefore={lagBefore}; lagAfter={lagAfter}; circuitUntil={circuitUntil}; failure={failure}";
+    }
+
+    private static NativeCtLogDiagnosticEntry CloneNativeCtLogDiagnosticEntry(NativeCtLogDiagnosticEntry entry) {
+        return new NativeCtLogDiagnosticEntry {
+            Scope = entry.Scope,
+            SharedIngestion = entry.SharedIngestion,
+            State = entry.State,
+            LogUrl = entry.LogUrl,
+            TreeSize = entry.TreeSize,
+            LastProcessedIndex = entry.LastProcessedIndex,
+            LagBefore = entry.LagBefore,
+            LagAfter = entry.LagAfter,
+            CircuitOpenUntilUtc = entry.CircuitOpenUntilUtc,
+            Failure = entry.Failure
+        };
     }
 
     private static async Task<HashSet<string>> VerifyDiscoveredSubdomainsResolveAsync(

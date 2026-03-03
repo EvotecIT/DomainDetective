@@ -1038,6 +1038,14 @@ namespace DomainDetective {
             return result;
         }
 
+        /// <summary>Queries persisted native CT ingestion diagnostics captured alongside inventory snapshots.</summary>
+        /// <param name="query">Native CT diagnostics query options.</param>
+        public CertificateInventoryNativeCtDiagnosticsResult QueryInventoryNativeCtDiagnostics(CertificateInventoryNativeCtDiagnosticsQuery? query = null) {
+            var effectiveQuery = query ?? new CertificateInventoryNativeCtDiagnosticsQuery();
+            var snapshots = LoadInventorySnapshots(effectiveQuery.SinceUtc);
+            return CertificateInventoryNativeCtDiagnosticsAnalyzer.Query(snapshots, effectiveQuery);
+        }
+
         private static bool MatchesQuery(CertificateInventoryEntry entry, CertificateInventoryQuery query, DateTimeOffset now) {
             var hostContains = query.HostContains;
             if (!string.IsNullOrWhiteSpace(hostContains)) {

@@ -76,6 +76,8 @@ public sealed class CmdletGetCertificateInventorySnapshot : PSCmdlet {
             metadataOnly.Add(new CertificateInventorySnapshot {
                 CapturedAtUtc = snapshot.CapturedAtUtc,
                 Port = snapshot.Port,
+                NativeCtLogDiagnostics = snapshot.NativeCtLogDiagnostics ?? new List<NativeCtLogDiagnosticEntry>(),
+                NativeCtLogDiagnosticsRaw = snapshot.NativeCtLogDiagnosticsRaw ?? new List<string>(),
                 Entries = new List<CertificateInventoryEntry>()
             });
         }

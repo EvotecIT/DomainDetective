@@ -421,6 +421,7 @@ var policy = monitor.BuildInventoryPolicy(
 | --- | --- |
 | `Invoke-DDCertificateInventory` | Live discovery and snapshot capture |
 | `Get-DDCertificateInventorySnapshot` | Read raw persisted snapshots |
+| `Get-DDCertificateInventoryCtDiagnostics` | Query native CT ingestion diagnostics (state/lag/circuit/failure) |
 | `Get-DDCertificateInventorySummary` | Portfolio summary |
 | `Get-DDCertificateInventoryQuery` | Structured filtering/search |
 | `Get-DDCertificateInventoryRisk` | Risk scoring and prioritization |
@@ -429,6 +430,17 @@ var policy = monitor.BuildInventoryPolicy(
 | `Get-DDCertificateInventoryReuse` | Certificate reuse/fan-out map |
 | `Get-DDCertificateInventoryPolicy` | Baseline policy evaluation |
 | `Get-DDCertificateInventoryPolicyDrift` | Compliance drift between snapshots |
+
+Native CT diagnostics example:
+
+```powershell
+Get-DDCertificateInventoryCtDiagnostics `
+    -CacheDirectory .\cert-monitor `
+    -SinceUtc (Get-Date).ToUniversalTime().AddDays(-7) `
+    -State Failed,CircuitOpen `
+    -LagAfterMin 10000 `
+    -MaxResults 500
+```
 
 ## Recommended operating model for 8k+ domains
 

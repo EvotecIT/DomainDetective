@@ -10,6 +10,24 @@ namespace DomainDetective {
         public DateTimeOffset CapturedAtUtc { get; set; }
         public int Port { get; set; }
         public List<CertificateInventoryEntry> Entries { get; set; } = new();
+        public List<NativeCtLogDiagnosticEntry> NativeCtLogDiagnostics { get; set; } = new();
+        public List<string> NativeCtLogDiagnosticsRaw { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Structured native CT ingestion diagnostic captured alongside inventory snapshots.
+    /// </summary>
+    public sealed class NativeCtLogDiagnosticEntry {
+        public string Scope { get; set; } = string.Empty;
+        public bool SharedIngestion { get; set; }
+        public string State { get; set; } = "Unknown";
+        public string LogUrl { get; set; } = string.Empty;
+        public long? TreeSize { get; set; }
+        public long? LastProcessedIndex { get; set; }
+        public long? LagBefore { get; set; }
+        public long? LagAfter { get; set; }
+        public DateTimeOffset? CircuitOpenUntilUtc { get; set; }
+        public string? Failure { get; set; }
     }
 
     /// <summary>

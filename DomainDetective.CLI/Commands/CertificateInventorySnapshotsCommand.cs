@@ -78,6 +78,9 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
         public int ClientAuthEntryCount { get; set; }
         public int IncompleteChainEntryCount { get; set; }
         public int CtTemplateErrorEntryCount { get; set; }
+        public int NativeCtDiagnosticCount { get; set; }
+        public int NativeCtFailedCount { get; set; }
+        public int NativeCtCircuitOpenCount { get; set; }
     }
 
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
@@ -179,6 +182,9 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
         rowsTable.AddColumn("ClientAuth");
         rowsTable.AddColumn("Incomplete Chains");
         rowsTable.AddColumn("CT Template Errors");
+        rowsTable.AddColumn("CT Diag");
+        rowsTable.AddColumn("CT Failed");
+        rowsTable.AddColumn("CT CircuitOpen");
 
         foreach (var row in rows) {
             rowsTable.AddRow(
@@ -191,7 +197,10 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
                 row.MissingServerAuthEntryCount.ToString(),
                 row.ClientAuthEntryCount.ToString(),
                 row.IncompleteChainEntryCount.ToString(),
-                row.CtTemplateErrorEntryCount.ToString());
+                row.CtTemplateErrorEntryCount.ToString(),
+                row.NativeCtDiagnosticCount.ToString(),
+                row.NativeCtFailedCount.ToString(),
+                row.NativeCtCircuitOpenCount.ToString());
         }
 
         AnsiConsole.Write(rowsTable);
@@ -207,6 +216,9 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
         var clientAuthCount = 0;
         var incompleteChainCount = 0;
         var ctTemplateErrorCount = 0;
+        var nativeCtDiagnosticCount = 0;
+        var nativeCtFailedCount = 0;
+        var nativeCtCircuitOpenCount = 0;
 
         foreach (var entry in entries) {
             if (entry == null) {
@@ -239,6 +251,20 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
             }
         }
 
+        if (snapshot.NativeCtLogDiagnostics != null && snapshot.NativeCtLogDiagnostics.Count > 0) {
+            nativeCtDiagnosticCount = snapshot.NativeCtLogDiagnostics.Count;
+            nativeCtFailedCount = snapshot.NativeCtLogDiagnostics.Count(diagnostic =>
+                diagnostic != null && string.Equals(diagnostic.State, "Failed", StringComparison.OrdinalIgnoreCase));
+            nativeCtCircuitOpenCount = snapshot.NativeCtLogDiagnostics.Count(diagnostic =>
+                diagnostic != null && string.Equals(diagnostic.State, "CircuitOpen", StringComparison.OrdinalIgnoreCase));
+        } else if (snapshot.NativeCtLogDiagnosticsRaw != null && snapshot.NativeCtLogDiagnosticsRaw.Count > 0) {
+            nativeCtDiagnosticCount = snapshot.NativeCtLogDiagnosticsRaw.Count;
+            nativeCtFailedCount = snapshot.NativeCtLogDiagnosticsRaw.Count(line =>
+                !string.IsNullOrWhiteSpace(line) && line.IndexOf("state=Failed", StringComparison.OrdinalIgnoreCase) >= 0);
+            nativeCtCircuitOpenCount = snapshot.NativeCtLogDiagnosticsRaw.Count(line =>
+                !string.IsNullOrWhiteSpace(line) && line.IndexOf("state=CircuitOpen", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
         return new SnapshotCatalogRow {
             CapturedAtUtc = snapshot.CapturedAtUtc,
             Port = snapshot.Port,
@@ -249,7 +275,10 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
             MissingServerAuthEntryCount = missingServerAuthCount,
             ClientAuthEntryCount = clientAuthCount,
             IncompleteChainEntryCount = incompleteChainCount,
-            CtTemplateErrorEntryCount = ctTemplateErrorCount
+            CtTemplateErrorEntryCount = ctTemplateErrorCount,
+            NativeCtDiagnosticCount = nativeCtDiagnosticCount,
+            NativeCtFailedCount = nativeCtFailedCount,
+            NativeCtCircuitOpenCount = nativeCtCircuitOpenCount
         };
     }
 
@@ -261,7 +290,7 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("CapturedAtUtc,Port,EntryCount,UniqueEndpointCount,ValidEntryCount,ExpiredEntryCount,MissingServerAuthEntryCount,ClientAuthEntryCount,IncompleteChainEntryCount,CtTemplateErrorEntryCount,LoadedSnapshotCount,ReturnedSnapshotCount,ExcludedByUntilCount,SinceUtc,UntilUtc");
+        sb.AppendLine("CapturedAtUtc,Port,EntryCount,UniqueEndpointCount,ValidEntryCount,ExpiredEntryCount,MissingServerAuthEntryCount,ClientAuthEntryCount,IncompleteChainEntryCount,CtTemplateErrorEntryCount,NativeCtDiagnosticCount,NativeCtFailedCount,NativeCtCircuitOpenCount,LoadedSnapshotCount,ReturnedSnapshotCount,ExcludedByUntilCount,SinceUtc,UntilUtc");
         var sinceUtc = result.SinceUtc?.UtcDateTime.ToString("O") ?? string.Empty;
         var untilUtc = result.UntilUtc?.UtcDateTime.ToString("O") ?? string.Empty;
         foreach (var row in result.Snapshots) {
@@ -284,6 +313,12 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
             sb.Append(row.IncompleteChainEntryCount);
             sb.Append(',');
             sb.Append(row.CtTemplateErrorEntryCount);
+            sb.Append(',');
+            sb.Append(row.NativeCtDiagnosticCount);
+            sb.Append(',');
+            sb.Append(row.NativeCtFailedCount);
+            sb.Append(',');
+            sb.Append(row.NativeCtCircuitOpenCount);
             sb.Append(',');
             sb.Append(result.LoadedSnapshotCount);
             sb.Append(',');
@@ -321,6 +356,9 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
                 row.ClientAuthEntryCount,
                 row.IncompleteChainEntryCount,
                 row.CtTemplateErrorEntryCount,
+                row.NativeCtDiagnosticCount,
+                row.NativeCtFailedCount,
+                row.NativeCtCircuitOpenCount,
                 result.LoadedSnapshotCount,
                 result.ReturnedSnapshotCount,
                 result.ExcludedByUntilCount,

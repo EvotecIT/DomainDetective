@@ -241,6 +241,9 @@ public sealed class SubdomainsAnalysis : IHasAssessments
     /// <summary>Native CT per-log diagnostics captured during this analysis run.</summary>
     public IReadOnlyList<string> NativeCtLogDiagnostics { get; private set; } = Array.Empty<string>();
 
+    /// <summary>Structured native CT per-log diagnostics captured during this analysis run.</summary>
+    public IReadOnlyList<NativeCtLogDiagnosticEntry> NativeCtLogDiagnosticEntries { get; private set; } = Array.Empty<NativeCtLogDiagnosticEntry>();
+
     /// <summary>
     /// Performs CT-backed subdomain discovery for the specified <paramref name="domain"/>.
     /// </summary>
@@ -268,7 +271,11 @@ public sealed class SubdomainsAnalysis : IHasAssessments
                 {
                     logger?.WriteVerbose("{0}", warning);
                 }
-                NativeCtLogDiagnostics = FormatNativeCtLogDiagnostics(nativeResult.LogStatuses, Subject);
+                NativeCtLogDiagnosticEntries = BuildNativeCtLogDiagnosticEntries(nativeResult.LogStatuses, Subject);
+                NativeCtLogDiagnostics = NativeCtLogDiagnosticEntries
+                    .Select(FormatNativeCtLogDiagnostic)
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .ToList()!;
                 if (nativeResult.SourceSucceeded)
                 {
                     sourceSucceeded = true;
@@ -787,6 +794,7 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         ResolutionReduced = false;
         Assessments.Clear();
         NativeCtLogDiagnostics = Array.Empty<string>();
+        NativeCtLogDiagnosticEntries = Array.Empty<NativeCtLogDiagnosticEntry>();
     }
 
     private async Task<string> FetchJsonAsync(string url, CancellationToken cancellationToken)
@@ -909,16 +917,16 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         }
     }
 
-    private static IReadOnlyList<string> FormatNativeCtLogDiagnostics(
+    private static IReadOnlyList<NativeCtLogDiagnosticEntry> BuildNativeCtLogDiagnosticEntries(
         IReadOnlyList<NativeCtLogIngestionStatus> statuses,
         string domain)
     {
         if (statuses == null || statuses.Count == 0)
         {
-            return Array.Empty<string>();
+            return Array.Empty<NativeCtLogDiagnosticEntry>();
         }
 
-        var output = new List<string>(statuses.Count);
+        var output = new List<NativeCtLogDiagnosticEntry>(statuses.Count);
         foreach (var status in statuses)
         {
             if (status == null || string.IsNullOrWhiteSpace(status.LogUrl))
@@ -927,17 +935,36 @@ public sealed class SubdomainsAnalysis : IHasAssessments
             }
 
             var scope = string.IsNullOrWhiteSpace(status.DomainScope) ? domain : status.DomainScope!;
-            var state = status.SkippedByCircuitBreaker ? "CircuitOpen" : (status.Succeeded ? "Succeeded" : "Failed");
-            var lagBefore = status.EstimatedLagBefore.HasValue ? status.EstimatedLagBefore.Value.ToString(CultureInfo.InvariantCulture) : "-";
-            var lagAfter = status.EstimatedLagAfter.HasValue ? status.EstimatedLagAfter.Value.ToString(CultureInfo.InvariantCulture) : "-";
-            var treeSize = status.TreeSize.HasValue ? status.TreeSize.Value.ToString(CultureInfo.InvariantCulture) : "-";
-            var lastProcessed = status.LastProcessedIndex.HasValue ? status.LastProcessedIndex.Value.ToString(CultureInfo.InvariantCulture) : "-";
-            var circuitUntil = status.CircuitOpenUntilUtc.HasValue ? status.CircuitOpenUntilUtc.Value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture) : "-";
-            var failure = string.IsNullOrWhiteSpace(status.Failure) ? "-" : status.Failure!.Replace('\r', ' ').Replace('\n', ' ').Trim();
-            output.Add($"scope={scope}; shared={status.SharedIngestion}; state={state}; log={status.LogUrl}; tree={treeSize}; last={lastProcessed}; lagBefore={lagBefore}; lagAfter={lagAfter}; circuitUntil={circuitUntil}; failure={failure}");
+            output.Add(new NativeCtLogDiagnosticEntry {
+                Scope = scope,
+                SharedIngestion = status.SharedIngestion,
+                State = status.SkippedByCircuitBreaker ? "CircuitOpen" : (status.Succeeded ? "Succeeded" : "Failed"),
+                LogUrl = status.LogUrl,
+                TreeSize = status.TreeSize,
+                LastProcessedIndex = status.LastProcessedIndex,
+                LagBefore = status.EstimatedLagBefore,
+                LagAfter = status.EstimatedLagAfter,
+                CircuitOpenUntilUtc = status.CircuitOpenUntilUtc,
+                Failure = string.IsNullOrWhiteSpace(status.Failure)
+                    ? null
+                    : status.Failure!.Replace('\r', ' ').Replace('\n', ' ').Trim()
+            });
         }
 
         return output;
+    }
+
+    private static string FormatNativeCtLogDiagnostic(NativeCtLogDiagnosticEntry entry)
+    {
+        var scope = string.IsNullOrWhiteSpace(entry.Scope) ? "unknown" : entry.Scope;
+        var state = string.IsNullOrWhiteSpace(entry.State) ? "Unknown" : entry.State;
+        var lagBefore = entry.LagBefore.HasValue ? entry.LagBefore.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var lagAfter = entry.LagAfter.HasValue ? entry.LagAfter.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var treeSize = entry.TreeSize.HasValue ? entry.TreeSize.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var lastProcessed = entry.LastProcessedIndex.HasValue ? entry.LastProcessedIndex.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var circuitUntil = entry.CircuitOpenUntilUtc.HasValue ? entry.CircuitOpenUntilUtc.Value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture) : "-";
+        var failure = string.IsNullOrWhiteSpace(entry.Failure) ? "-" : entry.Failure!;
+        return $"scope={scope}; shared={entry.SharedIngestion}; state={state}; log={entry.LogUrl}; tree={treeSize}; last={lastProcessed}; lagBefore={lagBefore}; lagAfter={lagAfter}; circuitUntil={circuitUntil}; failure={failure}";
     }
 
     private void ParseCtJson(
