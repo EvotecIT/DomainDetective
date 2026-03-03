@@ -27,6 +27,10 @@ namespace DomainDetective.PowerShell;
 ///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -VerifyCtSubdomains -MaxCtSubdomainsPerDomain 5000 -Verbose</code>
 /// </example>
 /// <example>
+///   <summary>Use native CT log polling without crt.sh fallback</summary>
+///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -EnableNativeCtLogSubdomains -NativeCtLogOnly -NativeCtInitialBackfillEntriesPerLog 5000 -Verbose</code>
+/// </example>
+/// <example>
 ///   <summary>Run a throttled test capture</summary>
 ///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -Limit 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose</code>
 /// </example>
@@ -104,6 +108,55 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [Parameter(Mandatory = false)]
     [ValidateRange(0, int.MaxValue)]
     public int MaxCtSubdomainsPerDomain { get; set; } = 2000;
+
+    /// <summary>Enable native RFC6962 CT log polling for CT subdomain discovery.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter EnableNativeCtLogSubdomains { get; set; }
+
+    /// <summary>Use only native CT log polling for CT subdomain discovery (skip crt.sh/Cert Spotter).</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NativeCtLogOnly { get; set; }
+
+    /// <summary>Native CT log list URL used to resolve CT logs.</summary>
+    [Parameter(Mandatory = false)]
+    public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
+
+    /// <summary>Optional explicit CT log URL list for native CT polling.</summary>
+    [Parameter(Mandatory = false)]
+    public string[] NativeCtLogUrl { get; set; } = Array.Empty<string>();
+
+    /// <summary>Maximum CT logs processed per domain when native CT polling is enabled.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int NativeCtMaxLogs { get; set; } = 12;
+
+    /// <summary>Maximum CT entries processed per log per domain when native CT polling is enabled.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int NativeCtMaxEntriesPerLog { get; set; } = 2000;
+
+    /// <summary>Maximum get-entries batch size when native CT polling is enabled.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 2048)]
+    public int NativeCtEntryBatchSize { get; set; } = 256;
+
+    /// <summary>Initial per-log backfill when no native CT cursor exists (0 starts at current tree head).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int NativeCtInitialBackfillEntriesPerLog { get; set; } = 2000;
+
+    /// <summary>Optional native CT cursor state file path (defaults to inventory/ct-native-cursor.json under CacheDirectory).</summary>
+    [Parameter(Mandatory = false)]
+    public string? NativeCtCursorStatePath { get; set; }
+
+    /// <summary>Include pending CT logs when using native CT log list ingestion.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NativeCtIncludePendingLogs { get; set; }
+
+    /// <summary>Optional delay in milliseconds between native CT requests.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, 60000)]
+    public int NativeCtRequestDelayMilliseconds { get; set; } = 0;
 
     /// <summary>Additional endpoint(s) to probe (supports https:// and mail schemes).</summary>
     [Parameter(Mandatory = false)]
@@ -275,6 +328,16 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             VerifyCtDiscoveredSubdomains = VerifyCtSubdomains.IsPresent,
             MaxCtRowsPerDomain = MaxCtRowsPerDomain,
             MaxCtSubdomainsPerDomain = MaxCtSubdomainsPerDomain,
+            EnableNativeCtLogSubdomainSource = EnableNativeCtLogSubdomains.IsPresent,
+            NativeCtLogOnly = NativeCtLogOnly.IsPresent,
+            NativeCtLogListUrl = NativeCtLogListUrl,
+            NativeCtMaxLogs = NativeCtMaxLogs,
+            NativeCtMaxEntriesPerLog = NativeCtMaxEntriesPerLog,
+            NativeCtEntryBatchSize = NativeCtEntryBatchSize,
+            NativeCtInitialBackfillEntriesPerLog = NativeCtInitialBackfillEntriesPerLog,
+            NativeCtCursorStatePath = NativeCtCursorStatePath,
+            NativeCtIncludePendingLogs = NativeCtIncludePendingLogs.IsPresent,
+            NativeCtRequestDelay = TimeSpan.FromMilliseconds(NativeCtRequestDelayMilliseconds),
             MaxMxHostsPerDomain = MaxMxHostsPerDomain,
             MaxParallelism = MaxParallelism,
             DiscoveryParallelism = DiscoveryParallelism,
@@ -300,6 +363,13 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             foreach (var endpoint in Endpoint) {
                 if (!string.IsNullOrWhiteSpace(endpoint)) {
                     options.AdditionalEndpoints.Add(endpoint.Trim());
+                }
+            }
+        }
+        if (NativeCtLogUrl != null && NativeCtLogUrl.Length > 0) {
+            foreach (var logUrl in NativeCtLogUrl) {
+                if (!string.IsNullOrWhiteSpace(logUrl)) {
+                    options.NativeCtLogUrls.Add(logUrl.Trim());
                 }
             }
         }

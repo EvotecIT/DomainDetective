@@ -65,6 +65,7 @@ DomainDetective combines endpoint probing and CT evidence:
 | HTTPS probing | Live leaf cert, chain, issuer/root, EKU/auth profile, validity, hostname match, protocol/service | Included by default (apex + `www`) |
 | MX discovery + STARTTLS | Mail host certs from SMTP 25/587; optional IMAPS/POP3S | Default includes STARTTLS; IMAP/POP3 optional |
 | Additional endpoints | Explicit app/service targets (`https://`, `smtp://`, etc.) | `-Endpoint` / `AdditionalEndpoints` |
+| Native CT log polling (RFC6962) | Direct CT ingestion from trusted log operators (no crt.sh dependency) | `EnableNativeCtLogSubdomainSource`, `NativeCt*` options |
 | Public CT API (`crt.sh`) | CT presence and source evidence for observed certs | Enabled by default template |
 | Optional CT APIs (Shodan/Censys/custom) | Wider CT discovery source coverage | `CtProfile`, source toggles, API keys/templates |
 
@@ -79,6 +80,7 @@ Notes:
 - Use `-MaxTargets` for quick/safe test runs and `-MaxProbeStartsPerSecond` as an anti-hammer throttle.
 - Use `-ReuseRecentResults` with `-RecentResultTtlHours` to skip re-probing endpoints already captured recently.
 - `-ReprobeExpiringWithinDays` keeps near-expiry certificates fresh even when cache reuse is enabled.
+- Native CT log polling supports per-domain/per-log cursor persistence (`NativeCtCursorStatePath`) to avoid reprocessing the same CT ranges.
 
 ### Capture controls quick reference
 
@@ -144,6 +146,24 @@ Invoke-DDCertificateInventory `
     -MaxProbeErrorWarnings 10 `
     -MaxCtSubdomainsPerDomain 5000 `
     -MaxCtRowsPerDomain 20000
+```
+
+Direct native CT ingestion (without `crt.sh`/Cert Spotter):
+
+```powershell
+Invoke-DDCertificateInventory `
+    -DomainName eurofins.com,evotec.pl,evotec.xyz `
+    -CacheDirectory .\cert-monitor `
+    -IncludeCtSubdomains `
+    -EnableNativeCtLogSubdomains `
+    -NativeCtLogOnly `
+    -NativeCtInitialBackfillEntriesPerLog 5000 `
+    -NativeCtMaxLogs 12 `
+    -NativeCtMaxEntriesPerLog 2000 `
+    -NativeCtCursorStatePath .\cert-monitor\inventory\ct-native-cursor.json `
+    -MaxTargets 250 `
+    -MaxProbeStartsPerSecond 20 `
+    -Verbose
 ```
 
 CLI equivalent:
@@ -262,6 +282,12 @@ var options = new CertificateInventoryCaptureOptions {
     ShodanApiKey = Environment.GetEnvironmentVariable("SHODAN_API_KEY"),
     IncludeImapTls = true,
     IncludePop3Tls = true,
+    EnableNativeCtLogSubdomainSource = true,
+    NativeCtLogOnly = true,
+    NativeCtInitialBackfillEntriesPerLog = 5000,
+    NativeCtMaxLogs = 12,
+    NativeCtMaxEntriesPerLog = 2000,
+    NativeCtCursorStatePath = @".\cert-monitor\inventory\ct-native-cursor.json",
     MaxParallelism = 24,
     DiscoveryParallelism = 32,
     PersistSnapshot = true

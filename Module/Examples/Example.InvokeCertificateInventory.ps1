@@ -13,6 +13,24 @@ $Domains = @(
 
 $CacheDirectory = Join-Path $PSScriptRoot 'cert-monitor'
 
+$UseNativeCtLogs = $true
+$CtParameters = @{}
+
+if ($UseNativeCtLogs) {
+    $CtParameters = @{
+        EnableNativeCtLogSubdomains         = $true
+        NativeCtLogOnly                     = $true
+        NativeCtInitialBackfillEntriesPerLog = 5000
+        NativeCtCursorStatePath             = (Join-Path $CacheDirectory 'inventory\ct-native-cursor.json')
+    }
+} else {
+    $CtParameters = @{
+        CtProfile             = 'Extended'
+        EnableShodanCtSource = $true
+        ShodanApiKeyEnv       = 'SHODAN_API_KEY'
+    }
+}
+
 $Capture = Invoke-DDCertificateInventory `
     -DomainName $Domains `
     -CacheDirectory $CacheDirectory `
@@ -23,13 +41,11 @@ $Capture = Invoke-DDCertificateInventory `
     -MaxProbeStartsPerSecond 20 `
     -MaxParallelism 24 `
     -DiscoveryParallelism 32 `
-    -CtProfile Extended `
     -IncludeCtSubdomains `
     -VerifyCtSubdomains `
-    -EnableShodanCtSource `
-    -ShodanApiKeyEnv SHODAN_API_KEY `
     -IncludeImapTls `
-    -IncludePop3Tls
+    -IncludePop3Tls `
+    @CtParameters
 
 $Capture | Format-List
 

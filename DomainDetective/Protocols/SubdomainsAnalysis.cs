@@ -36,6 +36,39 @@ public sealed class SubdomainsAnalysis : IHasAssessments
     /// <summary>When true (default), queries Cert Spotter when crt.sh cannot be reached.</summary>
     public bool UseCertSpotterFallback { get; set; } = true;
 
+    /// <summary>When true, uses direct RFC6962 CT log polling as primary subdomain discovery source.</summary>
+    public bool EnableNativeCtLogSource { get; set; }
+
+    /// <summary>When true, only native CT log polling is used (disables crt.sh/Cert Spotter fallback).</summary>
+    public bool NativeCtLogOnly { get; set; }
+
+    /// <summary>CT log list URL used by native CT discovery.</summary>
+    public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
+
+    /// <summary>Optional explicit CT log URLs for native discovery (skips log-list download when provided).</summary>
+    public List<string> NativeCtLogUrls { get; } = new();
+
+    /// <summary>Maximum CT logs processed per native run (0 means all).</summary>
+    public int NativeCtMaxLogs { get; set; } = 12;
+
+    /// <summary>Maximum CT entries processed per log in a native run (0 means uncapped).</summary>
+    public int NativeCtMaxEntriesPerLog { get; set; } = 2_000;
+
+    /// <summary>Maximum get-entries batch size per native CT request.</summary>
+    public int NativeCtEntryBatchSize { get; set; } = 256;
+
+    /// <summary>Initial per-log backfill window when no native CT cursor exists (0 starts at current tree head).</summary>
+    public int NativeCtInitialBackfillEntriesPerLog { get; set; } = 2_000;
+
+    /// <summary>Optional native CT cursor state path used to persist per-domain/per-log progress.</summary>
+    public string? NativeCtCursorStatePath { get; set; }
+
+    /// <summary>When true, includes pending CT logs from the log list during native discovery.</summary>
+    public bool NativeCtIncludePendingLogs { get; set; }
+
+    /// <summary>Optional delay between native CT HTTP requests.</summary>
+    public TimeSpan NativeCtRequestDelay { get; set; } = TimeSpan.Zero;
+
     /// <summary>
     /// Optional override returning the JSON payload for a given CT URL.
     /// Used by tests and offline callers.
@@ -191,40 +224,74 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         Reset();
         Subject = DomainHelper.ValidateIdn(domain);
 
-        var payloads = new List<string>(2);
+        var issuerCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var subdomainMap = new Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>(StringComparer.OrdinalIgnoreCase);
         string? failure = null;
-        var crtShUrl = BuildCrtShUrl(Subject);
-        if (!string.IsNullOrWhiteSpace(crtShUrl))
+        var sourceSucceeded = false;
+
+        if (EnableNativeCtLogSource)
         {
             try
             {
-                payloads.Add(await FetchJsonAsync(crtShUrl!, cancellationToken).ConfigureAwait(false));
+                var nativeResult = await DiscoverNativeCtSubdomainsAsync(Subject, logger, cancellationToken).ConfigureAwait(false);
+                foreach (var warning in nativeResult.Warnings)
+                {
+                    logger?.WriteVerbose("{0}", warning);
+                }
+                if (nativeResult.SourceSucceeded)
+                {
+                    sourceSucceeded = true;
+                    MergeNativeCtResult(nativeResult, issuerCounts, subdomainMap);
+                }
+                else if (nativeResult.Warnings.Count > 0)
+                {
+                    failure = string.Join("; ", nativeResult.Warnings.Take(3));
+                }
             }
             catch (Exception ex)
             {
                 failure = ex.Message;
-                logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
+                logger?.WriteVerbose("Native CT source failed for {0}: {1}", Subject, ex.Message);
             }
         }
 
-        if (payloads.Count == 0 && UseCertSpotterFallback)
+        var payloads = new List<string>(2);
+        var shouldTryPassiveCt = !NativeCtLogOnly && (!sourceSucceeded || (EnableNativeCtLogSource && subdomainMap.Count == 0));
+        if (shouldTryPassiveCt)
         {
-            var fallbackUrl = BuildCertSpotterUrl(Subject);
-            if (!string.IsNullOrWhiteSpace(fallbackUrl))
+            var crtShUrl = BuildCrtShUrl(Subject);
+            if (!string.IsNullOrWhiteSpace(crtShUrl))
             {
                 try
                 {
-                    payloads.Add(await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false));
+                    payloads.Add(await FetchJsonAsync(crtShUrl!, cancellationToken).ConfigureAwait(false));
                 }
                 catch (Exception ex)
                 {
-                    failure = failure == null ? ex.Message : $"{failure}; fallback failed: {ex.Message}";
-                    logger?.WriteVerbose("Fallback CT source failed for {0}: {1}", Subject, ex.Message);
+                    failure = ex.Message;
+                    logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
+                }
+            }
+
+            if (payloads.Count == 0 && UseCertSpotterFallback)
+            {
+                var fallbackUrl = BuildCertSpotterUrl(Subject);
+                if (!string.IsNullOrWhiteSpace(fallbackUrl))
+                {
+                    try
+                    {
+                        payloads.Add(await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false));
+                    }
+                    catch (Exception ex)
+                    {
+                        failure = failure == null ? ex.Message : $"{failure}; fallback failed: {ex.Message}";
+                        logger?.WriteVerbose("Fallback CT source failed for {0}: {1}", Subject, ex.Message);
+                    }
                 }
             }
         }
 
-        if (payloads.Count == 0)
+        if (!sourceSucceeded && payloads.Count == 0)
         {
             QuerySucceeded = false;
             FailureReason = failure ?? "No CT source succeeded.";
@@ -239,9 +306,6 @@ public sealed class SubdomainsAnalysis : IHasAssessments
             return;
         }
 
-        var issuerCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var subdomainMap = new Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>(StringComparer.OrdinalIgnoreCase);
-
         try
         {
             foreach (var payload in payloads)
@@ -252,6 +316,7 @@ public sealed class SubdomainsAnalysis : IHasAssessments
                     break;
                 }
             }
+
             QuerySucceeded = true;
         }
         catch (Exception ex)
@@ -723,6 +788,84 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         }
 
         return string.Format(CertSpotterUrlTemplate, Uri.EscapeDataString(domain));
+    }
+
+    private async Task<NativeCtLogSubdomainDiscoveryResult> DiscoverNativeCtSubdomainsAsync(string domain, InternalLogger? logger, CancellationToken cancellationToken)
+    {
+        var source = new NativeCtLogSubdomainDiscovery
+        {
+            QueryOverride = QueryOverride
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions
+        {
+            BaseDomain = domain,
+            MaxCtRowsToProcess = MaxCtRowsToProcess,
+            MaxSubdomains = MaxSubdomains,
+            LogListUrl = NativeCtLogListUrl,
+            ExplicitLogUrls = NativeCtLogUrls.ToList(),
+            MaxLogsToProcess = NativeCtMaxLogs,
+            MaxEntriesPerLog = NativeCtMaxEntriesPerLog,
+            EntryBatchSize = NativeCtEntryBatchSize,
+            InitialBackfillEntriesPerLog = NativeCtInitialBackfillEntriesPerLog,
+            CursorStatePath = NativeCtCursorStatePath,
+            IncludePendingLogs = NativeCtIncludePendingLogs,
+            RequestDelay = NativeCtRequestDelay
+        };
+
+        return await source.DiscoverAsync(options, logger, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void MergeNativeCtResult(
+        NativeCtLogSubdomainDiscoveryResult nativeResult,
+        Dictionary<string, int> issuerCounts,
+        Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)> subdomainMap)
+    {
+        CertificateObservationCount += nativeResult.CertificateObservationCount;
+        if (nativeResult.ResultsCapped)
+        {
+            ResultsCapped = true;
+        }
+        if (nativeResult.FirstSeenUtc.HasValue)
+        {
+            if (!FirstSeenUtc.HasValue || nativeResult.FirstSeenUtc.Value < FirstSeenUtc.Value)
+            {
+                FirstSeenUtc = nativeResult.FirstSeenUtc.Value;
+            }
+        }
+        if (nativeResult.LastSeenUtc.HasValue)
+        {
+            if (!LastSeenUtc.HasValue || nativeResult.LastSeenUtc.Value > LastSeenUtc.Value)
+            {
+                LastSeenUtc = nativeResult.LastSeenUtc.Value;
+            }
+        }
+
+        foreach (var kv in nativeResult.IssuerCounts)
+        {
+            issuerCounts[kv.Key] = issuerCounts.TryGetValue(kv.Key, out var existing) ? existing + kv.Value : kv.Value;
+        }
+
+        foreach (var kv in nativeResult.Subdomains)
+        {
+            if (!subdomainMap.TryGetValue(kv.Key, out var existing))
+            {
+                subdomainMap[kv.Key] = kv.Value;
+                continue;
+            }
+
+            var first = existing.First;
+            var last = existing.Last;
+            if (kv.Value.First.HasValue && (!first.HasValue || kv.Value.First.Value < first.Value))
+            {
+                first = kv.Value.First.Value;
+            }
+            if (kv.Value.Last.HasValue && (!last.HasValue || kv.Value.Last.Value > last.Value))
+            {
+                last = kv.Value.Last.Value;
+            }
+            subdomainMap[kv.Key] = (first, last);
+        }
     }
 
     private void ParseCtJson(

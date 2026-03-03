@@ -39,6 +39,39 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Maximum CT-discovered subdomains retained per domain (0 means no explicit cap override).</summary>
     public int MaxCtSubdomainsPerDomain { get; set; } = 2_000;
 
+    /// <summary>When true, uses native RFC6962 CT log polling for subdomain discovery.</summary>
+    public bool EnableNativeCtLogSubdomainSource { get; set; }
+
+    /// <summary>When true, uses only native CT log polling for subdomain discovery (skips crt.sh/Cert Spotter).</summary>
+    public bool NativeCtLogOnly { get; set; }
+
+    /// <summary>Native CT log list URL used to resolve trusted CT logs.</summary>
+    public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
+
+    /// <summary>Optional explicit CT log URLs for native subdomain discovery.</summary>
+    public List<string> NativeCtLogUrls { get; } = new();
+
+    /// <summary>Maximum CT logs processed per domain during native subdomain discovery (0 means all).</summary>
+    public int NativeCtMaxLogs { get; set; } = 12;
+
+    /// <summary>Maximum CT entries processed per log during native subdomain discovery (0 means uncapped).</summary>
+    public int NativeCtMaxEntriesPerLog { get; set; } = 2_000;
+
+    /// <summary>Maximum get-entries batch size for native CT polling.</summary>
+    public int NativeCtEntryBatchSize { get; set; } = 256;
+
+    /// <summary>Initial per-log backfill when native CT cursor is missing (0 starts at current tree head).</summary>
+    public int NativeCtInitialBackfillEntriesPerLog { get; set; } = 2_000;
+
+    /// <summary>Optional native CT cursor state file path. Defaults to inventory/ct-native-cursor.json in CacheDirectory.</summary>
+    public string? NativeCtCursorStatePath { get; set; }
+
+    /// <summary>When true, includes pending CT logs from log list in native subdomain discovery.</summary>
+    public bool NativeCtIncludePendingLogs { get; set; }
+
+    /// <summary>Optional delay between native CT HTTP requests.</summary>
+    public TimeSpan NativeCtRequestDelay { get; set; } = TimeSpan.Zero;
+
     /// <summary>When true, discovers MX hosts from DNS.</summary>
     public bool IncludeMxHosts { get; set; } = true;
 
@@ -1008,7 +1041,7 @@ public sealed class CertificateInventoryCapture {
             return false;
         }
 
-        var parts = rawValue
+        var parts = rawValue!
             .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0) {
             return false;
@@ -1046,6 +1079,10 @@ public sealed class CertificateInventoryCapture {
         var warningLock = new object();
         var discoveredLock = new object();
         var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
+        var nativeCtCursorStatePath = options.NativeCtCursorStatePath;
+        if (string.IsNullOrWhiteSpace(nativeCtCursorStatePath) && options.EnableNativeCtLogSubdomainSource) {
+            nativeCtCursorStatePath = System.IO.Path.Combine(options.CacheDirectory, "inventory", "ct-native-cursor.json");
+        }
         using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
         var tasks = new List<Task>(domains.Count);
         foreach (var domain in domains) {
@@ -1059,8 +1096,25 @@ public sealed class CertificateInventoryCapture {
                         VerifyStillResolves = options.VerifyCtDiscoveredSubdomains,
                         DetectSensitiveSubdomains = false,
                         ScanSensitiveSubdomainTxt = false,
-                        DetectAiInfrastructureExposure = false
+                        DetectAiInfrastructureExposure = false,
+                        EnableNativeCtLogSource = options.EnableNativeCtLogSubdomainSource,
+                        NativeCtLogOnly = options.NativeCtLogOnly,
+                        NativeCtLogListUrl = options.NativeCtLogListUrl,
+                        NativeCtMaxLogs = options.NativeCtMaxLogs,
+                        NativeCtMaxEntriesPerLog = options.NativeCtMaxEntriesPerLog,
+                        NativeCtEntryBatchSize = options.NativeCtEntryBatchSize,
+                        NativeCtInitialBackfillEntriesPerLog = options.NativeCtInitialBackfillEntriesPerLog,
+                        NativeCtCursorStatePath = nativeCtCursorStatePath,
+                        NativeCtIncludePendingLogs = options.NativeCtIncludePendingLogs,
+                        NativeCtRequestDelay = options.NativeCtRequestDelay
                     };
+                    if (options.NativeCtLogUrls != null && options.NativeCtLogUrls.Count > 0) {
+                        foreach (var logUrl in options.NativeCtLogUrls) {
+                            if (!string.IsNullOrWhiteSpace(logUrl)) {
+                                analysis.NativeCtLogUrls.Add(logUrl.Trim());
+                            }
+                        }
+                    }
                     if (options.MaxCtRowsPerDomain > 0) {
                         analysis.MaxCtRowsToProcess = options.MaxCtRowsPerDomain;
                     }

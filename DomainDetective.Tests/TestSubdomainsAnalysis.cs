@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -184,5 +186,140 @@ public class TestSubdomainsAnalysis
         Assert.Contains(analysis.Subdomains, s => s.Name == "api.example.com");
         Assert.DoesNotContain(analysis.Subdomains, s => s.Name == "example.com");
         Assert.DoesNotContain(analysis.Assessments, a => a.Code == SubdomainCodes.CtQueryFailed);
+    }
+
+    [Fact]
+    public async Task NativeCtLogOnlyDiscoversSubdomains()
+    {
+        using var cert = CreateSelfSigned("api.example.com");
+        var entriesJson = BuildCtEntriesResponse(cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero));
+
+        var analysis = new SubdomainsAnalysis
+        {
+            VerifyStillResolves = false,
+            EnableNativeCtLogSource = true,
+            NativeCtLogOnly = true,
+            NativeCtLogListUrl = "https://ct-log-list.example/logs.json",
+            NativeCtMaxLogs = 10,
+            NativeCtMaxEntriesPerLog = 10,
+            NativeCtEntryBatchSize = 10,
+            NativeCtInitialBackfillEntriesPerLog = 10,
+            QueryOverride = (url, _) =>
+            {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""description"": ""Test log"", ""url"": ""ct.test.example/log1/"" } ] } ] }");
+                }
+
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+
+                if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Equal(1, analysis.CertificateObservationCount);
+        Assert.Contains(analysis.Subdomains, s => s.Name == "api.example.com");
+        Assert.DoesNotContain(analysis.Subdomains, s => s.Name == "example.com");
+    }
+
+    [Fact]
+    public async Task NativeCtFailureFallsBackToCrtShWhenNotNativeOnly()
+    {
+        const string crtShJson = @"
+[
+  { ""issuer_name"": ""Issuer A"", ""entry_timestamp"": ""2026-01-01T00:00:00Z"", ""name_value"": ""portal.example.com\nexample.com"" }
+]";
+
+        var analysis = new SubdomainsAnalysis
+        {
+            VerifyStillResolves = false,
+            EnableNativeCtLogSource = true,
+            NativeCtLogOnly = false,
+            NativeCtLogListUrl = "https://ct-log-list.example/logs.json",
+            QueryOverride = (url, _) =>
+            {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new HttpRequestException("Native CT source unavailable");
+                }
+
+                if (url.Contains("crt.sh", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(crtShJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Contains(analysis.Subdomains, s => s.Name == "portal.example.com");
+        Assert.DoesNotContain(analysis.Subdomains, s => s.Name == "example.com");
+    }
+
+    private static X509Certificate2 CreateSelfSigned(string cn)
+    {
+        using var rsa = RSA.Create(2048);
+        var request = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
+        return new X509Certificate2(cert.Export(X509ContentType.Cert));
+    }
+
+    private static string BuildCtEntriesResponse(X509Certificate2 certificate, DateTimeOffset timestampUtc)
+    {
+        var leafInput = BuildCtLeafInput(certificate, timestampUtc.ToUnixTimeMilliseconds());
+        return @"{ ""entries"": [ { ""leaf_input"": """ + leafInput + @""", ""extra_data"": """" } ] }";
+    }
+
+    private static string BuildCtLeafInput(X509Certificate2 certificate, long timestampMs)
+    {
+        var certBytes = certificate.Export(X509ContentType.Cert);
+        var buffer = new List<byte>(certBytes.Length + 32)
+        {
+            0x00, // Version
+            0x00  // LeafType: timestamped_entry
+        };
+
+        AddUInt64(buffer, (ulong)timestampMs);
+        AddUInt16(buffer, 0); // EntryType: x509_entry
+        AddUInt24(buffer, certBytes.Length);
+        buffer.AddRange(certBytes);
+        AddUInt16(buffer, 0); // Empty extensions
+
+        return Convert.ToBase64String(buffer.ToArray());
+    }
+
+    private static void AddUInt16(ICollection<byte> buffer, int value)
+    {
+        buffer.Add((byte)((value >> 8) & 0xFF));
+        buffer.Add((byte)(value & 0xFF));
+    }
+
+    private static void AddUInt24(ICollection<byte> buffer, int value)
+    {
+        buffer.Add((byte)((value >> 16) & 0xFF));
+        buffer.Add((byte)((value >> 8) & 0xFF));
+        buffer.Add((byte)(value & 0xFF));
+    }
+
+    private static void AddUInt64(ICollection<byte> buffer, ulong value)
+    {
+        for (var i = 7; i >= 0; i--)
+        {
+            buffer.Add((byte)((value >> (8 * i)) & 0xFF));
+        }
     }
 }

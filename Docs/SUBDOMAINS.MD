@@ -26,6 +26,10 @@ The primary implementation lives in `DomainDetective.SubdomainsAnalysis`.
 - `MaxResolutionChecks` (default: `500`): caps the number of hostnames verified for DNS resolution.
 - `ResolutionConcurrency` (default: `20`): limits concurrent DNS checks.
 - `CrtShUrlTemplate`: CT query URL template (override for self-hosted or alternative endpoints).
+- `EnableNativeCtLogSource`: enables direct RFC6962 CT log polling (`/ct/v1/get-sth`, `/ct/v1/get-entries`).
+- `NativeCtLogOnly`: disables `crt.sh` / Cert Spotter fallback and uses only native CT logs.
+- `NativeCtLogListUrl` / `NativeCtLogUrls`: CT log list URL or explicit CT log endpoints.
+- `NativeCtCursorStatePath`: optional per-domain/per-log cursor persistence path for incremental polling.
 - `QueryOverride`: test/offline hook to supply CT JSON directly.
 
 DNS verification uses `DomainDetective.DnsConfiguration` and supports overriding DNS queries via `DnsConfiguration.QueryDnsOverride` (tests/offline).

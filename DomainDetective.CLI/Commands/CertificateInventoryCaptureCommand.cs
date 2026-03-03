@@ -84,6 +84,55 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [DefaultValue(2000)]
     public int MaxCtSubdomainsPerDomain { get; set; } = 2000;
 
+    [Description("Enable native RFC6962 CT log polling for CT subdomain discovery.")]
+    [CommandOption("--enable-native-ct-logs")]
+    public bool EnableNativeCtLogs { get; set; }
+
+    [Description("Use only native CT log polling for CT subdomain discovery (skip crt.sh/Cert Spotter).")]
+    [CommandOption("--native-ct-log-only")]
+    public bool NativeCtLogOnly { get; set; }
+
+    [Description("Native CT log list URL used to resolve CT logs.")]
+    [CommandOption("--native-ct-log-list-url <URL>")]
+    public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
+
+    [Description("Explicit native CT log URL(s). Repeat for multiple values.")]
+    [CommandOption("--native-ct-log-url <URL>")]
+    public string[] NativeCtLogUrls { get; set; } = Array.Empty<string>();
+
+    [Description("Maximum CT logs processed per domain when native CT polling is enabled (0 means all).")]
+    [CommandOption("--native-ct-max-logs <N>")]
+    [DefaultValue(12)]
+    public int NativeCtMaxLogs { get; set; } = 12;
+
+    [Description("Maximum CT entries processed per log per domain when native CT polling is enabled (0 means uncapped).")]
+    [CommandOption("--native-ct-max-entries-per-log <N>")]
+    [DefaultValue(2000)]
+    public int NativeCtMaxEntriesPerLog { get; set; } = 2000;
+
+    [Description("Maximum get-entries batch size for native CT polling.")]
+    [CommandOption("--native-ct-entry-batch-size <N>")]
+    [DefaultValue(256)]
+    public int NativeCtEntryBatchSize { get; set; } = 256;
+
+    [Description("Initial per-log backfill when native CT cursor is missing (0 starts at current tree head).")]
+    [CommandOption("--native-ct-initial-backfill-per-log <N>")]
+    [DefaultValue(2000)]
+    public int NativeCtInitialBackfillEntriesPerLog { get; set; } = 2000;
+
+    [Description("Optional native CT cursor state file path.")]
+    [CommandOption("--native-ct-cursor-state-path <PATH>")]
+    public string? NativeCtCursorStatePath { get; set; }
+
+    [Description("Include pending logs from CT log list when native polling is enabled.")]
+    [CommandOption("--native-ct-include-pending-logs")]
+    public bool NativeCtIncludePendingLogs { get; set; }
+
+    [Description("Delay in milliseconds between native CT requests.")]
+    [CommandOption("--native-ct-request-delay-ms <N>")]
+    [DefaultValue(0)]
+    public int NativeCtRequestDelayMilliseconds { get; set; }
+
     [Description("Additional endpoint(s) to probe. Repeat option for multiple values.")]
     [CommandOption("--endpoint <ENDPOINT>")]
     public string[] AdditionalEndpoints { get; set; } = Array.Empty<string>();
@@ -255,6 +304,26 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--ct-max-subdomains-per-domain must be 0 or greater.[/]");
             return 1;
         }
+        if (settings.NativeCtMaxLogs < 0) {
+            AnsiConsole.MarkupLine("[red]--native-ct-max-logs must be 0 or greater.[/]");
+            return 1;
+        }
+        if (settings.NativeCtMaxEntriesPerLog < 0) {
+            AnsiConsole.MarkupLine("[red]--native-ct-max-entries-per-log must be 0 or greater.[/]");
+            return 1;
+        }
+        if (settings.NativeCtEntryBatchSize < 1 || settings.NativeCtEntryBatchSize > 2048) {
+            AnsiConsole.MarkupLine("[red]--native-ct-entry-batch-size must be between 1 and 2048.[/]");
+            return 1;
+        }
+        if (settings.NativeCtInitialBackfillEntriesPerLog < 0) {
+            AnsiConsole.MarkupLine("[red]--native-ct-initial-backfill-per-log must be 0 or greater.[/]");
+            return 1;
+        }
+        if (settings.NativeCtRequestDelayMilliseconds < 0 || settings.NativeCtRequestDelayMilliseconds > 60000) {
+            AnsiConsole.MarkupLine("[red]--native-ct-request-delay-ms must be between 0 and 60000.[/]");
+            return 1;
+        }
         var censysSecret = ResolveSecret(settings.CensysApiSecret, settings.CensysApiSecretEnv);
         var shodanApiKey = ResolveSecret(settings.ShodanApiKey, settings.ShodanApiKeyEnv);
 
@@ -301,6 +370,16 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             VerifyCtDiscoveredSubdomains = settings.VerifyCtSubdomains,
             MaxCtRowsPerDomain = settings.MaxCtRowsPerDomain,
             MaxCtSubdomainsPerDomain = settings.MaxCtSubdomainsPerDomain,
+            EnableNativeCtLogSubdomainSource = settings.EnableNativeCtLogs,
+            NativeCtLogOnly = settings.NativeCtLogOnly,
+            NativeCtLogListUrl = settings.NativeCtLogListUrl,
+            NativeCtMaxLogs = settings.NativeCtMaxLogs,
+            NativeCtMaxEntriesPerLog = settings.NativeCtMaxEntriesPerLog,
+            NativeCtEntryBatchSize = settings.NativeCtEntryBatchSize,
+            NativeCtInitialBackfillEntriesPerLog = settings.NativeCtInitialBackfillEntriesPerLog,
+            NativeCtCursorStatePath = settings.NativeCtCursorStatePath,
+            NativeCtIncludePendingLogs = settings.NativeCtIncludePendingLogs,
+            NativeCtRequestDelay = TimeSpan.FromMilliseconds(settings.NativeCtRequestDelayMilliseconds),
             MaxMxHostsPerDomain = settings.MaxMxHostsPerDomain,
             MaxParallelism = settings.MaxParallelism,
             DiscoveryParallelism = settings.DiscoveryParallelism,
@@ -327,6 +406,9 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         }
         if (settings.CtApiTemplates != null && settings.CtApiTemplates.Length > 0) {
             options.CtApiTemplates.AddRange(settings.CtApiTemplates.Where(template => !string.IsNullOrWhiteSpace(template)).Select(template => template.Trim()));
+        }
+        if (settings.NativeCtLogUrls != null && settings.NativeCtLogUrls.Length > 0) {
+            options.NativeCtLogUrls.AddRange(settings.NativeCtLogUrls.Where(url => !string.IsNullOrWhiteSpace(url)).Select(url => url.Trim()));
         }
 
         var capture = new CertificateInventoryCapture();
