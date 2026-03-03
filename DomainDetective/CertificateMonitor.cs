@@ -1046,6 +1046,15 @@ namespace DomainDetective {
             return CertificateInventoryNativeCtDiagnosticsAnalyzer.Query(snapshots, effectiveQuery);
         }
 
+        /// <summary>Builds CT diagnostics health timeline from persisted inventory snapshots.</summary>
+        /// <param name="query">Health query options including thresholds and snapshot window.</param>
+        public CertificateInventoryNativeCtDiagnosticsHealthSummary BuildInventoryNativeCtDiagnosticsHealth(
+            CertificateInventoryNativeCtDiagnosticsHealthQuery? query = null) {
+            var effectiveQuery = query ?? new CertificateInventoryNativeCtDiagnosticsHealthQuery();
+            var snapshots = LoadInventorySnapshots(effectiveQuery.SinceUtc);
+            return CertificateInventoryNativeCtDiagnosticsHealthAnalyzer.Build(snapshots, effectiveQuery);
+        }
+
         private static bool MatchesQuery(CertificateInventoryEntry entry, CertificateInventoryQuery query, DateTimeOffset now) {
             var hostContains = query.HostContains;
             if (!string.IsNullOrWhiteSpace(hostContains)) {

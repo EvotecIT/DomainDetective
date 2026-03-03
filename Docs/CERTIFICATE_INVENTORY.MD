@@ -422,6 +422,7 @@ var policy = monitor.BuildInventoryPolicy(
 | `Invoke-DDCertificateInventory` | Live discovery and snapshot capture |
 | `Get-DDCertificateInventorySnapshot` | Read raw persisted snapshots |
 | `Get-DDCertificateInventoryCtDiagnostics` | Query native CT ingestion diagnostics (state/lag/circuit/failure) |
+| `Get-DDCertificateInventoryCtHealth` | Build CT health timeline and threshold status across snapshots |
 | `Get-DDCertificateInventorySummary` | Portfolio summary |
 | `Get-DDCertificateInventoryQuery` | Structured filtering/search |
 | `Get-DDCertificateInventoryRisk` | Risk scoring and prioritization |
@@ -475,6 +476,40 @@ DomainDetective.CLI CertificateInventoryCtDiagnostics \
 ```
 
 Use `--no-fail-on-threshold-breach` if you only want warning output in CLI runs.
+
+CT health timeline (status panel + last breach style data):
+
+```powershell
+Get-DDCertificateInventoryCtHealth `
+    -CacheDirectory .\cert-monitor `
+    -SinceUtc (Get-Date).ToUniversalTime().AddDays(-14) `
+    -MaxSnapshots 60 `
+    -MaxFailed 0 `
+    -MaxCircuitOpen 0 `
+    -MaxLagAfter 5000
+```
+
+```bash
+DomainDetective.CLI CertificateInventoryCtHealth \
+  --cache-dir ./cert-monitor \
+  --since-utc 2026-01-01 \
+  --max-snapshots 60 \
+  --max-failed 0 \
+  --max-circuit-open 0 \
+  --max-lag-after 5000
+```
+
+`CertificateInventoryCtHealth` returns:
+
+- per-snapshot status (`Healthy`, `Warning`, `Breached`, `NoDiagnostics`)
+- failed/circuit-open/max-lag metrics
+- latest status and last breach timestamp
+
+CLI exit code behavior:
+
+- `2` when thresholds are breached (latest snapshot by default)
+- `--fail-on-any-breach` to fail when any returned snapshot is breached
+- `--no-fail-on-threshold-breach` for warning-only mode
 
 ## Recommended operating model for 8k+ domains
 

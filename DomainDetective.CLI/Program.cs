@@ -194,6 +194,15 @@ internal static class Program {
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCtDiagnosticsCommand>("cert-inventory-ct-diagnostics")
                 .WithDescription("Query persisted native CT ingestion diagnostics (alias)");
 
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCtHealthCommand>("CertificateInventoryCtHealth")
+                .WithDescription("Build CT ingestion health timeline and threshold status from persisted snapshots")
+                .WithExample(new[] { "CertificateInventoryCtHealth", "--max-failed", "0", "--max-circuit-open", "0", "--max-lag-after", "5000" })
+                .WithExample(new[] { "CertificateInventoryCtHealth", "--since-utc", "2026-01-01", "--max-snapshots", "30", "--json" })
+                .WithExample(new[] { "CertificateInventoryCtHealth", "--fail-on-any-breach", "--csv-path", "./artifacts/ct-health.csv" })
+                .WithExample(new[] { "CertificateInventoryCtHealth", "--latest-only", "--no-fail-on-threshold-breach" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCtHealthCommand>("cert-inventory-ct-health")
+                .WithDescription("Build CT ingestion health timeline and threshold status from persisted snapshots (alias)");
+
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySummaryCommand>("CertificateInventorySummary")
                 .WithDescription("Summarize persisted certificate inventory snapshots")
                 .WithExample(new[] { "CertificateInventorySummary", "--since-utc", "2026-01-01" })
