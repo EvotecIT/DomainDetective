@@ -231,6 +231,8 @@ public class TestSubdomainsAnalysis
         Assert.Equal(1, analysis.CertificateObservationCount);
         Assert.Contains(analysis.Subdomains, s => s.Name == "api.example.com");
         Assert.DoesNotContain(analysis.Subdomains, s => s.Name == "example.com");
+        Assert.NotEmpty(analysis.NativeCtLogDiagnostics);
+        Assert.Contains(analysis.NativeCtLogDiagnostics, line => line.Contains("ct.test.example/log1/", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

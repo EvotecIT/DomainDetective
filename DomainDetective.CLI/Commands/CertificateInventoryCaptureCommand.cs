@@ -546,6 +546,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         summary.AddRow("MX Hosts", result.MxHostCount.ToString());
         summary.AddRow("HTTPS Endpoints", result.HttpsEndpointCount.ToString());
         summary.AddRow("CT Subdomains", result.CtDiscoveredSubdomainCount.ToString());
+        summary.AddRow("Native CT Log Diagnostics", result.NativeCtLogDiagnostics.Count.ToString());
         summary.AddRow("Mail Endpoints", result.MailEndpointCount.ToString());
         summary.AddRow("Snapshot Entries", result.EntryCount.ToString());
         summary.AddRow("Unique Endpoints", result.UniqueEndpointCount.ToString());

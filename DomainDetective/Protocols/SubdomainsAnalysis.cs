@@ -238,6 +238,9 @@ public sealed class SubdomainsAnalysis : IHasAssessments
     /// <summary>Assessment collection for report-friendly output.</summary>
     public List<Assessment> Assessments { get; } = new();
 
+    /// <summary>Native CT per-log diagnostics captured during this analysis run.</summary>
+    public IReadOnlyList<string> NativeCtLogDiagnostics { get; private set; } = Array.Empty<string>();
+
     /// <summary>
     /// Performs CT-backed subdomain discovery for the specified <paramref name="domain"/>.
     /// </summary>
@@ -265,6 +268,7 @@ public sealed class SubdomainsAnalysis : IHasAssessments
                 {
                     logger?.WriteVerbose("{0}", warning);
                 }
+                NativeCtLogDiagnostics = FormatNativeCtLogDiagnostics(nativeResult.LogStatuses, Subject);
                 if (nativeResult.SourceSucceeded)
                 {
                     sourceSucceeded = true;
@@ -782,6 +786,7 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         Subdomains = Array.Empty<SubdomainDiscoveryEntry>();
         ResolutionReduced = false;
         Assessments.Clear();
+        NativeCtLogDiagnostics = Array.Empty<string>();
     }
 
     private async Task<string> FetchJsonAsync(string url, CancellationToken cancellationToken)
@@ -902,6 +907,37 @@ public sealed class SubdomainsAnalysis : IHasAssessments
             }
             subdomainMap[kv.Key] = (first, last);
         }
+    }
+
+    private static IReadOnlyList<string> FormatNativeCtLogDiagnostics(
+        IReadOnlyList<NativeCtLogIngestionStatus> statuses,
+        string domain)
+    {
+        if (statuses == null || statuses.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var output = new List<string>(statuses.Count);
+        foreach (var status in statuses)
+        {
+            if (status == null || string.IsNullOrWhiteSpace(status.LogUrl))
+            {
+                continue;
+            }
+
+            var scope = string.IsNullOrWhiteSpace(status.DomainScope) ? domain : status.DomainScope!;
+            var state = status.SkippedByCircuitBreaker ? "CircuitOpen" : (status.Succeeded ? "Succeeded" : "Failed");
+            var lagBefore = status.EstimatedLagBefore.HasValue ? status.EstimatedLagBefore.Value.ToString(CultureInfo.InvariantCulture) : "-";
+            var lagAfter = status.EstimatedLagAfter.HasValue ? status.EstimatedLagAfter.Value.ToString(CultureInfo.InvariantCulture) : "-";
+            var treeSize = status.TreeSize.HasValue ? status.TreeSize.Value.ToString(CultureInfo.InvariantCulture) : "-";
+            var lastProcessed = status.LastProcessedIndex.HasValue ? status.LastProcessedIndex.Value.ToString(CultureInfo.InvariantCulture) : "-";
+            var circuitUntil = status.CircuitOpenUntilUtc.HasValue ? status.CircuitOpenUntilUtc.Value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture) : "-";
+            var failure = string.IsNullOrWhiteSpace(status.Failure) ? "-" : status.Failure!.Replace('\r', ' ').Replace('\n', ' ').Trim();
+            output.Add($"scope={scope}; shared={status.SharedIngestion}; state={state}; log={status.LogUrl}; tree={treeSize}; last={lastProcessed}; lagBefore={lagBefore}; lagAfter={lagAfter}; circuitUntil={circuitUntil}; failure={failure}");
+        }
+
+        return output;
     }
 
     private void ParseCtJson(

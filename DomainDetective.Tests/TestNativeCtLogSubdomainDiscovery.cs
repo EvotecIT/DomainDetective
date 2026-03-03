@@ -61,6 +61,10 @@ public class TestNativeCtLogSubdomainDiscovery {
         Assert.Equal(3, getSthCalls);
         Assert.Equal(1, result.CertificateObservationCount);
         Assert.Contains("portal.example.com", result.SubdomainsByDomain["example.com"].Keys);
+        Assert.Single(result.LogStatuses);
+        Assert.True(result.LogStatuses[0].Succeeded);
+        Assert.False(result.LogStatuses[0].SkippedByCircuitBreaker);
+        Assert.Equal("https://ct.test.example/log1/", result.LogStatuses[0].LogUrl);
     }
 
     [Fact]
@@ -113,6 +117,12 @@ public class TestNativeCtLogSubdomainDiscovery {
             Assert.False(second.SourceSucceeded);
             Assert.Equal(1, getSthCalls);
             Assert.Contains(second.Warnings, warning => warning.Contains("circuit open", StringComparison.OrdinalIgnoreCase));
+            Assert.Single(first.LogStatuses);
+            Assert.Single(second.LogStatuses);
+            Assert.False(first.LogStatuses[0].Succeeded);
+            Assert.NotNull(first.LogStatuses[0].Failure);
+            Assert.True(second.LogStatuses[0].SkippedByCircuitBreaker);
+            Assert.NotNull(second.LogStatuses[0].CircuitOpenUntilUtc);
         } finally {
             try {
                 if (File.Exists(cursorPath)) {
@@ -170,6 +180,9 @@ public class TestNativeCtLogSubdomainDiscovery {
         Assert.True(result.SubdomainsByDomain.TryGetValue("evotec.xyz", out var evotecMap));
         Assert.Contains("portal.example.com", exampleMap!.Keys);
         Assert.Contains("api.evotec.xyz", evotecMap!.Keys);
+        Assert.Single(result.LogStatuses);
+        Assert.True(result.LogStatuses[0].Succeeded);
+        Assert.Equal("shared|https://ct.test.example/log1/", result.LogStatuses[0].CursorKey);
     }
 
     [Fact]
@@ -224,6 +237,10 @@ public class TestNativeCtLogSubdomainDiscovery {
             Assert.Equal(1, first.CertificateObservationCount);
             Assert.Equal(0, second.CertificateObservationCount);
             Assert.Equal(1, getEntriesCalls);
+            Assert.Single(first.LogStatuses);
+            Assert.Single(second.LogStatuses);
+            Assert.True(first.LogStatuses[0].Succeeded);
+            Assert.True(second.LogStatuses[0].Succeeded);
         } finally {
             try {
                 if (File.Exists(cursorPath)) {

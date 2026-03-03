@@ -47,6 +47,7 @@ internal sealed class NativeCtLogSubdomainDiscoveryResult {
     public int LogsAttempted { get; set; }
     public int LogsSucceeded { get; set; }
     public List<string> Warnings { get; } = new();
+    public List<NativeCtLogIngestionStatus> LogStatuses { get; } = new();
     public bool SourceSucceeded => LogsSucceeded > 0;
 }
 
@@ -56,9 +57,29 @@ internal sealed class NativeCtLogSubdomainDiscoveryBatchResult {
     public int LogsAttempted { get; set; }
     public int LogsSucceeded { get; set; }
     public List<string> Warnings { get; } = new();
+    public List<NativeCtLogIngestionStatus> LogStatuses { get; } = new();
     public Dictionary<string, Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>> SubdomainsByDomain { get; }
         = new(StringComparer.OrdinalIgnoreCase);
     public bool SourceSucceeded => LogsSucceeded > 0;
+}
+
+internal sealed class NativeCtLogIngestionStatus {
+    public string LogUrl { get; set; } = string.Empty;
+    public string CursorKey { get; set; } = string.Empty;
+    public string? DomainScope { get; set; }
+    public bool SharedIngestion { get; set; }
+    public bool SkippedByCircuitBreaker { get; set; }
+    public bool Succeeded { get; set; }
+    public string? Failure { get; set; }
+    public DateTimeOffset? CircuitOpenUntilUtc { get; set; }
+    public long? TreeSize { get; set; }
+    public long? StartIndex { get; set; }
+    public long? EndIndex { get; set; }
+    public long? LastProcessedIndex { get; set; }
+    public long? EstimatedLagBefore { get; set; }
+    public long? EstimatedLagAfter { get; set; }
+    public int? EffectiveMaxEntriesPerLog { get; set; }
+    public int? EffectiveBatchSize { get; set; }
 }
 
 internal sealed class NativeCtLogSubdomainDiscovery {
@@ -89,33 +110,52 @@ internal sealed class NativeCtLogSubdomainDiscovery {
             cancellationToken.ThrowIfCancellationRequested();
             result.LogsAttempted++;
             var key = NativeCtCursorState.BuildKey(baseDomain, logUrl);
+            var status = new NativeCtLogIngestionStatus {
+                LogUrl = logUrl,
+                CursorKey = key,
+                DomainScope = baseDomain,
+                SharedIngestion = false
+            };
+            result.LogStatuses.Add(status);
 
             try {
                 if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
                     result.Warnings.Add($"Native CT log skipped (circuit open) for {logUrl} until {openUntilUtc:O}");
+                    status.SkippedByCircuitBreaker = true;
+                    status.CircuitOpenUntilUtc = openUntilUtc;
                     continue;
                 }
 
                 var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
+                status.TreeSize = sth.TreeSize;
                 result.LogsSucceeded++;
                 var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
+                status.StartIndex = start;
+                status.EstimatedLagBefore = start >= sth.TreeSize ? 0 : (sth.TreeSize - start);
                 if (start >= sth.TreeSize) {
                     cursor.SetLastProcessedIndex(key, sth.TreeSize - 1);
                     cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
+                    status.EndIndex = sth.TreeSize - 1;
+                    status.LastProcessedIndex = sth.TreeSize - 1;
+                    status.EstimatedLagAfter = 0;
+                    status.Succeeded = true;
                     continue;
                 }
 
                 var lag = Math.Max(0, sth.TreeSize - start);
                 long end = sth.TreeSize - 1;
                 var maxEntriesPerLog = ComputeEffectiveMaxEntriesPerLog(options, lag);
+                status.EffectiveMaxEntriesPerLog = maxEntriesPerLog;
                 if (maxEntriesPerLog > 0) {
                     var maxEnd = start + Math.Max(0, maxEntriesPerLog - 1);
                     if (maxEnd < end) {
                         end = maxEnd;
                     }
                 }
+                status.EndIndex = end;
 
                 var batchSize = ComputeEffectiveBatchSize(options, lag);
+                status.EffectiveBatchSize = batchSize;
 
                 var lastProcessed = start - 1;
                 for (long batchStart = start; batchStart <= end; ) {
@@ -166,6 +206,11 @@ internal sealed class NativeCtLogSubdomainDiscovery {
                     result.CertificateObservationCount,
                     result.Subdomains.Count);
                 cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
+                status.LastProcessedIndex = cursor.GetLastProcessedIndex(key);
+                status.EstimatedLagAfter = status.TreeSize.HasValue
+                    ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
+                    : null;
+                status.Succeeded = true;
 
                 if (result.ResultsCapped) {
                     break;
@@ -179,6 +224,14 @@ internal sealed class NativeCtLogSubdomainDiscovery {
                     options.CircuitBreakerDuration);
                 result.Warnings.Add($"Native CT log failed for {logUrl}: {ex.Message}");
                 logger?.WriteVerbose("Native CT log failed for {0}: {1}", logUrl, ex.Message);
+                status.Failure = ex.Message;
+                status.LastProcessedIndex = cursor.GetLastProcessedIndex(key);
+                status.EstimatedLagAfter = status.TreeSize.HasValue
+                    ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
+                    : null;
+                if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                    status.CircuitOpenUntilUtc = openUntilUtc;
+                }
             }
         }
 
@@ -224,33 +277,51 @@ internal sealed class NativeCtLogSubdomainDiscovery {
             cancellationToken.ThrowIfCancellationRequested();
             result.LogsAttempted++;
             var key = NativeCtCursorState.BuildSharedKey(logUrl);
+            var status = new NativeCtLogIngestionStatus {
+                LogUrl = logUrl,
+                CursorKey = key,
+                SharedIngestion = true
+            };
+            result.LogStatuses.Add(status);
 
             try {
                 if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
                     result.Warnings.Add($"Native CT shared log skipped (circuit open) for {logUrl} until {openUntilUtc:O}");
+                    status.SkippedByCircuitBreaker = true;
+                    status.CircuitOpenUntilUtc = openUntilUtc;
                     continue;
                 }
 
                 var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
+                status.TreeSize = sth.TreeSize;
                 result.LogsSucceeded++;
                 var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
+                status.StartIndex = start;
+                status.EstimatedLagBefore = start >= sth.TreeSize ? 0 : (sth.TreeSize - start);
                 if (start >= sth.TreeSize) {
                     cursor.SetLastProcessedIndex(key, sth.TreeSize - 1);
                     cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
+                    status.EndIndex = sth.TreeSize - 1;
+                    status.LastProcessedIndex = sth.TreeSize - 1;
+                    status.EstimatedLagAfter = 0;
+                    status.Succeeded = true;
                     continue;
                 }
 
                 var lag = Math.Max(0, sth.TreeSize - start);
                 long end = sth.TreeSize - 1;
                 var maxEntriesPerLog = ComputeEffectiveMaxEntriesPerLog(options, lag);
+                status.EffectiveMaxEntriesPerLog = maxEntriesPerLog;
                 if (maxEntriesPerLog > 0) {
                     var maxEnd = start + Math.Max(0, maxEntriesPerLog - 1);
                     if (maxEnd < end) {
                         end = maxEnd;
                     }
                 }
+                status.EndIndex = end;
 
                 var batchSize = ComputeEffectiveBatchSize(options, lag);
+                status.EffectiveBatchSize = batchSize;
 
                 var lastProcessed = start - 1;
                 for (long batchStart = start; batchStart <= end; ) {
@@ -300,6 +371,11 @@ internal sealed class NativeCtLogSubdomainDiscovery {
                     logUrl,
                     result.CertificateObservationCount);
                 cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
+                status.LastProcessedIndex = cursor.GetLastProcessedIndex(key);
+                status.EstimatedLagAfter = status.TreeSize.HasValue
+                    ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
+                    : null;
+                status.Succeeded = true;
 
                 if (result.ResultsCapped) {
                     break;
@@ -313,6 +389,14 @@ internal sealed class NativeCtLogSubdomainDiscovery {
                     options.CircuitBreakerDuration);
                 result.Warnings.Add($"Native CT shared log failed for {logUrl}: {ex.Message}");
                 logger?.WriteVerbose("Native CT shared log failed for {0}: {1}", logUrl, ex.Message);
+                status.Failure = ex.Message;
+                status.LastProcessedIndex = cursor.GetLastProcessedIndex(key);
+                status.EstimatedLagAfter = status.TreeSize.HasValue
+                    ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
+                    : null;
+                if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                    status.CircuitOpenUntilUtc = openUntilUtc;
+                }
             }
         }
 
@@ -671,6 +755,28 @@ internal sealed class NativeCtLogSubdomainDiscovery {
             batchSize = 1;
         }
         return batchSize;
+    }
+
+    private static long ComputeRemainingLag(long treeSize, long? lastProcessedIndex) {
+        if (treeSize <= 0) {
+            return 0;
+        }
+
+        long nextIndex;
+        if (lastProcessedIndex.HasValue) {
+            nextIndex = lastProcessedIndex.Value + 1;
+            if (nextIndex < 0) {
+                nextIndex = 0;
+            }
+        } else {
+            nextIndex = 0;
+        }
+
+        if (nextIndex >= treeSize) {
+            return 0;
+        }
+
+        return treeSize - nextIndex;
     }
 
     private static async Task DelayIfRequestedAsync(TimeSpan requestDelay, CancellationToken cancellationToken) {

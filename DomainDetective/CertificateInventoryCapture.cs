@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -266,6 +267,9 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>Non-fatal warnings captured during discovery/probing.</summary>
     public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
 
+    /// <summary>Native CT per-log diagnostics observed during CT subdomain discovery.</summary>
+    public IReadOnlyList<string> NativeCtLogDiagnostics { get; set; } = Array.Empty<string>();
+
     /// <summary>Captured snapshot object.</summary>
     public CertificateInventorySnapshot Snapshot { get; set; } = new();
 }
@@ -414,6 +418,7 @@ public sealed class CertificateInventoryCapture {
         logger ??= new InternalLogger(false);
 
         var warnings = new List<string>();
+        var nativeCtLogDiagnostics = new List<string>();
         var ctDiscoveredSubdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         const int totalStages = 9;
         var stage = 0;
@@ -447,7 +452,7 @@ public sealed class CertificateInventoryCapture {
             if (CtSubdomainDiscoveryOverride != null) {
                 discoveredSubdomains = await CtSubdomainDiscoveryOverride(normalizedDomains, options, logger, cancellationToken).ConfigureAwait(false);
             } else {
-                discoveredSubdomains = await DiscoverCtSubdomainsAsync(normalizedDomains, options, warnings, logger, cancellationToken).ConfigureAwait(false);
+                discoveredSubdomains = await DiscoverCtSubdomainsAsync(normalizedDomains, options, warnings, nativeCtLogDiagnostics, logger, cancellationToken).ConfigureAwait(false);
             }
 
             foreach (var subdomain in discoveredSubdomains) {
@@ -665,6 +670,7 @@ public sealed class CertificateInventoryCapture {
                 .Select(BuildMailTargetLabel)
                 .ToList(),
             Warnings = warnings,
+            NativeCtLogDiagnostics = nativeCtLogDiagnostics,
             Snapshot = snapshot
         };
     }
@@ -1138,6 +1144,7 @@ public sealed class CertificateInventoryCapture {
         IReadOnlyList<string> domains,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
+        List<string> nativeCtLogDiagnostics,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (domains == null || domains.Count == 0 || !options.IncludeCtDiscoveredSubdomains) {
@@ -1148,11 +1155,12 @@ public sealed class CertificateInventoryCapture {
             options.EnableNativeCtSharedIngestion &&
             domains.Count > 1) {
             logger.WriteVerbose("Using shared native CT ingestion for {0} domain(s).", domains.Count);
-            return await DiscoverCtSubdomainsNativeSharedAsync(domains, options, warnings, logger, cancellationToken).ConfigureAwait(false);
+            return await DiscoverCtSubdomainsNativeSharedAsync(domains, options, warnings, nativeCtLogDiagnostics, logger, cancellationToken).ConfigureAwait(false);
         }
 
         var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var warningLock = new object();
+        var diagnosticsLock = new object();
         var discoveredLock = new object();
         var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
         var nativeCtCursorStatePath = options.NativeCtCursorStatePath;
@@ -1209,6 +1217,15 @@ public sealed class CertificateInventoryCapture {
                     }
 
                     await analysis.AnalyzeAsync(domain, logger, cancellationToken).ConfigureAwait(false);
+                    if (analysis.NativeCtLogDiagnostics != null && analysis.NativeCtLogDiagnostics.Count > 0) {
+                        lock (diagnosticsLock) {
+                            foreach (var diagnostic in analysis.NativeCtLogDiagnostics) {
+                                if (!string.IsNullOrWhiteSpace(diagnostic)) {
+                                    nativeCtLogDiagnostics.Add(diagnostic);
+                                }
+                            }
+                        }
+                    }
                     if (!analysis.QuerySucceeded && !string.IsNullOrWhiteSpace(analysis.FailureReason)) {
                         lock (warningLock) {
                             warnings.Add($"CT subdomain discovery failed for {domain}: {analysis.FailureReason}");
@@ -1251,6 +1268,7 @@ public sealed class CertificateInventoryCapture {
         IReadOnlyList<string> domains,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
+        List<string> nativeCtLogDiagnostics,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         var nativeCtCursorStatePath = options.NativeCtCursorStatePath;
@@ -1287,6 +1305,12 @@ public sealed class CertificateInventoryCapture {
         var batchResult = await source.DiscoverForDomainsAsync(domains, sourceOptions, logger, cancellationToken).ConfigureAwait(false);
         foreach (var warning in batchResult.Warnings) {
             warnings.Add(warning);
+        }
+        foreach (var status in batchResult.LogStatuses) {
+            var line = FormatNativeCtLogDiagnostic(status, domains);
+            if (!string.IsNullOrWhiteSpace(line)) {
+                nativeCtLogDiagnostics.Add(line!);
+            }
         }
 
         if (!batchResult.SourceSucceeded && !batchResult.ResultsCapped) {
@@ -1366,6 +1390,26 @@ public sealed class CertificateInventoryCapture {
             cap = discoveredCount;
         }
         return cap;
+    }
+
+    private static string? FormatNativeCtLogDiagnostic(NativeCtLogIngestionStatus status, IReadOnlyList<string> domains) {
+        if (status == null || string.IsNullOrWhiteSpace(status.LogUrl)) {
+            return null;
+        }
+
+        var scope = status.SharedIngestion
+            ? "shared:" + string.Join(",", domains.OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase))
+            : (string.IsNullOrWhiteSpace(status.DomainScope) ? "domain:unknown" : "domain:" + status.DomainScope);
+        var state = status.SkippedByCircuitBreaker ? "CircuitOpen" : (status.Succeeded ? "Succeeded" : "Failed");
+        var treeSize = status.TreeSize.HasValue ? status.TreeSize.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var lastProcessed = status.LastProcessedIndex.HasValue ? status.LastProcessedIndex.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var lagBefore = status.EstimatedLagBefore.HasValue ? status.EstimatedLagBefore.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var lagAfter = status.EstimatedLagAfter.HasValue ? status.EstimatedLagAfter.Value.ToString(CultureInfo.InvariantCulture) : "-";
+        var circuitUntil = status.CircuitOpenUntilUtc.HasValue
+            ? status.CircuitOpenUntilUtc.Value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture)
+            : "-";
+        var failure = string.IsNullOrWhiteSpace(status.Failure) ? "-" : status.Failure!.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return $"scope={scope}; state={state}; log={status.LogUrl}; tree={treeSize}; last={lastProcessed}; lagBefore={lagBefore}; lagAfter={lagAfter}; circuitUntil={circuitUntil}; failure={failure}";
     }
 
     private static async Task<HashSet<string>> VerifyDiscoveredSubdomainsResolveAsync(

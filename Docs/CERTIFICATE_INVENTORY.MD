@@ -83,6 +83,7 @@ Notes:
 - Native CT log polling supports per-domain/per-log cursor persistence (`NativeCtCursorStatePath`) to avoid reprocessing the same CT ranges.
 - With multiple domains and native CT enabled, DomainDetective reuses one shared CT ingestion pass by default (`EnableNativeCtSharedIngestion = true`) and correlates discovered names to all monitored suffixes.
 - Native CT polling now includes built-in retry/backoff, per-log circuit breaker, and catch-up mode for large cursor lag.
+- Capture results now include `NativeCtLogDiagnostics` so you can inspect per-log ingestion state (succeeded/failed/circuit-open, lag before/after, last processed index) without opening cursor JSON.
 
 ### Capture controls quick reference
 
