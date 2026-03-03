@@ -81,6 +81,7 @@ Notes:
 - Use `-ReuseRecentResults` with `-RecentResultTtlHours` to skip re-probing endpoints already captured recently.
 - `-ReprobeExpiringWithinDays` keeps near-expiry certificates fresh even when cache reuse is enabled.
 - Native CT log polling supports per-domain/per-log cursor persistence (`NativeCtCursorStatePath`) to avoid reprocessing the same CT ranges.
+- With multiple domains and native CT enabled, DomainDetective reuses one shared CT ingestion pass by default (`EnableNativeCtSharedIngestion = true`) and correlates discovered names to all monitored suffixes.
 
 ### Capture controls quick reference
 
@@ -92,6 +93,7 @@ Notes:
 | `-ReuseRecentResults` | Off | Reuse recent persisted endpoint results to skip redundant probes |
 | `-RecentResultTtlHours` | `24` | How long cached endpoint results are eligible for reuse |
 | `-ReprobeExpiringWithinDays` | `14` | Always recheck endpoints whose certs expire soon |
+| `-DisableNativeCtSharedIngestion` | Off | Disable shared native CT pass and fall back to per-domain native CT ingestion |
 
 ## PowerShell end-to-end examples
 

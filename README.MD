@@ -294,6 +294,7 @@ Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-mo
 Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-monitor -IncludeCtSubdomains -VerifyCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14 -MaxTargets 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose
 # Optional: use native RFC6962 CT log polling (no crt.sh dependency) for subdomain discovery:
 Invoke-DDCertificateInventory -DomainName eurofins.com -CacheDirectory .\\cert-monitor -IncludeCtSubdomains -EnableNativeCtLogSubdomains -NativeCtLogOnly -NativeCtInitialBackfillEntriesPerLog 5000 -NativeCtCursorStatePath .\\cert-monitor\\inventory\\ct-native-cursor.json -Verbose
+# Multi-domain runs use one shared native CT ingestion pass by default; disable with -DisableNativeCtSharedIngestion if needed.
 # Read latest raw snapshot (full entries) or metadata only:
 Get-DDCertificateInventorySnapshot -CacheDirectory .\\cert-monitor -Latest
 Get-DDCertificateInventorySnapshot -CacheDirectory .\\cert-monitor -SinceUtc (Get-Date).ToUniversalTime().AddDays(-7) -WithoutEntries

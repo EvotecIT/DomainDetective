@@ -88,6 +88,10 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [CommandOption("--enable-native-ct-logs")]
     public bool EnableNativeCtLogs { get; set; }
 
+    [Description("Disable shared native CT ingestion pass across all domains (uses per-domain native CT discovery).")]
+    [CommandOption("--disable-native-ct-shared-ingestion")]
+    public bool DisableNativeCtSharedIngestion { get; set; }
+
     [Description("Use only native CT log polling for CT subdomain discovery (skip crt.sh/Cert Spotter).")]
     [CommandOption("--native-ct-log-only")]
     public bool NativeCtLogOnly { get; set; }
@@ -371,6 +375,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             MaxCtRowsPerDomain = settings.MaxCtRowsPerDomain,
             MaxCtSubdomainsPerDomain = settings.MaxCtSubdomainsPerDomain,
             EnableNativeCtLogSubdomainSource = settings.EnableNativeCtLogs,
+            EnableNativeCtSharedIngestion = !settings.DisableNativeCtSharedIngestion,
             NativeCtLogOnly = settings.NativeCtLogOnly,
             NativeCtLogListUrl = settings.NativeCtLogListUrl,
             NativeCtMaxLogs = settings.NativeCtMaxLogs,

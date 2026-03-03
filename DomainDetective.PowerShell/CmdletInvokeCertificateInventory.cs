@@ -113,6 +113,10 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter EnableNativeCtLogSubdomains { get; set; }
 
+    /// <summary>Disable shared native CT ingestion pass across all domains (uses per-domain native CT discovery instead).</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter DisableNativeCtSharedIngestion { get; set; }
+
     /// <summary>Use only native CT log polling for CT subdomain discovery (skip crt.sh/Cert Spotter).</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter NativeCtLogOnly { get; set; }
@@ -329,6 +333,7 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             MaxCtRowsPerDomain = MaxCtRowsPerDomain,
             MaxCtSubdomainsPerDomain = MaxCtSubdomainsPerDomain,
             EnableNativeCtLogSubdomainSource = EnableNativeCtLogSubdomains.IsPresent,
+            EnableNativeCtSharedIngestion = !DisableNativeCtSharedIngestion.IsPresent,
             NativeCtLogOnly = NativeCtLogOnly.IsPresent,
             NativeCtLogListUrl = NativeCtLogListUrl,
             NativeCtMaxLogs = NativeCtMaxLogs,

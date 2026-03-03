@@ -42,6 +42,9 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>When true, uses native RFC6962 CT log polling for subdomain discovery.</summary>
     public bool EnableNativeCtLogSubdomainSource { get; set; }
 
+    /// <summary>When true (default), reuses one native CT ingestion pass across all domains in a capture run.</summary>
+    public bool EnableNativeCtSharedIngestion { get; set; } = true;
+
     /// <summary>When true, uses only native CT log polling for subdomain discovery (skips crt.sh/Cert Spotter).</summary>
     public bool NativeCtLogOnly { get; set; }
 
@@ -1075,6 +1078,13 @@ public sealed class CertificateInventoryCapture {
             return Array.Empty<string>();
         }
 
+        if (options.EnableNativeCtLogSubdomainSource &&
+            options.EnableNativeCtSharedIngestion &&
+            domains.Count > 1) {
+            logger.WriteVerbose("Using shared native CT ingestion for {0} domain(s).", domains.Count);
+            return await DiscoverCtSubdomainsNativeSharedAsync(domains, options, warnings, logger, cancellationToken).ConfigureAwait(false);
+        }
+
         var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var warningLock = new object();
         var discoveredLock = new object();
@@ -1160,6 +1170,163 @@ public sealed class CertificateInventoryCapture {
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
         return discovered.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static async Task<IReadOnlyList<string>> DiscoverCtSubdomainsNativeSharedAsync(
+        IReadOnlyList<string> domains,
+        CertificateInventoryCaptureOptions options,
+        List<string> warnings,
+        InternalLogger logger,
+        CancellationToken cancellationToken) {
+        var nativeCtCursorStatePath = options.NativeCtCursorStatePath;
+        if (string.IsNullOrWhiteSpace(nativeCtCursorStatePath)) {
+            nativeCtCursorStatePath = System.IO.Path.Combine(options.CacheDirectory, "inventory", "ct-native-cursor.json");
+        }
+
+        var source = new NativeCtLogSubdomainDiscovery();
+        var effectiveMaxRows = ComputeNativeSharedMaxRows(domains.Count, options.MaxCtRowsPerDomain);
+        var sourceOptions = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = domains[0],
+            MaxCtRowsToProcess = effectiveMaxRows,
+            MaxSubdomains = options.MaxCtSubdomainsPerDomain > 0 ? options.MaxCtSubdomainsPerDomain : 10000,
+            LogListUrl = options.NativeCtLogListUrl,
+            ExplicitLogUrls = options.NativeCtLogUrls.ToList(),
+            MaxLogsToProcess = options.NativeCtMaxLogs,
+            MaxEntriesPerLog = options.NativeCtMaxEntriesPerLog,
+            EntryBatchSize = options.NativeCtEntryBatchSize,
+            InitialBackfillEntriesPerLog = options.NativeCtInitialBackfillEntriesPerLog,
+            CursorStatePath = nativeCtCursorStatePath,
+            IncludePendingLogs = options.NativeCtIncludePendingLogs,
+            RequestDelay = options.NativeCtRequestDelay
+        };
+
+        var batchResult = await source.DiscoverForDomainsAsync(domains, sourceOptions, logger, cancellationToken).ConfigureAwait(false);
+        foreach (var warning in batchResult.Warnings) {
+            warnings.Add(warning);
+        }
+
+        if (!batchResult.SourceSucceeded && !batchResult.ResultsCapped) {
+            warnings.Add("Native CT shared ingestion did not return successful CT log responses.");
+        }
+        if (batchResult.ResultsCapped) {
+            warnings.Add("Native CT shared ingestion reached configured caps.");
+        }
+
+        var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var domain in domains) {
+            if (!batchResult.SubdomainsByDomain.TryGetValue(domain, out var entries)) {
+                continue;
+            }
+
+            foreach (var name in entries.Keys) {
+                discovered.Add(name);
+            }
+        }
+
+        if (!options.VerifyCtDiscoveredSubdomains || discovered.Count == 0) {
+            return discovered.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        var verifyCap = ComputeVerifyCap(domains.Count, options.MaxCtSubdomainsPerDomain, discovered.Count);
+        var namesToVerify = discovered
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .Take(verifyCap)
+            .ToList();
+        if (verifyCap < discovered.Count) {
+            warnings.Add($"CT subdomain DNS verification capped at {verifyCap} host(s) during shared native ingestion.");
+        }
+
+        var resolved = await VerifyDiscoveredSubdomainsResolveAsync(namesToVerify, options, cancellationToken).ConfigureAwait(false);
+        return resolved.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static int ComputeNativeSharedMaxRows(int domainCount, int maxCtRowsPerDomain) {
+        if (domainCount <= 0) {
+            return maxCtRowsPerDomain > 0 ? maxCtRowsPerDomain : 200000;
+        }
+
+        if (maxCtRowsPerDomain <= 0) {
+            return 200000;
+        }
+
+        var multiplier = Math.Min(25, domainCount);
+        var candidate = (long)maxCtRowsPerDomain * multiplier;
+        if (candidate > 2000000) {
+            candidate = 2000000;
+        }
+        if (candidate < maxCtRowsPerDomain) {
+            candidate = maxCtRowsPerDomain;
+        }
+        return (int)candidate;
+    }
+
+    private static int ComputeVerifyCap(int domainCount, int maxCtSubdomainsPerDomain, int discoveredCount) {
+        if (discoveredCount <= 0) {
+            return 0;
+        }
+
+        if (maxCtSubdomainsPerDomain <= 0) {
+            return discoveredCount;
+        }
+
+        var candidate = (long)maxCtSubdomainsPerDomain * Math.Max(1, domainCount);
+        if (candidate > int.MaxValue) {
+            candidate = int.MaxValue;
+        }
+
+        var cap = (int)candidate;
+        if (cap <= 0) {
+            cap = discoveredCount;
+        }
+        if (cap > discoveredCount) {
+            cap = discoveredCount;
+        }
+        return cap;
+    }
+
+    private static async Task<HashSet<string>> VerifyDiscoveredSubdomainsResolveAsync(
+        IReadOnlyList<string> names,
+        CertificateInventoryCaptureOptions options,
+        CancellationToken cancellationToken) {
+        var resolved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (names == null || names.Count == 0) {
+            return resolved;
+        }
+
+        var dns = new DnsConfiguration {
+            DnsEndpoint = options.DnsEndpoint
+        };
+        var lockObject = new object();
+        var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
+        using var semaphore = new SemaphoreSlim(maxParallelism, maxParallelism);
+        var tasks = new List<Task>(names.Count);
+        foreach (var name in names) {
+            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            tasks.Add(Task.Run(async () => {
+                try {
+                    var hasAddress = false;
+                    var a = await dns.QueryDNS(name, DnsRecordType.A, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    if (a != null && a.Length > 0) {
+                        hasAddress = true;
+                    } else {
+                        var aaaa = await dns.QueryDNS(name, DnsRecordType.AAAA, cancellationToken: cancellationToken).ConfigureAwait(false);
+                        hasAddress = aaaa != null && aaaa.Length > 0;
+                    }
+
+                    if (hasAddress) {
+                        lock (lockObject) {
+                            resolved.Add(name);
+                        }
+                    }
+                } catch {
+                } finally {
+                    semaphore.Release();
+                }
+            }, cancellationToken));
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        return resolved;
     }
 
     private static async Task<IReadOnlyList<CertificateMonitor.Entry>> ProbeHttpsAsync(

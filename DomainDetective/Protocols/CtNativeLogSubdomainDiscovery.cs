@@ -41,6 +41,17 @@ internal sealed class NativeCtLogSubdomainDiscoveryResult {
     public bool SourceSucceeded => LogsSucceeded > 0;
 }
 
+internal sealed class NativeCtLogSubdomainDiscoveryBatchResult {
+    public int CertificateObservationCount { get; set; }
+    public bool ResultsCapped { get; set; }
+    public int LogsAttempted { get; set; }
+    public int LogsSucceeded { get; set; }
+    public List<string> Warnings { get; } = new();
+    public Dictionary<string, Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>> SubdomainsByDomain { get; }
+        = new(StringComparer.OrdinalIgnoreCase);
+    public bool SourceSucceeded => LogsSucceeded > 0;
+}
+
 internal sealed class NativeCtLogSubdomainDiscovery {
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
@@ -148,6 +159,129 @@ internal sealed class NativeCtLogSubdomainDiscovery {
             } catch (Exception ex) {
                 result.Warnings.Add($"Native CT log failed for {logUrl}: {ex.Message}");
                 logger?.WriteVerbose("Native CT log failed for {0}: {1}", logUrl, ex.Message);
+            }
+        }
+
+        cursor.Save(options.CursorStatePath);
+        return result;
+    }
+
+    public async Task<NativeCtLogSubdomainDiscoveryBatchResult> DiscoverForDomainsAsync(
+        IReadOnlyList<string> domains,
+        NativeCtLogSubdomainDiscoveryOptions options,
+        InternalLogger? logger,
+        CancellationToken cancellationToken) {
+        if (domains == null || domains.Count == 0) {
+            throw new ArgumentNullException(nameof(domains));
+        }
+        if (options == null) {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        var normalizedDomains = domains
+            .Where(domain => !string.IsNullOrWhiteSpace(domain))
+            .Select(DomainHelper.ValidateIdn)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (normalizedDomains.Count == 0) {
+            throw new ArgumentException("At least one domain is required.", nameof(domains));
+        }
+
+        var domainSet = new HashSet<string>(normalizedDomains, StringComparer.OrdinalIgnoreCase);
+        var result = new NativeCtLogSubdomainDiscoveryBatchResult();
+        foreach (var domain in normalizedDomains) {
+            result.SubdomainsByDomain[domain] = new Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var logUrls = await ResolveLogUrlsAsync(options, cancellationToken).ConfigureAwait(false);
+        if (logUrls.Count == 0) {
+            result.Warnings.Add("Native CT: no log URLs resolved.");
+            return result;
+        }
+
+        var cursor = NativeCtCursorState.Load(options.CursorStatePath);
+        foreach (var logUrl in logUrls) {
+            cancellationToken.ThrowIfCancellationRequested();
+            result.LogsAttempted++;
+
+            try {
+                var sth = await GetSignedTreeHeadAsync(logUrl, options.RequestDelay, cancellationToken).ConfigureAwait(false);
+                result.LogsSucceeded++;
+
+                var key = NativeCtCursorState.BuildSharedKey(logUrl);
+                var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
+                if (start >= sth.TreeSize) {
+                    cursor.SetLastProcessedIndex(key, sth.TreeSize - 1);
+                    continue;
+                }
+
+                long end = sth.TreeSize - 1;
+                if (options.MaxEntriesPerLog > 0) {
+                    var maxEnd = start + Math.Max(0, options.MaxEntriesPerLog - 1);
+                    if (maxEnd < end) {
+                        end = maxEnd;
+                    }
+                }
+
+                var batchSize = options.EntryBatchSize <= 0 ? 256 : options.EntryBatchSize;
+                if (batchSize > 2048) {
+                    batchSize = 2048;
+                }
+
+                var lastProcessed = start - 1;
+                for (long batchStart = start; batchStart <= end; ) {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var batchEnd = batchStart + batchSize - 1;
+                    if (batchEnd > end) {
+                        batchEnd = end;
+                    }
+
+                    var entries = await GetEntriesAsync(logUrl, batchStart, batchEnd, options.RequestDelay, cancellationToken).ConfigureAwait(false);
+                    if (entries.Count == 0) {
+                        break;
+                    }
+
+                    for (int i = 0; i < entries.Count; i++) {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        if (options.MaxCtRowsToProcess > 0 && result.CertificateObservationCount >= options.MaxCtRowsToProcess) {
+                            result.ResultsCapped = true;
+                            break;
+                        }
+
+                        result.CertificateObservationCount++;
+                        if (TryProcessEntryForDomains(entries[i], domainSet, options.MaxSubdomains, result, logger)) {
+                            lastProcessed = batchStart + i;
+                        } else {
+                            result.ResultsCapped = true;
+                            lastProcessed = batchStart + i;
+                            break;
+                        }
+                    }
+
+                    if (lastProcessed >= start) {
+                        cursor.SetLastProcessedIndex(key, lastProcessed);
+                    }
+
+                    if (result.ResultsCapped) {
+                        break;
+                    }
+
+                    batchStart = batchEnd + 1;
+                }
+
+                logger?.WriteVerbose(
+                    "Native CT shared processed log {0}: observations={1}",
+                    logUrl,
+                    result.CertificateObservationCount);
+
+                if (result.ResultsCapped) {
+                    break;
+                }
+            } catch (Exception ex) {
+                result.Warnings.Add($"Native CT shared log failed for {logUrl}: {ex.Message}");
+                logger?.WriteVerbose("Native CT shared log failed for {0}: {1}", logUrl, ex.Message);
             }
         }
 
@@ -479,6 +613,112 @@ internal sealed class NativeCtLogSubdomainDiscovery {
         }
 
         return true;
+    }
+
+    private static bool TryProcessEntryForDomains(
+        CtEntryPayload payload,
+        HashSet<string> baseDomains,
+        int maxSubdomainsPerDomain,
+        NativeCtLogSubdomainDiscoveryBatchResult result,
+        InternalLogger? logger) {
+        if (string.IsNullOrWhiteSpace(payload.LeafInputBase64)) {
+            return true;
+        }
+
+        byte[] leafBytes;
+        try {
+            leafBytes = Convert.FromBase64String(payload.LeafInputBase64);
+        } catch {
+            return true;
+        }
+
+        if (!TryParseLeaf(leafBytes, out var timestampUtc, out var entryType, out var x509Leaf)) {
+            return true;
+        }
+
+        byte[]? certBytes = null;
+        if (entryType == X509EntryType) {
+            certBytes = x509Leaf;
+        } else if (entryType == PrecertEntryType && !string.IsNullOrWhiteSpace(payload.ExtraDataBase64)) {
+            try {
+                var extra = Convert.FromBase64String(payload.ExtraDataBase64);
+                certBytes = TryExtractPrecertificateLeaf(extra);
+            } catch {
+                certBytes = null;
+            }
+        }
+
+        if (certBytes == null || certBytes.Length == 0) {
+            return true;
+        }
+
+        try {
+            using var cert = new X509Certificate2(certBytes);
+            foreach (var candidate in ExtractCandidateNames(cert)) {
+                var normalized = NormalizeCandidate(candidate);
+                if (normalized == null) {
+                    continue;
+                }
+
+                var matches = MatchBaseDomains(normalized, baseDomains);
+                if (matches.Count == 0) {
+                    continue;
+                }
+
+                foreach (var matchedDomain in matches) {
+                    if (!result.SubdomainsByDomain.TryGetValue(matchedDomain, out var map)) {
+                        map = new Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>(StringComparer.OrdinalIgnoreCase);
+                        result.SubdomainsByDomain[matchedDomain] = map;
+                    }
+
+                    if (!map.TryGetValue(normalized, out var agg)) {
+                        if (maxSubdomainsPerDomain > 0 && map.Count >= maxSubdomainsPerDomain) {
+                            return false;
+                        }
+                        map[normalized] = (timestampUtc, timestampUtc);
+                    } else {
+                        var first = agg.First;
+                        var last = agg.Last;
+                        if (timestampUtc.HasValue) {
+                            if (!first.HasValue || timestampUtc.Value < first.Value) {
+                                first = timestampUtc.Value;
+                            }
+                            if (!last.HasValue || timestampUtc.Value > last.Value) {
+                                last = timestampUtc.Value;
+                            }
+                        }
+                        map[normalized] = (first, last);
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            logger?.WriteVerbose("Native CT shared certificate decode failed: {0}", ex.Message);
+        }
+
+        return true;
+    }
+
+    private static IReadOnlyList<string> MatchBaseDomains(string normalizedName, HashSet<string> baseDomains) {
+        if (string.IsNullOrWhiteSpace(normalizedName)) {
+            return Array.Empty<string>();
+        }
+
+        var labels = normalizedName.Split('.');
+        if (labels.Length < 3) {
+            return Array.Empty<string>();
+        }
+
+        var matches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 1; i <= labels.Length - 2; i++) {
+            var suffix = string.Join(".", labels, i, labels.Length - i);
+            if (baseDomains.Contains(suffix) && !string.Equals(suffix, normalizedName, StringComparison.OrdinalIgnoreCase)) {
+                matches.Add(suffix);
+            }
+        }
+
+        return matches.Count == 0
+            ? Array.Empty<string>()
+            : matches.OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private static string? NormalizeCandidate(string? raw) {
@@ -860,6 +1100,10 @@ internal sealed class NativeCtCursorState {
         return $"{baseDomain}|{logUrl}";
     }
 
+    public static string BuildSharedKey(string logUrl) {
+        return $"shared|{logUrl}";
+    }
+
     public static NativeCtCursorState Load(string? path) {
         var state = new NativeCtCursorState();
         if (string.IsNullOrWhiteSpace(path)) {
@@ -871,36 +1115,21 @@ internal sealed class NativeCtCursorState {
 
         try {
             var json = File.ReadAllText(path);
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind != JsonValueKind.Object) {
+            var payload = JsonSerializer.Deserialize<NativeCtCursorStateDocument>(json, new JsonSerializerOptions {
+                PropertyNameCaseInsensitive = true
+            });
+            if (payload == null || payload.Entries == null || payload.Entries.Count == 0) {
                 return state;
             }
 
-            if (!doc.RootElement.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array) {
-                return state;
-            }
-
-            foreach (var item in entries.EnumerateArray()) {
-                if (item.ValueKind != JsonValueKind.Object) {
-                    continue;
-                }
-                var key = item.TryGetProperty("key", out var keyElement) ? keyElement.GetString() : null;
+            foreach (var item in payload.Entries) {
+                var key = item.Key;
                 if (string.IsNullOrWhiteSpace(key)) {
                     continue;
                 }
 
-                long? value = null;
-                if (item.TryGetProperty("lastProcessedIndex", out var idxElement)) {
-                    if (idxElement.ValueKind == JsonValueKind.Number && idxElement.TryGetInt64(out var number)) {
-                        value = number;
-                    } else if (idxElement.ValueKind == JsonValueKind.String &&
-                               long.TryParse(idxElement.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) {
-                        value = number;
-                    }
-                }
-
-                if (value.HasValue && value.Value >= 0) {
-                    state._lastProcessed[key!] = value.Value;
+                if (item.LastProcessedIndex >= 0) {
+                    state._lastProcessed[key] = item.LastProcessedIndex;
                 }
             }
         } catch {
