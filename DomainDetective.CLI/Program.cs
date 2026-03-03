@@ -187,6 +187,7 @@ internal static class Program {
                 .WithDescription("Query persisted native CT ingestion diagnostics")
                 .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--state", "Failed" })
                 .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--state", "CircuitOpen", "--lag-after-min", "10000" })
+                .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--latest-only", "--max-failed", "0", "--max-circuit-open", "0", "--max-lag-after", "5000" })
                 .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--since-utc", "2026-01-01", "--latest-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--log-url-contains", "ct.googleapis.com", "--csv-path", "./artifacts/ct-diag.csv" })
                 .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--failure-only", "--ndjson-path", "./artifacts/ct-diag.ndjson" });

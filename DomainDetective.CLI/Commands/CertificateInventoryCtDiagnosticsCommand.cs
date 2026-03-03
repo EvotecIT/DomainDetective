@@ -69,6 +69,22 @@ internal sealed class CertificateInventoryCtDiagnosticsSettings : CommandSetting
     [CommandOption("--lag-after-max <N>")]
     public long? LagAfterMax { get; set; }
 
+    [Description("Alert threshold: maximum allowed diagnostics in Failed state.")]
+    [CommandOption("--max-failed <N>")]
+    public int? MaxFailed { get; set; }
+
+    [Description("Alert threshold: maximum allowed diagnostics in CircuitOpen state.")]
+    [CommandOption("--max-circuit-open <N>")]
+    public int? MaxCircuitOpen { get; set; }
+
+    [Description("Alert threshold: maximum allowed LagAfter value across matched diagnostics.")]
+    [CommandOption("--max-lag-after <N>")]
+    public long? MaxLagAfter { get; set; }
+
+    [Description("Do not return non-zero exit code when thresholds are breached.")]
+    [CommandOption("--no-fail-on-threshold-breach")]
+    public bool NoFailOnThresholdBreach { get; set; }
+
     [Description("Maximum number of rows returned.")]
     [CommandOption("--max-results <N>")]
     [DefaultValue(2000)]
@@ -107,6 +123,18 @@ internal sealed class CertificateInventoryCtDiagnosticsCommand : AsyncCommand<Ce
 
         if (settings.MaxResults < 0) {
             AnsiConsole.MarkupLine("[red]--max-results must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.MaxFailed.HasValue && settings.MaxFailed.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--max-failed must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.MaxCircuitOpen.HasValue && settings.MaxCircuitOpen.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--max-circuit-open must be 0 or greater.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.MaxLagAfter.HasValue && settings.MaxLagAfter.Value < 0) {
+            AnsiConsole.MarkupLine("[red]--max-lag-after must be 0 or greater.[/]");
             return Task.FromResult(1);
         }
 
@@ -161,6 +189,10 @@ internal sealed class CertificateInventoryCtDiagnosticsCommand : AsyncCommand<Ce
             PersistInventorySnapshots = false
         };
         var result = monitor.QueryInventoryNativeCtDiagnostics(query);
+        var thresholds = BuildAlertThresholds(settings);
+        if (thresholds != null) {
+            result.AlertEvaluation = CertificateInventoryNativeCtDiagnosticsAlerts.Evaluate(result, thresholds);
+        }
 
         if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
             try {
@@ -184,7 +216,7 @@ internal sealed class CertificateInventoryCtDiagnosticsCommand : AsyncCommand<Ce
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(result, JsonOptions.Default));
-            return Task.FromResult(0);
+            return Task.FromResult(ResolveExitCode(result, settings, false));
         }
 
         var summary = new Table().Border(TableBorder.Rounded).Title("Native CT Diagnostics");
@@ -194,13 +226,43 @@ internal sealed class CertificateInventoryCtDiagnosticsCommand : AsyncCommand<Ce
         summary.AddRow("Scanned Snapshots", result.ScannedSnapshotCount.ToString());
         summary.AddRow("Scanned Diagnostics", result.ScannedDiagnosticCount.ToString());
         summary.AddRow("Matched Diagnostics", result.MatchedDiagnosticCount.ToString());
+        summary.AddRow("Highest LagAfter", result.MatchedLagAfterMax.HasValue ? result.MatchedLagAfterMax.Value.ToString() : "-");
         summary.AddRow("Returned Rows", result.Entries.Count.ToString());
         summary.AddRow("Truncated", result.Truncated ? "Yes" : "No");
         AnsiConsole.Write(summary);
 
+        var hasThresholds = result.AlertEvaluation != null &&
+                            (result.AlertEvaluation.MaxFailedDiagnosticsThreshold.HasValue ||
+                             result.AlertEvaluation.MaxCircuitOpenDiagnosticsThreshold.HasValue ||
+                             result.AlertEvaluation.MaxLagAfterThreshold.HasValue);
+        if (hasThresholds) {
+            var alert = result.AlertEvaluation!;
+            var alerts = new Table().Border(TableBorder.Rounded).Title("Threshold Evaluation");
+            alerts.AddColumn("Metric");
+            alerts.AddColumn("Observed");
+            alerts.AddColumn("Threshold");
+            alerts.AddColumn("Breached");
+            alerts.AddRow(
+                "Failed diagnostics",
+                alert.FailedDiagnostics.ToString(),
+                alert.MaxFailedDiagnosticsThreshold.HasValue ? alert.MaxFailedDiagnosticsThreshold.Value.ToString() : "-",
+                alert.FailedDiagnosticsThresholdBreached ? "Yes" : "No");
+            alerts.AddRow(
+                "Circuit-open diagnostics",
+                alert.CircuitOpenDiagnostics.ToString(),
+                alert.MaxCircuitOpenDiagnosticsThreshold.HasValue ? alert.MaxCircuitOpenDiagnosticsThreshold.Value.ToString() : "-",
+                alert.CircuitOpenDiagnosticsThresholdBreached ? "Yes" : "No");
+            alerts.AddRow(
+                "Highest LagAfter",
+                alert.HighestLagAfter.HasValue ? alert.HighestLagAfter.Value.ToString() : "-",
+                alert.MaxLagAfterThreshold.HasValue ? alert.MaxLagAfterThreshold.Value.ToString() : "-",
+                alert.LagAfterThresholdBreached ? "Yes" : "No");
+            AnsiConsole.Write(alerts);
+        }
+
         if (result.Entries.Count == 0) {
             AnsiConsole.MarkupLine("[yellow]No native CT diagnostics matched filters.[/]");
-            return Task.FromResult(0);
+            return Task.FromResult(ResolveExitCode(result, settings, true));
         }
 
         var rows = new Table().Border(TableBorder.Rounded);
@@ -228,7 +290,43 @@ internal sealed class CertificateInventoryCtDiagnosticsCommand : AsyncCommand<Ce
         }
         AnsiConsole.Write(rows);
 
-        return Task.FromResult(0);
+        return Task.FromResult(ResolveExitCode(result, settings, true));
+    }
+
+    private static CertificateInventoryNativeCtDiagnosticsAlertThresholds? BuildAlertThresholds(CertificateInventoryCtDiagnosticsSettings settings) {
+        if (!settings.MaxFailed.HasValue &&
+            !settings.MaxCircuitOpen.HasValue &&
+            !settings.MaxLagAfter.HasValue) {
+            return null;
+        }
+
+        return new CertificateInventoryNativeCtDiagnosticsAlertThresholds {
+            MaxFailedDiagnostics = settings.MaxFailed,
+            MaxCircuitOpenDiagnostics = settings.MaxCircuitOpen,
+            MaxLagAfter = settings.MaxLagAfter
+        };
+    }
+
+    private static int ResolveExitCode(
+        CertificateInventoryNativeCtDiagnosticsResult result,
+        CertificateInventoryCtDiagnosticsSettings settings,
+        bool renderThresholdMessages) {
+        var alert = result.AlertEvaluation;
+        if (alert == null || !alert.HasBreach) {
+            return 0;
+        }
+
+        if (renderThresholdMessages) {
+            foreach (var message in alert.BreachMessages) {
+                AnsiConsole.MarkupLine($"[red]Threshold breached:[/] {Markup.Escape(message)}");
+            }
+        }
+
+        if (settings.NoFailOnThresholdBreach) {
+            return 0;
+        }
+
+        return 2;
     }
 
     private static void WriteCsv(CertificateInventoryNativeCtDiagnosticsResult result, string path) {
