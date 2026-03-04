@@ -106,6 +106,26 @@ Notes:
 
 ## PowerShell end-to-end examples
 
+### Inventory-first runbook (recommended starting point)
+
+If your first goal is a useful certificate list (endpoint inventory + unique cert map), run:
+
+```powershell
+.\Module\Examples\Example.CertificateInventory.InventoryFirst.ps1
+```
+
+It will:
+
+- Capture inventory from your seed domains.
+- Expand scan scope with CT-discovered subdomains.
+- Persist snapshots in `cert-monitor`.
+- Export:
+  - `artifacts/certificate-endpoint-inventory.csv`
+  - `artifacts/certificate-unique-summary.csv`
+  - `artifacts/certificate-endpoint-changes.csv`
+
+Use this as your base workflow, then schedule it (Task Scheduler/CI/Service) for continuous monitoring.
+
 ### 1. Capture a snapshot from domains
 
 ```powershell

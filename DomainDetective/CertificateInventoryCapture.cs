@@ -520,8 +520,8 @@ public sealed class CertificateInventoryCapture {
 
             foreach (var kv in mxByDomain) {
                 foreach (var host in kv.Value) {
-                    if (!string.IsNullOrWhiteSpace(host)) {
-                        mxHosts.Add(host);
+                    if (TryNormalizeMxHostCandidate(host, out var normalizedHost)) {
+                        mxHosts.Add(normalizedHost);
                     }
                 }
             }
@@ -1113,7 +1113,7 @@ public sealed class CertificateInventoryCapture {
         }
 
         var distinct = hosts
-            .Where(h => !string.IsNullOrWhiteSpace(h))
+            .Where(h => !string.IsNullOrWhiteSpace(h) && IsSupportedMxHost(h))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(h => h, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -1137,20 +1137,51 @@ public sealed class CertificateInventoryCapture {
         }
 
         var candidate = parts.Length == 1 ? parts[0].Trim() : parts[parts.Length - 1].Trim();
-        if (string.Equals(candidate, ".", StringComparison.Ordinal)) {
-            return false;
-        }
+        return TryNormalizeMxHostCandidate(candidate, out host);
+    }
 
-        candidate = candidate.Trim().TrimEnd('.');
+    private static bool TryNormalizeMxHostCandidate(string? candidate, out string host) {
+        host = string.Empty;
         if (string.IsNullOrWhiteSpace(candidate)) {
             return false;
         }
 
-        if (int.TryParse(candidate, out _)) {
+        var normalized = candidate!.Trim().TrimEnd('.');
+        if (!IsSupportedMxHost(normalized)) {
             return false;
         }
 
-        host = candidate;
+        host = normalized;
+        return true;
+    }
+
+    private static bool IsSupportedMxHost(string value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return false;
+        }
+
+        var normalized = value.Trim().TrimEnd('.');
+        if (normalized.Length == 0) {
+            return false;
+        }
+
+        if (string.Equals(normalized, ".", StringComparison.Ordinal) ||
+            string.Equals(normalized, "-", StringComparison.Ordinal)) {
+            return false;
+        }
+
+        if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)) {
+            return false;
+        }
+
+        if (System.Net.IPAddress.TryParse(normalized, out _)) {
+            return false;
+        }
+
+        if (normalized.IndexOfAny(new[] { ' ', '\t', '\r', '\n', '/', '\\', '@' }) >= 0) {
+            return false;
+        }
+
         return true;
     }
 
@@ -1170,7 +1201,7 @@ public sealed class CertificateInventoryCapture {
             options.EnableNativeCtSharedIngestion &&
             domains.Count > 1) {
             logger.WriteVerbose("Using shared native CT ingestion for {0} domain(s).", domains.Count);
-            return await DiscoverCtSubdomainsNativeSharedAsync(
+            IReadOnlyList<string> nativeSharedDiscovered = await DiscoverCtSubdomainsNativeSharedAsync(
                 domains,
                 options,
                 warnings,
@@ -1178,6 +1209,24 @@ public sealed class CertificateInventoryCapture {
                 nativeCtLogDiagnosticEntries,
                 logger,
                 cancellationToken).ConfigureAwait(false);
+
+            if (nativeSharedDiscovered.Count == 0 && !options.NativeCtLogOnly) {
+                warnings.Add("Native CT shared ingestion returned no subdomains; falling back to passive CT APIs.");
+                logger.WriteVerbose(
+                    "Shared native CT ingestion returned 0 subdomains for {0} domain(s). Falling back to passive CT APIs.",
+                    domains.Count);
+                IReadOnlyList<string> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
+                    domains,
+                    options,
+                    warnings,
+                    logger,
+                    cancellationToken).ConfigureAwait(false);
+                if (passiveDiscovered.Count > 0) {
+                    return passiveDiscovered;
+                }
+            }
+
+            return nativeSharedDiscovered;
         }
 
         var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1185,6 +1234,7 @@ public sealed class CertificateInventoryCapture {
         var diagnosticsLock = new object();
         var diagnosticEntriesLock = new object();
         var discoveredLock = new object();
+        var discoveredByDomain = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
         var nativeCtCursorStatePath = options.NativeCtCursorStatePath;
         if (string.IsNullOrWhiteSpace(nativeCtCursorStatePath) && options.EnableNativeCtLogSubdomainSource) {
@@ -1196,6 +1246,7 @@ public sealed class CertificateInventoryCapture {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             tasks.Add(Task.Run(async () => {
                 try {
+                    var discoveredForDomain = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     var analysis = new SubdomainsAnalysis {
                         DnsConfiguration = new DnsConfiguration {
                             DnsEndpoint = options.DnsEndpoint
@@ -1281,8 +1332,11 @@ public sealed class CertificateInventoryCapture {
                         lock (discoveredLock) {
                             discovered.Add(candidate.Name);
                         }
+                        discoveredForDomain.Add(candidate.Name);
                     }
+                    discoveredByDomain[domain] = discoveredForDomain.Count;
                 } catch (Exception ex) {
+                    discoveredByDomain[domain] = 0;
                     lock (warningLock) {
                         warnings.Add($"CT subdomain discovery failed for {domain}: {ex.Message}");
                     }
@@ -1293,6 +1347,34 @@ public sealed class CertificateInventoryCapture {
         }
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
+        if (options.EnableNativeCtLogSubdomainSource && !options.NativeCtLogOnly) {
+            var fallbackDomains = new List<string>(domains.Count);
+            foreach (var domain in domains) {
+                if (!discoveredByDomain.TryGetValue(domain, out var discoveredCount) || discoveredCount <= 0) {
+                    fallbackDomains.Add(domain);
+                }
+            }
+
+            if (fallbackDomains.Count > 0) {
+                warnings.Add(
+                    "Native CT ingestion returned no subdomains for " +
+                    fallbackDomains.Count.ToString(CultureInfo.InvariantCulture) +
+                    " domain(s); attempting passive CT fallback.");
+                logger.WriteVerbose(
+                    "Native CT returned no subdomains for {0} domain(s). Falling back to passive CT APIs for those domains.",
+                    fallbackDomains.Count);
+                IReadOnlyList<string> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
+                    fallbackDomains,
+                    options,
+                    warnings,
+                    logger,
+                    cancellationToken).ConfigureAwait(false);
+                foreach (var subdomain in passiveDiscovered) {
+                    discovered.Add(subdomain);
+                }
+            }
+        }
+
         return discovered.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
@@ -1385,6 +1467,109 @@ public sealed class CertificateInventoryCapture {
 
         var resolved = await VerifyDiscoveredSubdomainsResolveAsync(namesToVerify, options, cancellationToken).ConfigureAwait(false);
         return resolved.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static async Task<IReadOnlyList<string>> DiscoverCtSubdomainsPassiveAsync(
+        IReadOnlyList<string> domains,
+        CertificateInventoryCaptureOptions options,
+        List<string> warnings,
+        InternalLogger logger,
+        CancellationToken cancellationToken,
+        DnsEndpoint? dnsEndpointOverride = null,
+        bool allowSystemDnsRetry = true) {
+        var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var warningLock = new object();
+        var discoveredLock = new object();
+        var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
+        var effectiveDnsEndpoint = dnsEndpointOverride ?? options.DnsEndpoint;
+        using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
+        var tasks = new List<Task>(domains.Count);
+        foreach (var domain in domains) {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            tasks.Add(Task.Run(async () => {
+                try {
+                    var analysis = new SubdomainsAnalysis {
+                        DnsConfiguration = new DnsConfiguration {
+                            DnsEndpoint = effectiveDnsEndpoint
+                        },
+                        VerifyStillResolves = options.VerifyCtDiscoveredSubdomains,
+                        DetectSensitiveSubdomains = false,
+                        ScanSensitiveSubdomainTxt = false,
+                        DetectAiInfrastructureExposure = false,
+                        EnableNativeCtLogSource = false,
+                        NativeCtLogOnly = false
+                    };
+                    if (options.MaxCtRowsPerDomain > 0) {
+                        analysis.MaxCtRowsToProcess = options.MaxCtRowsPerDomain;
+                    }
+                    if (options.MaxCtSubdomainsPerDomain > 0) {
+                        analysis.MaxSubdomains = options.MaxCtSubdomainsPerDomain;
+                        analysis.MaxResolutionChecks = options.MaxCtSubdomainsPerDomain;
+                    }
+
+                    await analysis.AnalyzeAsync(domain, logger, cancellationToken).ConfigureAwait(false);
+                    if (!analysis.QuerySucceeded && !string.IsNullOrWhiteSpace(analysis.FailureReason)) {
+                        lock (warningLock) {
+                            warnings.Add($"Passive CT fallback failed for {domain}: {analysis.FailureReason}");
+                        }
+                    } else if (analysis.ResultsCapped) {
+                        lock (warningLock) {
+                            warnings.Add($"Passive CT fallback results were capped for {domain}.");
+                        }
+                    }
+
+                    var candidates = analysis.Subdomains ?? Array.Empty<SubdomainDiscoveryEntry>();
+                    foreach (var candidate in candidates) {
+                        if (candidate == null || string.IsNullOrWhiteSpace(candidate.Name)) {
+                            continue;
+                        }
+                        if (options.VerifyCtDiscoveredSubdomains &&
+                            candidate.ResolutionStatus != SubdomainResolutionStatus.Resolves) {
+                            continue;
+                        }
+
+                        lock (discoveredLock) {
+                            discovered.Add(candidate.Name);
+                        }
+                    }
+                } catch (Exception ex) {
+                    lock (warningLock) {
+                        warnings.Add($"Passive CT fallback failed for {domain}: {ex.Message}");
+                    }
+                } finally {
+                    gate.Release();
+                }
+            }, cancellationToken));
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        if (allowSystemDnsRetry &&
+            discovered.Count == 0 &&
+            options.VerifyCtDiscoveredSubdomains &&
+            effectiveDnsEndpoint != DnsEndpoint.System) {
+            warnings.Add(
+                "Passive CT fallback returned no resolvable subdomains on DNS endpoint '" +
+                effectiveDnsEndpoint +
+                "'. Retrying passive CT verification on 'System' DNS.");
+            logger.WriteVerbose(
+                "Passive CT fallback returned 0 resolvable subdomains on DNS endpoint '{0}'. Retrying with 'System' DNS endpoint.",
+                effectiveDnsEndpoint);
+
+            IReadOnlyList<string> systemResolved = await DiscoverCtSubdomainsPassiveAsync(
+                domains,
+                options,
+                warnings,
+                logger,
+                cancellationToken,
+                DnsEndpoint.System,
+                allowSystemDnsRetry: false).ConfigureAwait(false);
+
+            foreach (var name in systemResolved) {
+                discovered.Add(name);
+            }
+        }
+
+        return discovered.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private static int ComputeNativeSharedMaxRows(int domainCount, int maxCtRowsPerDomain) {

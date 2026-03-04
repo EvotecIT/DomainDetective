@@ -265,6 +265,7 @@ Optional controls:
 | `Get-DDCertificateInventorySnapshot` | - | Read raw persisted certificate inventory snapshots |
 
 For a full certificate inventory playbook (capture, CT enrichment, snapshot analytics, policy/risk/drift, and alerting patterns with both PowerShell and C#), see [Docs/CERTIFICATE_INVENTORY.MD](Docs/CERTIFICATE_INVENTORY.MD).
+For a ready-to-run inventory-first script that exports endpoint and unique-certificate CSVs, see [Module/Examples/Example.CertificateInventory.InventoryFirst.ps1](Module/Examples/Example.CertificateInventory.InventoryFirst.ps1).
 
 ## Reports / Exporting
 

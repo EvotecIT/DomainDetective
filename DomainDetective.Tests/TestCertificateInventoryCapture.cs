@@ -316,6 +316,51 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_FiltersInvalidMxHosts_WhenLookupOverrideReturnsArtifacts() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        var capture = new CertificateInventoryCapture {
+            MxLookupOverride = (domain, dnsConfiguration, maxMxHostsPerDomain, cancellationToken) => {
+                IReadOnlyList<string> hosts = new[] {
+                    "0",
+                    ".",
+                    "-",
+                    "192.168.1.10",
+                    " mx1.example.com. ",
+                    "mx2.example.com"
+                };
+                return Task.FromResult(hosts);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    entries.Add(CreateHttpsEntry(target, certificate));
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = true,
+            IncludeMxHttps = true,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.Equal(2, result.MxHostCount);
+        Assert.Equal(2, result.HttpsEndpointCount);
+        Assert.DoesNotContain(result.MxHosts, host => host.Equals("0", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.MxHosts, host => host.Equals("mx1.example.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.MxHosts, host => host.Equals("mx2.example.com", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void ConfigureHttpsAnalysis_DisabledProfileTurnsOffCtSources() {
         var analysis = new CertificateAnalysis();
         var options = new CertificateInventoryCaptureOptions {
