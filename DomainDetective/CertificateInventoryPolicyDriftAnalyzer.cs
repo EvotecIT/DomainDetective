@@ -411,7 +411,7 @@ namespace DomainDetective {
         }
 
         private static string BuildEndpointKey(CertificateInventoryEndpointPolicy endpoint) {
-            return $"{endpoint.Host}:{endpoint.Port}";
+            return CertificateInventoryEndpointKey.Build(endpoint);
         }
 
         private static int StatusOrder(string status) {

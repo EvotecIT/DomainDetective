@@ -225,9 +225,7 @@ namespace DomainDetective {
         }
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
-            var host = entry.ResolvedHost ?? entry.Host;
-            var port = NormalizePort(entry.Port);
-            return $"{host}:{port}";
+            return CertificateInventoryEndpointKey.Build(entry, includeServiceDimension: false);
         }
 
         private static int NormalizePort(int port) {

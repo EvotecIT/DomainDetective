@@ -64,10 +64,27 @@ public sealed class CertificateInventoryPolicyOverrides {
         string host,
         string service,
         int port,
+        string issuer,
+        string rootIssuer,
+        string authenticationProfile,
+        bool knownCertificateAuthority,
+        bool knownRootCertificateAuthority,
+        bool ctObserved,
+        bool selfSigned,
+        bool reachable,
         string fallbackBaselineProfile) {
         var effectiveBaselineProfile = fallbackBaselineProfile;
         var suppressedViolationCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var appliedRuleNames = new List<string>();
+        bool? requireCtForKnownAuthority = null;
+        bool? flagUnknownAuthority = null;
+        bool? flagUnknownRootAuthority = null;
+        bool? flagClientAuthUsage = null;
+        bool? flagSecureEmailUsage = null;
+        bool? flagCrossServiceReuse = null;
+        bool? flagCrossPortReuse = null;
+        int? renewalWindowDays = null;
+        int? maxReuseEndpointCount = null;
 
         var defaults = Defaults ?? new CertificateInventoryPolicyOverrideAction();
         var rules = Rules ?? new List<CertificateInventoryPolicyOverrideRule>();
@@ -79,7 +96,18 @@ public sealed class CertificateInventoryPolicyOverrides {
                 continue;
             }
 
-            if (!rule.IsMatch(host, service, port)) {
+            if (!rule.IsMatch(
+                    host,
+                    service,
+                    port,
+                    issuer,
+                    rootIssuer,
+                    authenticationProfile,
+                    knownCertificateAuthority,
+                    knownRootCertificateAuthority,
+                    ctObserved,
+                    selfSigned,
+                    reachable)) {
                 continue;
             }
 
@@ -91,7 +119,16 @@ public sealed class CertificateInventoryPolicyOverrides {
         return new CertificateInventoryPolicyResolvedOverride {
             EffectiveBaselineProfile = effectiveBaselineProfile,
             SuppressedViolationCodes = suppressedViolationCodes.OrderBy(code => code, StringComparer.OrdinalIgnoreCase).ToList(),
-            AppliedRuleNames = appliedRuleNames
+            AppliedRuleNames = appliedRuleNames,
+            RequireCtForKnownAuthority = requireCtForKnownAuthority,
+            FlagUnknownAuthority = flagUnknownAuthority,
+            FlagUnknownRootAuthority = flagUnknownRootAuthority,
+            FlagClientAuthUsage = flagClientAuthUsage,
+            FlagSecureEmailUsage = flagSecureEmailUsage,
+            FlagCrossServiceReuse = flagCrossServiceReuse,
+            FlagCrossPortReuse = flagCrossPortReuse,
+            RenewalWindowDays = renewalWindowDays,
+            MaxReuseEndpointCount = maxReuseEndpointCount
         };
 
         void ApplyAction(CertificateInventoryPolicyOverrideAction action, string source) {
@@ -110,6 +147,34 @@ public sealed class CertificateInventoryPolicyOverrides {
 
             foreach (var code in NormalizeValues(action.SuppressViolationCodes)) {
                 suppressedViolationCodes.Add(code);
+            }
+
+            if (action.RequireCtForKnownAuthority.HasValue) {
+                requireCtForKnownAuthority = action.RequireCtForKnownAuthority.Value;
+            }
+            if (action.FlagUnknownAuthority.HasValue) {
+                flagUnknownAuthority = action.FlagUnknownAuthority.Value;
+            }
+            if (action.FlagUnknownRootAuthority.HasValue) {
+                flagUnknownRootAuthority = action.FlagUnknownRootAuthority.Value;
+            }
+            if (action.FlagClientAuthUsage.HasValue) {
+                flagClientAuthUsage = action.FlagClientAuthUsage.Value;
+            }
+            if (action.FlagSecureEmailUsage.HasValue) {
+                flagSecureEmailUsage = action.FlagSecureEmailUsage.Value;
+            }
+            if (action.FlagCrossServiceReuse.HasValue) {
+                flagCrossServiceReuse = action.FlagCrossServiceReuse.Value;
+            }
+            if (action.FlagCrossPortReuse.HasValue) {
+                flagCrossPortReuse = action.FlagCrossPortReuse.Value;
+            }
+            if (action.RenewalWindowDays.HasValue) {
+                renewalWindowDays = action.RenewalWindowDays.Value;
+            }
+            if (action.MaxReuseEndpointCount.HasValue) {
+                maxReuseEndpointCount = action.MaxReuseEndpointCount.Value;
             }
         }
     }
@@ -148,6 +213,9 @@ public sealed class CertificateInventoryPolicyOverrides {
             match.Hosts = NormalizeValues(match.Hosts);
             match.HostSuffixes = NormalizeValues(match.HostSuffixes);
             match.Services = NormalizeValues(match.Services);
+            match.IssuerContainsAnyOf = NormalizeValues(match.IssuerContainsAnyOf);
+            match.RootIssuerContainsAnyOf = NormalizeValues(match.RootIssuerContainsAnyOf);
+            match.AuthenticationProfiles = NormalizeValues(match.AuthenticationProfiles);
             match.Ports = NormalizePorts(match.Ports, $"rules[{i}].match.ports");
             action.SuppressViolationCodes = NormalizeValues(action.SuppressViolationCodes);
 
@@ -164,6 +232,16 @@ public sealed class CertificateInventoryPolicyOverrides {
             !CertificateInventoryPolicyAnalyzer.TryResolveBaselineProfile(action.BaselineProfile, out _)) {
             throw new InvalidOperationException(
                 $"Policy overrides {source}.baselineProfile '{action.BaselineProfile}' must be one of: {CertificateInventoryPolicyAnalyzer.BaselineProfileAcceptedValues}.");
+        }
+
+        if (action.RenewalWindowDays.HasValue && action.RenewalWindowDays.Value <= 0) {
+            throw new InvalidOperationException(
+                $"Policy overrides {source}.renewalWindowDays must be greater than 0.");
+        }
+
+        if (action.MaxReuseEndpointCount.HasValue && action.MaxReuseEndpointCount.Value <= 0) {
+            throw new InvalidOperationException(
+                $"Policy overrides {source}.maxReuseEndpointCount must be greater than 0.");
         }
     }
 
@@ -206,6 +284,33 @@ public sealed class CertificateInventoryPolicyOverrideAction {
 
     [JsonPropertyName("suppressViolationCodes")]
     public string[] SuppressViolationCodes { get; set; } = Array.Empty<string>();
+
+    [JsonPropertyName("requireCtForKnownAuthority")]
+    public bool? RequireCtForKnownAuthority { get; set; }
+
+    [JsonPropertyName("flagUnknownAuthority")]
+    public bool? FlagUnknownAuthority { get; set; }
+
+    [JsonPropertyName("flagUnknownRootAuthority")]
+    public bool? FlagUnknownRootAuthority { get; set; }
+
+    [JsonPropertyName("flagClientAuthUsage")]
+    public bool? FlagClientAuthUsage { get; set; }
+
+    [JsonPropertyName("flagSecureEmailUsage")]
+    public bool? FlagSecureEmailUsage { get; set; }
+
+    [JsonPropertyName("flagCrossServiceReuse")]
+    public bool? FlagCrossServiceReuse { get; set; }
+
+    [JsonPropertyName("flagCrossPortReuse")]
+    public bool? FlagCrossPortReuse { get; set; }
+
+    [JsonPropertyName("renewalWindowDays")]
+    public int? RenewalWindowDays { get; set; }
+
+    [JsonPropertyName("maxReuseEndpointCount")]
+    public int? MaxReuseEndpointCount { get; set; }
 }
 
 /// <summary>
@@ -221,11 +326,25 @@ public sealed class CertificateInventoryPolicyOverrideRule {
     [JsonPropertyName("action")]
     public CertificateInventoryPolicyOverrideAction Action { get; set; } = new();
 
-    internal bool IsMatch(string host, string service, int port) {
+    internal bool IsMatch(
+        string host,
+        string service,
+        int port,
+        string issuer,
+        string rootIssuer,
+        string authenticationProfile,
+        bool knownCertificateAuthority,
+        bool knownRootCertificateAuthority,
+        bool ctObserved,
+        bool selfSigned,
+        bool reachable) {
         var match = Match ?? new CertificateInventoryPolicyOverrideMatch();
         var hosts = match.Hosts ?? Array.Empty<string>();
         var hostSuffixes = match.HostSuffixes ?? Array.Empty<string>();
         var services = match.Services ?? Array.Empty<string>();
+        var issuerContains = match.IssuerContainsAnyOf ?? Array.Empty<string>();
+        var rootIssuerContains = match.RootIssuerContainsAnyOf ?? Array.Empty<string>();
+        var authenticationProfiles = match.AuthenticationProfiles ?? Array.Empty<string>();
         var ports = match.Ports ?? Array.Empty<int>();
 
         if (hosts.Length > 0) {
@@ -256,6 +375,57 @@ public sealed class CertificateInventoryPolicyOverrideRule {
             }
         }
 
+        if (issuerContains.Length > 0) {
+            var issuerValue = issuer ?? string.Empty;
+            var issuerMatched = issuerContains.Any(candidate =>
+                issuerValue.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0);
+            if (!issuerMatched) {
+                return false;
+            }
+        }
+
+        if (rootIssuerContains.Length > 0) {
+            var rootIssuerValue = rootIssuer ?? string.Empty;
+            var rootIssuerMatched = rootIssuerContains.Any(candidate =>
+                rootIssuerValue.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0);
+            if (!rootIssuerMatched) {
+                return false;
+            }
+        }
+
+        if (authenticationProfiles.Length > 0) {
+            var profileMatched = authenticationProfiles.Any(candidate =>
+                string.Equals(candidate, authenticationProfile, StringComparison.OrdinalIgnoreCase));
+            if (!profileMatched) {
+                return false;
+            }
+        }
+
+        if (match.KnownCertificateAuthority.HasValue &&
+            match.KnownCertificateAuthority.Value != knownCertificateAuthority) {
+            return false;
+        }
+
+        if (match.KnownRootCertificateAuthority.HasValue &&
+            match.KnownRootCertificateAuthority.Value != knownRootCertificateAuthority) {
+            return false;
+        }
+
+        if (match.CtObserved.HasValue &&
+            match.CtObserved.Value != ctObserved) {
+            return false;
+        }
+
+        if (match.SelfSigned.HasValue &&
+            match.SelfSigned.Value != selfSigned) {
+            return false;
+        }
+
+        if (match.Reachable.HasValue &&
+            match.Reachable.Value != reachable) {
+            return false;
+        }
+
         if (ports.Length > 0 && !ports.Contains(port)) {
             return false;
         }
@@ -277,6 +447,30 @@ public sealed class CertificateInventoryPolicyOverrideMatch {
     [JsonPropertyName("services")]
     public string[] Services { get; set; } = Array.Empty<string>();
 
+    [JsonPropertyName("issuerContainsAnyOf")]
+    public string[] IssuerContainsAnyOf { get; set; } = Array.Empty<string>();
+
+    [JsonPropertyName("rootIssuerContainsAnyOf")]
+    public string[] RootIssuerContainsAnyOf { get; set; } = Array.Empty<string>();
+
+    [JsonPropertyName("authenticationProfiles")]
+    public string[] AuthenticationProfiles { get; set; } = Array.Empty<string>();
+
+    [JsonPropertyName("knownCertificateAuthority")]
+    public bool? KnownCertificateAuthority { get; set; }
+
+    [JsonPropertyName("knownRootCertificateAuthority")]
+    public bool? KnownRootCertificateAuthority { get; set; }
+
+    [JsonPropertyName("ctObserved")]
+    public bool? CtObserved { get; set; }
+
+    [JsonPropertyName("selfSigned")]
+    public bool? SelfSigned { get; set; }
+
+    [JsonPropertyName("reachable")]
+    public bool? Reachable { get; set; }
+
     [JsonPropertyName("ports")]
     public int[] Ports { get; set; } = Array.Empty<int>();
 }
@@ -285,4 +479,13 @@ internal sealed class CertificateInventoryPolicyResolvedOverride {
     public string EffectiveBaselineProfile { get; set; } = "Balanced";
     public List<string> SuppressedViolationCodes { get; set; } = new();
     public List<string> AppliedRuleNames { get; set; } = new();
+    public bool? RequireCtForKnownAuthority { get; set; }
+    public bool? FlagUnknownAuthority { get; set; }
+    public bool? FlagUnknownRootAuthority { get; set; }
+    public bool? FlagClientAuthUsage { get; set; }
+    public bool? FlagSecureEmailUsage { get; set; }
+    public bool? FlagCrossServiceReuse { get; set; }
+    public bool? FlagCrossPortReuse { get; set; }
+    public int? RenewalWindowDays { get; set; }
+    public int? MaxReuseEndpointCount { get; set; }
 }

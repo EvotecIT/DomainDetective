@@ -122,6 +122,52 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDiffDetectsServiceChangeForSameHostAndPort() {
+            var now = DateTimeOffset.UtcNow;
+            var previous = new CertificateInventorySnapshot {
+                CapturedAtUtc = now.AddHours(-1),
+                Entries = new List<CertificateInventoryEntry> {
+                    new() {
+                        Host = "service-change.example.com",
+                        ResolvedHost = "service-change.example.com",
+                        Port = 443,
+                        Service = "HTTPS",
+                        CertificateThumbprint = "SVC-THUMB"
+                    }
+                }
+            };
+            var current = new CertificateInventorySnapshot {
+                CapturedAtUtc = now,
+                Entries = new List<CertificateInventoryEntry> {
+                    new() {
+                        Host = "service-change.example.com",
+                        ResolvedHost = "service-change.example.com",
+                        Port = 443,
+                        Service = "HTTPS-ALT",
+                        CertificateThumbprint = "SVC-THUMB"
+                    }
+                }
+            };
+
+            var diff = CertificateInventoryDiffAnalyzer.BuildDiff(new[] { previous, current });
+
+            Assert.Equal(1, diff.PreviousEndpointCount);
+            Assert.Equal(1, diff.CurrentEndpointCount);
+            Assert.Equal(0, diff.AddedCount);
+            Assert.Equal(0, diff.RemovedCount);
+            Assert.Equal(1, diff.ChangedCount);
+            Assert.Equal(0, diff.UnchangedCount);
+
+            var row = Assert.Single(diff.Endpoints);
+            Assert.Equal("service-change.example.com", row.Host);
+            Assert.Equal(443, row.Port);
+            Assert.Equal("Changed", row.Status);
+            Assert.Equal("HTTPS", row.PreviousService);
+            Assert.Equal("HTTPS-ALT", row.CurrentService);
+            Assert.Equal(new[] { "Service" }, row.ChangeReasons);
+        }
+
+        [Fact]
         public void BuildDiffDefaultsToLatestTwoSnapshotsAndCanIncludeUnchanged() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

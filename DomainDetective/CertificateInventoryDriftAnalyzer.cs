@@ -327,9 +327,7 @@ namespace DomainDetective {
         }
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
-            var host = entry.ResolvedHost ?? entry.Host;
-            var port = entry.Port > 0 ? entry.Port : 443;
-            return $"{host}:{port}";
+            return CertificateInventoryEndpointKey.Build(entry, includeServiceDimension: false);
         }
 
         private static string PickIssuer(CertificateInventoryEntry entry) {

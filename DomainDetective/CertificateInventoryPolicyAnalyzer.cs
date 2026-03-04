@@ -112,18 +112,18 @@ namespace DomainDetective {
         private static readonly string[] BaselineProfileNames = { "Strict", "Balanced", "Legacy" };
 
         private sealed class BaselineProfileDefinition {
-            public int RenewalWindowDays { get; init; }
-            public int MaxReuseEndpointCount { get; init; }
-            public string ExpiringSoonSeverity { get; init; } = "Medium";
-            public string ReuseEndpointFanoutSeverity { get; init; } = "Medium";
-            public string CrossReuseSeverity { get; init; } = "Medium";
-            public bool FlagUnknownAuthority { get; init; }
-            public bool FlagUnknownRootAuthority { get; init; }
-            public bool RequireCtForKnownAuthority { get; init; }
-            public bool FlagClientAuthUsage { get; init; }
-            public bool FlagSecureEmailUsage { get; init; }
-            public bool FlagCrossServiceReuse { get; init; }
-            public bool FlagCrossPortReuse { get; init; }
+            public int RenewalWindowDays { get; set; }
+            public int MaxReuseEndpointCount { get; set; }
+            public string ExpiringSoonSeverity { get; set; } = "Medium";
+            public string ReuseEndpointFanoutSeverity { get; set; } = "Medium";
+            public string CrossReuseSeverity { get; set; } = "Medium";
+            public bool FlagUnknownAuthority { get; set; }
+            public bool FlagUnknownRootAuthority { get; set; }
+            public bool RequireCtForKnownAuthority { get; set; }
+            public bool FlagClientAuthUsage { get; set; }
+            public bool FlagSecureEmailUsage { get; set; }
+            public bool FlagCrossServiceReuse { get; set; }
+            public bool FlagCrossPortReuse { get; set; }
         }
 
         private static readonly Dictionary<string, BaselineProfileDefinition> BaselineProfileDefinitions =
@@ -244,6 +244,14 @@ namespace DomainDetective {
                     endpoint.Host,
                     endpoint.Service,
                     endpoint.Port,
+                    endpoint.Issuer,
+                    endpoint.RootIssuer,
+                    endpoint.AuthenticationProfile,
+                    endpoint.IsKnownCertificateAuthority,
+                    endpoint.IsKnownRootCertificateAuthority,
+                    endpoint.PresentInCtLogs,
+                    endpoint.IsSelfSigned,
+                    endpoint.IsReachable,
                     normalizedBaselineProfile);
 
                 var effectiveProfileName = resolvedOverride?.EffectiveBaselineProfile ?? normalizedBaselineProfile;
@@ -252,7 +260,9 @@ namespace DomainDetective {
                         $"Policy override baseline profile '{effectiveProfileName}' must be one of: {BaselineProfileAcceptedValues}.");
                 }
 
-                var endpointProfile = BaselineProfileDefinitions[normalizedEffectiveProfileName];
+                var endpointProfile = ResolveEffectiveProfile(
+                    BaselineProfileDefinitions[normalizedEffectiveProfileName],
+                    resolvedOverride);
                 var suppressedCodes = resolvedOverride?.SuppressedViolationCodes?.Count > 0
                     ? new HashSet<string>(resolvedOverride.SuppressedViolationCodes, StringComparer.OrdinalIgnoreCase)
                     : null;
@@ -295,6 +305,25 @@ namespace DomainDetective {
                 .ToList();
 
             return summary;
+        }
+
+        private static BaselineProfileDefinition ResolveEffectiveProfile(
+            BaselineProfileDefinition baseline,
+            CertificateInventoryPolicyResolvedOverride? resolvedOverride) {
+            return new BaselineProfileDefinition {
+                RenewalWindowDays = resolvedOverride?.RenewalWindowDays ?? baseline.RenewalWindowDays,
+                MaxReuseEndpointCount = resolvedOverride?.MaxReuseEndpointCount ?? baseline.MaxReuseEndpointCount,
+                ExpiringSoonSeverity = baseline.ExpiringSoonSeverity,
+                ReuseEndpointFanoutSeverity = baseline.ReuseEndpointFanoutSeverity,
+                CrossReuseSeverity = baseline.CrossReuseSeverity,
+                FlagUnknownAuthority = resolvedOverride?.FlagUnknownAuthority ?? baseline.FlagUnknownAuthority,
+                FlagUnknownRootAuthority = resolvedOverride?.FlagUnknownRootAuthority ?? baseline.FlagUnknownRootAuthority,
+                RequireCtForKnownAuthority = resolvedOverride?.RequireCtForKnownAuthority ?? baseline.RequireCtForKnownAuthority,
+                FlagClientAuthUsage = resolvedOverride?.FlagClientAuthUsage ?? baseline.FlagClientAuthUsage,
+                FlagSecureEmailUsage = resolvedOverride?.FlagSecureEmailUsage ?? baseline.FlagSecureEmailUsage,
+                FlagCrossServiceReuse = resolvedOverride?.FlagCrossServiceReuse ?? baseline.FlagCrossServiceReuse,
+                FlagCrossPortReuse = resolvedOverride?.FlagCrossPortReuse ?? baseline.FlagCrossPortReuse
+            };
         }
 
         private static CertificateInventoryEndpointPolicy EvaluateEndpoint(

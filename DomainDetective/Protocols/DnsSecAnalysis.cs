@@ -794,8 +794,9 @@ namespace DomainDetective {
             try {
                 if (File.Exists(cacheFile) &&
                     DateTime.UtcNow - File.GetLastWriteTimeUtc(cacheFile) < TimeSpan.FromDays(7)) {
-                    var cached = File.ReadAllText(cacheFile);
-                    return ParseTrustAnchors(cached);
+                    if (TryReadCachedTrustAnchors(cacheFile, out string cachedXml)) {
+                        return ParseTrustAnchors(cachedXml);
+                    }
                 }
 
                 Directory.CreateDirectory(cacheDir);
@@ -822,11 +823,39 @@ namespace DomainDetective {
                 }
                 logger?.WriteVerbose("Trust anchor download failed: {0}", ex.Message);
                 if (File.Exists(cacheFile)) {
-                    var cached = File.ReadAllText(cacheFile);
-                    return ParseTrustAnchors(cached);
+                    if (TryReadCachedTrustAnchors(cacheFile, out string cachedXml)) {
+                        return ParseTrustAnchors(cachedXml);
+                    }
                 }
                 return (Array.Empty<string>(), null);
             }
+        }
+
+        private static bool TryReadCachedTrustAnchors(string path, out string xml) {
+            xml = string.Empty;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) {
+                return false;
+            }
+
+            const int maxAttempts = 5;
+            for (int attempt = 0; attempt < maxAttempts; attempt++) {
+                try {
+                    using var stream = new FileStream(
+                        path,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete);
+                    using var reader = new StreamReader(stream, Encoding.UTF8, true);
+                    xml = reader.ReadToEnd();
+                    return !string.IsNullOrWhiteSpace(xml);
+                } catch (IOException) when (attempt < maxAttempts - 1) {
+                    Thread.Sleep(50 * (attempt + 1));
+                } catch (UnauthorizedAccessException) when (attempt < maxAttempts - 1) {
+                    Thread.Sleep(50 * (attempt + 1));
+                }
+            }
+
+            return false;
         }
 
         private static (IReadOnlyList<string> anchors, DateTimeOffset? expiration) ParseTrustAnchors(string xml) {

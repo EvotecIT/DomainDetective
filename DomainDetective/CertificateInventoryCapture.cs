@@ -798,7 +798,7 @@ public sealed class CertificateInventoryCapture {
     }
 
     private static string BuildEndpointKey(string host, int port, string service) {
-        return $"{host.Trim().TrimEnd('.').ToLowerInvariant()}|{port}|{service.Trim().ToUpperInvariant()}";
+        return CertificateInventoryEndpointKey.Build(host, null, port, service, null);
     }
 
     private static bool TryBuildHttpsEndpointKey(string target, out string key) {
@@ -895,8 +895,12 @@ public sealed class CertificateInventoryCapture {
         var originalHttps = httpsTargets.Count;
         var originalMail = mailTargets.Count;
         var limit = options.MaxTargets;
-        var allowedMail = Math.Min(originalMail, limit);
-        var allowedHttps = Math.Max(0, limit - allowedMail);
+        ResolveTargetBudget(
+            originalHttps,
+            originalMail,
+            limit,
+            out var allowedHttps,
+            out var allowedMail);
 
         if (originalMail > allowedMail) {
             var keptMail = mailTargets.Values
@@ -925,6 +929,66 @@ public sealed class CertificateInventoryCapture {
         }
 
         warnings.Add($"Probe target list capped from {totalTargets} to {options.MaxTargets} by MaxTargets (HTTPS: {originalHttps}->{httpsTargets.Count}, Mail: {originalMail}->{mailTargets.Count}).");
+    }
+
+    private static void ResolveTargetBudget(
+        int httpsCount,
+        int mailCount,
+        int maxTargets,
+        out int allowedHttps,
+        out int allowedMail) {
+        allowedHttps = 0;
+        allowedMail = 0;
+        if (maxTargets <= 0) {
+            return;
+        }
+
+        var normalizedHttps = Math.Max(0, httpsCount);
+        var normalizedMail = Math.Max(0, mailCount);
+        if (normalizedHttps == 0) {
+            allowedMail = Math.Min(normalizedMail, maxTargets);
+            return;
+        }
+        if (normalizedMail == 0) {
+            allowedHttps = Math.Min(normalizedHttps, maxTargets);
+            return;
+        }
+
+        var total = normalizedHttps + normalizedMail;
+        var desiredHttps = (int)Math.Round(
+            maxTargets * (double)normalizedHttps / total,
+            MidpointRounding.AwayFromZero);
+        if (desiredHttps < 1) {
+            desiredHttps = 1;
+        }
+        if (desiredHttps > maxTargets - 1) {
+            desiredHttps = maxTargets - 1;
+        }
+
+        allowedHttps = Math.Min(normalizedHttps, desiredHttps);
+        allowedMail = Math.Min(normalizedMail, maxTargets - allowedHttps);
+
+        var remaining = maxTargets - (allowedHttps + allowedMail);
+        if (remaining <= 0) {
+            return;
+        }
+
+        var httpsRoom = normalizedHttps - allowedHttps;
+        if (httpsRoom > 0) {
+            var addHttps = Math.Min(remaining, httpsRoom);
+            allowedHttps += addHttps;
+            remaining -= addHttps;
+        }
+
+        if (remaining <= 0) {
+            return;
+        }
+
+        var mailRoom = normalizedMail - allowedMail;
+        if (mailRoom > 0) {
+            var addMail = Math.Min(remaining, mailRoom);
+            allowedMail += addMail;
+        }
     }
 
     private static void ApplyAdditionalEndpoints(

@@ -326,6 +326,531 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildPolicySupportsInternalEndpointFlagOverrides() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "internal-known.example.com",
+                            ResolvedHost = "internal-known.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-5),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = false,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = true,
+                            CertificateIssuerNormalized = "Corp Internal Issuer",
+                            CertificateRootIssuerNormalized = "Corp Internal Root",
+                            CertificateThumbprint = "32AA223344556677889900AABBCCDDEEFF001122"
+                        },
+                        new() {
+                            Host = "internal-unknown.example.com",
+                            ResolvedHost = "internal-unknown.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-5),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = false,
+                            IsKnownRootCertificateAuthority = false,
+                            PresentInCtLogs = false,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = true,
+                            CertificateIssuerNormalized = "Corp Unknown Issuer",
+                            CertificateRootIssuerNormalized = "Corp Unknown Root",
+                            CertificateThumbprint = "33AA223344556677889900AABBCCDDEEFF001122"
+                        }
+                    }
+                }
+            };
+
+            var strictWithoutOverrides = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Strict",
+                includeCompliant: true,
+                maxEndpoints: 100);
+            var baselineKnown = strictWithoutOverrides.Endpoints.Single(endpoint => endpoint.Host == "internal-known.example.com");
+            Assert.Contains(baselineKnown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.CtNotObserved);
+            Assert.Contains(baselineKnown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent);
+            Assert.Contains(baselineKnown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.SecureEmailEkuPresent);
+
+            var baselineUnknown = strictWithoutOverrides.Endpoints.Single(endpoint => endpoint.Host == "internal-unknown.example.com");
+            Assert.Contains(baselineUnknown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.UnknownAuthority);
+            Assert.Contains(baselineUnknown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.UnknownRootAuthority);
+            Assert.Contains(baselineUnknown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent);
+            Assert.Contains(baselineUnknown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.SecureEmailEkuPresent);
+
+            var overrides = new CertificateInventoryPolicyOverrides {
+                Rules = new List<CertificateInventoryPolicyOverrideRule> {
+                    new() {
+                        Name = "internal-pki-relaxed",
+                        Match = new CertificateInventoryPolicyOverrideMatch {
+                            HostSuffixes = new[] { "example.com" }
+                        },
+                        Action = new CertificateInventoryPolicyOverrideAction {
+                            RequireCtForKnownAuthority = false,
+                            FlagUnknownAuthority = false,
+                            FlagUnknownRootAuthority = false,
+                            FlagClientAuthUsage = false,
+                            FlagSecureEmailUsage = false
+                        }
+                    }
+                }
+            };
+
+            var strictWithOverrides = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Strict",
+                includeCompliant: true,
+                maxEndpoints: 100,
+                policyOverrides: overrides);
+            var overriddenKnown = strictWithOverrides.Endpoints.Single(endpoint => endpoint.Host == "internal-known.example.com");
+            Assert.Contains("internal-pki-relaxed", overriddenKnown.AppliedPolicyOverrideRules);
+            Assert.DoesNotContain(overriddenKnown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.CtNotObserved);
+            Assert.DoesNotContain(overriddenKnown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent);
+            Assert.DoesNotContain(overriddenKnown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.SecureEmailEkuPresent);
+
+            var overriddenUnknown = strictWithOverrides.Endpoints.Single(endpoint => endpoint.Host == "internal-unknown.example.com");
+            Assert.Contains("internal-pki-relaxed", overriddenUnknown.AppliedPolicyOverrideRules);
+            Assert.DoesNotContain(overriddenUnknown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.UnknownAuthority);
+            Assert.DoesNotContain(overriddenUnknown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.UnknownRootAuthority);
+            Assert.DoesNotContain(overriddenUnknown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent);
+            Assert.DoesNotContain(overriddenUnknown.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.SecureEmailEkuPresent);
+        }
+
+        [Fact]
+        public void BuildPolicySupportsRenewalWindowAndReuseThresholdOverrides() {
+            var now = DateTimeOffset.UtcNow;
+            const string sharedThumbprint = "44AA223344556677889900AABBCCDDEEFF001122";
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "reuse1.example.com",
+                            ResolvedHost = "reuse1.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            CertificateIssuerNormalized = "Issuer Reuse",
+                            CertificateRootIssuerNormalized = "Root Reuse",
+                            CertificateThumbprint = sharedThumbprint
+                        },
+                        new() {
+                            Host = "reuse2.example.com",
+                            ResolvedHost = "reuse2.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            CertificateIssuerNormalized = "Issuer Reuse",
+                            CertificateRootIssuerNormalized = "Root Reuse",
+                            CertificateThumbprint = sharedThumbprint
+                        }
+                    }
+                }
+            };
+
+            var baseline = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Balanced",
+                includeCompliant: true,
+                maxEndpoints: 100);
+            var baselineEndpoint = baseline.Endpoints.Single(endpoint => endpoint.Host == "reuse1.example.com");
+            Assert.DoesNotContain(baselineEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.CertificateExpiringSoon);
+            Assert.DoesNotContain(baselineEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ReuseEndpointFanout);
+
+            var overrides = new CertificateInventoryPolicyOverrides {
+                Rules = new List<CertificateInventoryPolicyOverrideRule> {
+                    new() {
+                        Name = "tight-reuse-window",
+                        Match = new CertificateInventoryPolicyOverrideMatch {
+                            HostSuffixes = new[] { "example.com" }
+                        },
+                        Action = new CertificateInventoryPolicyOverrideAction {
+                            RenewalWindowDays = 120,
+                            MaxReuseEndpointCount = 1
+                        }
+                    }
+                }
+            };
+
+            var withOverrides = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Balanced",
+                includeCompliant: true,
+                maxEndpoints: 100,
+                policyOverrides: overrides);
+            var overriddenEndpoint = withOverrides.Endpoints.Single(endpoint => endpoint.Host == "reuse1.example.com");
+            Assert.Contains("tight-reuse-window", overriddenEndpoint.AppliedPolicyOverrideRules);
+            Assert.Contains(overriddenEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.CertificateExpiringSoon);
+            Assert.Contains(overriddenEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ReuseEndpointFanout);
+        }
+
+        [Fact]
+        public void BuildPolicySupportsIssuerContainsOverrideMatching() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "issuer-match.example.com",
+                            ResolvedHost = "issuer-match.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = false,
+                            IsKnownRootCertificateAuthority = false,
+                            PresentInCtLogs = false,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            CertificateIssuerNormalized = "Corp Internal Issuing CA",
+                            CertificateRootIssuerNormalized = "Corp Internal Root CA",
+                            CertificateThumbprint = "66AA223344556677889900AABBCCDDEEFF001122"
+                        }
+                    }
+                }
+            };
+
+            var strict = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Strict",
+                includeCompliant: true,
+                maxEndpoints: 100);
+            var baselineEndpoint = strict.Endpoints.Single();
+            Assert.Contains(baselineEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.UnknownAuthority);
+            Assert.Contains(baselineEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.UnknownRootAuthority);
+
+            var overrides = new CertificateInventoryPolicyOverrides {
+                Rules = new List<CertificateInventoryPolicyOverrideRule> {
+                    new() {
+                        Name = "issuer-based-internal-pki",
+                        Match = new CertificateInventoryPolicyOverrideMatch {
+                            IssuerContainsAnyOf = new[] { "corp internal" }
+                        },
+                        Action = new CertificateInventoryPolicyOverrideAction {
+                            FlagUnknownAuthority = false,
+                            FlagUnknownRootAuthority = false
+                        }
+                    }
+                }
+            };
+
+            var strictWithOverride = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Strict",
+                includeCompliant: true,
+                maxEndpoints: 100,
+                policyOverrides: overrides);
+            var endpoint = strictWithOverride.Endpoints.Single();
+            Assert.Contains("issuer-based-internal-pki", endpoint.AppliedPolicyOverrideRules);
+            Assert.DoesNotContain(endpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.UnknownAuthority);
+            Assert.DoesNotContain(endpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.UnknownRootAuthority);
+            Assert.True(endpoint.Compliant);
+        }
+
+        [Fact]
+        public void BuildPolicySupportsAuthenticationProfileOverrideMatching() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "auth-profile.example.com",
+                            ResolvedHost = "auth-profile.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAndClientAuth,
+                            CertificateIssuerNormalized = "Issuer Auth Profile",
+                            CertificateRootIssuerNormalized = "Root Auth Profile",
+                            CertificateThumbprint = "67AA223344556677889900AABBCCDDEEFF001122"
+                        }
+                    }
+                }
+            };
+
+            var strict = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Strict",
+                includeCompliant: true,
+                maxEndpoints: 100);
+            var baselineEndpoint = strict.Endpoints.Single();
+            Assert.Contains(baselineEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent);
+
+            var overrides = new CertificateInventoryPolicyOverrides {
+                Rules = new List<CertificateInventoryPolicyOverrideRule> {
+                    new() {
+                        Name = "disable-client-auth-flag-for-server-and-client-profile",
+                        Match = new CertificateInventoryPolicyOverrideMatch {
+                            AuthenticationProfiles = new[] { CertificateAuthenticationProfileClassifier.ServerAndClientAuth }
+                        },
+                        Action = new CertificateInventoryPolicyOverrideAction {
+                            FlagClientAuthUsage = false
+                        }
+                    }
+                }
+            };
+
+            var strictWithOverride = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Strict",
+                includeCompliant: true,
+                maxEndpoints: 100,
+                policyOverrides: overrides);
+            var endpoint = strictWithOverride.Endpoints.Single();
+            Assert.Contains("disable-client-auth-flag-for-server-and-client-profile", endpoint.AppliedPolicyOverrideRules);
+            Assert.DoesNotContain(endpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent);
+            Assert.True(endpoint.Compliant);
+        }
+
+        [Fact]
+        public void BuildPolicySupportsKnownAuthorityOverrideMatching() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "known-ca.example.com",
+                            ResolvedHost = "known-ca.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = false,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            CertificateIssuerNormalized = "Known Issuer",
+                            CertificateRootIssuerNormalized = "Known Root",
+                            CertificateThumbprint = "68AA223344556677889900AABBCCDDEEFF001122"
+                        },
+                        new() {
+                            Host = "unknown-ca.example.com",
+                            ResolvedHost = "unknown-ca.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = false,
+                            IsKnownRootCertificateAuthority = false,
+                            PresentInCtLogs = false,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            CertificateIssuerNormalized = "Unknown Issuer",
+                            CertificateRootIssuerNormalized = "Unknown Root",
+                            CertificateThumbprint = "69AA223344556677889900AABBCCDDEEFF001122"
+                        }
+                    }
+                }
+            };
+
+            var overrides = new CertificateInventoryPolicyOverrides {
+                Rules = new List<CertificateInventoryPolicyOverrideRule> {
+                    new() {
+                        Name = "disable-ct-only-for-known-ca",
+                        Match = new CertificateInventoryPolicyOverrideMatch {
+                            KnownCertificateAuthority = true
+                        },
+                        Action = new CertificateInventoryPolicyOverrideAction {
+                            RequireCtForKnownAuthority = false
+                        }
+                    }
+                }
+            };
+
+            var policy = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Strict",
+                includeCompliant: true,
+                maxEndpoints: 100,
+                policyOverrides: overrides);
+
+            var knownEndpoint = policy.Endpoints.Single(endpoint => endpoint.Host == "known-ca.example.com");
+            Assert.Contains("disable-ct-only-for-known-ca", knownEndpoint.AppliedPolicyOverrideRules);
+            Assert.DoesNotContain(knownEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.CtNotObserved);
+
+            var unknownEndpoint = policy.Endpoints.Single(endpoint => endpoint.Host == "unknown-ca.example.com");
+            Assert.DoesNotContain("disable-ct-only-for-known-ca", unknownEndpoint.AppliedPolicyOverrideRules);
+            Assert.Contains(unknownEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.UnknownAuthority);
+        }
+
+        [Fact]
+        public void BuildPolicySupportsCtObservedOverrideMatching() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "ct-observed.example.com",
+                            ResolvedHost = "ct-observed.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = false,
+                            CertificateIssuerNormalized = "Observed Issuer",
+                            CertificateRootIssuerNormalized = "Observed Root",
+                            CertificateThumbprint = "70AA223344556677889900AABBCCDDEEFF001122"
+                        },
+                        new() {
+                            Host = "ct-missing.example.com",
+                            ResolvedHost = "ct-missing.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-30),
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = false,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = false,
+                            CertificateIssuerNormalized = "Missing Issuer",
+                            CertificateRootIssuerNormalized = "Missing Root",
+                            CertificateThumbprint = "71AA223344556677889900AABBCCDDEEFF001122"
+                        }
+                    }
+                }
+            };
+
+            var overrides = new CertificateInventoryPolicyOverrides {
+                Rules = new List<CertificateInventoryPolicyOverrideRule> {
+                    new() {
+                        Name = "disable-client-auth-when-ct-observed",
+                        Match = new CertificateInventoryPolicyOverrideMatch {
+                            CtObserved = true
+                        },
+                        Action = new CertificateInventoryPolicyOverrideAction {
+                            FlagClientAuthUsage = false
+                        }
+                    }
+                }
+            };
+
+            var policy = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Strict",
+                includeCompliant: true,
+                maxEndpoints: 100,
+                policyOverrides: overrides);
+
+            var observedEndpoint = policy.Endpoints.Single(endpoint => endpoint.Host == "ct-observed.example.com");
+            Assert.Contains("disable-client-auth-when-ct-observed", observedEndpoint.AppliedPolicyOverrideRules);
+            Assert.DoesNotContain(observedEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent);
+
+            var missingEndpoint = policy.Endpoints.Single(endpoint => endpoint.Host == "ct-missing.example.com");
+            Assert.DoesNotContain("disable-client-auth-when-ct-observed", missingEndpoint.AppliedPolicyOverrideRules);
+            Assert.Contains(missingEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ClientAuthEkuPresent);
+        }
+
+        [Fact]
         public void BuildPolicySuppressesDefaultViolationCodes() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

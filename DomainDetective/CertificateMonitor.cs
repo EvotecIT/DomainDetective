@@ -1307,15 +1307,7 @@ namespace DomainDetective {
         }
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
-            var host = entry.ResolvedHost ?? entry.Host;
-            if (string.IsNullOrWhiteSpace(host)) {
-                host = "unknown-host";
-            }
-            var port = entry.Port;
-            if (port <= 0) {
-                port = 443;
-            }
-            return $"{host}:{port}";
+            return CertificateInventoryEndpointKey.Build(entry);
         }
 
         private static string PickIssuer(CertificateInventoryEntry entry) {
