@@ -182,24 +182,60 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
             {
                 subdomainMap[kv.Key] = new CtSubdomainAggregate
                 {
-                    FirstSeenUtc = kv.Value.First,
-                    LastSeenUtc = kv.Value.Last
+                    FirstSeenUtc = kv.Value.FirstSeenUtc,
+                    LastSeenUtc = kv.Value.LastSeenUtc,
+                    LatestCertificateCtEntryTimestampUtc = kv.Value.LatestCertificateCtEntryTimestampUtc,
+                    LatestCertificateSubject = kv.Value.LatestCertificateSubject,
+                    LatestCertificateIssuer = kv.Value.LatestCertificateIssuer,
+                    LatestCertificateSerialNumber = kv.Value.LatestCertificateSerialNumber,
+                    LatestCertificateNotBeforeUtc = kv.Value.LatestCertificateNotBeforeUtc,
+                    LatestCertificateNotAfterUtc = kv.Value.LatestCertificateNotAfterUtc,
+                    CertificateObservationCount = kv.Value.CertificateObservationCount
                 };
+                subdomainMap[kv.Key].CtSources.Add("native-ct");
                 continue;
             }
 
             DateTimeOffset? first = existing.FirstSeenUtc;
             DateTimeOffset? last = existing.LastSeenUtc;
-            if (kv.Value.First.HasValue && (!first.HasValue || kv.Value.First.Value < first.Value))
+            if (kv.Value.FirstSeenUtc.HasValue && (!first.HasValue || kv.Value.FirstSeenUtc.Value < first.Value))
             {
-                first = kv.Value.First.Value;
+                first = kv.Value.FirstSeenUtc.Value;
             }
-            if (kv.Value.Last.HasValue && (!last.HasValue || kv.Value.Last.Value > last.Value))
+            if (kv.Value.LastSeenUtc.HasValue && (!last.HasValue || kv.Value.LastSeenUtc.Value > last.Value))
             {
-                last = kv.Value.Last.Value;
+                last = kv.Value.LastSeenUtc.Value;
             }
             existing.FirstSeenUtc = first;
             existing.LastSeenUtc = last;
+            existing.CertificateObservationCount += Math.Max(0, kv.Value.CertificateObservationCount);
+
+            if (!existing.LatestCertificateCtEntryTimestampUtc.HasValue ||
+                (kv.Value.LatestCertificateCtEntryTimestampUtc.HasValue &&
+                 kv.Value.LatestCertificateCtEntryTimestampUtc.Value >= existing.LatestCertificateCtEntryTimestampUtc.Value))
+            {
+                existing.LatestCertificateCtEntryTimestampUtc = kv.Value.LatestCertificateCtEntryTimestampUtc;
+                if (!string.IsNullOrWhiteSpace(kv.Value.LatestCertificateSubject))
+                {
+                    existing.LatestCertificateSubject = kv.Value.LatestCertificateSubject;
+                }
+                if (!string.IsNullOrWhiteSpace(kv.Value.LatestCertificateIssuer))
+                {
+                    existing.LatestCertificateIssuer = kv.Value.LatestCertificateIssuer;
+                }
+                if (!string.IsNullOrWhiteSpace(kv.Value.LatestCertificateSerialNumber))
+                {
+                    existing.LatestCertificateSerialNumber = kv.Value.LatestCertificateSerialNumber;
+                }
+                if (kv.Value.LatestCertificateNotBeforeUtc.HasValue)
+                {
+                    existing.LatestCertificateNotBeforeUtc = kv.Value.LatestCertificateNotBeforeUtc;
+                }
+                if (kv.Value.LatestCertificateNotAfterUtc.HasValue)
+                {
+                    existing.LatestCertificateNotAfterUtc = kv.Value.LatestCertificateNotAfterUtc;
+                }
+            }
             existing.CtSources.Add("native-ct");
         }
     }

@@ -493,6 +493,102 @@ public class TestCertificateInventoryCapture {
         Assert.Equal("CN=ct-only.example.com", discovered.LatestCertificateSubject);
     }
 
+    [Fact]
+    public async Task CaptureAsync_BackfillsMissingCtCertificateMetadataFromPassiveSource() {
+        var ctFirstSeen = new DateTimeOffset(2025, 12, 1, 10, 0, 0, TimeSpan.Zero);
+        var ctLastSeen = new DateTimeOffset(2026, 3, 5, 15, 42, 37, TimeSpan.Zero);
+        var ctEntryTimestamp = new DateTimeOffset(2026, 2, 20, 9, 30, 0, TimeSpan.Zero);
+        var notBefore = new DateTimeOffset(2025, 5, 12, 0, 0, 0, TimeSpan.Zero);
+        var notAfter = new DateTimeOffset(2026, 6, 10, 23, 59, 59, TimeSpan.Zero);
+
+        var capture = new CertificateInventoryCapture {
+            CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
+                    new SubdomainDiscoveryEntry {
+                        Name = "airtoxics.eurofins.com",
+                        FirstSeenUtc = ctFirstSeen,
+                        LastSeenUtc = ctLastSeen,
+                        CtSources = new[] { "native-ct" },
+                        CertificateObservationCount = 2,
+                        ResolutionStatus = SubdomainResolutionStatus.Resolves
+                    }
+                };
+                return Task.FromResult(discovered);
+            },
+            CtPassiveMetadataBackfillOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
+                    new SubdomainDiscoveryEntry {
+                        Name = "airtoxics.eurofins.com",
+                        FirstSeenUtc = ctFirstSeen,
+                        LastSeenUtc = ctLastSeen,
+                        LatestCertificateCtEntryTimestampUtc = ctEntryTimestamp,
+                        LatestCertificateSubject = "CN=airtoxics.eurofins.com",
+                        LatestCertificateIssuer = "CN=Amazon RSA 2048 M03, O=Amazon, C=US",
+                        LatestCertificateSerialNumber = "0C43361CBC44B340CDC357EEBB806963",
+                        LatestCertificateNotBeforeUtc = notBefore,
+                        LatestCertificateNotAfterUtc = notAfter,
+                        CtSources = new[] { "crt.sh" },
+                        CertificateObservationCount = 1,
+                        ResolutionStatus = SubdomainResolutionStatus.Resolves
+                    }
+                };
+                return Task.FromResult(discovered);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    var uri = new Uri(target);
+                    entries.Add(new CertificateMonitor.Entry {
+                        Host = uri.Host,
+                        ResolvedHost = uri.Host,
+                        Url = target,
+                        Scheme = uri.Scheme,
+                        Port = uri.Port,
+                        Service = "HTTPS",
+                        Valid = false,
+                        Expired = false,
+                        ChainComplete = false,
+                        Protocol = SslProtocols.None,
+                        Analysis = new CertificateAnalysis {
+                            Url = target,
+                            IsReachable = false
+                        }
+                    });
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            BackfillMissingCtCertificateMetadata = true,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "eurofins.com" }, options, cancellationToken: CancellationToken.None);
+        var endpoint = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("airtoxics.eurofins.com", endpoint.Host);
+        Assert.False(endpoint.IsReachable);
+        Assert.True(endpoint.PresentInCtLogs);
+        Assert.Equal("CN=airtoxics.eurofins.com", endpoint.CertificateSubject);
+        Assert.Equal("CN=Amazon RSA 2048 M03, O=Amazon, C=US", endpoint.CertificateIssuer);
+        Assert.Equal("0C43361CBC44B340CDC357EEBB806963", endpoint.CertificateSerialNumber);
+        Assert.Equal(notBefore, endpoint.NotBeforeUtc);
+        Assert.Equal(notAfter, endpoint.NotAfterUtc);
+        Assert.Equal(ctEntryTimestamp, endpoint.CtLatestCertificateEntryTimestampUtc);
+        Assert.Contains("native-ct", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+    }
+
     private static CertificateMonitor.Entry CreateHttpsEntry(string url, X509Certificate2 certificate) {
         var uri = new Uri(url);
         var analysis = new CertificateAnalysis {

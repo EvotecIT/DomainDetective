@@ -114,23 +114,8 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     continue;
                 }
 
-                if (!result.Subdomains.TryGetValue(normalized, out var agg)) {
-                    if (maxSubdomains > 0 && result.Subdomains.Count >= maxSubdomains) {
-                        return false;
-                    }
-                    result.Subdomains[normalized] = (timestampUtc, timestampUtc);
-                } else {
-                    var first = agg.First;
-                    var last = agg.Last;
-                    if (timestampUtc.HasValue) {
-                        if (!first.HasValue || timestampUtc.Value < first.Value) {
-                            first = timestampUtc.Value;
-                        }
-                        if (!last.HasValue || timestampUtc.Value > last.Value) {
-                            last = timestampUtc.Value;
-                        }
-                    }
-                    result.Subdomains[normalized] = (first, last);
+                if (!UpsertObservation(result.Subdomains, normalized, maxSubdomains, timestampUtc, cert)) {
+                    return false;
                 }
             }
         } catch (Exception ex) {
@@ -192,32 +177,62 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
                 foreach (var matchedDomain in matches) {
                     if (!result.SubdomainsByDomain.TryGetValue(matchedDomain, out var map)) {
-                        map = new Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>(StringComparer.OrdinalIgnoreCase);
+                        map = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
                         result.SubdomainsByDomain[matchedDomain] = map;
                     }
 
-                    if (!map.TryGetValue(normalized, out var agg)) {
-                        if (maxSubdomainsPerDomain > 0 && map.Count >= maxSubdomainsPerDomain) {
-                            return false;
-                        }
-                        map[normalized] = (timestampUtc, timestampUtc);
-                    } else {
-                        var first = agg.First;
-                        var last = agg.Last;
-                        if (timestampUtc.HasValue) {
-                            if (!first.HasValue || timestampUtc.Value < first.Value) {
-                                first = timestampUtc.Value;
-                            }
-                            if (!last.HasValue || timestampUtc.Value > last.Value) {
-                                last = timestampUtc.Value;
-                            }
-                        }
-                        map[normalized] = (first, last);
+                    if (!UpsertObservation(map, normalized, maxSubdomainsPerDomain, timestampUtc, cert)) {
+                        return false;
                     }
                 }
             }
         } catch (Exception ex) {
             logger?.WriteVerbose("Native CT shared certificate decode failed: {0}", ex.Message);
+        }
+
+        return true;
+    }
+
+    private static bool UpsertObservation(
+        Dictionary<string, NativeCtSubdomainObservation> map,
+        string normalizedName,
+        int maxSubdomains,
+        DateTimeOffset? timestampUtc,
+        X509Certificate2 certificate) {
+        if (!map.TryGetValue(normalizedName, out NativeCtSubdomainObservation? observation)) {
+            if (maxSubdomains > 0 && map.Count >= maxSubdomains) {
+                return false;
+            }
+
+            observation = new NativeCtSubdomainObservation();
+            map[normalizedName] = observation;
+        }
+
+        observation.CertificateObservationCount++;
+        if (timestampUtc.HasValue) {
+            DateTimeOffset ts = timestampUtc.Value;
+            if (!observation.FirstSeenUtc.HasValue || ts < observation.FirstSeenUtc.Value) {
+                observation.FirstSeenUtc = ts;
+            }
+            if (!observation.LastSeenUtc.HasValue || ts > observation.LastSeenUtc.Value) {
+                observation.LastSeenUtc = ts;
+            }
+        }
+
+        var shouldUpdateLatestMetadata = !observation.LatestCertificateCtEntryTimestampUtc.HasValue;
+        if (timestampUtc.HasValue &&
+            (!observation.LatestCertificateCtEntryTimestampUtc.HasValue ||
+             timestampUtc.Value >= observation.LatestCertificateCtEntryTimestampUtc.Value)) {
+            shouldUpdateLatestMetadata = true;
+        }
+
+        if (shouldUpdateLatestMetadata) {
+            observation.LatestCertificateCtEntryTimestampUtc = timestampUtc;
+            observation.LatestCertificateSubject = certificate.Subject;
+            observation.LatestCertificateIssuer = certificate.Issuer;
+            observation.LatestCertificateSerialNumber = certificate.SerialNumber;
+            observation.LatestCertificateNotBeforeUtc = new DateTimeOffset(certificate.NotBefore.ToUniversalTime());
+            observation.LatestCertificateNotAfterUtc = new DateTimeOffset(certificate.NotAfter.ToUniversalTime());
         }
 
         return true;

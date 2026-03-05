@@ -287,7 +287,7 @@ public sealed partial class CertificateInventoryCapture {
             }
 
             foreach (var pair in entries) {
-                MergeCtSubdomainEntry(discovered, CreateNativeCtDiscoveredEntry(pair.Key, pair.Value.First, pair.Value.Last));
+                MergeCtSubdomainEntry(discovered, CreateNativeCtDiscoveredEntry(pair.Key, pair.Value));
             }
         }
 
@@ -445,13 +445,19 @@ public sealed partial class CertificateInventoryCapture {
 
     private static SubdomainDiscoveryEntry CreateNativeCtDiscoveredEntry(
         string name,
-        DateTimeOffset? firstSeenUtc,
-        DateTimeOffset? lastSeenUtc) {
+        NativeCtSubdomainObservation observation) {
         return new SubdomainDiscoveryEntry {
             Name = name,
-            FirstSeenUtc = firstSeenUtc,
-            LastSeenUtc = lastSeenUtc,
+            FirstSeenUtc = observation?.FirstSeenUtc,
+            LastSeenUtc = observation?.LastSeenUtc,
+            LatestCertificateCtEntryTimestampUtc = observation?.LatestCertificateCtEntryTimestampUtc,
+            LatestCertificateSubject = observation?.LatestCertificateSubject,
+            LatestCertificateIssuer = observation?.LatestCertificateIssuer,
+            LatestCertificateSerialNumber = observation?.LatestCertificateSerialNumber,
+            LatestCertificateNotBeforeUtc = observation?.LatestCertificateNotBeforeUtc,
+            LatestCertificateNotAfterUtc = observation?.LatestCertificateNotAfterUtc,
             CtSources = new[] { "native-ct" },
+            CertificateObservationCount = Math.Max(0, observation?.CertificateObservationCount ?? 0),
             ResolutionStatus = SubdomainResolutionStatus.Unknown
         };
     }

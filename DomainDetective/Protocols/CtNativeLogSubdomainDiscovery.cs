@@ -43,7 +43,7 @@ internal sealed class NativeCtLogSubdomainDiscoveryResult {
     public DateTimeOffset? FirstSeenUtc { get; set; }
     public DateTimeOffset? LastSeenUtc { get; set; }
     public Dictionary<string, int> IssuerCounts { get; } = new(StringComparer.OrdinalIgnoreCase);
-    public Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)> Subdomains { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, NativeCtSubdomainObservation> Subdomains { get; } = new(StringComparer.OrdinalIgnoreCase);
     public int LogsAttempted { get; set; }
     public int LogsSucceeded { get; set; }
     public List<string> Warnings { get; } = new();
@@ -58,9 +58,21 @@ internal sealed class NativeCtLogSubdomainDiscoveryBatchResult {
     public int LogsSucceeded { get; set; }
     public List<string> Warnings { get; } = new();
     public List<NativeCtLogIngestionStatus> LogStatuses { get; } = new();
-    public Dictionary<string, Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>> SubdomainsByDomain { get; }
+    public Dictionary<string, Dictionary<string, NativeCtSubdomainObservation>> SubdomainsByDomain { get; }
         = new(StringComparer.OrdinalIgnoreCase);
     public bool SourceSucceeded => LogsSucceeded > 0;
+}
+
+internal sealed class NativeCtSubdomainObservation {
+    public DateTimeOffset? FirstSeenUtc { get; set; }
+    public DateTimeOffset? LastSeenUtc { get; set; }
+    public DateTimeOffset? LatestCertificateCtEntryTimestampUtc { get; set; }
+    public string? LatestCertificateSubject { get; set; }
+    public string? LatestCertificateIssuer { get; set; }
+    public string? LatestCertificateSerialNumber { get; set; }
+    public DateTimeOffset? LatestCertificateNotBeforeUtc { get; set; }
+    public DateTimeOffset? LatestCertificateNotAfterUtc { get; set; }
+    public int CertificateObservationCount { get; set; }
 }
 
 internal sealed class NativeCtLogIngestionStatus {
@@ -263,7 +275,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         var domainSet = new HashSet<string>(normalizedDomains, StringComparer.OrdinalIgnoreCase);
         var result = new NativeCtLogSubdomainDiscoveryBatchResult();
         foreach (var domain in normalizedDomains) {
-            result.SubdomainsByDomain[domain] = new Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>(StringComparer.OrdinalIgnoreCase);
+            result.SubdomainsByDomain[domain] = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
         }
 
         var logUrls = await ResolveLogUrlsAsync(options, cancellationToken).ConfigureAwait(false);

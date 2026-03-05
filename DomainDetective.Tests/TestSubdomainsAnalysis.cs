@@ -229,7 +229,14 @@ public class TestSubdomainsAnalysis
 
         Assert.True(analysis.QuerySucceeded);
         Assert.Equal(1, analysis.CertificateObservationCount);
-        Assert.Contains(analysis.Subdomains, s => s.Name == "api.example.com");
+        var api = Assert.Single(analysis.Subdomains, s => s.Name == "api.example.com");
+        Assert.False(string.IsNullOrWhiteSpace(api.LatestCertificateSubject));
+        Assert.False(string.IsNullOrWhiteSpace(api.LatestCertificateIssuer));
+        Assert.False(string.IsNullOrWhiteSpace(api.LatestCertificateSerialNumber));
+        Assert.Equal(new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero), api.LatestCertificateCtEntryTimestampUtc);
+        Assert.True(api.LatestCertificateNotBeforeUtc.HasValue);
+        Assert.True(api.LatestCertificateNotAfterUtc.HasValue);
+        Assert.True(api.CertificateObservationCount > 0);
         Assert.DoesNotContain(analysis.Subdomains, s => s.Name == "example.com");
         Assert.NotEmpty(analysis.NativeCtLogDiagnostics);
         Assert.Contains(analysis.NativeCtLogDiagnostics, line => line.Contains("ct.test.example/log1/", StringComparison.OrdinalIgnoreCase));

@@ -103,6 +103,12 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Maximum get-entries batch size used while native CT catch-up mode is active.</summary>
     public int NativeCtCatchUpBatchSize { get; set; } = 1_024;
 
+    /// <summary>
+    /// When true, performs passive CT backfill for CT-discovered subdomains that are missing
+    /// certificate metadata (subject/issuer/serial/notBefore/notAfter).
+    /// </summary>
+    public bool BackfillMissingCtCertificateMetadata { get; set; } = true;
+
     /// <summary>When true, discovers MX hosts from DNS.</summary>
     public bool IncludeMxHosts { get; set; } = true;
 
@@ -333,6 +339,7 @@ public sealed partial class CertificateInventoryCapture {
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<CertificateMonitor.Entry>>>? HttpsProbeOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtSubdomainEntryDiscoveryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<string>>>? CtSubdomainDiscoveryOverride { get; set; }
+    internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtPassiveMetadataBackfillOverride { get; set; }
     internal Func<CertificateInventorySnapshot, string, InternalLogger?, string>? PersistSnapshotOverride { get; set; }
     internal Func<CertificateInventoryCaptureOptions, DateTimeOffset, InternalLogger?, IReadOnlyDictionary<string, CertificateInventoryEntry>>? RecentSnapshotLookupOverride { get; set; }
 
@@ -479,6 +486,14 @@ public sealed partial class CertificateInventoryCapture {
                     logger,
                     cancellationToken).ConfigureAwait(false);
             }
+
+            discoveredSubdomains = await BackfillMissingCtCertificateMetadataAsync(
+                normalizedDomains,
+                discoveredSubdomains,
+                options,
+                warnings,
+                logger,
+                cancellationToken).ConfigureAwait(false);
 
             foreach (var subdomain in discoveredSubdomains) {
                 if (subdomain == null || string.IsNullOrWhiteSpace(subdomain.Name)) {
