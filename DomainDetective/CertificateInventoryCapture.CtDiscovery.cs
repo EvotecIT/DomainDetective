@@ -232,10 +232,11 @@ public sealed partial class CertificateInventoryCapture {
 
         var source = new NativeCtLogSubdomainDiscovery();
         var effectiveMaxRows = ComputeNativeSharedMaxRows(domains.Count, options.MaxCtRowsPerDomain);
+        var effectiveMaxSubdomains = ComputeNativeSharedMaxSubdomains(domains.Count, options.MaxCtSubdomainsPerDomain);
         var sourceOptions = new NativeCtLogSubdomainDiscoveryOptions {
             BaseDomain = domains[0],
             MaxCtRowsToProcess = effectiveMaxRows,
-            MaxSubdomains = options.MaxCtSubdomainsPerDomain > 0 ? options.MaxCtSubdomainsPerDomain : 10000,
+            MaxSubdomains = effectiveMaxSubdomains,
             LogListUrl = options.NativeCtLogListUrl,
             ExplicitLogUrls = options.NativeCtLogUrls.ToList(),
             MaxLogsToProcess = options.NativeCtMaxLogs,
@@ -667,6 +668,31 @@ public sealed partial class CertificateInventoryCapture {
             cap = discoveredCount;
         }
         return cap;
+    }
+
+    private static int ComputeNativeSharedMaxSubdomains(int domainCount, int maxCtSubdomainsPerDomain) {
+        if (domainCount <= 0) {
+            return maxCtSubdomainsPerDomain > 0 ? maxCtSubdomainsPerDomain : 100000;
+        }
+
+        if (maxCtSubdomainsPerDomain <= 0) {
+            var defaultCap = 100000;
+            if (domainCount <= 1) {
+                return defaultCap;
+            }
+
+            var scaledDefault = (long)defaultCap + ((long)Math.Min(domainCount - 1, 24) * 10000L);
+            return scaledDefault > 350000L ? 350000 : (int)scaledDefault;
+        }
+
+        var candidate = (long)maxCtSubdomainsPerDomain * Math.Max(1, domainCount);
+        if (candidate > 500000L) {
+            candidate = 500000L;
+        }
+        if (candidate < maxCtSubdomainsPerDomain) {
+            candidate = maxCtSubdomainsPerDomain;
+        }
+        return (int)candidate;
     }
 
     private static NativeCtLogDiagnosticEntry? BuildNativeCtLogDiagnosticEntry(NativeCtLogIngestionStatus status, IReadOnlyList<string> domains) {

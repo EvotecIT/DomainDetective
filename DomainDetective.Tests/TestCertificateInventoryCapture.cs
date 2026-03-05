@@ -233,6 +233,98 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_PrioritizesExpiringTargets_WhenApplyingMaxTargetsLimit() {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-priority-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
+                Port = 443
+            };
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "portal.example.com",
+                ResolvedHost = "portal.example.com",
+                Url = "https://portal.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = "EXPIRING123",
+                IsReachable = true,
+                Valid = true,
+                Expired = false,
+                NotAfterUtc = DateTimeOffset.UtcNow.AddDays(3)
+            });
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "api.example.com",
+                ResolvedHost = "api.example.com",
+                Url = "https://api.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = "HEALTHY123",
+                IsReachable = true,
+                Valid = true,
+                Expired = false,
+                NotAfterUtc = DateTimeOffset.UtcNow.AddDays(180)
+            });
+
+            using (var monitor = new CertificateMonitor {
+                CacheDirectory = cacheDirectory,
+                PersistInventorySnapshots = false
+            }) {
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+            var observedHttpsTargets = new List<string>();
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                    observedHttpsTargets.AddRange(httpsTargets);
+                    var entries = new List<CertificateMonitor.Entry>();
+                    foreach (var target in httpsTargets) {
+                        entries.Add(CreateHttpsEntry(target, certificate));
+                    }
+
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+                }
+            };
+
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                ReuseRecentSnapshotEntries = true,
+                RecentSnapshotTtl = TimeSpan.FromHours(24),
+                ReprobeExpiringWithinDays = 14,
+                MaxTargets = 1,
+                PersistSnapshot = false
+            };
+            options.AdditionalEndpoints.Add("https://portal.example.com");
+            options.AdditionalEndpoints.Add("https://api.example.com");
+
+            var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+            Assert.Single(observedHttpsTargets);
+            Assert.Contains(observedHttpsTargets, target => target.Contains("portal.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(observedHttpsTargets, target => target.Contains("api.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(1, result.HttpsEndpointCount);
+            Assert.Equal(1, result.EntryCount);
+        } finally {
+            try {
+                Directory.Delete(cacheDirectory, true);
+            } catch {
+                // no-op
+            }
+        }
+    }
+
+    [Fact]
     public async Task CaptureAsync_ReusesRecentSnapshotEntries_WhenEnabled() {
         var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(cacheDirectory);

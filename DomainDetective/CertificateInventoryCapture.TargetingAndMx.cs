@@ -102,7 +102,9 @@ public sealed partial class CertificateInventoryCapture {
         CertificateInventoryCaptureOptions options,
         HashSet<string> httpsTargets,
         Dictionary<string, MailEndpointTarget> mailTargets,
-        List<string> warnings) {
+        List<string> warnings,
+        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
+        int reprobeExpiringWithinDays) {
         if (options.MaxTargets <= 0) {
             return;
         }
@@ -124,7 +126,9 @@ public sealed partial class CertificateInventoryCapture {
 
         if (originalMail > allowedMail) {
             var keptMail = mailTargets.Values
-                .OrderBy(target => target.Host, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(target => ComputeMailTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays))
+                .ThenBy(target => ResolvePrioritySortDays(target, recentByEndpoint))
+                .ThenBy(target => target.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(target => target.Port)
                 .ThenBy(target => target.Service, StringComparer.OrdinalIgnoreCase)
                 .Take(allowedMail)
@@ -138,7 +142,9 @@ public sealed partial class CertificateInventoryCapture {
 
         if (originalHttps > allowedHttps) {
             var keptHttps = httpsTargets
-                .OrderBy(target => target, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(target => ComputeHttpsTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays))
+                .ThenBy(target => ResolvePrioritySortDays(target, recentByEndpoint))
+                .ThenBy(target => target, StringComparer.OrdinalIgnoreCase)
                 .Take(allowedHttps)
                 .ToList();
 
@@ -149,6 +155,135 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         warnings.Add($"Probe target list capped from {totalTargets} to {options.MaxTargets} by MaxTargets (HTTPS: {originalHttps}->{httpsTargets.Count}, Mail: {originalMail}->{mailTargets.Count}).");
+    }
+
+    private static int ComputeHttpsTargetPriority(
+        string target,
+        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
+        int reprobeExpiringWithinDays) {
+        if (recentByEndpoint != null &&
+            TryBuildHttpsEndpointKey(target, out var endpointKey) &&
+            recentByEndpoint.TryGetValue(endpointKey, out var cachedEntry)) {
+            return ComputeCachedEntryPriority(cachedEntry, reprobeExpiringWithinDays);
+        }
+
+        return 1000;
+    }
+
+    private static int ComputeMailTargetPriority(
+        MailEndpointTarget target,
+        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
+        int reprobeExpiringWithinDays) {
+        if (target == null) {
+            return 0;
+        }
+
+        if (TryGetCachedMailEntry(target, recentByEndpoint, out var cachedEntry)) {
+            return ComputeCachedEntryPriority(cachedEntry!, reprobeExpiringWithinDays);
+        }
+
+        return 1000;
+    }
+
+    private static int ResolvePrioritySortDays(
+        string target,
+        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint) {
+        if (recentByEndpoint != null &&
+            TryBuildHttpsEndpointKey(target, out var endpointKey) &&
+            recentByEndpoint.TryGetValue(endpointKey, out var cachedEntry)) {
+            return ParseSortDays(cachedEntry);
+        }
+
+        return int.MinValue;
+    }
+
+    private static int ResolvePrioritySortDays(
+        MailEndpointTarget target,
+        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint) {
+        if (TryGetCachedMailEntry(target, recentByEndpoint, out var cachedEntry)) {
+            return ParseSortDays(cachedEntry!);
+        }
+
+        return int.MinValue;
+    }
+
+    private static bool TryGetCachedMailEntry(
+        MailEndpointTarget target,
+        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
+        out CertificateInventoryEntry? cachedEntry) {
+        cachedEntry = null;
+        if (target == null || recentByEndpoint == null) {
+            return false;
+        }
+
+        var endpointKey = BuildEndpointKey(target.Host, target.Port, target.Service);
+        return recentByEndpoint.TryGetValue(endpointKey, out cachedEntry);
+    }
+
+    private static int ComputeCachedEntryPriority(CertificateInventoryEntry entry, int reprobeExpiringWithinDays) {
+        if (entry == null) {
+            return 0;
+        }
+
+        var score = 0;
+        if (!entry.IsReachable) {
+            score += 2000;
+        }
+        if (string.IsNullOrWhiteSpace(entry.CertificateThumbprint)) {
+            score += 1900;
+        }
+        if (entry.NotBeforeUtc.HasValue && entry.NotBeforeUtc.Value > DateTimeOffset.UtcNow) {
+            score += 1800;
+        }
+        if (entry.Expired) {
+            score += 1700;
+        }
+        if (!entry.Valid && entry.IsReachable) {
+            score += 1600;
+        }
+
+        if (entry.NotAfterUtc.HasValue) {
+            var daysToExpiry = (int)Math.Floor((entry.NotAfterUtc.Value - DateTimeOffset.UtcNow).TotalDays);
+            if (daysToExpiry <= Math.Max(0, reprobeExpiringWithinDays)) {
+                score += 1500;
+            } else if (daysToExpiry <= 30) {
+                score += 1400;
+            } else if (daysToExpiry <= 90) {
+                score += 1200;
+            }
+        }
+
+        if (entry.WeakKey) {
+            score += 1100;
+        }
+        if (entry.Sha1Signature) {
+            score += 1100;
+        }
+        if (!entry.AllowsServerAuthentication) {
+            score += 1050;
+        }
+        if (!entry.IsSelfSigned && !entry.IsKnownCertificateAuthority) {
+            score += 1025;
+        }
+        if (entry.IsKnownCertificateAuthority && !entry.PresentInCtLogs) {
+            score += 1010;
+        }
+        if (entry.AllowsClientAuthentication) {
+            score += 1005;
+        }
+        if (entry.AllowsSecureEmail) {
+            score += 1001;
+        }
+
+        return score;
+    }
+
+    private static int ParseSortDays(CertificateInventoryEntry entry) {
+        if (entry == null || !entry.NotAfterUtc.HasValue) {
+            return int.MaxValue;
+        }
+
+        return (int)Math.Floor((entry.NotAfterUtc.Value - DateTimeOffset.UtcNow).TotalDays);
     }
 
     private static void ResolveTargetBudget(
