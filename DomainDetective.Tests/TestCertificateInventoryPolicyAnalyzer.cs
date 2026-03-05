@@ -261,6 +261,73 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildPolicyUsesSeparateReuseThresholdsForPublicAndPrivateAuthorities() {
+            var now = DateTimeOffset.UtcNow;
+            const string publicThumbprint = "EEAA223344556677889900AABBCCDDEEFF001122";
+            const string privateThumbprint = "FFAA223344556677889900AABBCCDDEEFF001122";
+            var entries = new List<CertificateInventoryEntry>();
+            for (var i = 1; i <= 6; i++) {
+                entries.Add(BuildReusableEntry(now, $"public-{i}.example.com", 443, "HTTPS", publicThumbprint));
+                entries.Add(BuildPrivateReusableEntry(now, $"private-{i}.corp.example.com", 443, "HTTPS", privateThumbprint));
+            }
+
+            var policy = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                new[] {
+                    new CertificateInventorySnapshot {
+                        CapturedAtUtc = now,
+                        Port = 443,
+                        Entries = entries
+                    }
+                },
+                baselineProfile: "Balanced",
+                includeCompliant: true,
+                maxEndpoints: 100);
+
+            var publicEndpoint = policy.Endpoints.Single(endpoint => endpoint.Host == "public-1.example.com");
+            Assert.Equal("PublicAuthority", publicEndpoint.ReusePolicyScope);
+            Assert.Equal(5, publicEndpoint.EffectiveMaxReuseEndpointCount);
+            Assert.Contains(publicEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ReuseEndpointFanout);
+
+            var privateEndpoint = policy.Endpoints.Single(endpoint => endpoint.Host == "private-1.corp.example.com");
+            Assert.Equal("PrivateOrInternal", privateEndpoint.ReusePolicyScope);
+            Assert.Equal(50, privateEndpoint.EffectiveMaxReuseEndpointCount);
+            Assert.DoesNotContain(privateEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ReuseEndpointFanout);
+        }
+
+        [Fact]
+        public void BuildPolicyAllowsOverridesToTightenPrivateAuthorityReuseThresholds() {
+            var now = DateTimeOffset.UtcNow;
+            const string privateThumbprint = "10AA223344556677889900AABBCCDDEEFF001122";
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        BuildPrivateReusableEntry(now, "private-1.corp.example.com", 443, "HTTPS", privateThumbprint),
+                        BuildPrivateReusableEntry(now, "private-2.corp.example.com", 443, "HTTPS", privateThumbprint),
+                        BuildPrivateReusableEntry(now, "private-3.corp.example.com", 443, "HTTPS", privateThumbprint)
+                    }
+                }
+            };
+
+            var policy = CertificateInventoryPolicyAnalyzer.BuildPolicy(
+                snapshots,
+                baselineProfile: "Balanced",
+                includeCompliant: true,
+                maxEndpoints: 100,
+                policyOverrides: new CertificateInventoryPolicyOverrides {
+                    Defaults = new CertificateInventoryPolicyOverrideAction {
+                        MaxPrivateAuthorityReuseEndpointCount = 2
+                    }
+                });
+
+            var privateEndpoint = policy.Endpoints.Single(endpoint => endpoint.Host == "private-1.corp.example.com");
+            Assert.Equal("PrivateOrInternal", privateEndpoint.ReusePolicyScope);
+            Assert.Equal(2, privateEndpoint.EffectiveMaxReuseEndpointCount);
+            Assert.Contains(privateEndpoint.Violations, violation => violation.Code == CertificateInventoryPolicyViolationCodes.ReuseEndpointFanout);
+        }
+
+        [Fact]
         public void BuildPolicyAppliesHostSuffixOverrideAndSuppression() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

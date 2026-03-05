@@ -85,6 +85,8 @@ public sealed class CertificateInventoryPolicyOverrides {
         bool? flagCrossPortReuse = null;
         int? renewalWindowDays = null;
         int? maxReuseEndpointCount = null;
+        int? maxKnownAuthorityReuseEndpointCount = null;
+        int? maxPrivateAuthorityReuseEndpointCount = null;
 
         var defaults = Defaults ?? new CertificateInventoryPolicyOverrideAction();
         var rules = Rules ?? new List<CertificateInventoryPolicyOverrideRule>();
@@ -128,7 +130,9 @@ public sealed class CertificateInventoryPolicyOverrides {
             FlagCrossServiceReuse = flagCrossServiceReuse,
             FlagCrossPortReuse = flagCrossPortReuse,
             RenewalWindowDays = renewalWindowDays,
-            MaxReuseEndpointCount = maxReuseEndpointCount
+            MaxReuseEndpointCount = maxReuseEndpointCount,
+            MaxKnownAuthorityReuseEndpointCount = maxKnownAuthorityReuseEndpointCount,
+            MaxPrivateAuthorityReuseEndpointCount = maxPrivateAuthorityReuseEndpointCount
         };
 
         void ApplyAction(CertificateInventoryPolicyOverrideAction action, string source) {
@@ -175,6 +179,12 @@ public sealed class CertificateInventoryPolicyOverrides {
             }
             if (action.MaxReuseEndpointCount.HasValue) {
                 maxReuseEndpointCount = action.MaxReuseEndpointCount.Value;
+            }
+            if (action.MaxKnownAuthorityReuseEndpointCount.HasValue) {
+                maxKnownAuthorityReuseEndpointCount = action.MaxKnownAuthorityReuseEndpointCount.Value;
+            }
+            if (action.MaxPrivateAuthorityReuseEndpointCount.HasValue) {
+                maxPrivateAuthorityReuseEndpointCount = action.MaxPrivateAuthorityReuseEndpointCount.Value;
             }
         }
     }
@@ -242,6 +252,18 @@ public sealed class CertificateInventoryPolicyOverrides {
         if (action.MaxReuseEndpointCount.HasValue && action.MaxReuseEndpointCount.Value <= 0) {
             throw new InvalidOperationException(
                 $"Policy overrides {source}.maxReuseEndpointCount must be greater than 0.");
+        }
+
+        if (action.MaxKnownAuthorityReuseEndpointCount.HasValue &&
+            action.MaxKnownAuthorityReuseEndpointCount.Value <= 0) {
+            throw new InvalidOperationException(
+                $"Policy overrides {source}.maxKnownAuthorityReuseEndpointCount must be greater than 0.");
+        }
+
+        if (action.MaxPrivateAuthorityReuseEndpointCount.HasValue &&
+            action.MaxPrivateAuthorityReuseEndpointCount.Value <= 0) {
+            throw new InvalidOperationException(
+                $"Policy overrides {source}.maxPrivateAuthorityReuseEndpointCount must be greater than 0.");
         }
     }
 
@@ -311,6 +333,12 @@ public sealed class CertificateInventoryPolicyOverrideAction {
 
     [JsonPropertyName("maxReuseEndpointCount")]
     public int? MaxReuseEndpointCount { get; set; }
+
+    [JsonPropertyName("maxKnownAuthorityReuseEndpointCount")]
+    public int? MaxKnownAuthorityReuseEndpointCount { get; set; }
+
+    [JsonPropertyName("maxPrivateAuthorityReuseEndpointCount")]
+    public int? MaxPrivateAuthorityReuseEndpointCount { get; set; }
 }
 
 /// <summary>
@@ -488,4 +516,6 @@ internal sealed class CertificateInventoryPolicyResolvedOverride {
     public bool? FlagCrossPortReuse { get; set; }
     public int? RenewalWindowDays { get; set; }
     public int? MaxReuseEndpointCount { get; set; }
+    public int? MaxKnownAuthorityReuseEndpointCount { get; set; }
+    public int? MaxPrivateAuthorityReuseEndpointCount { get; set; }
 }
