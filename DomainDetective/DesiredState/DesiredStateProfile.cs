@@ -164,6 +164,9 @@ public sealed class DesiredStateProfile {
     [JsonPropertyName("robots")]
     public DesiredStateRobotsPolicy? Robots { get; set; }
 
+    [JsonPropertyName("certificateInventory")]
+    public DesiredStateCertificateInventoryPolicy? CertificateInventory { get; set; }
+
     public DesiredStateProfile Clone() {
         return new DesiredStateProfile {
             Checks = Checks?.ToArray(),
@@ -205,7 +208,8 @@ public sealed class DesiredStateProfile {
             WildcardDns = WildcardDns?.Clone(),
             Ttl = Ttl?.Clone(),
             SecurityTxt = SecurityTxt?.Clone(),
-            Robots = Robots?.Clone()
+            Robots = Robots?.Clone(),
+            CertificateInventory = CertificateInventory?.Clone()
         };
     }
 
@@ -410,6 +414,11 @@ public sealed class DesiredStateProfile {
             Robots ??= new DesiredStateRobotsPolicy();
             Robots.Apply(overlay.Robots);
         }
+
+        if (overlay.CertificateInventory != null) {
+            CertificateInventory ??= new DesiredStateCertificateInventoryPolicy();
+            CertificateInventory.Apply(overlay.CertificateInventory);
+        }
     }
 
     public void Normalize() {
@@ -451,6 +460,7 @@ public sealed class DesiredStateProfile {
         Ttl?.NormalizeDefaults();
         SecurityTxt?.NormalizeDefaults();
         Robots?.NormalizeDefaults();
+        CertificateInventory?.NormalizeDefaults();
     }
 }
 

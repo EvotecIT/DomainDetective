@@ -9,6 +9,8 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using DomainDetective.Definitions;
+using DomainDetective.DesiredState;
 
 namespace DomainDetective.CLI.Commands;
 
@@ -62,6 +64,21 @@ internal sealed class CertificateInventoryPolicySettings : CommandSettings {
     [Description("Optional JSON file path with policy override rules.")]
     [CommandOption("--policy-overrides-path <PATH>")]
     public string? PolicyOverridesPath { get; set; }
+
+    /// <summary>Optional desired state configuration path used to resolve certificate inventory policy settings.</summary>
+    [Description("Optional desired state configuration path used to resolve certificate inventory policy settings.")]
+    [CommandOption("--desired-state-path <PATH>")]
+    public string? DesiredStatePath { get; set; }
+
+    /// <summary>Domain/subject used to resolve desired state overrides when --desired-state-path is used.</summary>
+    [Description("Domain/subject used to resolve desired state overrides when --desired-state-path is used.")]
+    [CommandOption("--desired-state-domain <DOMAIN>")]
+    public string? DesiredStateDomain { get; set; }
+
+    /// <summary>Optional mail classification used when resolving desired state overrides.</summary>
+    [Description("Optional mail classification used when resolving desired state overrides.")]
+    [CommandOption("--mail-classification <CLASSIFICATION>")]
+    public MailDomainClassificationCategory? MailClassification { get; set; }
 }
 
 /// <summary>
@@ -80,19 +97,60 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
             return Task.FromResult(1);
         }
 
-        if (!CertificateInventoryPolicyAnalyzer.TryResolveBaselineProfile(settings.BaselineProfile, out var normalizedProfile)) {
-            AnsiConsole.MarkupLine($"[red]--baseline-profile must be one of: {CertificateInventoryPolicyAnalyzer.BaselineProfileAcceptedValues}.[/]");
-            return Task.FromResult(1);
-        }
-
         var cacheDirectory = CertificateInventoryCommandHelpers.ResolveCacheDirectory(settings.CacheDirectory);
         CertificateInventoryPolicyOverrides? policyOverrides = null;
-        if (!string.IsNullOrWhiteSpace(settings.PolicyOverridesPath)) {
-            try {
-                policyOverrides = CertificateInventoryPolicyOverrides.Load(settings.PolicyOverridesPath!);
-            } catch (Exception ex) {
-                AnsiConsole.MarkupLine($"[red]Failed to load policy overrides:[/] {ex.Message}");
+        string normalizedProfile;
+        bool includeCompliant = settings.IncludeCompliant;
+        int maxEndpoints = settings.MaxEndpoints;
+
+        if (!string.IsNullOrWhiteSpace(settings.DesiredStatePath)) {
+            if (string.IsNullOrWhiteSpace(settings.DesiredStateDomain)) {
+                AnsiConsole.MarkupLine("[red]--desired-state-domain is required when --desired-state-path is used.[/]");
                 return Task.FromResult(1);
+            }
+
+            DesiredStateConfiguration configuration;
+            try {
+                configuration = DesiredStateConfiguration.Load(settings.DesiredStatePath!);
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to load desired state:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+
+            ResolvedDesiredStateCertificateInventoryPolicy resolved;
+            try {
+                resolved = DesiredStateCertificateInventoryPolicyResolver.Resolve(
+                    settings.DesiredStateDomain!,
+                    configuration,
+                    settings.MailClassification,
+                    settings.DesiredStatePath);
+            } catch (Exception ex) {
+                AnsiConsole.MarkupLine($"[red]Failed to resolve desired state certificate inventory policy:[/] {ex.Message}");
+                return Task.FromResult(1);
+            }
+
+            if (!resolved.Enabled) {
+                AnsiConsole.MarkupLine("[yellow]Certificate inventory desired state is disabled for the resolved profile.[/]");
+                return Task.FromResult(0);
+            }
+
+            normalizedProfile = resolved.BaselineProfile;
+            includeCompliant = resolved.IncludeCompliant;
+            maxEndpoints = resolved.MaxEndpoints;
+            policyOverrides = resolved.PolicyOverrides;
+        } else {
+            if (!CertificateInventoryPolicyAnalyzer.TryResolveBaselineProfile(settings.BaselineProfile, out normalizedProfile)) {
+                AnsiConsole.MarkupLine($"[red]--baseline-profile must be one of: {CertificateInventoryPolicyAnalyzer.BaselineProfileAcceptedValues}.[/]");
+                return Task.FromResult(1);
+            }
+
+            if (!string.IsNullOrWhiteSpace(settings.PolicyOverridesPath)) {
+                try {
+                    policyOverrides = CertificateInventoryPolicyOverrides.Load(settings.PolicyOverridesPath!);
+                } catch (Exception ex) {
+                    AnsiConsole.MarkupLine($"[red]Failed to load policy overrides:[/] {ex.Message}");
+                    return Task.FromResult(1);
+                }
             }
         }
 
@@ -104,8 +162,8 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
         var policy = monitor.BuildInventoryPolicy(
             sinceUtc: CertificateInventoryCommandHelpers.ToUtc(settings.SinceUtc),
             baselineProfile: normalizedProfile,
-            includeCompliant: settings.IncludeCompliant,
-            maxEndpoints: settings.MaxEndpoints,
+            includeCompliant: includeCompliant,
+            maxEndpoints: maxEndpoints,
             policyOverrides: policyOverrides);
 
         if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
@@ -223,7 +281,7 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("Host,Port,Service,Compliant,EffectiveBaselineProfile,ViolationCount,MaxViolationSeverity,RiskScore,RiskSeverity,Issuer,RootIssuer,NotBeforeUtc,NotAfterUtc,DaysUntilValid,DaysToExpire,AuthenticationProfile,CertificateReuseEndpointCount,CertificateReuseDistinctServiceCount,CertificateReuseDistinctPortCount,SuppressedViolationCodes,AppliedPolicyOverrideRules,ViolationCodes,ViolationSeverities,ViolationMessages,RiskReasons");
+        sb.AppendLine("Host,Port,Service,Compliant,EffectiveBaselineProfile,ReusePolicyScope,EffectiveMaxReuseEndpointCount,ViolationCount,MaxViolationSeverity,RiskScore,RiskSeverity,Issuer,RootIssuer,NotBeforeUtc,NotAfterUtc,DaysUntilValid,DaysToExpire,AuthenticationProfile,CertificateReuseEndpointCount,CertificateReuseDistinctServiceCount,CertificateReuseDistinctPortCount,SuppressedViolationCodes,AppliedPolicyOverrideRules,ViolationCodes,ViolationSeverities,ViolationMessages,RiskReasons");
 
         foreach (var endpoint in policy.Endpoints) {
             var violationCodes = endpoint.Violations.Count == 0
@@ -254,6 +312,10 @@ internal sealed class CertificateInventoryPolicyCommand : AsyncCommand<Certifica
             sb.Append(endpoint.Compliant ? "true" : "false");
             sb.Append(',');
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.EffectiveBaselineProfile));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.ReusePolicyScope));
+            sb.Append(',');
+            sb.Append(endpoint.EffectiveMaxReuseEndpointCount);
             sb.Append(',');
             sb.Append(endpoint.ViolationCount);
             sb.Append(',');

@@ -1,5 +1,7 @@
 using System;
 using System.Management.Automation;
+using DomainDetective.Definitions;
+using DomainDetective.DesiredState;
 
 namespace DomainDetective.PowerShell;
 
@@ -16,6 +18,10 @@ namespace DomainDetective.PowerShell;
 /// <example>
 ///   <summary>Apply policy overrides from a JSON file</summary>
 ///   <code>Get-DDCertificateInventoryPolicy -BaselineProfile Balanced -PolicyOverridesPath .\policy-overrides.json</code>
+/// </example>
+/// <example>
+///   <summary>Resolve certificate policy from desired state configuration</summary>
+///   <code>Get-DDCertificateInventoryPolicy -DesiredStatePath .\desired-state.json -DesiredStateDomain example.com</code>
 /// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryPolicy")]
 [Alias("Get-CertificateInventoryPolicy")]
@@ -47,15 +53,94 @@ public sealed class CmdletGetCertificateInventoryPolicy : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? PolicyOverridesPath { get; set; }
 
+    /// <summary>Optional desired state configuration path used to resolve certificate inventory policy settings.</summary>
+    [Parameter(Mandatory = false)]
+    public string? DesiredStatePath { get; set; }
+
+    /// <summary>Domain/subject used to resolve desired state overrides when -DesiredStatePath is provided.</summary>
+    [Parameter(Mandatory = false)]
+    public string? DesiredStateDomain { get; set; }
+
+    /// <summary>Optional mail classification used when resolving desired state overrides.</summary>
+    [Parameter(Mandatory = false)]
+    public MailDomainClassificationCategory? MailClassification { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
-        if (!CertificateInventoryPolicyAnalyzer.TryResolveBaselineProfile(BaselineProfile, out var normalizedProfile)) {
-            ThrowTerminatingError(new ErrorRecord(
-                new ArgumentException($"-BaselineProfile must be one of: {CertificateInventoryPolicyAnalyzer.BaselineProfileAcceptedValues}.", nameof(BaselineProfile)),
-                "InvalidBaselineProfile",
-                ErrorCategory.InvalidArgument,
-                BaselineProfile));
-            return;
+        CertificateInventoryPolicyOverrides? policyOverrides = null;
+        string normalizedProfile = BaselineProfile;
+        bool includeCompliant = IncludeCompliant.IsPresent;
+        int maxEndpoints = MaxEndpoints;
+
+        if (!string.IsNullOrWhiteSpace(DesiredStatePath)) {
+            if (string.IsNullOrWhiteSpace(DesiredStateDomain)) {
+                ThrowTerminatingError(new ErrorRecord(
+                    new ArgumentException("-DesiredStateDomain is required when -DesiredStatePath is used.", nameof(DesiredStateDomain)),
+                    "DesiredStateDomainRequired",
+                    ErrorCategory.InvalidArgument,
+                    DesiredStatePath));
+                return;
+            }
+
+            DesiredStateConfiguration configuration;
+            try {
+                configuration = DesiredStateConfiguration.Load(DesiredStatePath!);
+            } catch (Exception ex) {
+                ThrowTerminatingError(new ErrorRecord(
+                    ex,
+                    "DesiredStateLoadFailed",
+                    ErrorCategory.InvalidData,
+                    DesiredStatePath));
+                return;
+            }
+
+            ResolvedDesiredStateCertificateInventoryPolicy resolved;
+            try {
+                resolved = DesiredStateCertificateInventoryPolicyResolver.Resolve(
+                    DesiredStateDomain!,
+                    configuration,
+                    MailClassification,
+                    DesiredStatePath);
+            } catch (Exception ex) {
+                ThrowTerminatingError(new ErrorRecord(
+                    ex,
+                    "DesiredStateCertificateInventoryResolveFailed",
+                    ErrorCategory.InvalidData,
+                    DesiredStatePath));
+                return;
+            }
+
+            if (!resolved.Enabled) {
+                WriteVerbose("Certificate inventory desired state is disabled for the resolved profile.");
+                return;
+            }
+
+            normalizedProfile = resolved.BaselineProfile;
+            includeCompliant = resolved.IncludeCompliant;
+            maxEndpoints = resolved.MaxEndpoints;
+            policyOverrides = resolved.PolicyOverrides;
+        } else {
+            if (!CertificateInventoryPolicyAnalyzer.TryResolveBaselineProfile(BaselineProfile, out normalizedProfile)) {
+                ThrowTerminatingError(new ErrorRecord(
+                    new ArgumentException($"-BaselineProfile must be one of: {CertificateInventoryPolicyAnalyzer.BaselineProfileAcceptedValues}.", nameof(BaselineProfile)),
+                    "InvalidBaselineProfile",
+                    ErrorCategory.InvalidArgument,
+                    BaselineProfile));
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(PolicyOverridesPath)) {
+                try {
+                    policyOverrides = CertificateInventoryPolicyOverrides.Load(PolicyOverridesPath!);
+                } catch (Exception ex) {
+                    ThrowTerminatingError(new ErrorRecord(
+                        ex,
+                        "PolicyOverridesLoadFailed",
+                        ErrorCategory.InvalidData,
+                        PolicyOverridesPath));
+                    return;
+                }
+            }
         }
 
         var monitor = new CertificateMonitor {
@@ -63,25 +148,11 @@ public sealed class CmdletGetCertificateInventoryPolicy : PSCmdlet {
             PersistInventorySnapshots = false
         };
 
-        CertificateInventoryPolicyOverrides? policyOverrides = null;
-        if (!string.IsNullOrWhiteSpace(PolicyOverridesPath)) {
-            try {
-                policyOverrides = CertificateInventoryPolicyOverrides.Load(PolicyOverridesPath!);
-            } catch (Exception ex) {
-                ThrowTerminatingError(new ErrorRecord(
-                    ex,
-                    "PolicyOverridesLoadFailed",
-                    ErrorCategory.InvalidData,
-                    PolicyOverridesPath));
-                return;
-            }
-        }
-
         var policy = monitor.BuildInventoryPolicy(
             sinceUtc: CertificateInventoryCmdletHelpers.ToUtc(SinceUtc),
             baselineProfile: normalizedProfile,
-            includeCompliant: IncludeCompliant.IsPresent,
-            maxEndpoints: MaxEndpoints,
+            includeCompliant: includeCompliant,
+            maxEndpoints: maxEndpoints,
             policyOverrides: policyOverrides);
         WriteObject(policy);
     }

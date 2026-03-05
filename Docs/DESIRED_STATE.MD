@@ -400,6 +400,13 @@ Add a `$schema` field for editor IntelliSense:
       "disallowFallback": false,
       "requireAiBotRules": false,
       "requireSitemap": false
+    },
+    "certificateInventory": {
+      "enabled": true,
+      "baselineProfile": "Balanced",
+      "includeCompliant": false,
+      "maxEndpoints": 300,
+      "policyOverridesPath": ".\\certificate-policy-overrides.json"
     }
   },
   "overrides": [
@@ -425,6 +432,7 @@ Add a `$schema` field for editor IntelliSense:
 - `Conforms` is calculated from the remaining (post-policy) assessments across all executed checks plus any `DesiredState.*` drift findings.
 - `dmarc.allowedReportDomainSuffixes` enables vendor-specific baselining (for example: require `rua=` to use your hosted DMARC provider domain suffix).
 - `overrides.match.classifications` uses DomainDetective mail classification (Sending/Receiving/Parked) to pick different desired states per domain role.
+- `certificateInventory` resolves into the existing certificate inventory policy engine, so teams can baseline issuer/reuse/CT posture through desired state instead of passing profile/override settings ad hoc.
 
 ### Trust boundary (file paths)
 
@@ -433,6 +441,7 @@ Add a `$schema` field for editor IntelliSense:
 - Do not load baselines from untrusted locations.
 - Avoid using user-controlled paths in automation without validation (treat `path` as a trust boundary).
 - DomainDetective enforces basic safety limits (file existence + size cap) but it does not sandbox configs.
+- `certificateInventory.policyOverridesPath` is also a trust boundary. Relative paths are resolved from the desired state file location.
 
 ### Migration & performance notes
 
@@ -474,5 +483,6 @@ The initial desired state evaluator covers:
 - AUTODISCOVER: optional requirements for SRV/CNAME records, target suffix allow-lists, and endpoint validation/host allow-lists.
 - SECURITYTXT: optional requirements for presence/validity, contact email constraints, and HTTPS fallback handling.
 - ROBOTS: optional requirements for presence, HTTPS fallback handling, AI bot directive presence, and sitemap declaration.
+- CERTIFICATE INVENTORY: desired-state wrapper for certificate inventory policy posture (baseline profile, compliant-row inclusion, endpoint cap, and optional policy-overrides file).
 
 The configuration model is intended to be extended to additional checks over time while preserving schema compatibility (versioned config + typed keys).

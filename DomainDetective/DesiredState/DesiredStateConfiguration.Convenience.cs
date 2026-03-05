@@ -242,4 +242,10 @@ public sealed partial class DesiredStateConfiguration {
         get => Defaults.Robots;
         set => Defaults.Robots = value;
     }
+
+    [JsonIgnore]
+    public DesiredStateCertificateInventoryPolicy? CertificateInventory {
+        get => Defaults.CertificateInventory;
+        set => Defaults.CertificateInventory = value;
+    }
 }

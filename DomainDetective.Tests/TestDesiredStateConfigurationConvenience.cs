@@ -15,6 +15,9 @@ public sealed class TestDesiredStateConfigurationConvenience {
         Assert.Null(cfg.Defaults.Spf);
         _ = cfg.Spf;
         Assert.Null(cfg.Defaults.Spf);
+
+        Assert.Null(cfg.Defaults.CertificateInventory);
+        _ = cfg.CertificateInventory;
+        Assert.Null(cfg.Defaults.CertificateInventory);
     }
 }
-
