@@ -177,5 +177,36 @@ namespace DomainDetective.Tests {
                 CertificateThumbprint = thumbprint
             };
         }
+
+        private static CertificateInventoryEntry BuildPrivateReusableEntry(
+            DateTimeOffset now,
+            string host,
+            int port,
+            string service,
+            string thumbprint) {
+            return new CertificateInventoryEntry {
+                Host = host,
+                ResolvedHost = host,
+                Port = port,
+                Service = service,
+                NotBeforeUtc = now.AddDays(-30),
+                NotAfterUtc = now.AddDays(180),
+                Valid = true,
+                Expired = false,
+                ChainComplete = true,
+                IsReachable = true,
+                HostnameMatch = true,
+                IsSelfSigned = false,
+                IsKnownCertificateAuthority = false,
+                IsKnownRootCertificateAuthority = false,
+                PresentInCtLogs = false,
+                AllowsServerAuthentication = true,
+                AllowsClientAuthentication = false,
+                AllowsSecureEmail = false,
+                CertificateIssuerNormalized = "Internal Issuer",
+                CertificateRootIssuerNormalized = "Internal Root",
+                CertificateThumbprint = thumbprint
+            };
+        }
     }
 }

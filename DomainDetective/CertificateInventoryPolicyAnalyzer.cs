@@ -86,6 +86,8 @@ namespace DomainDetective {
         public int CertificateReuseEndpointCount { get; set; }
         public int CertificateReuseDistinctServiceCount { get; set; }
         public int CertificateReuseDistinctPortCount { get; set; }
+        public string ReusePolicyScope { get; set; } = "PublicAuthority";
+        public int EffectiveMaxReuseEndpointCount { get; set; }
         public string EffectiveBaselineProfile { get; set; } = "Balanced";
         public List<string> SuppressedViolationCodes { get; set; } = new();
         public List<string> AppliedPolicyOverrideRules { get; set; } = new();
@@ -114,6 +116,8 @@ namespace DomainDetective {
         private sealed class BaselineProfileDefinition {
             public int RenewalWindowDays { get; set; }
             public int MaxReuseEndpointCount { get; set; }
+            public int MaxKnownAuthorityReuseEndpointCount { get; set; }
+            public int MaxPrivateAuthorityReuseEndpointCount { get; set; }
             public string ExpiringSoonSeverity { get; set; } = "Medium";
             public string ReuseEndpointFanoutSeverity { get; set; } = "Medium";
             public string CrossReuseSeverity { get; set; } = "Medium";
@@ -131,6 +135,8 @@ namespace DomainDetective {
                 ["Strict"] = new BaselineProfileDefinition {
                     RenewalWindowDays = 45,
                     MaxReuseEndpointCount = 3,
+                    MaxKnownAuthorityReuseEndpointCount = 3,
+                    MaxPrivateAuthorityReuseEndpointCount = 12,
                     ExpiringSoonSeverity = "Medium",
                     ReuseEndpointFanoutSeverity = "Medium",
                     CrossReuseSeverity = "Medium",
@@ -145,6 +151,8 @@ namespace DomainDetective {
                 ["Balanced"] = new BaselineProfileDefinition {
                     RenewalWindowDays = 30,
                     MaxReuseEndpointCount = 5,
+                    MaxKnownAuthorityReuseEndpointCount = 5,
+                    MaxPrivateAuthorityReuseEndpointCount = 50,
                     ExpiringSoonSeverity = "Low",
                     ReuseEndpointFanoutSeverity = "Low",
                     CrossReuseSeverity = "Low",
@@ -159,6 +167,8 @@ namespace DomainDetective {
                 ["Legacy"] = new BaselineProfileDefinition {
                     RenewalWindowDays = 14,
                     MaxReuseEndpointCount = 10,
+                    MaxKnownAuthorityReuseEndpointCount = 10,
+                    MaxPrivateAuthorityReuseEndpointCount = 200,
                     ExpiringSoonSeverity = "Low",
                     ReuseEndpointFanoutSeverity = "Low",
                     CrossReuseSeverity = "Low",
@@ -313,6 +323,12 @@ namespace DomainDetective {
             return new BaselineProfileDefinition {
                 RenewalWindowDays = resolvedOverride?.RenewalWindowDays ?? baseline.RenewalWindowDays,
                 MaxReuseEndpointCount = resolvedOverride?.MaxReuseEndpointCount ?? baseline.MaxReuseEndpointCount,
+                MaxKnownAuthorityReuseEndpointCount = resolvedOverride?.MaxKnownAuthorityReuseEndpointCount ??
+                                                      resolvedOverride?.MaxReuseEndpointCount ??
+                                                      baseline.MaxKnownAuthorityReuseEndpointCount,
+                MaxPrivateAuthorityReuseEndpointCount = resolvedOverride?.MaxPrivateAuthorityReuseEndpointCount ??
+                                                        resolvedOverride?.MaxReuseEndpointCount ??
+                                                        baseline.MaxPrivateAuthorityReuseEndpointCount,
                 ExpiringSoonSeverity = baseline.ExpiringSoonSeverity,
                 ReuseEndpointFanoutSeverity = baseline.ReuseEndpointFanoutSeverity,
                 CrossReuseSeverity = baseline.CrossReuseSeverity,
@@ -363,6 +379,8 @@ namespace DomainDetective {
                 CertificateReuseEndpointCount = endpoint.CertificateReuseEndpointCount,
                 CertificateReuseDistinctServiceCount = endpoint.CertificateReuseDistinctServiceCount,
                 CertificateReuseDistinctPortCount = endpoint.CertificateReuseDistinctPortCount,
+                ReusePolicyScope = ResolveReusePolicyScope(endpoint),
+                EffectiveMaxReuseEndpointCount = ResolveMaxReuseEndpointCount(endpoint, profile),
                 EffectiveBaselineProfile = effectiveBaselineProfile,
                 SuppressedViolationCodes = suppressedViolationCodes == null
                     ? new List<string>()
@@ -513,12 +531,12 @@ namespace DomainDetective {
                     suppressedViolationCodes);
             }
 
-            if (row.CertificateReuseEndpointCount > profile.MaxReuseEndpointCount) {
+            if (row.CertificateReuseEndpointCount > row.EffectiveMaxReuseEndpointCount) {
                 AddViolation(
                     row.Violations,
                     CertificateInventoryPolicyViolationCodes.ReuseEndpointFanout,
                     profile.ReuseEndpointFanoutSeverity,
-                    $"Certificate is reused by {row.CertificateReuseEndpointCount} endpoints (policy max {profile.MaxReuseEndpointCount}).",
+                    $"Certificate is reused by {row.CertificateReuseEndpointCount} endpoints ({row.ReusePolicyScope} policy max {row.EffectiveMaxReuseEndpointCount}).",
                     suppressedViolationCodes);
             }
 
@@ -544,6 +562,22 @@ namespace DomainDetective {
             row.MaxViolationSeverity = PickMaxSeverity(row.Violations);
             row.Compliant = row.ViolationCount == 0;
             return row;
+        }
+
+        private static string ResolveReusePolicyScope(CertificateInventoryEndpointRisk endpoint) {
+            if (endpoint.IsKnownCertificateAuthority && !endpoint.IsSelfSigned) {
+                return "PublicAuthority";
+            }
+
+            return "PrivateOrInternal";
+        }
+
+        private static int ResolveMaxReuseEndpointCount(
+            CertificateInventoryEndpointRisk endpoint,
+            BaselineProfileDefinition profile) {
+            return string.Equals(ResolveReusePolicyScope(endpoint), "PublicAuthority", StringComparison.OrdinalIgnoreCase)
+                ? profile.MaxKnownAuthorityReuseEndpointCount
+                : profile.MaxPrivateAuthorityReuseEndpointCount;
         }
 
         private static void AddViolation(
