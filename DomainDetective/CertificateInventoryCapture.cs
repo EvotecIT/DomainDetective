@@ -573,7 +573,18 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         ApplyAdditionalEndpoints(options, httpsTargets, mailTargets, warnings);
-        ApplyTargetLimit(options, httpsTargets, mailTargets, warnings);
+        IReadOnlyDictionary<string, CertificateInventoryEntry> recentByEndpoint =
+            new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+        if (options.ReuseRecentSnapshotEntries && options.RecentSnapshotTtl > TimeSpan.Zero) {
+            var now = DateTimeOffset.UtcNow;
+            if (RecentSnapshotLookupOverride != null) {
+                recentByEndpoint = RecentSnapshotLookupOverride(options, now, logger);
+            } else {
+                recentByEndpoint = LoadRecentSnapshotEntries(options, now);
+            }
+        }
+
+        ApplyTargetLimit(options, httpsTargets, mailTargets, warnings, recentByEndpoint, options.ReprobeExpiringWithinDays);
         AdvanceStage("Endpoint expansion");
         logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
 
@@ -582,12 +593,6 @@ public sealed partial class CertificateInventoryCapture {
         var mailTargetsToProbe = mailTargets.Values.ToList();
         if (options.ReuseRecentSnapshotEntries && options.RecentSnapshotTtl > TimeSpan.Zero) {
             var now = DateTimeOffset.UtcNow;
-            IReadOnlyDictionary<string, CertificateInventoryEntry> recentByEndpoint;
-            if (RecentSnapshotLookupOverride != null) {
-                recentByEndpoint = RecentSnapshotLookupOverride(options, now, logger);
-            } else {
-                recentByEndpoint = LoadRecentSnapshotEntries(options, now);
-            }
 
             if (recentByEndpoint.Count > 0) {
                 var reusedHttps = 0;
