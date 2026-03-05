@@ -149,7 +149,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     private void MergeNativeCtResult(
         NativeCtLogSubdomainDiscoveryResult nativeResult,
         Dictionary<string, int> issuerCounts,
-        Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)> subdomainMap)
+        Dictionary<string, CtSubdomainAggregate> subdomainMap)
     {
         CertificateObservationCount += nativeResult.CertificateObservationCount;
         if (nativeResult.ResultsCapped)
@@ -178,14 +178,18 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
 
         foreach (var kv in nativeResult.Subdomains)
         {
-            if (!subdomainMap.TryGetValue(kv.Key, out var existing))
+            if (!subdomainMap.TryGetValue(kv.Key, out CtSubdomainAggregate? existing))
             {
-                subdomainMap[kv.Key] = kv.Value;
+                subdomainMap[kv.Key] = new CtSubdomainAggregate
+                {
+                    FirstSeenUtc = kv.Value.First,
+                    LastSeenUtc = kv.Value.Last
+                };
                 continue;
             }
 
-            var first = existing.First;
-            var last = existing.Last;
+            DateTimeOffset? first = existing.FirstSeenUtc;
+            DateTimeOffset? last = existing.LastSeenUtc;
             if (kv.Value.First.HasValue && (!first.HasValue || kv.Value.First.Value < first.Value))
             {
                 first = kv.Value.First.Value;
@@ -194,7 +198,9 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
             {
                 last = kv.Value.Last.Value;
             }
-            subdomainMap[kv.Key] = (first, last);
+            existing.FirstSeenUtc = first;
+            existing.LastSeenUtc = last;
+            existing.CtSources.Add("native-ct");
         }
     }
 
@@ -252,8 +258,9 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         string json,
         string baseDomain,
         Dictionary<string, int> issuerCounts,
-        Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)> subdomainMap,
-        InternalLogger? logger)
+        Dictionary<string, CtSubdomainAggregate> subdomainMap,
+        InternalLogger? logger,
+        string sourceName)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -282,9 +289,15 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 issuerCounts[issuer!] = issuerCounts.TryGetValue(issuer!, out var c) ? c + 1 : 1;
             }
 
+            string? serialNumber = GetString(item, "serial_number");
+            string? commonName = GetCommonName(item);
+            DateTimeOffset? notBeforeUtc = ParseTimestamp(GetString(item, "not_before"));
+            DateTimeOffset? notAfterUtc = ParseTimestamp(GetString(item, "not_after"));
             var ts = GetString(item, "entry_timestamp") ?? GetString(item, "not_before");
-            if (TryParseTimestamp(ts, out var entryTs))
+            DateTimeOffset? entryTimestampUtc = ParseTimestamp(ts);
+            if (entryTimestampUtc.HasValue)
             {
+                DateTimeOffset entryTs = entryTimestampUtc.Value;
                 FirstSeenUtc = !FirstSeenUtc.HasValue ? entryTs : (entryTs < FirstSeenUtc.Value ? entryTs : FirstSeenUtc.Value);
                 LastSeenUtc = !LastSeenUtc.HasValue ? entryTs : (entryTs > LastSeenUtc.Value ? entryTs : LastSeenUtc.Value);
             }
@@ -324,31 +337,55 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                     continue;
                 }
 
-                DateTimeOffset? seen = null;
-                if (TryParseTimestamp(ts, out var parsed))
-                {
-                    seen = parsed;
-                }
-
-                if (!subdomainMap.TryGetValue(normalized, out var agg))
+                if (!subdomainMap.TryGetValue(normalized, out CtSubdomainAggregate? agg))
                 {
                     if (MaxSubdomains > 0 && subdomainMap.Count >= MaxSubdomains)
                     {
                         ResultsCapped = true;
                         break;
                     }
-                    subdomainMap[normalized] = (seen, seen);
+                    agg = new CtSubdomainAggregate();
+                    subdomainMap[normalized] = agg;
                 }
-                else
+
+                agg.CertificateObservationCount++;
+                if (!string.IsNullOrWhiteSpace(sourceName))
                 {
-                    var first = agg.First;
-                    var last = agg.Last;
-                    if (seen.HasValue)
+                    agg.CtSources.Add(sourceName);
+                }
+
+                if (entryTimestampUtc.HasValue)
+                {
+                    DateTimeOffset seen = entryTimestampUtc.Value;
+                    if (!agg.FirstSeenUtc.HasValue || seen < agg.FirstSeenUtc.Value)
                     {
-                        if (!first.HasValue || seen.Value < first.Value) first = seen.Value;
-                        if (!last.HasValue || seen.Value > last.Value) last = seen.Value;
+                        agg.FirstSeenUtc = seen;
                     }
-                    subdomainMap[normalized] = (first, last);
+
+                    if (!agg.LastSeenUtc.HasValue || seen > agg.LastSeenUtc.Value)
+                    {
+                        agg.LastSeenUtc = seen;
+                    }
+                }
+
+                bool shouldUpdateLatest = !agg.LatestCertificateCtEntryTimestampUtc.HasValue;
+                if (entryTimestampUtc.HasValue &&
+                    (!agg.LatestCertificateCtEntryTimestampUtc.HasValue ||
+                     entryTimestampUtc.Value >= agg.LatestCertificateCtEntryTimestampUtc.Value))
+                {
+                    shouldUpdateLatest = true;
+                }
+
+                if (shouldUpdateLatest)
+                {
+                    agg.LatestCertificateCtEntryTimestampUtc = entryTimestampUtc;
+                    agg.LatestCertificateSubject = string.IsNullOrWhiteSpace(commonName)
+                        ? normalized
+                        : commonName;
+                    agg.LatestCertificateIssuer = issuer;
+                    agg.LatestCertificateSerialNumber = serialNumber;
+                    agg.LatestCertificateNotBeforeUtc = notBeforeUtc;
+                    agg.LatestCertificateNotAfterUtc = notAfterUtc;
                 }
             }
 
@@ -559,6 +596,43 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         }
 
         return DateTimeOffset.TryParse(value, out result);
+    }
+
+    private static DateTimeOffset? ParseTimestamp(string? value)
+    {
+        return TryParseTimestamp(value, out DateTimeOffset result)
+            ? result
+            : null;
+    }
+
+    private static string? GetCommonName(JsonElement item)
+    {
+        string? commonName = GetString(item, "common_name");
+        if (!string.IsNullOrWhiteSpace(commonName))
+        {
+            return commonName;
+        }
+
+        if (item.ValueKind == JsonValueKind.Object &&
+            item.TryGetProperty("dns_names", out JsonElement dnsNames) &&
+            dnsNames.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement dnsName in dnsNames.EnumerateArray())
+            {
+                if (dnsName.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                string? value = dnsName.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+        }
+
+        return null;
     }
 
 }

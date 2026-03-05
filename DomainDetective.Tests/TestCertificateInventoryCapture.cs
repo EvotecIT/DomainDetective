@@ -403,6 +403,96 @@ public class TestCertificateInventoryCapture {
         Assert.Contains("https://crt.sh/?identity=%25.{0}&output=json", analysis.CtLogApiTemplates);
     }
 
+    [Fact]
+    public async Task CaptureAsync_HydratesUnreachableCtEndpointWithCtCertificateMetadata() {
+        var ctFirstSeen = new DateTimeOffset(2024, 1, 5, 10, 0, 0, TimeSpan.Zero);
+        var ctLastSeen = new DateTimeOffset(2026, 2, 10, 12, 0, 0, TimeSpan.Zero);
+        var ctNotBefore = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var ctNotAfter = new DateTimeOffset(2026, 10, 1, 23, 59, 59, TimeSpan.Zero);
+        var capture = new CertificateInventoryCapture {
+            CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
+                    new SubdomainDiscoveryEntry {
+                        Name = "ct-only.example.com",
+                        FirstSeenUtc = ctFirstSeen,
+                        LastSeenUtc = ctLastSeen,
+                        LatestCertificateCtEntryTimestampUtc = ctLastSeen,
+                        LatestCertificateSubject = "CN=ct-only.example.com",
+                        LatestCertificateIssuer = "CN=Test Issuer, O=Example",
+                        LatestCertificateSerialNumber = "ABC123",
+                        LatestCertificateNotBeforeUtc = ctNotBefore,
+                        LatestCertificateNotAfterUtc = ctNotAfter,
+                        CtSources = new[] { "crt.sh", "certspotter" },
+                        CertificateObservationCount = 4,
+                        ResolutionStatus = SubdomainResolutionStatus.Unknown
+                    }
+                };
+                return Task.FromResult(discovered);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    var uri = new Uri(target);
+                    entries.Add(new CertificateMonitor.Entry {
+                        Host = uri.Host,
+                        ResolvedHost = uri.Host,
+                        Url = target,
+                        Scheme = uri.Scheme,
+                        Port = uri.Port,
+                        Service = "HTTPS",
+                        Valid = false,
+                        Expired = false,
+                        ChainComplete = false,
+                        Protocol = SslProtocols.None,
+                        Analysis = new CertificateAnalysis {
+                            Url = target,
+                            IsReachable = false
+                        }
+                    });
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+        var endpoint = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("ct-only.example.com", endpoint.Host);
+        Assert.False(endpoint.IsReachable);
+        Assert.True(endpoint.PresentInCtLogs);
+        Assert.Equal("CN=ct-only.example.com", endpoint.CertificateSubject);
+        Assert.Equal("CN=Test Issuer, O=Example", endpoint.CertificateIssuer);
+        Assert.Equal("ABC123", endpoint.CertificateSerialNumber);
+        Assert.Equal(ctNotBefore, endpoint.NotBeforeUtc);
+        Assert.Equal(ctNotAfter, endpoint.NotAfterUtc);
+        Assert.Equal(ctFirstSeen, endpoint.CtFirstSeenUtc);
+        Assert.Equal(ctLastSeen, endpoint.CtLastSeenUtc);
+        Assert.Equal(ctLastSeen, endpoint.CtLatestCertificateEntryTimestampUtc);
+        Assert.Equal("ct-log", endpoint.CertificateChainSource);
+        Assert.Contains("ct-log", endpoint.CertificateChainSources, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("certspotter", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+
+        var discovered = Assert.Single(result.CtDiscoveredSubdomainEntries);
+        Assert.Equal("ct-only.example.com", discovered.Name);
+        Assert.Equal(ctLastSeen, discovered.LatestCertificateCtEntryTimestampUtc);
+        Assert.Equal("CN=ct-only.example.com", discovered.LatestCertificateSubject);
+    }
+
     private static CertificateMonitor.Entry CreateHttpsEntry(string url, X509Certificate2 certificate) {
         var uri = new Uri(url);
         var analysis = new CertificateAnalysis {

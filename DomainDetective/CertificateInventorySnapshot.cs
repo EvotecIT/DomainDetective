@@ -72,6 +72,24 @@ namespace DomainDetective {
         public IReadOnlyList<string> CtDiscoverySources { get; set; } = Array.Empty<string>();
         /// <summary>CT template-format/configuration errors observed during CT discovery.</summary>
         public IReadOnlyList<string> CtTemplateFormatErrors { get; set; } = Array.Empty<string>();
+        /// <summary>Earliest CT timestamp observed for this host/subdomain.</summary>
+        public DateTimeOffset? CtFirstSeenUtc { get; set; }
+        /// <summary>Latest CT timestamp observed for this host/subdomain.</summary>
+        public DateTimeOffset? CtLastSeenUtc { get; set; }
+        /// <summary>Latest CT entry timestamp tied to the latest observed certificate metadata.</summary>
+        public DateTimeOffset? CtLatestCertificateEntryTimestampUtc { get; set; }
+        /// <summary>Latest certificate subject observed in CT logs for this host/subdomain.</summary>
+        public string? CtLatestCertificateSubject { get; set; }
+        /// <summary>Latest certificate issuer observed in CT logs for this host/subdomain.</summary>
+        public string? CtLatestCertificateIssuer { get; set; }
+        /// <summary>Latest certificate serial number observed in CT logs for this host/subdomain.</summary>
+        public string? CtLatestCertificateSerialNumber { get; set; }
+        /// <summary>Latest certificate not-before timestamp observed in CT logs for this host/subdomain.</summary>
+        public DateTimeOffset? CtLatestCertificateNotBeforeUtc { get; set; }
+        /// <summary>Latest certificate not-after timestamp observed in CT logs for this host/subdomain.</summary>
+        public DateTimeOffset? CtLatestCertificateNotAfterUtc { get; set; }
+        /// <summary>Number of CT observations contributing to this host/subdomain aggregate.</summary>
+        public int CtObservationCount { get; set; }
         /// <summary>Days to expiry as observed at snapshot capture time.</summary>
         public int DaysToExpire { get; set; }
         public int DaysValid { get; set; }

@@ -261,6 +261,9 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>CT-discovered subdomains included for HTTPS probing.</summary>
     public IReadOnlyList<string> CtDiscoveredSubdomains { get; set; } = Array.Empty<string>();
 
+    /// <summary>CT-discovered subdomain records with CT first/last seen and latest observed certificate metadata.</summary>
+    public IReadOnlyList<SubdomainDiscoveryEntry> CtDiscoveredSubdomainEntries { get; set; } = Array.Empty<SubdomainDiscoveryEntry>();
+
     /// <summary>Mail endpoints probed in this run.</summary>
     public IReadOnlyList<string> MailEndpoints { get; set; } = Array.Empty<string>();
 
@@ -328,6 +331,7 @@ public sealed partial class CertificateInventoryCapture {
 
     internal Func<string, DnsConfiguration, int, CancellationToken, Task<IReadOnlyList<string>>>? MxLookupOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<CertificateMonitor.Entry>>>? HttpsProbeOverride { get; set; }
+    internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtSubdomainEntryDiscoveryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<string>>>? CtSubdomainDiscoveryOverride { get; set; }
     internal Func<CertificateInventorySnapshot, string, InternalLogger?, string>? PersistSnapshotOverride { get; set; }
     internal Func<CertificateInventoryCaptureOptions, DateTimeOffset, InternalLogger?, IReadOnlyDictionary<string, CertificateInventoryEntry>>? RecentSnapshotLookupOverride { get; set; }
@@ -424,6 +428,7 @@ public sealed partial class CertificateInventoryCapture {
         var nativeCtLogDiagnostics = new List<string>();
         var nativeCtLogDiagnosticEntries = new List<NativeCtLogDiagnosticEntry>();
         var ctDiscoveredSubdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ctDiscoveredSubdomainEntries = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         const int totalStages = 9;
         var stage = 0;
         void AdvanceStage(string currentOperation) {
@@ -452,9 +457,18 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         if (options.IncludeCtDiscoveredSubdomains && normalizedDomains.Count > 0) {
-            IReadOnlyList<string> discoveredSubdomains;
-            if (CtSubdomainDiscoveryOverride != null) {
-                discoveredSubdomains = await CtSubdomainDiscoveryOverride(normalizedDomains, options, logger, cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<SubdomainDiscoveryEntry> discoveredSubdomains;
+            if (CtSubdomainEntryDiscoveryOverride != null) {
+                discoveredSubdomains = await CtSubdomainEntryDiscoveryOverride(normalizedDomains, options, logger, cancellationToken).ConfigureAwait(false);
+            } else if (CtSubdomainDiscoveryOverride != null) {
+                var overridden = await CtSubdomainDiscoveryOverride(normalizedDomains, options, logger, cancellationToken).ConfigureAwait(false);
+                discoveredSubdomains = overridden
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Select(name => new SubdomainDiscoveryEntry {
+                        Name = name.Trim(),
+                        CtSources = new[] { "override" }
+                    })
+                    .ToList();
             } else {
                 discoveredSubdomains = await DiscoverCtSubdomainsAsync(
                     normalizedDomains,
@@ -467,10 +481,14 @@ public sealed partial class CertificateInventoryCapture {
             }
 
             foreach (var subdomain in discoveredSubdomains) {
-                if (!string.IsNullOrWhiteSpace(subdomain)) {
-                    ctDiscoveredSubdomains.Add(subdomain);
-                    httpsTargets.Add(BuildHttpsUrl(subdomain, options.HttpsPort));
+                if (subdomain == null || string.IsNullOrWhiteSpace(subdomain.Name)) {
+                    continue;
                 }
+
+                var normalizedSubdomain = subdomain.Name.Trim();
+                ctDiscoveredSubdomains.Add(normalizedSubdomain);
+                MergeCtSubdomainEntry(ctDiscoveredSubdomainEntries, subdomain);
+                httpsTargets.Add(BuildHttpsUrl(normalizedSubdomain, options.HttpsPort));
             }
 
             logger.WriteVerbose("CT subdomain discovery returned {0} unique candidate(s).", ctDiscoveredSubdomains.Count);
@@ -613,6 +631,7 @@ public sealed partial class CertificateInventoryCapture {
 
         var deduped = DeduplicateEntries(allEntries);
         var capturedAtUtc = DateTimeOffset.UtcNow;
+        EnrichEntriesWithCtSubdomainMetadata(deduped, ctDiscoveredSubdomainEntries, capturedAtUtc);
         var distinctPorts = deduped
             .Select(e => e.Port)
             .Where(port => port > 0)
@@ -677,6 +696,10 @@ public sealed partial class CertificateInventoryCapture {
             MxHosts = mxHosts.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
             HttpsEndpoints = httpsTargets.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
             CtDiscoveredSubdomains = ctDiscoveredSubdomains.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            CtDiscoveredSubdomainEntries = ctDiscoveredSubdomainEntries.Values
+                .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(CloneSubdomainEntry)
+                .ToList(),
             MailEndpoints = mailTargets.Values
                 .OrderBy(x => x.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.Port)

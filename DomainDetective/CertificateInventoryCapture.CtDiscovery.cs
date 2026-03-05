@@ -13,7 +13,7 @@ using DomainDetective.Helpers;
 namespace DomainDetective;
 
 public sealed partial class CertificateInventoryCapture {
-    private static async Task<IReadOnlyList<string>> DiscoverCtSubdomainsAsync(
+    private static async Task<IReadOnlyList<SubdomainDiscoveryEntry>> DiscoverCtSubdomainsAsync(
         IReadOnlyList<string> domains,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
@@ -22,14 +22,14 @@ public sealed partial class CertificateInventoryCapture {
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (domains == null || domains.Count == 0 || !options.IncludeCtDiscoveredSubdomains) {
-            return Array.Empty<string>();
+            return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
         if (options.EnableNativeCtLogSubdomainSource &&
             options.EnableNativeCtSharedIngestion &&
             domains.Count > 1) {
             logger.WriteVerbose("Using shared native CT ingestion for {0} domain(s).", domains.Count);
-            IReadOnlyList<string> nativeSharedDiscovered = await DiscoverCtSubdomainsNativeSharedAsync(
+            IReadOnlyList<SubdomainDiscoveryEntry> nativeSharedDiscovered = await DiscoverCtSubdomainsNativeSharedAsync(
                 domains,
                 options,
                 warnings,
@@ -43,21 +43,30 @@ public sealed partial class CertificateInventoryCapture {
                 logger.WriteVerbose(
                     "Shared native CT ingestion returned 0 subdomains for {0} domain(s). Falling back to passive CT APIs.",
                     domains.Count);
-                IReadOnlyList<string> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
+                IReadOnlyList<SubdomainDiscoveryEntry> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
                     domains,
                     options,
                     warnings,
                     logger,
                     cancellationToken).ConfigureAwait(false);
                 if (passiveDiscovered.Count > 0) {
-                    return passiveDiscovered;
+                    var mergedFallback = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var entry in nativeSharedDiscovered) {
+                        MergeCtSubdomainEntry(mergedFallback, entry);
+                    }
+                    foreach (var entry in passiveDiscovered) {
+                        MergeCtSubdomainEntry(mergedFallback, entry);
+                    }
+                    return mergedFallback.Values
+                        .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
                 }
             }
 
             return nativeSharedDiscovered;
         }
 
-        var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var discovered = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         var warningLock = new object();
         var diagnosticsLock = new object();
         var diagnosticEntriesLock = new object();
@@ -158,7 +167,7 @@ public sealed partial class CertificateInventoryCapture {
                         }
 
                         lock (discoveredLock) {
-                            discovered.Add(candidate.Name);
+                            MergeCtSubdomainEntry(discovered, candidate);
                         }
                         discoveredForDomain.Add(candidate.Name);
                     }
@@ -191,22 +200,24 @@ public sealed partial class CertificateInventoryCapture {
                 logger.WriteVerbose(
                     "Native CT returned no subdomains for {0} domain(s). Falling back to passive CT APIs for those domains.",
                     fallbackDomains.Count);
-                IReadOnlyList<string> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
+                IReadOnlyList<SubdomainDiscoveryEntry> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
                     fallbackDomains,
                     options,
                     warnings,
                     logger,
                     cancellationToken).ConfigureAwait(false);
                 foreach (var subdomain in passiveDiscovered) {
-                    discovered.Add(subdomain);
+                    MergeCtSubdomainEntry(discovered, subdomain);
                 }
             }
         }
 
-        return discovered.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+        return discovered.Values
+            .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
-    private static async Task<IReadOnlyList<string>> DiscoverCtSubdomainsNativeSharedAsync(
+    private static async Task<IReadOnlyList<SubdomainDiscoveryEntry>> DiscoverCtSubdomainsNativeSharedAsync(
         IReadOnlyList<string> domains,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
@@ -269,23 +280,26 @@ public sealed partial class CertificateInventoryCapture {
             warnings.Add("Native CT shared ingestion reached configured caps.");
         }
 
-        var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var discovered = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var domain in domains) {
             if (!batchResult.SubdomainsByDomain.TryGetValue(domain, out var entries)) {
                 continue;
             }
 
-            foreach (var name in entries.Keys) {
-                discovered.Add(name);
+            foreach (var pair in entries) {
+                MergeCtSubdomainEntry(discovered, CreateNativeCtDiscoveredEntry(pair.Key, pair.Value.First, pair.Value.Last));
             }
         }
 
         if (!options.VerifyCtDiscoveredSubdomains || discovered.Count == 0) {
-            return discovered.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+            return discovered.Values
+                .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         var verifyCap = ComputeVerifyCap(domains.Count, options.MaxCtSubdomainsPerDomain, discovered.Count);
         var namesToVerify = discovered
+            .Keys
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .Take(verifyCap)
             .ToList();
@@ -294,10 +308,37 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var resolved = await VerifyDiscoveredSubdomainsResolveAsync(namesToVerify, options, cancellationToken).ConfigureAwait(false);
-        return resolved.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+        var resolvedEntries = new List<SubdomainDiscoveryEntry>(resolved.Count);
+        foreach (var resolvedName in resolved) {
+            if (discovered.TryGetValue(resolvedName, out var entry)) {
+                resolvedEntries.Add(new SubdomainDiscoveryEntry {
+                    Name = entry.Name,
+                    FirstSeenUtc = entry.FirstSeenUtc,
+                    LastSeenUtc = entry.LastSeenUtc,
+                    LatestCertificateCtEntryTimestampUtc = entry.LatestCertificateCtEntryTimestampUtc,
+                    LatestCertificateSubject = entry.LatestCertificateSubject,
+                    LatestCertificateIssuer = entry.LatestCertificateIssuer,
+                    LatestCertificateSerialNumber = entry.LatestCertificateSerialNumber,
+                    LatestCertificateNotBeforeUtc = entry.LatestCertificateNotBeforeUtc,
+                    LatestCertificateNotAfterUtc = entry.LatestCertificateNotAfterUtc,
+                    CtSources = entry.CtSources,
+                    CertificateObservationCount = entry.CertificateObservationCount,
+                    ResolutionStatus = SubdomainResolutionStatus.Resolves,
+                    ARecords = entry.ARecords,
+                    AaaaRecords = entry.AaaaRecords,
+                    SensitiveRisk = entry.SensitiveRisk,
+                    SensitiveSignals = entry.SensitiveSignals,
+                    AiSignals = entry.AiSignals
+                });
+            }
+        }
+
+        return resolvedEntries
+            .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
-    private static async Task<IReadOnlyList<string>> DiscoverCtSubdomainsPassiveAsync(
+    private static async Task<IReadOnlyList<SubdomainDiscoveryEntry>> DiscoverCtSubdomainsPassiveAsync(
         IReadOnlyList<string> domains,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
@@ -305,7 +346,7 @@ public sealed partial class CertificateInventoryCapture {
         CancellationToken cancellationToken,
         DnsEndpoint? dnsEndpointOverride = null,
         bool allowSystemDnsRetry = true) {
-        var discovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var discovered = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         var warningLock = new object();
         var discoveredLock = new object();
         var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
@@ -357,7 +398,7 @@ public sealed partial class CertificateInventoryCapture {
                         }
 
                         lock (discoveredLock) {
-                            discovered.Add(candidate.Name);
+                            MergeCtSubdomainEntry(discovered, candidate);
                         }
                     }
                 } catch (Exception ex) {
@@ -383,7 +424,7 @@ public sealed partial class CertificateInventoryCapture {
                 "Passive CT fallback returned 0 resolvable subdomains on DNS endpoint '{0}'. Retrying with 'System' DNS endpoint.",
                 effectiveDnsEndpoint);
 
-            IReadOnlyList<string> systemResolved = await DiscoverCtSubdomainsPassiveAsync(
+            IReadOnlyList<SubdomainDiscoveryEntry> systemResolved = await DiscoverCtSubdomainsPassiveAsync(
                 domains,
                 options,
                 warnings,
@@ -392,12 +433,190 @@ public sealed partial class CertificateInventoryCapture {
                 DnsEndpoint.System,
                 allowSystemDnsRetry: false).ConfigureAwait(false);
 
-            foreach (var name in systemResolved) {
-                discovered.Add(name);
+            foreach (var entry in systemResolved) {
+                MergeCtSubdomainEntry(discovered, entry);
             }
         }
 
-        return discovered.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+        return discovered.Values
+            .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static SubdomainDiscoveryEntry CreateNativeCtDiscoveredEntry(
+        string name,
+        DateTimeOffset? firstSeenUtc,
+        DateTimeOffset? lastSeenUtc) {
+        return new SubdomainDiscoveryEntry {
+            Name = name,
+            FirstSeenUtc = firstSeenUtc,
+            LastSeenUtc = lastSeenUtc,
+            CtSources = new[] { "native-ct" },
+            ResolutionStatus = SubdomainResolutionStatus.Unknown
+        };
+    }
+
+    private static void MergeCtSubdomainEntry(
+        IDictionary<string, SubdomainDiscoveryEntry> byName,
+        SubdomainDiscoveryEntry candidate) {
+        if (candidate == null || string.IsNullOrWhiteSpace(candidate.Name)) {
+            return;
+        }
+
+        var name = candidate.Name.Trim();
+        if (!byName.TryGetValue(name, out var existing)) {
+            byName[name] = CloneSubdomainEntry(candidate);
+            return;
+        }
+
+        var existingLatestTs = existing.LatestCertificateCtEntryTimestampUtc;
+        var candidateLatestTs = candidate.LatestCertificateCtEntryTimestampUtc;
+        var preferCandidateCert = !existingLatestTs.HasValue ||
+            (candidateLatestTs.HasValue && candidateLatestTs.Value >= existingLatestTs.Value);
+
+        var mergedFirstSeenUtc = MinTimestamp(existing.FirstSeenUtc, candidate.FirstSeenUtc);
+        var mergedLastSeenUtc = MaxTimestamp(existing.LastSeenUtc, candidate.LastSeenUtc);
+        var mergedLatestTs = MaxTimestamp(existingLatestTs, candidateLatestTs);
+        var mergedSources = existing.CtSources
+            .Concat(candidate.CtSources ?? Array.Empty<string>())
+            .Where(source => !string.IsNullOrWhiteSpace(source))
+            .Select(source => source.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(source => source, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var mergedResolution = MergeResolution(existing.ResolutionStatus, candidate.ResolutionStatus);
+        var mergedARecords = existing.ARecords
+            .Concat(candidate.ARecords ?? Array.Empty<string>())
+            .Where(record => !string.IsNullOrWhiteSpace(record))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(record => record, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var mergedAaaaRecords = existing.AaaaRecords
+            .Concat(candidate.AaaaRecords ?? Array.Empty<string>())
+            .Where(record => !string.IsNullOrWhiteSpace(record))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(record => record, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var mergedSensitiveSignals = existing.SensitiveSignals
+            .Concat(candidate.SensitiveSignals ?? Array.Empty<string>())
+            .Where(signal => !string.IsNullOrWhiteSpace(signal))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(signal => signal, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var mergedAiSignals = existing.AiSignals
+            .Concat(candidate.AiSignals ?? Array.Empty<string>())
+            .Where(signal => !string.IsNullOrWhiteSpace(signal))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(signal => signal, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        byName[name] = new SubdomainDiscoveryEntry {
+            Name = name,
+            FirstSeenUtc = mergedFirstSeenUtc,
+            LastSeenUtc = mergedLastSeenUtc,
+            LatestCertificateCtEntryTimestampUtc = mergedLatestTs,
+            LatestCertificateSubject = preferCandidateCert
+                ? FirstNonEmpty(candidate.LatestCertificateSubject, existing.LatestCertificateSubject)
+                : FirstNonEmpty(existing.LatestCertificateSubject, candidate.LatestCertificateSubject),
+            LatestCertificateIssuer = preferCandidateCert
+                ? FirstNonEmpty(candidate.LatestCertificateIssuer, existing.LatestCertificateIssuer)
+                : FirstNonEmpty(existing.LatestCertificateIssuer, candidate.LatestCertificateIssuer),
+            LatestCertificateSerialNumber = preferCandidateCert
+                ? FirstNonEmpty(candidate.LatestCertificateSerialNumber, existing.LatestCertificateSerialNumber)
+                : FirstNonEmpty(existing.LatestCertificateSerialNumber, candidate.LatestCertificateSerialNumber),
+            LatestCertificateNotBeforeUtc = preferCandidateCert
+                ? FirstTimestamp(candidate.LatestCertificateNotBeforeUtc, existing.LatestCertificateNotBeforeUtc)
+                : FirstTimestamp(existing.LatestCertificateNotBeforeUtc, candidate.LatestCertificateNotBeforeUtc),
+            LatestCertificateNotAfterUtc = preferCandidateCert
+                ? FirstTimestamp(candidate.LatestCertificateNotAfterUtc, existing.LatestCertificateNotAfterUtc)
+                : FirstTimestamp(existing.LatestCertificateNotAfterUtc, candidate.LatestCertificateNotAfterUtc),
+            CtSources = mergedSources,
+            CertificateObservationCount = existing.CertificateObservationCount + candidate.CertificateObservationCount,
+            ResolutionStatus = mergedResolution,
+            ARecords = mergedARecords,
+            AaaaRecords = mergedAaaaRecords,
+            SensitiveRisk = existing.SensitiveRisk >= candidate.SensitiveRisk ? existing.SensitiveRisk : candidate.SensitiveRisk,
+            SensitiveSignals = mergedSensitiveSignals,
+            AiSignals = mergedAiSignals
+        };
+    }
+
+    private static SubdomainDiscoveryEntry CloneSubdomainEntry(SubdomainDiscoveryEntry entry) {
+        if (entry == null) {
+            throw new ArgumentNullException(nameof(entry));
+        }
+
+        return new SubdomainDiscoveryEntry {
+            Name = entry.Name,
+            FirstSeenUtc = entry.FirstSeenUtc,
+            LastSeenUtc = entry.LastSeenUtc,
+            LatestCertificateCtEntryTimestampUtc = entry.LatestCertificateCtEntryTimestampUtc,
+            LatestCertificateSubject = entry.LatestCertificateSubject,
+            LatestCertificateIssuer = entry.LatestCertificateIssuer,
+            LatestCertificateSerialNumber = entry.LatestCertificateSerialNumber,
+            LatestCertificateNotBeforeUtc = entry.LatestCertificateNotBeforeUtc,
+            LatestCertificateNotAfterUtc = entry.LatestCertificateNotAfterUtc,
+            CtSources = entry.CtSources == null ? Array.Empty<string>() : entry.CtSources.ToList(),
+            CertificateObservationCount = entry.CertificateObservationCount,
+            ResolutionStatus = entry.ResolutionStatus,
+            ARecords = entry.ARecords == null ? Array.Empty<string>() : entry.ARecords.ToList(),
+            AaaaRecords = entry.AaaaRecords == null ? Array.Empty<string>() : entry.AaaaRecords.ToList(),
+            SensitiveRisk = entry.SensitiveRisk,
+            SensitiveSignals = entry.SensitiveSignals == null ? Array.Empty<string>() : entry.SensitiveSignals.ToList(),
+            AiSignals = entry.AiSignals == null ? Array.Empty<string>() : entry.AiSignals.ToList()
+        };
+    }
+
+    private static SubdomainResolutionStatus MergeResolution(
+        SubdomainResolutionStatus existing,
+        SubdomainResolutionStatus candidate) {
+        if (existing == SubdomainResolutionStatus.Resolves || candidate == SubdomainResolutionStatus.Resolves) {
+            return SubdomainResolutionStatus.Resolves;
+        }
+        if (existing == SubdomainResolutionStatus.DoesNotResolve || candidate == SubdomainResolutionStatus.DoesNotResolve) {
+            return SubdomainResolutionStatus.DoesNotResolve;
+        }
+        if (existing == SubdomainResolutionStatus.QueryFailed || candidate == SubdomainResolutionStatus.QueryFailed) {
+            return SubdomainResolutionStatus.QueryFailed;
+        }
+        return SubdomainResolutionStatus.Unknown;
+    }
+
+    private static DateTimeOffset? MinTimestamp(DateTimeOffset? left, DateTimeOffset? right) {
+        if (!left.HasValue) {
+            return right;
+        }
+        if (!right.HasValue) {
+            return left;
+        }
+
+        return left.Value <= right.Value ? left : right;
+    }
+
+    private static DateTimeOffset? MaxTimestamp(DateTimeOffset? left, DateTimeOffset? right) {
+        if (!left.HasValue) {
+            return right;
+        }
+        if (!right.HasValue) {
+            return left;
+        }
+
+        return left.Value >= right.Value ? left : right;
+    }
+
+    private static DateTimeOffset? FirstTimestamp(DateTimeOffset? first, DateTimeOffset? second) {
+        if (first.HasValue) {
+            return first;
+        }
+        return second;
+    }
+
+    private static string? FirstNonEmpty(string? first, string? second) {
+        if (!string.IsNullOrWhiteSpace(first)) {
+            return first;
+        }
+        return string.IsNullOrWhiteSpace(second) ? null : second;
     }
 
     private static int ComputeNativeSharedMaxRows(int domainCount, int maxCtRowsPerDomain) {

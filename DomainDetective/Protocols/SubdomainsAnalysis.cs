@@ -258,7 +258,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         Subject = DomainHelper.ValidateIdn(domain);
 
         var issuerCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var subdomainMap = new Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>(StringComparer.OrdinalIgnoreCase);
+        var subdomainMap = new Dictionary<string, CtSubdomainAggregate>(StringComparer.OrdinalIgnoreCase);
         string? failure = null;
         var sourceSucceeded = false;
 
@@ -348,7 +348,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         {
             foreach (var payload in payloads)
             {
-                ParseCtJson(payload, Subject, issuerCounts, subdomainMap, logger);
+                ParseCtJson(payload, Subject, issuerCounts, subdomainMap, logger, "crt.sh/certspotter");
                 if (ResultsCapped)
                 {
                     break;
@@ -380,8 +380,18 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
             entries.Add(new SubdomainDiscoveryEntry
             {
                 Name = kv.Key,
-                FirstSeenUtc = kv.Value.First,
-                LastSeenUtc = kv.Value.Last,
+                FirstSeenUtc = kv.Value.FirstSeenUtc,
+                LastSeenUtc = kv.Value.LastSeenUtc,
+                LatestCertificateCtEntryTimestampUtc = kv.Value.LatestCertificateCtEntryTimestampUtc,
+                LatestCertificateSubject = kv.Value.LatestCertificateSubject,
+                LatestCertificateIssuer = kv.Value.LatestCertificateIssuer,
+                LatestCertificateSerialNumber = kv.Value.LatestCertificateSerialNumber,
+                LatestCertificateNotBeforeUtc = kv.Value.LatestCertificateNotBeforeUtc,
+                LatestCertificateNotAfterUtc = kv.Value.LatestCertificateNotAfterUtc,
+                CtSources = kv.Value.CtSources
+                    .OrderBy(source => source, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                CertificateObservationCount = kv.Value.CertificateObservationCount,
                 ResolutionStatus = SubdomainResolutionStatus.Unknown
             });
         }
@@ -752,12 +762,34 @@ public sealed class SubdomainDiscoveryEntry
     public string Name { get; init; } = string.Empty;
     public DateTimeOffset? FirstSeenUtc { get; init; }
     public DateTimeOffset? LastSeenUtc { get; init; }
+    public DateTimeOffset? LatestCertificateCtEntryTimestampUtc { get; init; }
+    public string? LatestCertificateSubject { get; init; }
+    public string? LatestCertificateIssuer { get; init; }
+    public string? LatestCertificateSerialNumber { get; init; }
+    public DateTimeOffset? LatestCertificateNotBeforeUtc { get; init; }
+    public DateTimeOffset? LatestCertificateNotAfterUtc { get; init; }
+    public IReadOnlyList<string> CtSources { get; init; } = Array.Empty<string>();
+    public int CertificateObservationCount { get; init; }
     public SubdomainResolutionStatus ResolutionStatus { get; internal set; }
     public IReadOnlyList<string> ARecords { get; internal set; } = Array.Empty<string>();
     public IReadOnlyList<string> AaaaRecords { get; internal set; } = Array.Empty<string>();
     public SensitiveSubdomainRisk SensitiveRisk { get; internal set; } = SensitiveSubdomainRisk.None;
     public IReadOnlyList<string> SensitiveSignals { get; internal set; } = Array.Empty<string>();
     public IReadOnlyList<string> AiSignals { get; internal set; } = Array.Empty<string>();
+}
+
+internal sealed class CtSubdomainAggregate
+{
+    public DateTimeOffset? FirstSeenUtc { get; set; }
+    public DateTimeOffset? LastSeenUtc { get; set; }
+    public DateTimeOffset? LatestCertificateCtEntryTimestampUtc { get; set; }
+    public string? LatestCertificateSubject { get; set; }
+    public string? LatestCertificateIssuer { get; set; }
+    public string? LatestCertificateSerialNumber { get; set; }
+    public DateTimeOffset? LatestCertificateNotBeforeUtc { get; set; }
+    public DateTimeOffset? LatestCertificateNotAfterUtc { get; set; }
+    public int CertificateObservationCount { get; set; }
+    public HashSet<string> CtSources { get; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>Risk rating for sensitive subdomain naming patterns.</summary>
