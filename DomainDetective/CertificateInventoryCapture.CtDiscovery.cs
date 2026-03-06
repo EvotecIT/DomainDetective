@@ -25,6 +25,8 @@ public sealed partial class CertificateInventoryCapture {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
+        bool allowPassiveCtFallback = ShouldAllowPassiveCtFallback(options);
+
         if (options.EnableNativeCtLogSubdomainSource &&
             options.EnableNativeCtSharedIngestion &&
             domains.Count > 1) {
@@ -38,12 +40,12 @@ public sealed partial class CertificateInventoryCapture {
                 logger,
                 cancellationToken).ConfigureAwait(false);
 
-            if (nativeSharedDiscovered.Count == 0 && !options.NativeCtLogOnly) {
+            if (nativeSharedDiscovered.Count == 0 && allowPassiveCtFallback) {
                 warnings.Add("Native CT shared ingestion returned no subdomains; falling back to passive CT APIs.");
                 logger.WriteVerbose(
                     "Shared native CT ingestion returned 0 subdomains for {0} domain(s). Falling back to passive CT APIs.",
                     domains.Count);
-                IReadOnlyList<SubdomainDiscoveryEntry> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
+                    IReadOnlyList<SubdomainDiscoveryEntry> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
                     domains,
                     options,
                     warnings,
@@ -93,7 +95,7 @@ public sealed partial class CertificateInventoryCapture {
                         ScanSensitiveSubdomainTxt = false,
                         DetectAiInfrastructureExposure = false,
                         EnableNativeCtLogSource = options.EnableNativeCtLogSubdomainSource,
-                        NativeCtLogOnly = options.NativeCtLogOnly,
+                        NativeCtLogOnly = options.NativeCtLogOnly || !allowPassiveCtFallback,
                         NativeCtLogListUrl = options.NativeCtLogListUrl,
                         NativeCtMaxLogs = options.NativeCtMaxLogs,
                         NativeCtMaxEntriesPerLog = options.NativeCtMaxEntriesPerLog,
@@ -184,7 +186,7 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
-        if (options.EnableNativeCtLogSubdomainSource && !options.NativeCtLogOnly) {
+        if (options.EnableNativeCtLogSubdomainSource && allowPassiveCtFallback) {
             var fallbackDomains = new List<string>(domains.Count);
             foreach (var domain in domains) {
                 if (!discoveredByDomain.TryGetValue(domain, out var discoveredCount) || discoveredCount <= 0) {
@@ -749,6 +751,18 @@ public sealed partial class CertificateInventoryCapture {
             CircuitOpenUntilUtc = entry.CircuitOpenUntilUtc,
             Failure = entry.Failure
         };
+    }
+
+    private static bool ShouldAllowPassiveCtFallback(CertificateInventoryCaptureOptions options) {
+        if (options == null) {
+            return false;
+        }
+
+        if (options.NativeCtLogOnly) {
+            return false;
+        }
+
+        return options.EnablePassiveCtFallback;
     }
 
 }

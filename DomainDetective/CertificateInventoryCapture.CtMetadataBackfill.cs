@@ -23,6 +23,7 @@ public sealed partial class CertificateInventoryCapture {
 
         if (options == null ||
             options.NativeCtLogOnly ||
+            !options.EnablePassiveCtFallback ||
             !options.BackfillMissingCtCertificateMetadata) {
             return discoveredEntries;
         }

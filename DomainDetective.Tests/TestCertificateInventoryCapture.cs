@@ -178,6 +178,7 @@ public class TestCertificateInventoryCapture {
             IncludeWwwHttps = false,
             IncludeCtDiscoveredSubdomains = true,
             VerifyCtDiscoveredSubdomains = false,
+            EnablePassiveCtFallback = true,
             IncludeMxHosts = false,
             IncludeMxHttps = false,
             IncludeSmtpStartTls = false,
@@ -551,6 +552,7 @@ public class TestCertificateInventoryCapture {
             IncludeWwwHttps = false,
             IncludeCtDiscoveredSubdomains = true,
             VerifyCtDiscoveredSubdomains = false,
+            EnablePassiveCtFallback = true,
             IncludeMxHosts = false,
             IncludeMxHttps = false,
             IncludeSmtpStartTls = false,
@@ -656,6 +658,7 @@ public class TestCertificateInventoryCapture {
             IncludeWwwHttps = false,
             IncludeCtDiscoveredSubdomains = true,
             VerifyCtDiscoveredSubdomains = false,
+            EnablePassiveCtFallback = true,
             IncludeMxHosts = false,
             IncludeMxHttps = false,
             IncludeSmtpStartTls = false,
@@ -757,6 +760,7 @@ public class TestCertificateInventoryCapture {
             IncludeWwwHttps = false,
             IncludeCtDiscoveredSubdomains = true,
             VerifyCtDiscoveredSubdomains = false,
+            EnablePassiveCtFallback = true,
             IncludeMxHosts = false,
             IncludeMxHttps = false,
             IncludeSmtpStartTls = false,
@@ -783,6 +787,82 @@ public class TestCertificateInventoryCapture {
         Assert.Equal(ctEntryTimestamp, endpoint.CtLatestCertificateEntryTimestampUtc);
         Assert.Contains("native-ct", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotBackfillPassiveCtMetadataWhenPassiveFallbackDisabled() {
+        var ctFirstSeen = new DateTimeOffset(2025, 12, 1, 10, 0, 0, TimeSpan.Zero);
+        var ctLastSeen = new DateTimeOffset(2026, 3, 5, 15, 42, 37, TimeSpan.Zero);
+
+        var capture = new CertificateInventoryCapture {
+            CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
+                    new SubdomainDiscoveryEntry {
+                        Name = "airtoxics.eurofins.com",
+                        FirstSeenUtc = ctFirstSeen,
+                        LastSeenUtc = ctLastSeen,
+                        CtSources = new[] { "native-ct" },
+                        CertificateObservationCount = 2,
+                        ResolutionStatus = SubdomainResolutionStatus.Resolves
+                    }
+                };
+                return Task.FromResult(discovered);
+            },
+            CtPassiveMetadataBackfillOverride = (domains, options, logger, cancellationToken) => {
+                throw new InvalidOperationException("Passive CT fallback should stay disabled.");
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    var uri = new Uri(target);
+                    entries.Add(new CertificateMonitor.Entry {
+                        Host = uri.Host,
+                        ResolvedHost = uri.Host,
+                        Url = target,
+                        Scheme = uri.Scheme,
+                        Port = uri.Port,
+                        Service = "HTTPS",
+                        Valid = false,
+                        Expired = false,
+                        ChainComplete = false,
+                        Protocol = SslProtocols.None,
+                        Analysis = new CertificateAnalysis {
+                            Url = target,
+                            IsReachable = false
+                        }
+                    });
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = false,
+            EnablePassiveCtFallback = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            BackfillMissingCtCertificateMetadata = true,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "eurofins.com" }, options, cancellationToken: CancellationToken.None);
+        var endpoint = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("airtoxics.eurofins.com", endpoint.Host);
+        Assert.False(endpoint.IsReachable);
+        Assert.True(endpoint.PresentInCtLogs);
+        Assert.Null(endpoint.CertificateSubject);
+        Assert.Null(endpoint.CertificateIssuer);
+        Assert.Null(endpoint.CertificateSerialNumber);
+        Assert.Null(endpoint.CtLatestCertificateEntryTimestampUtc);
+        Assert.DoesNotContain("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("native-ct", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
     }
 
     private static CertificateMonitor.Entry CreateHttpsEntry(string url, X509Certificate2 certificate) {
