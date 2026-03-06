@@ -43,9 +43,12 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
     private static bool TryProcessEntry(
         CtEntryPayload payload,
         string baseDomain,
+        bool exactMatchOnly,
         int maxSubdomains,
         NativeCtLogSubdomainDiscoveryResult result,
-        InternalLogger? logger) {
+        InternalLogger? logger,
+        out int matchedObservationCount) {
+        matchedObservationCount = 0;
         if (string.IsNullOrWhiteSpace(payload.LeafInputBase64)) {
             return true;
         }
@@ -81,6 +84,38 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
         try {
             using var cert = new X509Certificate2(certBytes);
+            var matchedNames = new List<string>();
+            foreach (var candidate in ExtractCandidateNames(cert)) {
+                if (exactMatchOnly) {
+                    if (!TryMatchExactHostCandidate(candidate, baseDomain, out var exactMatchedName)) {
+                        continue;
+                    }
+                    matchedNames.Add(exactMatchedName);
+                } else {
+                    var normalized = NormalizeCandidate(candidate);
+                    if (normalized == null) {
+                        continue;
+                    }
+                    if (!normalized.EndsWith("." + baseDomain, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                    if (string.Equals(normalized, baseDomain, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                    try {
+                        normalized = DomainHelper.ValidateIdn(normalized);
+                    } catch {
+                        continue;
+                    }
+
+                    matchedNames.Add(normalized);
+                }
+            }
+
+            if (matchedNames.Count == 0) {
+                return true;
+            }
+
             var issuer = cert.Issuer;
             if (!string.IsNullOrWhiteSpace(issuer)) {
                 result.IssuerCounts[issuer] = result.IssuerCounts.TryGetValue(issuer, out var existing) ? existing + 1 : 1;
@@ -96,28 +131,14 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 }
             }
 
-            foreach (var candidate in ExtractCandidateNames(cert)) {
-                var normalized = NormalizeCandidate(candidate);
-                if (normalized == null) {
-                    continue;
-                }
-                if (!normalized.EndsWith("." + baseDomain, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                if (string.Equals(normalized, baseDomain, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-
-                try {
-                    normalized = DomainHelper.ValidateIdn(normalized);
-                } catch {
-                    continue;
-                }
-
-                if (!UpsertObservation(result.Subdomains, normalized, maxSubdomains, timestampUtc, cert)) {
+            foreach (var matchedName in matchedNames) {
+                if (!UpsertObservation(result.Subdomains, matchedName, maxSubdomains, timestampUtc, cert)) {
+                    matchedObservationCount = 0;
                     return false;
                 }
             }
+
+            matchedObservationCount = matchedNames.Count;
         } catch (Exception ex) {
             logger?.WriteVerbose("Native CT certificate decode failed: {0}", ex.Message);
         }
@@ -128,9 +149,12 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
     private static bool TryProcessEntryForDomains(
         CtEntryPayload payload,
         HashSet<string> baseDomains,
+        HashSet<string> exactMatchDomains,
         int maxSubdomainsPerDomain,
         NativeCtLogSubdomainDiscoveryBatchResult result,
-        InternalLogger? logger) {
+        InternalLogger? logger,
+        out int matchedObservationCount) {
+        matchedObservationCount = 0;
         if (string.IsNullOrWhiteSpace(payload.LeafInputBase64)) {
             return true;
         }
@@ -164,26 +188,51 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
         try {
             using var cert = new X509Certificate2(certBytes);
+            var matchedByDomain = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var candidate in ExtractCandidateNames(cert)) {
+                foreach (var exactDomain in MatchExactHostCandidates(candidate, exactMatchDomains)) {
+                    if (!matchedByDomain.TryGetValue(exactDomain, out var exactNames)) {
+                        exactNames = new List<string>();
+                        matchedByDomain[exactDomain] = exactNames;
+                    }
+                    exactNames.Add(exactDomain);
+                }
+
                 var normalized = NormalizeCandidate(candidate);
                 if (normalized == null) {
                     continue;
                 }
 
-                var matches = MatchBaseDomains(normalized, baseDomains);
+                var matches = MatchBaseDomains(normalized, baseDomains, exactMatchDomains);
                 if (matches.Count == 0) {
                     continue;
                 }
 
                 foreach (var matchedDomain in matches) {
-                    if (!result.SubdomainsByDomain.TryGetValue(matchedDomain, out var map)) {
-                        map = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
-                        result.SubdomainsByDomain[matchedDomain] = map;
+                    if (!matchedByDomain.TryGetValue(matchedDomain, out var matchedNames)) {
+                        matchedNames = new List<string>();
+                        matchedByDomain[matchedDomain] = matchedNames;
                     }
+                    matchedNames.Add(normalized);
+                }
+            }
 
-                    if (!UpsertObservation(map, normalized, maxSubdomainsPerDomain, timestampUtc, cert)) {
+            if (matchedByDomain.Count == 0) {
+                return true;
+            }
+
+            foreach (var pair in matchedByDomain) {
+                if (!result.SubdomainsByDomain.TryGetValue(pair.Key, out var map)) {
+                    map = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
+                    result.SubdomainsByDomain[pair.Key] = map;
+                }
+
+                foreach (var matchedName in pair.Value) {
+                    if (!UpsertObservation(map, matchedName, maxSubdomainsPerDomain, timestampUtc, cert)) {
+                        matchedObservationCount = 0;
                         return false;
                     }
+                    matchedObservationCount++;
                 }
             }
         } catch (Exception ex) {
@@ -238,7 +287,10 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         return true;
     }
 
-    private static IReadOnlyList<string> MatchBaseDomains(string normalizedName, HashSet<string> baseDomains) {
+    private static IReadOnlyList<string> MatchBaseDomains(
+        string normalizedName,
+        HashSet<string> baseDomains,
+        HashSet<string> exactMatchDomains) {
         if (string.IsNullOrWhiteSpace(normalizedName)) {
             return Array.Empty<string>();
         }
@@ -251,7 +303,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         var matches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 1; i <= labels.Length - 2; i++) {
             var suffix = string.Join(".", labels, i, labels.Length - i);
-            if (baseDomains.Contains(suffix) && !string.Equals(suffix, normalizedName, StringComparison.OrdinalIgnoreCase)) {
+            if (baseDomains.Contains(suffix) &&
+                !string.Equals(suffix, normalizedName, StringComparison.OrdinalIgnoreCase) &&
+                (exactMatchDomains == null || !exactMatchDomains.Contains(suffix))) {
                 matches.Add(suffix);
             }
         }
@@ -259,6 +313,69 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         return matches.Count == 0
             ? Array.Empty<string>()
             : matches.OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static IReadOnlyList<string> MatchExactHostCandidates(string? rawCandidate, HashSet<string> exactMatchDomains) {
+        if (exactMatchDomains == null || exactMatchDomains.Count == 0 || string.IsNullOrWhiteSpace(rawCandidate)) {
+            return Array.Empty<string>();
+        }
+
+        var matches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var exactMatchDomain in exactMatchDomains) {
+            if (TryMatchExactHostCandidate(rawCandidate, exactMatchDomain, out var matchedName)) {
+                matches.Add(matchedName);
+            }
+        }
+
+        return matches.Count == 0
+            ? Array.Empty<string>()
+            : matches.OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static bool TryMatchExactHostCandidate(string? rawCandidate, string exactHost, out string matchedName) {
+        matchedName = string.Empty;
+        if (string.IsNullOrWhiteSpace(rawCandidate) || string.IsNullOrWhiteSpace(exactHost)) {
+            return false;
+        }
+
+        var exactNormalized = NormalizeCandidate(exactHost);
+        if (exactNormalized == null) {
+            return false;
+        }
+
+        var normalizedCandidate = NormalizeCandidate(rawCandidate);
+        if (normalizedCandidate != null &&
+            string.Equals(normalizedCandidate, exactNormalized, StringComparison.OrdinalIgnoreCase)) {
+            matchedName = exactNormalized;
+            return true;
+        }
+
+        var wildcardCandidate = NormalizeCandidatePreserveWildcard(rawCandidate);
+        if (wildcardCandidate == null || !wildcardCandidate.StartsWith("*.", StringComparison.Ordinal)) {
+            return false;
+        }
+
+        var wildcardSuffix = wildcardCandidate.Substring(2);
+        if (!IsSingleLabelWildcardMatch(exactNormalized, wildcardSuffix)) {
+            return false;
+        }
+
+        matchedName = exactNormalized;
+        return true;
+    }
+
+    private static bool IsSingleLabelWildcardMatch(string host, string wildcardSuffix) {
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(wildcardSuffix)) {
+            return false;
+        }
+
+        if (!host.EndsWith("." + wildcardSuffix, StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+
+        var hostLabels = host.Split('.');
+        var suffixLabels = wildcardSuffix.Split('.');
+        return hostLabels.Length == suffixLabels.Length + 1;
     }
 
     private static string? NormalizeCandidate(string? raw) {
@@ -275,6 +392,28 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             return null;
         }
         if (value.Contains("/", StringComparison.Ordinal)) {
+            return null;
+        }
+        if (value.Length == 0) {
+            return null;
+        }
+
+        return value;
+    }
+
+    private static string? NormalizeCandidatePreserveWildcard(string? raw) {
+        if (string.IsNullOrWhiteSpace(raw)) {
+            return null;
+        }
+
+        var value = raw!.Trim().TrimEnd('.').ToLowerInvariant();
+        if (value.Contains(" ", StringComparison.Ordinal)) {
+            return null;
+        }
+        if (value.Contains("/", StringComparison.Ordinal)) {
+            return null;
+        }
+        if (string.Equals(value, "*", StringComparison.Ordinal)) {
             return null;
         }
         if (value.Length == 0) {

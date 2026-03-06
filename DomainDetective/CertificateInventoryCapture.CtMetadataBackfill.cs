@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using DomainDetective.Network;
 
 namespace DomainDetective;
 
@@ -121,6 +119,7 @@ public sealed partial class CertificateInventoryCapture {
             IReadOnlyList<SubdomainDiscoveryEntry> exactBackfilled = await BackfillMissingCtCertificateMetadataExactAsync(
                 remainingMissingNames!,
                 options,
+                warnings,
                 logger,
                 cancellationToken).ConfigureAwait(false);
             foreach (var exactEntry in exactBackfilled) {
@@ -220,6 +219,7 @@ public sealed partial class CertificateInventoryCapture {
     private async Task<IReadOnlyList<SubdomainDiscoveryEntry>> BackfillMissingCtCertificateMetadataExactAsync(
         IReadOnlyList<string> hostNames,
         CertificateInventoryCaptureOptions options,
+        List<string> warnings,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (hostNames == null || hostNames.Count == 0) {
@@ -251,7 +251,7 @@ public sealed partial class CertificateInventoryCapture {
                                 !string.IsNullOrWhiteSpace(entry.Name) &&
                                 hostName.Equals(entry.Name.Trim(), StringComparison.OrdinalIgnoreCase));
                     } else {
-                        exactEntry = await QueryPassiveCtMetadataExactAsync(hostName, logger, cancellationToken)
+                        exactEntry = await QueryPassiveCtMetadataExactAsync(hostName, options, warnings, logger, cancellationToken)
                             .ConfigureAwait(false);
                     }
 
@@ -281,6 +281,8 @@ public sealed partial class CertificateInventoryCapture {
 
     private static async Task<SubdomainDiscoveryEntry?> QueryPassiveCtMetadataExactAsync(
         string hostName,
+        CertificateInventoryCaptureOptions options,
+        List<string>? warnings,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(hostName)) {
@@ -288,20 +290,31 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         string normalizedHost = hostName.Trim().TrimEnd('.').ToLowerInvariant();
-        string requestUrl = "https://crt.sh/?q=" + Uri.EscapeDataString(normalizedHost) + "&output=json";
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-        using HttpResponseMessage response = await SharedHttpClient.Instance.SendAsync(request, cancellationToken)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        string payload = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(payload)) {
+        IReadOnlyList<PassiveCtSourceClient.SourceRequest> requests = BuildPassiveCtMetadataSourceRequests(normalizedHost);
+        if (requests.Count == 0) {
             return null;
         }
 
-        using JsonDocument document = JsonDocument.Parse(payload);
-        if (document.RootElement.ValueKind != JsonValueKind.Array) {
+        var client = new PassiveCtSourceClient();
+        PassiveCtSourceClient.QueryResult queryResult = await client.QueryAsync(
+            requests,
+            new PassiveCtSourceClient.QueryOptions {
+                RequestTimeout = options.PassiveCtRequestTimeout,
+                RetryCount = options.PassiveCtRetryCount,
+                RetryBaseDelay = options.PassiveCtRetryBaseDelay,
+                RetryMaxDelay = options.PassiveCtRetryMaxDelay,
+                SourceCooldown = options.PassiveCtSourceCooldown,
+                QueryAllSources = true
+            },
+            queryOverride: null,
+            logger,
+            cancellationToken).ConfigureAwait(false);
+        if (warnings != null && queryResult.Warnings.Count > 0) {
+            foreach (string warning in queryResult.Warnings) {
+                warnings.Add("Passive CT exact metadata for " + normalizedHost + ": " + warning);
+            }
+        }
+        if (queryResult.Payloads.Count == 0) {
             return null;
         }
 
@@ -316,45 +329,56 @@ public sealed partial class CertificateInventoryCapture {
         var ctSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var observationCount = 0;
 
-        foreach (JsonElement item in document.RootElement.EnumerateArray()) {
-            IReadOnlyList<string> candidateNames = GetCtMetadataCandidateNames(item);
-            if (!candidateNames.Any(candidate =>
-                    string.Equals(candidate, normalizedHost, StringComparison.OrdinalIgnoreCase))) {
+        foreach (PassiveCtSourceClient.SourcePayload sourcePayload in queryResult.Payloads) {
+            if (string.IsNullOrWhiteSpace(sourcePayload.Payload)) {
                 continue;
             }
 
-            DateTimeOffset? entryTimestampUtc = ParseCtMetadataTimestamp(
-                GetCtMetadataString(item, "entry_timestamp") ?? GetCtMetadataString(item, "not_before"));
-            if (entryTimestampUtc.HasValue) {
-                if (!firstSeenUtc.HasValue || entryTimestampUtc.Value < firstSeenUtc.Value) {
-                    firstSeenUtc = entryTimestampUtc.Value;
-                }
-
-                if (!lastSeenUtc.HasValue || entryTimestampUtc.Value > lastSeenUtc.Value) {
-                    lastSeenUtc = entryTimestampUtc.Value;
-                }
-            }
-
-            observationCount++;
-            ctSources.Add("crt.sh");
-
-            bool shouldUpdateLatestMetadata = !latestCertificateEntryTimestampUtc.HasValue;
-            if (entryTimestampUtc.HasValue &&
-                (!latestCertificateEntryTimestampUtc.HasValue ||
-                 entryTimestampUtc.Value >= latestCertificateEntryTimestampUtc.Value)) {
-                shouldUpdateLatestMetadata = true;
-            }
-
-            if (!shouldUpdateLatestMetadata) {
+            using JsonDocument document = JsonDocument.Parse(sourcePayload.Payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Array) {
                 continue;
             }
 
-            latestCertificateEntryTimestampUtc = entryTimestampUtc;
-            latestCertificateSubject = GetCtMetadataCommonName(item) ?? normalizedHost;
-            latestCertificateIssuer = GetCtMetadataIssuerName(item);
-            latestCertificateSerialNumber = GetCtMetadataString(item, "serial_number");
-            latestCertificateNotBeforeUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_before"));
-            latestCertificateNotAfterUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_after"));
+            foreach (JsonElement item in document.RootElement.EnumerateArray()) {
+                IReadOnlyList<string> candidateNames = GetCtMetadataCandidateNames(item);
+                if (!candidateNames.Any(candidate =>
+                        string.Equals(candidate, normalizedHost, StringComparison.OrdinalIgnoreCase))) {
+                    continue;
+                }
+
+                DateTimeOffset? entryTimestampUtc = ParseCtMetadataTimestamp(
+                    GetCtMetadataString(item, "entry_timestamp") ?? GetCtMetadataString(item, "not_before"));
+                if (entryTimestampUtc.HasValue) {
+                    if (!firstSeenUtc.HasValue || entryTimestampUtc.Value < firstSeenUtc.Value) {
+                        firstSeenUtc = entryTimestampUtc.Value;
+                    }
+
+                    if (!lastSeenUtc.HasValue || entryTimestampUtc.Value > lastSeenUtc.Value) {
+                        lastSeenUtc = entryTimestampUtc.Value;
+                    }
+                }
+
+                observationCount++;
+                ctSources.Add(sourcePayload.SourceName);
+
+                bool shouldUpdateLatestMetadata = !latestCertificateEntryTimestampUtc.HasValue;
+                if (entryTimestampUtc.HasValue &&
+                    (!latestCertificateEntryTimestampUtc.HasValue ||
+                     entryTimestampUtc.Value >= latestCertificateEntryTimestampUtc.Value)) {
+                    shouldUpdateLatestMetadata = true;
+                }
+
+                if (!shouldUpdateLatestMetadata) {
+                    continue;
+                }
+
+                latestCertificateEntryTimestampUtc = entryTimestampUtc;
+                latestCertificateSubject = GetCtMetadataCommonName(item) ?? normalizedHost;
+                latestCertificateIssuer = GetCtMetadataIssuerName(item);
+                latestCertificateSerialNumber = GetCtMetadataString(item, "serial_number");
+                latestCertificateNotBeforeUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_before"));
+                latestCertificateNotAfterUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_after"));
+            }
         }
 
         if (observationCount == 0) {
@@ -376,6 +400,19 @@ public sealed partial class CertificateInventoryCapture {
             CertificateObservationCount = observationCount,
             ResolutionStatus = SubdomainResolutionStatus.Unknown
         };
+    }
+
+    private static IReadOnlyList<PassiveCtSourceClient.SourceRequest> BuildPassiveCtMetadataSourceRequests(string normalizedHost) {
+        var requests = new List<PassiveCtSourceClient.SourceRequest>(2);
+        requests.Add(new PassiveCtSourceClient.SourceRequest {
+            SourceName = "crt.sh",
+            Url = "https://crt.sh/?q=" + Uri.EscapeDataString(normalizedHost) + "&output=json"
+        });
+        requests.Add(new PassiveCtSourceClient.SourceRequest {
+            SourceName = "certspotter",
+            Url = "https://api.certspotter.com/v1/issuances?domain=" + Uri.EscapeDataString(normalizedHost) + "&include_subdomains=true&expand=dns_names"
+        });
+        return requests;
     }
 
     private static string? GetCtMetadataString(JsonElement obj, string propertyName) {

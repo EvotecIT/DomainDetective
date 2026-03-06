@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -55,6 +56,21 @@ public sealed class CertificateInventoryCaptureOptions {
     /// </summary>
     public bool EnablePassiveCtFallback { get; set; }
 
+    /// <summary>Per-request timeout for passive/public CT HTTP calls.</summary>
+    public TimeSpan PassiveCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Maximum retry count for transient passive/public CT HTTP failures.</summary>
+    public int PassiveCtRetryCount { get; set; } = 2;
+
+    /// <summary>Base delay between passive/public CT retry attempts.</summary>
+    public TimeSpan PassiveCtRetryBaseDelay { get; set; } = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>Maximum delay between passive/public CT retry attempts.</summary>
+    public TimeSpan PassiveCtRetryMaxDelay { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Cooldown applied to passive/public CT sources after transient failures or rate limits.</summary>
+    public TimeSpan PassiveCtSourceCooldown { get; set; } = TimeSpan.FromSeconds(60);
+
     /// <summary>Native CT log list URL used to resolve trusted CT logs.</summary>
     public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
 
@@ -84,6 +100,9 @@ public sealed class CertificateInventoryCaptureOptions {
 
     /// <summary>Optional delay between native CT HTTP requests.</summary>
     public TimeSpan NativeCtRequestDelay { get; set; } = TimeSpan.Zero;
+
+    /// <summary>Per-request timeout for native CT HTTP calls.</summary>
+    public TimeSpan NativeCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>Maximum retry count for transient native CT HTTP failures.</summary>
     public int NativeCtRetryCount { get; set; } = 3;
@@ -162,6 +181,9 @@ public sealed class CertificateInventoryCaptureOptions {
 
     /// <summary>Timeout applied to mail TLS probes.</summary>
     public TimeSpan MailTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Timeout applied to HTTPS certificate probes.</summary>
+    public TimeSpan HttpsTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Maximum total probe targets (HTTPS + mail) kept after discovery; 0 means unlimited.</summary>
     public int MaxTargets { get; set; }
@@ -302,6 +324,14 @@ public sealed class CertificateInventoryCaptureResult {
 /// Captures certificate inventory snapshots from explicit domains and discovered service endpoints.
 /// </summary>
 public sealed partial class CertificateInventoryCapture {
+    private static readonly Lazy<PublicSuffixList> EmbeddedPublicSuffixList = new(LoadPublicSuffixList);
+
+    private sealed class CertificateInventorySeed {
+        public string Name { get; init; } = string.Empty;
+        public string RegistrableDomain { get; init; } = string.Empty;
+        public bool IsExactHostSeed { get; init; }
+    }
+
     private sealed class MailEndpointTarget {
         public string Host { get; set; } = string.Empty;
         public int Port { get; set; }
@@ -389,6 +419,12 @@ public sealed partial class CertificateInventoryCapture {
         if (options.Pop3Port < 1 || options.Pop3Port > 65535) {
             throw new ArgumentOutOfRangeException(nameof(options.Pop3Port), "POP3 port must be between 1 and 65535.");
         }
+        if (options.HttpsTimeout <= TimeSpan.Zero || options.HttpsTimeout > TimeSpan.FromMinutes(10)) {
+            throw new ArgumentOutOfRangeException(nameof(options.HttpsTimeout), "HttpsTimeout must be greater than zero and at most 10 minutes.");
+        }
+        if (options.MailTimeout <= TimeSpan.Zero || options.MailTimeout > TimeSpan.FromMinutes(10)) {
+            throw new ArgumentOutOfRangeException(nameof(options.MailTimeout), "MailTimeout must be greater than zero and at most 10 minutes.");
+        }
         if (options.MaxTargets < 0) {
             throw new ArgumentOutOfRangeException(nameof(options.MaxTargets), "MaxTargets must be 0 or greater.");
         }
@@ -416,6 +452,9 @@ public sealed partial class CertificateInventoryCapture {
         if (options.NativeCtRequestDelay < TimeSpan.Zero) {
             throw new ArgumentOutOfRangeException(nameof(options.NativeCtRequestDelay), "NativeCtRequestDelay must be non-negative.");
         }
+        if (options.NativeCtRequestTimeout <= TimeSpan.Zero || options.NativeCtRequestTimeout > TimeSpan.FromMinutes(5)) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtRequestTimeout), "NativeCtRequestTimeout must be greater than zero and at most 5 minutes.");
+        }
         if (options.NativeCtRetryCount < 0) {
             throw new ArgumentOutOfRangeException(nameof(options.NativeCtRetryCount), "NativeCtRetryCount must be 0 or greater.");
         }
@@ -424,6 +463,21 @@ public sealed partial class CertificateInventoryCapture {
         }
         if (options.NativeCtRetryMaxDelay < TimeSpan.Zero) {
             throw new ArgumentOutOfRangeException(nameof(options.NativeCtRetryMaxDelay), "NativeCtRetryMaxDelay must be non-negative.");
+        }
+        if (options.PassiveCtRequestTimeout < TimeSpan.Zero || options.PassiveCtRequestTimeout > TimeSpan.FromMinutes(5)) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtRequestTimeout), "PassiveCtRequestTimeout must be non-negative and at most 5 minutes.");
+        }
+        if (options.PassiveCtRetryCount < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtRetryCount), "PassiveCtRetryCount must be 0 or greater.");
+        }
+        if (options.PassiveCtRetryBaseDelay < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtRetryBaseDelay), "PassiveCtRetryBaseDelay must be non-negative.");
+        }
+        if (options.PassiveCtRetryMaxDelay < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtRetryMaxDelay), "PassiveCtRetryMaxDelay must be non-negative.");
+        }
+        if (options.PassiveCtSourceCooldown < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtSourceCooldown), "PassiveCtSourceCooldown must be non-negative.");
         }
         if (options.NativeCtCircuitBreakerFailureThreshold < 1) {
             throw new ArgumentOutOfRangeException(nameof(options.NativeCtCircuitBreakerFailureThreshold), "NativeCtCircuitBreakerFailureThreshold must be 1 or greater.");
@@ -457,7 +511,12 @@ public sealed partial class CertificateInventoryCapture {
 
         AppendCtConfigurationWarnings(options, warnings);
         var normalizedDomains = NormalizeDomains(domains, warnings);
+        var seeds = BuildSeeds(normalizedDomains);
         logger.WriteVerbose("Certificate inventory capture started for {0} normalized domain(s).", normalizedDomains.Count);
+        logger.WriteVerbose(
+            "Seed classification: exactHostSeeds={0}, registrableDomainSeeds={1}.",
+            seeds.Count(static seed => seed.IsExactHostSeed),
+            seeds.Count(static seed => !seed.IsExactHostSeed));
         logger.WriteVerbose("Capture settings: MaxParallelism={0}, DiscoveryParallelism={1}, MaxTargets={2}, MaxProbeStartsPerSecond={3}.", options.MaxParallelism, options.DiscoveryParallelism, options.MaxTargets, options.MaxProbeStartsPerSecond);
         AdvanceStage("Domain normalization");
 
@@ -465,13 +524,13 @@ public sealed partial class CertificateInventoryCapture {
         var httpsTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var mailTargets = new Dictionary<string, MailEndpointTarget>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var domain in normalizedDomains) {
+        foreach (var seed in seeds) {
             cancellationToken.ThrowIfCancellationRequested();
-            if (options.IncludeApexHttps) {
-                httpsTargets.Add(BuildHttpsUrl(domain, options.HttpsPort));
+            if (seed.IsExactHostSeed || options.IncludeApexHttps) {
+                httpsTargets.Add(BuildHttpsUrl(seed.Name, options.HttpsPort));
             }
-            if (options.IncludeWwwHttps) {
-                httpsTargets.Add(BuildHttpsUrl($"www.{domain}", options.HttpsPort));
+            if (!seed.IsExactHostSeed && options.IncludeWwwHttps) {
+                httpsTargets.Add(BuildHttpsUrl($"www.{seed.Name}", options.HttpsPort));
             }
         }
 
@@ -490,7 +549,7 @@ public sealed partial class CertificateInventoryCapture {
                     .ToList();
             } else {
                 discoveredSubdomains = await DiscoverCtSubdomainsAsync(
-                    normalizedDomains,
+                    seeds,
                     options,
                     warnings,
                     nativeCtLogDiagnostics,
@@ -527,12 +586,16 @@ public sealed partial class CertificateInventoryCapture {
                 DnsEndpoint = options.DnsEndpoint
             };
             var maxLookupParallelism = Math.Max(1, options.DiscoveryParallelism);
-            var totalLookups = normalizedDomains.Count;
+            var mxLookupSeeds = seeds
+                .Where(static seed => !seed.IsExactHostSeed)
+                .Select(static seed => seed.Name)
+                .ToList();
+            var totalLookups = mxLookupSeeds.Count;
             var completedLookups = 0;
             using var gate = new SemaphoreSlim(maxLookupParallelism, maxLookupParallelism);
-            var tasks = new List<Task>(normalizedDomains.Count);
+            var tasks = new List<Task>(mxLookupSeeds.Count);
             var mxByDomain = new ConcurrentDictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var domain in normalizedDomains) {
+            foreach (var domain in mxLookupSeeds) {
                 await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 tasks.Add(Task.Run(async () => {
                     try {
@@ -769,6 +832,59 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
         return set.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static List<CertificateInventorySeed> BuildSeeds(IReadOnlyList<string> normalizedDomains) {
+        if (normalizedDomains == null || normalizedDomains.Count == 0) {
+            return new List<CertificateInventorySeed>();
+        }
+
+        var seeds = new List<CertificateInventorySeed>(normalizedDomains.Count);
+        foreach (var normalizedDomain in normalizedDomains) {
+            if (string.IsNullOrWhiteSpace(normalizedDomain)) {
+                continue;
+            }
+
+            var registrableDomain = GetRegistrableDomainOrSelf(normalizedDomain);
+            seeds.Add(new CertificateInventorySeed {
+                Name = normalizedDomain,
+                RegistrableDomain = registrableDomain,
+                IsExactHostSeed = !string.Equals(registrableDomain, normalizedDomain, StringComparison.OrdinalIgnoreCase)
+            });
+        }
+
+        return seeds;
+    }
+
+    private static string GetRegistrableDomainOrSelf(string candidate) {
+        if (string.IsNullOrWhiteSpace(candidate)) {
+            return candidate;
+        }
+
+        try {
+            return EmbeddedPublicSuffixList.Value.GetRegistrableDomain(candidate);
+        } catch {
+            var labels = candidate.Split('.');
+            if (labels.Length <= 2) {
+                return candidate;
+            }
+
+            return string.Join(".", labels.Skip(labels.Length - 2));
+        }
+    }
+
+    private static PublicSuffixList LoadPublicSuffixList() {
+        try {
+            using Stream? stream = typeof(CertificateInventoryCapture).Assembly
+                .GetManifestResourceStream("DomainDetective.public_suffix_list.dat");
+            if (stream != null) {
+                return PublicSuffixList.Load(stream);
+            }
+        } catch {
+            // Best-effort only; callers fall back to host-preserving heuristics.
+        }
+
+        return new PublicSuffixList();
     }
 
     private static string BuildHttpsUrl(string host, int defaultPort) {

@@ -15,6 +15,11 @@ namespace DomainDetective;
 
 internal sealed class NativeCtLogSubdomainDiscoveryOptions {
     public string BaseDomain { get; set; } = string.Empty;
+    public bool ExactMatchOnly { get; set; }
+    public IReadOnlyCollection<string> ExactMatchDomains { get; set; } = Array.Empty<string>();
+    public bool PrioritizeLatestExactMatch { get; set; }
+    public int StopAfterMatchedObservations { get; set; }
+    public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
     public int MaxCtRowsToProcess { get; set; } = 10000;
     public int MaxSubdomains { get; set; } = 10000;
     public string LogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
@@ -106,6 +111,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
     private const string SubjectAlternativeNameOid = "2.5.29.17";
+    private const string HistoricalAllLogsListUrl = "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json";
 
     public Func<string, CancellationToken, Task<string>>? QueryOverride { get; set; }
 
@@ -126,6 +132,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         var cursor = NativeCtCursorState.Load(options.CursorStatePath);
+        var stoppedAfterMatchedObservationTarget = false;
         foreach (var logDescriptor in logDescriptors) {
             var logUrl = logDescriptor.Url;
             cancellationToken.ThrowIfCancellationRequested();
@@ -200,8 +207,14 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                             break;
                         }
 
-                        result.CertificateObservationCount++;
-                        if (TryProcessEntry(entries[i], baseDomain, options.MaxSubdomains, result, logger)) {
+                        if (TryProcessEntry(entries[i], baseDomain, options.ExactMatchOnly, options.MaxSubdomains, result, logger, out var matchedObservationCount)) {
+                            if (matchedObservationCount > 0) {
+                                result.CertificateObservationCount += matchedObservationCount;
+                                if (options.StopAfterMatchedObservations > 0 &&
+                                    result.CertificateObservationCount >= options.StopAfterMatchedObservations) {
+                                    stoppedAfterMatchedObservationTarget = true;
+                                }
+                            }
                             lastProcessed = batchStart + i;
                         } else {
                             result.ResultsCapped = true;
@@ -215,6 +228,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     }
 
                     if (result.ResultsCapped) {
+                        break;
+                    }
+                    if (stoppedAfterMatchedObservationTarget) {
                         break;
                     }
 
@@ -236,6 +252,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 if (result.ResultsCapped) {
                     break;
                 }
+                if (stoppedAfterMatchedObservationTarget) {
+                    break;
+                }
             } catch (Exception ex) {
                 cursor.RecordFailure(
                     key,
@@ -254,6 +273,11 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     status.CircuitOpenUntilUtc = openUntilUtc;
                 }
             }
+        }
+
+        if (stoppedAfterMatchedObservationTarget) {
+            result.Warnings.Add(
+                "Native CT exact-host lookup stopped after reaching the configured matched-observation target.");
         }
 
         cursor.Save(options.CursorStatePath);
@@ -282,6 +306,11 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         var domainSet = new HashSet<string>(normalizedDomains, StringComparer.OrdinalIgnoreCase);
+        var exactMatchDomainSet = new HashSet<string>(
+            options.ExactMatchDomains
+                .Where(domain => !string.IsNullOrWhiteSpace(domain))
+                .Select(DomainHelper.ValidateIdn),
+            StringComparer.OrdinalIgnoreCase);
         var result = new NativeCtLogSubdomainDiscoveryBatchResult();
         foreach (var domain in normalizedDomains) {
             result.SubdomainsByDomain[domain] = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
@@ -294,6 +323,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         var cursor = NativeCtCursorState.Load(options.CursorStatePath);
+        var stoppedAfterMatchedObservationTarget = false;
         foreach (var logDescriptor in logDescriptors) {
             var logUrl = logDescriptor.Url;
             cancellationToken.ThrowIfCancellationRequested();
@@ -367,8 +397,14 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                             break;
                         }
 
-                        result.CertificateObservationCount++;
-                        if (TryProcessEntryForDomains(entries[i], domainSet, options.MaxSubdomains, result, logger)) {
+                        if (TryProcessEntryForDomains(entries[i], domainSet, exactMatchDomainSet, options.MaxSubdomains, result, logger, out var matchedObservationCount)) {
+                            if (matchedObservationCount > 0) {
+                                result.CertificateObservationCount += matchedObservationCount;
+                                if (options.StopAfterMatchedObservations > 0 &&
+                                    result.CertificateObservationCount >= options.StopAfterMatchedObservations) {
+                                    stoppedAfterMatchedObservationTarget = true;
+                                }
+                            }
                             lastProcessed = batchStart + i;
                         } else {
                             result.ResultsCapped = true;
@@ -382,6 +418,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     }
 
                     if (result.ResultsCapped) {
+                        break;
+                    }
+                    if (stoppedAfterMatchedObservationTarget) {
                         break;
                     }
 
@@ -400,6 +439,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 status.Succeeded = true;
 
                 if (result.ResultsCapped) {
+                    break;
+                }
+                if (stoppedAfterMatchedObservationTarget) {
                     break;
                 }
             } catch (Exception ex) {
@@ -422,6 +464,11 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             }
         }
 
+        if (stoppedAfterMatchedObservationTarget) {
+            result.Warnings.Add(
+                "Native CT exact-host lookup stopped after reaching the configured matched-observation target.");
+        }
+
         cursor.Save(options.CursorStatePath);
         return result;
     }
@@ -436,18 +483,46 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     AddResolvedLogDescriptor(descriptors, normalized, null, null, sourceOrder++);
                 }
             }
-            return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess);
+            return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
         }
 
         if (string.IsNullOrWhiteSpace(options.LogListUrl)) {
             return Array.Empty<ResolvedCtLogDescriptor>();
         }
 
-        var json = await FetchJsonWithRetryAsync(options.LogListUrl, options, cancellationToken).ConfigureAwait(false);
+        var logListUrls = new List<string> { options.LogListUrl };
+        if (options.IncludeRetiredLogs &&
+            !string.Equals(options.LogListUrl, HistoricalAllLogsListUrl, StringComparison.OrdinalIgnoreCase)) {
+            logListUrls.Add(HistoricalAllLogsListUrl);
+        }
+
+        foreach (var logListUrl in logListUrls) {
+            sourceOrder = await PopulateDescriptorsFromLogListAsync(
+                logListUrl,
+                options,
+                descriptors,
+                cancellationToken,
+                sourceOrder).ConfigureAwait(false);
+        }
+
+        return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
+    }
+
+    private async Task<int> PopulateDescriptorsFromLogListAsync(
+        string logListUrl,
+        NativeCtLogSubdomainDiscoveryOptions options,
+        IDictionary<string, ResolvedCtLogDescriptor> descriptors,
+        CancellationToken cancellationToken,
+        int sourceOrder) {
+        if (string.IsNullOrWhiteSpace(logListUrl)) {
+            return sourceOrder;
+        }
+
+        var json = await FetchJsonWithRetryAsync(logListUrl, options, cancellationToken).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object) {
-            return Array.Empty<ResolvedCtLogDescriptor>();
+            return sourceOrder;
         }
 
         if (root.TryGetProperty("operators", out var operatorsElement) && operatorsElement.ValueKind == JsonValueKind.Array) {
@@ -462,18 +537,28 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     TryAddLogFromListItem(log, options, descriptors, ref sourceOrder);
                 }
             }
-        } else if (root.TryGetProperty("logs", out var legacyLogs) && legacyLogs.ValueKind == JsonValueKind.Array) {
+            return sourceOrder;
+        }
+
+        if (root.TryGetProperty("logs", out var legacyLogs) && legacyLogs.ValueKind == JsonValueKind.Array) {
             foreach (var log in legacyLogs.EnumerateArray()) {
                 TryAddLogFromListItem(log, options, descriptors, ref sourceOrder);
             }
         }
 
-        return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess);
+        return sourceOrder;
     }
 
     internal static IReadOnlyList<string> ApplyLogCap(
         IReadOnlyList<(string Url, DateTimeOffset? TemporalStartUtc, DateTimeOffset? TemporalEndUtc)> logs,
         int maxLogsToProcess) {
+        return ApplyLogCap(logs, maxLogsToProcess, prioritizeLatestExactMatch: false);
+    }
+
+    internal static IReadOnlyList<string> ApplyLogCap(
+        IReadOnlyList<(string Url, DateTimeOffset? TemporalStartUtc, DateTimeOffset? TemporalEndUtc)> logs,
+        int maxLogsToProcess,
+        bool prioritizeLatestExactMatch) {
         if (logs == null || logs.Count == 0) {
             return Array.Empty<string>();
         }
@@ -493,29 +578,36 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             });
         }
 
-        return ApplyLogCap(descriptors, maxLogsToProcess)
+        return ApplyLogCap(descriptors, maxLogsToProcess, prioritizeLatestExactMatch)
             .Select(static descriptor => descriptor.Url)
             .ToList();
     }
 
     private static IReadOnlyList<ResolvedCtLogDescriptor> ApplyLogCap(
         IReadOnlyList<ResolvedCtLogDescriptor> logs,
-        int maxLogsToProcess) {
+        int maxLogsToProcess,
+        bool prioritizeLatestExactMatch) {
         var ordered = logs
             .Where(static log => log != null && !string.IsNullOrWhiteSpace(log.Url))
             .OrderBy(static log => log.SourceOrder)
             .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (maxLogsToProcess <= 0 || ordered.Count <= maxLogsToProcess) {
-            return ordered;
-        }
-
         var dated = ordered
             .Where(static log => log.TemporalStartUtc.HasValue || log.TemporalEndUtc.HasValue)
             .OrderBy(static log => log.TemporalStartUtc ?? log.TemporalEndUtc ?? DateTimeOffset.MinValue)
             .ThenBy(static log => log.TemporalEndUtc ?? DateTimeOffset.MaxValue)
             .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var undated = ordered
+            .Where(static log => !log.TemporalStartUtc.HasValue && !log.TemporalEndUtc.HasValue)
+            .ToList();
+
+        if (maxLogsToProcess <= 0 || ordered.Count <= maxLogsToProcess) {
+            return prioritizeLatestExactMatch
+                ? BuildLatestFirstProcessingOrder(dated, undated)
+                : BuildDistributedProcessingOrder(dated, undated);
+        }
+
         var selected = new List<ResolvedCtLogDescriptor>(maxLogsToProcess);
         var selectedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -538,7 +630,66 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             }
         }
 
-        return selected;
+        var selectedDated = selected
+            .Where(static log => log.TemporalStartUtc.HasValue || log.TemporalEndUtc.HasValue)
+            .OrderBy(static log => log.TemporalStartUtc ?? log.TemporalEndUtc ?? DateTimeOffset.MinValue)
+            .ThenBy(static log => log.TemporalEndUtc ?? DateTimeOffset.MaxValue)
+            .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var selectedUndated = selected
+            .Where(static log => !log.TemporalStartUtc.HasValue && !log.TemporalEndUtc.HasValue)
+            .OrderBy(static log => log.SourceOrder)
+            .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return prioritizeLatestExactMatch
+            ? BuildLatestFirstProcessingOrder(selectedDated, selectedUndated)
+            : BuildDistributedProcessingOrder(selectedDated, selectedUndated);
+    }
+
+    private static IReadOnlyList<ResolvedCtLogDescriptor> BuildDistributedProcessingOrder(
+        IReadOnlyList<ResolvedCtLogDescriptor> dated,
+        IReadOnlyList<ResolvedCtLogDescriptor> undated) {
+        var output = new List<ResolvedCtLogDescriptor>((dated?.Count ?? 0) + (undated?.Count ?? 0));
+        if (dated != null && dated.Count > 0) {
+            var left = 0;
+            var right = dated.Count - 1;
+            while (left <= right) {
+                output.Add(dated[left]);
+                if (right != left) {
+                    output.Add(dated[right]);
+                }
+                left++;
+                right--;
+            }
+        }
+
+        if (undated != null && undated.Count > 0) {
+            output.AddRange(undated);
+        }
+
+        return output;
+    }
+
+    private static IReadOnlyList<ResolvedCtLogDescriptor> BuildLatestFirstProcessingOrder(
+        IReadOnlyList<ResolvedCtLogDescriptor> dated,
+        IReadOnlyList<ResolvedCtLogDescriptor> undated) {
+        var output = new List<ResolvedCtLogDescriptor>((dated?.Count ?? 0) + (undated?.Count ?? 0));
+        if (dated != null && dated.Count > 0) {
+            output.AddRange(dated
+                .OrderByDescending(static log => log.TemporalEndUtc ?? log.TemporalStartUtc ?? DateTimeOffset.MinValue)
+                .ThenByDescending(static log => log.TemporalStartUtc ?? DateTimeOffset.MinValue)
+                .ThenBy(static log => log.SourceOrder)
+                .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase));
+        }
+
+        if (undated != null && undated.Count > 0) {
+            output.AddRange(undated
+                .OrderBy(static log => log.SourceOrder)
+                .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase));
+        }
+
+        return output;
     }
 
     private static void TryAddLogFromListItem(
@@ -759,15 +910,37 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         return list;
     }
 
-    private async Task<string> FetchJsonAsync(string url, CancellationToken cancellationToken) {
+    private async Task<string> FetchJsonAsync(
+        string url,
+        TimeSpan requestTimeout,
+        CancellationToken cancellationToken) {
+        using var timeoutCts = requestTimeout > TimeSpan.Zero && requestTimeout != Timeout.InfiniteTimeSpan
+            ? new CancellationTokenSource(requestTimeout)
+            : null;
+        using var linkedCts = timeoutCts != null
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
+            : null;
+        var effectiveToken = linkedCts?.Token ?? cancellationToken;
+
         if (QueryOverride != null) {
-            return await QueryOverride(url, cancellationToken).ConfigureAwait(false);
+            try {
+                return await QueryOverride(url, effectiveToken).ConfigureAwait(false);
+            } catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested) {
+                throw new TimeoutException($"Native CT request timed out after {requestTimeout} for {url}.");
+            }
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        using var response = await SharedHttpClient.Instance.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        HttpResponseMessage response;
+        try {
+            response = await SharedHttpClient.Instance.SendAsync(request, effectiveToken).ConfigureAwait(false);
+        } catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested) {
+            throw new TimeoutException($"Native CT request timed out after {requestTimeout} for {url}.");
+        }
+        using (response) {
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        }
     }
 
     private async Task<string> FetchJsonWithRetryAsync(
@@ -777,6 +950,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         var retryCount = options.RetryCount < 0 ? 0 : options.RetryCount;
         var baseDelay = options.RetryBaseDelay < TimeSpan.Zero ? TimeSpan.Zero : options.RetryBaseDelay;
         var maxDelay = options.RetryMaxDelay <= TimeSpan.Zero ? TimeSpan.FromSeconds(10) : options.RetryMaxDelay;
+        var requestTimeout = options.RequestTimeout <= TimeSpan.Zero ? TimeSpan.FromSeconds(15) : options.RequestTimeout;
         if (maxDelay < baseDelay) {
             maxDelay = baseDelay;
         }
@@ -786,7 +960,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             cancellationToken.ThrowIfCancellationRequested();
 
             try {
-                return await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
+                return await FetchJsonAsync(url, requestTimeout, cancellationToken).ConfigureAwait(false);
             } catch (Exception ex) when (IsTransientCtException(ex, out var retryAfter)) {
                 lastException = ex;
                 if (attempt >= retryCount) {
@@ -805,6 +979,10 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
     private static bool IsTransientCtException(Exception ex, out TimeSpan? retryAfter) {
         retryAfter = null;
+        if (ex is TimeoutException) {
+            return true;
+        }
+
         if (ex is OperationCanceledException) {
             return false;
         }

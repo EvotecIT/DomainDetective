@@ -96,6 +96,31 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [CommandOption("--native-ct-log-only")]
     public bool NativeCtLogOnly { get; set; }
 
+    [Description("Timeout in seconds for each passive/public CT HTTP request.")]
+    [CommandOption("--passive-ct-request-timeout-seconds <N>")]
+    [DefaultValue(15)]
+    public int PassiveCtRequestTimeoutSeconds { get; set; } = 15;
+
+    [Description("Maximum retry count for transient passive/public CT HTTP failures.")]
+    [CommandOption("--passive-ct-retry-count <N>")]
+    [DefaultValue(2)]
+    public int PassiveCtRetryCount { get; set; } = 2;
+
+    [Description("Base delay in milliseconds between passive/public CT retry attempts.")]
+    [CommandOption("--passive-ct-retry-base-delay-ms <N>")]
+    [DefaultValue(750)]
+    public int PassiveCtRetryBaseDelayMilliseconds { get; set; } = 750;
+
+    [Description("Maximum delay in milliseconds between passive/public CT retry attempts.")]
+    [CommandOption("--passive-ct-retry-max-delay-ms <N>")]
+    [DefaultValue(15000)]
+    public int PassiveCtRetryMaxDelayMilliseconds { get; set; } = 15000;
+
+    [Description("Cooldown in seconds applied to passive/public CT sources after transient failures or rate limits.")]
+    [CommandOption("--passive-ct-source-cooldown-seconds <N>")]
+    [DefaultValue(60)]
+    public int PassiveCtSourceCooldownSeconds { get; set; } = 60;
+
     [Description("Native CT log list URL used to resolve CT logs.")]
     [CommandOption("--native-ct-log-list-url <URL>")]
     public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
@@ -136,6 +161,11 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [CommandOption("--native-ct-request-delay-ms <N>")]
     [DefaultValue(0)]
     public int NativeCtRequestDelayMilliseconds { get; set; }
+
+    [Description("Timeout in seconds for each native CT HTTP request.")]
+    [CommandOption("--native-ct-request-timeout-seconds <N>")]
+    [DefaultValue(15)]
+    public int NativeCtRequestTimeoutSeconds { get; set; } = 15;
 
     [Description("Maximum retry count for transient native CT HTTP failures.")]
     [CommandOption("--native-ct-retry-count <N>")]
@@ -204,6 +234,11 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [CommandOption("--mail-timeout-seconds <SECONDS>")]
     [DefaultValue(15)]
     public int MailTimeoutSeconds { get; set; } = 15;
+
+    [Description("HTTPS certificate probe timeout in seconds.")]
+    [CommandOption("--https-timeout-seconds <SECONDS>")]
+    [DefaultValue(30)]
+    public int HttpsTimeoutSeconds { get; set; } = 30;
 
     [Description("Maximum total probe targets (HTTPS + mail) kept after discovery (0 means unlimited).")]
     [CommandOption("--max-targets <N>")]
@@ -328,6 +363,10 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--mail-timeout-seconds must be between 1 and 300.[/]");
             return 1;
         }
+        if (settings.HttpsTimeoutSeconds < 1 || settings.HttpsTimeoutSeconds > 300) {
+            AnsiConsole.MarkupLine("[red]--https-timeout-seconds must be between 1 and 300.[/]");
+            return 1;
+        }
         if (settings.MaxTargets < 0) {
             AnsiConsole.MarkupLine("[red]--max-targets must be 0 or greater.[/]");
             return 1;
@@ -370,6 +409,30 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         }
         if (settings.NativeCtRequestDelayMilliseconds < 0 || settings.NativeCtRequestDelayMilliseconds > 60000) {
             AnsiConsole.MarkupLine("[red]--native-ct-request-delay-ms must be between 0 and 60000.[/]");
+            return 1;
+        }
+        if (settings.NativeCtRequestTimeoutSeconds < 1 || settings.NativeCtRequestTimeoutSeconds > 300) {
+            AnsiConsole.MarkupLine("[red]--native-ct-request-timeout-seconds must be between 1 and 300.[/]");
+            return 1;
+        }
+        if (settings.PassiveCtRequestTimeoutSeconds < 1 || settings.PassiveCtRequestTimeoutSeconds > 300) {
+            AnsiConsole.MarkupLine("[red]--passive-ct-request-timeout-seconds must be between 1 and 300.[/]");
+            return 1;
+        }
+        if (settings.PassiveCtRetryCount < 0 || settings.PassiveCtRetryCount > 20) {
+            AnsiConsole.MarkupLine("[red]--passive-ct-retry-count must be between 0 and 20.[/]");
+            return 1;
+        }
+        if (settings.PassiveCtRetryBaseDelayMilliseconds < 0 || settings.PassiveCtRetryBaseDelayMilliseconds > 60000) {
+            AnsiConsole.MarkupLine("[red]--passive-ct-retry-base-delay-ms must be between 0 and 60000.[/]");
+            return 1;
+        }
+        if (settings.PassiveCtRetryMaxDelayMilliseconds < 0 || settings.PassiveCtRetryMaxDelayMilliseconds > 300000) {
+            AnsiConsole.MarkupLine("[red]--passive-ct-retry-max-delay-ms must be between 0 and 300000.[/]");
+            return 1;
+        }
+        if (settings.PassiveCtSourceCooldownSeconds < 0 || settings.PassiveCtSourceCooldownSeconds > 86400) {
+            AnsiConsole.MarkupLine("[red]--passive-ct-source-cooldown-seconds must be between 0 and 86400.[/]");
             return 1;
         }
         if (settings.NativeCtRetryCount < 0 || settings.NativeCtRetryCount > 20) {
@@ -453,6 +516,11 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             EnableNativeCtLogSubdomainSource = settings.EnableNativeCtLogs,
             EnableNativeCtSharedIngestion = !settings.DisableNativeCtSharedIngestion,
             NativeCtLogOnly = settings.NativeCtLogOnly,
+            PassiveCtRequestTimeout = TimeSpan.FromSeconds(settings.PassiveCtRequestTimeoutSeconds),
+            PassiveCtRetryCount = settings.PassiveCtRetryCount,
+            PassiveCtRetryBaseDelay = TimeSpan.FromMilliseconds(settings.PassiveCtRetryBaseDelayMilliseconds),
+            PassiveCtRetryMaxDelay = TimeSpan.FromMilliseconds(settings.PassiveCtRetryMaxDelayMilliseconds),
+            PassiveCtSourceCooldown = TimeSpan.FromSeconds(settings.PassiveCtSourceCooldownSeconds),
             NativeCtLogListUrl = settings.NativeCtLogListUrl,
             NativeCtMaxLogs = settings.NativeCtMaxLogs,
             NativeCtMaxEntriesPerLog = settings.NativeCtMaxEntriesPerLog,
@@ -461,6 +529,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             NativeCtCursorStatePath = settings.NativeCtCursorStatePath,
             NativeCtIncludePendingLogs = settings.NativeCtIncludePendingLogs,
             NativeCtRequestDelay = TimeSpan.FromMilliseconds(settings.NativeCtRequestDelayMilliseconds),
+            NativeCtRequestTimeout = TimeSpan.FromSeconds(settings.NativeCtRequestTimeoutSeconds),
             NativeCtRetryCount = settings.NativeCtRetryCount,
             NativeCtRetryBaseDelay = TimeSpan.FromMilliseconds(settings.NativeCtRetryBaseDelayMilliseconds),
             NativeCtRetryMaxDelay = TimeSpan.FromMilliseconds(settings.NativeCtRetryMaxDelayMilliseconds),
@@ -474,6 +543,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             MaxParallelism = settings.MaxParallelism,
             DiscoveryParallelism = settings.DiscoveryParallelism,
             MailTimeout = TimeSpan.FromSeconds(settings.MailTimeoutSeconds),
+            HttpsTimeout = TimeSpan.FromSeconds(settings.HttpsTimeoutSeconds),
             MaxTargets = settings.MaxTargets,
             MaxProbeStartsPerSecond = settings.MaxProbeStartsPerSecond,
             ReuseRecentSnapshotEntries = settings.ReuseRecentResults,
