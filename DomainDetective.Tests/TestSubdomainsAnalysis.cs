@@ -186,6 +186,26 @@ public class TestSubdomainsAnalysis
         Assert.Contains(analysis.Subdomains, s => s.Name == "api.example.com");
         Assert.DoesNotContain(analysis.Subdomains, s => s.Name == "example.com");
         Assert.DoesNotContain(analysis.Assessments, a => a.Code == SubdomainCodes.CtQueryFailed);
+        Assert.Contains(Assert.Single(analysis.Subdomains, s => s.Name == "api.example.com").CtSources, source => source.Equals("certspotter", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task PassiveCtTransientFailuresAdviseRetryLater()
+    {
+        var analysis = new SubdomainsAnalysis
+        {
+            VerifyStillResolves = false,
+            PassiveCtRetryCount = 0,
+            PassiveCtSourceCooldown = TimeSpan.FromSeconds(30),
+            QueryOverride = (_, _) => throw new HttpRequestException("HTTP 429 Too Many Requests")
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.False(analysis.QuerySucceeded);
+        Assert.NotEmpty(analysis.PassiveCtWarnings);
+        Assert.Contains(analysis.PassiveCtWarnings, warning => warning.Contains("check later", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(analysis.Assessments, a => a.Code == SubdomainCodes.CtQueryFailed);
     }
 
     [Fact]
@@ -204,6 +224,7 @@ public class TestSubdomainsAnalysis
             NativeCtMaxEntriesPerLog = 10,
             NativeCtEntryBatchSize = 10,
             NativeCtInitialBackfillEntriesPerLog = 10,
+            NativeCtIncludeRetiredLogs = false,
             QueryOverride = (url, _) =>
             {
                 if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase))

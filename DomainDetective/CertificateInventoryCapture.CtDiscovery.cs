@@ -14,16 +14,29 @@ namespace DomainDetective;
 
 public sealed partial class CertificateInventoryCapture {
     private static async Task<IReadOnlyList<SubdomainDiscoveryEntry>> DiscoverCtSubdomainsAsync(
-        IReadOnlyList<string> domains,
+        IReadOnlyList<CertificateInventorySeed> seeds,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
         List<string> nativeCtLogDiagnostics,
         List<NativeCtLogDiagnosticEntry> nativeCtLogDiagnosticEntries,
         InternalLogger logger,
         CancellationToken cancellationToken) {
-        if (domains == null || domains.Count == 0 || !options.IncludeCtDiscoveredSubdomains) {
+        if (seeds == null || seeds.Count == 0 || !options.IncludeCtDiscoveredSubdomains) {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
+
+        var domains = seeds
+            .Select(static seed => seed.Name)
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (domains.Count == 0) {
+            return Array.Empty<SubdomainDiscoveryEntry>();
+        }
+
+        var exactHostSeeds = new HashSet<string>(
+            seeds.Where(static seed => seed.IsExactHostSeed).Select(static seed => seed.Name),
+            StringComparer.OrdinalIgnoreCase);
 
         bool allowPassiveCtFallback = ShouldAllowPassiveCtFallback(options);
 
@@ -33,6 +46,7 @@ public sealed partial class CertificateInventoryCapture {
             logger.WriteVerbose("Using shared native CT ingestion for {0} domain(s).", domains.Count);
             IReadOnlyList<SubdomainDiscoveryEntry> nativeSharedDiscovered = await DiscoverCtSubdomainsNativeSharedAsync(
                 domains,
+                exactHostSeeds,
                 options,
                 warnings,
                 nativeCtLogDiagnostics,
@@ -94,6 +108,11 @@ public sealed partial class CertificateInventoryCapture {
                         DetectSensitiveSubdomains = false,
                         ScanSensitiveSubdomainTxt = false,
                         DetectAiInfrastructureExposure = false,
+                        PassiveCtRequestTimeout = options.PassiveCtRequestTimeout,
+                        PassiveCtRetryCount = options.PassiveCtRetryCount,
+                        PassiveCtRetryBaseDelay = options.PassiveCtRetryBaseDelay,
+                        PassiveCtRetryMaxDelay = options.PassiveCtRetryMaxDelay,
+                        PassiveCtSourceCooldown = options.PassiveCtSourceCooldown,
                         EnableNativeCtLogSource = options.EnableNativeCtLogSubdomainSource,
                         NativeCtLogOnly = options.NativeCtLogOnly || !allowPassiveCtFallback,
                         NativeCtLogListUrl = options.NativeCtLogListUrl,
@@ -105,6 +124,7 @@ public sealed partial class CertificateInventoryCapture {
                         NativeCtIncludePendingLogs = options.NativeCtIncludePendingLogs,
                         NativeCtIncludeRetiredLogs = options.NativeCtIncludeRetiredLogs,
                         NativeCtRequestDelay = options.NativeCtRequestDelay,
+                        NativeCtRequestTimeout = options.NativeCtRequestTimeout,
                         NativeCtRetryCount = options.NativeCtRetryCount,
                         NativeCtRetryBaseDelay = options.NativeCtRetryBaseDelay,
                         NativeCtRetryMaxDelay = options.NativeCtRetryMaxDelay,
@@ -113,7 +133,10 @@ public sealed partial class CertificateInventoryCapture {
                         NativeCtEnableCatchUpMode = options.NativeCtEnableCatchUpMode,
                         NativeCtCatchUpLagThreshold = options.NativeCtCatchUpLagThreshold,
                         NativeCtCatchUpMaxEntriesPerLog = options.NativeCtCatchUpMaxEntriesPerLog,
-                        NativeCtCatchUpBatchSize = options.NativeCtCatchUpBatchSize
+                        NativeCtCatchUpBatchSize = options.NativeCtCatchUpBatchSize,
+                        NativeCtExactMatchOnly = exactHostSeeds.Contains(domain),
+                        NativeCtPrioritizeLatestExactMatch = exactHostSeeds.Contains(domain),
+                        NativeCtStopAfterMatchedObservations = exactHostSeeds.Contains(domain) ? 1 : 0
                     };
                     if (options.NativeCtLogUrls != null && options.NativeCtLogUrls.Count > 0) {
                         foreach (var logUrl in options.NativeCtLogUrls) {
@@ -131,6 +154,13 @@ public sealed partial class CertificateInventoryCapture {
                     }
 
                     await analysis.AnalyzeAsync(domain, logger, cancellationToken).ConfigureAwait(false);
+                    if (analysis.PassiveCtWarnings != null && analysis.PassiveCtWarnings.Count > 0) {
+                        lock (warningLock) {
+                            foreach (string warning in analysis.PassiveCtWarnings) {
+                                warnings.Add($"Passive CT fallback for {domain}: {warning}");
+                            }
+                        }
+                    }
                     if (analysis.NativeCtLogDiagnostics != null && analysis.NativeCtLogDiagnostics.Count > 0) {
                         lock (diagnosticsLock) {
                             foreach (var diagnostic in analysis.NativeCtLogDiagnostics) {
@@ -222,6 +252,7 @@ public sealed partial class CertificateInventoryCapture {
 
     private static async Task<IReadOnlyList<SubdomainDiscoveryEntry>> DiscoverCtSubdomainsNativeSharedAsync(
         IReadOnlyList<string> domains,
+        IReadOnlyCollection<string> exactHostSeeds,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
         List<string> nativeCtLogDiagnostics,
@@ -250,6 +281,7 @@ public sealed partial class CertificateInventoryCapture {
             IncludePendingLogs = options.NativeCtIncludePendingLogs,
             IncludeRetiredLogs = options.NativeCtIncludeRetiredLogs,
             RequestDelay = options.NativeCtRequestDelay,
+            RequestTimeout = options.NativeCtRequestTimeout,
             RetryCount = options.NativeCtRetryCount,
             RetryBaseDelay = options.NativeCtRetryBaseDelay,
             RetryMaxDelay = options.NativeCtRetryMaxDelay,
@@ -258,7 +290,11 @@ public sealed partial class CertificateInventoryCapture {
             EnableCatchUpMode = options.NativeCtEnableCatchUpMode,
             CatchUpLagThreshold = options.NativeCtCatchUpLagThreshold,
             CatchUpMaxEntriesPerLog = options.NativeCtCatchUpMaxEntriesPerLog,
-            CatchUpBatchSize = options.NativeCtCatchUpBatchSize
+            CatchUpBatchSize = options.NativeCtCatchUpBatchSize,
+            ExactMatchDomains = exactHostSeeds?
+                .Where(static name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? new List<string>()
         };
 
         var batchResult = await source.DiscoverForDomainsAsync(domains, sourceOptions, logger, cancellationToken).ConfigureAwait(false);
@@ -370,6 +406,11 @@ public sealed partial class CertificateInventoryCapture {
                         DetectSensitiveSubdomains = false,
                         ScanSensitiveSubdomainTxt = false,
                         DetectAiInfrastructureExposure = false,
+                        PassiveCtRequestTimeout = options.PassiveCtRequestTimeout,
+                        PassiveCtRetryCount = options.PassiveCtRetryCount,
+                        PassiveCtRetryBaseDelay = options.PassiveCtRetryBaseDelay,
+                        PassiveCtRetryMaxDelay = options.PassiveCtRetryMaxDelay,
+                        PassiveCtSourceCooldown = options.PassiveCtSourceCooldown,
                         EnableNativeCtLogSource = false,
                         NativeCtLogOnly = false
                     };
@@ -382,6 +423,13 @@ public sealed partial class CertificateInventoryCapture {
                     }
 
                     await analysis.AnalyzeAsync(domain, logger, cancellationToken).ConfigureAwait(false);
+                    if (analysis.PassiveCtWarnings != null && analysis.PassiveCtWarnings.Count > 0) {
+                        lock (warningLock) {
+                            foreach (string warning in analysis.PassiveCtWarnings) {
+                                warnings.Add($"Passive CT fallback for {domain}: {warning}");
+                            }
+                        }
+                    }
                     if (!analysis.QuerySucceeded && !string.IsNullOrWhiteSpace(analysis.FailureReason)) {
                         lock (warningLock) {
                             warnings.Add($"Passive CT fallback failed for {domain}: {analysis.FailureReason}");

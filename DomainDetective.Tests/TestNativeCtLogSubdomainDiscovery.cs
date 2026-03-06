@@ -296,6 +296,27 @@ public class TestNativeCtLogSubdomainDiscovery {
     }
 
     [Fact]
+    public void ApplyLogCap_PrioritizeLatestExactMatch_OrdersNewestLogsFirst() {
+        IReadOnlyList<(string Url, DateTimeOffset? TemporalStartUtc, DateTimeOffset? TemporalEndUtc)> logs =
+            new (string Url, DateTimeOffset? TemporalStartUtc, DateTimeOffset? TemporalEndUtc)[] {
+                ("https://ct.example/log-2022/", new DateTimeOffset(2022, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2022, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2023/", new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2023, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2024/", new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2024, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2025/", new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2026/", new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero))
+            };
+
+        IReadOnlyList<string> ordered = NativeCtLogSubdomainDiscovery.ApplyLogCap(logs, 0, prioritizeLatestExactMatch: true);
+
+        Assert.Equal(5, ordered.Count);
+        Assert.Equal("https://ct.example/log-2026/", ordered[0]);
+        Assert.Equal("https://ct.example/log-2025/", ordered[1]);
+        Assert.Equal("https://ct.example/log-2024/", ordered[2]);
+        Assert.Equal("https://ct.example/log-2023/", ordered[3]);
+        Assert.Equal("https://ct.example/log-2022/", ordered[4]);
+    }
+
+    [Fact]
     public async Task DiscoverForDomainsAsync_IncludesRetiredLogs_WhenEnabled() {
         using var cert = CreateSelfSigned("historical.example.com");
         var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2022, 8, 11, 0, 0, 0, TimeSpan.Zero)));
@@ -495,6 +516,255 @@ public class TestNativeCtLogSubdomainDiscovery {
         Assert.Equal(1, result.CertificateObservationCount);
         Assert.Contains("historical.example.com", result.SubdomainsByDomain["example.com"].Keys);
         Assert.DoesNotContain("unrelated.example.net", result.SubdomainsByDomain["example.com"].Keys);
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_ExactHostSeedsMatchRequestedHost() {
+        using var exactHostCert = CreateSelfSigned("airtoxics.eurofins.com");
+        var entriesJson = BuildCtEntriesResponse((exactHostCert, new DateTimeOffset(2026, 3, 6, 10, 0, 0, TimeSpan.Zero)));
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log1/"", ""state"": { ""usable"": {} } } ] } ] }");
+                }
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "airtoxics.eurofins.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false,
+            ExactMatchDomains = new[] { "airtoxics.eurofins.com" }
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "airtoxics.eurofins.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Equal(1, result.CertificateObservationCount);
+        Assert.Contains("airtoxics.eurofins.com", result.SubdomainsByDomain["airtoxics.eurofins.com"].Keys);
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_ExactHostSeedsDoNotPullDeeperChildren() {
+        using var deeperChildCert = CreateSelfSigned("foo.airtoxics.eurofins.com");
+        var entriesJson = BuildCtEntriesResponse((deeperChildCert, new DateTimeOffset(2026, 3, 6, 10, 0, 0, TimeSpan.Zero)));
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log1/"", ""state"": { ""usable"": {} } } ] } ] }");
+                }
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "airtoxics.eurofins.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false,
+            ExactMatchDomains = new[] { "airtoxics.eurofins.com" }
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "airtoxics.eurofins.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Equal(0, result.CertificateObservationCount);
+        Assert.Empty(result.SubdomainsByDomain["airtoxics.eurofins.com"]);
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_ExactHostSeedsMatchSingleLabelWildcardCoverage() {
+        using var wildcardCert = CreateSelfSigned("*.eurofins.com");
+        var entriesJson = BuildCtEntriesResponse((wildcardCert, new DateTimeOffset(2026, 3, 6, 10, 0, 0, TimeSpan.Zero)));
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log1/"", ""state"": { ""usable"": {} } } ] } ] }");
+                }
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "airtoxics.eurofins.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false,
+            ExactMatchDomains = new[] { "airtoxics.eurofins.com" }
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "airtoxics.eurofins.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Equal(1, result.CertificateObservationCount);
+        Assert.Contains("airtoxics.eurofins.com", result.SubdomainsByDomain["airtoxics.eurofins.com"].Keys);
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_ExactHostSeedsDoNotMatchMultiLabelWildcardCoverage() {
+        using var wildcardCert = CreateSelfSigned("*.eurofins.com");
+        var entriesJson = BuildCtEntriesResponse((wildcardCert, new DateTimeOffset(2026, 3, 6, 10, 0, 0, TimeSpan.Zero)));
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log1/"", ""state"": { ""usable"": {} } } ] } ] }");
+                }
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "foo.airtoxics.eurofins.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false,
+            ExactMatchDomains = new[] { "foo.airtoxics.eurofins.com" }
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "foo.airtoxics.eurofins.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Equal(0, result.CertificateObservationCount);
+        Assert.Empty(result.SubdomainsByDomain["foo.airtoxics.eurofins.com"]);
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_ExactHostFastPathPrefersNewestLogAndStopsEarly() {
+        using var newerCert = CreateSelfSigned("airtoxics.eurofins.com");
+        using var olderCert = CreateSelfSigned("airtoxics.eurofins.com");
+        var newerEntriesJson = BuildCtEntriesResponse((newerCert, new DateTimeOffset(2026, 3, 6, 10, 0, 0, TimeSpan.Zero)));
+        var olderEntriesJson = BuildCtEntriesResponse((olderCert, new DateTimeOffset(2022, 7, 11, 15, 36, 47, TimeSpan.Zero)));
+        var requestedUrls = new List<string>();
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                requestedUrls.Add(url);
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log-2022/"", ""state"": { ""usable"": {} }, ""temporal_interval"": { ""start_inclusive"": ""2022-01-01T00:00:00Z"", ""end_exclusive"": ""2023-01-01T00:00:00Z"" } }, { ""url"": ""ct.test.example/log-2026/"", ""state"": { ""usable"": {} }, ""temporal_interval"": { ""start_inclusive"": ""2026-01-01T00:00:00Z"", ""end_exclusive"": ""2027-01-01T00:00:00Z"" } } ] } ] }");
+                }
+                if (url.Contains("ct.test.example/log-2026/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("ct.test.example/log-2026/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(newerEntriesJson);
+                }
+                if (url.Contains("ct.test.example/log-2022/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("ct.test.example/log-2022/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(olderEntriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "airtoxics.eurofins.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false,
+            ExactMatchDomains = new[] { "airtoxics.eurofins.com" },
+            PrioritizeLatestExactMatch = true,
+            StopAfterMatchedObservations = 1
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "airtoxics.eurofins.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Equal(1, result.CertificateObservationCount);
+        Assert.Contains("airtoxics.eurofins.com", result.SubdomainsByDomain["airtoxics.eurofins.com"].Keys);
+        Assert.Equal(
+            new DateTimeOffset(2026, 3, 6, 10, 0, 0, TimeSpan.Zero),
+            result.SubdomainsByDomain["airtoxics.eurofins.com"]["airtoxics.eurofins.com"].LatestCertificateCtEntryTimestampUtc);
+        Assert.Contains(
+            requestedUrls,
+            static url => url.Contains("ct.test.example/log-2026/", StringComparison.OrdinalIgnoreCase) &&
+                          url.Contains("get-entries", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            requestedUrls,
+            static url => url.Contains("ct.test.example/log-2022/", StringComparison.OrdinalIgnoreCase) &&
+                          url.Contains("get-entries", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Warnings, warning => warning.Contains("matched-observation target", StringComparison.OrdinalIgnoreCase));
     }
 
     private static X509Certificate2 CreateSelfSigned(string cn) {

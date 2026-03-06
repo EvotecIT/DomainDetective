@@ -1,13 +1,11 @@
 using DnsClientX;
 using AsyncIntervalGate = DnsClientX.Throttling.AsyncIntervalGate;
 using DomainDetective.Helpers;
-using DomainDetective.Network;
 using DomainDetective.Providers.Dns;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -76,19 +74,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         Assessments.Clear();
         NativeCtLogDiagnostics = Array.Empty<string>();
         NativeCtLogDiagnosticEntries = Array.Empty<NativeCtLogDiagnosticEntry>();
-    }
-
-    private async Task<string> FetchJsonAsync(string url, CancellationToken cancellationToken)
-    {
-        if (QueryOverride != null)
-        {
-            return await QueryOverride(url, cancellationToken).ConfigureAwait(false);
-        }
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        using var response = await SharedHttpClient.Instance.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        PassiveCtWarnings = Array.Empty<string>();
     }
 
     private string? BuildCrtShUrl(string domain)
@@ -109,6 +95,48 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         }
 
         return string.Format(CertSpotterUrlTemplate, Uri.EscapeDataString(domain));
+    }
+
+    private async Task<PassiveCtSourceClient.QueryResult> QueryPassiveCtSourcesAsync(
+        string domain,
+        InternalLogger? logger,
+        CancellationToken cancellationToken)
+    {
+        var requests = new List<PassiveCtSourceClient.SourceRequest>(2);
+        string? crtShUrl = BuildCrtShUrl(domain);
+        if (!string.IsNullOrWhiteSpace(crtShUrl))
+        {
+            requests.Add(new PassiveCtSourceClient.SourceRequest
+            {
+                SourceName = "crt.sh",
+                Url = crtShUrl!
+            });
+        }
+
+        string? certSpotterUrl = BuildCertSpotterUrl(domain);
+        if (UseCertSpotterFallback && !string.IsNullOrWhiteSpace(certSpotterUrl))
+        {
+            requests.Add(new PassiveCtSourceClient.SourceRequest
+            {
+                SourceName = "certspotter",
+                Url = certSpotterUrl!
+            });
+        }
+
+        var client = new PassiveCtSourceClient();
+        return await client.QueryAsync(
+            requests,
+            new PassiveCtSourceClient.QueryOptions
+            {
+                RequestTimeout = PassiveCtRequestTimeout,
+                RetryCount = PassiveCtRetryCount,
+                RetryBaseDelay = PassiveCtRetryBaseDelay,
+                RetryMaxDelay = PassiveCtRetryMaxDelay,
+                SourceCooldown = PassiveCtSourceCooldown
+            },
+            QueryOverride,
+            logger,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<NativeCtLogSubdomainDiscoveryResult> DiscoverNativeCtSubdomainsAsync(string domain, InternalLogger? logger, CancellationToken cancellationToken)
@@ -132,7 +160,11 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
             CursorStatePath = NativeCtCursorStatePath,
             IncludePendingLogs = NativeCtIncludePendingLogs,
             IncludeRetiredLogs = NativeCtIncludeRetiredLogs,
+            ExactMatchOnly = NativeCtExactMatchOnly,
+            PrioritizeLatestExactMatch = NativeCtPrioritizeLatestExactMatch,
+            StopAfterMatchedObservations = NativeCtStopAfterMatchedObservations,
             RequestDelay = NativeCtRequestDelay,
+            RequestTimeout = NativeCtRequestTimeout,
             RetryCount = NativeCtRetryCount,
             RetryBaseDelay = NativeCtRetryBaseDelay,
             RetryMaxDelay = NativeCtRetryMaxDelay,

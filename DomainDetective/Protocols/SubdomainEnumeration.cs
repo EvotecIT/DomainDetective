@@ -2,7 +2,6 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,13 +36,26 @@ public class SubdomainEnumeration
     /// <summary>When true (default), tries Cert Spotter if crt.sh fails.</summary>
     public bool UseCertSpotterFallback { get; set; } = true;
 
+    /// <summary>Per-request timeout for passive/public CT HTTP calls.</summary>
+    public TimeSpan PassiveCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Maximum retry count for transient passive/public CT HTTP failures.</summary>
+    public int PassiveCtRetryCount { get; set; } = 2;
+
+    /// <summary>Base delay between passive/public CT retry attempts.</summary>
+    public TimeSpan PassiveCtRetryBaseDelay { get; set; } = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>Maximum delay between passive/public CT retry attempts.</summary>
+    public TimeSpan PassiveCtRetryMaxDelay { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Cooldown applied to passive/public CT sources after transient failures or rate limits.</summary>
+    public TimeSpan PassiveCtSourceCooldown { get; set; } = TimeSpan.FromSeconds(60);
+
     /// <summary>List of subdomains discovered via brute force.</summary>
     public List<string> BruteForceResults { get; private set; } = new();
 
     /// <summary>List of subdomains discovered via passive sources.</summary>
     public List<string> PassiveResults { get; private set; } = new();
-
-    private static readonly HttpClient _client = new();
 
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
     {
@@ -61,32 +73,57 @@ public class SubdomainEnumeration
             return await PassiveLookupOverride(domain, ct);
         }
 
-        string? failure = null;
+        var requests = new List<PassiveCtSourceClient.SourceRequest>(2);
         if (!string.IsNullOrWhiteSpace(CrtShUrlTemplate))
         {
-            try
+            requests.Add(new PassiveCtSourceClient.SourceRequest
             {
-                return await QueryPassiveFromUrl(string.Format(CrtShUrlTemplate, domain), ct);
-            }
-            catch (Exception ex)
-            {
-                failure = ex.Message;
-            }
+                SourceName = "crt.sh",
+                Url = string.Format(CrtShUrlTemplate, domain)
+            });
         }
 
         if (UseCertSpotterFallback && !string.IsNullOrWhiteSpace(CertSpotterUrlTemplate))
         {
-            try
+            requests.Add(new PassiveCtSourceClient.SourceRequest
             {
-                return await QueryPassiveFromUrl(string.Format(CertSpotterUrlTemplate, Uri.EscapeDataString(domain)), ct);
-            }
-            catch (Exception ex)
+                SourceName = "certspotter",
+                Url = string.Format(CertSpotterUrlTemplate, Uri.EscapeDataString(domain))
+            });
+        }
+
+        var client = new PassiveCtSourceClient();
+        PassiveCtSourceClient.QueryResult result = await client.QueryAsync(
+            requests,
+            new PassiveCtSourceClient.QueryOptions
             {
-                failure = failure == null ? ex.Message : $"{failure}; fallback failed: {ex.Message}";
+                RequestTimeout = PassiveCtRequestTimeout,
+                RetryCount = PassiveCtRetryCount,
+                RetryBaseDelay = PassiveCtRetryBaseDelay,
+                RetryMaxDelay = PassiveCtRetryMaxDelay,
+                SourceCooldown = PassiveCtSourceCooldown
+            },
+            PassiveHttpGetOverride,
+            logger: null,
+            ct).ConfigureAwait(false);
+        if (result.Payloads.Count == 0)
+        {
+            throw new InvalidOperationException(
+                result.Warnings.Count > 0
+                    ? string.Join("; ", result.Warnings)
+                    : "No passive CT source succeeded.");
+        }
+
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (PassiveCtSourceClient.SourcePayload payload in result.Payloads)
+        {
+            foreach (string name in ParsePassiveNames(payload.Payload))
+            {
+                names.Add(name);
             }
         }
 
-        throw new InvalidOperationException(failure ?? "No passive CT source succeeded.");
+        return names;
     }
 
     private static string? GetString(JsonElement obj, string propertyName)
@@ -104,20 +141,8 @@ public class SubdomainEnumeration
         return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
     }
 
-    private async Task<IEnumerable<string>> QueryPassiveFromUrl(string url, CancellationToken ct)
+    private static IEnumerable<string> ParsePassiveNames(string json)
     {
-        string json;
-        if (PassiveHttpGetOverride != null)
-        {
-            json = await PassiveHttpGetOverride(url, ct);
-        }
-        else
-        {
-            using var resp = await _client.GetAsync(url, ct);
-            resp.EnsureSuccessStatusCode();
-            json = await resp.Content.ReadAsStringAsync();
-        }
-
         using var doc = JsonDocument.Parse(json);
 
         if (doc.RootElement.ValueKind != JsonValueKind.Array)

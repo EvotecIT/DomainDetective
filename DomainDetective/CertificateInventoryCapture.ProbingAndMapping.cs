@@ -102,6 +102,7 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         analysis.SkipRevocation = options.SkipRevocation;
+        analysis.Timeout = options.HttpsTimeout;
 
         if (options.CtProfile == CertificateCtEnrichmentProfile.Disabled) {
             analysis.CtLogApiTemplates.Clear();

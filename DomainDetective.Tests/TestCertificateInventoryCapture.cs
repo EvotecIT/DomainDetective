@@ -157,6 +157,51 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_ExplicitHostSeedProbesRequestedHostWithoutWwwOrMxExpansion() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        var mxLookupCalls = 0;
+        List<string>? observedTargets = null;
+        var capture = new CertificateInventoryCapture {
+            MxLookupOverride = (domain, dnsConfiguration, maxMxHostsPerDomain, cancellationToken) => {
+                mxLookupCalls++;
+                return Task.FromResult<IReadOnlyList<string>>(new[] { "mx1.example.com" });
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                observedTargets = httpsTargets.ToList();
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    entries.Add(CreateHttpsEntry(target, certificate));
+                }
+
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = true,
+            IncludeMxHosts = true,
+            IncludeMxHttps = true,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "portal.example.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.NotNull(observedTargets);
+        Assert.Single(observedTargets!);
+        Assert.Equal("https://portal.example.com/", observedTargets[0]);
+        Assert.DoesNotContain(observedTargets, target => target.Contains("www.portal.example.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, mxLookupCalls);
+        Assert.Equal(1, result.HttpsEndpointCount);
+        Assert.Equal(0, result.MxHostCount);
+        Assert.Equal("portal.example.com", Assert.Single(result.Domains));
+    }
+
+    [Fact]
     public async Task CaptureAsync_IncludesCtDiscoveredSubdomains_WhenEnabled() {
         using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
         var capture = new CertificateInventoryCapture {
@@ -509,6 +554,18 @@ public class TestCertificateInventoryCapture {
         CertificateInventoryCapture.ConfigureHttpsAnalysis(analysis, options);
 
         Assert.DoesNotContain("https://crt.sh/?sha256={0}&output=json", analysis.CtLogApiTemplates);
+    }
+
+    [Fact]
+    public void ConfigureHttpsAnalysis_AppliesConfiguredHttpsTimeout() {
+        var analysis = new CertificateAnalysis();
+        var options = new CertificateInventoryCaptureOptions {
+            HttpsTimeout = TimeSpan.FromSeconds(7)
+        };
+
+        CertificateInventoryCapture.ConfigureHttpsAnalysis(analysis, options);
+
+        Assert.Equal(TimeSpan.FromSeconds(7), analysis.Timeout);
     }
 
     [Fact]

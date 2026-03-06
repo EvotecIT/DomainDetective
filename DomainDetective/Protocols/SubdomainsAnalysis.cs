@@ -36,6 +36,21 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     /// <summary>When true (default), queries Cert Spotter when crt.sh cannot be reached.</summary>
     public bool UseCertSpotterFallback { get; set; } = true;
 
+    /// <summary>Per-request timeout for passive/public CT HTTP calls.</summary>
+    public TimeSpan PassiveCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Maximum retry count for transient passive/public CT HTTP failures.</summary>
+    public int PassiveCtRetryCount { get; set; } = 2;
+
+    /// <summary>Base delay between passive/public CT retry attempts.</summary>
+    public TimeSpan PassiveCtRetryBaseDelay { get; set; } = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>Maximum delay between passive/public CT retry attempts.</summary>
+    public TimeSpan PassiveCtRetryMaxDelay { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Cooldown applied to passive/public CT sources after transient failures or rate limits.</summary>
+    public TimeSpan PassiveCtSourceCooldown { get; set; } = TimeSpan.FromSeconds(60);
+
     /// <summary>When true, uses direct RFC6962 CT log polling as primary subdomain discovery source.</summary>
     public bool EnableNativeCtLogSource { get; set; }
 
@@ -69,8 +84,29 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     /// <summary>When true, includes retired CT logs during native discovery to recover older historical certificates.</summary>
     public bool NativeCtIncludeRetiredLogs { get; set; } = true;
 
+    /// <summary>
+    /// When true, native CT discovery only matches the exact requested host instead of only child subdomains.
+    /// Useful for direct host or subdomain lookups where the caller wants CT data for that exact name.
+    /// </summary>
+    public bool NativeCtExactMatchOnly { get; set; }
+
+    /// <summary>
+    /// When true, exact-host native CT discovery prefers newer CT logs first so the latest certificate
+    /// metadata can be returned faster for direct host lookups.
+    /// </summary>
+    public bool NativeCtPrioritizeLatestExactMatch { get; set; }
+
+    /// <summary>
+    /// Optional matched-observation stop target for exact-host native CT discovery.
+    /// Set to values greater than zero to stop after enough exact-host evidence has been observed.
+    /// </summary>
+    public int NativeCtStopAfterMatchedObservations { get; set; }
+
     /// <summary>Optional delay between native CT HTTP requests.</summary>
     public TimeSpan NativeCtRequestDelay { get; set; } = TimeSpan.Zero;
+
+    /// <summary>Per-request timeout for native CT HTTP calls.</summary>
+    public TimeSpan NativeCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>Maximum retry count for transient native CT HTTP failures.</summary>
     public int NativeCtRetryCount { get; set; } = 3;
@@ -247,6 +283,9 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     /// <summary>Structured native CT per-log diagnostics captured during this analysis run.</summary>
     public IReadOnlyList<NativeCtLogDiagnosticEntry> NativeCtLogDiagnosticEntries { get; private set; } = Array.Empty<NativeCtLogDiagnosticEntry>();
 
+    /// <summary>Passive/public CT source warnings captured during this analysis run.</summary>
+    public IReadOnlyList<string> PassiveCtWarnings { get; private set; } = Array.Empty<string>();
+
     /// <summary>
     /// Performs CT-backed subdomain discovery for the specified <paramref name="domain"/>.
     /// </summary>
@@ -296,39 +335,23 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
             }
         }
 
-        var payloads = new List<string>(2);
+        var payloads = new List<(string SourceName, string Payload)>(2);
         var shouldTryPassiveCt = !NativeCtLogOnly && (!sourceSucceeded || (EnableNativeCtLogSource && subdomainMap.Count == 0));
         if (shouldTryPassiveCt)
         {
-            var crtShUrl = BuildCrtShUrl(Subject);
-            if (!string.IsNullOrWhiteSpace(crtShUrl))
+            PassiveCtSourceClient.QueryResult passiveResult = await QueryPassiveCtSourcesAsync(Subject, logger, cancellationToken).ConfigureAwait(false);
+            PassiveCtWarnings = passiveResult.Warnings
+                .Where(static warning => !string.IsNullOrWhiteSpace(warning))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            foreach (PassiveCtSourceClient.SourcePayload payload in passiveResult.Payloads)
             {
-                try
-                {
-                    payloads.Add(await FetchJsonAsync(crtShUrl!, cancellationToken).ConfigureAwait(false));
-                }
-                catch (Exception ex)
-                {
-                    failure = ex.Message;
-                    logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
-                }
+                payloads.Add((payload.SourceName, payload.Payload));
             }
 
-            if (payloads.Count == 0 && UseCertSpotterFallback)
+            if (payloads.Count == 0 && PassiveCtWarnings.Count > 0)
             {
-                var fallbackUrl = BuildCertSpotterUrl(Subject);
-                if (!string.IsNullOrWhiteSpace(fallbackUrl))
-                {
-                    try
-                    {
-                        payloads.Add(await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false));
-                    }
-                    catch (Exception ex)
-                    {
-                        failure = failure == null ? ex.Message : $"{failure}; fallback failed: {ex.Message}";
-                        logger?.WriteVerbose("Fallback CT source failed for {0}: {1}", Subject, ex.Message);
-                    }
-                }
+                failure = string.Join("; ", PassiveCtWarnings.Take(3));
             }
         }
 
@@ -351,7 +374,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         {
             foreach (var payload in payloads)
             {
-                ParseCtJson(payload, Subject, issuerCounts, subdomainMap, logger, "crt.sh/certspotter");
+                ParseCtJson(payload.Payload, Subject, issuerCounts, subdomainMap, logger, payload.SourceName);
                 if (ResultsCapped)
                 {
                     break;
