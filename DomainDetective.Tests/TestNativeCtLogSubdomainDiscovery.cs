@@ -46,6 +46,7 @@ public class TestNativeCtLogSubdomainDiscovery {
             MaxEntriesPerLog = 100,
             EntryBatchSize = 100,
             InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false,
             RetryCount = 2,
             RetryBaseDelay = TimeSpan.Zero,
             RetryMaxDelay = TimeSpan.Zero
@@ -99,7 +100,8 @@ public class TestNativeCtLogSubdomainDiscovery {
                 MaxLogsToProcess = 10,
                 MaxEntriesPerLog = 100,
                 EntryBatchSize = 100,
-                InitialBackfillEntriesPerLog = 100
+                InitialBackfillEntriesPerLog = 100,
+                IncludeRetiredLogs = false
             };
 
             var first = await source.DiscoverForDomainsAsync(
@@ -165,7 +167,8 @@ public class TestNativeCtLogSubdomainDiscovery {
             MaxLogsToProcess = 10,
             MaxEntriesPerLog = 100,
             EntryBatchSize = 100,
-            InitialBackfillEntriesPerLog = 100
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false
         };
 
         var result = await source.DiscoverForDomainsAsync(
@@ -218,7 +221,8 @@ public class TestNativeCtLogSubdomainDiscovery {
                 MaxLogsToProcess = 10,
                 MaxEntriesPerLog = 100,
                 EntryBatchSize = 100,
-                InitialBackfillEntriesPerLog = 100
+                InitialBackfillEntriesPerLog = 100,
+                IncludeRetiredLogs = false
             };
 
             var first = await source.DiscoverForDomainsAsync(
@@ -300,7 +304,8 @@ public class TestNativeCtLogSubdomainDiscovery {
         var source = new NativeCtLogSubdomainDiscovery {
             QueryOverride = (url, _) => {
                 requestedUrls.Add(url);
-                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(url, "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json", StringComparison.OrdinalIgnoreCase)) {
                     return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/usable/"", ""state"": { ""usable"": {} } }, { ""url"": ""ct.test.example/retired/"", ""state"": { ""retired"": {} } } ] } ] }");
                 }
                 if (url.Contains("ct.test.example/usable/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
@@ -385,6 +390,63 @@ public class TestNativeCtLogSubdomainDiscovery {
         Assert.True(result.SourceSucceeded);
         Assert.Empty(result.SubdomainsByDomain["example.com"]);
         Assert.DoesNotContain(requestedUrls, static url => url.Contains("ct.test.example/retired/", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_UsesHistoricalOfficialLogList_WhenRetiredLogsEnabled() {
+        using var cert = CreateSelfSigned("historical.example.com");
+        var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2022, 8, 11, 0, 0, 0, TimeSpan.Zero)));
+        var requestedUrls = new List<string>();
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                requestedUrls.Add(url);
+                if (string.Equals(url, "https://ct-log-list.example/logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Current"", ""logs"": [ { ""url"": ""ct.test.example/current/"", ""state"": { ""usable"": {} }, ""temporal_interval"": { ""start_inclusive"": ""2026-01-01T00:00:00Z"", ""end_exclusive"": ""2027-01-01T00:00:00Z"" } } ] } ] }");
+                }
+                if (string.Equals(url, "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Historical"", ""logs"": [ { ""url"": ""ct.test.example/historical/"", ""state"": { ""retired"": {} } } ] } ] }");
+                }
+                if (url.Contains("ct.test.example/current/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 0 }");
+                }
+                if (url.Contains("ct.test.example/current/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""entries"": [] }");
+                }
+                if (url.Contains("ct.test.example/historical/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("ct.test.example/historical/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "example.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = true
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "example.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Contains("historical.example.com", result.SubdomainsByDomain["example.com"].Keys);
+        Assert.Contains(
+            requestedUrls,
+            static url => string.Equals(url, "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json", StringComparison.OrdinalIgnoreCase));
     }
 
     private static X509Certificate2 CreateSelfSigned(string cn) {

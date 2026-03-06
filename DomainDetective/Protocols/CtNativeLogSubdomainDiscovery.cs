@@ -106,6 +106,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
     private const string SubjectAlternativeNameOid = "2.5.29.17";
+    private const string HistoricalAllLogsListUrl = "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json";
 
     public Func<string, CancellationToken, Task<string>>? QueryOverride { get; set; }
 
@@ -443,11 +444,39 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             return Array.Empty<ResolvedCtLogDescriptor>();
         }
 
-        var json = await FetchJsonWithRetryAsync(options.LogListUrl, options, cancellationToken).ConfigureAwait(false);
+        var logListUrls = new List<string> { options.LogListUrl };
+        if (options.IncludeRetiredLogs &&
+            !string.Equals(options.LogListUrl, HistoricalAllLogsListUrl, StringComparison.OrdinalIgnoreCase)) {
+            logListUrls.Add(HistoricalAllLogsListUrl);
+        }
+
+        foreach (var logListUrl in logListUrls) {
+            sourceOrder = await PopulateDescriptorsFromLogListAsync(
+                logListUrl,
+                options,
+                descriptors,
+                cancellationToken,
+                sourceOrder).ConfigureAwait(false);
+        }
+
+        return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess);
+    }
+
+    private async Task<int> PopulateDescriptorsFromLogListAsync(
+        string logListUrl,
+        NativeCtLogSubdomainDiscoveryOptions options,
+        IDictionary<string, ResolvedCtLogDescriptor> descriptors,
+        CancellationToken cancellationToken,
+        int sourceOrder) {
+        if (string.IsNullOrWhiteSpace(logListUrl)) {
+            return sourceOrder;
+        }
+
+        var json = await FetchJsonWithRetryAsync(logListUrl, options, cancellationToken).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object) {
-            return Array.Empty<ResolvedCtLogDescriptor>();
+            return sourceOrder;
         }
 
         if (root.TryGetProperty("operators", out var operatorsElement) && operatorsElement.ValueKind == JsonValueKind.Array) {
@@ -462,13 +491,16 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     TryAddLogFromListItem(log, options, descriptors, ref sourceOrder);
                 }
             }
-        } else if (root.TryGetProperty("logs", out var legacyLogs) && legacyLogs.ValueKind == JsonValueKind.Array) {
+            return sourceOrder;
+        }
+
+        if (root.TryGetProperty("logs", out var legacyLogs) && legacyLogs.ValueKind == JsonValueKind.Array) {
             foreach (var log in legacyLogs.EnumerateArray()) {
                 TryAddLogFromListItem(log, options, descriptors, ref sourceOrder);
             }
         }
 
-        return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess);
+        return sourceOrder;
     }
 
     internal static IReadOnlyList<string> ApplyLogCap(
