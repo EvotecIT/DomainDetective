@@ -25,6 +25,7 @@ internal sealed class NativeCtLogSubdomainDiscoveryOptions {
     public int InitialBackfillEntriesPerLog { get; set; } = 2000;
     public string? CursorStatePath { get; set; }
     public bool IncludePendingLogs { get; set; }
+    public bool IncludeRetiredLogs { get; set; } = true;
     public TimeSpan RequestDelay { get; set; } = TimeSpan.Zero;
     public int RetryCount { get; set; } = 3;
     public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromMilliseconds(500);
@@ -548,7 +549,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         if (log.ValueKind != JsonValueKind.Object) {
             return;
         }
-        if (!ShouldIncludeLog(log, options.IncludePendingLogs)) {
+        if (!ShouldIncludeLog(log, options.IncludePendingLogs, options.IncludeRetiredLogs)) {
             return;
         }
         var url = GetString(log, "url");
@@ -649,7 +650,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         return selected;
     }
 
-    private static bool ShouldIncludeLog(JsonElement log, bool includePendingLogs) {
+    private static bool ShouldIncludeLog(JsonElement log, bool includePendingLogs, bool includeRetiredLogs) {
         if (!log.TryGetProperty("state", out var state) || state.ValueKind != JsonValueKind.Object) {
             return true;
         }
@@ -658,7 +659,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             return false;
         }
         if (state.TryGetProperty("retired", out _)) {
-            return false;
+            return includeRetiredLogs;
         }
         if (state.TryGetProperty("usable", out _)) {
             return true;

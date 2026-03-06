@@ -66,6 +66,9 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     /// <summary>When true, includes pending CT logs from the log list during native discovery.</summary>
     public bool NativeCtIncludePendingLogs { get; set; }
 
+    /// <summary>When true, includes retired CT logs during native discovery to recover older historical certificates.</summary>
+    public bool NativeCtIncludeRetiredLogs { get; set; } = true;
+
     /// <summary>Optional delay between native CT HTTP requests.</summary>
     public TimeSpan NativeCtRequestDelay { get; set; } = TimeSpan.Zero;
 

@@ -131,6 +131,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
             InitialBackfillEntriesPerLog = NativeCtInitialBackfillEntriesPerLog,
             CursorStatePath = NativeCtCursorStatePath,
             IncludePendingLogs = NativeCtIncludePendingLogs,
+            IncludeRetiredLogs = NativeCtIncludeRetiredLogs,
             RequestDelay = NativeCtRequestDelay,
             RetryCount = NativeCtRetryCount,
             RetryBaseDelay = NativeCtRetryBaseDelay,
