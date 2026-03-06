@@ -506,16 +506,20 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             .OrderBy(static log => log.SourceOrder)
             .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (maxLogsToProcess <= 0 || ordered.Count <= maxLogsToProcess) {
-            return ordered;
-        }
-
         var dated = ordered
             .Where(static log => log.TemporalStartUtc.HasValue || log.TemporalEndUtc.HasValue)
             .OrderBy(static log => log.TemporalStartUtc ?? log.TemporalEndUtc ?? DateTimeOffset.MinValue)
             .ThenBy(static log => log.TemporalEndUtc ?? DateTimeOffset.MaxValue)
             .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var undated = ordered
+            .Where(static log => !log.TemporalStartUtc.HasValue && !log.TemporalEndUtc.HasValue)
+            .ToList();
+
+        if (maxLogsToProcess <= 0 || ordered.Count <= maxLogsToProcess) {
+            return BuildDistributedProcessingOrder(dated, undated);
+        }
+
         var selected = new List<ResolvedCtLogDescriptor>(maxLogsToProcess);
         var selectedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -538,7 +542,43 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             }
         }
 
-        return selected;
+        var selectedDated = selected
+            .Where(static log => log.TemporalStartUtc.HasValue || log.TemporalEndUtc.HasValue)
+            .OrderBy(static log => log.TemporalStartUtc ?? log.TemporalEndUtc ?? DateTimeOffset.MinValue)
+            .ThenBy(static log => log.TemporalEndUtc ?? DateTimeOffset.MaxValue)
+            .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var selectedUndated = selected
+            .Where(static log => !log.TemporalStartUtc.HasValue && !log.TemporalEndUtc.HasValue)
+            .OrderBy(static log => log.SourceOrder)
+            .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return BuildDistributedProcessingOrder(selectedDated, selectedUndated);
+    }
+
+    private static IReadOnlyList<ResolvedCtLogDescriptor> BuildDistributedProcessingOrder(
+        IReadOnlyList<ResolvedCtLogDescriptor> dated,
+        IReadOnlyList<ResolvedCtLogDescriptor> undated) {
+        var output = new List<ResolvedCtLogDescriptor>((dated?.Count ?? 0) + (undated?.Count ?? 0));
+        if (dated != null && dated.Count > 0) {
+            var left = 0;
+            var right = dated.Count - 1;
+            while (left <= right) {
+                output.Add(dated[left]);
+                if (right != left) {
+                    output.Add(dated[right]);
+                }
+                left++;
+                right--;
+            }
+        }
+
+        if (undated != null && undated.Count > 0) {
+            output.AddRange(undated);
+        }
+
+        return output;
     }
 
     private static void TryAddLogFromListItem(

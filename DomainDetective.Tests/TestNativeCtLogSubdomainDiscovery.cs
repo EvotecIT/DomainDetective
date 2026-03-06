@@ -271,6 +271,27 @@ public class TestNativeCtLogSubdomainDiscovery {
     }
 
     [Fact]
+    public void ApplyLogCap_InterleavesOldAndNewLogs_WhenUncapped() {
+        IReadOnlyList<(string Url, DateTimeOffset? TemporalStartUtc, DateTimeOffset? TemporalEndUtc)> logs =
+            new (string Url, DateTimeOffset? TemporalStartUtc, DateTimeOffset? TemporalEndUtc)[] {
+                ("https://ct.example/log-2022/", new DateTimeOffset(2022, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2022, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2023/", new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2023, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2024/", new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2024, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2025/", new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2026/", new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero))
+            };
+
+        IReadOnlyList<string> ordered = NativeCtLogSubdomainDiscovery.ApplyLogCap(logs, 0);
+
+        Assert.Equal(5, ordered.Count);
+        Assert.Equal("https://ct.example/log-2022/", ordered[0]);
+        Assert.Equal("https://ct.example/log-2026/", ordered[1]);
+        Assert.Equal("https://ct.example/log-2023/", ordered[2]);
+        Assert.Equal("https://ct.example/log-2025/", ordered[3]);
+        Assert.Equal("https://ct.example/log-2024/", ordered[4]);
+    }
+
+    [Fact]
     public async Task DiscoverForDomainsAsync_IncludesRetiredLogs_WhenEnabled() {
         using var cert = CreateSelfSigned("historical.example.com");
         var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2022, 8, 11, 0, 0, 0, TimeSpan.Zero)));
