@@ -45,7 +45,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         string baseDomain,
         int maxSubdomains,
         NativeCtLogSubdomainDiscoveryResult result,
-        InternalLogger? logger) {
+        InternalLogger? logger,
+        out int matchedObservationCount) {
+        matchedObservationCount = 0;
         if (string.IsNullOrWhiteSpace(payload.LeafInputBase64)) {
             return true;
         }
@@ -81,21 +83,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
         try {
             using var cert = new X509Certificate2(certBytes);
-            var issuer = cert.Issuer;
-            if (!string.IsNullOrWhiteSpace(issuer)) {
-                result.IssuerCounts[issuer] = result.IssuerCounts.TryGetValue(issuer, out var existing) ? existing + 1 : 1;
-            }
-
-            if (timestampUtc.HasValue) {
-                var ts = timestampUtc.Value;
-                if (!result.FirstSeenUtc.HasValue || ts < result.FirstSeenUtc.Value) {
-                    result.FirstSeenUtc = ts;
-                }
-                if (!result.LastSeenUtc.HasValue || ts > result.LastSeenUtc.Value) {
-                    result.LastSeenUtc = ts;
-                }
-            }
-
+            var matchedNames = new List<string>();
             foreach (var candidate in ExtractCandidateNames(cert)) {
                 var normalized = NormalizeCandidate(candidate);
                 if (normalized == null) {
@@ -114,10 +102,36 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     continue;
                 }
 
-                if (!UpsertObservation(result.Subdomains, normalized, maxSubdomains, timestampUtc, cert)) {
+                matchedNames.Add(normalized);
+            }
+
+            if (matchedNames.Count == 0) {
+                return true;
+            }
+
+            var issuer = cert.Issuer;
+            if (!string.IsNullOrWhiteSpace(issuer)) {
+                result.IssuerCounts[issuer] = result.IssuerCounts.TryGetValue(issuer, out var existing) ? existing + 1 : 1;
+            }
+
+            if (timestampUtc.HasValue) {
+                var ts = timestampUtc.Value;
+                if (!result.FirstSeenUtc.HasValue || ts < result.FirstSeenUtc.Value) {
+                    result.FirstSeenUtc = ts;
+                }
+                if (!result.LastSeenUtc.HasValue || ts > result.LastSeenUtc.Value) {
+                    result.LastSeenUtc = ts;
+                }
+            }
+
+            foreach (var matchedName in matchedNames) {
+                if (!UpsertObservation(result.Subdomains, matchedName, maxSubdomains, timestampUtc, cert)) {
+                    matchedObservationCount = 0;
                     return false;
                 }
             }
+
+            matchedObservationCount = matchedNames.Count;
         } catch (Exception ex) {
             logger?.WriteVerbose("Native CT certificate decode failed: {0}", ex.Message);
         }
@@ -130,7 +144,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         HashSet<string> baseDomains,
         int maxSubdomainsPerDomain,
         NativeCtLogSubdomainDiscoveryBatchResult result,
-        InternalLogger? logger) {
+        InternalLogger? logger,
+        out int matchedObservationCount) {
+        matchedObservationCount = 0;
         if (string.IsNullOrWhiteSpace(payload.LeafInputBase64)) {
             return true;
         }
@@ -164,6 +180,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
         try {
             using var cert = new X509Certificate2(certBytes);
+            var matchedByDomain = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var candidate in ExtractCandidateNames(cert)) {
                 var normalized = NormalizeCandidate(candidate);
                 if (normalized == null) {
@@ -176,14 +193,30 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 }
 
                 foreach (var matchedDomain in matches) {
-                    if (!result.SubdomainsByDomain.TryGetValue(matchedDomain, out var map)) {
-                        map = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
-                        result.SubdomainsByDomain[matchedDomain] = map;
+                    if (!matchedByDomain.TryGetValue(matchedDomain, out var matchedNames)) {
+                        matchedNames = new List<string>();
+                        matchedByDomain[matchedDomain] = matchedNames;
                     }
+                    matchedNames.Add(normalized);
+                }
+            }
 
-                    if (!UpsertObservation(map, normalized, maxSubdomainsPerDomain, timestampUtc, cert)) {
+            if (matchedByDomain.Count == 0) {
+                return true;
+            }
+
+            foreach (var pair in matchedByDomain) {
+                if (!result.SubdomainsByDomain.TryGetValue(pair.Key, out var map)) {
+                    map = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
+                    result.SubdomainsByDomain[pair.Key] = map;
+                }
+
+                foreach (var matchedName in pair.Value) {
+                    if (!UpsertObservation(map, matchedName, maxSubdomainsPerDomain, timestampUtc, cert)) {
+                        matchedObservationCount = 0;
                         return false;
                     }
+                    matchedObservationCount++;
                 }
             }
         } catch (Exception ex) {

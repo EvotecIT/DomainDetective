@@ -449,6 +449,54 @@ public class TestNativeCtLogSubdomainDiscovery {
             static url => string.Equals(url, "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task DiscoverForDomainsAsync_MaxCtRowsCountsMatchedObservationsOnly() {
+        using var unrelatedCert = CreateSelfSigned("unrelated.example.net");
+        using var matchingCert = CreateSelfSigned("historical.example.com");
+        var entriesJson = BuildCtEntriesResponse(
+            (unrelatedCert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)),
+            (matchingCert, new DateTimeOffset(2026, 1, 11, 0, 0, 0, TimeSpan.Zero)));
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log1/"", ""state"": { ""usable"": {} } } ] } ] }");
+                }
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 2 }");
+                }
+                if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "example.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 1,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "example.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Equal(1, result.CertificateObservationCount);
+        Assert.Contains("historical.example.com", result.SubdomainsByDomain["example.com"].Keys);
+        Assert.DoesNotContain("unrelated.example.net", result.SubdomainsByDomain["example.com"].Keys);
+    }
+
     private static X509Certificate2 CreateSelfSigned(string cn) {
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);

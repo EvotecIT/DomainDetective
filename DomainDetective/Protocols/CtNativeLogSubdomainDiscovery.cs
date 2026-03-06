@@ -201,8 +201,10 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                             break;
                         }
 
-                        result.CertificateObservationCount++;
-                        if (TryProcessEntry(entries[i], baseDomain, options.MaxSubdomains, result, logger)) {
+                        if (TryProcessEntry(entries[i], baseDomain, options.MaxSubdomains, result, logger, out var matchedObservationCount)) {
+                            if (matchedObservationCount > 0) {
+                                result.CertificateObservationCount += matchedObservationCount;
+                            }
                             lastProcessed = batchStart + i;
                         } else {
                             result.ResultsCapped = true;
@@ -368,8 +370,10 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                             break;
                         }
 
-                        result.CertificateObservationCount++;
-                        if (TryProcessEntryForDomains(entries[i], domainSet, options.MaxSubdomains, result, logger)) {
+                        if (TryProcessEntryForDomains(entries[i], domainSet, options.MaxSubdomains, result, logger, out var matchedObservationCount)) {
+                            if (matchedObservationCount > 0) {
+                                result.CertificateObservationCount += matchedObservationCount;
+                            }
                             lastProcessed = batchStart + i;
                         } else {
                             result.ResultsCapped = true;
