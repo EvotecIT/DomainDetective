@@ -152,10 +152,18 @@ public static class ImapAttachmentIngestor
                     var sink = (Stream?)limited ?? ms;
                     if (attachment is MimePart part)
                     {
+                        if (part.Content == null)
+                        {
+                            continue;
+                        }
                         part.Content.DecodeTo(sink);
                     }
                     else if (attachment is MessagePart messagePart)
                     {
+                        if (messagePart.Message == null)
+                        {
+                            continue;
+                        }
                         messagePart.Message.WriteTo(sink);
                     }
                     else

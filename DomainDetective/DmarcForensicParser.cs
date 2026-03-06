@@ -41,6 +41,9 @@ public static class DmarcForensicParser {
         if (reportPart == null) {
             return null;
         }
+        if (reportPart.Content == null) {
+            return null;
+        }
 
         using var memory = new MemoryStream();
         reportPart.Content.DecodeTo(memory);
