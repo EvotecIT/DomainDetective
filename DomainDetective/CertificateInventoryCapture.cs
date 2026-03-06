@@ -181,7 +181,10 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Baseline CT enrichment profile for HTTPS probes.</summary>
     public CertificateCtEnrichmentProfile CtProfile { get; set; } = CertificateCtEnrichmentProfile.Default;
 
-    /// <summary>When true, keeps the default crt.sh API template in CT discovery.</summary>
+    /// <summary>
+    /// When true, keeps the default crt.sh API template for certificate-fingerprint CT enrichment.
+    /// The template is only used when <see cref="EnablePassiveCtFallback"/> is also enabled.
+    /// </summary>
     public bool IncludeDefaultCtTemplate { get; set; } = true;
 
     /// <summary>Additional CT API templates to query. Templates should include a {0} fingerprint placeholder.</summary>

@@ -480,6 +480,7 @@ public class TestCertificateInventoryCapture {
         var analysis = new CertificateAnalysis();
         var options = new CertificateInventoryCaptureOptions {
             CtProfile = CertificateCtEnrichmentProfile.Extended,
+            EnablePassiveCtFallback = true,
             IncludeDefaultCtTemplate = true,
             CensysApiId = "id",
             CensysApiSecret = "secret",
@@ -494,6 +495,20 @@ public class TestCertificateInventoryCapture {
         Assert.True(analysis.EnableShodanCtSource);
         Assert.Contains("https://crt.sh/?sha256={0}&output=json", analysis.CtLogApiTemplates);
         Assert.Contains("https://crt.sh/?identity=%25.{0}&output=json", analysis.CtLogApiTemplates);
+    }
+
+    [Fact]
+    public void ConfigureHttpsAnalysis_DoesNotIncludeDefaultPassiveTemplate_WhenPassiveFallbackDisabled() {
+        var analysis = new CertificateAnalysis();
+        var options = new CertificateInventoryCaptureOptions {
+            CtProfile = CertificateCtEnrichmentProfile.Default,
+            EnablePassiveCtFallback = false,
+            IncludeDefaultCtTemplate = true
+        };
+
+        CertificateInventoryCapture.ConfigureHttpsAnalysis(analysis, options);
+
+        Assert.DoesNotContain("https://crt.sh/?sha256={0}&output=json", analysis.CtLogApiTemplates);
     }
 
     [Fact]
@@ -585,6 +600,96 @@ public class TestCertificateInventoryCapture {
         Assert.Equal("ct-only.example.com", discovered.Name);
         Assert.Equal(ctLastSeen, discovered.LatestCertificateCtEntryTimestampUtc);
         Assert.Equal("CN=ct-only.example.com", discovered.LatestCertificateSubject);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_HydratesUnreachableCtEndpointWithNativeCtMetadata_WhenPassiveFallbackDisabled() {
+        var ctFirstSeen = new DateTimeOffset(2025, 2, 1, 9, 0, 0, TimeSpan.Zero);
+        var ctLastSeen = new DateTimeOffset(2026, 3, 5, 15, 42, 37, TimeSpan.Zero);
+        var ctNotBefore = new DateTimeOffset(2025, 2, 1, 0, 0, 0, TimeSpan.Zero);
+        var ctNotAfter = new DateTimeOffset(2026, 5, 1, 23, 59, 59, TimeSpan.Zero);
+        var capture = new CertificateInventoryCapture {
+            CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
+                    new SubdomainDiscoveryEntry {
+                        Name = "native-only.example.com",
+                        FirstSeenUtc = ctFirstSeen,
+                        LastSeenUtc = ctLastSeen,
+                        LatestCertificateCtEntryTimestampUtc = ctLastSeen,
+                        LatestCertificateSubject = "CN=native-only.example.com",
+                        LatestCertificateIssuer = "CN=Native CT Issuer, O=Example",
+                        LatestCertificateSerialNumber = "NATIVE123",
+                        LatestCertificateNotBeforeUtc = ctNotBefore,
+                        LatestCertificateNotAfterUtc = ctNotAfter,
+                        CtSources = new[] { "native-ct" },
+                        CertificateObservationCount = 3,
+                        ResolutionStatus = SubdomainResolutionStatus.Unknown
+                    }
+                };
+                return Task.FromResult(discovered);
+            },
+            CtPassiveMetadataBackfillOverride = (domains, options, logger, cancellationToken) => {
+                throw new InvalidOperationException("Passive CT fallback should remain disabled for native-only metadata hydration.");
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    var uri = new Uri(target);
+                    entries.Add(new CertificateMonitor.Entry {
+                        Host = uri.Host,
+                        ResolvedHost = uri.Host,
+                        Url = target,
+                        Scheme = uri.Scheme,
+                        Port = uri.Port,
+                        Service = "HTTPS",
+                        Valid = false,
+                        Expired = false,
+                        ChainComplete = false,
+                        Protocol = SslProtocols.None,
+                        Analysis = new CertificateAnalysis {
+                            Url = target,
+                            IsReachable = false
+                        }
+                    });
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = false,
+            EnablePassiveCtFallback = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            BackfillMissingCtCertificateMetadata = true,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+        var endpoint = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("native-only.example.com", endpoint.Host);
+        Assert.False(endpoint.IsReachable);
+        Assert.True(endpoint.PresentInCtLogs);
+        Assert.Equal("CN=native-only.example.com", endpoint.CertificateSubject);
+        Assert.Equal("CN=Native CT Issuer, O=Example", endpoint.CertificateIssuer);
+        Assert.Equal("NATIVE123", endpoint.CertificateSerialNumber);
+        Assert.Equal(ctNotBefore, endpoint.NotBeforeUtc);
+        Assert.Equal(ctNotAfter, endpoint.NotAfterUtc);
+        Assert.Equal(ctFirstSeen, endpoint.CtFirstSeenUtc);
+        Assert.Equal(ctLastSeen, endpoint.CtLastSeenUtc);
+        Assert.Equal(ctLastSeen, endpoint.CtLatestCertificateEntryTimestampUtc);
+        Assert.Equal("ct-log", endpoint.CertificateChainSource);
+        Assert.Contains("ct-log", endpoint.CertificateChainSources, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("native-ct", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
