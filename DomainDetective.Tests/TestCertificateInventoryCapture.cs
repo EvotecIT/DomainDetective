@@ -681,6 +681,110 @@ public class TestCertificateInventoryCapture {
         Assert.Contains("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task CaptureAsync_BackfillsMissingCtCertificateMetadataFromExactPassiveHostWhenDomainBackfillMissesHost() {
+        var nativeCtFirstSeen = new DateTimeOffset(2026, 3, 5, 10, 21, 27, TimeSpan.Zero);
+        var nativeCtLastSeen = new DateTimeOffset(2026, 3, 5, 15, 42, 37, TimeSpan.Zero);
+        var passiveCtFirstSeen = new DateTimeOffset(2020, 7, 15, 19, 26, 46, TimeSpan.Zero);
+        var passiveCtLastSeen = new DateTimeOffset(2022, 7, 11, 15, 36, 47, TimeSpan.Zero);
+        var ctEntryTimestamp = passiveCtLastSeen;
+        var notBefore = new DateTimeOffset(2022, 7, 11, 0, 0, 0, TimeSpan.Zero);
+        var notAfter = new DateTimeOffset(2023, 8, 11, 23, 59, 59, TimeSpan.Zero);
+
+        var capture = new CertificateInventoryCapture {
+            CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
+                    new SubdomainDiscoveryEntry {
+                        Name = "airtoxics.eurofins.com",
+                        FirstSeenUtc = nativeCtFirstSeen,
+                        LastSeenUtc = nativeCtLastSeen,
+                        CtSources = new[] { "native-ct" },
+                        CertificateObservationCount = 2,
+                        ResolutionStatus = SubdomainResolutionStatus.Resolves
+                    }
+                };
+                return Task.FromResult(discovered);
+            },
+            CtPassiveMetadataBackfillOverride = (domains, options, logger, cancellationToken) => {
+                string target = Assert.Single(domains);
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = string.Equals(target, "airtoxics.eurofins.com", StringComparison.OrdinalIgnoreCase)
+                    ? new[] {
+                        new SubdomainDiscoveryEntry {
+                            Name = "airtoxics.eurofins.com",
+                            FirstSeenUtc = passiveCtFirstSeen,
+                            LastSeenUtc = passiveCtLastSeen,
+                            LatestCertificateCtEntryTimestampUtc = ctEntryTimestamp,
+                            LatestCertificateSubject = "CN=airtoxics.eurofins.com",
+                            LatestCertificateIssuer = "CN=Sectigo RSA Domain Validation Secure Server CA, O=Sectigo Limited, C=GB",
+                            LatestCertificateSerialNumber = "0CE4A3C00C1DD4890B9EBA4223FE917F",
+                            LatestCertificateNotBeforeUtc = notBefore,
+                            LatestCertificateNotAfterUtc = notAfter,
+                            CtSources = new[] { "crt.sh" },
+                            CertificateObservationCount = 4,
+                            ResolutionStatus = SubdomainResolutionStatus.Resolves
+                        }
+                    }
+                    : Array.Empty<SubdomainDiscoveryEntry>();
+                return Task.FromResult(discovered);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    var uri = new Uri(target);
+                    entries.Add(new CertificateMonitor.Entry {
+                        Host = uri.Host,
+                        ResolvedHost = uri.Host,
+                        Url = target,
+                        Scheme = uri.Scheme,
+                        Port = uri.Port,
+                        Service = "HTTPS",
+                        Valid = false,
+                        Expired = false,
+                        ChainComplete = false,
+                        Protocol = SslProtocols.None,
+                        Analysis = new CertificateAnalysis {
+                            Url = target,
+                            IsReachable = false
+                        }
+                    });
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            MaxCtSubdomainsPerDomain = 1,
+            BackfillMissingCtCertificateMetadata = true,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "eurofins.com" }, options, cancellationToken: CancellationToken.None);
+        var endpoint = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("airtoxics.eurofins.com", endpoint.Host);
+        Assert.False(endpoint.IsReachable);
+        Assert.True(endpoint.PresentInCtLogs);
+        Assert.Equal("CN=airtoxics.eurofins.com", endpoint.CertificateSubject);
+        Assert.Equal("CN=Sectigo RSA Domain Validation Secure Server CA, O=Sectigo Limited, C=GB", endpoint.CertificateIssuer);
+        Assert.Equal("0CE4A3C00C1DD4890B9EBA4223FE917F", endpoint.CertificateSerialNumber);
+        Assert.Equal(notBefore, endpoint.NotBeforeUtc);
+        Assert.Equal(notAfter, endpoint.NotAfterUtc);
+        Assert.Equal(passiveCtFirstSeen, endpoint.CtFirstSeenUtc);
+        Assert.Equal(nativeCtLastSeen, endpoint.CtLastSeenUtc);
+        Assert.Equal(ctEntryTimestamp, endpoint.CtLatestCertificateEntryTimestampUtc);
+        Assert.Contains("native-ct", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+    }
+
     private static CertificateMonitor.Entry CreateHttpsEntry(string url, X509Certificate2 certificate) {
         var uri = new Uri(url);
         var analysis = new CertificateAnalysis {
