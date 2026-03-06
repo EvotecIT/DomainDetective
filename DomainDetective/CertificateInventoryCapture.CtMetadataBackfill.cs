@@ -269,7 +269,13 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
-        var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
+        bool usePassiveNetworkQueries = CtPassiveMetadataBackfillOverride == null;
+        int maxParallelism = usePassiveNetworkQueries
+            ? 1
+            : Math.Max(1, options.DiscoveryParallelism);
+        PassiveCtSourceClient? sharedClient = usePassiveNetworkQueries
+            ? new PassiveCtSourceClient()
+            : null;
         using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
         var tasks = new List<Task>(hostNames.Count);
         foreach (var hostName in hostNames) {
@@ -293,7 +299,7 @@ public sealed partial class CertificateInventoryCapture {
                                 !string.IsNullOrWhiteSpace(entry.Name) &&
                                 hostName.Equals(entry.Name.Trim(), StringComparison.OrdinalIgnoreCase));
                     } else {
-                        exactEntry = await QueryPassiveCtMetadataExactAsync(hostName, options, warnings, logger, cancellationToken)
+                        exactEntry = await QueryPassiveCtMetadataExactAsync(hostName, options, warnings, logger, sharedClient!, cancellationToken)
                             .ConfigureAwait(false);
                     }
 
@@ -326,6 +332,7 @@ public sealed partial class CertificateInventoryCapture {
         CertificateInventoryCaptureOptions options,
         List<string>? warnings,
         InternalLogger logger,
+        PassiveCtSourceClient client,
         CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(hostName)) {
             return null;
@@ -337,7 +344,6 @@ public sealed partial class CertificateInventoryCapture {
             return null;
         }
 
-        var client = new PassiveCtSourceClient();
         PassiveCtSourceClient.QueryResult queryResult = await client.QueryAsync(
             requests,
             new PassiveCtSourceClient.QueryOptions {
