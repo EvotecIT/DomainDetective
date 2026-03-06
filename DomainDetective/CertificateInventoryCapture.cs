@@ -49,6 +49,12 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>When true, uses only native CT log polling for subdomain discovery (skips crt.sh/Cert Spotter).</summary>
     public bool NativeCtLogOnly { get; set; }
 
+    /// <summary>
+    /// When true, passive/public CT APIs (for example crt.sh or Cert Spotter) may be used
+    /// as fallback for CT subdomain discovery and CT metadata hydration.
+    /// </summary>
+    public bool EnablePassiveCtFallback { get; set; }
+
     /// <summary>Native CT log list URL used to resolve trusted CT logs.</summary>
     public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
 
