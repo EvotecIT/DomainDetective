@@ -52,9 +52,16 @@ public sealed class CertificateInventoryCaptureOptions {
 
     /// <summary>
     /// When true, passive/public CT APIs (for example crt.sh or Cert Spotter) may be used
-    /// as fallback for CT subdomain discovery and CT metadata hydration.
+    /// as fallback for CT subdomain discovery.
     /// </summary>
     public bool EnablePassiveCtFallback { get; set; }
+
+    /// <summary>
+    /// When true, passive/public CT APIs (for example crt.sh or Cert Spotter) may be used
+    /// to rescue missing CT certificate metadata for exact hosts without enabling passive
+    /// CT discovery fallback more broadly.
+    /// </summary>
+    public bool EnablePassiveCtMetadataFallback { get; set; }
 
     /// <summary>Per-request timeout for passive/public CT HTTP calls.</summary>
     public TimeSpan PassiveCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
@@ -132,8 +139,10 @@ public sealed class CertificateInventoryCaptureOptions {
     public int NativeCtCatchUpBatchSize { get; set; } = 1_024;
 
     /// <summary>
-    /// When true, performs passive CT backfill for CT-discovered subdomains that are missing
-    /// certificate metadata (subject/issuer/serial/notBefore/notAfter).
+    /// When true, performs CT metadata backfill for CT-discovered subdomains that are missing
+    /// certificate metadata (subject/issuer/serial/notBefore/notAfter). When
+    /// <see cref="EnablePassiveCtMetadataFallback"/> is enabled, passive/public CT APIs may be
+    /// used for exact-host rescue even if <see cref="EnablePassiveCtFallback"/> remains disabled.
     /// </summary>
     public bool BackfillMissingCtCertificateMetadata { get; set; } = true;
 
@@ -578,6 +587,20 @@ public sealed partial class CertificateInventoryCapture {
             }
 
             logger.WriteVerbose("CT subdomain discovery returned {0} unique candidate(s).", ctDiscoveredSubdomains.Count);
+        }
+
+        IReadOnlyList<SubdomainDiscoveryEntry> exactHostSeedCtMetadata = await BackfillExactHostSeedCtMetadataAsync(
+            seeds,
+            options,
+            warnings,
+            logger,
+            cancellationToken).ConfigureAwait(false);
+        foreach (var exactEntry in exactHostSeedCtMetadata) {
+            if (exactEntry == null || string.IsNullOrWhiteSpace(exactEntry.Name)) {
+                continue;
+            }
+
+            MergeCtSubdomainEntry(ctDiscoveredSubdomainEntries, exactEntry);
         }
         AdvanceStage("CT subdomain discovery");
 
