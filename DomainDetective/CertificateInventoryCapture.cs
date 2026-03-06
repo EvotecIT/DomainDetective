@@ -79,6 +79,9 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>When true, includes pending CT logs from log list in native subdomain discovery.</summary>
     public bool NativeCtIncludePendingLogs { get; set; }
 
+    /// <summary>When true, includes retired CT logs in native subdomain discovery to recover older certificate history.</summary>
+    public bool NativeCtIncludeRetiredLogs { get; set; } = true;
+
     /// <summary>Optional delay between native CT HTTP requests.</summary>
     public TimeSpan NativeCtRequestDelay { get; set; } = TimeSpan.Zero;
 

@@ -270,6 +270,102 @@ public class TestNativeCtLogSubdomainDiscovery {
         Assert.Contains("https://ct.example/log-2026/", selected);
     }
 
+    [Fact]
+    public async Task DiscoverForDomainsAsync_IncludesRetiredLogs_WhenEnabled() {
+        using var cert = CreateSelfSigned("historical.example.com");
+        var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2022, 8, 11, 0, 0, 0, TimeSpan.Zero)));
+        var requestedUrls = new List<string>();
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                requestedUrls.Add(url);
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/usable/"", ""state"": { ""usable"": {} } }, { ""url"": ""ct.test.example/retired/"", ""state"": { ""retired"": {} } } ] } ] }");
+                }
+                if (url.Contains("ct.test.example/usable/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 0 }");
+                }
+                if (url.Contains("ct.test.example/retired/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("ct.test.example/retired/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+                if (url.Contains("ct.test.example/usable/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""entries"": [] }");
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "example.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = true
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "example.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Contains("historical.example.com", result.SubdomainsByDomain["example.com"].Keys);
+        Assert.Contains(requestedUrls, static url => url.Contains("ct.test.example/retired/", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_SkipsRetiredLogs_WhenDisabled() {
+        var requestedUrls = new List<string>();
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                requestedUrls.Add(url);
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/usable/"", ""state"": { ""usable"": {} } }, { ""url"": ""ct.test.example/retired/"", ""state"": { ""retired"": {} } } ] } ] }");
+                }
+                if (url.Contains("ct.test.example/usable/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""tree_size"": 0 }");
+                }
+                if (url.Contains("ct.test.example/usable/", StringComparison.OrdinalIgnoreCase) && url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""entries"": [] }");
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "example.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "example.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Empty(result.SubdomainsByDomain["example.com"]);
+        Assert.DoesNotContain(requestedUrls, static url => url.Contains("ct.test.example/retired/", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static X509Certificate2 CreateSelfSigned(string cn) {
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
