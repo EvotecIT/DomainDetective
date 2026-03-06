@@ -251,6 +251,25 @@ public class TestNativeCtLogSubdomainDiscovery {
         }
     }
 
+    [Fact]
+    public void ApplyLogCap_SpreadsSelectionAcrossTemporalIntervals_WhenCapped() {
+        IReadOnlyList<(string Url, DateTimeOffset? TemporalStartUtc, DateTimeOffset? TemporalEndUtc)> logs =
+            new (string Url, DateTimeOffset? TemporalStartUtc, DateTimeOffset? TemporalEndUtc)[] {
+                ("https://ct.example/log-2022/", new DateTimeOffset(2022, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2022, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2023/", new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2023, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2024/", new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2024, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2025/", new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero)),
+                ("https://ct.example/log-2026/", new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero))
+            };
+
+        IReadOnlyList<string> selected = NativeCtLogSubdomainDiscovery.ApplyLogCap(logs, 3);
+
+        Assert.Equal(3, selected.Count);
+        Assert.Contains("https://ct.example/log-2022/", selected);
+        Assert.Contains("https://ct.example/log-2024/", selected);
+        Assert.Contains("https://ct.example/log-2026/", selected);
+    }
+
     private static X509Certificate2 CreateSelfSigned(string cn) {
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);

@@ -95,6 +95,13 @@ internal sealed class NativeCtLogIngestionStatus {
 }
 
 internal sealed partial class NativeCtLogSubdomainDiscovery {
+    private sealed class ResolvedCtLogDescriptor {
+        public string Url { get; init; } = string.Empty;
+        public DateTimeOffset? TemporalStartUtc { get; init; }
+        public DateTimeOffset? TemporalEndUtc { get; init; }
+        public int SourceOrder { get; init; }
+    }
+
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
     private const string SubjectAlternativeNameOid = "2.5.29.17";
@@ -111,14 +118,15 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
         var result = new NativeCtLogSubdomainDiscoveryResult();
         var baseDomain = DomainHelper.ValidateIdn(options.BaseDomain);
-        var logUrls = await ResolveLogUrlsAsync(options, cancellationToken).ConfigureAwait(false);
-        if (logUrls.Count == 0) {
+        var logDescriptors = await ResolveLogUrlsAsync(options, cancellationToken).ConfigureAwait(false);
+        if (logDescriptors.Count == 0) {
             result.Warnings.Add("Native CT: no log URLs resolved.");
             return result;
         }
 
         var cursor = NativeCtCursorState.Load(options.CursorStatePath);
-        foreach (var logUrl in logUrls) {
+        foreach (var logDescriptor in logDescriptors) {
+            var logUrl = logDescriptor.Url;
             cancellationToken.ThrowIfCancellationRequested();
             result.LogsAttempted++;
             var key = NativeCtCursorState.BuildKey(baseDomain, logUrl);
@@ -278,14 +286,15 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             result.SubdomainsByDomain[domain] = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
         }
 
-        var logUrls = await ResolveLogUrlsAsync(options, cancellationToken).ConfigureAwait(false);
-        if (logUrls.Count == 0) {
+        var logDescriptors = await ResolveLogUrlsAsync(options, cancellationToken).ConfigureAwait(false);
+        if (logDescriptors.Count == 0) {
             result.Warnings.Add("Native CT: no log URLs resolved.");
             return result;
         }
 
         var cursor = NativeCtCursorState.Load(options.CursorStatePath);
-        foreach (var logUrl in logUrls) {
+        foreach (var logDescriptor in logDescriptors) {
+            var logUrl = logDescriptor.Url;
             cancellationToken.ThrowIfCancellationRequested();
             result.LogsAttempted++;
             var key = NativeCtCursorState.BuildSharedKey(logUrl);
@@ -416,27 +425,28 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         return result;
     }
 
-    private async Task<IReadOnlyList<string>> ResolveLogUrlsAsync(NativeCtLogSubdomainDiscoveryOptions options, CancellationToken cancellationToken) {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private async Task<IReadOnlyList<ResolvedCtLogDescriptor>> ResolveLogUrlsAsync(NativeCtLogSubdomainDiscoveryOptions options, CancellationToken cancellationToken) {
+        var descriptors = new Dictionary<string, ResolvedCtLogDescriptor>(StringComparer.OrdinalIgnoreCase);
+        var sourceOrder = 0;
         if (options.ExplicitLogUrls != null && options.ExplicitLogUrls.Count > 0) {
             foreach (var raw in options.ExplicitLogUrls) {
                 var normalized = NormalizeLogUrl(raw);
                 if (normalized != null) {
-                    set.Add(normalized);
+                    AddResolvedLogDescriptor(descriptors, normalized, null, null, sourceOrder++);
                 }
             }
-            return ApplyLogCap(set, options.MaxLogsToProcess);
+            return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess);
         }
 
         if (string.IsNullOrWhiteSpace(options.LogListUrl)) {
-            return Array.Empty<string>();
+            return Array.Empty<ResolvedCtLogDescriptor>();
         }
 
         var json = await FetchJsonWithRetryAsync(options.LogListUrl, options, cancellationToken).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object) {
-            return Array.Empty<string>();
+            return Array.Empty<ResolvedCtLogDescriptor>();
         }
 
         if (root.TryGetProperty("operators", out var operatorsElement) && operatorsElement.ValueKind == JsonValueKind.Array) {
@@ -448,27 +458,93 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     continue;
                 }
                 foreach (var log in logsElement.EnumerateArray()) {
-                    TryAddLogFromListItem(log, options, set);
+                    TryAddLogFromListItem(log, options, descriptors, ref sourceOrder);
                 }
             }
         } else if (root.TryGetProperty("logs", out var legacyLogs) && legacyLogs.ValueKind == JsonValueKind.Array) {
             foreach (var log in legacyLogs.EnumerateArray()) {
-                TryAddLogFromListItem(log, options, set);
+                TryAddLogFromListItem(log, options, descriptors, ref sourceOrder);
             }
         }
 
-        return ApplyLogCap(set, options.MaxLogsToProcess);
+        return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess);
     }
 
-    private static IReadOnlyList<string> ApplyLogCap(HashSet<string> set, int maxLogsToProcess) {
-        var list = set.OrderBy(url => url, StringComparer.OrdinalIgnoreCase).ToList();
-        if (maxLogsToProcess <= 0 || list.Count <= maxLogsToProcess) {
-            return list;
+    internal static IReadOnlyList<string> ApplyLogCap(
+        IReadOnlyList<(string Url, DateTimeOffset? TemporalStartUtc, DateTimeOffset? TemporalEndUtc)> logs,
+        int maxLogsToProcess) {
+        if (logs == null || logs.Count == 0) {
+            return Array.Empty<string>();
         }
-        return list.Take(maxLogsToProcess).ToList();
+
+        var descriptors = new List<ResolvedCtLogDescriptor>(logs.Count);
+        for (var i = 0; i < logs.Count; i++) {
+            var log = logs[i];
+            if (string.IsNullOrWhiteSpace(log.Url)) {
+                continue;
+            }
+
+            descriptors.Add(new ResolvedCtLogDescriptor {
+                Url = log.Url,
+                TemporalStartUtc = log.TemporalStartUtc,
+                TemporalEndUtc = log.TemporalEndUtc,
+                SourceOrder = i
+            });
+        }
+
+        return ApplyLogCap(descriptors, maxLogsToProcess)
+            .Select(static descriptor => descriptor.Url)
+            .ToList();
     }
 
-    private static void TryAddLogFromListItem(JsonElement log, NativeCtLogSubdomainDiscoveryOptions options, ISet<string> set) {
+    private static IReadOnlyList<ResolvedCtLogDescriptor> ApplyLogCap(
+        IReadOnlyList<ResolvedCtLogDescriptor> logs,
+        int maxLogsToProcess) {
+        var ordered = logs
+            .Where(static log => log != null && !string.IsNullOrWhiteSpace(log.Url))
+            .OrderBy(static log => log.SourceOrder)
+            .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (maxLogsToProcess <= 0 || ordered.Count <= maxLogsToProcess) {
+            return ordered;
+        }
+
+        var dated = ordered
+            .Where(static log => log.TemporalStartUtc.HasValue || log.TemporalEndUtc.HasValue)
+            .OrderBy(static log => log.TemporalStartUtc ?? log.TemporalEndUtc ?? DateTimeOffset.MinValue)
+            .ThenBy(static log => log.TemporalEndUtc ?? DateTimeOffset.MaxValue)
+            .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var selected = new List<ResolvedCtLogDescriptor>(maxLogsToProcess);
+        var selectedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (dated.Count > 0) {
+            foreach (var index in SelectEvenlyDistributedIndices(dated.Count, Math.Min(maxLogsToProcess, dated.Count))) {
+                var descriptor = dated[index];
+                if (selectedUrls.Add(descriptor.Url)) {
+                    selected.Add(descriptor);
+                }
+            }
+        }
+
+        foreach (var descriptor in ordered) {
+            if (selected.Count >= maxLogsToProcess) {
+                break;
+            }
+
+            if (selectedUrls.Add(descriptor.Url)) {
+                selected.Add(descriptor);
+            }
+        }
+
+        return selected;
+    }
+
+    private static void TryAddLogFromListItem(
+        JsonElement log,
+        NativeCtLogSubdomainDiscoveryOptions options,
+        IDictionary<string, ResolvedCtLogDescriptor> descriptors,
+        ref int sourceOrder) {
         if (log.ValueKind != JsonValueKind.Object) {
             return;
         }
@@ -478,8 +554,99 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         var url = GetString(log, "url");
         var normalized = NormalizeLogUrl(url);
         if (normalized != null) {
-            set.Add(normalized);
+            TryGetTemporalInterval(log, out var temporalStartUtc, out var temporalEndUtc);
+            AddResolvedLogDescriptor(descriptors, normalized, temporalStartUtc, temporalEndUtc, sourceOrder++);
         }
+    }
+
+    private static void AddResolvedLogDescriptor(
+        IDictionary<string, ResolvedCtLogDescriptor> descriptors,
+        string url,
+        DateTimeOffset? temporalStartUtc,
+        DateTimeOffset? temporalEndUtc,
+        int sourceOrder) {
+        if (string.IsNullOrWhiteSpace(url)) {
+            return;
+        }
+
+        if (descriptors.TryGetValue(url, out var existing)) {
+            descriptors[url] = new ResolvedCtLogDescriptor {
+                Url = url,
+                TemporalStartUtc = existing.TemporalStartUtc ?? temporalStartUtc,
+                TemporalEndUtc = existing.TemporalEndUtc ?? temporalEndUtc,
+                SourceOrder = Math.Min(existing.SourceOrder, sourceOrder)
+            };
+            return;
+        }
+
+        descriptors[url] = new ResolvedCtLogDescriptor {
+            Url = url,
+            TemporalStartUtc = temporalStartUtc,
+            TemporalEndUtc = temporalEndUtc,
+            SourceOrder = sourceOrder
+        };
+    }
+
+    private static void TryGetTemporalInterval(
+        JsonElement log,
+        out DateTimeOffset? temporalStartUtc,
+        out DateTimeOffset? temporalEndUtc) {
+        temporalStartUtc = null;
+        temporalEndUtc = null;
+        if (!log.TryGetProperty("temporal_interval", out var temporalInterval) || temporalInterval.ValueKind != JsonValueKind.Object) {
+            return;
+        }
+
+        temporalStartUtc = ParseCtLogIntervalTimestamp(
+            GetString(temporalInterval, "start_inclusive") ??
+            GetString(temporalInterval, "start"));
+        temporalEndUtc = ParseCtLogIntervalTimestamp(
+            GetString(temporalInterval, "end_exclusive") ??
+            GetString(temporalInterval, "end_inclusive") ??
+            GetString(temporalInterval, "end"));
+    }
+
+    private static DateTimeOffset? ParseCtLogIntervalTimestamp(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return null;
+        }
+
+        return DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static IReadOnlyList<int> SelectEvenlyDistributedIndices(int totalCount, int selectionCount) {
+        if (totalCount <= 0 || selectionCount <= 0) {
+            return Array.Empty<int>();
+        }
+
+        if (selectionCount >= totalCount) {
+            return Enumerable.Range(0, totalCount).ToList();
+        }
+
+        if (selectionCount == 1) {
+            return new[] { totalCount - 1 };
+        }
+
+        var selected = new List<int>(selectionCount);
+        for (var i = 0; i < selectionCount; i++) {
+            var index = (int)Math.Round(i * (totalCount - 1d) / (selectionCount - 1d), MidpointRounding.AwayFromZero);
+            if (selected.Count == 0 || selected[selected.Count - 1] != index) {
+                selected.Add(index);
+            }
+        }
+
+        var cursor = 0;
+        while (selected.Count < selectionCount && cursor < totalCount) {
+            if (!selected.Contains(cursor)) {
+                selected.Add(cursor);
+            }
+            cursor++;
+        }
+
+        selected.Sort();
+        return selected;
     }
 
     private static bool ShouldIncludeLog(JsonElement log, bool includePendingLogs) {
