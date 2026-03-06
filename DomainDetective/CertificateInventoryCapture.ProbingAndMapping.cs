@@ -115,10 +115,11 @@ public sealed partial class CertificateInventoryCapture {
             return;
         }
 
-        if (options.CtProfile == CertificateCtEnrichmentProfile.Public || !options.IncludeDefaultCtTemplate) {
+        var allowDefaultPassiveCtTemplate = options.EnablePassiveCtFallback && options.IncludeDefaultCtTemplate;
+        if (options.CtProfile == CertificateCtEnrichmentProfile.Public || !allowDefaultPassiveCtTemplate) {
             analysis.CtLogApiTemplates.Clear();
         }
-        if (options.IncludeDefaultCtTemplate) {
+        if (allowDefaultPassiveCtTemplate) {
             AddCtTemplateIfMissing(analysis.CtLogApiTemplates, "https://crt.sh/?sha256={0}&output=json");
         }
         foreach (var template in options.CtApiTemplates) {
