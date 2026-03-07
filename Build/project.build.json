@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/EvotecIT/PSPublishModule/main/Schemas/project.build.schema.json",
+  "RootPath": "..",
+  "SolutionPath": "DomainDetective.sln",
+  "Configuration": "Release",
+  "StagingPath": "Artifacts/ProjectBuild",
+  "CleanStaging": true,
+  "DefaultVersion": null,
+  "NuGetProjects": [
+    "DomainDetective/DomainDetective.csproj",
+    "DomainDetective.Reports/DomainDetective.Reports.csproj",
+    "DomainDetective.Reports.Html/DomainDetective.Reports.Html.csproj",
+    "DomainDetective.Reports.Markdown/DomainDetective.Reports.Markdown.csproj",
+    "DomainDetective.Reports.Office/DomainDetective.Reports.Office.csproj",
+    "DomainDetective.Reports.Pdf/DomainDetective.Reports.Pdf.csproj"
+  ],
+  "CliProject": "DomainDetective.CLI/DomainDetective.CLI.csproj",
+  "CliExecutableBaseName": "DomainDetective.CLI",
+  "CliRuntimes": [
+    "win-x64",
+    "linux-x64",
+    "osx-x64"
+  ],
+  "CliAliasMap": {
+    "win-x64": [
+      "DD.exe"
+    ],
+    "linux-x64": [
+      "dd",
+      "DD"
+    ],
+    "osx-x64": [
+      "dd",
+      "DD"
+    ]
+  },
+  "CreateCliZip": true
+}

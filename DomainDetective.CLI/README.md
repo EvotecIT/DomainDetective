@@ -40,10 +40,15 @@ After analysis, you can:
 
 ## Usage
 
+This project is currently a standard .NET console application. It is not packaged in this repository as an installed `dotnet tool`, so examples below use either:
+
+- `dotnet run --project DomainDetective.CLI -- ...` from source
+- the app produced by `dotnet publish`
+
 ### Interactive Mode (Wizard)
-Simply run the executable without arguments:
+From source:
 ```bash
-DomainDetective.CLI.exe
+dotnet run --project DomainDetective.CLI --
 ```
 
 ### Command Line Mode
@@ -51,31 +56,31 @@ For direct command execution:
 
 ```bash
 # Quick domain check
-DomainDetective.CLI.exe check example.com
+dotnet run --project DomainDetective.CLI -- check example.com
 
 # Output as JSON
-DomainDetective.CLI.exe check example.com --json
+dotnet run --project DomainDetective.CLI -- check example.com --json
 
 # Check specific tests
-DomainDetective.CLI.exe check example.com --checks SPF,DKIM,DMARC
+dotnet run --project DomainDetective.CLI -- check example.com --checks SPF,DKIM,DMARC
 
 # Desired State (custom baseline)
-DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state.json
+dotnet run --project DomainDetective.CLI -- DesiredState example.com --desired-state .\desired-state.json
 
 # Desired State with best-practice gaps + export
-DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state.json --mode BestPracticesForUnspecified --format html --open
+dotnet run --project DomainDetective.CLI -- DesiredState example.com --desired-state .\desired-state.json --mode BestPracticesForUnspecified --format html --open
 
 # Include additional checks
-DomainDetective.CLI.exe check example.com --check-http --check-takeover
+dotnet run --project DomainDetective.CLI -- check example.com --check-http --check-takeover
 
 # Analyze email headers
-DomainDetective.CLI.exe AnalyzeMessageHeader --file headers.txt
+dotnet run --project DomainDetective.CLI -- AnalyzeMessageHeader --file headers.txt
 
 # Check DNS propagation
-DomainDetective.CLI.exe DnsPropagation --domain example.com --record-type A
+dotnet run --project DomainDetective.CLI -- DnsPropagation --domain example.com --record-type A
 
 # WHOIS lookup
-DomainDetective.CLI.exe Whois example.com
+dotnet run --project DomainDetective.CLI -- Whois example.com
 ```
 
 ## Key Features
@@ -109,11 +114,22 @@ DomainDetective.CLI.exe Whois example.com
 dotnet restore
 
 # Build the project
-dotnet build DomainDetective.CLI.csproj
+dotnet build DomainDetective.CLI/DomainDetective.CLI.csproj
 
 # Run the CLI
-dotnet run --project DomainDetective.CLI.csproj
+dotnet run --project DomainDetective.CLI --
+
+# Publish an app folder
+dotnet publish DomainDetective.CLI/DomainDetective.CLI.csproj -c Release -o ./artifacts/cli
 ```
+
+Or use the repository build helper:
+
+```powershell
+pwsh ./Build/Publish-CLI.ps1
+```
+
+That script publishes runtime-specific CLI outputs under `Artifacts/ProjectBuild/CLI` and creates friendly aliases such as `DD.exe` and `dd`.
 
 ## Requirements
 
@@ -133,10 +149,10 @@ dotnet run --project DomainDetective.CLI.csproj
 ### Batch Processing
 ```bash
 # Check multiple domains
-DomainDetective.CLI.exe check domain1.com domain2.com domain3.com
+dotnet run --project DomainDetective.CLI -- check domain1.com domain2.com domain3.com
 
 # Export results to JSON
-DomainDetective.CLI.exe check example.com --json > results.json
+dotnet run --project DomainDetective.CLI -- check example.com --json > results.json
 ```
 
 ### Custom Test Selection
