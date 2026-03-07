@@ -14,6 +14,7 @@ public static class SectionOrdering
     {
         "MX",
         "Mail Transport Posture",
+        "Desired State",
         "SPF",
         "DKIM",
         "DMARC",
@@ -102,6 +103,7 @@ public static class SectionOrdering
             "TLSRPTREPORTS" => "TLS-RPT Reports",
             "MAILTRANSPORTPOSTURE" => "Mail Transport Posture",
             "MAILTRANSPORT" => "Mail Transport Posture",
+            "DESIREDSTATE" => "Desired State",
             "REGISTRATION" => "Registration",
             "WHOIS" => "Registration",
             "RDAP" => "Registration",

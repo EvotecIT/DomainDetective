@@ -438,20 +438,21 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
+        public DomainDetective.Views.DesiredStateInfo? DesiredState { get; set; }
         public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
-	        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
-	        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
-	        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
-	        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
-	        public DomainDetective.Views.HttpInfo? Http { get; set; }
-	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
-	        public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
-	        public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
-	        public DomainDetective.Views.TtlInfo? Ttl { get; set; }
-	        public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
-	    }
+        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
+        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
+        public DomainDetective.Views.HttpInfo? Http { get; set; }
+        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+        public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
+        public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
+        public DomainDetective.Views.TtlInfo? Ttl { get; set; }
+        public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
+    }
 
     private static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items) {
         var comp = CompositionBuilder.GroupBySubject(items);
@@ -530,17 +531,18 @@ public static partial class HtmlCompositionReport {
             SmtpTls = s.SmtpTls,
             ImapTls = s.ImapTls,
             PopTls = s.PopTls,
+            DesiredState = s.DesiredState,
             Rpki = s.Rpki,
             ZoneTransfer = s.ZoneTransfer,
             Wildcard = s.Wildcard,
             Subdomains = s.Subdomains,
-	            DnsInventory = s.DnsInventory,
-	            DnsTrace = s.DnsTrace,
-	            DnsAmplification = s.DnsAmplification,
-	            DnsOverTls = s.DnsOverTls,
-	            CtTimeline = s.CtTimeline,
-	            Http = s.Http,
-	            IpEnrichment = s.IpEnrichment,
+            DnsInventory = s.DnsInventory,
+            DnsTrace = s.DnsTrace,
+            DnsAmplification = s.DnsAmplification,
+            DnsOverTls = s.DnsOverTls,
+            CtTimeline = s.CtTimeline,
+            Http = s.Http,
+            IpEnrichment = s.IpEnrichment,
             Ttl = s.Ttl
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);

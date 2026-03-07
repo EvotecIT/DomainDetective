@@ -73,6 +73,7 @@ public static partial class ExcelCompositionReport {
             {
                 var auth = cols[0];
                 ApplyBlock(auth, BuildEmailAuthenticationOverviewBlock(b));
+                ApplyBlock(auth, BuildDesiredStateBlock(s, b));
                 ApplyBlock(auth, BuildSpfBlock(s, b));
                 ApplyBlock(auth, BuildDkimBlock(s, b));
                 ApplyBlock(auth, BuildDmarcBlock(b));

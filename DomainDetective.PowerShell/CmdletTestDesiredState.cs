@@ -45,6 +45,10 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter NoClassification { get; set; }
 
+    /// <para>Controls how desired state and best-practice findings are separated for reporting.</para>
+    [Parameter(Mandatory = false)]
+    public DesiredStateMode? DesiredStateMode { get; set; }
+
     /// <para>When set, throws on evaluation exceptions instead of logging and continuing.</para>
     [Parameter(Mandatory = false)]
     public SwitchParameter FailFast { get; set; }
@@ -68,6 +72,7 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
         }
 
         var wantsClassification = !NoClassification.IsPresent && config.RequiresMailClassification();
+        var mode = DesiredStateMode ?? config.Mode;
 
         async Task ProcessDomainAsync(string domain) {
             try {
@@ -93,10 +98,7 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
                 }
 
                 var profile = config.ResolveProfile(domain, classification);
-                var checks = DesiredStateConfiguration.GetRequiredChecks(profile);
-
-                // If no checks are configured (and no policy modules are enabled), fall back to the standard defaults.
-                DomainDetective.HealthCheckType[]? toRun = checks.Length > 0 ? checks : null;
+                var toRun = config.GetChecksToRun(profile, mode);
 
                 string[]? dkimSelectors = null;
                 if (profile.Dkim != null && profile.Dkim.Enabled != false && profile.Dkim.RequiredSelectors != null && profile.Dkim.RequiredSelectors.Length > 0) {
@@ -118,17 +120,25 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
                     healthCheckTypes: toRun,
                     dkimSelectors: dkimSelectors,
                     daneServiceType: daneServiceTypes,
-                    cancellationToken: CancelToken);
+                    cancellationToken: CancelToken,
+                    useDefaultChecksWhenEmpty: false);
 
                 var desired = DesiredStateEvaluator.Evaluate(domain, healthCheck, profile, classification, new DesiredStateEvaluationOptions {
                     ThrowOnError = FailFast.IsPresent,
                     LogExceptionsAsErrors = LogEvaluationErrorsAsErrors.IsPresent
                 });
-                var view = DomainDetective.Views.Converters.Convert(desired);
+                desired.Mode = mode;
+                var view = DomainDetective.Views.Converters.Convert(desired, profile, mode);
                 WriteObject(view);
 
                 if (IsExportRequested()) {
-                    await ExportNotImplementedAsync("Test-DDDesiredState");
+                    var request = new DomainDetective.Reports.CompositionExportRequest {
+                        Items = new object[] { view },
+                        Formats = GetRequestedFormatsOrDefault(DomainDetective.Reports.ReportFormat.Html),
+                        ExportPath = ExportPath,
+                        OpenInBrowser = OpenInBrowser.IsPresent
+                    };
+                    await DomainDetective.Reports.CompositionExportService.ExportAsync(request, logger, CancelToken).ConfigureAwait(false);
                 }
             } catch (OperationCanceledException) {
                 throw;

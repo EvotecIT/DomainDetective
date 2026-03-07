@@ -136,6 +136,105 @@ public static partial class MarkdownCompositionReport
                 RenderReferences(md, MergeReferences(cls.References, narrative?.References));
             }
 
+            void RenderDesiredState()
+            {
+                var ds = b.DesiredState;
+                if (ds == null) return;
+
+                md.H2("Desired State");
+                md.Table(t => t.Headers("Key", "Value")
+                    .Row("Mode", ds.Mode.ToString())
+                    .Row("Conforms", ds.Conforms ? "Yes" : "No")
+                    .Row("Desired State Warnings", ds.WarningCount.ToString())
+                    .Row("Desired State Errors", ds.ErrorCount.ToString())
+                    .Row("Best-Practice Warnings", ds.BestPracticeWarningCount.ToString())
+                    .Row("Best-Practice Errors", ds.BestPracticeErrorCount.ToString())
+                    .AlignLeft(0, 1));
+
+                md.H3("Desired State Conformance");
+                if (ds.Positives != null && ds.Positives.Count > 0)
+                {
+                    md.H4("Good posture").Ul(ds.Positives.Select(p => p.Title ?? p.Code ?? string.Empty).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray());
+                }
+
+                var desiredFind = (ds.DesiredAssessments ?? Array.Empty<DomainDetective.Assessment>())
+                    .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                    .Select(a => (IReadOnlyList<string>)new[]
+                    {
+                        a.Severity.ToString(),
+                        a.Code ?? string.Empty,
+                        a.Target ?? string.Empty,
+                        a.Message ?? string.Empty
+                    })
+                    .ToList();
+                if (desiredFind.Count > 0)
+                {
+                    md.H4("Findings").Table(t => t.Headers("Severity","Code","Target","Message")
+                        .Rows(desiredFind)
+                        .AlignLeft(0,1,2,3));
+                }
+                else
+                {
+                    md.P("No desired state drift findings.");
+                }
+
+                if (ds.Recommendations != null && ds.Recommendations.Count > 0)
+                {
+                    md.H4("Recommendations").Ul(ds.Recommendations
+                        .Select(r => {
+                            var title = r?.Title ?? r?.Code ?? string.Empty;
+                            var how = r?.How ?? string.Empty;
+                            return string.IsNullOrWhiteSpace(how) ? title : $"{title}: {how}";
+                        })
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .ToArray());
+                }
+
+                if (ds.Mode != DomainDetective.DesiredState.DesiredStateMode.BaselineOnly)
+                {
+                    md.H3("Best-Practice Gaps");
+                    if (ds.BestPracticePositives != null && ds.BestPracticePositives.Count > 0)
+                    {
+                        md.H4("Good posture").Ul(ds.BestPracticePositives.Select(p => p.Title ?? p.Code ?? string.Empty).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray());
+                    }
+
+                    var bestFind = (ds.BestPracticeAssessments ?? Array.Empty<DomainDetective.Assessment>())
+                        .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                        .Select(a => (IReadOnlyList<string>)new[]
+                        {
+                            a.Severity.ToString(),
+                            a.Code ?? string.Empty,
+                            a.Target ?? string.Empty,
+                            a.Message ?? string.Empty
+                        })
+                        .ToList();
+                    if (bestFind.Count > 0)
+                    {
+                        md.H4("Findings").Table(t => t.Headers("Severity","Code","Target","Message")
+                            .Rows(bestFind)
+                            .AlignLeft(0,1,2,3));
+                    }
+                    else
+                    {
+                        md.P("No best-practice findings for this mode.");
+                    }
+
+                    if (ds.BestPracticeRecommendations != null && ds.BestPracticeRecommendations.Count > 0)
+                    {
+                        md.H4("Recommendations").Ul(ds.BestPracticeRecommendations
+                            .Select(r => {
+                                var title = r?.Title ?? r?.Code ?? string.Empty;
+                                var how = r?.How ?? string.Empty;
+                                return string.IsNullOrWhiteSpace(how) ? title : $"{title}: {how}";
+                            })
+                            .Where(s => !string.IsNullOrWhiteSpace(s))
+                            .ToArray());
+                    }
+                }
+
+                RenderReferences(md, ds.References);
+            }
+
             void RenderSpf()
             {
                 if (b.Spf == null) return;
@@ -674,6 +773,9 @@ public static partial class MarkdownCompositionReport
                     case "Classification":
                         RenderClassification();
                         break;
+                    case "Desired State":
+                        RenderDesiredState();
+                        break;
                     case "SPF":
                         RenderSpf();
                         break;
@@ -722,6 +824,7 @@ public static partial class MarkdownCompositionReport
     {
         var list = new List<string>();
         if (b.Classification != null) list.Add("Classification");
+        if (b.DesiredState != null) list.Add("Desired State");
         if (b.Spf != null) list.Add("SPF");
         if (b.Dmarc != null) list.Add("DMARC");
         if (b.Dkim.Count > 0) list.Add("DKIM");

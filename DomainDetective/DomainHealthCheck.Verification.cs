@@ -18,7 +18,18 @@ namespace DomainDetective {
     /// Contains verification methods used by <see cref="DomainHealthCheck"/>.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public partial class DomainHealthCheck {
+public partial class DomainHealthCheck {
+        public static readonly HealthCheckType[] DefaultChecks = new[] {
+            HealthCheckType.DMARC,
+            HealthCheckType.SPF,
+            HealthCheckType.DKIM,
+            HealthCheckType.MX,
+            HealthCheckType.CAA,
+            HealthCheckType.DANE,
+            HealthCheckType.DNSSEC,
+            HealthCheckType.DNSBL,
+            HealthCheckType.MESSAGEHEADER
+        };
 
         private static string NormalizeDomain(string input)
         {
@@ -71,6 +82,7 @@ namespace DomainDetective {
         /// <param name="portScanProfiles">Optional port scan profiles to use.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         /// <param name="executionOptions">Optional execution settings for this verification run.</param>
+        /// <param name="useDefaultChecksWhenEmpty">When false, an empty <paramref name="healthCheckTypes"/> array results in no checks being executed.</param>
         public async Task Verify(
             string domainName,
             HealthCheckType[]? healthCheckTypes = null,
@@ -79,7 +91,8 @@ namespace DomainDetective {
             int[]? danePorts = null,
             PortScanProfile[]? portScanProfiles = null,
             CancellationToken cancellationToken = default,
-            HealthCheckExecutionOptions? executionOptions = null) {
+            HealthCheckExecutionOptions? executionOptions = null,
+            bool useDefaultChecksWhenEmpty = true) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -93,18 +106,10 @@ namespace DomainDetective {
             }
             ApplyExecutionOptions(exec);
             _logger.WriteVerbose("Running health checks for {0}", domainName);
-            if (healthCheckTypes == null || healthCheckTypes.Length == 0) {     
-                healthCheckTypes = new[]                {
-                    HealthCheckType.DMARC,
-                    HealthCheckType.SPF,
-                    HealthCheckType.DKIM,
-                    HealthCheckType.MX,
-                    HealthCheckType.CAA,
-                    HealthCheckType.DANE,
-                    HealthCheckType.DNSSEC,
-                    HealthCheckType.DNSBL,
-                    HealthCheckType.MESSAGEHEADER
-                };
+            if (healthCheckTypes == null) {
+                healthCheckTypes = DefaultChecks.ToArray();
+            } else if (healthCheckTypes.Length == 0 && useDefaultChecksWhenEmpty) {
+                healthCheckTypes = DefaultChecks.ToArray();
             }
 
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();

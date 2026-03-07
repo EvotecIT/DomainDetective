@@ -54,6 +54,7 @@ public sealed class CmdletNewDesiredState : PSCmdlet {
         }
 
         config.Defaults ??= new DesiredStateProfile();
+        config.BestPractices ??= new DesiredStateBestPracticeSettings();
         config.Overrides ??= new List<DesiredStateOverride>();
 
         if (ScriptBlock != null) {
@@ -83,9 +84,17 @@ public sealed class CmdletNewDesiredState : PSCmdlet {
                 continue;
             }
 
+            if (o is DesiredStateBestPracticeSettings bestPractices) {
+                config.BestPractices = bestPractices;
+                continue;
+            }
+
             if (o is DesiredStateConfiguration cfg) {
                 if (cfg.Defaults != null) {
                     config.Defaults.Apply(cfg.Defaults);
+                }
+                if (cfg.BestPractices != null) {
+                    config.BestPractices = cfg.BestPractices;
                 }
                 if (cfg.Overrides != null && cfg.Overrides.Count > 0) {
                     config.Overrides.AddRange(cfg.Overrides);

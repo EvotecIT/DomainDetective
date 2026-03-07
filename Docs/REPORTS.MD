@@ -45,6 +45,28 @@ We will mirror this pattern for DMARC and DKIM (with policy semantics, alignment
 - Theme: Light, Dark, Professional.
 - Branding: LogoPath, HeaderText, FooterText, WatermarkText.
 
+## Narrative metadata contract
+
+Composition-based reports accept a consistent set of narrative metadata fields and a narrative placement flag.
+PowerShell can set defaults via `Set-DDExportOptions`. CLI or SDK calls can pass overrides where supported.
+
+Metadata fields:
+
+| Field | Description | Notes |
+|---|---|---|
+| Title | Report title override | Used for document title and HTML title. |
+| Subject | Report subject/description | Used in document properties and HTML description. |
+| Category | Report category | Stored as document metadata. |
+| Keywords | Report keywords | Comma-separated list for document metadata. |
+| Creator | Report author/creator | Used in document properties and headers where supported. |
+
+Narrative placement (`NarrativePlacement`):
+
+- `Auto`: Use a global background section for multi-domain reports, otherwise embed narratives per domain.
+- `Global`: Render a single background section with narratives and omit per-domain narratives.
+- `PerDomain`: Render narrative sub-sections inside each per-domain section.
+- `None`: Disable narrative sub-sections entirely.
+
 ## Implementation Plan
 1. Build a thin internal IR (Document, Section, Paragraph, Table, Chart) and a numbering helper.
 2. Implement SPF report (Word + HTML) using area builder and renderers.

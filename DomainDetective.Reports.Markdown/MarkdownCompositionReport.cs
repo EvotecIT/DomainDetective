@@ -202,7 +202,8 @@ public static partial class MarkdownCompositionReport
             Rpki = s.Rpki,
             ZoneTransfer = s.ZoneTransfer,
             Wildcard = s.Wildcard,
-            Ttl = s.Ttl
+            Ttl = s.Ttl,
+            DesiredState = s.DesiredState
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
         return b;
@@ -238,5 +239,6 @@ public static partial class MarkdownCompositionReport
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
         public DomainDetective.Views.TtlInfo? Ttl { get; set; }
+        public DomainDetective.Views.DesiredStateInfo? DesiredState { get; set; }
     }
 }

@@ -23,6 +23,7 @@ public static partial class HtmlCompositionReport
         if (b.Mx != null) list.Add("MX");
         if (b.Mx != null || b.SmtpTls != null || b.ImapTls != null || b.PopTls != null || b.Mtasts != null || b.TlsRpt != null || b.TlsRptReports != null || b.Dane != null)
             list.Add("Mail Transport Posture");
+        if (b.DesiredState != null) list.Add("Desired State");
         if (b.Spf != null) list.Add("SPF");
         if (b.Dkim.Count > 0) list.Add("DKIM");
 	        if (b.Dmarc != null) list.Add("DMARC");
@@ -75,6 +76,9 @@ public static partial class HtmlCompositionReport
                     break;
                 case "Mail Transport Posture":
                     RenderMailTransportPostureSection(acc, b);
+                    break;
+                case "Desired State":
+                    RenderDesiredStateSection(acc, b);
                     break;
                 case "SPF":
                     RenderSpfSection(acc, b);

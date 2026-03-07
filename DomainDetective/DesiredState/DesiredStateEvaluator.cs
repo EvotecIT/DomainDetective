@@ -102,7 +102,9 @@ public static partial class DesiredStateEvaluator {
             }
         }
 
-        var hasProblems = result.Assessments.Any(a => a.Severity != AssessmentSeverity.Info);
+        var hasProblems = result.Assessments.Any(a =>
+            a.Severity != AssessmentSeverity.Info &&
+            string.Equals(a.Category, "DesiredState", StringComparison.OrdinalIgnoreCase));
         result.Conforms = !hasProblems;
         if (result.Conforms) {
             result.Assessments.Add(new Assessment {

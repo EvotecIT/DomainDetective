@@ -419,6 +419,12 @@ public static partial class WordCompositionReport {
                     doc.AddParagraph("No mail transport posture data.").SetItalic(true);
                 }
             }, bucket.Mx != null || bucket.SmtpTls != null || bucket.ImapTls != null || bucket.PopTls != null || bucket.Mtasts != null || bucket.TlsRpt != null || bucket.TlsRptReports != null || bucket.Dane != null);
+            add("Desired State", () => {
+                headings.AddItem("Desired State", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildDesiredState(bucket.DesiredState!);
+                if (dto != null) DesiredStateWordSectionWriter.Write(doc, headings, 2, dto, bucket.DesiredState, domain, scope, showInfoFindings);
+                else DesiredStateWordSectionWriter.Write(doc, headings, 2, bucket.DesiredState!, domain, scope, showInfoFindings);
+            }, bucket.DesiredState != null);
             add("SPF", () => {
                 headings.AddItem("SPF", 1);
                 var dto = DomainDetective.Reports.SectionProjectors.BuildSpf(bucket.Spf!);

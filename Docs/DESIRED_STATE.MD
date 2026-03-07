@@ -6,6 +6,7 @@ This document introduces a first-pass Desired State Configuration (DSC-like) lay
 
 - A JSON configuration file describing your baseline and per-domain/per-classification overrides.
 - A PowerShell entry point that runs checks and evaluates conformance.
+- Optional reporting modes to control how desired state drift is presented alongside best-practice findings.
 
 ## PowerShell usage
 
@@ -36,6 +37,224 @@ Test-DDDesiredState -DomainName example.com -Configuration $Configuration
 Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json
 ```
 
+### Run delta vs previous bundle
+
+Desired State can compare the current run against a **previous bundle** (JSON) and report:
+
+- Conformance score delta
+- New failing codes
+- Cleared failing codes
+
+PowerShell example:
+
+```powershell
+# First run (export bundle alongside report)
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json -ExportPath .\Reports
+
+# Next run with delta
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json -PreviousBundlePath .\Reports\report-desired-state-bundle.json
+```
+
+CLI example:
+
+```bash
+# First run (export bundle alongside report)
+DomainDetective DesiredState example.com --config .\desired-state.json --format html --output .\Reports\report.html
+
+# Next run with delta
+DomainDetective DesiredState example.com --config .\desired-state.json --format html --output .\Reports\report.html --previous-bundle .\Reports\report-desired-state-bundle.json
+```
+
+When a previous bundle is provided, run delta appears in HTML/Word/Excel/Markdown outputs and in the summary CSV.
+
+### Report output snapshot (baseline metadata + coverage)
+
+When a baseline is loaded, the Desired State section includes:
+
+- Baseline Metadata (mode, version, hash, source, overrides)
+- Effective Policy Snapshot (resolved checks and overrides)
+- Coverage Summary (configured vs executed checks)
+- Run Delta (when `--previous-bundle` or `-PreviousBundlePath` is provided)
+
+Example Baseline Metadata block (format varies by output type):
+
+| Field | Example |
+|---|---|
+| Baseline Mode | BaselineOnly |
+| Effective Mode | BestPracticesForUnspecified |
+| Config Version | 1 |
+| Source Label | Corp Baseline |
+| Source Path | C:\Baselines\desired-state.json |
+| Config Hash (SHA256) | 7e3b0f... |
+| Overrides Applied | 2 |
+| Lint Warnings | 0 |
+
+### Example scripts (PowerShell)
+
+Sample scripts that build a baseline and export reports are available under `Module/Examples`:
+
+- `Example.Report.DesiredState.Word.ps1`
+- `Example.Report.DesiredState.Html.ps1`
+- `Example.Report.DesiredState.Excel.ps1`
+- `Example.Report.DesiredState.Markdown.ps1`
+
+Each script creates `desired-state.sample.json` next to the script and saves reports into `Module/Examples/Reports`.
+
+### JSON schema
+
+The Desired State JSON schema is bundled in the repo at:
+
+```
+Docs/Schemas/domain-detective.desired-state.schema.json
+```
+
+You can point your editor/CI validation at that file or embed it in the JSON via `$schema`.
+
+### Sample baselines
+
+#### Email-only baseline (DMARC/SPF/DKIM + MTA-STS/TLS-RPT)
+
+```json
+{
+  "$schema": "Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "BaselineOnly",
+  "defaults": {
+    "checks": ["DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT"],
+    "dmarc": {
+      "enabled": true,
+      "allowedPolicies": ["reject"],
+      "requireRua": true
+    },
+    "spf": {
+      "enabled": true,
+      "allowedAllMechanisms": ["-all", "~all"],
+      "maxDnsLookups": 10
+    },
+    "dkim": {
+      "enabled": true,
+      "requireAtLeastOneSelector": true,
+      "minKeyBits": 2048
+    },
+    "mtasts": {
+      "enabled": true,
+      "requireRecord": true,
+      "requireEnforce": true,
+      "minMaxAge": 86400
+    },
+    "tlsrpt": {
+      "enabled": true,
+      "requireRecord": true
+    }
+  }
+}
+```
+
+#### DNS-only baseline (DNSSEC/CAA/NS/SOA/RPKI)
+
+```json
+{
+  "$schema": "Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "BaselineOnly",
+  "defaults": {
+    "checks": ["NS", "SOA", "CAA", "DNSSEC", "RPKI", "DNSHEALTH"],
+    "ns": {
+      "enabled": true,
+      "requireAtLeastTwo": true,
+      "requireAllHaveAOrAaaa": true
+    },
+    "soa": {
+      "enabled": true,
+      "requireRecord": true,
+      "minRefresh": 3600,
+      "maxRefresh": 86400
+    },
+    "caa": {
+      "enabled": true,
+      "requireRecord": true,
+      "requireValid": true
+    },
+    "dnssec": {
+      "enabled": true,
+      "requireChainValid": true,
+      "minRrsigDaysRemaining": 7
+    },
+    "rpki": {
+      "enabled": true,
+      "disallowInvalid": true
+    },
+    "dnsHealth": {
+      "enabled": true,
+      "requireServersResponsive": true
+    }
+  }
+}
+```
+
+#### Hybrid baseline with overrides
+
+```json
+{
+  "$schema": "Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "HybridSplit",
+  "bestPractices": {
+    "checks": ["DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT", "DNSSEC"],
+    "includeActiveMailProbes": false
+  },
+  "defaults": {
+    "checks": ["DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT"],
+    "dmarc": { "enabled": true, "allowedPolicies": ["reject"] },
+    "spf": { "enabled": true, "maxDnsLookups": 10 },
+    "dkim": { "enabled": true, "minKeyBits": 2048 }
+  },
+  "overrides": [
+    {
+      "match": { "domainPatterns": ["*.example.com"] },
+      "profile": {
+        "spf": { "requireDenyAll": true },
+        "dmarc": { "requireRua": false }
+      }
+    },
+    {
+      "match": { "classifications": ["Parked"] },
+      "profile": {
+        "dmarc": { "requireRecord": false },
+        "spf": { "requireRecord": false }
+      }
+    }
+  ]
+}
+```
+
+### Reporting modes (DesiredStateMode)
+
+Desired State results can be displayed in three modes:
+
+- **BaselineOnly**: show only desired state drift (no best-practice findings).
+- **HybridSplit** (default): show desired state drift **and** best-practice gaps as separate subsections.
+- **BestPracticesForUnspecified**: show desired state drift for configured checks and best-practice gaps for checks **not** specified in the baseline.
+
+You can set the mode in JSON (`mode`) or override it in PowerShell with `-DesiredStateMode`.
+
+### Best-practice settings
+
+When `DesiredStateMode` is **BestPracticesForUnspecified**, DomainDetective can run a recommended best-practice check set (non-intrusive DNS + policy checks) and optionally include active mail probes.
+
+- `bestPractices.checks`: override the best-practice check set (array of `HealthCheckType` values). Omit to use the recommended set. Use an empty array to disable best-practice checks entirely.
+- `bestPractices.includeActiveMailProbes`: when `true`, adds SMTP/IMAP/POP active probes (STARTTLS, SMTP TLS, IMAP TLS, POP3 TLS, SMTP banner, SMTP AUTH, mail latency, open relay).
+  - To disable best-practice checks entirely, set `"checks": []` and leave `includeActiveMailProbes` as `false`.
+  - If both the desired-state checks and best-practice checks are empty, no checks are executed and the Desired State section will only reflect baseline metadata (mode/conforms).
+
+PowerShell DSL example:
+
+```powershell
+$cfg = New-DDDesiredState {
+    New-DDDesiredStateBestPractices -Checks DMARC,SPF,DKIM,MTASTS,TLSRPT -IncludeActiveMailProbes
+}
+```
+
 To make evaluation failures fail fast (useful in development), add:
 
 ```powershell
@@ -55,6 +274,9 @@ Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.js
 ```powershell
 $cfg = New-DDDesiredState {
     New-DDDesiredStateChecks -Checks DMARC,SPF,DKIM,MTASTS,TLSRPT
+
+    # Optional: best-practice check settings (used in BestPracticesForUnspecified mode)
+    New-DDDesiredStateBestPractices -IncludeActiveMailProbes
 
     New-DDDesiredStateDmarc -Enabled $true `
         -AllowedPolicies reject,quarantine `
@@ -180,6 +402,7 @@ Test-DDDesiredState -DomainName example.com -Configuration $cfg
 
 - `DesiredStateProfile` objects (applied to `defaults`)
 - `DesiredStateOverride` objects (added to `overrides`)
+- `DesiredStateBestPracticeSettings` objects (replace `bestPractices`)
 - `DesiredStateConfiguration` objects (merged: `defaults` applied, `overrides` appended)
 
 Overrides are evaluated in order; if multiple overrides match a domain, later overrides win for overlapping settings.
@@ -211,6 +434,7 @@ Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.js
 
 - If **no checks** are explicitly configured **and** no policy blocks are enabled, `Test-DDDesiredState` falls back to the default health checks.
 - If any policy block is enabled, only the checks required by those policies are executed (unless you explicitly set `checks`).
+- When `DesiredStateMode` is **BestPracticesForUnspecified**, DomainDetective runs the recommended best-practice check set plus any explicitly configured checks so it can surface best-practice gaps for unspecified areas.
 
 ## Configuration file
 
@@ -220,6 +444,10 @@ Add a `$schema` field for editor IntelliSense:
 {
   "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
   "version": 1,
+  "mode": "HybridSplit",
+  "bestPractices": {
+    "includeActiveMailProbes": false
+  },
   "defaults": {
     "checks": [
       "DMARC",
@@ -423,6 +651,101 @@ Add a `$schema` field for editor IntelliSense:
     }
   ]
 }
+```
+
+## End-to-end examples (all modes)
+
+### 1) BaselineOnly (drift only)
+
+`desired-state-baseline.json`:
+
+```json
+{
+  "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "BaselineOnly",
+  "defaults": {
+    "checks": [ "DMARC", "SPF", "DKIM" ],
+    "dmarc": { "enabled": true, "allowedPolicies": [ "reject", "quarantine" ], "requireRua": true },
+    "spf": { "enabled": true, "requireRecord": true, "allowedAllMechanisms": [ "-all" ], "maxDnsLookups": 10 },
+    "dkim": { "enabled": true, "minKeyBits": 2048 }
+  }
+}
+```
+
+PowerShell:
+
+```powershell
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state-baseline.json
+```
+
+CLI:
+
+```bash
+DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state-baseline.json
+```
+
+### 2) HybridSplit (drift + best-practice gaps)
+
+`desired-state-hybrid.json`:
+
+```json
+{
+  "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "HybridSplit",
+  "defaults": {
+    "checks": [ "DMARC", "SPF", "DKIM" ],
+    "dmarc": { "enabled": true, "allowedPolicies": [ "reject" ] },
+    "spf": { "enabled": true, "requireRecord": true, "allowedAllMechanisms": [ "-all" ] },
+    "dkim": { "enabled": true, "minKeyBits": 2048 }
+  }
+}
+```
+
+PowerShell:
+
+```powershell
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state-hybrid.json -DesiredStateMode HybridSplit
+```
+
+CLI:
+
+```bash
+DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state-hybrid.json --mode HybridSplit --format html
+```
+
+### 3) BestPracticesForUnspecified (baseline + best-practice for unspecified)
+
+`desired-state-best.json`:
+
+```json
+{
+  "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "BestPracticesForUnspecified",
+  "bestPractices": {
+    "includeActiveMailProbes": false
+  },
+  "defaults": {
+    "checks": [ "DMARC", "SPF", "DKIM" ],
+    "dmarc": { "enabled": true, "allowedPolicies": [ "reject" ] },
+    "spf": { "enabled": true, "requireRecord": true, "allowedAllMechanisms": [ "-all" ] },
+    "dkim": { "enabled": true, "minKeyBits": 2048 }
+  }
+}
+```
+
+PowerShell:
+
+```powershell
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state-best.json -DesiredStateMode BestPracticesForUnspecified
+```
+
+CLI:
+
+```bash
+DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state-best.json --mode BestPracticesForUnspecified --format html --open
 ```
 
 ### Notes

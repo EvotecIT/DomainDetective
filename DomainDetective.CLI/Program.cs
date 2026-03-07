@@ -55,6 +55,13 @@ internal static class Program {
                 .WithExample(new[] { "check", "example.com", "--json" })
                 .WithExample(new[] { "check", "example.com", "--checks", "autodiscover" })
                 .WithExample(new[] { "check", "example.com", "--port-profiles", "radius" });
+            config.AddCommand<DomainDetective.CLI.Commands.DesiredStateCommand>("DesiredState")
+                .WithDescription("Evaluate Desired State (custom baseline) against a domain")
+                .WithExample(new[] { "DesiredState", "example.com", "--desired-state", "./desired-state.json" })
+                .WithExample(new[] { "DesiredState", "example.com", "--desired-state", "./desired-state.json", "--mode", "BestPracticesForUnspecified", "--format", "html" });
+            config.AddCommand<DomainDetective.CLI.Commands.DesiredStateCommand>("desiredstate")
+                .WithDescription("Evaluate Desired State (alias)")
+                .WithExample(new[] { "desiredstate", "example.com", "--desired-state", "./desired-state.json" });
             config.AddCommand<AnalyzeMessageHeaderCommand>("AnalyzeMessageHeader")
                 .WithDescription("Analyze message header")
                 .WithExample(new[] { "AnalyzeMessageHeader", "--file", "./headers.txt", "--json" });

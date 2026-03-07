@@ -48,6 +48,7 @@ public static class ReferencesCollector
             Pull(b.ImapTls?.References);
             Pull(b.PopTls?.References);
             Pull(b.Classification?.References);
+            Pull(b.DesiredState?.References);
             Pull(b.Subdomains?.References);
             Pull(b.DnsInventory?.References);
             Pull(b.DnsTrace?.References);
