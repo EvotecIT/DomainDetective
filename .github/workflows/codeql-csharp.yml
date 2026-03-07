@@ -1,0 +1,104 @@
+name: CodeQL CSharp
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'main'
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'Docs/**'
+  pull_request:
+    branches:
+      - '**'
+  schedule:
+    - cron: '22 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+env:
+  DOTNET_VERSION: '8.x'
+  BUILD_CONFIGURATION: 'Release'
+  DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1'
+
+jobs:
+  analyze:
+    name: Analyze CSharp
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Verify .NET Framework 4.7.2 targeting pack
+        shell: pwsh
+        run: |
+          $frameworkPath = "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2"
+          if (-not (Test-Path $frameworkPath)) {
+            Write-Error ".NET Framework 4.7.2 targeting pack not found. Install the developer pack on the runner."
+            exit 1
+          }
+
+          Write-Host ".NET Framework 4.7.2 targeting pack available."
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          build-mode: manual
+          queries: security-and-quality
+
+      - name: Restore dependencies
+        run: dotnet restore DomainDetective.sln
+
+      - name: Build solution
+        shell: pwsh
+        run: |
+          $args = @(
+            "build",
+            "DomainDetective.sln",
+            "--configuration", "${{ env.BUILD_CONFIGURATION }}",
+            "--no-restore",
+            "-m:1",
+            "-p:UseSharedCompilation=false"
+          )
+
+          dotnet @args 2>&1 | Tee-Object -Variable buildOutput
+          $exitCode = $LASTEXITCODE
+
+          if ($exitCode -ne 0) {
+            $text = $buildOutput -join "`n"
+            $isTransientCliLock = ($text -match "GenerateRuntimeConfigurationFiles" -or $text -match "CS2012") -and
+                                  $text -match "DomainDetective\\.CLI" -and
+                                  $text -match "being used by another process"
+
+            if ($isTransientCliLock) {
+              Write-Host "Detected transient DomainDetective.CLI file lock. Retrying..."
+
+              Get-Process -Name VBCSCompiler -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+              Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "obj") -ErrorAction SilentlyContinue
+              Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "bin") -ErrorAction SilentlyContinue
+
+              Start-Sleep -Seconds 2
+              dotnet build DomainDetective.sln --configuration "${{ env.BUILD_CONFIGURATION }}" --no-restore -m:1 -p:UseSharedCompilation=false
+              exit $LASTEXITCODE
+            }
+
+            exit $exitCode
+          }
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:csharp
