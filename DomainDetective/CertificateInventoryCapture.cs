@@ -58,8 +58,8 @@ public sealed class CertificateInventoryCaptureOptions {
 
     /// <summary>
     /// When true, passive/public CT APIs (for example crt.sh or Cert Spotter) may be used
-    /// to rescue missing CT certificate metadata for exact hosts without enabling passive
-    /// CT discovery fallback more broadly.
+    /// to hydrate or rescue missing CT certificate metadata for both exact-host seeds and
+    /// CT-discovered subdomains, without enabling passive CT discovery fallback more broadly.
     /// </summary>
     public bool EnablePassiveCtMetadataFallback { get; set; }
 
@@ -142,7 +142,7 @@ public sealed class CertificateInventoryCaptureOptions {
     /// When true, performs CT metadata backfill for CT-discovered subdomains that are missing
     /// certificate metadata (subject/issuer/serial/notBefore/notAfter). When
     /// <see cref="EnablePassiveCtMetadataFallback"/> is enabled, passive/public CT APIs may be
-    /// used for exact-host rescue even if <see cref="EnablePassiveCtFallback"/> remains disabled.
+    /// used for CT metadata hydration even if <see cref="EnablePassiveCtFallback"/> remains disabled.
     /// </summary>
     public bool BackfillMissingCtCertificateMetadata { get; set; } = true;
 
@@ -591,6 +591,7 @@ public sealed partial class CertificateInventoryCapture {
 
         IReadOnlyList<SubdomainDiscoveryEntry> exactHostSeedCtMetadata = await BackfillExactHostSeedCtMetadataAsync(
             seeds,
+            ctDiscoveredSubdomainEntries,
             options,
             warnings,
             logger,
@@ -600,6 +601,8 @@ public sealed partial class CertificateInventoryCapture {
                 continue;
             }
 
+            var normalizedExactName = exactEntry.Name.Trim();
+            ctDiscoveredSubdomains.Add(normalizedExactName);
             MergeCtSubdomainEntry(ctDiscoveredSubdomainEntries, exactEntry);
         }
         AdvanceStage("CT subdomain discovery");

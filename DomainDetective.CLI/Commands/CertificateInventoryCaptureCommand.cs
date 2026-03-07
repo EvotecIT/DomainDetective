@@ -96,6 +96,14 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [CommandOption("--native-ct-log-only")]
     public bool NativeCtLogOnly { get; set; }
 
+    [Description("Enable passive/public CT fallback for CT subdomain discovery.")]
+    [CommandOption("--enable-passive-ct-fallback")]
+    public bool EnablePassiveCtFallback { get; set; }
+
+    [Description("Enable passive/public CT metadata rescue without broadly enabling passive CT discovery fallback.")]
+    [CommandOption("--enable-passive-ct-metadata-fallback")]
+    public bool EnablePassiveCtMetadataFallback { get; set; }
+
     [Description("Timeout in seconds for each passive/public CT HTTP request.")]
     [CommandOption("--passive-ct-request-timeout-seconds <N>")]
     [DefaultValue(15)]
@@ -516,6 +524,8 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             EnableNativeCtLogSubdomainSource = settings.EnableNativeCtLogs,
             EnableNativeCtSharedIngestion = !settings.DisableNativeCtSharedIngestion,
             NativeCtLogOnly = settings.NativeCtLogOnly,
+            EnablePassiveCtFallback = settings.EnablePassiveCtFallback,
+            EnablePassiveCtMetadataFallback = settings.EnablePassiveCtMetadataFallback,
             PassiveCtRequestTimeout = TimeSpan.FromSeconds(settings.PassiveCtRequestTimeoutSeconds),
             PassiveCtRetryCount = settings.PassiveCtRetryCount,
             PassiveCtRetryBaseDelay = TimeSpan.FromMilliseconds(settings.PassiveCtRetryBaseDelayMilliseconds),

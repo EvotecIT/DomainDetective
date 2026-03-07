@@ -27,6 +27,9 @@ public sealed partial class CertificateInventoryCapture {
 
         bool allowPassiveMetadataFallback = options.EnablePassiveCtFallback ||
                                             options.EnablePassiveCtMetadataFallback;
+        if (!allowPassiveMetadataFallback) {
+            return discoveredEntries;
+        }
 
         var merged = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in discoveredEntries) {
@@ -150,6 +153,7 @@ public sealed partial class CertificateInventoryCapture {
 
     private async Task<IReadOnlyList<SubdomainDiscoveryEntry>> BackfillExactHostSeedCtMetadataAsync(
         IReadOnlyList<CertificateInventorySeed> seeds,
+        IReadOnlyDictionary<string, SubdomainDiscoveryEntry> existingEntries,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
         InternalLogger logger,
@@ -167,6 +171,7 @@ public sealed partial class CertificateInventoryCapture {
         var exactHostSeeds = seeds
             .Where(static seed => seed != null && seed.IsExactHostSeed && !string.IsNullOrWhiteSpace(seed.Name))
             .Select(static seed => seed.Name.Trim())
+            .Where(name => !HasCtCertificateMetadata(existingEntries, name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -256,6 +261,21 @@ public sealed partial class CertificateInventoryCapture {
                string.IsNullOrWhiteSpace(entry.LatestCertificateSerialNumber) &&
                !entry.LatestCertificateNotBeforeUtc.HasValue &&
                !entry.LatestCertificateNotAfterUtc.HasValue;
+    }
+
+    private static bool HasCtCertificateMetadata(
+        IReadOnlyDictionary<string, SubdomainDiscoveryEntry>? existingEntries,
+        string? name) {
+        if (existingEntries == null || string.IsNullOrWhiteSpace(name)) {
+            return false;
+        }
+
+        var normalizedName = name!.Trim();
+        if (!existingEntries.TryGetValue(normalizedName, out var existingEntry) || existingEntry == null) {
+            return false;
+        }
+
+        return !IsCtCertificateMetadataMissing(existingEntry);
     }
 
     private async Task<IReadOnlyList<SubdomainDiscoveryEntry>> BackfillMissingCtCertificateMetadataExactAsync(

@@ -121,6 +121,14 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter NativeCtLogOnly { get; set; }
 
+    /// <summary>Enable passive/public CT fallback for CT subdomain discovery.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter EnablePassiveCtFallback { get; set; }
+
+    /// <summary>Enable passive/public CT metadata rescue without broadly enabling passive CT discovery fallback.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter EnablePassiveCtMetadataFallback { get; set; }
+
     /// <summary>Native CT log list URL used to resolve CT logs.</summary>
     [Parameter(Mandatory = false)]
     public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
@@ -379,6 +387,8 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             EnableNativeCtLogSubdomainSource = EnableNativeCtLogSubdomains.IsPresent,
             EnableNativeCtSharedIngestion = !DisableNativeCtSharedIngestion.IsPresent,
             NativeCtLogOnly = NativeCtLogOnly.IsPresent,
+            EnablePassiveCtFallback = EnablePassiveCtFallback.IsPresent,
+            EnablePassiveCtMetadataFallback = EnablePassiveCtMetadataFallback.IsPresent,
             NativeCtLogListUrl = NativeCtLogListUrl,
             NativeCtMaxLogs = NativeCtMaxLogs,
             NativeCtMaxEntriesPerLog = NativeCtMaxEntriesPerLog,
