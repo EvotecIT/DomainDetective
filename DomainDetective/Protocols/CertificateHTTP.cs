@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Net;
 using System.Net.Http;
 using System.Net.Security;
@@ -27,7 +28,7 @@ namespace DomainDetective {
     /// Validation includes hostname matching and chain verification using the
     /// system trust store.
     /// </remarks>
-    public class CertificateAnalysis : IHasAssessments {
+    public partial class CertificateAnalysis : IHasAssessments {
         public string? Subject { get; set; }
         /// <summary>Gets or sets the URL that was checked.</summary>
         public string Url { get; set; } = string.Empty;
@@ -58,6 +59,10 @@ namespace DomainDetective {
 
         /// <summary>Gets the certificate chain.</summary>
         public List<X509Certificate2> Chain { get; } = new();
+        /// <summary>Most recent source used to populate <see cref="Chain"/>.</summary>
+        public string ChainSource { get; private set; } = string.Empty;
+        /// <summary>Ordered unique list of chain acquisition sources observed during analysis.</summary>
+        public List<string> ChainSourceHistory { get; } = new();
         /// <summary>Gets OCSP endpoints from the certificate.</summary>
         public List<string> OcspUrls { get; } = new();
         /// <summary>Gets CRL endpoints from the certificate.</summary>
@@ -88,6 +93,29 @@ namespace DomainDetective {
         public bool Sha1Signature { get; private set; }
         /// <summary>Indicates if the certificate uses RSA-PSS for its signature.</summary>
         public bool RsaPssSignature { get; private set; }
+        /// <summary>Indicates if the certificate contains an EKU extension.</summary>
+        public bool HasEnhancedKeyUsageExtension { get; private set; }
+        /// <summary>Indicates if the certificate contains the Any EKU OID value.</summary>
+        public bool HasAnyExtendedKeyUsageOid { get; private set; }
+
+        [Obsolete("Use HasAnyExtendedKeyUsageOid.")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool HasAnyExtendedKeyUsage {
+            get { return HasAnyExtendedKeyUsageOid; }
+            private set { HasAnyExtendedKeyUsageOid = value; }
+        }
+        /// <summary>Indicates if the certificate allows server authentication.</summary>
+        public bool AllowsServerAuthentication { get; private set; }
+        /// <summary>Indicates if the certificate allows client authentication.</summary>
+        public bool AllowsClientAuthentication { get; private set; }
+        /// <summary>Indicates if the certificate allows secure email usage.</summary>
+        public bool AllowsSecureEmail { get; private set; }
+        /// <summary>List of EKU OIDs on the certificate.</summary>
+        public List<string> ExtendedKeyUsageOids { get; } = new();
+        /// <summary>List of EKU friendly names for the certificate.</summary>
+        public List<string> ExtendedKeyUsageFriendlyNames { get; } = new();
+        /// <summary>Normalized EKU authentication profile for filtering/reporting.</summary>
+        public string AuthenticationProfile { get; private set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
         /// <summary>Gets the negotiated TLS protocol when <see cref="CaptureTlsDetails"/> is true.</summary>
         public SslProtocols TlsProtocol { get; private set; }
         /// <summary>Indicates if TLS 1.3 was negotiated.</summary>
@@ -115,9 +143,39 @@ namespace DomainDetective {
 
         /// <summary>CT log API templates. Each entry should contain a {0} placeholder for the SHA-256 fingerprint.</summary>
         public List<string> CtLogApiTemplates => _ctLogAggregator.ApiTemplates;
+        /// <summary>Enables Censys certificate discovery source during CT lookups.</summary>
+        public bool EnableCensysCtSource { get; set; }
+        /// <summary>Censys API identifier used when <see cref="EnableCensysCtSource"/> is true.</summary>
+        public string? CensysApiId { get; set; }
+        /// <summary>Censys API secret used when <see cref="EnableCensysCtSource"/> is true.</summary>
+        public string? CensysApiSecret { get; set; }
+        /// <summary>Censys URL template with {0} placeholder for the SHA-256 fingerprint.</summary>
+        public string CensysCtApiUrlTemplate {
+            get { return _ctLogAggregator.CensysApiUrlTemplate; }
+            set { _ctLogAggregator.CensysApiUrlTemplate = value; }
+        }
+        /// <summary>Enables Shodan certificate discovery source during CT lookups.</summary>
+        public bool EnableShodanCtSource { get; set; }
+        /// <summary>Shodan API key used when <see cref="EnableShodanCtSource"/> is true.</summary>
+        public string? ShodanApiKey { get; set; }
+        /// <summary>Shodan URL template with {0} fingerprint and {1} URL-encoded API key placeholders.</summary>
+        public string ShodanCtApiUrlTemplate {
+            get { return _ctLogAggregator.ShodanApiUrlTemplate; }
+            set { _ctLogAggregator.ShodanApiUrlTemplate = value; }
+        }
+        /// <summary>Discovery sources queried for certificate evidence in the latest CT lookup.</summary>
+        public IReadOnlyList<string> CtDiscoverySources => _ctDiscoverySources;
+        /// <summary>Template-format errors captured during the latest CT lookup.</summary>
+        public IReadOnlyList<string> CtTemplateFormatErrors => _ctTemplateFormatErrors;
 
         private readonly List<JsonElement> _ctLogEntries = new();
+        private volatile string[] _ctDiscoverySources = Array.Empty<string>();
+        private volatile string[] _ctTemplateFormatErrors = Array.Empty<string>();
         private readonly CtLogAggregator _ctLogAggregator = new();
+        private const string ChainSourceTlsHandshake = "tls-handshake";
+        private const string ChainSourceSslStreamBuild = "sslstream-build";
+        private const string ChainSourceLocalBuildOnline = "local-build-online";
+        private const string ChainSourceLocalBuildNoCheck = "local-build-no-check";
 
         /// <summary>Structured assessments captured during certificate checks.</summary>
         public List<Assessment> Assessments { get; } = new();
@@ -177,6 +235,7 @@ namespace DomainDetective {
             url = builder.ToString();
             Url = url;
             IsSelfSigned = false;
+            ResetChainSourceTracking();
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
@@ -192,9 +251,10 @@ namespace DomainDetective {
                     Chain.Clear();
                     if (chain != null) {
                         foreach (var element in chain.ChainElements) {
-                    Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                            Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                         }
                     }
+                    RecordChainSource(ChainSourceTlsHandshake);
                     IsSelfSigned = IsSelfSignedCertificate(Certificate);  
                     IsValid = policyErrors == SslPolicyErrors.None;       
                     HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
@@ -245,6 +305,7 @@ namespace DomainDetective {
                                     foreach (var element in xchain.ChainElements) {
                                         Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                                     }
+                                    RecordChainSource(ChainSourceSslStreamBuild);
                                     IsSelfSigned = IsSelfSignedCertificate(Certificate);
                                 }
                             } catch (Exception ex) {
@@ -385,6 +446,8 @@ namespace DomainDetective {
         {
             PresentInCtLogs = false;
             _ctLogEntries.Clear();
+            _ctDiscoverySources = Array.Empty<string>();
+            _ctTemplateFormatErrors = Array.Empty<string>();
             if (Certificate == null)
             {
                 return;
@@ -399,13 +462,36 @@ namespace DomainDetective {
 #endif
             var fingerprint = BitConverter.ToString(hashBytes).Replace("-", string.Empty).ToLowerInvariant();
 
-            _ctLogAggregator.ApiTemplates.Clear();
-            _ctLogAggregator.ApiTemplates.AddRange(CtLogApiTemplates);
             _ctLogAggregator.QueryOverride = CtLogQueryOverride;
+            _ctLogAggregator.EnableCensysSource = EnableCensysCtSource;
+            _ctLogAggregator.EnableShodanSource = EnableShodanCtSource;
+            _ctLogAggregator.CensysApiId = FirstNonEmpty(CensysApiId, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_CENSYS_API_ID"));
+            _ctLogAggregator.CensysApiSecret = FirstNonEmpty(CensysApiSecret, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_CENSYS_API_SECRET"));
+            _ctLogAggregator.ShodanApiKey = FirstNonEmpty(ShodanApiKey, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_SHODAN_API_KEY"));
 
             var entries = await _ctLogAggregator.QueryAsync(fingerprint, cancellationToken).ConfigureAwait(false);
             _ctLogEntries.AddRange(entries);
+            _ctDiscoverySources = _ctLogAggregator.LastQueriedSources
+                .Where(source => !string.IsNullOrWhiteSpace(source))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            _ctTemplateFormatErrors = _ctLogAggregator.LastTemplateFormatErrors
+                .Where(error => !string.IsNullOrWhiteSpace(error))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             PresentInCtLogs = _ctLogEntries.Count > 0;
+        }
+
+        private static string? FirstNonEmpty(string? explicitValue, string? fallbackValue) {
+            if (!string.IsNullOrWhiteSpace(explicitValue)) {
+                return explicitValue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(fallbackValue)) {
+                return fallbackValue;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -445,6 +531,7 @@ namespace DomainDetective {
         public async Task AnalyzeCertificate(X509Certificate2 certificate, CancellationToken cancellationToken = default) {
             Certificate = new X509Certificate2(certificate.RawData);
             IsSelfSigned = false;
+            ResetChainSourceTracking();
             var chain = new X509Chain();
             chain.ChainPolicy.RevocationMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
             IsValid = chain.Build(certificate);
@@ -452,6 +539,7 @@ namespace DomainDetective {
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
+            RecordChainSource(SkipRevocation ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
             IsSelfSigned = IsSelfSignedCertificate(Certificate);
             PopulateKeyInfo();
             DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
@@ -491,7 +579,24 @@ namespace DomainDetective {
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
+            RecordChainSource(revocationMode == X509RevocationMode.NoCheck ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
             return true;
+        }
+
+        private void ResetChainSourceTracking() {
+            ChainSource = string.Empty;
+            ChainSourceHistory.Clear();
+        }
+
+        private void RecordChainSource(string source) {
+            if (string.IsNullOrWhiteSpace(source)) {
+                return;
+            }
+
+            ChainSource = source;
+            if (!ChainSourceHistory.Contains(source, StringComparer.OrdinalIgnoreCase)) {
+                ChainSourceHistory.Add(source);
+            }
         }
 
         private void PopulateSubjectAlternativeNames() {
@@ -557,284 +662,5 @@ namespace DomainDetective {
             SecuresUnrelatedHosts = baseDomains.Count > 1 && SubjectAlternativeNames.Count > 5;
         }
 
-        private static bool IsSelfSignedCertificate(X509Certificate2? certificate) {
-            if (certificate == null) {
-                return false;
-            }
-
-            var subject = certificate.Subject;
-            var issuer = certificate.Issuer;
-            if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(issuer)) {
-                return false;
-            }
-
-            return string.Equals(subject, issuer, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private void PopulateKeyInfo() {
-            var certificate = Certificate;
-            if (certificate == null) {
-                return;
-            }
-            KeyAlgorithm = certificate.PublicKey?.Oid?.FriendlyName ?? certificate.PublicKey?.Oid?.Value ?? string.Empty;
-            try {
-                // PublicKey.Key is obsolete in modern runtimes; prefer algorithm-specific helpers.
-#if NET8_0_OR_GREATER
-                var keySize = 0;
-                using (var rsa = certificate.GetRSAPublicKey()) {
-                    if (rsa != null) {
-                        keySize = rsa.KeySize;
-                    }
-                }
-                if (keySize == 0) {
-                    using (var ecdsa = certificate.GetECDsaPublicKey()) {
-                        if (ecdsa != null) {
-                            keySize = ecdsa.KeySize;
-                        }
-                    }
-                }
-                if (keySize == 0) {
-                    using (var dsa = certificate.GetDSAPublicKey()) {
-                        keySize = dsa?.KeySize ?? 0;
-                    }
-                }
-                KeySize = keySize;
-#else
-                KeySize = certificate.PublicKey?.Key?.KeySize ?? 0;
-#endif
-            } catch {
-                KeySize = 0;
-            }
-            WeakKey = KeySize > 0 && KeySize < 2048;
-            var oid = certificate.SignatureAlgorithm?.Value ?? string.Empty;
-            Sha1Signature = oid == "1.2.840.113549.1.1.5" ||
-                            oid == "1.2.840.10040.4.3" ||
-                            oid == "1.3.14.3.2.29";
-            RsaPssSignature = oid == "1.2.840.113549.1.1.10";
-        }
-
-#pragma warning disable CA2000 // Dispose objects before losing scope - returned TcpClient is disposed by caller
-        private static async Task<TcpClient> ConnectWithProxy(string host, int port, CancellationToken token) {
-            var proxy = Environment.GetEnvironmentVariable("HTTPS_PROXY") ??
-                        Environment.GetEnvironmentVariable("https_proxy") ??
-                        Environment.GetEnvironmentVariable("HTTP_PROXY") ??
-                        Environment.GetEnvironmentVariable("http_proxy");
-            TcpClient tcp = new();
-            if (!string.IsNullOrEmpty(proxy)) {
-                var p = new Uri(proxy);
-                await tcp.ConnectAsync(p.Host, p.Port).WaitWithCancellation(token);
-                var stream = tcp.GetStream();
-                var connectCmd = $"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n";
-                var buffer = System.Text.Encoding.ASCII.GetBytes(connectCmd);
-                await stream.WriteAsync(buffer, 0, buffer.Length, token);
-                await stream.FlushAsync(token);
-                using var reader = new StreamReader(stream, System.Text.Encoding.ASCII, false, 1024, true);
-                string? line = await reader.ReadLineAsync();
-                if (line == null || (!line.StartsWith("HTTP/1.1 200") && !line.StartsWith("HTTP/1.0 200"))) {
-                    throw new IOException($"Proxy CONNECT failed: {line}");
-                }
-                while (!string.IsNullOrEmpty(await reader.ReadLineAsync())) { }
-            } else {
-                await tcp.ConnectAsync(host, port).WaitWithCancellation(token);
-            }
-            return tcp;
-        }
-#pragma warning restore CA2000
-
-        private async Task PopulateTlsInfo(Uri uri, int port, CancellationToken token) {
-            using var tcp = await ConnectWithProxy(uri.Host, port, token);
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            timeoutCts.CancelAfter(Timeout);
-            using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
-            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
-            TlsProtocol = ssl.SslProtocol;
-            Tls13Used = (int)ssl.SslProtocol == 12288;
-            CipherAlgorithm = ssl.CipherAlgorithm;
-            CipherStrength = ssl.CipherStrength;
-#if NET8_0_OR_GREATER
-            CipherSuite = ssl.NegotiatedCipherSuite.ToString();
-#endif
-            if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
-                DhKeyBits = ssl.KeyExchangeStrength;
-            }
-        }
-
-        private void PopulateSctAndTlsFeature(InternalLogger logger)
-        {
-            SctCount = 0;
-            OcspMustStaple = false;
-            try {
-                if (Certificate == null) return;
-                var parser = new Org.BouncyCastle.X509.X509CertificateParser();
-                var bcCert = parser.ReadCertificate(Certificate.RawData);
-                // SCT list extension: 1.3.6.1.4.1.11129.2.4.2
-                var sctExt = bcCert.GetExtensionValue(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.2"));
-                if (sctExt != null)
-                {
-                    try
-                    {
-                        // Very coarse approximation: count plausible SCT markers
-                        var bytes = sctExt.GetOctets();
-                        int count = 0;
-                        for (int i = 0; i < bytes.Length - 33; i++)
-                        {
-                            if (bytes[i] == 0x00) count++;
-                        }
-                        SctCount = System.Math.Max(0, count / 32);
-                    }
-                    catch { SctCount = 1; }
-                }
-                if (SctCount == 0)
-                {
-                    logger?.WriteInformationCode(TlsCodes.SctMissing, "No embedded SCTs found in certificate");
-                }
-
-                // TLS Feature extension (OCSP Must-Staple): 1.3.6.1.5.5.7.1.24 with status_request (5)
-                var tlsFeat = bcCert.GetExtensionValue(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.5.5.7.1.24"));
-                if (tlsFeat != null)
-                {
-                    try
-                    {
-                        var seq = (Org.BouncyCastle.Asn1.Asn1Sequence)Org.BouncyCastle.Asn1.Asn1Object.FromByteArray(tlsFeat.GetOctets());
-                        foreach (var o in seq)
-                        {
-                            if (o is Org.BouncyCastle.Asn1.DerInteger di && di.IntValueExact == 5) { OcspMustStaple = true; break; }
-                        }
-                    }
-                    catch { }
-                }
-                if (!OcspMustStaple)
-                {
-                    logger?.WriteInformationCode(TlsCodes.OcspMustStapleMissing, "Certificate does not include OCSP Must-Staple (TLS Feature)");
-                }
-            } catch { }
-        }
-
-        private async Task ProbeOcspStaplingWithOpenSsl(Uri uri, int port, InternalLogger logger, CancellationToken token)
-        {
-            try
-            {
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                cts.CancelAfter(Timeout);
-                var psi = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "openssl",
-                    Arguments = $"s_client -connect {uri.Host}:{port} -servername {uri.Host} -status -brief",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var proc = System.Diagnostics.Process.Start(psi);
-                if (proc == null) return;
-                var readOut = proc.StandardOutput.ReadToEndAsync();
-                var readErr = proc.StandardError.ReadToEndAsync();
-                var delayTask = Task.Delay(Timeout, cts.Token);
-#if NET8_0_OR_GREATER
-                var waitTask = proc.WaitForExitAsync(cts.Token);
-#else
-                var waitTask = Task.Run(() => { while (!proc.HasExited) { if (cts.Token.IsCancellationRequested) break; Thread.Sleep(25); } }, cts.Token);
-#endif
-                var completed = await Task.WhenAny(delayTask, waitTask);
-                if (completed != waitTask) {
-                    try { if (!proc.HasExited) { proc.Kill(); } } catch { }
-                }
-                string output = await ReadWithTimeout(readOut, TimeSpan.FromSeconds(1), cts.Token);
-                string error = await ReadWithTimeout(readErr, TimeSpan.FromSeconds(1), cts.Token);
-                var text = (output ?? string.Empty) + "\n" + (error ?? string.Empty);
-                if (string.IsNullOrWhiteSpace(text)) return;
-                bool present = text.IndexOf("OCSP Response Status:", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                               text.IndexOf("OCSP Response Data:", StringComparison.OrdinalIgnoreCase) >= 0;
-                bool explicitlyMissing = text.IndexOf("OCSP response: no response sent", StringComparison.OrdinalIgnoreCase) >= 0;
-                OcspStaplingPresent = present && !explicitlyMissing;
-                if (OcspStaplingPresent == true)
-                {
-                    logger?.WriteInformationCode(TlsCodes.OcspStaplingPresent, "Server stapled an OCSP response on {0}:{1}", uri.Host, port);
-                }
-                else
-                {
-                    logger?.WriteWarningCode(TlsCodes.OcspStaplingMissing, "OCSP stapling not detected on {0}:{1}", uri.Host, port);
-                }
-            }
-            catch { }
-        }
-
-        private static async Task<string> ReadWithTimeout(Task<string> readTask, TimeSpan timeout, CancellationToken token) {
-            try {
-                var completed = await Task.WhenAny(readTask, Task.Delay(timeout, token));
-                if (completed == readTask) {
-                    return await readTask;
-                }
-            } catch {
-            }
-            return string.Empty;
-        }
-
-        private async Task ProbeProtocolSupport(Uri uri, int port, InternalLogger logger, CancellationToken token)
-        {
-            SupportsTls10 = false; SupportsTls11 = false; SupportsTls12 = false; SupportsTls13 = false;
-            async Task<bool> TryHandshake(System.Security.Authentication.SslProtocols proto)
-            {
-                try {
-                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                    timeoutCts.CancelAfter(Timeout);
-                    using var tcp = await ConnectWithProxy(uri.Host, port, timeoutCts.Token);
-                    using var ssl = new System.Net.Security.SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
-#if NET8_0_OR_GREATER
-                    var options = new System.Net.Security.SslClientAuthenticationOptions { TargetHost = uri.Host, EnabledSslProtocols = proto, CertificateRevocationCheckMode = SkipRevocation ? System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck : System.Security.Cryptography.X509Certificates.X509RevocationMode.Online };
-                    await ssl.AuthenticateAsClientAsync(options, timeoutCts.Token);
-#else
-                    await ssl.AuthenticateAsClientAsync(uri.Host, null, proto, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
-#endif
-                    return ssl.SslProtocol == proto;
-                } catch { return false; }
-            }
-#if NET8_0_OR_GREATER
-            SupportsTls13 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls13);
-#endif
-            SupportsTls12 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls12);
-            // Legacy probes (best-effort). We intentionally test legacy protocols to report insecure offerings.
-#pragma warning disable SYSLIB0039 // TLS 1.0/1.1 obsolete warnings
-            SupportsTls11 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls11);
-            SupportsTls10 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls);
-#pragma warning restore SYSLIB0039
-            if (SupportsTls10 || SupportsTls11)
-            {
-                logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
-                    SupportsTls10 ? "1.0" : string.Empty,
-                    SupportsTls11 ? (SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
-                    uri.Host, port);
-            }
-        }
-
-        private void ComputeGrade(InternalLogger logger) {
-            // Legacy detection when TLS details are known (suppress deprecation warnings in this check only)
-#pragma warning disable SYSLIB0039, CS0618
-            LegacyEnabled = TlsProtocol == SslProtocols.Tls || TlsProtocol == SslProtocols.Ssl3 || TlsProtocol == SslProtocols.Tls11;
-#pragma warning restore SYSLIB0039, CS0618
-            if (LegacyEnabled) {
-                logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0} - {1}", Url ?? Subject, TlsProtocol);
-            }
-            // Weak cipher negotiated advisory
-            try {
-                var suite = CipherSuite ?? string.Empty;
-                if (!string.IsNullOrEmpty(suite) && (suite.IndexOf("3DES", StringComparison.OrdinalIgnoreCase) >= 0 || suite.IndexOf("RC4", StringComparison.OrdinalIgnoreCase) >= 0))
-                {
-                    logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}: {1}", Url ?? Subject, suite);
-                }
-            } catch { }
-
-            // Coarse grading aligned to MailTlsAnalysis
-            if (IsExpired || !IsValid || !HostnameMatch) { GradeLevel = GradeLevel.F; return; }
-            if (Tls13Used) { GradeLevel = GradeLevel.A; return; }
-            if (TlsProtocol == SslProtocols.Tls12 && !LegacyEnabled) { GradeLevel = GradeLevel.B; return; }
-            // Suppress deprecation warnings for legacy grading branch
-#pragma warning disable SYSLIB0039
-            if (TlsProtocol == SslProtocols.Tls11 || TlsProtocol == SslProtocols.Tls) { GradeLevel = GradeLevel.D; return; }
-#pragma warning restore SYSLIB0039
-            // When TLS details are unknown, fall back to pass (valid cert) grade
-            GradeLevel = !string.IsNullOrEmpty(Certificate?.Subject) ? GradeLevel.C : GradeLevel.F;
-        }
     }
-
 }

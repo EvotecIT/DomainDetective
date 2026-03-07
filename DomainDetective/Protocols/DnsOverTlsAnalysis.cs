@@ -120,6 +120,18 @@ public sealed class DnsOverTlsAnalysis : IHasAssessments
             {
                 result = await ProbeDotAsync(host, ip, cancellationToken).ConfigureAwait(false);
             }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                logger.WriteWarningCode(DnsOverTlsCodes.ProbeFailed, "DNS over TLS probe timed out after {0}", Timeout);
+                result = new DnsOverTlsEndpointResult
+                {
+                    NameServerHost = host,
+                    ServerIp = ip.ToString(),
+                    Port = Port,
+                    Supported = false,
+                    Error = $"Timeout after {Timeout}"
+                };
+            }
             catch (OperationCanceledException)
             {
                 throw;

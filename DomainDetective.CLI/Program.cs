@@ -112,6 +112,13 @@ internal static class Program {
             config.AddCommand<TestSmimeaCommand>("TestSMIMEA")
                 .WithDescription("Query SMIMEA record for an email address")
                 .WithExample(new[] { "TestSMIMEA", "user@example.com" });
+            config.AddCommand<ValidateEmailCommand>("ValidateEmail")
+                .WithDescription("Validate an email address")
+                .WithExample(new[] { "ValidateEmail", "user@example.com" })
+                .WithExample(new[] { "ValidateEmail", "user@example.com", "--smtp", "--catch-all" });
+            config.AddCommand<ValidateEmailCommand>("email-validate")
+                .WithDescription("Validate an email address (alias)")
+                .WithExample(new[] { "email-validate", "user@example.com" });
             config.AddCommand<TestRpkiCommand>("TestRPKI")
                 .WithDescription("Validate RPKI origins for domain IPs")
                 .WithExample(new[] { "TestRPKI", "example.com" });
@@ -159,6 +166,169 @@ internal static class Program {
                 .WithDescription("Open most recent run directory or scan.json")
                 .WithExample(new[] { "RunsOpen", "--subject", "example.com" })
                 .WithExample(new[] { "RunsOpen", "--dir", "/path/to/run" });
+
+            // Certificate inventory utilities
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCaptureCommand>("CertificateInventoryCapture")
+                .WithDescription("Capture certificate inventory snapshot from domains and discovered endpoints")
+                .WithExample(new[] { "CertificateInventoryCapture", "example.com", "example.org" })
+                .WithExample(new[] { "CertificateInventoryCapture", "--domains-file", "./domains.txt", "--json" })
+                .WithExample(new[] { "CertificateInventoryCapture", "example.com", "--endpoint", "https://api.example.com:8443", "--csv-path", "./artifacts/cert-capture.csv" })
+                .WithExample(new[] { "CertificateInventoryCapture", "example.com", "--ct-profile", "Extended", "--enable-shodan-ct", "--shodan-api-key-env", "SHODAN_API_KEY" })
+                .WithExample(new[] { "CertificateInventoryCapture", "example.com", "--include-ct-subdomains", "--verify-ct-subdomains", "--ct-max-subdomains-per-domain", "5000" })
+                .WithExample(new[] { "CertificateInventoryCapture", "eurofins.com", "--include-ct-subdomains", "--enable-native-ct-logs", "--native-ct-log-only", "--native-ct-initial-backfill-per-log", "5000" })
+                .WithExample(new[] { "CertificateInventoryCapture", "eurofins.com", "--include-ct-subdomains", "--reuse-recent-results", "--recent-result-ttl-hours", "24", "--max-targets", "150", "--max-probe-starts-per-second", "20" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCaptureCommand>("cert-inventory-capture")
+                .WithDescription("Capture certificate inventory snapshot from domains and discovered endpoints (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySnapshotsCommand>("CertificateInventorySnapshots")
+                .WithDescription("List persisted certificate inventory snapshots and key metrics")
+                .WithExample(new[] { "CertificateInventorySnapshots" })
+                .WithExample(new[] { "CertificateInventorySnapshots", "--since-utc", "2026-01-01", "--until-utc", "2026-02-01" })
+                .WithExample(new[] { "CertificateInventorySnapshots", "--max-snapshots", "100", "--json" })
+                .WithExample(new[] { "CertificateInventorySnapshots", "--csv-path", "./artifacts/cert-snapshots.csv" })
+                .WithExample(new[] { "CertificateInventorySnapshots", "--ndjson-path", "./artifacts/cert-snapshots.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySnapshotsCommand>("cert-inventory-snapshots")
+                .WithDescription("List persisted certificate inventory snapshots and key metrics (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCtDiagnosticsCommand>("CertificateInventoryCtDiagnostics")
+                .WithDescription("Query persisted native CT ingestion diagnostics")
+                .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--state", "Failed" })
+                .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--state", "CircuitOpen", "--lag-after-min", "10000" })
+                .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--latest-only", "--max-failed", "0", "--max-circuit-open", "0", "--max-lag-after", "5000" })
+                .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--since-utc", "2026-01-01", "--latest-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--log-url-contains", "ct.googleapis.com", "--csv-path", "./artifacts/ct-diag.csv" })
+                .WithExample(new[] { "CertificateInventoryCtDiagnostics", "--failure-only", "--ndjson-path", "./artifacts/ct-diag.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCtDiagnosticsCommand>("cert-inventory-ct-diagnostics")
+                .WithDescription("Query persisted native CT ingestion diagnostics (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCtHealthCommand>("CertificateInventoryCtHealth")
+                .WithDescription("Build CT ingestion health timeline and threshold status from persisted snapshots")
+                .WithExample(new[] { "CertificateInventoryCtHealth", "--max-failed", "0", "--max-circuit-open", "0", "--max-lag-after", "5000" })
+                .WithExample(new[] { "CertificateInventoryCtHealth", "--since-utc", "2026-01-01", "--max-snapshots", "30", "--json" })
+                .WithExample(new[] { "CertificateInventoryCtHealth", "--fail-on-any-breach", "--csv-path", "./artifacts/ct-health.csv" })
+                .WithExample(new[] { "CertificateInventoryCtHealth", "--latest-only", "--no-fail-on-threshold-breach" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryCtHealthCommand>("cert-inventory-ct-health")
+                .WithDescription("Build CT ingestion health timeline and threshold status from persisted snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySummaryCommand>("CertificateInventorySummary")
+                .WithDescription("Summarize persisted certificate inventory snapshots")
+                .WithExample(new[] { "CertificateInventorySummary", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventorySummary", "--cache-dir", "./cert-monitor", "--json" })
+                .WithExample(new[] { "CertificateInventorySummary", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-summary.csv" })
+                .WithExample(new[] { "CertificateInventorySummary", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-summary.csv.gz" })
+                .WithExample(new[] { "CertificateInventorySummary", "--since-utc", "2026-01-01", "--ndjson-path", "./artifacts/cert-summary.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySummaryCommand>("cert-inventory-summary")
+                .WithDescription("Summarize persisted certificate inventory snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryQueryCommand>("CertificateInventoryQuery")
+                .WithDescription("Query persisted certificate inventory snapshots with filters")
+                .WithExample(new[] { "CertificateInventoryQuery", "--host-contains", "api", "--service", "HTTPS" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--issuer-contains", "digicert", "--expiring-within-days", "30", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--client-auth-only", "--chain-incomplete-only", "--max-results", "500" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--invalid-only", "--reachable-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--root-contains", "isrg", "--service", "HTTPS" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--authority-family", "LetsEncrypt", "--known-root-ca-only", "--auth-profile", "ServerAuthOnly" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--unknown-ca-only", "--show-breakdown" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--latest-only", "--host-contains", "api.example.com" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--host-contains", "example.com", "--show-breakdown" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--weak-key-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--sha1-signature-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--serial-number", "00AA11BB22CC33DD44EE55FF66778899", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--root-thumbprint", "5A3F4D2C1B0099887766554433221100AABBCCDD", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--ct-template-error-contains", "CensysApiUrlTemplate", "--json" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--since-utc", "2026-01-01", "--latest-only", "--csv-path", "./artifacts/cert-query.csv" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--since-utc", "2026-01-01", "--latest-only", "--ndjson-path", "./artifacts/cert-query.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryQueryCommand>("cert-inventory-query")
+                .WithDescription("Query persisted certificate inventory snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDriftCommand>("CertificateInventoryDrift")
+                .WithDescription("Analyze certificate drift and rotation across persisted snapshots")
+                .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--changed-only" })
+                .WithExample(new[] { "CertificateInventoryDrift", "--max-endpoints", "500", "--json" })
+                .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-drift.csv" })
+                .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--ndjson-path", "./artifacts/cert-drift.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDriftCommand>("cert-inventory-drift")
+                .WithDescription("Analyze certificate drift and rotation across persisted snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDiffCommand>("CertificateInventoryDiff")
+                .WithDescription("Compare two certificate inventory snapshots")
+                .WithExample(new[] { "CertificateInventoryDiff", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventoryDiff", "--previous-utc", "2026-02-01", "--current-utc", "2026-02-15", "--json" })
+                .WithExample(new[] { "CertificateInventoryDiff", "--previous-index", "2", "--current-index", "1", "--json" })
+                .WithExample(new[] { "CertificateInventoryDiff", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-diff.csv" })
+                .WithExample(new[] { "CertificateInventoryDiff", "--since-utc", "2026-01-01", "--ndjson-path", "./artifacts/cert-diff.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDiffCommand>("cert-inventory-diff")
+                .WithDescription("Compare two certificate inventory snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryRiskCommand>("CertificateInventoryRisk")
+                .WithDescription("Assess certificate risk posture across persisted snapshots")
+                .WithExample(new[] { "CertificateInventoryRisk", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--expiring-within-days", "45", "--critical-expiring-within-days", "10", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--issuer-contains", "digicert", "--minimum-severity", "Medium", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--authority-family", "LetsEncrypt", "--root-authority-family", "LetsEncrypt", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--ct-source-contains", "crt.sh", "--chain-source-contains", "tls-handshake", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--ct-missing-only", "--chain-incomplete-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--unreachable-only", "--hostname-mismatch-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--self-signed-only", "--weak-key-only", "--sha1-signature-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--expired-only", "--currently-invalid-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--days-to-expire-min", "0", "--days-to-expire-max", "14", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--score-min", "60", "--score-max", "100", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--reason-count-min", "2", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--reuse-endpoint-min", "5", "--reuse-endpoint-max", "25", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--reuse-cross-service-only", "--minimum-severity", "Medium", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--reuse-service-min", "2", "--reuse-port-min", "2", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--reuse-cross-port-only", "--reuse-endpoint-min", "3", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--risk-profile", "Renewal14d", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--reason-any", "CertificateExpired", "--reason-any", "WeakKey", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--reason-all", "CertificateExpired", "--reason-all", "CertificateValidationFailed", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--issuer-any", "digicert", "--issuer-any", "isrg", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--issuer-all", "contoso", "--issuer-all", "root", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--root-issuer-contains", "ISRG Root", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--root-issuer-any", "Global Root", "--root-issuer-any", "ISRG Root", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--chain-length-min", "2", "--intermediate-count-max", "1", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--unknown-ca-only", "--unknown-root-ca-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--host-contains", "api.example.com", "--service", "HTTPS", "--port", "443", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--thumbprint", "AA11BB22CC33DD44EE55FF6677889900AABBCCDD", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--root-thumbprint", "5A3F4D2C1B0099887766554433221100AABBCCDD", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--serial-number", "00AA11BB22CC33DD44EE55FF66778899", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--auth-profile", "ServerAuthOnly", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--client-auth-only", "--minimum-severity", "High", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-risk.csv" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--since-utc", "2026-01-01", "--ndjson-path", "./artifacts/cert-risk.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryRiskCommand>("cert-inventory-risk")
+                .WithDescription("Assess certificate risk posture across persisted snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyCommand>("CertificateInventoryPolicy")
+                .WithDescription("Evaluate certificate inventory against baseline policy profiles")
+                .WithExample(new[] { "CertificateInventoryPolicy", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Strict", "--json" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Legacy", "--include-compliant", "--max-endpoints", "500" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Balanced", "--csv-path", "./artifacts/policy.csv" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Balanced", "--policy-overrides-path", "./policy-overrides.json", "--json" })
+                .WithExample(new[] { "CertificateInventoryPolicy", "--baseline-profile", "Balanced", "--ndjson-path", "./artifacts/policy.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyCommand>("cert-inventory-policy")
+                .WithDescription("Evaluate certificate inventory against baseline policy profiles (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyDriftCommand>("CertificateInventoryPolicyDrift")
+                .WithDescription("Compare policy drift between two certificate inventory snapshots")
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--changed-only" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Strict", "--since-utc", "2026-01-01", "--json" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--previous-utc", "2026-02-01", "--current-utc", "2026-02-15", "--changed-only" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--previous-index", "2", "--current-index", "1", "--json" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Balanced", "--csv-path", "./artifacts/policy-drift.csv" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Balanced", "--policy-overrides-path", "./policy-overrides.json", "--json" })
+                .WithExample(new[] { "CertificateInventoryPolicyDrift", "--baseline-profile", "Balanced", "--ndjson-path", "./artifacts/policy-drift.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryPolicyDriftCommand>("cert-inventory-policy-drift")
+                .WithDescription("Compare policy drift between two certificate inventory snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("CertificateInventoryReuse")
+                .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots")
+                .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventoryReuse", "--include-singletons", "--max-certificates", "500", "--json" })
+                .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01", "--csv-path", "./artifacts/cert-reuse.csv" })
+                .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01", "--ndjson-path", "./artifacts/cert-reuse.ndjson" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("cert-inventory-reuse")
+                .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots (alias)");
         });
         try {
             return await app.RunAsync(args).WaitAsync(cts.Token);

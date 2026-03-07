@@ -18,7 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="MailKit" Version="4.13.0" />
+        <PackageReference Include="MailKit" Version="4.15.1" />
         <PackageReference Include="PgpCore" Version="6.5.3" />
     </ItemGroup>
 
@@ -48,6 +48,11 @@
     </ItemGroup>
     <ItemGroup>
         <EmbeddedResource Include="..\Data\public_suffix_list.dat" />
+        <EmbeddedResource Include="..\Data\email_disposable_domains.txt" LogicalName="DomainDetective.email_disposable_domains.txt" />
+        <EmbeddedResource Include="..\Data\email_role_accounts.txt" LogicalName="DomainDetective.email_role_accounts.txt" />
+        <EmbeddedResource Include="..\Data\email_free_providers.txt" LogicalName="DomainDetective.email_free_providers.txt" />
+        <EmbeddedResource Include="..\Data\email_b2c_providers.txt" LogicalName="DomainDetective.email_b2c_providers.txt" />
+        <EmbeddedResource Include="..\Data\email_smtp_rules.json" LogicalName="DomainDetective.email_smtp_rules.json" />
         <EmbeddedResource Include="..\Data\takeover.json" />
         <EmbeddedResource Include="..\Data\directory_paths.json" />
         <None Include="..\Data\hsts_preload.json">

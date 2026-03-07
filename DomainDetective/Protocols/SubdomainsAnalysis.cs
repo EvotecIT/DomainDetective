@@ -19,7 +19,7 @@ namespace DomainDetective;
 /// whether each discovered name still resolves in DNS.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public sealed class SubdomainsAnalysis : IHasAssessments
+public sealed partial class SubdomainsAnalysis : IHasAssessments
 {
     /// <summary>The domain being analyzed.</summary>
     public string? Subject { get; private set; }
@@ -29,6 +29,111 @@ public sealed class SubdomainsAnalysis : IHasAssessments
 
     /// <summary>CT query template used for fetching candidate subdomains.</summary>
     public string CrtShUrlTemplate { get; set; } = "https://crt.sh/?q=%25.{0}&output=json";
+
+    /// <summary>Fallback CT query template used when crt.sh is unavailable.</summary>
+    public string CertSpotterUrlTemplate { get; set; } = "https://api.certspotter.com/v1/issuances?domain={0}&include_subdomains=true&expand=dns_names";
+
+    /// <summary>When true (default), queries Cert Spotter when crt.sh cannot be reached.</summary>
+    public bool UseCertSpotterFallback { get; set; } = true;
+
+    /// <summary>Per-request timeout for passive/public CT HTTP calls.</summary>
+    public TimeSpan PassiveCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Maximum retry count for transient passive/public CT HTTP failures.</summary>
+    public int PassiveCtRetryCount { get; set; } = 2;
+
+    /// <summary>Base delay between passive/public CT retry attempts.</summary>
+    public TimeSpan PassiveCtRetryBaseDelay { get; set; } = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>Maximum delay between passive/public CT retry attempts.</summary>
+    public TimeSpan PassiveCtRetryMaxDelay { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Cooldown applied to passive/public CT sources after transient failures or rate limits.</summary>
+    public TimeSpan PassiveCtSourceCooldown { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>When true, uses direct RFC6962 CT log polling as primary subdomain discovery source.</summary>
+    public bool EnableNativeCtLogSource { get; set; }
+
+    /// <summary>When true, only native CT log polling is used (disables crt.sh/Cert Spotter fallback).</summary>
+    public bool NativeCtLogOnly { get; set; }
+
+    /// <summary>CT log list URL used by native CT discovery.</summary>
+    public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
+
+    /// <summary>Optional explicit CT log URLs for native discovery (skips log-list download when provided).</summary>
+    public List<string> NativeCtLogUrls { get; } = new();
+
+    /// <summary>Maximum CT logs processed per native run (0 means all).</summary>
+    public int NativeCtMaxLogs { get; set; } = 12;
+
+    /// <summary>Maximum CT entries processed per log in a native run (0 means uncapped).</summary>
+    public int NativeCtMaxEntriesPerLog { get; set; } = 2_000;
+
+    /// <summary>Maximum get-entries batch size per native CT request.</summary>
+    public int NativeCtEntryBatchSize { get; set; } = 256;
+
+    /// <summary>Initial per-log backfill window when no native CT cursor exists (0 starts at current tree head).</summary>
+    public int NativeCtInitialBackfillEntriesPerLog { get; set; } = 2_000;
+
+    /// <summary>Optional native CT cursor state path used to persist per-domain/per-log progress.</summary>
+    public string? NativeCtCursorStatePath { get; set; }
+
+    /// <summary>When true, includes pending CT logs from the log list during native discovery.</summary>
+    public bool NativeCtIncludePendingLogs { get; set; }
+
+    /// <summary>When true, includes retired CT logs during native discovery to recover older historical certificates.</summary>
+    public bool NativeCtIncludeRetiredLogs { get; set; } = true;
+
+    /// <summary>
+    /// When true, native CT discovery only matches the exact requested host instead of only child subdomains.
+    /// Useful for direct host or subdomain lookups where the caller wants CT data for that exact name.
+    /// </summary>
+    public bool NativeCtExactMatchOnly { get; set; }
+
+    /// <summary>
+    /// When true, exact-host native CT discovery prefers newer CT logs first so the latest certificate
+    /// metadata can be returned faster for direct host lookups.
+    /// </summary>
+    public bool NativeCtPrioritizeLatestExactMatch { get; set; }
+
+    /// <summary>
+    /// Optional matched-observation stop target for exact-host native CT discovery.
+    /// Set to values greater than zero to stop after enough exact-host evidence has been observed.
+    /// </summary>
+    public int NativeCtStopAfterMatchedObservations { get; set; }
+
+    /// <summary>Optional delay between native CT HTTP requests.</summary>
+    public TimeSpan NativeCtRequestDelay { get; set; } = TimeSpan.Zero;
+
+    /// <summary>Per-request timeout for native CT HTTP calls.</summary>
+    public TimeSpan NativeCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Maximum retry count for transient native CT HTTP failures.</summary>
+    public int NativeCtRetryCount { get; set; } = 3;
+
+    /// <summary>Base delay between native CT retry attempts.</summary>
+    public TimeSpan NativeCtRetryBaseDelay { get; set; } = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>Maximum delay between native CT retry attempts.</summary>
+    public TimeSpan NativeCtRetryMaxDelay { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Consecutive native CT failures required before opening circuit breaker for a log.</summary>
+    public int NativeCtCircuitBreakerFailureThreshold { get; set; } = 3;
+
+    /// <summary>Base native CT circuit-breaker duration per log after repeated failures.</summary>
+    public TimeSpan NativeCtCircuitBreakerDuration { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>When true, native CT polling automatically expands caps when cursor lag is large.</summary>
+    public bool NativeCtEnableCatchUpMode { get; set; } = true;
+
+    /// <summary>Cursor lag threshold at/above which native CT catch-up mode is activated.</summary>
+    public int NativeCtCatchUpLagThreshold { get; set; } = 50_000;
+
+    /// <summary>Maximum CT entries processed per log while native CT catch-up mode is active.</summary>
+    public int NativeCtCatchUpMaxEntriesPerLog { get; set; } = 20_000;
+
+    /// <summary>Maximum get-entries batch size used while native CT catch-up mode is active.</summary>
+    public int NativeCtCatchUpBatchSize { get; set; } = 1_024;
 
     /// <summary>
     /// Optional override returning the JSON payload for a given CT URL.
@@ -172,6 +277,15 @@ public sealed class SubdomainsAnalysis : IHasAssessments
     /// <summary>Assessment collection for report-friendly output.</summary>
     public List<Assessment> Assessments { get; } = new();
 
+    /// <summary>Native CT per-log diagnostics captured during this analysis run.</summary>
+    public IReadOnlyList<string> NativeCtLogDiagnostics { get; private set; } = Array.Empty<string>();
+
+    /// <summary>Structured native CT per-log diagnostics captured during this analysis run.</summary>
+    public IReadOnlyList<NativeCtLogDiagnosticEntry> NativeCtLogDiagnosticEntries { get; private set; } = Array.Empty<NativeCtLogDiagnosticEntry>();
+
+    /// <summary>Passive/public CT source warnings captured during this analysis run.</summary>
+    public IReadOnlyList<string> PassiveCtWarnings { get; private set; } = Array.Empty<string>();
+
     /// <summary>
     /// Performs CT-backed subdomain discovery for the specified <paramref name="domain"/>.
     /// </summary>
@@ -185,33 +299,88 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         Reset();
         Subject = DomainHelper.ValidateIdn(domain);
 
-        string json;
-        try
+        var issuerCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var subdomainMap = new Dictionary<string, CtSubdomainAggregate>(StringComparer.OrdinalIgnoreCase);
+        string? failure = null;
+        var sourceSucceeded = false;
+
+        if (EnableNativeCtLogSource)
         {
-            var url = string.Format(CrtShUrlTemplate, Subject);
-            json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var nativeResult = await DiscoverNativeCtSubdomainsAsync(Subject, logger, cancellationToken).ConfigureAwait(false);
+                foreach (var warning in nativeResult.Warnings)
+                {
+                    logger?.WriteVerbose("{0}", warning);
+                }
+                NativeCtLogDiagnosticEntries = BuildNativeCtLogDiagnosticEntries(nativeResult.LogStatuses, Subject);
+                NativeCtLogDiagnostics = NativeCtLogDiagnosticEntries
+                    .Select(FormatNativeCtLogDiagnostic)
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .ToList()!;
+                if (nativeResult.SourceSucceeded)
+                {
+                    sourceSucceeded = true;
+                    MergeNativeCtResult(nativeResult, issuerCounts, subdomainMap);
+                }
+                else if (nativeResult.Warnings.Count > 0)
+                {
+                    failure = string.Join("; ", nativeResult.Warnings.Take(3));
+                }
+            }
+            catch (Exception ex)
+            {
+                failure = ex.Message;
+                logger?.WriteVerbose("Native CT source failed for {0}: {1}", Subject, ex.Message);
+            }
         }
-        catch (Exception ex)
+
+        var payloads = new List<(string SourceName, string Payload)>(2);
+        var shouldTryPassiveCt = !NativeCtLogOnly && (!sourceSucceeded || (EnableNativeCtLogSource && subdomainMap.Count == 0));
+        if (shouldTryPassiveCt)
+        {
+            PassiveCtSourceClient.QueryResult passiveResult = await QueryPassiveCtSourcesAsync(Subject, logger, cancellationToken).ConfigureAwait(false);
+            PassiveCtWarnings = passiveResult.Warnings
+                .Where(static warning => !string.IsNullOrWhiteSpace(warning))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            foreach (PassiveCtSourceClient.SourcePayload payload in passiveResult.Payloads)
+            {
+                payloads.Add((payload.SourceName, payload.Payload));
+            }
+
+            if (payloads.Count == 0 && PassiveCtWarnings.Count > 0)
+            {
+                failure = string.Join("; ", PassiveCtWarnings.Take(3));
+            }
+        }
+
+        if (!sourceSucceeded && payloads.Count == 0)
         {
             QuerySucceeded = false;
-            FailureReason = ex.Message;
+            FailureReason = failure ?? "No CT source succeeded.";
             Assessments.Add(new Assessment
             {
                 Severity = AssessmentSeverity.Error,
                 Category = "Subdomains",
                 Code = SubdomainCodes.CtQueryFailed,
                 Target = Subject,
-                Message = $"CT query failed: {ex.Message}"
+                Message = $"CT query failed: {FailureReason}"
             });
             return;
         }
 
-        var issuerCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var subdomainMap = new Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)>(StringComparer.OrdinalIgnoreCase);
-
         try
         {
-            ParseCtJson(json, Subject, issuerCounts, subdomainMap, logger);
+            foreach (var payload in payloads)
+            {
+                ParseCtJson(payload.Payload, Subject, issuerCounts, subdomainMap, logger, payload.SourceName);
+                if (ResultsCapped)
+                {
+                    break;
+                }
+            }
+
             QuerySucceeded = true;
         }
         catch (Exception ex)
@@ -237,8 +406,18 @@ public sealed class SubdomainsAnalysis : IHasAssessments
             entries.Add(new SubdomainDiscoveryEntry
             {
                 Name = kv.Key,
-                FirstSeenUtc = kv.Value.First,
-                LastSeenUtc = kv.Value.Last,
+                FirstSeenUtc = kv.Value.FirstSeenUtc,
+                LastSeenUtc = kv.Value.LastSeenUtc,
+                LatestCertificateCtEntryTimestampUtc = kv.Value.LatestCertificateCtEntryTimestampUtc,
+                LatestCertificateSubject = kv.Value.LatestCertificateSubject,
+                LatestCertificateIssuer = kv.Value.LatestCertificateIssuer,
+                LatestCertificateSerialNumber = kv.Value.LatestCertificateSerialNumber,
+                LatestCertificateNotBeforeUtc = kv.Value.LatestCertificateNotBeforeUtc,
+                LatestCertificateNotAfterUtc = kv.Value.LatestCertificateNotAfterUtc,
+                CtSources = kv.Value.CtSources
+                    .OrderBy(source => source, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                CertificateObservationCount = kv.Value.CertificateObservationCount,
                 ResolutionStatus = SubdomainResolutionStatus.Unknown
             });
         }
@@ -592,335 +771,6 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         return (SensitiveSubdomainRisk.None, Array.Empty<string>());
     }
 
-    private IReadOnlyList<string> ClassifyAiLabels(string fqdn, string baseDomain)
-    {
-        if (string.IsNullOrWhiteSpace(fqdn) || string.IsNullOrWhiteSpace(baseDomain))
-        {
-            return Array.Empty<string>();
-        }
-
-        var name = fqdn.Trim().TrimEnd('.');
-        if (!name.EndsWith("." + baseDomain, StringComparison.OrdinalIgnoreCase))
-        {
-            return Array.Empty<string>();
-        }
-
-        var labels = name.Split('.');
-        var baseLabels = baseDomain.Split('.');
-        int take = labels.Length - baseLabels.Length;
-        if (take <= 0)
-        {
-            return Array.Empty<string>();
-        }
-
-        var matched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < take; i++)
-        {
-            var label = labels[i];
-            if (string.IsNullOrWhiteSpace(label))
-            {
-                continue;
-            }
-
-            if (SensitiveIgnoreLabels.Contains(label))
-            {
-                continue;
-            }
-
-            if (AiInfrastructureLabels.Contains(label))
-            {
-                matched.Add(label);
-            }
-        }
-
-        return matched.Count > 0
-            ? matched.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList()
-            : Array.Empty<string>();
-    }
-    private void Reset()
-    {
-        Subject = null;
-        QuerySucceeded = false;
-        FailureReason = null;
-        CertificateObservationCount = 0;
-        ResultsCapped = false;
-        FirstSeenUtc = null;
-        LastSeenUtc = null;
-        IssuerCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        Subdomains = Array.Empty<SubdomainDiscoveryEntry>();
-        ResolutionReduced = false;
-        Assessments.Clear();
-    }
-
-    private async Task<string> FetchJsonAsync(string url, CancellationToken cancellationToken)
-    {
-        if (QueryOverride != null)
-        {
-            return await QueryOverride(url, cancellationToken).ConfigureAwait(false);
-        }
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        using var response = await SharedHttpClient.Instance.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-    }
-
-    private void ParseCtJson(
-        string json,
-        string baseDomain,
-        Dictionary<string, int> issuerCounts,
-        Dictionary<string, (DateTimeOffset? First, DateTimeOffset? Last)> subdomainMap,
-        InternalLogger? logger)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return;
-        }
-
-        using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array)
-        {
-            return;
-        }
-
-        foreach (var item in doc.RootElement.EnumerateArray())
-        {
-            if (MaxCtRowsToProcess > 0 && CertificateObservationCount >= MaxCtRowsToProcess)
-            {
-                ResultsCapped = true;
-                break;
-            }
-
-            CertificateObservationCount++;
-
-            var issuer = GetString(item, "issuer_name");
-            if (!string.IsNullOrWhiteSpace(issuer))
-            {
-                issuerCounts[issuer!] = issuerCounts.TryGetValue(issuer!, out var c) ? c + 1 : 1;
-            }
-
-            var ts = GetString(item, "entry_timestamp");
-            if (TryParseTimestamp(ts, out var entryTs))
-            {
-                FirstSeenUtc = !FirstSeenUtc.HasValue ? entryTs : (entryTs < FirstSeenUtc.Value ? entryTs : FirstSeenUtc.Value);
-                LastSeenUtc = !LastSeenUtc.HasValue ? entryTs : (entryTs > LastSeenUtc.Value ? entryTs : LastSeenUtc.Value);
-            }
-
-            var namesRaw = GetString(item, "name_value");
-            if (string.IsNullOrWhiteSpace(namesRaw))
-            {
-                continue;
-            }
-
-            foreach (var name in namesRaw!.Split('\n'))
-            {
-                var normalized = NormalizeCandidate(name);
-                if (normalized == null)
-                {
-                    continue;
-                }
-
-                // Ensure it is a strict subdomain of baseDomain (exclude the base itself)
-                if (!normalized.EndsWith("." + baseDomain, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (string.Equals(normalized, baseDomain, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                // IDN normalization (throws on invalid)
-                try
-                {
-                    normalized = DomainHelper.ValidateIdn(normalized);
-                }
-                catch
-                {
-                    continue;
-                }
-
-                DateTimeOffset? seen = null;
-                if (TryParseTimestamp(ts, out var parsed))
-                {
-                    seen = parsed;
-                }
-
-                if (!subdomainMap.TryGetValue(normalized, out var agg))
-                {
-                    if (MaxSubdomains > 0 && subdomainMap.Count >= MaxSubdomains)
-                    {
-                        ResultsCapped = true;
-                        break;
-                    }
-                    subdomainMap[normalized] = (seen, seen);
-                }
-                else
-                {
-                    var first = agg.First;
-                    var last = agg.Last;
-                    if (seen.HasValue)
-                    {
-                        if (!first.HasValue || seen.Value < first.Value) first = seen.Value;
-                        if (!last.HasValue || seen.Value > last.Value) last = seen.Value;
-                    }
-                    subdomainMap[normalized] = (first, last);
-                }
-            }
-
-            if (ResultsCapped)
-            {
-                break;
-            }
-        }
-
-        if (subdomainMap.Count > 0)
-        {
-            logger?.WriteVerbose("CT discovered {0} subdomain(s) for {1}", subdomainMap.Count, baseDomain);
-        }
-    }
-
-    private async Task VerifyResolutionAsync(List<SubdomainDiscoveryEntry> entries, CancellationToken cancellationToken)
-    {
-        if (entries.Count == 0)
-        {
-            return;
-        }
-
-        var cap = MaxResolutionChecks <= 0 ? 0 : MaxResolutionChecks;
-        if (cap == 0)
-        {
-            ResolutionReduced = true;
-            return;
-        }
-
-        if (entries.Count > cap)
-        {
-            ResolutionReduced = true;
-        }
-
-        var toCheck = entries.Take(cap).ToList();
-        var concurrency = ResolutionConcurrency <= 0 ? 1 : ResolutionConcurrency;
-        var minInterval = ResolutionMinInterval;
-        if (minInterval < TimeSpan.Zero)
-        {
-            minInterval = TimeSpan.Zero;
-        }
-
-        AsyncIntervalGate? rateGate = null;
-        if (minInterval > TimeSpan.Zero)
-        {
-            rateGate = new AsyncIntervalGate(minInterval);
-        }
-
-        using var sem = new SemaphoreSlim(concurrency, concurrency);
-        var tasks = toCheck.Select(async e =>
-        {
-            await sem.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var a = await QueryDnsWithRateLimitAsync(e.Name, DnsRecordType.A, rateGate, cancellationToken).ConfigureAwait(false);
-                var aaaa = await QueryDnsWithRateLimitAsync(e.Name, DnsRecordType.AAAA, rateGate, cancellationToken).ConfigureAwait(false);
-
-                var aVals = (a ?? Array.Empty<DnsAnswer>())
-                    .Select(x => x.Data ?? x.DataRaw ?? string.Empty)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Take(10)
-                    .ToList();
-                var aaaaVals = (aaaa ?? Array.Empty<DnsAnswer>())
-                    .Select(x => x.Data ?? x.DataRaw ?? string.Empty)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Take(10)
-                    .ToList();
-
-                e.ARecords = aVals;
-                e.AaaaRecords = aaaaVals;
-                e.ResolutionStatus = (aVals.Count > 0 || aaaaVals.Count > 0) ? SubdomainResolutionStatus.Resolves : SubdomainResolutionStatus.DoesNotResolve;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch
-            {
-                e.ResolutionStatus = SubdomainResolutionStatus.QueryFailed;
-            }
-            finally
-            {
-                sem.Release();
-            }
-        }).ToList();
-
-        try
-        {
-            await Task.WhenAll(tasks).ConfigureAwait(false);
-        }
-        finally
-        {
-            rateGate?.Dispose();
-        }
-    }
-
-	    private async Task<DnsAnswer[]?> QueryDnsWithRateLimitAsync(string name, DnsRecordType type, AsyncIntervalGate? rateGate, CancellationToken cancellationToken)
-	    {
-	        cancellationToken.ThrowIfCancellationRequested();
-	        if (rateGate != null)
-	        {
-	            await rateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-	        }
-	        return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken).ConfigureAwait(false);
-	    }
-
-	    private static string? NormalizeCandidate(string value)
-	    {
-	        if (string.IsNullOrWhiteSpace(value))
-	        {
-            return null;
-        }
-
-        var s = value.Trim().TrimEnd('.');
-        if (s.StartsWith("*.", StringComparison.Ordinal))
-        {
-            s = s.Substring(2);
-        }
-
-        return string.IsNullOrWhiteSpace(s) ? null : s;
-    }
-
-    private static string? GetString(JsonElement obj, string prop)
-    {
-        if (obj.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        if (!obj.TryGetProperty(prop, out var p))
-        {
-            return null;
-        }
-
-        return p.ValueKind == JsonValueKind.String ? p.GetString() : p.ToString();
-    }
-
-    private static bool TryParseTimestamp(string? value, out DateTimeOffset result)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            result = default;
-            return false;
-        }
-
-        if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out result))
-        {
-            return true;
-        }
-
-        return DateTimeOffset.TryParse(value, out result);
-    }
 }
 
 /// <summary>Resolution status for a discovered subdomain.</summary>
@@ -938,12 +788,34 @@ public sealed class SubdomainDiscoveryEntry
     public string Name { get; init; } = string.Empty;
     public DateTimeOffset? FirstSeenUtc { get; init; }
     public DateTimeOffset? LastSeenUtc { get; init; }
+    public DateTimeOffset? LatestCertificateCtEntryTimestampUtc { get; init; }
+    public string? LatestCertificateSubject { get; init; }
+    public string? LatestCertificateIssuer { get; init; }
+    public string? LatestCertificateSerialNumber { get; init; }
+    public DateTimeOffset? LatestCertificateNotBeforeUtc { get; init; }
+    public DateTimeOffset? LatestCertificateNotAfterUtc { get; init; }
+    public IReadOnlyList<string> CtSources { get; init; } = Array.Empty<string>();
+    public int CertificateObservationCount { get; init; }
     public SubdomainResolutionStatus ResolutionStatus { get; internal set; }
     public IReadOnlyList<string> ARecords { get; internal set; } = Array.Empty<string>();
     public IReadOnlyList<string> AaaaRecords { get; internal set; } = Array.Empty<string>();
     public SensitiveSubdomainRisk SensitiveRisk { get; internal set; } = SensitiveSubdomainRisk.None;
     public IReadOnlyList<string> SensitiveSignals { get; internal set; } = Array.Empty<string>();
     public IReadOnlyList<string> AiSignals { get; internal set; } = Array.Empty<string>();
+}
+
+internal sealed class CtSubdomainAggregate
+{
+    public DateTimeOffset? FirstSeenUtc { get; set; }
+    public DateTimeOffset? LastSeenUtc { get; set; }
+    public DateTimeOffset? LatestCertificateCtEntryTimestampUtc { get; set; }
+    public string? LatestCertificateSubject { get; set; }
+    public string? LatestCertificateIssuer { get; set; }
+    public string? LatestCertificateSerialNumber { get; set; }
+    public DateTimeOffset? LatestCertificateNotBeforeUtc { get; set; }
+    public DateTimeOffset? LatestCertificateNotAfterUtc { get; set; }
+    public int CertificateObservationCount { get; set; }
+    public HashSet<string> CtSources { get; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>Risk rating for sensitive subdomain naming patterns.</summary>
@@ -953,3 +825,4 @@ public enum SensitiveSubdomainRisk
     Moderate = 1,
     High = 2
 }
+

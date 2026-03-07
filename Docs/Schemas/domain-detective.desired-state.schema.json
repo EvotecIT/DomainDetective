@@ -222,6 +222,53 @@
         },
         "robots": {
           "$ref": "#/$defs/robotsPolicy"
+        },
+        "certificateInventory": {
+          "$ref": "#/$defs/certificateInventoryPolicy"
+        }
+      }
+    },
+    "certificateInventoryPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "baselineProfile": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "Strict",
+            "Balanced",
+            "Legacy",
+            null
+          ]
+        },
+        "includeCompliant": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "maxEndpoints": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "policyOverridesPath": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Optional JSON file path for certificate inventory policy overrides. Relative paths are resolved relative to the desired state file."
         }
       }
     },

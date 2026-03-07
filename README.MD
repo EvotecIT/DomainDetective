@@ -123,6 +123,7 @@ See TODO.md for the current backlog and roadmap.
 | ------------------------------ | -------------------------- | ----------------------------- |
 | `Test-DDEmailArcRecord`        | `Test-EmailArc`            | Validate ARC headers          |
 | `Test-DDEmailAutoDiscover`     | `Test-EmailAutoDiscover`   | Check mail client discovery   |
+| `Test-DDEmailAddress`          | `Test-EmailAddress`        | Validate mailbox reachability |
 | `Test-DDEmailBimiRecord`       | `Test-EmailBimi`           | Verify BIMI record            |
 | `Test-DDEmailDkimRecord`       | `Test-EmailDkim`           | Verify DKIM selectors         |
 | `Test-DDEmailDmarcRecord`      | `Test-EmailDmarc`          | Verify DMARC policy           |
@@ -140,6 +141,43 @@ See TODO.md for the current backlog and roadmap.
 | `Test-DDEmailSmtpBanner`       | `Test-EmailSmtpBanner`     | Inspect SMTP banner           |
 | `Test-DDDmarcAggregate`        | `Test-EmailDmarcAggregate` | Parse DMARC aggregate reports |
 | `New-DDDmarcRecord`            | `New-DmarcRecord`          | Build DMARC record            |
+
+### Email Address Validation
+
+PowerShell example:
+```powershell
+Test-DDEmailAddress -EmailAddress "user@example.com" -SmtpProbe -CheckCatchAll
+```
+
+CLI example:
+```bash
+DomainDetective.CLI ValidateEmail user@example.com --smtp --catch-all --smtp-max-hosts 2
+```
+
+SMTP rules example:
+```powershell
+Test-DDEmailAddress -EmailAddress "user@example.com" -SmtpProbe -SmtpRulesPath "./smtp-rules.json"
+```
+
+```bash
+DomainDetective.CLI ValidateEmail user@example.com --smtp --smtp-rules ./smtp-rules.json --no-builtin-smtp-rules
+```
+
+Optional controls:
+- Use `-EnableProviderWebChecks` (or `--provider-web`) to enable provider web checks when available.
+- Use `-ProtonAuthCookie`/`-ProtonUid` (or `--proton-auth`/`--proton-uid`) to enable Proton checks (requires a valid AUTH cookie and `x-pm-uid`).
+- Use `-SmtpRulesPath` (or `--smtp-rules`) to supply custom SMTP rules JSON and `-DisableBuiltinSmtpRules` to ignore built-in rules.
+- Use `-AllowB2CCatchAll` (or `--allow-b2c-catch-all`) to allow catch-all probing for consumer providers.
+- Use `-AllowInvalidSmtpCertificates` (or `--smtp-allow-invalid-cert`) to skip SMTP TLS certificate validation (not recommended).
+- Use `-SmtpTimeoutSeconds`/`-SmtpRetryDelaySeconds` (or `--smtp-timeout`/`--smtp-retry-delay`) to tune SMTP timing.
+- Use `-B2CProvidersPath` (or `--b2c-providers`) to override the B2C provider list.
+- Use `-DisableFreeProvidersAsB2C` (or `--no-free-as-b2c`) to avoid treating free providers as B2C when no explicit match exists.
+- Use `-SmtpProbeDelaySeconds` (or `--smtp-delay`) to add a delay between SMTP probe attempts for rate limiting.
+- Built-in SMTP rules are enabled by default. See `Docs/EmailSmtpRules.md` for schema, examples, and Proton auth notes.
+- Provider web checks are currently implemented for Yahoo, Microsoft consumer domains, and Proton (with auth).
+- Provider web checks rely on undocumented endpoints and may change or rate-limit without notice.
+- Avoid passing Proton auth values via command line where they may appear in shell history or process listings.
+- SMTP probing can trigger abuse protections on some providers; apply delays for bulk runs and consider proxies when needed.
 
 ### Web
 
@@ -223,6 +261,11 @@ See TODO.md for the current backlog and roadmap.
 | `Get-DDTlsRptReportsTimeSeries`   | `Get-TlsRptReportsTimeSeries`   | TLS-RPT reports time-series view (report section)   |
 | `Import-DDRegistrationSnapshot`   | `Import-RegistrationSnapshot`   | WHOIS/RDAP registration snapshot → store            |
 | `Get-DDRegistrationDrift`         | `Get-RegistrationDrift`         | Registration structured drift view (report section) |
+| `Invoke-DDCertificateInventory` | - | Capture certificate inventory snapshot from domains/endpoints |
+| `Get-DDCertificateInventorySnapshot` | - | Read raw persisted certificate inventory snapshots |
+
+For a full certificate inventory playbook (capture, CT enrichment, snapshot analytics, policy/risk/drift, and alerting patterns with both PowerShell and C#), see [Docs/CERTIFICATE_INVENTORY.MD](Docs/CERTIFICATE_INVENTORY.MD).
+For a ready-to-run inventory-first script that exports endpoint and unique-certificate CSVs, see [Module/Examples/Example.CertificateInventory.InventoryFirst.ps1](Module/Examples/Example.CertificateInventory.InventoryFirst.ps1).
 
 ## Reports / Exporting
 
@@ -245,6 +288,17 @@ Import-Module ./Module/DomainDetective.psd1 -Force
 Import-DDDmarcAggregateSnapshot -StorePath .\\Store -Path .\\Reports\\DMARC
 Import-DDTlsRptReportSnapshot   -DomainName example.com -StorePath .\\Store -Path .\\Reports\\TLSRPT
 Import-DDRegistrationSnapshot   -DomainName example.com -StorePath .\\Store
+Invoke-DDCertificateInventory -DomainName example.com,example.org -CacheDirectory .\\cert-monitor
+# Optional CT enrichment profile for inventory capture (public + optional commercial sources):
+Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-monitor -CtProfile Extended -EnableShodanCtSource -ShodanApiKeyEnv SHODAN_API_KEY
+# Optional: include CT-discovered subdomains, reuse recent snapshot results, and keep anti-hammer limits:
+Invoke-DDCertificateInventory -DomainName example.com -CacheDirectory .\\cert-monitor -IncludeCtSubdomains -VerifyCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14 -MaxTargets 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose
+# Optional: use native RFC6962 CT log polling (no crt.sh dependency) for subdomain discovery:
+Invoke-DDCertificateInventory -DomainName eurofins.com -CacheDirectory .\\cert-monitor -IncludeCtSubdomains -EnableNativeCtLogSubdomains -NativeCtLogOnly -NativeCtInitialBackfillEntriesPerLog 5000 -NativeCtCursorStatePath .\\cert-monitor\\inventory\\ct-native-cursor.json -Verbose
+# Multi-domain runs use one shared native CT ingestion pass by default; disable with -DisableNativeCtSharedIngestion if needed.
+# Read latest raw snapshot (full entries) or metadata only:
+Get-DDCertificateInventorySnapshot -CacheDirectory .\\cert-monitor -Latest
+Get-DDCertificateInventorySnapshot -CacheDirectory .\\cert-monitor -SinceUtc (Get-Date).ToUniversalTime().AddDays(-7) -WithoutEntries
 
 # Build report sections from the store
 $dmarcAgg = Get-DDDmarcAggregateTimeSeries -DomainName example.com -StorePath .\\Store
@@ -344,6 +398,7 @@ The `CertificateAnalysis` result now includes:
 - `IsSelfSigned` when the certificate subject equals the issuer and the chain length is one.
 - With `CaptureTlsDetails` enabled, `TlsProtocol`, `CipherAlgorithm` and `CipherStrength` describe the negotiated cipher-suite.
 - `PresentInCtLogs` when the certificate appears in public CT logs.
+- `CtTemplateFormatErrors` for CT source template/configuration issues encountered during discovery.
 - `CtLogApiTemplates` allows customizing the list of CT log APIs queried.
 - `SkipRevocation` disables CRL and OCSP checks. Use with care as revoked certificates may appear valid.
 

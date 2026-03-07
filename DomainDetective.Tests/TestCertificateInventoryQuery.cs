@@ -1,0 +1,682 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Text.Json;
+
+namespace DomainDetective.Tests {
+    public partial class TestCertificateInventoryQuery {
+        [Fact]
+        public void QueryInventoryEntriesAppliesFiltersAndLimits() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var snapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-10),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "api.example.com",
+                            ResolvedHost = "api.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateSubject = "CN=api.example.com, O=Example Corp",
+                            CertificateIssuerNormalized = "DigiCert",
+                            CertificateAuthorityFamily = "DigiCert",
+                            CertificateThumbprint = "AA11BB22CC33DD44",
+                            CertificateSerialNumber = "00AA11BB22CC33DD",
+                            CertificateRootIssuerNormalized = "ISRG Root X1",
+                            CertificateRootAuthorityFamily = "LetsEncrypt",
+                            CertificateRootThumbprint = "5A3F4D2C1B0099887766554433221100AABBCCDD",
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            SubjectAlternativeNames = new List<string> { "api.example.com", "api-int.example.com" },
+                            CtDiscoverySources = new List<string> { "crt.sh", "shodan" },
+                            CertificateChainSource = "tls-handshake",
+                            CertificateChainSources = new List<string> { "tls-handshake", "local-build-online" },
+                            NotAfterUtc = now.AddDays(8),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "internal.example.com",
+                            ResolvedHost = "internal.example.com",
+                            Service = "Custom TLS",
+                            Port = 8443,
+                            CertificateSubject = "CN=internal.example.com, O=Contoso Internal PKI",
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            CertificateThumbprint = "EE55FF66",
+                            CertificateSerialNumber = "EE55FF667788",
+                            CertificateRootIssuerNormalized = "Contoso Root CA",
+                            CertificateRootThumbprint = "DEADBEEF00112233445566778899AABBCCDDEEFF",
+                            IsKnownCertificateAuthority = false,
+                            IsKnownRootCertificateAuthority = false,
+                            SubjectAlternativeNames = new List<string> { "internal.example.com", "mtls.example.com" },
+                            CtDiscoverySources = new List<string>(),
+                            CtTemplateFormatErrors = new List<string> { "CensysApiUrlTemplate: source enabled but template is empty." },
+                            CertificateChainSource = "local-build-no-check",
+                            CertificateChainSources = new List<string> { "local-build-no-check" },
+                            NotAfterUtc = now.AddDays(50),
+                            Valid = false,
+                            ChainComplete = false,
+                            HostnameMatch = false,
+                            IsSelfSigned = true,
+                            IsReachable = true,
+                            PresentInCtLogs = false,
+                            AllowsServerAuthentication = false,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ClientAuthOnly
+                        },
+                        new() {
+                            Host = "old.example.com",
+                            ResolvedHost = "old.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateSubject = "CN=old.example.com, O=Example Legacy",
+                            CertificateIssuerNormalized = "DigiCert",
+                            CertificateAuthorityFamily = "DigiCert",
+                            CertificateThumbprint = "11223344AABB",
+                            CertificateSerialNumber = "11223344AABBCCDD",
+                            CertificateRootIssuerNormalized = "DigiCert Global Root G2",
+                            CertificateRootAuthorityFamily = "DigiCert",
+                            CertificateRootThumbprint = "00112233445566778899AABBCCDDEEFF00112233",
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            SubjectAlternativeNames = new List<string> { "old.example.com" },
+                            CtDiscoverySources = new List<string> { "crt.sh" },
+                            CertificateChainSource = "tls-handshake",
+                            NotAfterUtc = now.AddDays(-1),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = false,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+                var file = Path.Combine(inventoryDir, $"{snapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(file, JsonSerializer.Serialize(snapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var query = new CertificateInventoryQuery {
+                    HostContains = "example.com",
+                    ServiceEquals = "HTTPS",
+                    IssuerContains = "digicert",
+                    KnownAuthorityOnly = true,
+                    ExpiringWithinDays = 30,
+                    MaxResults = 10
+                };
+                var result = monitor.QueryInventoryEntries(query);
+
+                Assert.Equal(1, result.LoadedSnapshotCount);
+                Assert.Equal(1, result.ScannedSnapshotCount);
+                Assert.Equal(0, result.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(3, result.ScannedEntryCount);
+                Assert.Equal(3, result.EvaluatedEntryCount);
+                Assert.Equal(2, result.ExcludedByFiltersCount);
+                Assert.Equal(1, result.MatchedEntryCount);
+                Assert.Equal(1, result.MatchedUniqueEndpointCount);
+                Assert.Equal(0, result.SkippedByLatestPerEndpointCount);
+                Assert.Equal(0, result.EntriesTruncatedByMaxResults);
+                Assert.Equal(result.LoadedSnapshotCount, result.ScannedSnapshotCount + result.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(result.ScannedEntryCount, result.SkippedByLatestPerEndpointCount + result.EvaluatedEntryCount);
+                Assert.Equal(result.EvaluatedEntryCount, result.MatchedEntryCount + result.ExcludedByFiltersCount);
+                Assert.Equal(result.MatchedEntryCount, result.Entries.Count + result.EntriesTruncatedByMaxResults);
+                Assert.Single(result.Entries);
+                Assert.Equal("api.example.com", result.Entries[0].Entry.Host);
+                Assert.Equal(1, result.MatchedServiceCounts["HTTPS"]);
+                Assert.Equal(1, result.MatchedIssuerCounts["DigiCert"]);
+                Assert.Equal(1, result.MatchedRootIssuerCounts["ISRG Root X1"]);
+                Assert.Equal(1, result.MatchedAuthenticationProfileCounts[CertificateAuthenticationProfileClassifier.ServerAuthOnly]);
+                Assert.Equal(1, result.MatchedChainSourceCounts["tls-handshake"]);
+                Assert.Equal(1, result.MatchedCtSourceCounts["crt.sh"]);
+                Assert.Equal(1, result.MatchedCtSourceCounts["shodan"]);
+                Assert.Empty(result.MatchedCtTemplateErrorCounts);
+
+                var limited = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostContains = "example.com",
+                    MaxResults = 1
+                });
+                Assert.Equal(1, limited.LoadedSnapshotCount);
+                Assert.Equal(1, limited.ScannedSnapshotCount);
+                Assert.Equal(0, limited.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(3, limited.EvaluatedEntryCount);
+                Assert.Equal(0, limited.ExcludedByFiltersCount);
+                Assert.Equal(3, limited.MatchedEntryCount);
+                Assert.Equal(3, limited.MatchedUniqueEndpointCount);
+                Assert.True(limited.Truncated);
+                Assert.Equal(2, limited.EntriesTruncatedByMaxResults);
+                Assert.Equal(limited.LoadedSnapshotCount, limited.ScannedSnapshotCount + limited.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(limited.EvaluatedEntryCount, limited.MatchedEntryCount + limited.ExcludedByFiltersCount);
+                Assert.Equal(limited.MatchedEntryCount, limited.Entries.Count + limited.EntriesTruncatedByMaxResults);
+                Assert.Single(limited.Entries);
+                Assert.Equal(2, limited.MatchedServiceCounts["HTTPS"]);
+                Assert.Equal(1, limited.MatchedServiceCounts["Custom TLS"]);
+                Assert.Equal(2, limited.MatchedIssuerCounts["DigiCert"]);
+                Assert.Equal(1, limited.MatchedIssuerCounts["Contoso PKI"]);
+                Assert.Equal(1, limited.MatchedRootIssuerCounts["ISRG Root X1"]);
+                Assert.Equal(1, limited.MatchedRootIssuerCounts["Contoso Root CA"]);
+                Assert.Equal(1, limited.MatchedRootIssuerCounts["DigiCert Global Root G2"]);
+                Assert.Equal(2, limited.MatchedAuthenticationProfileCounts[CertificateAuthenticationProfileClassifier.ServerAuthOnly]);
+                Assert.Equal(1, limited.MatchedAuthenticationProfileCounts[CertificateAuthenticationProfileClassifier.ClientAuthOnly]);
+                Assert.Equal(2, limited.MatchedChainSourceCounts["tls-handshake"]);
+                Assert.Equal(1, limited.MatchedChainSourceCounts["local-build-no-check"]);
+                Assert.Equal(2, limited.MatchedCtSourceCounts["crt.sh"]);
+                Assert.Equal(1, limited.MatchedCtSourceCounts["shodan"]);
+                Assert.Equal(1, limited.MatchedCtSourceCounts["none"]);
+                Assert.Equal(1, limited.MatchedCtTemplateErrorCounts["CensysApiUrlTemplate"]);
+
+                var zeroCap = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostContains = "example.com",
+                    MaxResults = 0
+                });
+                Assert.Equal(1, zeroCap.LoadedSnapshotCount);
+                Assert.Equal(1, zeroCap.ScannedSnapshotCount);
+                Assert.Equal(0, zeroCap.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(3, zeroCap.EvaluatedEntryCount);
+                Assert.Equal(0, zeroCap.ExcludedByFiltersCount);
+                Assert.Equal(3, zeroCap.MatchedEntryCount);
+                Assert.Equal(3, zeroCap.EntriesTruncatedByMaxResults);
+                Assert.True(zeroCap.Truncated);
+                Assert.Empty(zeroCap.Entries);
+                Assert.Equal(zeroCap.LoadedSnapshotCount, zeroCap.ScannedSnapshotCount + zeroCap.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(zeroCap.EvaluatedEntryCount, zeroCap.MatchedEntryCount + zeroCap.ExcludedByFiltersCount);
+                Assert.Equal(zeroCap.MatchedEntryCount, zeroCap.Entries.Count + zeroCap.EntriesTruncatedByMaxResults);
+
+                var expired = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ExpiredOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, expired.MatchedEntryCount);
+                Assert.Single(expired.Entries);
+                Assert.Equal("old.example.com", expired.Entries[0].Entry.Host);
+
+                var subjectAndSan = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    SubjectContains = "Example Corp",
+                    SanContains = "api-int",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, subjectAndSan.MatchedEntryCount);
+                Assert.Single(subjectAndSan.Entries);
+                Assert.Equal("api.example.com", subjectAndSan.Entries[0].Entry.Host);
+
+                var clientAuthRisk = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsClientAuthOnly = true,
+                    ChainCompleteOnly = false,
+                    HostnameMatchOnly = false,
+                    SelfSignedOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, clientAuthRisk.MatchedEntryCount);
+                Assert.Single(clientAuthRisk.Entries);
+                Assert.Equal("internal.example.com", clientAuthRisk.Entries[0].Entry.Host);
+
+                var validCt = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ValidOnly = true,
+                    PresentInCtOnly = true,
+                    AllowsServerAuthOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, validCt.MatchedEntryCount);
+                Assert.Single(validCt.Entries);
+                Assert.Equal("api.example.com", validCt.Entries[0].Entry.Host);
+
+                var noServerAuthOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsServerAuthOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, noServerAuthOnly.MatchedEntryCount);
+                Assert.Single(noServerAuthOnly.Entries);
+                Assert.Equal("internal.example.com", noServerAuthOnly.Entries[0].Entry.Host);
+                Assert.Equal(noServerAuthOnly.LoadedSnapshotCount, noServerAuthOnly.ScannedSnapshotCount + noServerAuthOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(noServerAuthOnly.EvaluatedEntryCount, noServerAuthOnly.MatchedEntryCount + noServerAuthOnly.ExcludedByFiltersCount);
+
+                var noClientAuthOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsClientAuthOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, noClientAuthOnly.MatchedEntryCount);
+                Assert.Equal(2, noClientAuthOnly.Entries.Count);
+                Assert.DoesNotContain(noClientAuthOnly.Entries, observed => string.Equals(observed.Entry.Host, "internal.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Equal(noClientAuthOnly.LoadedSnapshotCount, noClientAuthOnly.ScannedSnapshotCount + noClientAuthOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(noClientAuthOnly.EvaluatedEntryCount, noClientAuthOnly.MatchedEntryCount + noClientAuthOnly.ExcludedByFiltersCount);
+
+                var noSecureEmailOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsSecureEmailOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(3, noSecureEmailOnly.MatchedEntryCount);
+                Assert.Equal(3, noSecureEmailOnly.Entries.Count);
+                Assert.Equal(noSecureEmailOnly.LoadedSnapshotCount, noSecureEmailOnly.ScannedSnapshotCount + noSecureEmailOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(noSecureEmailOnly.EvaluatedEntryCount, noSecureEmailOnly.MatchedEntryCount + noSecureEmailOnly.ExcludedByFiltersCount);
+
+                var invalidOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ValidOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, invalidOnly.MatchedEntryCount);
+                Assert.Equal(2, invalidOnly.Entries.Count);
+                Assert.Contains(invalidOnly.Entries, observed => string.Equals(observed.Entry.Host, "internal.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(invalidOnly.Entries, observed => string.Equals(observed.Entry.Host, "old.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var chainCompleteOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ChainCompleteOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, chainCompleteOnly.MatchedEntryCount);
+                Assert.Equal(2, chainCompleteOnly.Entries.Count);
+                Assert.Contains(chainCompleteOnly.Entries, observed => string.Equals(observed.Entry.Host, "api.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(chainCompleteOnly.Entries, observed => string.Equals(observed.Entry.Host, "old.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var hostnameMatchOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostnameMatchOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, hostnameMatchOnly.MatchedEntryCount);
+                Assert.Equal(2, hostnameMatchOnly.Entries.Count);
+                Assert.Contains(hostnameMatchOnly.Entries, observed => string.Equals(observed.Entry.Host, "api.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(hostnameMatchOnly.Entries, observed => string.Equals(observed.Entry.Host, "old.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var notSelfSignedOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    SelfSignedOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, notSelfSignedOnly.MatchedEntryCount);
+                Assert.Equal(2, notSelfSignedOnly.Entries.Count);
+                Assert.Contains(notSelfSignedOnly.Entries, observed => string.Equals(observed.Entry.Host, "api.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(notSelfSignedOnly.Entries, observed => string.Equals(observed.Entry.Host, "old.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var unreachable = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ReachableOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, unreachable.MatchedEntryCount);
+                Assert.Single(unreachable.Entries);
+                Assert.Equal("old.example.com", unreachable.Entries[0].Entry.Host);
+
+                var reachableOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ReachableOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, reachableOnly.MatchedEntryCount);
+                Assert.Equal(2, reachableOnly.Entries.Count);
+                Assert.Contains(reachableOnly.Entries, observed => string.Equals(observed.Entry.Host, "api.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(reachableOnly.Entries, observed => string.Equals(observed.Entry.Host, "internal.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var ctMissingOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    PresentInCtOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, ctMissingOnly.MatchedEntryCount);
+                Assert.Single(ctMissingOnly.Entries);
+                Assert.Equal("internal.example.com", ctMissingOnly.Entries[0].Entry.Host);
+
+                var rootFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    RootContains = "isrg",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, rootFilter.MatchedEntryCount);
+                Assert.Single(rootFilter.Entries);
+                Assert.Equal("api.example.com", rootFilter.Entries[0].Entry.Host);
+
+                var rootThumbprintFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    RootThumbprintEquals = "5a3f:4d2c1b00 99887766554433221100aabbccdd",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, rootThumbprintFilter.MatchedEntryCount);
+                Assert.Single(rootThumbprintFilter.Entries);
+                Assert.Equal("api.example.com", rootThumbprintFilter.Entries[0].Entry.Host);
+
+                var missingRootThumbprintFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    RootThumbprintEquals = "not-present",
+                    MaxResults = 10
+                });
+                Assert.Equal(0, missingRootThumbprintFilter.MatchedEntryCount);
+                Assert.Empty(missingRootThumbprintFilter.Entries);
+
+                var thumbprintFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ThumbprintEquals = "aa11:bb22 cc33dd44",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, thumbprintFilter.MatchedEntryCount);
+                Assert.Single(thumbprintFilter.Entries);
+                Assert.Equal("api.example.com", thumbprintFilter.Entries[0].Entry.Host);
+
+                var serialFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    SerialNumberEquals = "00aa:11bb 22cc33dd",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, serialFilter.MatchedEntryCount);
+                Assert.Single(serialFilter.Entries);
+                Assert.Equal("api.example.com", serialFilter.Entries[0].Entry.Host);
+
+                var missingSerialFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    SerialNumberEquals = "not-present",
+                    MaxResults = 10
+                });
+                Assert.Equal(0, missingSerialFilter.MatchedEntryCount);
+                Assert.Empty(missingSerialFilter.Entries);
+
+                var authProfileFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AuthenticationProfileEquals = "ClientAuthOnly",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, authProfileFilter.MatchedEntryCount);
+                Assert.Single(authProfileFilter.Entries);
+                Assert.Equal("internal.example.com", authProfileFilter.Entries[0].Entry.Host);
+
+                var ctSourceFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    CtSourceContains = "shod",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, ctSourceFilter.MatchedEntryCount);
+                Assert.Single(ctSourceFilter.Entries);
+                Assert.Equal("api.example.com", ctSourceFilter.Entries[0].Entry.Host);
+
+                var ctTemplateErrorFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    CtTemplateErrorContains = "censysapiurltemplate",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, ctTemplateErrorFilter.MatchedEntryCount);
+                Assert.Single(ctTemplateErrorFilter.Entries);
+                Assert.Equal("internal.example.com", ctTemplateErrorFilter.Entries[0].Entry.Host);
+
+                var chainSourceFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ChainSourceContains = "handshake",
+                    MaxResults = 10
+                });
+                Assert.Equal(2, chainSourceFilter.MatchedEntryCount);
+                Assert.Equal(2, chainSourceFilter.Entries.Count);
+
+                var unknownCaFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    KnownAuthorityOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, unknownCaFilter.MatchedEntryCount);
+                Assert.Single(unknownCaFilter.Entries);
+                Assert.Equal("internal.example.com", unknownCaFilter.Entries[0].Entry.Host);
+                Assert.Equal(unknownCaFilter.LoadedSnapshotCount, unknownCaFilter.ScannedSnapshotCount + unknownCaFilter.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(unknownCaFilter.EvaluatedEntryCount, unknownCaFilter.MatchedEntryCount + unknownCaFilter.ExcludedByFiltersCount);
+
+                var unknownRootCaFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    KnownRootAuthorityOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, unknownRootCaFilter.MatchedEntryCount);
+                Assert.Single(unknownRootCaFilter.Entries);
+                Assert.Equal("internal.example.com", unknownRootCaFilter.Entries[0].Entry.Host);
+                Assert.Equal(unknownRootCaFilter.LoadedSnapshotCount, unknownRootCaFilter.ScannedSnapshotCount + unknownRootCaFilter.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(unknownRootCaFilter.EvaluatedEntryCount, unknownRootCaFilter.MatchedEntryCount + unknownRootCaFilter.ExcludedByFiltersCount);
+
+                var familyFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AuthorityFamilyEquals = "digicert",
+                    RootAuthorityFamilyEquals = "digicert",
+                    KnownRootAuthorityOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, familyFilter.MatchedEntryCount);
+                Assert.Single(familyFilter.Entries);
+                Assert.Equal("old.example.com", familyFilter.Entries[0].Entry.Host);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void QueryInventoryEntriesSupportsCryptoRiskFilters() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var snapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-10),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "weak.example.com",
+                            ResolvedHost = "weak.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "weak.example.com" },
+                            NotBeforeUtc = now.AddDays(-10),
+                            NotAfterUtc = now.AddDays(30),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            WeakKey = true,
+                            Sha1Signature = false,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "sha1.example.com",
+                            ResolvedHost = "sha1.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "sha1.example.com" },
+                            NotBeforeUtc = now.AddDays(-20),
+                            NotAfterUtc = now.AddDays(40),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            WeakKey = false,
+                            Sha1Signature = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "future.example.com",
+                            ResolvedHost = "future.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "future.example.com" },
+                            NotBeforeUtc = now.AddHours(4),
+                            NotAfterUtc = now.AddDays(60),
+                            Valid = false,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            WeakKey = false,
+                            Sha1Signature = false,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "unknownnb.example.com",
+                            ResolvedHost = "unknownnb.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "unknownnb.example.com" },
+                            NotAfterUtc = now.AddDays(70),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            WeakKey = false,
+                            Sha1Signature = false,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+
+                var file = Path.Combine(inventoryDir, $"{snapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(file, JsonSerializer.Serialize(snapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var weakOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    WeakKeyOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, weakOnly.LoadedSnapshotCount);
+                Assert.Equal(1, weakOnly.ScannedSnapshotCount);
+                Assert.Equal(0, weakOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(4, weakOnly.ScannedEntryCount);
+                Assert.Equal(4, weakOnly.EvaluatedEntryCount);
+                Assert.Equal(3, weakOnly.ExcludedByFiltersCount);
+                Assert.Equal(1, weakOnly.MatchedEntryCount);
+                Assert.Equal(0, weakOnly.EntriesTruncatedByMaxResults);
+                Assert.Equal(weakOnly.LoadedSnapshotCount, weakOnly.ScannedSnapshotCount + weakOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(weakOnly.EvaluatedEntryCount, weakOnly.MatchedEntryCount + weakOnly.ExcludedByFiltersCount);
+                Assert.Single(weakOnly.Entries);
+                Assert.Equal("weak.example.com", weakOnly.Entries[0].Entry.Host);
+
+                var weakFalse = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    WeakKeyOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(3, weakFalse.MatchedEntryCount);
+                Assert.Equal(3, weakFalse.Entries.Count);
+                Assert.DoesNotContain(weakFalse.Entries, observed => string.Equals(observed.Entry.Host, "weak.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Equal(weakFalse.LoadedSnapshotCount, weakFalse.ScannedSnapshotCount + weakFalse.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(weakFalse.EvaluatedEntryCount, weakFalse.MatchedEntryCount + weakFalse.ExcludedByFiltersCount);
+
+                var sha1Only = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    Sha1SignatureOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, sha1Only.MatchedEntryCount);
+                Assert.Single(sha1Only.Entries);
+                Assert.Equal("sha1.example.com", sha1Only.Entries[0].Entry.Host);
+                Assert.Equal(sha1Only.LoadedSnapshotCount, sha1Only.ScannedSnapshotCount + sha1Only.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(sha1Only.EvaluatedEntryCount, sha1Only.MatchedEntryCount + sha1Only.ExcludedByFiltersCount);
+
+                var notYetValidOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    NotYetValidOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, notYetValidOnly.MatchedEntryCount);
+                Assert.Single(notYetValidOnly.Entries);
+                Assert.Equal("future.example.com", notYetValidOnly.Entries[0].Entry.Host);
+                Assert.DoesNotContain(notYetValidOnly.Entries, observed => string.Equals(observed.Entry.Host, "unknownnb.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Equal(notYetValidOnly.LoadedSnapshotCount, notYetValidOnly.ScannedSnapshotCount + notYetValidOnly.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(notYetValidOnly.EvaluatedEntryCount, notYetValidOnly.MatchedEntryCount + notYetValidOnly.ExcludedByFiltersCount);
+
+                var weakAndSha1 = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    WeakKeyOnly = true,
+                    Sha1SignatureOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(0, weakAndSha1.MatchedEntryCount);
+                Assert.Empty(weakAndSha1.Entries);
+                Assert.Equal(4, weakAndSha1.ExcludedByFiltersCount);
+                Assert.Equal(weakAndSha1.LoadedSnapshotCount, weakAndSha1.ScannedSnapshotCount + weakAndSha1.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(weakAndSha1.EvaluatedEntryCount, weakAndSha1.MatchedEntryCount + weakAndSha1.ExcludedByFiltersCount);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void QueryInventoryEntriesSupportsSecureEmailNegativeFilter() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var snapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "server-only.example.com",
+                            ResolvedHost = "server-only.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "server-only.example.com" },
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        },
+                        new() {
+                            Host = "secure-email.example.com",
+                            ResolvedHost = "secure-email.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Contoso PKI",
+                            SubjectAlternativeNames = new List<string> { "secure-email.example.com" },
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = false,
+                            AllowsSecureEmail = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.MixedOrCustom
+                        }
+                    }
+                };
+
+                var file = Path.Combine(inventoryDir, $"{snapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(file, JsonSerializer.Serialize(snapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var noSecureEmailOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsSecureEmailOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, noSecureEmailOnly.MatchedEntryCount);
+                Assert.Single(noSecureEmailOnly.Entries);
+                Assert.Equal("server-only.example.com", noSecureEmailOnly.Entries[0].Entry.Host);
+                Assert.DoesNotContain(noSecureEmailOnly.Entries, observed => string.Equals(observed.Entry.Host, "secure-email.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var secureEmailOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AllowsSecureEmailOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, secureEmailOnly.MatchedEntryCount);
+                Assert.Single(secureEmailOnly.Entries);
+                Assert.Equal("secure-email.example.com", secureEmailOnly.Entries[0].Entry.Host);
+                Assert.DoesNotContain(secureEmailOnly.Entries, observed => string.Equals(observed.Entry.Host, "server-only.example.com", StringComparison.OrdinalIgnoreCase));
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+    }
+}

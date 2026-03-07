@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -114,5 +115,38 @@ public class TestCtTimelineAnalysis
         Assert.Equal(1, analysis.CertificateObservationCount);
         Assert.Contains(analysis.Assessments, a => a.Code == CtTimelineCodes.ResultsCapped);
     }
-}
 
+    [Fact]
+    public async Task FallsBackToCertSpotterWhenCrtShFails()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var certSpotterJson = $@"
+[
+  {{ ""id"": ""abc-123"", ""dns_names"": [""example.com"", ""www.example.com""], ""not_before"": ""{now.AddDays(-2).ToString("O", CultureInfo.InvariantCulture)}"", ""not_after"": ""{now.AddDays(90).ToString("O", CultureInfo.InvariantCulture)}"", ""revoked"": false }}
+]";
+
+        var analysis = new CertificateTransparencyTimelineAnalysis
+        {
+            QueryOverride = (url, _) =>
+            {
+                if (url.Contains("crt.sh", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new HttpRequestException("Simulated crt.sh outage.");
+                }
+
+                return Task.FromResult(certSpotterJson);
+            }
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Equal(1, analysis.CertificateObservationCount);
+        Assert.Equal(1, analysis.UniqueCertificateCount);
+        Assert.Equal(1, analysis.ActiveCertificateCount);
+        Assert.Equal(0, analysis.DistinctIssuerCount);
+        Assert.Single(analysis.RecentCertificates);
+        Assert.Equal("example.com", analysis.RecentCertificates[0].CommonName);
+        Assert.DoesNotContain(analysis.Assessments, a => a.Code == CtTimelineCodes.QueryFailed);
+    }
+}

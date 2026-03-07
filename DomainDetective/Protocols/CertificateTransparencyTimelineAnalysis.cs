@@ -15,7 +15,7 @@ namespace DomainDetective;
 /// issuer diversity, certificate validity status, and basic anomalies.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
+public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssessments
 {
     /// <summary>The domain being analyzed.</summary>
     public string? Subject { get; private set; }
@@ -25,6 +25,12 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
 
     /// <summary>CT query template for exact-name query (covers apex-only certificates).</summary>
     public string CrtShExactUrlTemplate { get; set; } = "https://crt.sh/?q={0}&output=json";
+
+    /// <summary>Fallback CT query template used when crt.sh queries fail.</summary>
+    public string CertSpotterUrlTemplate { get; set; } = "https://api.certspotter.com/v1/issuances?domain={0}&include_subdomains=true&expand=dns_names";
+
+    /// <summary>When true (default), queries Cert Spotter if all crt.sh queries fail.</summary>
+    public bool UseCertSpotterFallback { get; set; } = true;
 
     /// <summary>
     /// Optional override returning the JSON payload for a given CT URL.
@@ -125,15 +131,51 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
 
         try
         {
+            var anyPayloadParsed = false;
+            string? lastFailure = null;
             foreach (var url in urls)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
-                ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
+                try
+                {
+                    var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
+                    ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
+                    anyPayloadParsed = true;
+                }
+                catch (Exception ex)
+                {
+                    lastFailure = ex.Message;
+                    logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
+                }
+
                 if (ResultsCapped)
                 {
                     break;
                 }
+            }
+
+            if (!anyPayloadParsed && UseCertSpotterFallback)
+            {
+                var fallbackUrl = BuildCertSpotterUrl(Subject!);
+                if (!string.IsNullOrWhiteSpace(fallbackUrl))
+                {
+                    try
+                    {
+                        var fallbackJson = await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false);
+                        ParseCtJson(fallbackJson, now, issuerCounts, certs, bucketAgg, logger);
+                        anyPayloadParsed = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        lastFailure = lastFailure == null ? ex.Message : $"{lastFailure}; fallback failed: {ex.Message}";
+                        logger?.WriteVerbose("Fallback CT source failed for {0}: {1}", Subject, ex.Message);
+                    }
+                }
+            }
+
+            if (!anyPayloadParsed)
+            {
+                throw new InvalidOperationException(lastFailure ?? "No CT source succeeded.");
             }
 
             QuerySucceeded = true;
@@ -290,6 +332,16 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    private string? BuildCertSpotterUrl(string domain)
+    {
+        if (string.IsNullOrWhiteSpace(CertSpotterUrlTemplate))
+        {
+            return null;
+        }
+
+        return string.Format(CertSpotterUrlTemplate, Uri.EscapeDataString(domain));
+    }
+
     private async Task<string> FetchJsonAsync(string url, CancellationToken cancellationToken)
     {
         if (QueryOverride != null)
@@ -310,7 +362,7 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
             string? commonName,
             string? nameValue,
             string? serialNumber,
-            int? id,
+            string? id,
             DateTimeOffset? entryTimestampUtc,
             DateTimeOffset? notBeforeUtc,
             DateTimeOffset? notAfterUtc)
@@ -329,7 +381,7 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         public string? CommonName { get; }
         public string? NameValue { get; }
         public string? SerialNumber { get; }
-        public int? Id { get; }
+        public string? Id { get; }
         public DateTimeOffset? EntryTimestampUtc { get; }
         public DateTimeOffset? NotBeforeUtc { get; }
         public DateTimeOffset? NotAfterUtc { get; }
@@ -398,13 +450,13 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
 
     private static CtRow ReadCtRow(JsonElement item)
     {
-        var issuerName = GetString(item, "issuer_name");
-        var commonName = GetString(item, "common_name");
-        var nameValue = GetString(item, "name_value");
+        var issuerName = GetIssuerName(item);
+        var commonName = GetCommonName(item);
+        var nameValue = GetNameValue(item);
         var serial = GetString(item, "serial_number");
-        var id = GetInt(item, "id") ?? GetInt(item, "min_cert_id");
+        var id = GetString(item, "id") ?? GetString(item, "min_cert_id");
 
-        var entryTs = ParseTimestamp(GetString(item, "entry_timestamp"));
+        var entryTs = ParseTimestamp(GetString(item, "entry_timestamp") ?? GetString(item, "not_before"));
         var notBefore = ParseTimestamp(GetString(item, "not_before"));
         var notAfter = ParseTimestamp(GetString(item, "not_after"));
 
@@ -552,122 +604,6 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         }
 
         return true;
-    }
-
-    private static string? GetString(JsonElement obj, string prop)
-    {
-        if (obj.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        if (!obj.TryGetProperty(prop, out var p))
-        {
-            return null;
-        }
-
-        return p.ValueKind == JsonValueKind.String ? p.GetString() : p.ToString();
-    }
-
-    private static int? GetInt(JsonElement obj, string prop)
-    {
-        if (obj.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        if (!obj.TryGetProperty(prop, out var p))
-        {
-            return null;
-        }
-
-        if (p.ValueKind == JsonValueKind.Number && p.TryGetInt32(out var i))
-        {
-            return i;
-        }
-
-        if (p.ValueKind == JsonValueKind.String && int.TryParse(p.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var si))
-        {
-            return si;
-        }
-
-        return null;
-    }
-
-    private static DateTimeOffset? ParseTimestamp(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dt))
-        {
-            return dt;
-        }
-
-        return DateTimeOffset.TryParse(value, out dt) ? dt : null;
-    }
-
-    private static int YearMonthKey(DateTimeOffset dt)
-    {
-        try
-        {
-            return (dt.Year * 100) + dt.Month;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    private static string BuildCertificateKey(
-        int? id,
-        string? issuerName,
-        string? serial,
-        DateTimeOffset? notBefore,
-        DateTimeOffset? notAfter,
-        string? commonName,
-        string? nameValue)
-    {
-        if (id.HasValue && id.Value > 0)
-        {
-            return "id:" + id.Value.ToString(CultureInfo.InvariantCulture);
-        }
-
-        var issuer = (issuerName ?? string.Empty).Trim();
-        var ser = (serial ?? string.Empty).Trim();
-        var nb = notBefore?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
-        var na = notAfter?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
-        var cn = (commonName ?? string.Empty).Trim();
-        var nv = (nameValue ?? string.Empty).Trim();
-
-        // Fallback key: issuer + serial + validity window + CN + SAN blob (capped)
-        if (nv.Length > 512) nv = nv.Substring(0, 512);
-        if (cn.Length > 256) cn = cn.Substring(0, 256);
-        return $"{issuer}|{ser}|{nb}|{na}|{cn}|{nv}";
-    }
-
-    private static bool DetectWildcard(string? commonName, string? nameValue)
-    {
-        if (!string.IsNullOrWhiteSpace(commonName) && commonName!.TrimStart().StartsWith("*.", StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(nameValue))
-        {
-            foreach (var n in nameValue!.Split('\n'))
-            {
-                var s = n.TrimStart();
-                if (s.StartsWith("*.", StringComparison.Ordinal))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     private static CtCertificateValidityStatus GetValidityStatus(DateTimeOffset nowUtc, DateTimeOffset? notBefore, DateTimeOffset? notAfter)
