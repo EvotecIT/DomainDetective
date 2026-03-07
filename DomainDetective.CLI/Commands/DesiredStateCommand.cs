@@ -100,6 +100,8 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
         var exportRequested = exportFormats.Count > 0 || !string.IsNullOrWhiteSpace(settings.OutputPath);
 
         var views = new List<DomainDetective.Views.DesiredStateInfo>();
+        var successfulDomains = 0;
+        var failedDomains = 0;
 
         foreach (var domain in domains) {
             try {
@@ -158,6 +160,7 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
                 desired.Mode = mode;
                 var view = DomainDetective.Views.Converters.Convert(desired, profile, mode);
                 views.Add(view);
+                successfulDomains++;
 
                 if (!exportRequested && !settings.Json) {
                     CliHelpers.ShowPropertiesTable($"Desired State for {domain}", view, settings.Unicode);
@@ -165,8 +168,16 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
+                failedDomains++;
                 AnsiConsole.MarkupLine($"[red]Desired state evaluation failed for {domain}: {ex.Message}[/]");
             }
+        }
+
+        if (successfulDomains == 0) {
+            if (failedDomains > 0) {
+                AnsiConsole.MarkupLine("[red]Desired state evaluation failed for all requested domains.[/]");
+            }
+            return 1;
         }
 
         if (settings.Json) {

@@ -169,7 +169,7 @@ public class TestDesiredStateParity
                     var cellText = ExtractCellText(cell, ns, sharedStrings);
                     if (!string.IsNullOrWhiteSpace(cellText))
                     {
-                        values.Add(cellText);
+                        values.Add(cellText!);
                     }
                 }
 

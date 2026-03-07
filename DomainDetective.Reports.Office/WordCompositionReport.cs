@@ -968,7 +968,12 @@ public static class WordCompositionReport {
                     case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject):
                         Ensure(mc.Subject); map[mc.Subject].Classification = mc; break;
                     case DomainDetective.Views.DesiredStateInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
-                        Ensure(ds.Subject); map[ds.Subject].DesiredState = ds; break;
+                    {
+                        var subject = ds.Subject!;
+                        Ensure(subject);
+                        map[subject].DesiredState = ds;
+                        break;
+                    }
                     case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject):
                         Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
                     case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject):

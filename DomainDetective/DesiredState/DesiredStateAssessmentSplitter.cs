@@ -95,7 +95,7 @@ public static class DesiredStateAssessmentSplitter {
             return true;
         }
 
-        var normalized = new string(category.Trim()
+        var normalized = new string(category!.Trim()
             .Where(c => !char.IsWhiteSpace(c) && c != '-' && c != '_')
             .ToArray());
         if (normalized.Length == 0) {
