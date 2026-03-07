@@ -21,8 +21,13 @@ public sealed partial class CertificateInventoryCapture {
 
         if (options == null ||
             options.NativeCtLogOnly ||
-            !options.EnablePassiveCtFallback ||
             !options.BackfillMissingCtCertificateMetadata) {
+            return discoveredEntries;
+        }
+
+        bool allowPassiveMetadataFallback = options.EnablePassiveCtFallback ||
+                                            options.EnablePassiveCtMetadataFallback;
+        if (!allowPassiveMetadataFallback) {
             return discoveredEntries;
         }
 
@@ -46,60 +51,62 @@ public sealed partial class CertificateInventoryCapture {
                 .ToList();
         }
 
-        logger.WriteVerbose(
-            "CT metadata backfill: querying passive CT for {0} domain(s) to hydrate {1} subdomain(s).",
-            missingByDomain.Count,
-            missingByDomain.Sum(static pair => pair.Value.Count));
+        if (allowPassiveMetadataFallback) {
+            logger.WriteVerbose(
+                "CT metadata backfill: querying passive CT for {0} domain(s) to hydrate {1} subdomain(s).",
+                missingByDomain.Count,
+                missingByDomain.Sum(static pair => pair.Value.Count));
 
-        foreach (var pair in missingByDomain.OrderBy(static row => row.Key, StringComparer.OrdinalIgnoreCase)) {
-            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var pair in missingByDomain.OrderBy(static row => row.Key, StringComparer.OrdinalIgnoreCase)) {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            var domain = pair.Key;
-            var targetNames = pair.Value;
-            if (targetNames.Count == 0) {
-                continue;
-            }
-
-            IReadOnlyList<SubdomainDiscoveryEntry> passiveDiscovered;
-            if (CtPassiveMetadataBackfillOverride != null) {
-                passiveDiscovered = await CtPassiveMetadataBackfillOverride(
-                    new[] { domain },
-                    options,
-                    logger,
-                    cancellationToken).ConfigureAwait(false);
-            } else {
-                passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
-                    new[] { domain },
-                    options,
-                    warnings,
-                    logger,
-                    cancellationToken,
-                    dnsEndpointOverride: null,
-                    allowSystemDnsRetry: true).ConfigureAwait(false);
-            }
-
-            if (passiveDiscovered.Count == 0) {
-                continue;
-            }
-
-            foreach (var passiveEntry in passiveDiscovered) {
-                if (passiveEntry == null || string.IsNullOrWhiteSpace(passiveEntry.Name)) {
+                var domain = pair.Key;
+                var targetNames = pair.Value;
+                if (targetNames.Count == 0) {
                     continue;
                 }
 
-                var normalizedName = passiveEntry.Name.Trim();
-                if (!targetNames.Contains(normalizedName)) {
-                    continue;
+                IReadOnlyList<SubdomainDiscoveryEntry> passiveDiscovered;
+                if (CtPassiveMetadataBackfillOverride != null) {
+                    passiveDiscovered = await CtPassiveMetadataBackfillOverride(
+                        new[] { domain },
+                        options,
+                        logger,
+                        cancellationToken).ConfigureAwait(false);
+                } else {
+                    passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
+                        new[] { domain },
+                        options,
+                        warnings,
+                        logger,
+                        cancellationToken,
+                        dnsEndpointOverride: null,
+                        allowSystemDnsRetry: true).ConfigureAwait(false);
                 }
-                if (!merged.ContainsKey(normalizedName)) {
+
+                if (passiveDiscovered.Count == 0) {
                     continue;
                 }
 
-                MergeCtSubdomainEntry(merged, passiveEntry);
-                if (merged.TryGetValue(normalizedName, out var hydrated) &&
-                    hydrated != null &&
-                    !IsCtCertificateMetadataMissing(hydrated)) {
-                    targetNames.Remove(normalizedName);
+                foreach (var passiveEntry in passiveDiscovered) {
+                    if (passiveEntry == null || string.IsNullOrWhiteSpace(passiveEntry.Name)) {
+                        continue;
+                    }
+
+                    var normalizedName = passiveEntry.Name.Trim();
+                    if (!targetNames.Contains(normalizedName)) {
+                        continue;
+                    }
+                    if (!merged.ContainsKey(normalizedName)) {
+                        continue;
+                    }
+
+                    MergeCtSubdomainEntry(merged, passiveEntry);
+                    if (merged.TryGetValue(normalizedName, out var hydrated) &&
+                        hydrated != null &&
+                        !IsCtCertificateMetadataMissing(hydrated)) {
+                        targetNames.Remove(normalizedName);
+                    }
                 }
             }
         }
@@ -111,7 +118,7 @@ public sealed partial class CertificateInventoryCapture {
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (remainingMissingNames.Count > 0) {
+        if (allowPassiveMetadataFallback && remainingMissingNames.Count > 0) {
             logger.WriteVerbose(
                 "CT metadata backfill: querying exact passive CT metadata for {0} remaining host(s).",
                 remainingMissingNames.Count);
@@ -132,7 +139,7 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var remainingMissing = merged.Values.Count(IsCtCertificateMetadataMissing);
-        if (remainingMissing > 0) {
+        if (remainingMissing > 0 && allowPassiveMetadataFallback) {
             warnings.Add(
                 "CT certificate metadata remained unavailable for " +
                 remainingMissing +
@@ -142,6 +149,46 @@ public sealed partial class CertificateInventoryCapture {
         return merged.Values
             .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private async Task<IReadOnlyList<SubdomainDiscoveryEntry>> BackfillExactHostSeedCtMetadataAsync(
+        IReadOnlyList<CertificateInventorySeed> seeds,
+        IReadOnlyDictionary<string, SubdomainDiscoveryEntry> existingEntries,
+        CertificateInventoryCaptureOptions options,
+        List<string> warnings,
+        InternalLogger logger,
+        CancellationToken cancellationToken) {
+        if (seeds == null || seeds.Count == 0 || options == null) {
+            return Array.Empty<SubdomainDiscoveryEntry>();
+        }
+
+        if (options.NativeCtLogOnly ||
+            !options.BackfillMissingCtCertificateMetadata ||
+            (!options.EnablePassiveCtFallback && !options.EnablePassiveCtMetadataFallback)) {
+            return Array.Empty<SubdomainDiscoveryEntry>();
+        }
+
+        var exactHostSeeds = seeds
+            .Where(static seed => seed != null && seed.IsExactHostSeed && !string.IsNullOrWhiteSpace(seed.Name))
+            .Select(static seed => seed.Name.Trim())
+            .Where(name => !HasCtCertificateMetadata(existingEntries, name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (exactHostSeeds.Count == 0) {
+            return Array.Empty<SubdomainDiscoveryEntry>();
+        }
+
+        logger.WriteVerbose(
+            "CT metadata backfill: querying exact passive CT metadata for {0} exact host seed(s).",
+            exactHostSeeds.Count);
+
+        return await BackfillMissingCtCertificateMetadataExactAsync(
+            exactHostSeeds,
+            options,
+            warnings,
+            logger,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private static Dictionary<string, HashSet<string>> BuildMissingMetadataDomainMap(
@@ -216,6 +263,21 @@ public sealed partial class CertificateInventoryCapture {
                !entry.LatestCertificateNotAfterUtc.HasValue;
     }
 
+    private static bool HasCtCertificateMetadata(
+        IReadOnlyDictionary<string, SubdomainDiscoveryEntry>? existingEntries,
+        string? name) {
+        if (existingEntries == null || string.IsNullOrWhiteSpace(name)) {
+            return false;
+        }
+
+        var normalizedName = name!.Trim();
+        if (!existingEntries.TryGetValue(normalizedName, out var existingEntry) || existingEntry == null) {
+            return false;
+        }
+
+        return !IsCtCertificateMetadataMissing(existingEntry);
+    }
+
     private async Task<IReadOnlyList<SubdomainDiscoveryEntry>> BackfillMissingCtCertificateMetadataExactAsync(
         IReadOnlyList<string> hostNames,
         CertificateInventoryCaptureOptions options,
@@ -227,7 +289,13 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
-        var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
+        bool usePassiveNetworkQueries = CtPassiveMetadataBackfillOverride == null;
+        int maxParallelism = usePassiveNetworkQueries
+            ? 1
+            : Math.Max(1, options.DiscoveryParallelism);
+        PassiveCtSourceClient? sharedClient = usePassiveNetworkQueries
+            ? new PassiveCtSourceClient()
+            : null;
         using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
         var tasks = new List<Task>(hostNames.Count);
         foreach (var hostName in hostNames) {
@@ -251,7 +319,7 @@ public sealed partial class CertificateInventoryCapture {
                                 !string.IsNullOrWhiteSpace(entry.Name) &&
                                 hostName.Equals(entry.Name.Trim(), StringComparison.OrdinalIgnoreCase));
                     } else {
-                        exactEntry = await QueryPassiveCtMetadataExactAsync(hostName, options, warnings, logger, cancellationToken)
+                        exactEntry = await QueryPassiveCtMetadataExactAsync(hostName, options, warnings, logger, sharedClient!, cancellationToken)
                             .ConfigureAwait(false);
                     }
 
@@ -284,6 +352,7 @@ public sealed partial class CertificateInventoryCapture {
         CertificateInventoryCaptureOptions options,
         List<string>? warnings,
         InternalLogger logger,
+        PassiveCtSourceClient client,
         CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(hostName)) {
             return null;
@@ -295,7 +364,6 @@ public sealed partial class CertificateInventoryCapture {
             return null;
         }
 
-        var client = new PassiveCtSourceClient();
         PassiveCtSourceClient.QueryResult queryResult = await client.QueryAsync(
             requests,
             new PassiveCtSourceClient.QueryOptions {
