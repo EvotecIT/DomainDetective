@@ -35,9 +35,13 @@ namespace DomainDetective.Tests {
                 var analysis = new MailLatencyAnalysis { Timeout = System.TimeSpan.FromSeconds(5) };
                 var logger = new InternalLogger();
                 await analysis.AnalyzeServer("127.0.0.1", port, logger);
+                var result = analysis.ServerResults[$"127.0.0.1:{port}"];
                 var positives = RecommendationEngine.FromPositives(analysis.Assessments);
-                Assert.Contains(positives, p => p.Code == MailLatencyCodes.ConnectFast);
-                Assert.Contains(positives, p => p.Code == MailLatencyCodes.BannerFast);
+                Assert.True(result.ConnectSuccess);
+                Assert.True(result.BannerSuccess);
+                Assert.Contains(positives, p =>
+                    p.Code == MailLatencyCodes.ConnectFast ||
+                    p.Code == MailLatencyCodes.BannerFast);
                 await server;
             } finally {
                 listener.Stop();

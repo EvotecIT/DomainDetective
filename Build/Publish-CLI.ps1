@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $ConfigPath = "$PSScriptRoot\project.build.json",
+    [string] $ConfigPath = (Join-Path $PSScriptRoot 'project.build.json'),
     [string] $Configuration,
     [string] $ArtifactsPath,
     [string] $Version,
@@ -111,10 +111,10 @@ try {
         $publishArguments.Add($runtimeOutputPath)
         $publishArguments.Add('/p:PublishSingleFile=false')
         $publishArguments.Add('/p:UseAppHost=true')
-        if (-not $SkipBuild) {
+        if ($SkipBuild) {
             $publishArguments.Add('--no-build')
         }
-        if (-not $SkipRestore) {
+        if ($SkipRestore) {
             $publishArguments.Add('--no-restore')
         }
         if ($effectiveVersion) {

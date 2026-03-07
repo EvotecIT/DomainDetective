@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $ConfigPath = "$PSScriptRoot\project.build.json",
+    [string] $ConfigPath = (Join-Path $PSScriptRoot 'project.build.json'),
     [string] $Configuration,
     [string] $ArtifactsPath,
     [string] $Version,
@@ -89,10 +89,10 @@ try {
         $packArguments.Add($effectiveConfiguration)
         $packArguments.Add('--output')
         $packArguments.Add($packageOutputPath)
-        if (-not $SkipBuild) {
+        if ($SkipBuild) {
             $packArguments.Add('--no-build')
         }
-        if (-not $SkipRestore) {
+        if ($SkipRestore) {
             $packArguments.Add('--no-restore')
         }
         if ($effectiveVersion) {

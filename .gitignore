@@ -365,7 +365,7 @@ FodyWeavers.xsd
 
 .vscode/*
 
-build/*
+Build/*
 !Build/Build-Project.ps1
 !Build/Build-NuGet.ps1
 !Build/Publish-CLI.ps1

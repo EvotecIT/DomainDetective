@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $ConfigPath = "$PSScriptRoot\project.build.json",
+    [string] $ConfigPath = (Join-Path $PSScriptRoot 'project.build.json'),
     [string] $Configuration,
     [string] $ArtifactsPath,
     [string] $Version,
@@ -50,10 +50,7 @@ if (-not $SkipNuGet) {
         $nugetArguments.Plan = $true
     }
 
-    & "$PSScriptRoot\Build-NuGet.ps1" @nugetArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Build-NuGet.ps1 failed."
-    }
+    & (Join-Path $PSScriptRoot 'Build-NuGet.ps1') @nugetArguments
 }
 
 if (-not $SkipCli) {
@@ -78,8 +75,5 @@ if (-not $SkipCli) {
         $cliArguments.Plan = $true
     }
 
-    & "$PSScriptRoot\Publish-CLI.ps1" @cliArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Publish-CLI.ps1 failed."
-    }
+    & (Join-Path $PSScriptRoot 'Publish-CLI.ps1') @cliArguments
 }

@@ -143,7 +143,7 @@ Or use the build script introduced in this repository:
 pwsh ./Build/Publish-CLI.ps1
 ```
 
-That script publishes runtime-specific CLI artifacts under `Artifacts/ProjectBuild/CLI` and creates friendly aliases such as `DD.exe` on Windows and `dd` on Unix-like targets.
+That script publishes runtime-specific CLI artifacts under `Artifacts/ProjectBuild/CLI` and creates friendly aliases such as `DD.exe` on Windows and `DD` on Unix-like targets.
 
 ### C#
 

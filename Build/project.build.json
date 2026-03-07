@@ -1,5 +1,4 @@
 {
-  "$schema": "https://raw.githubusercontent.com/EvotecIT/PSPublishModule/main/Schemas/project.build.schema.json",
   "RootPath": "..",
   "SolutionPath": "DomainDetective.sln",
   "Configuration": "Release",
@@ -19,18 +18,20 @@
   "CliRuntimes": [
     "win-x64",
     "linux-x64",
-    "osx-x64"
+    "osx-x64",
+    "osx-arm64"
   ],
   "CliAliasMap": {
     "win-x64": [
       "DD.exe"
     ],
     "linux-x64": [
-      "dd",
       "DD"
     ],
     "osx-x64": [
-      "dd",
+      "DD"
+    ],
+    "osx-arm64": [
       "DD"
     ]
   },

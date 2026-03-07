@@ -129,7 +129,7 @@ Or use the repository build helper:
 pwsh ./Build/Publish-CLI.ps1
 ```
 
-That script publishes runtime-specific CLI outputs under `Artifacts/ProjectBuild/CLI` and creates friendly aliases such as `DD.exe` and `dd`.
+That script publishes runtime-specific CLI outputs under `Artifacts/ProjectBuild/CLI` and creates friendly aliases such as `DD.exe` on Windows and `DD` on Unix-like targets.
 
 ## Requirements
 
