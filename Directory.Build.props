@@ -1,5 +1,42 @@
 <Project>
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RepositoryUrl>https://github.com/EvotecIT/DomainDetective</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/EvotecIT/DomainDetective</PackageProjectUrl>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Authors>Przemyslaw Klys</Authors>
+    <Company>Evotec</Company>
+    <PackageTags>domain;dns;email;security</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective'">
+    <PackageId>DomainDetective</PackageId>
+    <Description>Domain, DNS, email, web, and certificate security analysis toolkit for .NET.</Description>
+    <PackageTags>domain;dns;email;security;dmarc;spf;dkim;rdap;rpki</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports'">
+    <PackageId>DomainDetective.Reports</PackageId>
+    <Description>Shared reporting abstractions and dispatch for DomainDetective outputs.</Description>
+    <PackageTags>domain;dns;email;security;reporting</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports.Html'">
+    <PackageId>DomainDetective.Reports.Html</PackageId>
+    <Description>HTML reporting components for DomainDetective.</Description>
+    <PackageTags>domain;dns;email;security;html;reporting</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports.Markdown'">
+    <PackageId>DomainDetective.Reports.Markdown</PackageId>
+    <Description>Markdown and MarkdownHtml reporting components for DomainDetective.</Description>
+    <PackageTags>domain;dns;email;security;markdown;reporting</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports.Office'">
+    <PackageId>DomainDetective.Reports.Office</PackageId>
+    <Description>Word and Excel reporting components for DomainDetective.</Description>
+    <PackageTags>domain;dns;email;security;word;excel;reporting</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports.Pdf'">
+    <PackageId>DomainDetective.Reports.Pdf</PackageId>
+    <Description>PDF reporting components for DomainDetective.</Description>
+    <PackageTags>domain;dns;email;security;pdf;reporting</PackageTags>
   </PropertyGroup>
 </Project>
