@@ -107,13 +107,13 @@ internal sealed class NativeCtCursorState {
     }
 
     private static string BuildSharedScopeFingerprint(IReadOnlyCollection<string> domains) {
-        string normalizedScope = string.Join(
-            ",",
-            domains
-                .Where(static domain => !string.IsNullOrWhiteSpace(domain))
-                .Select(static domain => domain.Trim().TrimEnd('.').ToLowerInvariant())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(static domain => domain, StringComparer.OrdinalIgnoreCase));
+        IReadOnlyList<string> normalizedDomains = domains
+            .Where(static domain => !string.IsNullOrWhiteSpace(domain))
+            .Select(static domain => domain.Trim().TrimEnd('.').ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static domain => domain, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        string normalizedScope = string.Join(",", normalizedDomains);
         if (string.IsNullOrWhiteSpace(normalizedScope)) {
             return "global";
         }
@@ -121,7 +121,23 @@ internal sealed class NativeCtCursorState {
         byte[] bytes = Encoding.UTF8.GetBytes(normalizedScope);
         using var sha256 = SHA256.Create();
         byte[] hash = sha256.ComputeHash(bytes);
-        return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+        string hashText = BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+        string preview = BuildSharedScopePreview(normalizedDomains);
+        return preview + "--" + hashText.Substring(0, 12);
+    }
+
+    private static string BuildSharedScopePreview(IReadOnlyList<string> normalizedDomains) {
+        if (normalizedDomains == null || normalizedDomains.Count == 0) {
+            return "global";
+        }
+
+        var previewDomains = normalizedDomains.Take(3).ToList();
+        string preview = string.Join("+", previewDomains);
+        if (normalizedDomains.Count > previewDomains.Count) {
+            preview += "+plus" + (normalizedDomains.Count - previewDomains.Count).ToString(CultureInfo.InvariantCulture);
+        }
+
+        return preview;
     }
 
     public static NativeCtCursorState Load(string? path) {

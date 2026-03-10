@@ -372,7 +372,8 @@ public sealed partial class CertificateInventoryCapture {
                 RetryBaseDelay = options.PassiveCtRetryBaseDelay,
                 RetryMaxDelay = options.PassiveCtRetryMaxDelay,
                 SourceCooldown = options.PassiveCtSourceCooldown,
-                QueryAllSources = true
+                QueryAllSources = true,
+                PayloadValidator = ValidatePassiveCtMetadataArrayPayload
             },
             queryOverride: null,
             logger,
@@ -603,5 +604,20 @@ public sealed partial class CertificateInventoryCapture {
             out DateTimeOffset parsed)
             ? parsed
             : (DateTimeOffset?)null;
+    }
+
+    private static string? ValidatePassiveCtMetadataArrayPayload(string payload) {
+        if (string.IsNullOrWhiteSpace(payload)) {
+            return "response payload was empty.";
+        }
+
+        try {
+            using var document = JsonDocument.Parse(payload);
+            return document.RootElement.ValueKind == JsonValueKind.Array
+                ? null
+                : "response root element must be an array.";
+        } catch (JsonException ex) {
+            return ex.Message;
+        }
     }
 }

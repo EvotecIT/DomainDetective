@@ -269,14 +269,14 @@ namespace DomainDetective {
                             VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
                         };
                         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
-                        IsReachable = true;
+                        IsReachable = response.IsSuccessStatusCode;
                         ProtocolVersion = response.Version;
                         Http3Supported = response.Version >= HttpVersion.Version30;
                         Http2Supported = response.Version >= HttpVersion.Version20;
 #else
                         var request = new HttpRequestMessage(HttpMethod.Get, url);
                         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
-                        IsReachable = true;
+                        IsReachable = response.IsSuccessStatusCode;
                         ProtocolVersion = response.Version;
                         Http2Supported = response.Version.Major >= 2;
                         Http3Supported = false;

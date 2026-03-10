@@ -101,7 +101,8 @@ public class SubdomainEnumeration
                 RetryCount = PassiveCtRetryCount,
                 RetryBaseDelay = PassiveCtRetryBaseDelay,
                 RetryMaxDelay = PassiveCtRetryMaxDelay,
-                SourceCooldown = PassiveCtSourceCooldown
+                SourceCooldown = PassiveCtSourceCooldown,
+                PayloadValidator = ValidatePassiveCtArrayPayload
             },
             PassiveHttpGetOverride,
             logger: null,
@@ -178,6 +179,26 @@ public class SubdomainEnumeration
         }
 
         return list.Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string? ValidatePassiveCtArrayPayload(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return "response payload was empty.";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            return document.RootElement.ValueKind == JsonValueKind.Array
+                ? null
+                : "response root element must be an array.";
+        }
+        catch (JsonException ex)
+        {
+            return ex.Message;
+        }
     }
 
     /// <summary>

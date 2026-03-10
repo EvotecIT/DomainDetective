@@ -4,6 +4,7 @@ using System.IO;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -1245,6 +1246,93 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_PreservesPrimaryCertificateBundleWhenNewerCtBundleIsIncomplete() {
+        await Task.Yield();
+
+        var olderCtEntryTimestamp = new DateTimeOffset(2022, 7, 11, 15, 36, 47, TimeSpan.Zero);
+        var newerCtEntryTimestamp = new DateTimeOffset(2024, 8, 12, 9, 15, 0, TimeSpan.Zero);
+        var olderNotBefore = new DateTimeOffset(2022, 7, 11, 0, 0, 0, TimeSpan.Zero);
+        var olderNotAfter = new DateTimeOffset(2023, 8, 11, 23, 59, 59, TimeSpan.Zero);
+
+        var entry = new CertificateInventoryEntry {
+            Host = "airtoxics.eurofins.com",
+            Url = "https://airtoxics.eurofins.com/",
+            CertificateSubject = "CN=airtoxics.eurofins.com-old",
+            CertificateIssuer = "CN=Old Issuer",
+            CertificateSerialNumber = "OLD123",
+            NotBeforeUtc = olderNotBefore,
+            NotAfterUtc = olderNotAfter,
+            PresentInCtLogs = true,
+            CtLatestCertificateEntryTimestampUtc = olderCtEntryTimestamp,
+            CtLatestCertificateSubject = "CN=airtoxics.eurofins.com-old",
+            CtLatestCertificateIssuer = "CN=Old Issuer",
+            CtLatestCertificateSerialNumber = "OLD123",
+            CtLatestCertificateNotBeforeUtc = olderNotBefore,
+            CtLatestCertificateNotAfterUtc = olderNotAfter,
+            CertificateChainSource = "ct-log"
+        };
+        var discoveredEntries = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase) {
+            ["airtoxics.eurofins.com"] = new SubdomainDiscoveryEntry {
+                Name = "airtoxics.eurofins.com",
+                LatestCertificateCtEntryTimestampUtc = newerCtEntryTimestamp,
+                CtSources = new[] { "native-ct" },
+                CertificateObservationCount = 1
+            }
+        };
+
+        InvokeCtMetadataEnrichment(entry, discoveredEntries);
+
+        Assert.Equal(newerCtEntryTimestamp, entry.CtLatestCertificateEntryTimestampUtc);
+        Assert.Equal("CN=airtoxics.eurofins.com-old", entry.CertificateSubject);
+        Assert.Equal("CN=Old Issuer", entry.CertificateIssuer);
+        Assert.Equal("OLD123", entry.CertificateSerialNumber);
+        Assert.Equal(olderNotBefore, entry.NotBeforeUtc);
+        Assert.Equal(olderNotAfter, entry.NotAfterUtc);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_PreservesExistingBundleWhenCtLatestTimestampsAreMissing() {
+        await Task.Yield();
+
+        var olderNotBefore = new DateTimeOffset(2022, 7, 11, 0, 0, 0, TimeSpan.Zero);
+        var olderNotAfter = new DateTimeOffset(2023, 8, 11, 23, 59, 59, TimeSpan.Zero);
+
+        var entry = new CertificateInventoryEntry {
+            Host = "airtoxics.eurofins.com",
+            Url = "https://airtoxics.eurofins.com/",
+            CertificateSubject = "CN=airtoxics.eurofins.com-old",
+            CertificateIssuer = "CN=Old Issuer",
+            CertificateSerialNumber = "OLD123",
+            NotBeforeUtc = olderNotBefore,
+            NotAfterUtc = olderNotAfter,
+            PresentInCtLogs = true,
+            CtLatestCertificateSubject = "CN=airtoxics.eurofins.com-old",
+            CtLatestCertificateIssuer = "CN=Old Issuer",
+            CtLatestCertificateSerialNumber = "OLD123",
+            CtLatestCertificateNotBeforeUtc = olderNotBefore,
+            CtLatestCertificateNotAfterUtc = olderNotAfter,
+            CertificateChainSource = "ct-log"
+        };
+        var discoveredEntries = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase) {
+            ["airtoxics.eurofins.com"] = new SubdomainDiscoveryEntry {
+                Name = "airtoxics.eurofins.com",
+                CtSources = new[] { "native-ct" },
+                CertificateObservationCount = 1
+            }
+        };
+
+        InvokeCtMetadataEnrichment(entry, discoveredEntries);
+
+        Assert.Null(entry.CtLatestCertificateEntryTimestampUtc);
+        Assert.Equal("CN=airtoxics.eurofins.com-old", entry.CtLatestCertificateSubject);
+        Assert.Equal("CN=airtoxics.eurofins.com-old", entry.CertificateSubject);
+        Assert.Equal("CN=Old Issuer", entry.CertificateIssuer);
+        Assert.Equal("OLD123", entry.CertificateSerialNumber);
+        Assert.Equal(olderNotBefore, entry.NotBeforeUtc);
+        Assert.Equal(olderNotAfter, entry.NotAfterUtc);
+    }
+
+    [Fact]
     public async Task CaptureAsync_BackfillsExactHostSeedCtMetadataWhenPassiveMetadataFallbackEnabled() {
         var ctEntryTimestamp = new DateTimeOffset(2022, 7, 11, 15, 36, 47, TimeSpan.Zero);
         var notBefore = new DateTimeOffset(2022, 7, 11, 0, 0, 0, TimeSpan.Zero);
@@ -1540,5 +1628,22 @@ public class TestCertificateInventoryCapture {
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(oids, false));
         var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
         return new X509Certificate2(certificate.Export(X509ContentType.Cert));
+    }
+
+    private static void InvokeCtMetadataEnrichment(
+        CertificateInventoryEntry entry,
+        IReadOnlyDictionary<string, SubdomainDiscoveryEntry> discoveredEntries) {
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "EnrichEntriesWithCtSubdomainMetadata",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        method!.Invoke(
+            null,
+            new object[] {
+                new[] { entry },
+                discoveredEntries,
+                DateTimeOffset.UtcNow
+            });
     }
 }

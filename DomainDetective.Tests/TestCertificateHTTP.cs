@@ -132,6 +132,25 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task ErrorHttpStatusPreservesCertificateButKeepsReachabilityFalse() {
+            using var cert = CreateSelfSigned("localhost");
+            var server = new TcpListenerFixture((l, t) => Task.Run(() => RunServer(l, cert, SslProtocols.Tls12, t, "HTTP/1.1 500 Internal Server Error"), t));
+            await server.InitializeAsync();
+
+            try {
+                var logger = new InternalLogger();
+                var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
+                await analysis.AnalyzeUrl("https://localhost", server.Port, logger);
+
+                Assert.NotNull(analysis.Certificate);
+                Assert.False(analysis.IsReachable);
+                Assert.NotNull(analysis.ProtocolVersion);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
 #if NET8_0_OR_GREATER
         [Fact]
         public async Task DetectsTls13WhenSupported() {
@@ -167,7 +186,12 @@ namespace DomainDetective.Tests {
             Assert.Equal("mx1.example.com", hosts[0]);
         }
 
-        private static async Task RunServer(TcpListener listener, X509Certificate2 cert, SslProtocols protocol, CancellationToken token) {
+        private static async Task RunServer(
+            TcpListener listener,
+            X509Certificate2 cert,
+            SslProtocols protocol,
+            CancellationToken token,
+            string statusLine = "HTTP/1.1 200 OK") {
             try {
                 while (!token.IsCancellationRequested) {
                     var clientTask = listener.AcceptTcpClientAsync();
@@ -189,7 +213,7 @@ namespace DomainDetective.Tests {
                           do {
                               line = await reader.ReadLineAsync();
                           } while (!string.IsNullOrEmpty(line));
-                        await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                        await writer.WriteLineAsync(statusLine);
                         await writer.WriteLineAsync("Content-Length: 0");
                         await writer.WriteLineAsync();
                     }, token);

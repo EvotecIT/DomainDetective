@@ -12,6 +12,17 @@ namespace DomainDetective.Tests;
 
 public class TestNativeCtLogSubdomainDiscovery {
     [Fact]
+    public void BuildSharedKey_IncludesReadableScopePreview() {
+        string key = NativeCtCursorState.BuildSharedKey(
+            "https://ct.test.example/log1/",
+            new[] { "example.com", "evotec.xyz", "eurofins.com", "evotec.pl" });
+
+        Assert.Contains("eurofins.com", key, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("plus1", key, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("https://ct.test.example/log1/", key, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task DiscoverForDomainsAsync_RetriesTransientRequestsBeforeSuccess() {
         using var cert = CreateSelfSigned("portal.example.com");
         var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));

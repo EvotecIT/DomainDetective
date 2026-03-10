@@ -71,7 +71,7 @@ public sealed partial class CertificateInventoryCapture {
         DateTimeOffset? currentTimestampUtc,
         DateTimeOffset? incomingTimestampUtc) {
         if (!currentTimestampUtc.HasValue) {
-            return true;
+            return incomingTimestampUtc.HasValue;
         }
 
         return incomingTimestampUtc.HasValue && incomingTimestampUtc.Value > currentTimestampUtc.Value;
@@ -118,34 +118,31 @@ public sealed partial class CertificateInventoryCapture {
         bool updated = false;
 
         if (replaceExisting || string.IsNullOrWhiteSpace(entry.CertificateSubject)) {
-            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSubject) ||
-                replaceExisting) {
+            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSubject)) {
                 entry.CertificateSubject = discoveredEntry.LatestCertificateSubject;
                 updated = true;
             }
         }
         if (replaceExisting || string.IsNullOrWhiteSpace(entry.CertificateIssuer)) {
-            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateIssuer) ||
-                replaceExisting) {
+            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateIssuer)) {
                 entry.CertificateIssuer = discoveredEntry.LatestCertificateIssuer;
                 updated = true;
             }
         }
         if (replaceExisting || string.IsNullOrWhiteSpace(entry.CertificateSerialNumber)) {
-            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSerialNumber) ||
-                replaceExisting) {
+            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSerialNumber)) {
                 entry.CertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
                 updated = true;
             }
         }
         if (replaceExisting || !entry.NotBeforeUtc.HasValue) {
-            if (discoveredEntry.LatestCertificateNotBeforeUtc.HasValue || replaceExisting) {
+            if (discoveredEntry.LatestCertificateNotBeforeUtc.HasValue) {
                 entry.NotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
                 updated = true;
             }
         }
         if (replaceExisting || !entry.NotAfterUtc.HasValue) {
-            if (discoveredEntry.LatestCertificateNotAfterUtc.HasValue || replaceExisting) {
+            if (discoveredEntry.LatestCertificateNotAfterUtc.HasValue) {
                 entry.NotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
                 updated = true;
             }

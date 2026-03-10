@@ -132,11 +132,32 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 RetryCount = PassiveCtRetryCount,
                 RetryBaseDelay = PassiveCtRetryBaseDelay,
                 RetryMaxDelay = PassiveCtRetryMaxDelay,
-                SourceCooldown = PassiveCtSourceCooldown
+                SourceCooldown = PassiveCtSourceCooldown,
+                PayloadValidator = ValidatePassiveCtArrayPayload
             },
             QueryOverride,
             logger,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string? ValidatePassiveCtArrayPayload(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return "response payload was empty.";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            return document.RootElement.ValueKind == JsonValueKind.Array
+                ? null
+                : "response root element must be an array.";
+        }
+        catch (JsonException ex)
+        {
+            return ex.Message;
+        }
     }
 
     private async Task<NativeCtLogSubdomainDiscoveryResult> DiscoverNativeCtSubdomainsAsync(string domain, InternalLogger? logger, CancellationToken cancellationToken)
