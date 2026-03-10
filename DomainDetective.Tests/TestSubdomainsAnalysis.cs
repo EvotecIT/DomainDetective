@@ -236,7 +236,17 @@ public class TestSubdomainsAnalysis
                     var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
                     if (completed != clientTask)
                     {
-                        try { await clientTask; } catch { }
+                        try
+                        {
+                            await clientTask;
+                        }
+                        catch (ObjectDisposedException) when (token.IsCancellationRequested)
+                        {
+                        }
+                        catch (SocketException) when (token.IsCancellationRequested)
+                        {
+                        }
+
                         break;
                     }
 
@@ -258,10 +268,10 @@ public class TestSubdomainsAnalysis
                     await writer.WriteAsync("{}");
                 }
             }
-            catch (ObjectDisposedException)
+            catch (ObjectDisposedException) when (token.IsCancellationRequested)
             {
             }
-            catch (SocketException)
+            catch (SocketException) when (token.IsCancellationRequested)
             {
             }
         }, token));
