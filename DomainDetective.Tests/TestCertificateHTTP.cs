@@ -151,6 +151,35 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task RedirectKeepsFirstObservedCertificate() {
+            using var originCert = CreateSelfSigned("origin.invalid");
+            using var redirectedCert = CreateSelfSigned("redirect.invalid");
+            var redirectedServer = new TcpListenerFixture((l, t) => Task.Run(() => RunServer(l, redirectedCert, SslProtocols.Tls12, t), t));
+            await redirectedServer.InitializeAsync();
+            string redirectLocation = $"https://127.0.0.1:{redirectedServer.Port}/";
+            var originServer = new TcpListenerFixture((l, t) => Task.Run(() => RunServer(
+                l,
+                originCert,
+                SslProtocols.Tls12,
+                t,
+                "HTTP/1.1 302 Found",
+                new[] { "Location: " + redirectLocation }), t));
+            await originServer.InitializeAsync();
+
+            try {
+                var logger = new InternalLogger();
+                var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
+                await analysis.AnalyzeUrl("https://localhost", originServer.Port, logger);
+
+                Assert.NotNull(analysis.Certificate);
+                Assert.Contains("CN=origin.invalid", analysis.Certificate!.Subject, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                await originServer.DisposeAsync();
+                await redirectedServer.DisposeAsync();
+            }
+        }
+
 #if NET8_0_OR_GREATER
         [Fact]
         public async Task DetectsTls13WhenSupported() {
@@ -191,7 +220,8 @@ namespace DomainDetective.Tests {
             X509Certificate2 cert,
             SslProtocols protocol,
             CancellationToken token,
-            string statusLine = "HTTP/1.1 200 OK") {
+            string statusLine = "HTTP/1.1 200 OK",
+            IReadOnlyList<string>? headers = null) {
             try {
                 while (!token.IsCancellationRequested) {
                     var clientTask = listener.AcceptTcpClientAsync();
@@ -214,6 +244,11 @@ namespace DomainDetective.Tests {
                               line = await reader.ReadLineAsync();
                           } while (!string.IsNullOrEmpty(line));
                         await writer.WriteLineAsync(statusLine);
+                        if (headers != null) {
+                            foreach (string header in headers) {
+                                await writer.WriteLineAsync(header);
+                            }
+                        }
                         await writer.WriteLineAsync("Content-Length: 0");
                         await writer.WriteLineAsync();
                     }, token);

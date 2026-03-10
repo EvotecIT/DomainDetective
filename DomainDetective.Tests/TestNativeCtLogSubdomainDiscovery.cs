@@ -81,7 +81,7 @@ public class TestNativeCtLogSubdomainDiscovery {
 
     [Fact]
     public async Task DiscoverForDomainsAsync_CircuitBreakerSkipsLogAfterFailureThreshold() {
-        var cursorPath = Path.Combine(Path.GetTempPath(), "dd-native-ct-circuit-" + Guid.NewGuid().ToString("N") + ".json");
+        string cursorPath = CreateTemporaryCursorStatePath();
         var getSthCalls = 0;
 
         try {
@@ -205,7 +205,7 @@ public class TestNativeCtLogSubdomainDiscovery {
 
     [Fact]
     public async Task DiscoverForDomainsAsync_UsesSharedCursorBetweenRuns() {
-        var cursorPath = Path.Combine(Path.GetTempPath(), "dd-native-ct-cursor-" + Guid.NewGuid().ToString("N") + ".json");
+        string cursorPath = CreateTemporaryCursorStatePath();
         try {
             using var cert = CreateSelfSigned("portal.example.com");
             var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
@@ -272,7 +272,7 @@ public class TestNativeCtLogSubdomainDiscovery {
 
     [Fact]
     public async Task DiscoverForDomainsAsync_IsolatesSharedCursorByDomainSet() {
-        var cursorPath = Path.Combine(Path.GetTempPath(), "dd-native-ct-shared-scope-" + Guid.NewGuid().ToString("N") + ".json");
+        string cursorPath = CreateTemporaryCursorStatePath();
         try {
             using var exampleCert = CreateSelfSigned("portal.example.com");
             using var evotecCert = CreateSelfSigned("api.evotec.xyz");
@@ -881,6 +881,12 @@ public class TestNativeCtLogSubdomainDiscovery {
         AddUInt16(buffer, 0);
 
         return Convert.ToBase64String(buffer.ToArray());
+    }
+
+    private static string CreateTemporaryCursorStatePath() {
+        string path = Path.GetTempFileName();
+        File.Delete(path);
+        return path;
     }
 
     private static void AddUInt16(ICollection<byte> buffer, int value) {

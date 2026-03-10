@@ -349,10 +349,11 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var resolved = await VerifyDiscoveredSubdomainsResolveAsync(namesToVerify, options, cancellationToken).ConfigureAwait(false);
+        var namesVerified = new HashSet<string>(namesToVerify, StringComparer.OrdinalIgnoreCase);
         var resolvedEntries = new List<SubdomainDiscoveryEntry>(discovered.Count);
         foreach (var pair in discovered.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
             SubdomainDiscoveryEntry entry = pair.Value;
-            bool wasVerified = namesToVerify.Contains(pair.Key, StringComparer.OrdinalIgnoreCase);
+            bool wasVerified = namesVerified.Contains(pair.Key);
             bool resolvedNow = resolved.Contains(pair.Key);
             resolvedEntries.Add(new SubdomainDiscoveryEntry {
                 Name = entry.Name,

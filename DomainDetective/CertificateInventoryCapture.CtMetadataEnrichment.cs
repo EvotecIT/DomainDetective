@@ -37,13 +37,10 @@ public sealed partial class CertificateInventoryCapture {
             }
             entry.CtObservationCount += Math.Max(0, discoveredEntry.CertificateObservationCount);
 
-            bool hydratedFromCt;
-            if (replaceCtLatestBundle &&
-                string.Equals(entry.CertificateChainSource, "ct-log", StringComparison.OrdinalIgnoreCase)) {
-                hydratedFromCt = ApplyPrimaryCertificateBundleFromCt(entry, discoveredEntry, replaceExisting: true);
-            } else {
-                hydratedFromCt = ApplyPrimaryCertificateBundleFromCt(entry, discoveredEntry, replaceExisting: false);
-            }
+            bool replacePrimaryBundle = replaceCtLatestBundle &&
+                string.Equals(entry.CertificateChainSource, "ct-log", StringComparison.OrdinalIgnoreCase) &&
+                HasCompleteCtPrimaryBundle(discoveredEntry);
+            bool hydratedFromCt = ApplyPrimaryCertificateBundleFromCt(entry, discoveredEntry, replaceExisting: replacePrimaryBundle);
 
             if (entry.NotAfterUtc.HasValue) {
                 entry.DaysToExpire = (int)Math.Floor((entry.NotAfterUtc.Value - capturedAtUtc).TotalDays);
@@ -115,40 +112,52 @@ public sealed partial class CertificateInventoryCapture {
         CertificateInventoryEntry entry,
         SubdomainDiscoveryEntry discoveredEntry,
         bool replaceExisting) {
+        if (replaceExisting) {
+            entry.CertificateSubject = discoveredEntry.LatestCertificateSubject;
+            entry.CertificateIssuer = discoveredEntry.LatestCertificateIssuer;
+            entry.CertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
+            entry.NotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
+            entry.NotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
+            return true;
+        }
+
         bool updated = false;
 
-        if (replaceExisting || string.IsNullOrWhiteSpace(entry.CertificateSubject)) {
-            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSubject)) {
-                entry.CertificateSubject = discoveredEntry.LatestCertificateSubject;
-                updated = true;
-            }
+        if (string.IsNullOrWhiteSpace(entry.CertificateSubject) &&
+            !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSubject)) {
+            entry.CertificateSubject = discoveredEntry.LatestCertificateSubject;
+            updated = true;
         }
-        if (replaceExisting || string.IsNullOrWhiteSpace(entry.CertificateIssuer)) {
-            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateIssuer)) {
-                entry.CertificateIssuer = discoveredEntry.LatestCertificateIssuer;
-                updated = true;
-            }
+        if (string.IsNullOrWhiteSpace(entry.CertificateIssuer) &&
+            !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateIssuer)) {
+            entry.CertificateIssuer = discoveredEntry.LatestCertificateIssuer;
+            updated = true;
         }
-        if (replaceExisting || string.IsNullOrWhiteSpace(entry.CertificateSerialNumber)) {
-            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSerialNumber)) {
-                entry.CertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
-                updated = true;
-            }
+        if (string.IsNullOrWhiteSpace(entry.CertificateSerialNumber) &&
+            !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSerialNumber)) {
+            entry.CertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
+            updated = true;
         }
-        if (replaceExisting || !entry.NotBeforeUtc.HasValue) {
-            if (discoveredEntry.LatestCertificateNotBeforeUtc.HasValue) {
-                entry.NotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
-                updated = true;
-            }
+        if (!entry.NotBeforeUtc.HasValue &&
+            discoveredEntry.LatestCertificateNotBeforeUtc.HasValue) {
+            entry.NotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
+            updated = true;
         }
-        if (replaceExisting || !entry.NotAfterUtc.HasValue) {
-            if (discoveredEntry.LatestCertificateNotAfterUtc.HasValue) {
-                entry.NotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
-                updated = true;
-            }
+        if (!entry.NotAfterUtc.HasValue &&
+            discoveredEntry.LatestCertificateNotAfterUtc.HasValue) {
+            entry.NotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
+            updated = true;
         }
 
         return updated;
+    }
+
+    private static bool HasCompleteCtPrimaryBundle(SubdomainDiscoveryEntry discoveredEntry) {
+        return !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSubject) &&
+               !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateIssuer) &&
+               !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSerialNumber) &&
+               discoveredEntry.LatestCertificateNotBeforeUtc.HasValue &&
+               discoveredEntry.LatestCertificateNotAfterUtc.HasValue;
     }
 
     private static bool TryFindCtDiscoveredEntry(

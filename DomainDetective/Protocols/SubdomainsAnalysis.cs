@@ -379,7 +379,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 {
                     anyPayloadParsed |= ParseCtJson(payload.Payload, Subject, issuerCounts, subdomainMap, logger, payload.SourceName);
                 }
-                catch (Exception ex)
+                catch (JsonException ex)
                 {
                     failure = string.IsNullOrWhiteSpace(failure)
                         ? ex.Message
@@ -404,7 +404,21 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
 
             QuerySucceeded = true;
         }
-        catch (Exception ex)
+        catch (JsonException ex)
+        {
+            QuerySucceeded = false;
+            FailureReason = ex.Message;
+            Assessments.Add(new Assessment
+            {
+                Severity = AssessmentSeverity.Error,
+                Category = "Subdomains",
+                Code = SubdomainCodes.CtParseFailed,
+                Target = Subject,
+                Message = $"CT response parsing failed: {ex.Message}"
+            });
+            return;
+        }
+        catch (InvalidOperationException ex)
         {
             QuerySucceeded = false;
             FailureReason = ex.Message;

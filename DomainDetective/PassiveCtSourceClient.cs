@@ -230,14 +230,7 @@ internal sealed class PassiveCtSourceClient
             return null;
         }
 
-        try
-        {
-            return payloadValidator(payload);
-        }
-        catch (Exception ex)
-        {
-            return ex.Message;
-        }
+        return payloadValidator(payload);
     }
 
     private static IReadOnlyList<SourceRequest> RotateRequests(IReadOnlyList<SourceRequest> requests)

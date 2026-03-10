@@ -236,6 +236,7 @@ namespace DomainDetective {
             Url = url;
             IsSelfSigned = false;
             ResetChainSourceTracking();
+            bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
@@ -243,21 +244,24 @@ namespace DomainDetective {
                         return false;
                     }
 
-                    var leaf = chain != null && chain.ChainElements.Count > 0
-                        ? chain.ChainElements[0].Certificate
-                        : certificate;
-                    Certificate = new X509Certificate2(leaf.Export(X509ContentType.Cert));
+                    if (!capturedHandshakeCertificate) {
+                        var leaf = chain != null && chain.ChainElements.Count > 0
+                            ? chain.ChainElements[0].Certificate
+                            : certificate;
+                        Certificate = new X509Certificate2(leaf.Export(X509ContentType.Cert));
 
-                    Chain.Clear();
-                    if (chain != null) {
-                        foreach (var element in chain.ChainElements) {
-                            Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                        Chain.Clear();
+                        if (chain != null) {
+                            foreach (var element in chain.ChainElements) {
+                                Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                            }
                         }
+                        RecordChainSource(ChainSourceTlsHandshake);
+                        IsSelfSigned = IsSelfSignedCertificate(Certificate);
+                        IsValid = policyErrors == SslPolicyErrors.None;
+                        HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                        capturedHandshakeCertificate = true;
                     }
-                    RecordChainSource(ChainSourceTlsHandshake);
-                    IsSelfSigned = IsSelfSignedCertificate(Certificate);  
-                    IsValid = policyErrors == SslPolicyErrors.None;       
-                    HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     return true;
                 };
                 using (var client = new HttpClient(handler)) {
