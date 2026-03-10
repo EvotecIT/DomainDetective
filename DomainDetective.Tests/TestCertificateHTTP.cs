@@ -124,7 +124,9 @@ namespace DomainDetective.Tests {
                 var logger = new InternalLogger();
                 var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
                 await analysis.AnalyzeUrl($"https://localhost", server.Port, logger);
+                Assert.NotNull(analysis.Certificate);
                 Assert.False(analysis.HostnameMatch);
+                Assert.False(analysis.IsValid);
             } finally {
                 await server.DisposeAsync();
             }

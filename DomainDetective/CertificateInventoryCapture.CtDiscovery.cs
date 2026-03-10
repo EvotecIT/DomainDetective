@@ -349,29 +349,32 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var resolved = await VerifyDiscoveredSubdomainsResolveAsync(namesToVerify, options, cancellationToken).ConfigureAwait(false);
-        var resolvedEntries = new List<SubdomainDiscoveryEntry>(resolved.Count);
-        foreach (var resolvedName in resolved) {
-            if (discovered.TryGetValue(resolvedName, out var entry)) {
-                resolvedEntries.Add(new SubdomainDiscoveryEntry {
-                    Name = entry.Name,
-                    FirstSeenUtc = entry.FirstSeenUtc,
-                    LastSeenUtc = entry.LastSeenUtc,
-                    LatestCertificateCtEntryTimestampUtc = entry.LatestCertificateCtEntryTimestampUtc,
-                    LatestCertificateSubject = entry.LatestCertificateSubject,
-                    LatestCertificateIssuer = entry.LatestCertificateIssuer,
-                    LatestCertificateSerialNumber = entry.LatestCertificateSerialNumber,
-                    LatestCertificateNotBeforeUtc = entry.LatestCertificateNotBeforeUtc,
-                    LatestCertificateNotAfterUtc = entry.LatestCertificateNotAfterUtc,
-                    CtSources = entry.CtSources,
-                    CertificateObservationCount = entry.CertificateObservationCount,
-                    ResolutionStatus = SubdomainResolutionStatus.Resolves,
-                    ARecords = entry.ARecords,
-                    AaaaRecords = entry.AaaaRecords,
-                    SensitiveRisk = entry.SensitiveRisk,
-                    SensitiveSignals = entry.SensitiveSignals,
-                    AiSignals = entry.AiSignals
-                });
-            }
+        var resolvedEntries = new List<SubdomainDiscoveryEntry>(discovered.Count);
+        foreach (var pair in discovered.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
+            SubdomainDiscoveryEntry entry = pair.Value;
+            bool wasVerified = namesToVerify.Contains(pair.Key, StringComparer.OrdinalIgnoreCase);
+            bool resolvedNow = resolved.Contains(pair.Key);
+            resolvedEntries.Add(new SubdomainDiscoveryEntry {
+                Name = entry.Name,
+                FirstSeenUtc = entry.FirstSeenUtc,
+                LastSeenUtc = entry.LastSeenUtc,
+                LatestCertificateCtEntryTimestampUtc = entry.LatestCertificateCtEntryTimestampUtc,
+                LatestCertificateSubject = entry.LatestCertificateSubject,
+                LatestCertificateIssuer = entry.LatestCertificateIssuer,
+                LatestCertificateSerialNumber = entry.LatestCertificateSerialNumber,
+                LatestCertificateNotBeforeUtc = entry.LatestCertificateNotBeforeUtc,
+                LatestCertificateNotAfterUtc = entry.LatestCertificateNotAfterUtc,
+                CtSources = entry.CtSources,
+                CertificateObservationCount = entry.CertificateObservationCount,
+                ResolutionStatus = resolvedNow
+                    ? SubdomainResolutionStatus.Resolves
+                    : (wasVerified ? SubdomainResolutionStatus.DoesNotResolve : entry.ResolutionStatus),
+                ARecords = entry.ARecords,
+                AaaaRecords = entry.AaaaRecords,
+                SensitiveRisk = entry.SensitiveRisk,
+                SensitiveSignals = entry.SensitiveSignals,
+                AiSignals = entry.AiSignals
+            });
         }
 
         return resolvedEntries

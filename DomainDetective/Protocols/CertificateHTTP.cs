@@ -258,7 +258,7 @@ namespace DomainDetective {
                     IsSelfSigned = IsSelfSignedCertificate(Certificate);  
                     IsValid = policyErrors == SslPolicyErrors.None;       
                     HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
-                    return IsValid;
+                    return true;
                 };
                 using (var client = new HttpClient(handler)) {
                     client.Timeout = Timeout;
@@ -269,21 +269,17 @@ namespace DomainDetective {
                             VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
                         };
                         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
-                        IsReachable = response.IsSuccessStatusCode;
-                        if (IsReachable) {
-                            ProtocolVersion = response.Version;
-                            Http3Supported = response.Version >= HttpVersion.Version30;
-                            Http2Supported = response.Version >= HttpVersion.Version20;
-                        }
+                        IsReachable = true;
+                        ProtocolVersion = response.Version;
+                        Http3Supported = response.Version >= HttpVersion.Version30;
+                        Http2Supported = response.Version >= HttpVersion.Version20;
 #else
                         var request = new HttpRequestMessage(HttpMethod.Get, url);
                         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
-                        IsReachable = response.IsSuccessStatusCode;
-                        if (IsReachable) {
-                            ProtocolVersion = response.Version;
-                            Http2Supported = response.Version.Major >= 2;
-                            Http3Supported = false;
-                        }
+                        IsReachable = true;
+                        ProtocolVersion = response.Version;
+                        Http2Supported = response.Version.Major >= 2;
+                        Http3Supported = false;
 #endif
                         if (Certificate == null && Http3Supported) {      
                             try {

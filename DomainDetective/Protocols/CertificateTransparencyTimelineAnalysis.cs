@@ -139,8 +139,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                 try
                 {
                     var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
-                    ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
-                    anyPayloadParsed = true;
+                    anyPayloadParsed |= ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
                 }
                 catch (Exception ex)
                 {
@@ -162,8 +161,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     try
                     {
                         var fallbackJson = await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false);
-                        ParseCtJson(fallbackJson, now, issuerCounts, certs, bucketAgg, logger);
-                        anyPayloadParsed = true;
+                        anyPayloadParsed |= ParseCtJson(fallbackJson, now, issuerCounts, certs, bucketAgg, logger);
                     }
                     catch (Exception ex)
                     {
@@ -387,7 +385,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         public DateTimeOffset? NotAfterUtc { get; }
     }
 
-    private void ParseCtJson(
+    private bool ParseCtJson(
         string json,
         DateTimeOffset nowUtc,
         Dictionary<string, int> issuerCounts,
@@ -397,13 +395,13 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            return;
+            return false;
         }
 
         using var doc = JsonDocument.Parse(json);
         if (doc.RootElement.ValueKind != JsonValueKind.Array)
         {
-            return;
+            throw new JsonException("CT response root element must be an array.");
         }
 
         foreach (var item in doc.RootElement.EnumerateArray())
@@ -434,6 +432,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         }
 
         logger?.WriteVerbose("CT timeline processed {0} row(s), {1} unique certificate(s) for {2}", CertificateObservationCount, certs.Count, Subject);
+        return true;
     }
 
     private bool TryStartNextCtObservation()

@@ -27,47 +27,22 @@ public sealed partial class CertificateInventoryCapture {
 
             entry.CtFirstSeenUtc = MinTimestamp(entry.CtFirstSeenUtc, discoveredEntry.FirstSeenUtc);
             entry.CtLastSeenUtc = MaxTimestamp(entry.CtLastSeenUtc, discoveredEntry.LastSeenUtc);
-            entry.CtLatestCertificateEntryTimestampUtc = MaxTimestamp(
+            bool replaceCtLatestBundle = ShouldReplaceCtLatestBundle(
                 entry.CtLatestCertificateEntryTimestampUtc,
                 discoveredEntry.LatestCertificateCtEntryTimestampUtc);
-
-            if (string.IsNullOrWhiteSpace(entry.CtLatestCertificateSubject)) {
-                entry.CtLatestCertificateSubject = discoveredEntry.LatestCertificateSubject;
-            }
-            if (string.IsNullOrWhiteSpace(entry.CtLatestCertificateIssuer)) {
-                entry.CtLatestCertificateIssuer = discoveredEntry.LatestCertificateIssuer;
-            }
-            if (string.IsNullOrWhiteSpace(entry.CtLatestCertificateSerialNumber)) {
-                entry.CtLatestCertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
-            }
-            if (!entry.CtLatestCertificateNotBeforeUtc.HasValue) {
-                entry.CtLatestCertificateNotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
-            }
-            if (!entry.CtLatestCertificateNotAfterUtc.HasValue) {
-                entry.CtLatestCertificateNotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
+            if (replaceCtLatestBundle) {
+                ApplyCtLatestCertificateBundle(entry, discoveredEntry);
+            } else {
+                FillMissingCtLatestCertificateBundle(entry, discoveredEntry);
             }
             entry.CtObservationCount += Math.Max(0, discoveredEntry.CertificateObservationCount);
 
-            var hydratedFromCt = false;
-            if (string.IsNullOrWhiteSpace(entry.CertificateSubject) && !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSubject)) {
-                entry.CertificateSubject = discoveredEntry.LatestCertificateSubject;
-                hydratedFromCt = true;
-            }
-            if (string.IsNullOrWhiteSpace(entry.CertificateIssuer) && !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateIssuer)) {
-                entry.CertificateIssuer = discoveredEntry.LatestCertificateIssuer;
-                hydratedFromCt = true;
-            }
-            if (string.IsNullOrWhiteSpace(entry.CertificateSerialNumber) && !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSerialNumber)) {
-                entry.CertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
-                hydratedFromCt = true;
-            }
-            if (!entry.NotBeforeUtc.HasValue && discoveredEntry.LatestCertificateNotBeforeUtc.HasValue) {
-                entry.NotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
-                hydratedFromCt = true;
-            }
-            if (!entry.NotAfterUtc.HasValue && discoveredEntry.LatestCertificateNotAfterUtc.HasValue) {
-                entry.NotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
-                hydratedFromCt = true;
+            bool hydratedFromCt;
+            if (replaceCtLatestBundle &&
+                string.Equals(entry.CertificateChainSource, "ct-log", StringComparison.OrdinalIgnoreCase)) {
+                hydratedFromCt = ApplyPrimaryCertificateBundleFromCt(entry, discoveredEntry, replaceExisting: true);
+            } else {
+                hydratedFromCt = ApplyPrimaryCertificateBundleFromCt(entry, discoveredEntry, replaceExisting: false);
             }
 
             if (entry.NotAfterUtc.HasValue) {
@@ -90,6 +65,93 @@ public sealed partial class CertificateInventoryCapture {
                 }
             }
         }
+    }
+
+    private static bool ShouldReplaceCtLatestBundle(
+        DateTimeOffset? currentTimestampUtc,
+        DateTimeOffset? incomingTimestampUtc) {
+        if (!currentTimestampUtc.HasValue) {
+            return true;
+        }
+
+        return incomingTimestampUtc.HasValue && incomingTimestampUtc.Value > currentTimestampUtc.Value;
+    }
+
+    private static void ApplyCtLatestCertificateBundle(
+        CertificateInventoryEntry entry,
+        SubdomainDiscoveryEntry discoveredEntry) {
+        entry.CtLatestCertificateEntryTimestampUtc = discoveredEntry.LatestCertificateCtEntryTimestampUtc;
+        entry.CtLatestCertificateSubject = discoveredEntry.LatestCertificateSubject;
+        entry.CtLatestCertificateIssuer = discoveredEntry.LatestCertificateIssuer;
+        entry.CtLatestCertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
+        entry.CtLatestCertificateNotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
+        entry.CtLatestCertificateNotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
+    }
+
+    private static void FillMissingCtLatestCertificateBundle(
+        CertificateInventoryEntry entry,
+        SubdomainDiscoveryEntry discoveredEntry) {
+        entry.CtLatestCertificateEntryTimestampUtc = MaxTimestamp(
+            entry.CtLatestCertificateEntryTimestampUtc,
+            discoveredEntry.LatestCertificateCtEntryTimestampUtc);
+        if (string.IsNullOrWhiteSpace(entry.CtLatestCertificateSubject)) {
+            entry.CtLatestCertificateSubject = discoveredEntry.LatestCertificateSubject;
+        }
+        if (string.IsNullOrWhiteSpace(entry.CtLatestCertificateIssuer)) {
+            entry.CtLatestCertificateIssuer = discoveredEntry.LatestCertificateIssuer;
+        }
+        if (string.IsNullOrWhiteSpace(entry.CtLatestCertificateSerialNumber)) {
+            entry.CtLatestCertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
+        }
+        if (!entry.CtLatestCertificateNotBeforeUtc.HasValue) {
+            entry.CtLatestCertificateNotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
+        }
+        if (!entry.CtLatestCertificateNotAfterUtc.HasValue) {
+            entry.CtLatestCertificateNotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
+        }
+    }
+
+    private static bool ApplyPrimaryCertificateBundleFromCt(
+        CertificateInventoryEntry entry,
+        SubdomainDiscoveryEntry discoveredEntry,
+        bool replaceExisting) {
+        bool updated = false;
+
+        if (replaceExisting || string.IsNullOrWhiteSpace(entry.CertificateSubject)) {
+            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSubject) ||
+                replaceExisting) {
+                entry.CertificateSubject = discoveredEntry.LatestCertificateSubject;
+                updated = true;
+            }
+        }
+        if (replaceExisting || string.IsNullOrWhiteSpace(entry.CertificateIssuer)) {
+            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateIssuer) ||
+                replaceExisting) {
+                entry.CertificateIssuer = discoveredEntry.LatestCertificateIssuer;
+                updated = true;
+            }
+        }
+        if (replaceExisting || string.IsNullOrWhiteSpace(entry.CertificateSerialNumber)) {
+            if (!string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSerialNumber) ||
+                replaceExisting) {
+                entry.CertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
+                updated = true;
+            }
+        }
+        if (replaceExisting || !entry.NotBeforeUtc.HasValue) {
+            if (discoveredEntry.LatestCertificateNotBeforeUtc.HasValue || replaceExisting) {
+                entry.NotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
+                updated = true;
+            }
+        }
+        if (replaceExisting || !entry.NotAfterUtc.HasValue) {
+            if (discoveredEntry.LatestCertificateNotAfterUtc.HasValue || replaceExisting) {
+                entry.NotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
+                updated = true;
+            }
+        }
+
+        return updated;
     }
 
     private static bool TryFindCtDiscoveredEntry(

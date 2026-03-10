@@ -109,19 +109,30 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
-    public async Task NonArrayCtResponseProducesNoResultsAssessment()
+    public async Task FallsBackToCertSpotterWhenPrimaryPayloadIsMalformed()
     {
         var analysis = new SubdomainsAnalysis
         {
             VerifyStillResolves = false,
-            QueryOverride = (_, _) => Task.FromResult(@"{ ""ok"": true }")
+            QueryOverride = (url, _) =>
+            {
+                if (url.Contains("crt.sh", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(@"{ ""ok"": true }");
+                }
+
+                return Task.FromResult(@"
+[
+  { ""id"": ""12345"", ""dns_names"": [""api.example.com"", ""example.com""], ""not_before"": ""2026-01-01T00:00:00Z"", ""not_after"": ""2027-01-01T00:00:00Z"" }
+]");
+            }
         };
 
         await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
 
         Assert.True(analysis.QuerySucceeded);
-        Assert.Empty(analysis.Subdomains);
-        Assert.Contains(analysis.Assessments, a => a.Code == SubdomainCodes.CtNoResults);
+        Assert.Contains(analysis.Subdomains, s => s.Name == "api.example.com");
+        Assert.DoesNotContain(analysis.Assessments, a => a.Code == SubdomainCodes.CtNoResults);
     }
 
     [Fact]

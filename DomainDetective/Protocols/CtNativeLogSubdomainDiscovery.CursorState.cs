@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -96,8 +97,31 @@ internal sealed class NativeCtCursorState {
         return $"{baseDomain}|{logUrl}";
     }
 
-    public static string BuildSharedKey(string logUrl) {
-        return $"shared|{logUrl}";
+    public static string BuildSharedKey(string logUrl, IReadOnlyCollection<string>? domains) {
+        if (domains == null || domains.Count == 0) {
+            return $"shared|{logUrl}";
+        }
+
+        string scope = BuildSharedScopeFingerprint(domains);
+        return $"shared|{scope}|{logUrl}";
+    }
+
+    private static string BuildSharedScopeFingerprint(IReadOnlyCollection<string> domains) {
+        string normalizedScope = string.Join(
+            ",",
+            domains
+                .Where(static domain => !string.IsNullOrWhiteSpace(domain))
+                .Select(static domain => domain.Trim().TrimEnd('.').ToLowerInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static domain => domain, StringComparer.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(normalizedScope)) {
+            return "global";
+        }
+
+        byte[] bytes = Encoding.UTF8.GetBytes(normalizedScope);
+        using var sha256 = SHA256.Create();
+        byte[] hash = sha256.ComputeHash(bytes);
+        return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
     }
 
     public static NativeCtCursorState Load(string? path) {

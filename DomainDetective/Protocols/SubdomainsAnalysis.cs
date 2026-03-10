@@ -372,13 +372,34 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
 
         try
         {
+            bool anyPayloadParsed = sourceSucceeded;
             foreach (var payload in payloads)
             {
-                ParseCtJson(payload.Payload, Subject, issuerCounts, subdomainMap, logger, payload.SourceName);
+                try
+                {
+                    anyPayloadParsed |= ParseCtJson(payload.Payload, Subject, issuerCounts, subdomainMap, logger, payload.SourceName);
+                }
+                catch (Exception ex)
+                {
+                    failure = string.IsNullOrWhiteSpace(failure)
+                        ? ex.Message
+                        : failure + "; " + ex.Message;
+                    logger?.WriteVerbose(
+                        "Passive CT source payload failed for {0} via {1}: {2}",
+                        Subject,
+                        payload.SourceName,
+                        ex.Message);
+                }
+
                 if (ResultsCapped)
                 {
                     break;
                 }
+            }
+
+            if (!anyPayloadParsed)
+            {
+                throw new InvalidOperationException(failure ?? "No CT source returned a parseable array payload.");
             }
 
             QuerySucceeded = true;
