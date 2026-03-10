@@ -583,7 +583,10 @@ public sealed partial class CertificateInventoryCapture {
                 var normalizedSubdomain = subdomain.Name.Trim();
                 ctDiscoveredSubdomains.Add(normalizedSubdomain);
                 MergeCtSubdomainEntry(ctDiscoveredSubdomainEntries, subdomain);
-                httpsTargets.Add(BuildHttpsUrl(normalizedSubdomain, options.HttpsPort));
+                if (!options.VerifyCtDiscoveredSubdomains ||
+                    subdomain.ResolutionStatus == SubdomainResolutionStatus.Resolves) {
+                    httpsTargets.Add(BuildHttpsUrl(normalizedSubdomain, options.HttpsPort));
+                }
             }
 
             logger.WriteVerbose("CT subdomain discovery returned {0} unique candidate(s).", ctDiscoveredSubdomains.Count);

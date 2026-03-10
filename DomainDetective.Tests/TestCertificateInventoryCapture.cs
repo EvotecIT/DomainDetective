@@ -661,6 +661,62 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_DoesNotProbeUnresolvedCtDiscoveredHostsWhenVerificationIsEnabled() {
+        var probedHosts = new List<string>();
+        var capture = new CertificateInventoryCapture {
+            CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
+                    new SubdomainDiscoveryEntry {
+                        Name = "resolved.example.com",
+                        ResolutionStatus = SubdomainResolutionStatus.Resolves,
+                        CtSources = new[] { "native-ct" }
+                    },
+                    new SubdomainDiscoveryEntry {
+                        Name = "unresolved.example.com",
+                        ResolutionStatus = SubdomainResolutionStatus.DoesNotResolve,
+                        CtSources = new[] { "native-ct" }
+                    },
+                    new SubdomainDiscoveryEntry {
+                        Name = "unverified-overflow.example.com",
+                        ResolutionStatus = SubdomainResolutionStatus.Unknown,
+                        CtSources = new[] { "native-ct" }
+                    }
+                };
+                return Task.FromResult(discovered);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                foreach (string target in httpsTargets) {
+                    probedHosts.Add(new Uri(target).Host);
+                }
+
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = true,
+            EnablePassiveCtFallback = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.Contains("resolved.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("unresolved.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("unverified-overflow.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(3, result.CtDiscoveredSubdomainCount);
+    }
+
+    [Fact]
     public async Task CaptureAsync_HydratesUnreachableCtEndpointWithNativeCtMetadata_WhenPassiveFallbackDisabled() {
         var ctFirstSeen = new DateTimeOffset(2025, 2, 1, 9, 0, 0, TimeSpan.Zero);
         var ctLastSeen = new DateTimeOffset(2026, 3, 5, 15, 42, 37, TimeSpan.Zero);

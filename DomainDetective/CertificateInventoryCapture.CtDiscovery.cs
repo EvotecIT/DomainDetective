@@ -355,6 +355,13 @@ public sealed partial class CertificateInventoryCapture {
             SubdomainDiscoveryEntry entry = pair.Value;
             bool wasVerified = namesVerified.Contains(pair.Key);
             bool resolvedNow = resolved.Contains(pair.Key);
+            SubdomainResolutionStatus resolutionStatus = resolvedNow
+                ? SubdomainResolutionStatus.Resolves
+                : (wasVerified ? SubdomainResolutionStatus.DoesNotResolve : entry.ResolutionStatus);
+            if (resolutionStatus == SubdomainResolutionStatus.DoesNotResolve) {
+                continue;
+            }
+
             resolvedEntries.Add(new SubdomainDiscoveryEntry {
                 Name = entry.Name,
                 FirstSeenUtc = entry.FirstSeenUtc,
@@ -367,9 +374,7 @@ public sealed partial class CertificateInventoryCapture {
                 LatestCertificateNotAfterUtc = entry.LatestCertificateNotAfterUtc,
                 CtSources = entry.CtSources,
                 CertificateObservationCount = entry.CertificateObservationCount,
-                ResolutionStatus = resolvedNow
-                    ? SubdomainResolutionStatus.Resolves
-                    : (wasVerified ? SubdomainResolutionStatus.DoesNotResolve : entry.ResolutionStatus),
+                ResolutionStatus = resolutionStatus,
                 ARecords = entry.ARecords,
                 AaaaRecords = entry.AaaaRecords,
                 SensitiveRisk = entry.SensitiveRisk,

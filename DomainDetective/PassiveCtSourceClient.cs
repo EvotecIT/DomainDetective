@@ -104,11 +104,22 @@ internal sealed class PassiveCtSourceClient
                 string? payloadValidationFailure = ValidatePayload(outcome.Payload!, effectiveOptions.PayloadValidator);
                 if (!string.IsNullOrWhiteSpace(payloadValidationFailure))
                 {
+                    result.RetrySuggested = true;
                     string warning =
                         "Passive CT source '" +
                         request.SourceName +
                         "' returned an invalid payload: " +
                         payloadValidationFailure;
+                    if (useSharedSourceState)
+                    {
+                        DateTimeOffset retryUtc = MarkTransientFailure(request.SourceName, effectiveOptions.SourceCooldown);
+                        warning += ". Next retry after " + retryUtc.ToString("u") + ".";
+                    }
+                    else
+                    {
+                        warning += ".";
+                    }
+
                     result.Warnings.Add(warning);
                     logger?.WriteVerbose("{0}", warning);
                     continue;
