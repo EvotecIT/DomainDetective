@@ -45,6 +45,7 @@ internal sealed class PassiveCtSourceClient
         public TimeSpan RetryMaxDelay { get; init; } = TimeSpan.FromSeconds(15);
         public TimeSpan SourceCooldown { get; init; } = TimeSpan.FromSeconds(60);
         public bool QueryAllSources { get; init; }
+        public Func<string, string?>? PayloadValidator { get; init; }
     }
 
     private sealed class FetchOutcome
@@ -100,6 +101,30 @@ internal sealed class PassiveCtSourceClient
                 cancellationToken).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(outcome.Payload))
             {
+                string? payloadValidationFailure = ValidatePayload(outcome.Payload!, effectiveOptions.PayloadValidator);
+                if (!string.IsNullOrWhiteSpace(payloadValidationFailure))
+                {
+                    result.RetrySuggested = true;
+                    string warning =
+                        "Passive CT source '" +
+                        request.SourceName +
+                        "' returned an invalid payload: " +
+                        payloadValidationFailure;
+                    if (useSharedSourceState)
+                    {
+                        DateTimeOffset retryUtc = MarkTransientFailure(request.SourceName, effectiveOptions.SourceCooldown);
+                        warning += ". Next retry after " + retryUtc.ToString("u") + ".";
+                    }
+                    else
+                    {
+                        warning += ".";
+                    }
+
+                    result.Warnings.Add(warning);
+                    logger?.WriteVerbose("{0}", warning);
+                    continue;
+                }
+
                 if (useSharedSourceState)
                 {
                     ResetState(request.SourceName);
@@ -204,8 +229,19 @@ internal sealed class PassiveCtSourceClient
             RetryBaseDelay = retryBaseDelay,
             RetryMaxDelay = retryMaxDelay,
             SourceCooldown = sourceCooldown,
-            QueryAllSources = options?.QueryAllSources ?? false
+            QueryAllSources = options?.QueryAllSources ?? false,
+            PayloadValidator = options?.PayloadValidator
         };
+    }
+
+    private static string? ValidatePayload(string payload, Func<string, string?>? payloadValidator)
+    {
+        if (payloadValidator == null)
+        {
+            return null;
+        }
+
+        return payloadValidator(payload);
     }
 
     private static IReadOnlyList<SourceRequest> RotateRequests(IReadOnlyList<SourceRequest> requests)

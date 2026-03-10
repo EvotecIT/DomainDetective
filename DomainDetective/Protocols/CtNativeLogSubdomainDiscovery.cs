@@ -328,7 +328,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             var logUrl = logDescriptor.Url;
             cancellationToken.ThrowIfCancellationRequested();
             result.LogsAttempted++;
-            var key = NativeCtCursorState.BuildSharedKey(logUrl);
+            var key = NativeCtCursorState.BuildSharedKey(logUrl, normalizedDomains);
             var status = new NativeCtLogIngestionStatus {
                 LogUrl = logUrl,
                 CursorKey = key,

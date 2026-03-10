@@ -1,12 +1,15 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Tests.Fixtures;
 
 namespace DomainDetective.Tests;
 
@@ -109,19 +112,30 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
-    public async Task NonArrayCtResponseProducesNoResultsAssessment()
+    public async Task FallsBackToCertSpotterWhenPrimaryPayloadIsMalformed()
     {
         var analysis = new SubdomainsAnalysis
         {
             VerifyStillResolves = false,
-            QueryOverride = (_, _) => Task.FromResult(@"{ ""ok"": true }")
+            QueryOverride = (url, _) =>
+            {
+                if (url.Contains("crt.sh", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(@"{ ""ok"": true }");
+                }
+
+                return Task.FromResult(@"
+[
+  { ""id"": ""12345"", ""dns_names"": [""api.example.com"", ""example.com""], ""not_before"": ""2026-01-01T00:00:00Z"", ""not_after"": ""2027-01-01T00:00:00Z"" }
+]");
+            }
         };
 
         await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
 
         Assert.True(analysis.QuerySucceeded);
-        Assert.Empty(analysis.Subdomains);
-        Assert.Contains(analysis.Assessments, a => a.Code == SubdomainCodes.CtNoResults);
+        Assert.Contains(analysis.Subdomains, s => s.Name == "api.example.com");
+        Assert.DoesNotContain(analysis.Assessments, a => a.Code == SubdomainCodes.CtNoResults);
     }
 
     [Fact]
@@ -206,6 +220,91 @@ public class TestSubdomainsAnalysis
         Assert.NotEmpty(analysis.PassiveCtWarnings);
         Assert.Contains(analysis.PassiveCtWarnings, warning => warning.Contains("check later", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(analysis.Assessments, a => a.Code == SubdomainCodes.CtQueryFailed);
+    }
+
+    [Fact]
+    public async Task PassiveCtInvalidPayloadTriggersCooldownForSharedSourceState()
+    {
+        var requestCount = 0;
+        var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
+        {
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask)
+                    {
+                        try
+                        {
+                            await clientTask;
+                        }
+                        catch (ObjectDisposedException) when (token.IsCancellationRequested)
+                        {
+                        }
+                        catch (SocketException) when (token.IsCancellationRequested)
+                        {
+                        }
+
+                        break;
+                    }
+
+                    using var client = await clientTask;
+                    Interlocked.Increment(ref requestCount);
+                    using var stream = client.GetStream();
+                    using var reader = new StreamReader(stream);
+                    using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                    string? line;
+                    do
+                    {
+                        line = await reader.ReadLineAsync();
+                    } while (!string.IsNullOrEmpty(line));
+
+                    await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                    await writer.WriteLineAsync("Content-Type: application/json");
+                    await writer.WriteLineAsync("Content-Length: 2");
+                    await writer.WriteLineAsync();
+                    await writer.WriteAsync("{}");
+                }
+            }
+            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            {
+            }
+            catch (SocketException) when (token.IsCancellationRequested)
+            {
+            }
+        }, token));
+        await server.InitializeAsync();
+
+        try
+        {
+            var client = new PassiveCtSourceClient();
+            var requests = new[] {
+                new PassiveCtSourceClient.SourceRequest {
+                    SourceName = "crt.sh",
+                    Url = $"http://127.0.0.1:{server.Port}/"
+                }
+            };
+            var options = new PassiveCtSourceClient.QueryOptions {
+                RetryCount = 0,
+                SourceCooldown = TimeSpan.FromSeconds(30),
+                PayloadValidator = static payload => payload == "{}" ? "response root element must be an array." : null
+            };
+
+            var first = await client.QueryAsync(requests, options, null, new InternalLogger(), CancellationToken.None);
+            var second = await client.QueryAsync(requests, options, null, new InternalLogger(), CancellationToken.None);
+
+            Assert.True(first.RetrySuggested);
+            Assert.True(second.RetrySuggested);
+            Assert.Contains(first.Warnings, warning => warning.Contains("Next retry after", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(second.Warnings, warning => warning.Contains("cooling down", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(1, requestCount);
+        }
+        finally
+        {
+            await server.DisposeAsync();
+        }
     }
 
     [Fact]

@@ -12,6 +12,17 @@ namespace DomainDetective.Tests;
 
 public class TestNativeCtLogSubdomainDiscovery {
     [Fact]
+    public void BuildSharedKey_IncludesReadableScopePreview() {
+        string key = NativeCtCursorState.BuildSharedKey(
+            "https://ct.test.example/log1/",
+            new[] { "example.com", "evotec.xyz", "eurofins.com", "evotec.pl" });
+
+        Assert.Contains("eurofins.com", key, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("plus1", key, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("https://ct.test.example/log1/", key, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task DiscoverForDomainsAsync_RetriesTransientRequestsBeforeSuccess() {
         using var cert = CreateSelfSigned("portal.example.com");
         var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
@@ -70,7 +81,7 @@ public class TestNativeCtLogSubdomainDiscovery {
 
     [Fact]
     public async Task DiscoverForDomainsAsync_CircuitBreakerSkipsLogAfterFailureThreshold() {
-        var cursorPath = Path.Combine(Path.GetTempPath(), "dd-native-ct-circuit-" + Guid.NewGuid().ToString("N") + ".json");
+        string cursorPath = CreateTemporaryCursorStatePath();
         var getSthCalls = 0;
 
         try {
@@ -185,12 +196,16 @@ public class TestNativeCtLogSubdomainDiscovery {
         Assert.Contains("api.evotec.xyz", evotecMap!.Keys);
         Assert.Single(result.LogStatuses);
         Assert.True(result.LogStatuses[0].Succeeded);
-        Assert.Equal("shared|https://ct.test.example/log1/", result.LogStatuses[0].CursorKey);
+        Assert.Equal(
+            NativeCtCursorState.BuildSharedKey(
+                "https://ct.test.example/log1/",
+                new[] { "example.com", "evotec.xyz" }),
+            result.LogStatuses[0].CursorKey);
     }
 
     [Fact]
     public async Task DiscoverForDomainsAsync_UsesSharedCursorBetweenRuns() {
-        var cursorPath = Path.Combine(Path.GetTempPath(), "dd-native-ct-cursor-" + Guid.NewGuid().ToString("N") + ".json");
+        string cursorPath = CreateTemporaryCursorStatePath();
         try {
             using var cert = CreateSelfSigned("portal.example.com");
             var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
@@ -245,6 +260,76 @@ public class TestNativeCtLogSubdomainDiscovery {
             Assert.Single(second.LogStatuses);
             Assert.True(first.LogStatuses[0].Succeeded);
             Assert.True(second.LogStatuses[0].Succeeded);
+        } finally {
+            try {
+                if (File.Exists(cursorPath)) {
+                    File.Delete(cursorPath);
+                }
+            } catch {
+            }
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_IsolatesSharedCursorByDomainSet() {
+        string cursorPath = CreateTemporaryCursorStatePath();
+        try {
+            using var exampleCert = CreateSelfSigned("portal.example.com");
+            using var evotecCert = CreateSelfSigned("api.evotec.xyz");
+            var exampleEntriesJson = BuildCtEntriesResponse((exampleCert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
+            var evotecEntriesJson = BuildCtEntriesResponse((evotecCert, new DateTimeOffset(2026, 1, 11, 0, 0, 0, TimeSpan.Zero)));
+            var getEntriesCalls = 0;
+
+            var source = new NativeCtLogSubdomainDiscovery {
+                QueryOverride = (url, _) => {
+                    if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log1/"" } ] } ] }");
+                    }
+                    if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""tree_size"": 1 }");
+                    }
+                    if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                        getEntriesCalls++;
+                        return Task.FromResult(
+                            getEntriesCalls == 1
+                                ? exampleEntriesJson
+                                : evotecEntriesJson);
+                    }
+
+                    throw new InvalidOperationException("Unexpected URL: " + url);
+                }
+            };
+
+            var options = new NativeCtLogSubdomainDiscoveryOptions {
+                BaseDomain = "example.com",
+                LogListUrl = "https://ct-log-list.example/logs.json",
+                CursorStatePath = cursorPath,
+                MaxCtRowsToProcess = 100,
+                MaxSubdomains = 100,
+                MaxLogsToProcess = 10,
+                MaxEntriesPerLog = 100,
+                EntryBatchSize = 100,
+                InitialBackfillEntriesPerLog = 100,
+                IncludeRetiredLogs = false
+            };
+
+            var first = await source.DiscoverForDomainsAsync(
+                new[] { "example.com" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+            var second = await source.DiscoverForDomainsAsync(
+                new[] { "evotec.xyz" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.True(first.SourceSucceeded);
+            Assert.True(second.SourceSucceeded);
+            Assert.Equal(2, getEntriesCalls);
+            Assert.Contains("portal.example.com", first.SubdomainsByDomain["example.com"].Keys);
+            Assert.Contains("api.evotec.xyz", second.SubdomainsByDomain["evotec.xyz"].Keys);
+            Assert.NotEqual(first.LogStatuses[0].CursorKey, second.LogStatuses[0].CursorKey);
         } finally {
             try {
                 if (File.Exists(cursorPath)) {
@@ -796,6 +881,12 @@ public class TestNativeCtLogSubdomainDiscovery {
         AddUInt16(buffer, 0);
 
         return Convert.ToBase64String(buffer.ToArray());
+    }
+
+    private static string CreateTemporaryCursorStatePath() {
+        string path = Path.GetTempFileName();
+        File.Delete(path);
+        return path;
     }
 
     private static void AddUInt16(ICollection<byte> buffer, int value) {

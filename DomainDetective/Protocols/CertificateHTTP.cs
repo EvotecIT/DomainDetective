@@ -236,6 +236,7 @@ namespace DomainDetective {
             Url = url;
             IsSelfSigned = false;
             ResetChainSourceTracking();
+            bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
@@ -243,22 +244,25 @@ namespace DomainDetective {
                         return false;
                     }
 
-                    var leaf = chain != null && chain.ChainElements.Count > 0
-                        ? chain.ChainElements[0].Certificate
-                        : certificate;
-                    Certificate = new X509Certificate2(leaf.Export(X509ContentType.Cert));
+                    if (!capturedHandshakeCertificate) {
+                        var leaf = chain != null && chain.ChainElements.Count > 0
+                            ? chain.ChainElements[0].Certificate
+                            : certificate;
+                        Certificate = new X509Certificate2(leaf.Export(X509ContentType.Cert));
 
-                    Chain.Clear();
-                    if (chain != null) {
-                        foreach (var element in chain.ChainElements) {
-                            Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                        Chain.Clear();
+                        if (chain != null) {
+                            foreach (var element in chain.ChainElements) {
+                                Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                            }
                         }
+                        RecordChainSource(ChainSourceTlsHandshake);
+                        IsSelfSigned = IsSelfSignedCertificate(Certificate);
+                        IsValid = policyErrors == SslPolicyErrors.None;
+                        HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                        capturedHandshakeCertificate = true;
                     }
-                    RecordChainSource(ChainSourceTlsHandshake);
-                    IsSelfSigned = IsSelfSignedCertificate(Certificate);  
-                    IsValid = policyErrors == SslPolicyErrors.None;       
-                    HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
-                    return IsValid;
+                    return true;
                 };
                 using (var client = new HttpClient(handler)) {
                     client.Timeout = Timeout;
@@ -270,20 +274,16 @@ namespace DomainDetective {
                         };
                         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
                         IsReachable = response.IsSuccessStatusCode;
-                        if (IsReachable) {
-                            ProtocolVersion = response.Version;
-                            Http3Supported = response.Version >= HttpVersion.Version30;
-                            Http2Supported = response.Version >= HttpVersion.Version20;
-                        }
+                        ProtocolVersion = response.Version;
+                        Http3Supported = response.Version >= HttpVersion.Version30;
+                        Http2Supported = response.Version >= HttpVersion.Version20;
 #else
                         var request = new HttpRequestMessage(HttpMethod.Get, url);
                         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
                         IsReachable = response.IsSuccessStatusCode;
-                        if (IsReachable) {
-                            ProtocolVersion = response.Version;
-                            Http2Supported = response.Version.Major >= 2;
-                            Http3Supported = false;
-                        }
+                        ProtocolVersion = response.Version;
+                        Http2Supported = response.Version.Major >= 2;
+                        Http3Supported = false;
 #endif
                         if (Certificate == null && Http3Supported) {      
                             try {

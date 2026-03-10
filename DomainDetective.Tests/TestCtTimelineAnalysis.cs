@@ -149,4 +149,33 @@ public class TestCtTimelineAnalysis
         Assert.Equal("example.com", analysis.RecentCertificates[0].CommonName);
         Assert.DoesNotContain(analysis.Assessments, a => a.Code == CtTimelineCodes.QueryFailed);
     }
+
+    [Fact]
+    public async Task FallsBackToCertSpotterWhenPrimaryPayloadIsMalformed()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var certSpotterJson = $@"
+[
+  {{ ""id"": ""abc-456"", ""dns_names"": [""example.com""], ""not_before"": ""{now.AddDays(-5).ToString("O", CultureInfo.InvariantCulture)}"", ""not_after"": ""{now.AddDays(120).ToString("O", CultureInfo.InvariantCulture)}"", ""revoked"": false }}
+]";
+
+        var analysis = new CertificateTransparencyTimelineAnalysis
+        {
+            QueryOverride = (url, _) =>
+            {
+                if (url.Contains("crt.sh", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(@"{ ""status"": ""rate_limited"" }");
+                }
+
+                return Task.FromResult(certSpotterJson);
+            }
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Equal(1, analysis.CertificateObservationCount);
+        Assert.Single(analysis.RecentCertificates);
+    }
 }

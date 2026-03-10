@@ -132,11 +132,32 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 RetryCount = PassiveCtRetryCount,
                 RetryBaseDelay = PassiveCtRetryBaseDelay,
                 RetryMaxDelay = PassiveCtRetryMaxDelay,
-                SourceCooldown = PassiveCtSourceCooldown
+                SourceCooldown = PassiveCtSourceCooldown,
+                PayloadValidator = ValidatePassiveCtArrayPayload
             },
             QueryOverride,
             logger,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string? ValidatePassiveCtArrayPayload(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return "response payload was empty.";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            return document.RootElement.ValueKind == JsonValueKind.Array
+                ? null
+                : "response root element must be an array.";
+        }
+        catch (JsonException ex)
+        {
+            return ex.Message;
+        }
     }
 
     private async Task<NativeCtLogSubdomainDiscoveryResult> DiscoverNativeCtSubdomainsAsync(string domain, InternalLogger? logger, CancellationToken cancellationToken)
@@ -323,7 +344,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         return $"scope={scope}; shared={entry.SharedIngestion}; state={state}; log={entry.LogUrl}; tree={treeSize}; last={lastProcessed}; lagBefore={lagBefore}; lagAfter={lagAfter}; circuitUntil={circuitUntil}; failure={failure}";
     }
 
-    private void ParseCtJson(
+    private bool ParseCtJson(
         string json,
         string baseDomain,
         Dictionary<string, int> issuerCounts,
@@ -333,13 +354,13 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            return;
+            return false;
         }
 
         using var doc = JsonDocument.Parse(json);
         if (doc.RootElement.ValueKind != JsonValueKind.Array)
         {
-            return;
+            throw new JsonException("CT response root element must be an array.");
         }
 
         foreach (var item in doc.RootElement.EnumerateArray())
@@ -468,6 +489,8 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         {
             logger?.WriteVerbose("CT discovered {0} subdomain(s) for {1}", subdomainMap.Count, baseDomain);
         }
+
+        return true;
     }
 
     private async Task VerifyResolutionAsync(List<SubdomainDiscoveryEntry> entries, CancellationToken cancellationToken)
