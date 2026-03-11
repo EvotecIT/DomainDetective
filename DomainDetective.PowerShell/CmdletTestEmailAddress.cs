@@ -215,7 +215,28 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
         }
 
         await _healthCheck.VerifyEmailAddress(EmailAddress, options, CancelToken);
-        WriteObject(_healthCheck.EmailAddressValidationAnalysis);
-        if (IsExportRequested()) { await ExportNotImplementedAsync(); }
+        var analysis = _healthCheck.EmailAddressValidationAnalysis;
+        WriteObject(analysis);
+        if (IsExportRequested()) {
+            try {
+                var hadUnsupportedFormats = false;
+                CompositionExportHelper.WriteReports(
+                    new System.Collections.Generic.List<object> { analysis },
+                    GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                    ExportPath,
+                    "email-address",
+                    DomainDetective.Reports.ReportScope.Normal,
+                    $"Email Address Report - {EmailAddress}",
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    TryOpenReport,
+                    out hadUnsupportedFormats);
+
+                if (hadUnsupportedFormats) {
+                    await ExportNotImplementedAsync("Test-DDEmailAddress");
+                }
+            } catch (System.Exception ex) {
+                WriteWarning($"Email address export failed: {ex.Message}");
+            }
+        }
     }
 }

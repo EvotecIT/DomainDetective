@@ -38,7 +38,7 @@ public sealed class RdapClient
             string basePath = BaseUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase)
                 ? new Uri(BaseUrl).LocalPath
                 : BaseUrl;
-            string file = Path.Combine(basePath, path + ".json");
+            string file = BuildLocalFilePath(basePath, path);
             string json;
             ct.ThrowIfCancellationRequested();
             json = File.ReadAllText(file);
@@ -52,9 +52,32 @@ public sealed class RdapClient
         return JsonSerializer.Deserialize<T>(networkJson, RdapJson.Options);
     }
 
+    private static string BuildResourcePath(string resourceType, string identifier)
+    {
+        if (string.Equals(resourceType, "ip", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{resourceType}/{identifier ?? string.Empty}";
+        }
+
+        return $"{resourceType}/{Uri.EscapeDataString(identifier ?? string.Empty)}";
+    }
+
+    private static string BuildLocalFilePath(string basePath, string path)
+    {
+        var separatorIndex = path.IndexOf('/');
+        if (separatorIndex <= 0 || separatorIndex == path.Length - 1)
+        {
+            return Path.Combine(basePath, path + ".json");
+        }
+
+        var resourceType = path.Substring(0, separatorIndex);
+        var identifier = path.Substring(separatorIndex + 1);
+        return Path.Combine(basePath, resourceType, Uri.EscapeDataString(identifier) + ".json");
+    }
+
     /// <summary>Queries domain information.</summary>
     public Task<RdapDomain?> QueryDomainAsync(string domain, CancellationToken ct = default)
-        => QueryAsync<RdapDomain>($"domain/{domain}", ct);
+        => QueryAsync<RdapDomain>(BuildResourcePath("domain", domain), ct);
 
     /// <summary>Queries domain information.</summary>
     public Task<RdapDomain?> GetDomain(string domain, CancellationToken ct = default)
@@ -70,7 +93,7 @@ public sealed class RdapClient
 
     /// <summary>Queries IP network information.</summary>
     public Task<RdapIpNetwork?> QueryIpAsync(string ipOrCidr, CancellationToken ct = default)
-        => QueryAsync<RdapIpNetwork>($"ip/{ipOrCidr}", ct);
+        => QueryAsync<RdapIpNetwork>(BuildResourcePath("ip", ipOrCidr), ct);
 
     /// <summary>Queries IP network information.</summary>
     public Task<RdapIpNetwork?> GetIp(string ipOrCidr, CancellationToken ct = default)
@@ -78,7 +101,7 @@ public sealed class RdapClient
 
     /// <summary>Queries autonomous system information.</summary>
     public Task<RdapAutnum?> QueryAutnumAsync(string asNumber, CancellationToken ct = default)
-        => QueryAsync<RdapAutnum>($"autnum/{asNumber}", ct);
+        => QueryAsync<RdapAutnum>(BuildResourcePath("autnum", asNumber), ct);
 
     /// <summary>Queries autonomous system information.</summary>
     public Task<RdapAutnum?> GetAutnum(string asNumber, CancellationToken ct = default)
@@ -86,7 +109,7 @@ public sealed class RdapClient
 
     /// <summary>Queries entity information.</summary>
     public Task<RdapEntity?> QueryEntityAsync(string handle, CancellationToken ct = default)
-        => QueryAsync<RdapEntity>($"entity/{handle}", ct);
+        => QueryAsync<RdapEntity>(BuildResourcePath("entity", handle), ct);
 
     /// <summary>Queries entity information.</summary>
     public Task<RdapEntity?> GetEntity(string handle, CancellationToken ct = default)
@@ -101,7 +124,7 @@ public sealed class RdapClient
 
     /// <summary>Queries nameserver information.</summary>
     public Task<RdapNameserver?> QueryNameserverAsync(string host, CancellationToken ct = default)
-        => QueryAsync<RdapNameserver>($"nameserver/{host}", ct);
+        => QueryAsync<RdapNameserver>(BuildResourcePath("nameserver", host), ct);
 
     public Task<RdapNameserver?> GetNameserver(string host, CancellationToken ct = default)
         => QueryNameserverAsync(host, ct);

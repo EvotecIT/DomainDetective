@@ -55,9 +55,27 @@ namespace DomainDetective.PowerShell {
                 var ports = Ports != null && Ports.Length > 0 ? Ports : new[] { (int)ServiceType.SMTP };
                 await healthCheck.VerifyDANE(domain, ports, cancellationToken: CancelToken);
                 var output = DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis);
-                WriteObject(output);
+                WriteObject(FullResponse.IsPresent ? (object)healthCheck.DaneAnalysis : output);
                 if (IsExportRequested()) {
-                    await ExportNotImplementedAsync();
+                    try {
+                        var hadUnsupportedFormats = false;
+                        CompositionExportHelper.WriteReports(
+                            new System.Collections.Generic.List<object> { output },
+                            GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                            ExportPath,
+                            domain,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            $"DANE Report — {domain}",
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            TryOpenReport,
+                            out hadUnsupportedFormats);
+
+                        if (hadUnsupportedFormats) {
+                            await ExportNotImplementedAsync();
+                        }
+                    } catch (Exception ex) {
+                        WriteWarning($"DANE export failed: {ex.Message}");
+                    }
                 }
             }
 
@@ -65,6 +83,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-
 

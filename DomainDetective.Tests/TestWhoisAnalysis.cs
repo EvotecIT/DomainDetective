@@ -654,5 +654,39 @@ namespace DomainDetective.Tests {
             Assert.False(whois.ExpiresSoon);
             Assert.True(whois.IsExpired);
         }
+
+        [Fact]
+        public async Task QueryWhoisServerPropagatesCancellation() {
+            var whois = new WhoisAnalysis();
+            var serversField = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var servers = (System.Collections.Generic.Dictionary<string, string>?)serversField?.GetValue(whois);
+            Assert.NotNull(servers);
+            var lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var lockObj = lockField?.GetValue(whois);
+            Assert.NotNull(lockObj);
+            lock (lockObj!) {
+                servers!["sample"] = "127.0.0.1:43";
+            }
+
+            using var cts = new System.Threading.CancellationTokenSource();
+            cts.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => whois.QueryWhoisServer("example.sample", cts.Token));
+        }
+
+        [Fact]
+        public async Task QueryWhoisRawAsyncPropagatesCancellation() {
+            var whois = new WhoisAnalysis();
+            var method = typeof(WhoisAnalysis).GetMethod(
+                "QueryWhoisRawAsync",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(method);
+
+            using var cts = new System.Threading.CancellationTokenSource();
+            cts.Cancel();
+
+            var task = (Task<string?>)method!.Invoke(whois, new object[] { "127.0.0.1:43", "example.sample", cts.Token })!;
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
+        }
     }
 }

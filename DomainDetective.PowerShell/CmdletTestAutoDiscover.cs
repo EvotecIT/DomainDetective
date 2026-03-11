@@ -55,7 +55,25 @@ namespace DomainDetective.PowerShell {
                     WriteObject(healthCheck.AutodiscoverHttpAnalysis.Endpoints, true);
                 }
                 if (IsExportRequested()) {
-                    await ExportNotImplementedAsync("Test-DDEmailAutoDiscover");
+                    try {
+                        var hadUnsupportedFormats = false;
+                        CompositionExportHelper.WriteReports(
+                            new System.Collections.Generic.List<object> { view },
+                            GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                            ExportPath,
+                            domain,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            $"Autodiscover Report — {domain}",
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            TryOpenReport,
+                            out hadUnsupportedFormats);
+
+                        if (hadUnsupportedFormats) {
+                            await ExportNotImplementedAsync("Test-DDEmailAutoDiscover");
+                        }
+                    } catch (System.Exception ex) {
+                        WriteWarning($"Autodiscover export failed: {ex.Message}");
+                    }
                 }
             }
 

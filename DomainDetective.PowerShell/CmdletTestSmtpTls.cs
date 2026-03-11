@@ -55,34 +55,31 @@ namespace DomainDetective.PowerShell {
             var analysis = _healthCheck.SmtpTlsAnalysis;
             var view = DomainDetective.Views.Converters.Convert(analysis);
             // View-by-default design: exposes full Raw analysis on view.Raw
-            WriteObject(view);
+            WriteObject(FullResponse.IsPresent ? (object)analysis : view);
             if (ShowChain) {
                 if (analysis.ServerResults != null && analysis.ServerResults.TryGetValue($"{HostName}:{Port}", out var tls) && tls.Chain.Count > 0) {
                     WriteObject(tls.Chain, true);
                 }
             }
             if (IsExportRequested()) {
-                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                    var key = $"{HostName}-{Port}";
-                    var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, key, fmt);
-                    try {
-                        DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                            outPath,
-                            new System.Collections.Generic.List<object> { view },
-                            DomainDetective.Reports.ReportScope.Normal,
-                            showInfoFindings: true,
-                            narrativePlacement: ExportDefaults.NarrativePlacement,
-                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"SMTP TLS — {HostName}:{Port}" : ExportDefaults.NarrativeTitle,
-                            summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                            headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                            footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                    } catch (System.Exception ex) {
-                        WriteWarning($"SMTP TLS export failed: {ex.Message}");
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { view },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        $"{HostName}-{Port}",
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"SMTP TLS — {HostName}:{Port}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDEmailSmtpTls");
                     }
-                } else {
-                    await ExportNotImplementedAsync("Test-DDEmailSmtpTls");
+                } catch (System.Exception ex) {
+                    WriteWarning($"SMTP TLS export failed: {ex.Message}");
                 }
                 return;
             }

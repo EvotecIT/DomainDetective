@@ -50,9 +50,27 @@ namespace DomainDetective.PowerShell {
                 logger.WriteVerbose("Querying STARTTLS for domain: {0} on port {1}", domain, Port);
                 await healthCheck.VerifySTARTTLS(domain, Port, cancellationToken: CancelToken);
                 var view = DomainDetective.Views.Converters.Convert(healthCheck.StartTlsAnalysis);
-                WriteObject(view);
+                WriteObject(FullResponse.IsPresent ? (object)healthCheck.StartTlsAnalysis : view);
                 if (IsExportRequested()) {
-                    await ExportNotImplementedAsync("Test-DDEmailStartTls");
+                    try {
+                        var hadUnsupportedFormats = false;
+                        CompositionExportHelper.WriteReports(
+                            new System.Collections.Generic.List<object> { view },
+                            GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                            ExportPath,
+                            domain,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            $"STARTTLS Report - {domain}",
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            TryOpenReport,
+                            out hadUnsupportedFormats);
+
+                        if (hadUnsupportedFormats) {
+                            await ExportNotImplementedAsync("Test-DDEmailStartTls");
+                        }
+                    } catch (System.Exception ex) {
+                        WriteWarning($"STARTTLS export failed: {ex.Message}");
+                    }
                 }
             }
 

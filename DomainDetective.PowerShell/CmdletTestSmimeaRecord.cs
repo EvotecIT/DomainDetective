@@ -42,7 +42,27 @@ namespace DomainDetective.PowerShell {
             await _healthCheck.VerifySMIMEA(EmailAddress);
             var output = DomainDetective.Views.Converters.Convert(_healthCheck.SmimeaAnalysis);
             WriteObject(output);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            if (IsExportRequested()) {
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { output },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        "smimea",
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"SMIMEA Report - {EmailAddress}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDDnsSmimeaRecord");
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"SMIMEA export failed: {ex.Message}");
+                }
+            }
         }
     }
 }

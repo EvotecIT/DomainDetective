@@ -40,6 +40,14 @@ public static class ReportRunService
             return (dir, report);
         }
 
+        /// <summary>
+        /// Writes artifacts for a completed health check run without generating a report.
+        /// </summary>
+        public string WriteArtifacts(DomainHealthCheck hc)
+        {
+            return _coordinator.End(hc);
+        }
+
         /// <summary>Disposes the underlying coordinator.</summary>
         public void Dispose()
         {
@@ -94,6 +102,21 @@ public static class ReportRunService
     {
         using var scope = Begin(logger, subject, exportPath, defaultOutputDirectory, artifactsDirectory);
         return await scope.ExportAsync(hc, format, exportPath, defaultOutputDirectory, openInBrowser).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Writes artifacts for checks that have already run on the supplied health check, without generating a report.
+    /// </summary>
+    public static string WriteArtifactsOnly(
+        InternalLogger logger,
+        string subject,
+        DomainHealthCheck hc,
+        string? exportPath,
+        string? defaultOutputDirectory,
+        string? artifactsDirectory = null)
+    {
+        using var scope = Begin(logger, subject, exportPath, defaultOutputDirectory, artifactsDirectory);
+        return scope.WriteArtifacts(hc);
     }
 
 }

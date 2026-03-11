@@ -32,6 +32,7 @@ public static partial class WordCompositionReport {
     /// <param name="companyYear">Branding property.</param>
     /// <param name="logoPath">Header logo.</param>
     /// <param name="headerText">Header left text.</param>
+    /// <param name="footerText">Footer left text.</param>
     /// <param name="watermarkText">Watermark text.</param>
     /// <param name="showDkimSelectorCountInSummary">Show DKIM selector count next to DKIM status in executive summary.</param>
     /// <param name="showMailTlsProtocolHintInSummary">Show protocol hint (SMTP/IMAP/POP) for Mail TLS in summary.</param>
@@ -58,6 +59,7 @@ public static partial class WordCompositionReport {
         string? companyYear = null,
         string? logoPath = null,
         string? headerText = null,
+        string? footerText = null,
         string? watermarkText = null,
         bool showDkimSelectorCountInSummary = true,
         bool showMailTlsProtocolHintInSummary = true,
@@ -99,7 +101,7 @@ public static partial class WordCompositionReport {
         doc.AddPageBreak();
         WordReportCommon.AddHeader(doc, WordReportCommon.ResolveHeaderLeftText(headerText, new { Title = title }, title),
             $"Generated: {generatedAt:yyyy-MM-dd HH:mm:ss}", logoPath, watermarkText, headerLogoSizePx);
-        WordReportCommon.AddFooter(doc, null, null, logoPath, footerLogoSizePx); // left defaults to CompanyLine; add logo when provided
+        WordReportCommon.AddFooter(doc, footerText, null, logoPath, footerLogoSizePx);
 
         var headings = doc.AddTableOfContentList(WordListStyle.Headings111);
         headings.AddItem("Report Settings");

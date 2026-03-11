@@ -64,7 +64,27 @@ namespace DomainDetective.PowerShell;
         await _healthCheck.VerifyThreatIntel(NameOrIpAddress);
         var view = DomainDetective.Views.Converters.Convert(_healthCheck.ThreatIntelAnalysis);
         WriteObject(view);
-        if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+        if (IsExportRequested()) {
+            try {
+                var hadUnsupportedFormats = false;
+                CompositionExportHelper.WriteReports(
+                    new System.Collections.Generic.List<object> { view },
+                    GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                    ExportPath,
+                    NameOrIpAddress,
+                    DomainDetective.Reports.ReportScope.Normal,
+                    $"Threat Intel Report - {NameOrIpAddress}",
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    TryOpenReport,
+                    out hadUnsupportedFormats);
+
+                if (hadUnsupportedFormats) {
+                    await ExportNotImplementedAsync("Test-DDDomainThreatIntel");
+                }
+            } catch (System.Exception ex) {
+                WriteWarning($"Threat intel export failed: {ex.Message}");
+            }
+        }
     }
 }
 

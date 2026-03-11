@@ -39,7 +39,25 @@ namespace DomainDetective.PowerShell {
                 var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsHealthAnalysis);
                 WriteObject(view);
                 if (IsExportRequested()) {
-                    await ExportNotImplementedAsync("Test-DDDnsHealth");
+                    try {
+                        var hadUnsupportedFormats = false;
+                        CompositionExportHelper.WriteReports(
+                            new System.Collections.Generic.List<object> { view },
+                            GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                            ExportPath,
+                            domain,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            $"DNS Health Report — {domain}",
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            TryOpenReport,
+                            out hadUnsupportedFormats);
+
+                        if (hadUnsupportedFormats) {
+                            await ExportNotImplementedAsync("Test-DDDnsHealth");
+                        }
+                    } catch (System.Exception ex) {
+                        WriteWarning($"DNS health export failed: {ex.Message}");
+                    }
                 }
             }
 

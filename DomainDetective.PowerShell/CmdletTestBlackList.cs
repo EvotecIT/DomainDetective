@@ -21,7 +21,7 @@ namespace DomainDetective.PowerShell {
     /// - When MX exists but has no resolvable A/AAAA (or no MX is present), the cmdlet falls back to apex A/AAAA for IP blocklist checks.
     ///
     /// Output:
-    /// - By default returns a flat list of DNSBLRecord across domain and any resolved IPs.
+    /// - By default returns a summary view across the domain and any resolved IPs.
     /// - With <c>-FullResponse</c> returns a dictionary mapping each key (domain or IP) to a DNSQueryResult.
     /// - Use <c>-BlacklistedOnly</c> to filter output to listed results.
     ///
@@ -33,7 +33,8 @@ namespace DomainDetective.PowerShell {
     ///   Values: <c>MxOnly</c>, <c>MxAOnly</c>, <c>MxAAAAOnly</c>, <c>ApexOnly</c>, <c>ApexAOnly</c>, <c>ApexAAAAOnly</c>, <c>MxAndApex</c>, <c>MxThenApexFallback</c> (default).
     ///
     /// Notes:
-    /// - Export switches are available but dedicated reports are not yet implemented; using them will emit a TODO message.
+    /// - Word and HTML composition exports are supported.
+    /// - Other export formats continue to use the shared "not implemented" warning path.
     /// </remarks>
     /// <example>
     ///   <summary>Default: domain + MX-IP checks.</summary>
@@ -164,54 +165,27 @@ namespace DomainDetective.PowerShell {
             }
 
             if (NameOrIpAddress.Length == 1) {
-                var input = NameOrIpAddress[0];
-                var isIp = System.Net.IPAddress.TryParse(input, out _);
-
                 if (FullResponse) {
-                    // For domains, return full dictionary (domain + MX-IP) to give complete context
-                    if (isIp) {
-                        if (!healthCheck.DNSBLAnalysis.Results.TryGetValue(input, out var res)) {
-                            WriteObject(System.Array.Empty<object>());
-                            goto AfterWrite;
-                        }
-                        if (!BlacklistedOnly || res.IsBlacklisted) {
-                            WriteObject(res);
-                        }
-                    } else {
-                        var dict = healthCheck.DNSBLAnalysis.Results;
-                        if (BlacklistedOnly) {
-                            var filtered = dict.Where(kv => kv.Value.IsBlacklisted).ToDictionary(k => k.Key, v => v.Value);
-                            WriteObject(filtered);
-                        } else {
-                            WriteObject(dict);
-                        }
-                    }
+                    WriteObject(BuildFullResponseOutput());
                 } else {
-                    // Default simplified summary view
-                    var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
-                    WriteObject(view);
+                    WriteObject(BuildViewOutput());
                     goto AfterWrite;
                 }
             } else {
                 if (FullResponse) {
-                    var dict = healthCheck.DNSBLAnalysis.Results;
-                    if (BlacklistedOnly) {
-                        var filtered = dict.Where(kv => kv.Value.IsBlacklisted).ToDictionary(k => k.Key, v => v.Value);
-                        WriteObject(filtered);
-                    } else {
-                        WriteObject(dict);
-                    }
+                    WriteObject(BuildFullResponseOutput());
                 } else {
-                    var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
-                    WriteObject(view);
+                    WriteObject(BuildViewOutput());
                 }
             }
 AfterWrite:
             if (IsExportRequested()) {
                 try {
-                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                    if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                        var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
+                    var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                    var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
+                    if (wantsComposition) {
+                        var view = BuildViewOutput();
                         // Ensure a non-empty Subject for grouping when inputs are IP-only
                         if (string.IsNullOrWhiteSpace(view.Subject)) {
                             var firstKey = healthCheck.DNSBLAnalysis.Results.Keys.FirstOrDefault();
@@ -219,35 +193,38 @@ AfterWrite:
                         }
                         var items = new System.Collections.Generic.List<object> { view };
                         var label = view.Subject ?? "DNSBL";
-                        var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
-                        if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                            DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                                outPath,
-                                items,
-                                DomainDetective.Reports.ReportScope.Normal,
-                                showInfoFindings: true,
-                                narrativePlacement: ExportDefaults.NarrativePlacement,
-                                titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"DNSBL Report — {label}" : ExportDefaults.NarrativeTitle,
-                                subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                                categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                                keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                                creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                                summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                                headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                                footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                        } else {
-                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                                outPath,
-                                items,
-                                DomainDetective.Reports.ReportScope.Normal,
-                                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                                ExportDefaults.NarrativePlacement,
-                                titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                                authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                                descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+                        var hadUnsupportedFormats = false;
+                        CompositionExportHelper.WriteReports(
+                            items,
+                            formats,
+                            ExportPath,
+                            label,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            $"DNSBL Report — {label}",
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            TryOpenReport,
+                            out hadUnsupportedFormats);
+
+                        if (hadUnsupportedFormats) {
+                            await ExportNotImplementedAsync();
                         }
-                    } else {
+                    }
+
+                    if (wantsJson) {
+                        var label = healthCheck.DNSBLAnalysis.Results.Keys.FirstOrDefault() ?? "DNSBL";
+                        var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Json, formats);
+                        var payload = FullResponse
+                            ? BuildFullResponseOutput()
+                            : (object)BuildViewOutput();
+                        var json = System.Text.Json.JsonSerializer.Serialize(payload, DomainDetective.Helpers.JsonOptions.Default);
+                        System.IO.File.WriteAllText(outPath, json);
+                        WriteVerbose($"DNSBL JSON saved: {outPath}");
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                            TryOpenReport(outPath);
+                        }
+                    }
+
+                    if (!wantsComposition && !wantsJson) {
                         await ExportNotImplementedAsync();
                     }
                 } catch (System.Exception ex) {
@@ -255,6 +232,54 @@ AfterWrite:
                 }
                 return;
             }
+        }
+
+        private object BuildFullResponseOutput() {
+            if (NameOrIpAddress.Length == 1 && System.Net.IPAddress.TryParse(NameOrIpAddress[0], out _)) {
+                if (!healthCheck.DNSBLAnalysis.Results.TryGetValue(NameOrIpAddress[0], out var result)) {
+                    return System.Array.Empty<object>();
+                }
+
+                if (BlacklistedOnly && !result.IsBlacklisted) {
+                    return System.Array.Empty<object>();
+                }
+
+                return result;
+            }
+
+            if (BlacklistedOnly) {
+                return healthCheck.DNSBLAnalysis.Results
+                    .Where(kv => kv.Value.IsBlacklisted)
+                    .ToDictionary(k => k.Key, v => v.Value);
+            }
+
+            return healthCheck.DNSBLAnalysis.Results;
+        }
+
+        private DomainDetective.Views.DnsblInfo BuildViewOutput() {
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
+            if (!BlacklistedOnly) {
+                return view;
+            }
+
+            return FilterBlacklistedOnlyView(view);
+        }
+
+        private static DomainDetective.Views.DnsblInfo FilterBlacklistedOnlyView(DomainDetective.Views.DnsblInfo view) {
+            if (view == null) {
+                throw new System.ArgumentNullException(nameof(view));
+            }
+
+            var totalHostsChecked = view.HostsChecked;
+            var filteredHostSummaries = view.HostSummaries
+                .Where(summary => summary.Listed > 0)
+                .ToList();
+
+            view.HostSummaries = filteredHostSummaries;
+            view.HostsChecked = totalHostsChecked;
+            view.HostsListed = filteredHostSummaries.Count;
+            view.Summary = $"listed hosts {view.HostsListed}/{view.HostsChecked}";
+            return view;
         }
     }
 }

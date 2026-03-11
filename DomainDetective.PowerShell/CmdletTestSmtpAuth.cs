@@ -58,7 +58,25 @@ public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet {
             var view = DomainDetective.Views.Converters.Convert(healthCheck.SmtpAuthAnalysis);
             WriteObject(view);
             if (IsExportRequested()) {
-                await ExportNotImplementedAsync("Test-DDEmailSmtpAuth");
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { view },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        domain,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"SMTP AUTH Report - {domain}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDEmailSmtpAuth");
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"SMTP AUTH export failed: {ex.Message}");
+                }
             }
         }
 

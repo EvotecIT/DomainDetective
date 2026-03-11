@@ -6,6 +6,21 @@ namespace DomainDetective.Reports;
 
 public static class ReportPathHelper
 {
+    private static string GetExtension(ReportFormat format)
+    {
+        return format switch
+        {
+            ReportFormat.Html => ".html",
+            ReportFormat.Word => ".docx",
+            ReportFormat.Excel => ".xlsx",
+            ReportFormat.Pdf => ".pdf",
+            ReportFormat.Json => ".json",
+            ReportFormat.Markdown => ".md",
+            ReportFormat.MarkdownHtml => ".html",
+            _ => ".html"
+        };
+    }
+
     public static string ResolveOutputPath(string? explicitPath, string? defaultOutputDirectory, string subject, ReportFormat format)
     {
         if (!string.IsNullOrWhiteSpace(explicitPath))
@@ -24,6 +39,7 @@ public static class ReportPathHelper
                     return GenerateDefaultPath(subject, format, p);
                 }
 
+                EnsureParentDirectoryExists(p);
                 return p;
             }
             catch
@@ -52,20 +68,25 @@ public static class ReportPathHelper
                 {
                     var dir = Path.GetDirectoryName(p) ?? string.Empty;
                     var name = Path.GetFileNameWithoutExtension(p);
-                    var ext = format switch
-                    {
-                        ReportFormat.Html => ".html",
-                        ReportFormat.Word => ".docx",
-                        ReportFormat.Excel => ".xlsx",
-                        ReportFormat.Pdf => ".pdf",
-                        ReportFormat.Json => ".json",
-                        ReportFormat.Markdown => ".md",
-                        ReportFormat.MarkdownHtml => ".html",
-                        _ => ".html"
-                    };
+                    var ext = GetExtension(format);
                     var combined = Path.Combine(string.IsNullOrEmpty(dir) ? "." : dir, name + ext);
                     try { Directory.CreateDirectory(string.IsNullOrEmpty(dir) ? "." : dir); } catch { }
                     return combined;
+                }
+
+                if (!looksLikeDirectory)
+                {
+                    var currentExtension = Path.GetExtension(p);
+                    var expectedExtension = GetExtension(format);
+                    if (!string.IsNullOrWhiteSpace(currentExtension) &&
+                        !string.Equals(currentExtension, expectedExtension, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var dir = Path.GetDirectoryName(p) ?? string.Empty;
+                        var name = Path.GetFileNameWithoutExtension(p);
+                        var combined = Path.Combine(string.IsNullOrEmpty(dir) ? "." : dir, name + expectedExtension);
+                        try { Directory.CreateDirectory(string.IsNullOrEmpty(dir) ? "." : dir); } catch { }
+                        return combined;
+                    }
                 }
             }
             catch
@@ -77,21 +98,32 @@ public static class ReportPathHelper
         return ResolveOutputPath(explicitPath, defaultOutputDirectory, subject, format);
     }
 
+    public static void EnsureParentDirectoryExists(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+        }
+        catch
+        {
+            // Best-effort only. Callers can still handle write failures.
+        }
+    }
+
     public static string GenerateDefaultPath(string subject, ReportFormat format, string? outputDirectory)
     {
         var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         var safe = (subject ?? "domain").Replace('.', '_');
-        var ext = format switch
-        {
-            ReportFormat.Html => "html",
-            ReportFormat.Word => "docx",
-            ReportFormat.Excel => "xlsx",
-            ReportFormat.Pdf => "pdf",
-            ReportFormat.Json => "json",
-            ReportFormat.Markdown => "md",
-            ReportFormat.MarkdownHtml => "html",
-            _ => "html"
-        };
+        var ext = GetExtension(format).TrimStart('.');
         var file = $"{safe}_{ts}.{ext}";
         if (!string.IsNullOrWhiteSpace(outputDirectory))
         {

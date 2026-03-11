@@ -42,7 +42,27 @@ namespace DomainDetective.PowerShell {
             await _hc.CheckOpenResolverHost(Server, Port, CancelToken);
             var view = DomainDetective.Views.Converters.Convert(_hc.OpenResolverAnalysis);
             WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            if (IsExportRequested()) {
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { view },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        Server,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"Open Resolver Report - {Server}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDDnsOpenResolver");
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"Open resolver export failed: {ex.Message}");
+                }
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ public sealed class ReportDispatcher
             case ReportFormat.Json:
             {
                 var json = JsonSerializer.Serialize(health, DomainHealthCheck.JsonOptions);
+                ReportPathHelper.EnsureParentDirectoryExists(path);
 #if NET472
                 File.WriteAllText(path, json);
 #else

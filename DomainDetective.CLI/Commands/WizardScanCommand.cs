@@ -313,8 +313,8 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
                         var json = hc!.ToJson();
                         if (!string.IsNullOrWhiteSpace(wizard.Options.Out))
                         {
-                            File.WriteAllText(wizard.Options.Out!, json);
-                            AnsiConsole.MarkupLine($"[grey]JSON written to[/] [underline]{wizard.Options.Out}[/]");
+                            var jsonPath = WizardExportUtilities.WriteJson(hc, wizard.Options.Out!);
+                            AnsiConsole.MarkupLine($"[grey]JSON written to[/] [underline]{jsonPath}[/]");
                         }
                         else
                         {
@@ -324,7 +324,8 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
                     }
                 case "html":
                     {
-                        AnsiConsole.MarkupLine("[yellow]HTML export is not enabled yet for the wizard.[/]");
+                        var htmlPath = WizardExportUtilities.WriteHtml(hc!, s.Domain, wizard.Options.Out);
+                        AnsiConsole.MarkupLine($"[grey]HTML written to[/] [underline]{htmlPath}[/]");
                         break;
                     }
                 default:

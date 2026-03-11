@@ -49,7 +49,29 @@ public sealed class CmdletTestDnsOverTls : ExportableAsyncPSCmdlet {
                 WriteObject(view);
                 if (IsExportRequested())
                 {
-                    await ExportNotImplementedAsync("Test-DDDnsOverTls").ConfigureAwait(false);
+                    try
+                    {
+                        var hadUnsupportedFormats = false;
+                        CompositionExportHelper.WriteReports(
+                            new System.Collections.Generic.List<object> { view },
+                            GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                            ExportPath,
+                            domain,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            $"DNS over TLS Report — {domain}",
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            TryOpenReport,
+                            out hadUnsupportedFormats);
+
+                        if (hadUnsupportedFormats)
+                        {
+                            await ExportNotImplementedAsync("Test-DDDnsOverTls").ConfigureAwait(false);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteWarning($"DNS over TLS export failed: {ex.Message}");
+                    }
                 }
             }
             catch (Exception ex)

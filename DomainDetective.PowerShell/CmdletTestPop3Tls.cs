@@ -55,27 +55,24 @@ namespace DomainDetective.PowerShell {
                 WriteObject(result.Chain, true);
             }
             if (IsExportRequested()) {
-                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                    var key = $"{HostName}-{Port}";
-                    var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, key, fmt);
-                    try {
-                        DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                            outPath,
-                            new System.Collections.Generic.List<object> { view },
-                            DomainDetective.Reports.ReportScope.Normal,
-                            showInfoFindings: true,
-                            narrativePlacement: ExportDefaults.NarrativePlacement,
-                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"POP3 TLS — {HostName}:{Port}" : ExportDefaults.NarrativeTitle,
-                            summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                            headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                            footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                    } catch (System.Exception ex) {
-                        WriteWarning($"POP3 TLS export failed: {ex.Message}");
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { view },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        $"{HostName}-{Port}",
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"POP3 TLS — {HostName}:{Port}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDEmailPop3Tls");
                     }
-                } else {
-                    await ExportNotImplementedAsync("Test-DDEmailPop3Tls");
+                } catch (System.Exception ex) {
+                    WriteWarning($"POP3 TLS export failed: {ex.Message}");
                 }
                 return;
             }

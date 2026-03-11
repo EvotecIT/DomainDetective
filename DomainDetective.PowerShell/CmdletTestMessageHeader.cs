@@ -43,7 +43,27 @@ namespace DomainDetective.PowerShell {
         protected override Task ProcessRecordAsync() {
             var result = _healthCheck.CheckMessageHeaders(HeaderText, CancelToken);
             WriteObject(result);
-            if (IsExportRequested()) { return ExportNotImplementedAsync(); }
+            if (IsExportRequested()) {
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { result },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        "message-header",
+                        DomainDetective.Reports.ReportScope.Normal,
+                        "Email Message Header Report",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        return ExportNotImplementedAsync("Get-DDEmailMessageHeaderInfo");
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"Message header export failed: {ex.Message}");
+                }
+            }
             return Task.CompletedTask;
         }
     }

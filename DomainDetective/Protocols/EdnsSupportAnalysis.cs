@@ -1,6 +1,7 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -300,25 +301,60 @@ public class EdnsSupportAnalysis : IHasAssessments
         return total;
     }
 
-    private static async Task<EdnsSupportInfo> QueryServerAsync(string ip)
+    private static (string Host, int Port) ParseServerEndpoint(string server)
     {
-        int port = 53;
-        var host = ip;
-        var idx = host.IndexOf(':');
-        if (idx > 0 && int.TryParse(host.Substring(idx + 1), out var parsed))
+        if (string.IsNullOrWhiteSpace(server))
         {
-            host = host.Substring(0, idx);
-            port = parsed;
+            return (string.Empty, 53);
         }
 
-        using var udp = new UdpClient();
+        var trimmed = server.Trim();
+        if (trimmed.StartsWith("[", StringComparison.Ordinal))
+        {
+            var closingBracket = trimmed.IndexOf(']');
+            if (closingBracket > 0)
+            {
+                var host = trimmed.Substring(1, closingBracket - 1);
+                if (closingBracket + 1 < trimmed.Length &&
+                    trimmed[closingBracket + 1] == ':' &&
+                    int.TryParse(trimmed.Substring(closingBracket + 2), out var bracketedPort))
+                {
+                    return (host, bracketedPort);
+                }
+
+                return (host, 53);
+            }
+        }
+
+        if (trimmed.Count(c => c == ':') == 1)
+        {
+            var separatorIndex = trimmed.LastIndexOf(':');
+            if (separatorIndex > 0 &&
+                separatorIndex < trimmed.Length - 1 &&
+                int.TryParse(trimmed.Substring(separatorIndex + 1), out var parsedPort))
+            {
+                return (trimmed.Substring(0, separatorIndex), parsedPort);
+            }
+        }
+
+        return (trimmed, 53);
+    }
+
+    private static async Task<EdnsSupportInfo> QueryServerAsync(string ip, string queryDomain)
+    {
+        var (host, port) = ParseServerEndpoint(ip);
+        var addressFamily = System.Net.IPAddress.TryParse(host, out var parsedAddress)
+            ? parsedAddress.AddressFamily
+            : AddressFamily.InterNetwork;
+
+        using var udp = new UdpClient(addressFamily);
         var id = Helpers.DnsQueryIdGenerator.NextUShort();
         byte[] cookie = new byte[8];
         try {
             using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
             rng.GetBytes(cookie);
         } catch { /* best-effort */ }
-        var query = BuildQuery("example.com", id, cookie);
+        var query = BuildQuery(queryDomain, id, cookie);
         using var udpCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await udp.SendAsync(query, query.Length, host, port).WaitWithCancellation(udpCts.Token);
         var resp = await udp.ReceiveAsync().WaitWithCancellation(udpCts.Token);
@@ -326,7 +362,9 @@ public class EdnsSupportAnalysis : IHasAssessments
         bool truncated = data.Length > 2 && (data[2] & 0x02) != 0;        
         if (truncated)
         {
-            using var tcp = new TcpClient();
+            using var tcp = parsedAddress != null
+                ? new TcpClient(parsedAddress.AddressFamily)
+                : new TcpClient();
             using var tcpCts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
             await tcp.ConnectAsync(host, port).WaitWithCancellation(tcpCts.Token);
             using var stream = tcp.GetStream();
@@ -378,15 +416,37 @@ public class EdnsSupportAnalysis : IHasAssessments
         foreach (var record in ns)
         {
             var host = record.Data.Trim('.');
-            var a = await QueryDns(host, DnsRecordType.A);
-            foreach (var addr in a)
+            var aTask = QueryDns(host, DnsRecordType.A);
+            var aaaaTask = QueryDns(host, DnsRecordType.AAAA);
+            try
             {
-                var serverAddress = addr.Data ?? addr.DataRaw;
-                if (string.IsNullOrWhiteSpace(serverAddress))
-                {
-                    continue;
-                }
+                await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Preserve whichever address family succeeded so EDNS probing can continue.
+            }
 
+            if (aTask.IsFaulted)
+            {
+                logger?.WriteWarning("Failed to resolve A records for {0}: {1}", host, aTask.Exception?.GetBaseException().Message ?? "unknown error");
+            }
+
+            if (aaaaTask.IsFaulted)
+            {
+                logger?.WriteWarning("Failed to resolve AAAA records for {0}: {1}", host, aaaaTask.Exception?.GetBaseException().Message ?? "unknown error");
+            }
+
+            var aRecords = aTask.Status == TaskStatus.RanToCompletion ? aTask.Result : Array.Empty<DnsAnswer>();
+            var aaaaRecords = aaaaTask.Status == TaskStatus.RanToCompletion ? aaaaTask.Result : Array.Empty<DnsAnswer>();
+            var addresses = aRecords
+                .Concat(aaaaRecords)
+                .Select(addr => addr.Data ?? addr.DataRaw)
+                .Where(serverAddress => !string.IsNullOrWhiteSpace(serverAddress))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            foreach (var serverAddress in addresses)
+            {
                 EdnsSupportInfo support;
                 if (QueryServerOverride != null)
                 {
@@ -394,41 +454,41 @@ public class EdnsSupportAnalysis : IHasAssessments
                 }
                 else
                 {
-                    support = await QueryServerAsync(serverAddress);
+                    support = await QueryServerAsync(serverAddress, domainName);
                 }
 
                 ServerSupport[$"{host} ({serverAddress})"] = support;
                 logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, serverAddress, support.Supported);
                 if (!support.Supported)
                 {
-                    logger?.WriteWarningCode(EdnsCodes.NotSupported, "EDNS not supported on {0} ({1})", host, addr.Data);
+                    logger?.WriteWarningCode(EdnsCodes.NotSupported, "EDNS not supported on {0} ({1})", host, serverAddress);
                 }
                 else
                 {
-                    logger?.WriteInformationCode(EdnsCodes.Supported, "EDNS supported on {0} ({1})", host, addr.Data);
+                    logger?.WriteInformationCode(EdnsCodes.Supported, "EDNS supported on {0} ({1})", host, serverAddress);
                     if (support.CookieSupported)
                     {
-                        logger?.WriteInformationCode(EdnsCodes.CookiesSupported, "DNS Cookies supported on {0} ({1})", host, addr.Data);
+                        logger?.WriteInformationCode(EdnsCodes.CookiesSupported, "DNS Cookies supported on {0} ({1})", host, serverAddress);
                     }
                     else
                     {
-                        logger?.WriteWarningCode(EdnsCodes.CookiesNotSupported, "DNS Cookies not supported on {0} ({1})", host, addr.Data);
+                        logger?.WriteWarningCode(EdnsCodes.CookiesNotSupported, "DNS Cookies not supported on {0} ({1})", host, serverAddress);
                     }
                     if (support.UdpPayloadSize > 1232)
                     {
-                        logger?.WriteWarningCode(EdnsCodes.BufferTooLarge, "EDNS UDP payload {0} on {1} ({2}) > 1232", support.UdpPayloadSize, host, addr.Data);
+                        logger?.WriteWarningCode(EdnsCodes.BufferTooLarge, "EDNS UDP payload {0} on {1} ({2}) > 1232", support.UdpPayloadSize, host, serverAddress);
                     }
                     else
                     {
-                        logger?.WriteInformationCode(EdnsCodes.UdpSizeOk, "EDNS UDP payload {0} on {1} ({2})", support.UdpPayloadSize, host, addr.Data);
+                        logger?.WriteInformationCode(EdnsCodes.UdpSizeOk, "EDNS UDP payload {0} on {1} ({2})", support.UdpPayloadSize, host, serverAddress);
                     }
                     if (support.Version == 0)
                     {
-                        logger?.WriteInformationCode(EdnsCodes.VersionZero, "EDNS version 0 on {0} ({1})", host, addr.Data);
+                        logger?.WriteInformationCode(EdnsCodes.VersionZero, "EDNS version 0 on {0} ({1})", host, serverAddress);
                     }
                     if (support.TruncatedUdp)
                     {
-                        logger?.WriteInformationCode(EdnsCodes.TruncatedFallback, "EDNS response truncated on {0} ({1}); TCP fallback used", host, addr.Data);
+                        logger?.WriteInformationCode(EdnsCodes.TruncatedFallback, "EDNS response truncated on {0} ({1}); TCP fallback used", host, serverAddress);
                     }
                 }
             }

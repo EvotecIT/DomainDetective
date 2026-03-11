@@ -29,6 +29,7 @@ namespace DomainDetective.PowerShell {
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
         private readonly object _exportLock = new();
+        private bool _hadUnsupportedFormats;
 
         // BeginProcessing handled per-domain to allow safe parallelism.
 
@@ -55,15 +56,41 @@ namespace DomainDetective.PowerShell {
                 var output = DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis);
                 WriteObject(output);
                 if (IsExportRequested()) {
-                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                    if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+                    var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                    var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
+                    var hasUnsupportedFormats = formats.Any(f =>
+                        f != DomainDetective.Reports.ReportFormat.Word
+                        && f != DomainDetective.Reports.ReportFormat.Html
+                        && f != DomainDetective.Reports.ReportFormat.Json);
+
+                    if (wantsComposition) {
                         lock (_exportLock) {
                             _items.Add(output);
                             if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
                                 _subjects.Add(domain);
                             }
+                            _hadUnsupportedFormats |= hasUnsupportedFormats;
                         }
-                    } else {
+                    }
+
+                    if (wantsJson) {
+                        var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, DomainDetective.Reports.ReportFormat.Json, formats);
+                        try {
+                            var json = System.Text.Json.JsonSerializer.Serialize(healthCheck.DmarcAnalysis, DomainDetective.Helpers.JsonOptions.Default);
+                            System.IO.File.WriteAllText(outPath, json);
+                            WriteVerbose($"DMARC JSON saved: {outPath}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                                TryOpenReport(outPath);
+                            }
+                        } catch (System.Exception ex) {
+                            WriteWarning($"DMARC export failed: {ex.Message}");
+                        }
+                    }
+
+                    if (!wantsComposition && !wantsJson) {
+                        await ExportNotImplementedAsync("Test-DDEmailDmarcRecord");
+                    } else if (hasUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDEmailDmarcRecord");
                     }
                 }
@@ -75,8 +102,10 @@ namespace DomainDetective.PowerShell {
         /// <summary>Composes DMARC sections into one document for Word/HTML export.</summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
-            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-            if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
+            var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format)
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .ToArray();
+            if (formats.Length == 0) return Task.CompletedTask;
 
             var label = _subjects.Count switch {
                 0 => "dmarc",
@@ -84,34 +113,21 @@ namespace DomainDetective.PowerShell {
                 2 => $"{_subjects[0]}+{_subjects[1]}",
                 _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
             };
-            var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
             try {
-                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                    DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                        outPath,
-                        _items,
-                        DomainDetective.Reports.ReportScope.Detailed,
-                        showInfoFindings: true,
-                        narrativePlacement: ExportDefaults.NarrativePlacement,
-                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"DMARC Report — {label}" : ExportDefaults.NarrativeTitle,
-                        subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                        categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                        keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                        creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                        summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                        headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                        footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                    if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                } else {
-                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                        outPath,
-                        _items,
-                        DomainDetective.Reports.ReportScope.Detailed,
-                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                        ExportDefaults.NarrativePlacement,
-                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                        authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                        descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+                var hadUnsupportedFormats = false;
+                CompositionExportHelper.WriteReports(
+                    _items,
+                    formats,
+                    ExportPath,
+                    label,
+                    DomainDetective.Reports.ReportScope.Detailed,
+                    $"DMARC Report — {label}",
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    TryOpenReport,
+                    out hadUnsupportedFormats);
+
+                if (_hadUnsupportedFormats || hadUnsupportedFormats) {
+                    return ExportNotImplementedAsync("Test-DDEmailDmarcRecord");
                 }
             } catch (System.Exception ex) {
                 WriteWarning($"DMARC export failed: {ex.Message}");
@@ -120,4 +136,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

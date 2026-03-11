@@ -251,11 +251,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                         options.CustomProperties["Domain"] = settings.Domain;
                         options.CustomProperties["OpenInBrowser"] = settings.OpenInBrowser;
                         var result = await dispatcher.GenerateAsync(healthCheck, options, settings.Domain, settings.OpenInBrowser);
-                        if (!result.Success)
-                        {
-                            AnsiConsole.MarkupLine($"[red]{result.ErrorMessage}[/]");
-                            return;
-                        }
+                        EnsureReportSucceeded(result);
                     }
 
                     generateTask.Value = 100;
@@ -282,6 +278,21 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         catch (Exception ex) {
             AnsiConsole.MarkupLine($"[red]Error generating report: {ex.Message}[/]");
             return 1;
+        }
+    }
+
+    internal static void EnsureReportSucceeded(ReportResult result)
+    {
+        if (result == null)
+        {
+            throw new ArgumentNullException(nameof(result));
+        }
+
+        if (!result.Success)
+        {
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(result.ErrorMessage)
+                ? "Report generation failed."
+                : result.ErrorMessage);
         }
     }
 

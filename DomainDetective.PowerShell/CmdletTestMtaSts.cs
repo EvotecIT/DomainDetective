@@ -33,6 +33,7 @@ public sealed class CmdletTestMtaSts : ExportableAsyncPSCmdlet {
     private readonly List<object> _items = new();
     private readonly List<string> _subjects = new();
     private readonly object _exportLock = new();
+    private bool _hadUnsupportedFormats;
 
     // BeginProcessing handled per-domain to allow safe parallelism.
 
@@ -63,29 +64,39 @@ public sealed class CmdletTestMtaSts : ExportableAsyncPSCmdlet {
                 return;
             }
             var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-            foreach (var fmt in fmts) {
-                if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                    lock (_exportLock) {
-                        _items.Add(view);
-                        if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
-                            _subjects.Add(domain);
-                        }
+            var wantsComposition = fmts.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+            var wantsJson = fmts.Contains(DomainDetective.Reports.ReportFormat.Json);
+            var hasUnsupportedFormats = fmts.Any(f =>
+                f != DomainDetective.Reports.ReportFormat.Word
+                && f != DomainDetective.Reports.ReportFormat.Html
+                && f != DomainDetective.Reports.ReportFormat.Json);
+
+            if (wantsComposition) {
+                lock (_exportLock) {
+                    _items.Add(view);
+                    if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
+                        _subjects.Add(domain);
                     }
-                } else if (fmt == DomainDetective.Reports.ReportFormat.Json) {
-                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, fmt, fmts);
-                    try {
-                        var json = JsonSerializer.Serialize(healthCheck.MTASTSAnalysis, DomainDetective.Helpers.JsonOptions.Default);
-                        File.WriteAllText(outPath, json);
-                        WriteVerbose($"MTA-STS JSON saved: {outPath}");
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                            TryOpenReport(outPath);
-                        }
-                    } catch (Exception ex) {
-                        WriteWarning($"MTA-STS export failed: {ex.Message}");
-                    }
-                } else {
-                    await ExportNotImplementedAsync("Test-DDEmailMtaSts");
+                    _hadUnsupportedFormats |= hasUnsupportedFormats;
                 }
+            }
+
+            if (wantsJson) {
+                var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, DomainDetective.Reports.ReportFormat.Json, fmts);
+                try {
+                    var json = JsonSerializer.Serialize(healthCheck.MTASTSAnalysis, DomainDetective.Helpers.JsonOptions.Default);
+                    File.WriteAllText(outPath, json);
+                    WriteVerbose($"MTA-STS JSON saved: {outPath}");
+                    if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                        TryOpenReport(outPath);
+                    }
+                } catch (Exception ex) {
+                    WriteWarning($"MTA-STS export failed: {ex.Message}");
+                }
+            }
+
+            if (hasUnsupportedFormats) {
+                await ExportNotImplementedAsync("Test-DDEmailMtaSts");
             }
         }
 
@@ -97,10 +108,10 @@ public sealed class CmdletTestMtaSts : ExportableAsyncPSCmdlet {
         if (_items.Count == 0) {
             return Task.CompletedTask;
         }
-        var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-        var needsWord = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Word);
-        var needsHtml = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Html);
-        if (!needsWord && !needsHtml) {
+        var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format)
+            .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+            .ToArray();
+        if (fmts.Length == 0) {
             return Task.CompletedTask;
         }
 
@@ -111,37 +122,20 @@ public sealed class CmdletTestMtaSts : ExportableAsyncPSCmdlet {
             _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
         };
         try {
-            if (needsWord) {
-                var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Word, fmts);
-                DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                    outPath,
-                    _items,
-                    DomainDetective.Reports.ReportScope.Normal,
-                    showInfoFindings: true,
-                    narrativePlacement: ExportDefaults.NarrativePlacement,
-                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"MTA-STS Report — {label}" : ExportDefaults.NarrativeTitle,
-                    subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                    categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                    keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                    creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                    summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                    headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                    footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                    TryOpenReport(outPath);
-                }
-            }
-            if (needsHtml) {
-                var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Html, fmts);
-                DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                    outPath,
-                    _items,
-                    DomainDetective.Reports.ReportScope.Normal,
-                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                    ExportDefaults.NarrativePlacement,
-                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                    authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                    descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+            var hadUnsupportedFormats = false;
+            CompositionExportHelper.WriteReports(
+                _items,
+                fmts,
+                ExportPath,
+                label,
+                DomainDetective.Reports.ReportScope.Normal,
+                $"MTA-STS Report - {label}",
+                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                TryOpenReport,
+                out hadUnsupportedFormats);
+
+            if (_hadUnsupportedFormats || hadUnsupportedFormats) {
+                return ExportNotImplementedAsync("Test-DDEmailMtaSts");
             }
         } catch (Exception ex) {
             WriteWarning($"MTA-STS export failed: {ex.Message}");
