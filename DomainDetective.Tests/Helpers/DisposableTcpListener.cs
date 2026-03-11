@@ -11,7 +11,11 @@ internal sealed class DisposableTcpListener : TcpListener, IDisposable
     {
     }
 
+#if NET8_0_OR_GREATER
     public new void Dispose()
+#else
+    public void Dispose()
+#endif
     {
         Stop();
         GC.SuppressFinalize(this);
