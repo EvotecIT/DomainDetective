@@ -38,7 +38,7 @@ public sealed class RdapClient
             string basePath = BaseUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase)
                 ? new Uri(BaseUrl).LocalPath
                 : BaseUrl;
-            string file = Path.Combine(basePath, path + ".json");
+            string file = BuildLocalFilePath(basePath, path);
             string json;
             ct.ThrowIfCancellationRequested();
             json = File.ReadAllText(file);
@@ -54,7 +54,25 @@ public sealed class RdapClient
 
     private static string BuildResourcePath(string resourceType, string identifier)
     {
+        if (string.Equals(resourceType, "ip", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{resourceType}/{identifier ?? string.Empty}";
+        }
+
         return $"{resourceType}/{Uri.EscapeDataString(identifier ?? string.Empty)}";
+    }
+
+    private static string BuildLocalFilePath(string basePath, string path)
+    {
+        var separatorIndex = path.IndexOf('/');
+        if (separatorIndex <= 0 || separatorIndex == path.Length - 1)
+        {
+            return Path.Combine(basePath, path + ".json");
+        }
+
+        var resourceType = path.Substring(0, separatorIndex);
+        var identifier = path.Substring(separatorIndex + 1);
+        return Path.Combine(basePath, resourceType, Uri.EscapeDataString(identifier) + ".json");
     }
 
     /// <summary>Queries domain information.</summary>

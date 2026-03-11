@@ -313,7 +313,7 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
                         var json = hc!.ToJson();
                         if (!string.IsNullOrWhiteSpace(wizard.Options.Out))
                         {
-                            var jsonPath = WizardExportUtilities.WriteJson(hc, s.Domain, wizard.Options.Out!);
+                            var jsonPath = WizardExportUtilities.WriteJson(hc, wizard.Options.Out!);
                             AnsiConsole.MarkupLine($"[grey]JSON written to[/] [underline]{jsonPath}[/]");
                         }
                         else

@@ -418,9 +418,29 @@ public class EdnsSupportAnalysis : IHasAssessments
             var host = record.Data.Trim('.');
             var aTask = QueryDns(host, DnsRecordType.A);
             var aaaaTask = QueryDns(host, DnsRecordType.AAAA);
-            await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
-            var addresses = aTask.Result
-                .Concat(aaaaTask.Result)
+            try
+            {
+                await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Preserve whichever address family succeeded so EDNS probing can continue.
+            }
+
+            if (aTask.IsFaulted)
+            {
+                logger?.WriteWarning("Failed to resolve A records for {0}: {1}", host, aTask.Exception?.GetBaseException().Message ?? "unknown error");
+            }
+
+            if (aaaaTask.IsFaulted)
+            {
+                logger?.WriteWarning("Failed to resolve AAAA records for {0}: {1}", host, aaaaTask.Exception?.GetBaseException().Message ?? "unknown error");
+            }
+
+            var aRecords = aTask.Status == TaskStatus.RanToCompletion ? aTask.Result : Array.Empty<DnsAnswer>();
+            var aaaaRecords = aaaaTask.Status == TaskStatus.RanToCompletion ? aaaaTask.Result : Array.Empty<DnsAnswer>();
+            var addresses = aRecords
+                .Concat(aaaaRecords)
                 .Select(addr => addr.Data ?? addr.DataRaw)
                 .Where(serverAddress => !string.IsNullOrWhiteSpace(serverAddress))
                 .Distinct(StringComparer.OrdinalIgnoreCase)

@@ -81,13 +81,35 @@ public sealed class TestReportingFixes
         {
             var healthCheck = new DomainHealthCheck();
 
-            var writtenPath = WizardExportUtilities.WriteJson(healthCheck, "example.com", output);
+            var writtenPath = WizardExportUtilities.WriteJson(healthCheck, output);
 
             Assert.Equal(output, writtenPath);
             Assert.True(File.Exists(writtenPath));
 
             var json = File.ReadAllText(writtenPath);
             Assert.Contains("example.com", json, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ResolveOutputPathForFormat_Rewrites_Mismatched_File_Extension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dd-reporting-" + Guid.NewGuid().ToString("N"));
+        var output = Path.Combine(root, "nested", "report.json");
+
+        try
+        {
+            var resolved = ReportPathHelper.ResolveOutputPathForFormat(output, null, "example.com", ReportFormat.Word);
+
+            Assert.Equal(Path.Combine(root, "nested", "report.docx"), resolved);
+            Assert.True(Directory.Exists(Path.GetDirectoryName(resolved)!));
         }
         finally
         {

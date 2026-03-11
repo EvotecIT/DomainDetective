@@ -10,15 +10,11 @@ namespace DomainDetective.CLI.Wizard;
 
 internal static class WizardExportUtilities
 {
-    internal static string WriteJson(DomainHealthCheck healthCheck, string domain, string outputPath)
+    internal static string WriteJson(DomainHealthCheck healthCheck, string outputPath)
     {
         if (healthCheck == null)
         {
             throw new ArgumentNullException(nameof(healthCheck));
-        }
-        if (string.IsNullOrWhiteSpace(domain))
-        {
-            throw new ArgumentNullException(nameof(domain));
         }
         if (string.IsNullOrWhiteSpace(outputPath))
         {

@@ -83,7 +83,7 @@ public class TestRdapClient
             var result = await client.QueryIpAsync("192.0.2.0/24");
             Assert.NotNull(result);
             Assert.Equal("192.0.2.0/24", result!.Cidr);
-            Assert.Equal("GET /ip/192.0.2.0%2F24 HTTP/1.1", requestLine);
+            Assert.Equal("GET /ip/192.0.2.0/24 HTTP/1.1", requestLine);
         }
         finally
         {

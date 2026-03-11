@@ -243,6 +243,36 @@ public class TestEdnsSupportAnalysis {
         Assert.Contains(analysis.ServerSupport.Keys, key => key.Contains("2001:db8::53", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task ContinuesWhenOneAddressFamilyLookupFails()
+    {
+        var seenAddresses = new List<string>();
+        var analysis = new EdnsSupportAnalysis {
+            QueryDnsOverride = (name, type) => {
+                if (type == DnsRecordType.NS) {
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "ns.example.com", Type = DnsRecordType.NS } });
+                }
+                if (type == DnsRecordType.A) {
+                    throw new InvalidOperationException("A lookup failed");
+                }
+                if (type == DnsRecordType.AAAA) {
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "2001:db8::54", Type = DnsRecordType.AAAA } });
+                }
+
+                return Task.FromResult(Array.Empty<DnsAnswer>());
+            },
+            QueryServerOverride = serverAddress => {
+                seenAddresses.Add(serverAddress);
+                return Task.FromResult(new EdnsSupportInfo { Supported = true, UdpPayloadSize = 1232, DoBit = false });
+            }
+        };
+
+        await analysis.Analyze("example.com", new InternalLogger());
+
+        Assert.Contains("2001:db8::54", seenAddresses);
+        Assert.Contains(analysis.ServerSupport.Keys, key => key.Contains("2001:db8::54", StringComparison.Ordinal));
+    }
+
     private static async Task ReadExactlyAsync(NetworkStream stream, byte[] buffer, int offset, int count) {
         int total = 0;
         while (total < count) {
