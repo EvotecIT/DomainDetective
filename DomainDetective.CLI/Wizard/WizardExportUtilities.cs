@@ -16,9 +16,13 @@ internal static class WizardExportUtilities
         {
             throw new ArgumentNullException(nameof(healthCheck));
         }
-        if (string.IsNullOrWhiteSpace(outputPath))
+        if (outputPath == null)
         {
             throw new ArgumentNullException(nameof(outputPath));
+        }
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            throw new ArgumentException("Output path cannot be empty or whitespace.", nameof(outputPath));
         }
 
         var json = healthCheck.ToJson();
@@ -33,9 +37,13 @@ internal static class WizardExportUtilities
         {
             throw new ArgumentNullException(nameof(healthCheck));
         }
-        if (string.IsNullOrWhiteSpace(domain))
+        if (domain == null)
         {
             throw new ArgumentNullException(nameof(domain));
+        }
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            throw new ArgumentException("Domain cannot be empty or whitespace.", nameof(domain));
         }
 
         var resolvedPath = ReportPathHelper.ResolveOutputPath(outputPath, null, domain, ReportFormat.Html);

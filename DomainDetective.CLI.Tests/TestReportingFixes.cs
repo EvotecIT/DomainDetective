@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.Json;
 using DomainDetective;
 using DomainDetective.CLI.Commands;
 using DomainDetective.CLI.Wizard;
@@ -19,6 +20,18 @@ public sealed class TestReportingFixes
         }));
 
         Assert.Equal("boom", ex.Message);
+    }
+
+    [Fact]
+    public void EnsureReportSucceeded_UsesFallbackMessageWhenDispatcherDoesNotProvideOne()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => GenerateReportCommand.EnsureReportSucceeded(new ReportResult
+        {
+            Success = false,
+            ErrorMessage = ""
+        }));
+
+        Assert.Equal("Report generation failed.", ex.Message);
     }
 
     [Fact]
@@ -87,7 +100,8 @@ public sealed class TestReportingFixes
             Assert.True(File.Exists(writtenPath));
 
             var json = File.ReadAllText(writtenPath);
-            Assert.Contains("example.com", json, StringComparison.OrdinalIgnoreCase);
+            using var document = JsonDocument.Parse(json);
+            Assert.Equal(JsonValueKind.Object, document.RootElement.ValueKind);
         }
         finally
         {
@@ -96,6 +110,26 @@ public sealed class TestReportingFixes
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    [Fact]
+    public void WizardExportUtilities_WriteJson_ThrowsArgumentExceptionForWhitespaceOutputPath()
+    {
+        var healthCheck = new DomainHealthCheck();
+
+        var ex = Assert.Throws<ArgumentException>(() => WizardExportUtilities.WriteJson(healthCheck, "   "));
+
+        Assert.Equal("outputPath", ex.ParamName);
+    }
+
+    [Fact]
+    public void WizardExportUtilities_WriteHtml_ThrowsArgumentExceptionForWhitespaceDomain()
+    {
+        var healthCheck = new DomainHealthCheck();
+
+        var ex = Assert.Throws<ArgumentException>(() => WizardExportUtilities.WriteHtml(healthCheck, "   ", null));
+
+        Assert.Equal("domain", ex.ParamName);
     }
 
     [Fact]

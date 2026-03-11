@@ -262,12 +262,21 @@ AfterWrite:
                 return view;
             }
 
+            return FilterBlacklistedOnlyView(view);
+        }
+
+        private static DomainDetective.Views.DnsblInfo FilterBlacklistedOnlyView(DomainDetective.Views.DnsblInfo view) {
+            if (view == null) {
+                throw new System.ArgumentNullException(nameof(view));
+            }
+
+            var totalHostsChecked = view.HostsChecked;
             var filteredHostSummaries = view.HostSummaries
                 .Where(summary => summary.Listed > 0)
                 .ToList();
 
             view.HostSummaries = filteredHostSummaries;
-            view.HostsChecked = filteredHostSummaries.Count;
+            view.HostsChecked = totalHostsChecked;
             view.HostsListed = filteredHostSummaries.Count;
             view.Summary = $"listed hosts {view.HostsListed}/{view.HostsChecked}";
             return view;
