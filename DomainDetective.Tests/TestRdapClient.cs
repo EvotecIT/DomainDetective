@@ -51,7 +51,7 @@ public class TestRdapClient
     [Fact]
     public async Task EncodesCidrInHttpRequests()
     {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
+        using var listener = new DisposableTcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         string? requestLine = null;

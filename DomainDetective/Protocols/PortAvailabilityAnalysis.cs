@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Sockets;
@@ -34,7 +35,7 @@ public class PortAvailabilityAnalysis : IHasAssessments
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
     internal Func<TcpClient> TcpClientFactory { get; set; } = static () => new TcpClient();
 
-    internal static Dictionary<int, (string Code, string Name)> ExpectedPorts { get; } = new()
+    internal static ConcurrentDictionary<int, (string Code, string Name)> ExpectedPorts { get; } = new()
     {
         [25] = (PortAvailabilityCodes.SmtpResponding, "SMTP"),
         [80] = (PortAvailabilityCodes.HttpResponding, "HTTP"),

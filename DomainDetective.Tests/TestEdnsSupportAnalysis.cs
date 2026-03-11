@@ -61,12 +61,12 @@ public class TestEdnsSupportAnalysis {
     public async Task RetriesOverTcpWhenTruncated() {
         var port = PortHelper.GetFreePort();
         UdpClient? udpServer = null;
-        TcpListener? tcpListener = null;
+        DisposableTcpListener? tcpListener = null;
         Task? udpTask = null;
         Task? tcpTask = null;
 
         try {
-            tcpListener = new TcpListener(IPAddress.Loopback, port);
+            tcpListener = new DisposableTcpListener(IPAddress.Loopback, port);
             tcpListener.Start();
             udpServer = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
 
@@ -144,6 +144,8 @@ public class TestEdnsSupportAnalysis {
             } catch {
                 // ignore cleanup failures
             }
+
+            tcpListener?.Dispose();
 
             udpServer?.Dispose();
             PortHelper.ReleasePort(port);

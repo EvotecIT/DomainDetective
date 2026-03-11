@@ -63,7 +63,7 @@ namespace DomainDetective.PowerShell {
             var files = ExpandPaths(Path);
             var reports = new List<DmarcAggregateReport>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            IReadOnlyList<object> exportItems = Array.Empty<object>();
+            IReadOnlyList<object> exportItems;
             foreach (var f in files) {
                 try {
                     var report = DmarcReportParser.Parse(f);

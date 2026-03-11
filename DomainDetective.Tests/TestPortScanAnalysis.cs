@@ -14,7 +14,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task DetectsTcpAndUdpOpenPorts() {
-            var tcpListener = new TcpListener(IPAddress.Loopback, 0);
+            using var tcpListener = new DisposableTcpListener(IPAddress.Loopback, 0);
             tcpListener.Start();
             var tcpPort = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
             var tcpAccept = tcpListener.AcceptTcpClientAsync();
@@ -46,7 +46,7 @@ namespace DomainDetective.Tests {
             return;
 #else
             if (!Socket.OSSupportsIPv6) return; // pass when IPv6 unsupported   
-            var tcpListener = new TcpListener(IPAddress.IPv6Loopback, 0);       
+            using var tcpListener = new DisposableTcpListener(IPAddress.IPv6Loopback, 0);
             tcpListener.Start();
             var tcpPort = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
             var ipv6Reachable = await PortScanAnalysis.IsIPv6Reachable("localhost", tcpPort);
@@ -86,7 +86,7 @@ namespace DomainDetective.Tests {
             return;
 #else
             if (!Socket.OSSupportsIPv6) return; // pass on platforms without IPv6
-            var listener = new TcpListener(IPAddress.IPv6Loopback, 0);
+            using var listener = new DisposableTcpListener(IPAddress.IPv6Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             var accept = listener.AcceptTcpClientAsync();
@@ -170,7 +170,7 @@ namespace DomainDetective.Tests {
                 return;
             }
 #endif
-            var listener = new TcpListener(IPAddress.Loopback, 0);
+            using var listener = new DisposableTcpListener(IPAddress.Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             var accept = listener.AcceptTcpClientAsync();
@@ -192,7 +192,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task ScansUsingSmbProfile() {
-            var listener = new TcpListener(IPAddress.Loopback, 0);
+            using var listener = new DisposableTcpListener(IPAddress.Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             var accept = listener.AcceptTcpClientAsync();
@@ -248,7 +248,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task DetectsServiceBanners() {
-            var listener = new TcpListener(IPAddress.Loopback, 0);
+            using var listener = new DisposableTcpListener(IPAddress.Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             var serverTask = Task.Run(async () => {

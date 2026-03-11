@@ -20,7 +20,7 @@ namespace DomainDetective.Tests
         [Fact]
         public async Task EmitsPositiveAdvice()
         {
-            var listener = new TcpListener(IPAddress.Loopback, 0);
+            using var listener = new DisposableTcpListener(IPAddress.Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             PortAvailabilityAnalysis.ExpectedPorts[port] = (PortAvailabilityCodes.HttpResponding, "HTTP");
@@ -37,7 +37,7 @@ namespace DomainDetective.Tests
             finally
             {
                 listener.Stop();
-                PortAvailabilityAnalysis.ExpectedPorts.Remove(port);
+                PortAvailabilityAnalysis.ExpectedPorts.TryRemove(port, out _);
             }
         }
     }

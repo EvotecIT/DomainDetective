@@ -282,6 +282,12 @@ internal sealed class PassiveCtSourceClient
         }
     }
 
+    internal static void ResetSharedStateForTesting()
+    {
+        SharedSourceStates.Clear();
+        Interlocked.Exchange(ref _rotationCursor, -1);
+    }
+
     private static async Task<FetchOutcome> FetchSourceAsync(
         SourceRequest request,
         QueryOptions options,

@@ -12,6 +12,11 @@ namespace DomainDetective.Tests;
 
 public class TestSubdomainsAnalysis
 {
+    public TestSubdomainsAnalysis()
+    {
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+    }
+
     [Fact]
     public async Task ParsesCtAndAggregatesSubdomains()
     {

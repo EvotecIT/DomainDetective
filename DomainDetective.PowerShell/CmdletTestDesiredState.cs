@@ -134,7 +134,7 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
 
                 if (IsExportRequested()) {
                     var request = CreateExportRequest(
-                        new[] { (object)view },
+                        new object[] { view },
                         GetRequestedFormatsOrDefault(ExportDefaults.Format),
                         ExportPath,
                         OpenInBrowser.IsPresent,
