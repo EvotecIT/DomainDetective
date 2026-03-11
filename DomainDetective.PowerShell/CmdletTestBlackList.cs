@@ -21,7 +21,7 @@ namespace DomainDetective.PowerShell {
     /// - When MX exists but has no resolvable A/AAAA (or no MX is present), the cmdlet falls back to apex A/AAAA for IP blocklist checks.
     ///
     /// Output:
-    /// - By default returns a flat list of DNSBLRecord across domain and any resolved IPs.
+    /// - By default returns a summary view across the domain and any resolved IPs.
     /// - With <c>-FullResponse</c> returns a dictionary mapping each key (domain or IP) to a DNSQueryResult.
     /// - Use <c>-BlacklistedOnly</c> to filter output to listed results.
     ///
@@ -165,46 +165,17 @@ namespace DomainDetective.PowerShell {
             }
 
             if (NameOrIpAddress.Length == 1) {
-                var input = NameOrIpAddress[0];
-                var isIp = System.Net.IPAddress.TryParse(input, out _);
-
                 if (FullResponse) {
-                    // For domains, return full dictionary (domain + MX-IP) to give complete context
-                    if (isIp) {
-                        if (!healthCheck.DNSBLAnalysis.Results.TryGetValue(input, out var res)) {
-                            WriteObject(System.Array.Empty<object>());
-                            goto AfterWrite;
-                        }
-                        if (!BlacklistedOnly || res.IsBlacklisted) {
-                            WriteObject(res);
-                        }
-                    } else {
-                        var dict = healthCheck.DNSBLAnalysis.Results;
-                        if (BlacklistedOnly) {
-                            var filtered = dict.Where(kv => kv.Value.IsBlacklisted).ToDictionary(k => k.Key, v => v.Value);
-                            WriteObject(filtered);
-                        } else {
-                            WriteObject(dict);
-                        }
-                    }
+                    WriteObject(BuildFullResponseOutput());
                 } else {
-                    // Default simplified summary view
-                    var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
-                    WriteObject(view);
+                    WriteObject(BuildViewOutput());
                     goto AfterWrite;
                 }
             } else {
                 if (FullResponse) {
-                    var dict = healthCheck.DNSBLAnalysis.Results;
-                    if (BlacklistedOnly) {
-                        var filtered = dict.Where(kv => kv.Value.IsBlacklisted).ToDictionary(k => k.Key, v => v.Value);
-                        WriteObject(filtered);
-                    } else {
-                        WriteObject(dict);
-                    }
+                    WriteObject(BuildFullResponseOutput());
                 } else {
-                    var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
-                    WriteObject(view);
+                    WriteObject(BuildViewOutput());
                 }
             }
 AfterWrite:
@@ -214,7 +185,7 @@ AfterWrite:
                     var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
                     var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
                     if (wantsComposition) {
-                        var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
+                        var view = BuildViewOutput();
                         // Ensure a non-empty Subject for grouping when inputs are IP-only
                         if (string.IsNullOrWhiteSpace(view.Subject)) {
                             var firstKey = healthCheck.DNSBLAnalysis.Results.Keys.FirstOrDefault();
@@ -243,8 +214,8 @@ AfterWrite:
                         var label = healthCheck.DNSBLAnalysis.Results.Keys.FirstOrDefault() ?? "DNSBL";
                         var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Json, formats);
                         var payload = FullResponse
-                            ? (object)healthCheck.DNSBLAnalysis.Results
-                            : healthCheck.DNSBLAnalysis;
+                            ? BuildFullResponseOutput()
+                            : (object)BuildViewOutput();
                         var json = System.Text.Json.JsonSerializer.Serialize(payload, DomainDetective.Helpers.JsonOptions.Default);
                         System.IO.File.WriteAllText(outPath, json);
                         WriteVerbose($"DNSBL JSON saved: {outPath}");
@@ -261,6 +232,45 @@ AfterWrite:
                 }
                 return;
             }
+        }
+
+        private object BuildFullResponseOutput() {
+            if (NameOrIpAddress.Length == 1 && System.Net.IPAddress.TryParse(NameOrIpAddress[0], out _)) {
+                if (!healthCheck.DNSBLAnalysis.Results.TryGetValue(NameOrIpAddress[0], out var result)) {
+                    return System.Array.Empty<object>();
+                }
+
+                if (BlacklistedOnly && !result.IsBlacklisted) {
+                    return System.Array.Empty<object>();
+                }
+
+                return result;
+            }
+
+            if (BlacklistedOnly) {
+                return healthCheck.DNSBLAnalysis.Results
+                    .Where(kv => kv.Value.IsBlacklisted)
+                    .ToDictionary(k => k.Key, v => v.Value);
+            }
+
+            return healthCheck.DNSBLAnalysis.Results;
+        }
+
+        private DomainDetective.Views.DnsblInfo BuildViewOutput() {
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
+            if (!BlacklistedOnly) {
+                return view;
+            }
+
+            var filteredHostSummaries = view.HostSummaries
+                .Where(summary => summary.Listed > 0)
+                .ToList();
+
+            view.HostSummaries = filteredHostSummaries;
+            view.HostsChecked = filteredHostSummaries.Count;
+            view.HostsListed = filteredHostSummaries.Count;
+            view.Summary = $"listed hosts {view.HostsListed}/{view.HostsChecked}";
+            return view;
         }
     }
 }
