@@ -30,6 +30,7 @@ namespace DomainDetective.PowerShell {
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
         private readonly object _exportLock = new();
+        private bool _hadUnsupportedFormats;
 
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
@@ -57,29 +58,41 @@ namespace DomainDetective.PowerShell {
                     return;
                 }
                 var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-                foreach (var fmt in fmts) {
-                    if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                        lock (_exportLock) {
-                            _items.Add(output);
-                            if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
-                                _subjects.Add(domain);
-                            }
+                var wantsComposition = fmts.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                var wantsJson = fmts.Contains(DomainDetective.Reports.ReportFormat.Json);
+                var hasUnsupportedFormats = fmts.Any(f =>
+                    f != DomainDetective.Reports.ReportFormat.Word
+                    && f != DomainDetective.Reports.ReportFormat.Html
+                    && f != DomainDetective.Reports.ReportFormat.Json);
+
+                if (wantsComposition) {
+                    lock (_exportLock) {
+                        _items.Add(output);
+                        if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
+                            _subjects.Add(domain);
                         }
-                    } else if (fmt == DomainDetective.Reports.ReportFormat.Json) {
-                        var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, fmt, fmts);
-                        try {
-                            var json = System.Text.Json.JsonSerializer.Serialize(healthCheck.SpfAnalysis, DomainDetective.Helpers.JsonOptions.Default);
-                            System.IO.File.WriteAllText(outPath, json);
-                            WriteVerbose($"SPF JSON saved: {outPath}");
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                                TryOpenReport(outPath);
-                            }
-                        } catch (System.Exception ex) {
-                            WriteWarning($"SPF export failed: {ex.Message}");
-                        }
-                    } else {
-                        await ExportNotImplementedAsync("Test-DDEmailSpfRecord");
+                        _hadUnsupportedFormats |= hasUnsupportedFormats;
                     }
+                }
+
+                if (wantsJson) {
+                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, DomainDetective.Reports.ReportFormat.Json, fmts);
+                    try {
+                        var json = System.Text.Json.JsonSerializer.Serialize(healthCheck.SpfAnalysis, DomainDetective.Helpers.JsonOptions.Default);
+                        System.IO.File.WriteAllText(outPath, json);
+                        WriteVerbose($"SPF JSON saved: {outPath}");
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                            TryOpenReport(outPath);
+                        }
+                    } catch (System.Exception ex) {
+                        WriteWarning($"SPF export failed: {ex.Message}");
+                    }
+                }
+
+                if (!wantsComposition && !wantsJson) {
+                    await ExportNotImplementedAsync("Test-DDEmailSpfRecord");
+                } else if (hasUnsupportedFormats) {
+                    await ExportNotImplementedAsync("Test-DDEmailSpfRecord");
                 }
             }
 
@@ -91,54 +104,32 @@ namespace DomainDetective.PowerShell {
         /// </summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
-            var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-            var needsWord = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Word);
-            var needsHtml = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Html);
-            if (!needsWord && !needsHtml) return Task.CompletedTask;
+            var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format)
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .ToArray();
+            if (fmts.Length == 0) return Task.CompletedTask;
 
-            var label = DomainName.Length switch {
+            var label = _subjects.Count switch {
                 0 => "spf",
-                1 => DomainName[0],
-                2 => $"{DomainName[0]}+{DomainName[1]}",
-                _ => $"{DomainName[0]}+{DomainName[1]}(+{DomainName.Length - 2})"
+                1 => _subjects[0],
+                2 => $"{_subjects[0]}+{_subjects[1]}",
+                _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
             };
             try {
-                if (needsWord) {
-                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Word, fmts);
-                    DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                        outPath,
-                        _items,
-                        DomainDetective.Reports.ReportScope.Detailed,
-                        showInfoFindings: true,
-                        narrativePlacement: ExportDefaults.NarrativePlacement,
-                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"SPF Report — {label}" : ExportDefaults.NarrativeTitle,
-                        subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                        categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                        keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                        creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                        companyName: string.IsNullOrWhiteSpace(ExportDefaults.CompanyName) ? null : ExportDefaults.CompanyName,
-                        companyAddress: string.IsNullOrWhiteSpace(ExportDefaults.CompanyAddress) ? null : ExportDefaults.CompanyAddress,
-                        companyYear: string.IsNullOrWhiteSpace(ExportDefaults.CompanyYear) ? null : ExportDefaults.CompanyYear,
-                        logoPath: string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
-                        headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-                        footerText: string.IsNullOrWhiteSpace(ExportDefaults.FooterText) ? null : ExportDefaults.FooterText,
-                        watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
-                        summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                        headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                        footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                    if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                }
-                if (needsHtml) {
-                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Html, fmts);
-                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                        outPath,
-                        _items,
-                        DomainDetective.Reports.ReportScope.Detailed,
-                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                        ExportDefaults.NarrativePlacement,
-                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                        authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                        descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+                var hadUnsupportedFormats = false;
+                CompositionExportHelper.WriteReports(
+                    _items,
+                    fmts,
+                    ExportPath,
+                    label,
+                    DomainDetective.Reports.ReportScope.Detailed,
+                    $"SPF Report - {label}",
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    TryOpenReport,
+                    out hadUnsupportedFormats);
+
+                if (_hadUnsupportedFormats || hadUnsupportedFormats) {
+                    return ExportNotImplementedAsync("Test-DDEmailSpfRecord");
                 }
             } catch (System.Exception ex) {
                 WriteWarning($"SPF export failed: {ex.Message}");

@@ -70,14 +70,20 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
             if (IsExportRequested()) {
                 var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
                 var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
-                var hasUnsupportedFormats = formats.Any(f => f != DomainDetective.Reports.ReportFormat.Word && f != DomainDetective.Reports.ReportFormat.Html);
+                var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
+                var hasUnsupportedFormats = formats.Any(f =>
+                    f != DomainDetective.Reports.ReportFormat.Word
+                    && f != DomainDetective.Reports.ReportFormat.Html
+                    && f != DomainDetective.Reports.ReportFormat.Json);
 
                 if (wantsComposition) {
                     // Ensure DMARC is available (not required by classifier but expected in composed reports)
                     try { await healthCheck.VerifyDMARC(domain, cancellationToken: CancelToken); } catch { }
 
                     lock (_exportLock) {
-                        _subjects.Add(domain);
+                        if (!_subjects.Contains(domain, System.StringComparer.OrdinalIgnoreCase)) {
+                            _subjects.Add(domain);
+                        }
                         _items.Add(view); // Mail Classification
                         if (healthCheck.MXAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
                         if (healthCheck.SpfAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis));
@@ -89,7 +95,32 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
                     }
                 }
 
-                if (!wantsComposition) {
+                if (wantsJson) {
+                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, DomainDetective.Reports.ReportFormat.Json, formats);
+                    try {
+                        var payload = new {
+                            Classification = result,
+                            MailExchangers = healthCheck.MXAnalysis,
+                            Spf = healthCheck.SpfAnalysis,
+                            Dkim = healthCheck.DKIMAnalysis,
+                            Dmarc = healthCheck.DmarcAnalysis,
+                            MtaSts = healthCheck.MTASTSAnalysis,
+                            TlsRpt = healthCheck.TLSRPTAnalysis
+                        };
+                        var json = System.Text.Json.JsonSerializer.Serialize(payload, DomainDetective.Helpers.JsonOptions.Default);
+                        System.IO.File.WriteAllText(outPath, json);
+                        WriteVerbose($"Mail classification JSON saved: {outPath}");
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                            TryOpenReport(outPath);
+                        }
+                    } catch (System.Exception ex) {
+                        WriteWarning($"Mail classification export failed: {ex.Message}");
+                    }
+                }
+
+                if (!wantsComposition && !wantsJson) {
+                    await ExportNotImplementedAsync("Test-DDMailDomainClassification");
+                } else if (hasUnsupportedFormats) {
                     await ExportNotImplementedAsync("Test-DDMailDomainClassification");
                 }
             }

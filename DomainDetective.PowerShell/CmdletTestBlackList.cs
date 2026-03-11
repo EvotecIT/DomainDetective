@@ -212,6 +212,7 @@ AfterWrite:
                 try {
                     var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
                     var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                    var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
                     if (wantsComposition) {
                         var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
                         // Ensure a non-empty Subject for grouping when inputs are IP-only
@@ -236,7 +237,23 @@ AfterWrite:
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync();
                         }
-                    } else {
+                    }
+
+                    if (wantsJson) {
+                        var label = healthCheck.DNSBLAnalysis.Results.Keys.FirstOrDefault() ?? "DNSBL";
+                        var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Json, formats);
+                        var payload = FullResponse
+                            ? (object)healthCheck.DNSBLAnalysis.Results
+                            : healthCheck.DNSBLAnalysis;
+                        var json = System.Text.Json.JsonSerializer.Serialize(payload, DomainDetective.Helpers.JsonOptions.Default);
+                        System.IO.File.WriteAllText(outPath, json);
+                        WriteVerbose($"DNSBL JSON saved: {outPath}");
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                            TryOpenReport(outPath);
+                        }
+                    }
+
+                    if (!wantsComposition && !wantsJson) {
                         await ExportNotImplementedAsync();
                     }
                 } catch (System.Exception ex) {
