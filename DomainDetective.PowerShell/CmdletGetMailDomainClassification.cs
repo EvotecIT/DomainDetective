@@ -29,6 +29,7 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
     private readonly System.Collections.Generic.List<object> _items = new();
     private readonly System.Collections.Generic.List<string> _subjects = new();
     private readonly object _exportLock = new();
+    private bool _hadUnsupportedFormats;
 
     // BeginProcessing handled per-domain to allow safe parallelism.
 
@@ -67,8 +68,11 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
 
             // When exporting, enrich the composition with detailed MX/SPF/DKIM/DMARC/MTASTS/TLS-RPT sections
             if (IsExportRequested()) {
-                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+                var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+                var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                var hasUnsupportedFormats = formats.Any(f => f != DomainDetective.Reports.ReportFormat.Word && f != DomainDetective.Reports.ReportFormat.Html);
+
+                if (wantsComposition) {
                     // Ensure DMARC is available (not required by classifier but expected in composed reports)
                     try { await healthCheck.VerifyDMARC(domain, cancellationToken: CancelToken); } catch { }
 
@@ -81,8 +85,11 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
                         if (healthCheck.DmarcAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis));
                         if (healthCheck.MTASTSAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis));
                         if (healthCheck.TLSRPTAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis));
+                        _hadUnsupportedFormats |= hasUnsupportedFormats;
                     }
-                } else {
+                }
+
+                if (!wantsComposition) {
                     await ExportNotImplementedAsync("Test-DDMailDomainClassification");
                 }
             }
@@ -94,8 +101,10 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
     /// <summary>When export is requested, compose Mail Classification sections into a single file.</summary>
     protected override Task EndProcessingAsync() {
         if (_items.Count == 0) return Task.CompletedTask;
-        var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-        if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
+        var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format)
+            .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+            .ToArray();
+        if (formats.Length == 0) return Task.CompletedTask;
 
         var label = _subjects.Count switch {
             0 => "mail-classification",
@@ -103,34 +112,21 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
             2 => $"{_subjects[0]}+{_subjects[1]}",
             _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
         };
-        var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
         try {
-            if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                    outPath,
-                    _items,
-                    DomainDetective.Reports.ReportScope.Normal,
-                    showInfoFindings: true,
-                    narrativePlacement: ExportDefaults.NarrativePlacement,
-                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Mail Classification — {label}" : ExportDefaults.NarrativeTitle,
-                    subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                    categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                    keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                    creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                    summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                    headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                    footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-            } else {
-                DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                    outPath,
-                    _items,
-                    DomainDetective.Reports.ReportScope.Normal,
-                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                    narrativePlacement: ExportDefaults.NarrativePlacement,
-                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                    authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                    descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+            var hadUnsupportedFormats = false;
+            CompositionExportHelper.WriteReports(
+                _items,
+                formats,
+                ExportPath,
+                label,
+                DomainDetective.Reports.ReportScope.Normal,
+                $"Mail Classification — {label}",
+                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                TryOpenReport,
+                out hadUnsupportedFormats);
+
+            if (_hadUnsupportedFormats || hadUnsupportedFormats) {
+                return ExportNotImplementedAsync("Test-DDMailDomainClassification");
             }
         } catch (System.Exception ex) {
             WriteWarning($"Mail classification export failed: {ex.Message}");
@@ -138,4 +134,3 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
         return Task.CompletedTask;
     }
 }
-

@@ -174,6 +174,16 @@ namespace DomainDetective.PowerShell {
 
         private readonly List<object> _items = new();
 
+        internal static bool ResolveShowInfoFindings(SwitchParameter showInfoFindings, IDictionary? boundParameters)
+        {
+            if (boundParameters != null && boundParameters.Contains(nameof(ShowInfoFindings)))
+            {
+                return showInfoFindings.ToBool();
+            }
+
+            return true;
+        }
+
         private static readonly HashSet<string> _autoVariables = new(StringComparer.OrdinalIgnoreCase) {
             "_",
             "PSItem",
@@ -350,7 +360,7 @@ namespace DomainDetective.PowerShell {
                 Items = _items,
                 Formats = formats,
                 Scope = Scope,
-                ShowInfoFindings = ShowInfoFindings.IsPresent,
+                ShowInfoFindings = ResolveShowInfoFindings(ShowInfoFindings, MyInvocation?.BoundParameters),
                 Ordering = ordering,
                 HtmlProfile = this.HtmlProfile,
                 ExcelProfile = this.ExcelProfile,
@@ -365,6 +375,7 @@ namespace DomainDetective.PowerShell {
                 CompanyYear = ExportDefaults.CompanyYear,
                 LogoPath = string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
                 HeaderText = string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
+                FooterText = string.IsNullOrWhiteSpace(ExportDefaults.FooterText) ? null : ExportDefaults.FooterText,
                 WatermarkText = string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
                 SummaryColumnCap = SummaryColumnCap ?? ExportDefaults.SummaryColumnCap,
                 HeaderLogoSizePx = ExportDefaults.HeaderLogoSizePx,
@@ -758,5 +769,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-

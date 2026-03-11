@@ -49,7 +49,25 @@ namespace DomainDetective.PowerShell {
                 var view = DomainDetective.Views.Converters.Convert(healthCheck.RdapAnalysis);
                 WriteObject(view);
                 if (IsExportRequested()) {
-                    await ExportNotImplementedAsync("Get-DDRdap");
+                    try {
+                        var hadUnsupportedFormats = false;
+                        CompositionExportHelper.WriteReports(
+                            new System.Collections.Generic.List<object> { view },
+                            GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                            ExportPath,
+                            domain,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            $"RDAP Report — {domain}",
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            TryOpenReport,
+                            out hadUnsupportedFormats);
+
+                        if (hadUnsupportedFormats) {
+                            await ExportNotImplementedAsync("Get-DDRdap");
+                        }
+                    } catch (Exception ex) {
+                        WriteWarning($"RDAP export failed: {ex.Message}");
+                    }
                 }
             }
 

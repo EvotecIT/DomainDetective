@@ -75,7 +75,25 @@ namespace DomainDetective.PowerShell {
                     var view = DomainDetective.Views.Converters.Convert(healthCheck.SmtpBannerAnalysis);
                     WriteObject(view);
                     if (IsExportRequested()) {
-                        await ExportNotImplementedAsync("Test-DDEmailSmtpBanner");
+                        try {
+                            var hadUnsupportedFormats = false;
+                            CompositionExportHelper.WriteReports(
+                                new System.Collections.Generic.List<object> { view },
+                                GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                                ExportPath,
+                                domain,
+                                DomainDetective.Reports.ReportScope.Normal,
+                                $"SMTP Banner Report - {domain}",
+                                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                                TryOpenReport,
+                                out hadUnsupportedFormats);
+
+                            if (hadUnsupportedFormats) {
+                                await ExportNotImplementedAsync("Test-DDEmailSmtpBanner");
+                            }
+                        } catch (System.Exception ex) {
+                            WriteWarning($"SMTP banner export failed: {ex.Message}");
+                        }
                     }
                 }
 
@@ -103,7 +121,25 @@ namespace DomainDetective.PowerShell {
             var directView = DomainDetective.Views.Converters.Convert(directHealthCheck.SmtpBannerAnalysis);
             WriteObject(directView);
             if (IsExportRequested()) {
-                await ExportNotImplementedAsync("Test-DDEmailSmtpBanner");
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { directView },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        HostName,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"SMTP Banner Report - {HostName}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDEmailSmtpBanner");
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"SMTP banner export failed: {ex.Message}");
+                }
             }
         }
     }

@@ -42,6 +42,7 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
     private readonly List<object> _items = new();
     private readonly List<string> _subjects = new();
     private readonly object _exportLock = new();
+    private bool _hadUnsupportedFormats;
 
     // BeginProcessing handled per-domain to allow safe parallelism.
 
@@ -82,51 +83,73 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
 
             logger.WriteVerbose("Checking mail protocol TLS for domain: {0}", domain);
             await healthCheck.Verify(domain, checkTypes.ToArray(), cancellationToken: CancelToken);
+            var exportFormats = IsExportRequested()
+                ? GetRequestedFormatsOrDefault(ExportDefaults.Format)
+                : Array.Empty<DomainDetective.Reports.ReportFormat>();
+            var wantsComposition = exportFormats.Any(f =>
+                f == DomainDetective.Reports.ReportFormat.Word
+                || f == DomainDetective.Reports.ReportFormat.Html);
+            var wantsJson = exportFormats.Contains(DomainDetective.Reports.ReportFormat.Json);
+            var hasUnsupportedFormats = exportFormats.Any(f =>
+                f != DomainDetective.Reports.ReportFormat.Word
+                && f != DomainDetective.Reports.ReportFormat.Html
+                && f != DomainDetective.Reports.ReportFormat.Json);
 
             var hasAny = false;
             if (checkTypes.Contains(HealthCheckType.SMTPTLS)) {
                 var view = DomainDetective.Views.Converters.Convert(healthCheck.SmtpTlsAnalysis);
                 WriteObject(view);
-                AddForExport(view, domain);
+                if (wantsComposition) {
+                    AddForExport(view, domain);
+                }
                 hasAny = true;
             }
             if (checkTypes.Contains(HealthCheckType.IMAPTLS)) {
                 var view = DomainDetective.Views.Converters.Convert(healthCheck.ImapTlsAnalysis);
                 WriteObject(view);
-                AddForExport(view, domain);
+                if (wantsComposition) {
+                    AddForExport(view, domain);
+                }
                 hasAny = true;
             }
             if (checkTypes.Contains(HealthCheckType.POP3TLS)) {
                 var view = DomainDetective.Views.Converters.Convert(healthCheck.Pop3TlsAnalysis);
                 WriteObject(view);
-                AddForExport(view, domain);
+                if (wantsComposition) {
+                    AddForExport(view, domain);
+                }
                 hasAny = true;
             }
 
             if (IsExportRequested() && hasAny) {
-                var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-                foreach (var fmt in fmts) {
-                    if (fmt == DomainDetective.Reports.ReportFormat.Json) {
-                        var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, fmt, fmts);
-                        try {
-                            var payload = new {
-                                Domain = domain,
-                                SmtpTls = checkTypes.Contains(HealthCheckType.SMTPTLS) ? healthCheck.SmtpTlsAnalysis : null,
-                                ImapTls = checkTypes.Contains(HealthCheckType.IMAPTLS) ? healthCheck.ImapTlsAnalysis : null,
-                                Pop3Tls = checkTypes.Contains(HealthCheckType.POP3TLS) ? healthCheck.Pop3TlsAnalysis : null
-                            };
-                            var json = JsonSerializer.Serialize(payload, DomainDetective.Helpers.JsonOptions.Default);
-                            File.WriteAllText(outPath, json);
-                            WriteVerbose($"Mail TLS JSON saved: {outPath}");
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                                TryOpenReport(outPath);
-                            }
-                        } catch (Exception ex) {
-                            WriteWarning($"Mail TLS export failed: {ex.Message}");
-                        }
-                    } else if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) {
-                        await ExportNotImplementedAsync("Test-DDEmailProtocolTls");
+                if (wantsComposition) {
+                    lock (_exportLock) {
+                        _hadUnsupportedFormats |= hasUnsupportedFormats;
                     }
+                }
+
+                if (wantsJson) {
+                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, DomainDetective.Reports.ReportFormat.Json, exportFormats);
+                    try {
+                        var payload = new {
+                            Domain = domain,
+                            SmtpTls = checkTypes.Contains(HealthCheckType.SMTPTLS) ? healthCheck.SmtpTlsAnalysis : null,
+                            ImapTls = checkTypes.Contains(HealthCheckType.IMAPTLS) ? healthCheck.ImapTlsAnalysis : null,
+                            Pop3Tls = checkTypes.Contains(HealthCheckType.POP3TLS) ? healthCheck.Pop3TlsAnalysis : null
+                        };
+                        var json = JsonSerializer.Serialize(payload, DomainDetective.Helpers.JsonOptions.Default);
+                        File.WriteAllText(outPath, json);
+                        WriteVerbose($"Mail TLS JSON saved: {outPath}");
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                            TryOpenReport(outPath);
+                        }
+                    } catch (Exception ex) {
+                        WriteWarning($"Mail TLS export failed: {ex.Message}");
+                    }
+                }
+
+                if (hasUnsupportedFormats) {
+                    await ExportNotImplementedAsync("Test-DDEmailProtocolTls");
                 }
             }
         }
@@ -135,18 +158,10 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
     }
 
     private void AddForExport(object view, string domain) {
-        if (!IsExportRequested()) {
-            return;
-        }
-        var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-        foreach (var fmt in fmts) {
-            if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                lock (_exportLock) {
-                    _items.Add(view);
-                    if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
-                        _subjects.Add(domain);
-                    }
-                }
+        lock (_exportLock) {
+            _items.Add(view);
+            if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
+                _subjects.Add(domain);
             }
         }
     }
@@ -156,10 +171,10 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
         if (_items.Count == 0) {
             return Task.CompletedTask;
         }
-        var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-        var needsWord = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Word);
-        var needsHtml = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Html);
-        if (!needsWord && !needsHtml) {
+        var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format)
+            .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+            .ToArray();
+        if (fmts.Length == 0) {
             return Task.CompletedTask;
         }
 
@@ -170,37 +185,20 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
             _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
         };
         try {
-            if (needsWord) {
-                var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Word, fmts);
-                DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                    outPath,
-                    _items,
-                    DomainDetective.Reports.ReportScope.Normal,
-                    showInfoFindings: true,
-                    narrativePlacement: ExportDefaults.NarrativePlacement,
-                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Mail TLS Report — {label}" : ExportDefaults.NarrativeTitle,
-                    subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                    categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                    keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                    creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                    summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                    headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                    footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                    TryOpenReport(outPath);
-                }
-            }
-            if (needsHtml) {
-                var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Html, fmts);
-                DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                    outPath,
-                    _items,
-                    DomainDetective.Reports.ReportScope.Normal,
-                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                    ExportDefaults.NarrativePlacement,
-                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                    authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                    descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+            var hadUnsupportedFormats = false;
+            CompositionExportHelper.WriteReports(
+                _items,
+                fmts,
+                ExportPath,
+                label,
+                DomainDetective.Reports.ReportScope.Normal,
+                $"Mail TLS Report - {label}",
+                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                TryOpenReport,
+                out hadUnsupportedFormats);
+
+            if (_hadUnsupportedFormats || hadUnsupportedFormats) {
+                return ExportNotImplementedAsync("Test-DDEmailProtocolTls");
             }
         } catch (Exception ex) {
             WriteWarning($"Mail TLS export failed: {ex.Message}");

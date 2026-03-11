@@ -618,8 +618,10 @@ public partial class WhoisAnalysis : IHasAssessments {
             // Follow registrar referrals when enabled
             if (FollowReferral && MaxReferralDepth > 0)
             {
-                await FollowRegistrarReferralAsync(domain, response, whoisServer, timeoutCts.Token).ConfigureAwait(false);
+                await FollowRegistrarReferralAsync(domain, response, whoisServer, timeoutCts.Token, cancellationToken).ConfigureAwait(false);
             }
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
         } catch (Exception ex) {
             _logger.WriteErrorCode(
                 WhoisCodes.QueryFailed,
@@ -641,7 +643,7 @@ public partial class WhoisAnalysis : IHasAssessments {
         return null;
     }
 
-    private async Task FollowRegistrarReferralAsync(string domain, string initialResponse, string initialServer, CancellationToken ct)
+    private async Task FollowRegistrarReferralAsync(string domain, string initialResponse, string initialServer, CancellationToken ct, CancellationToken callerCancellationToken)
     {
         string? current = ExtractReferralServer(initialResponse);
         int depth = 0;
@@ -650,7 +652,7 @@ public partial class WhoisAnalysis : IHasAssessments {
             depth++;
             ReferralChain.Add(current!);
             _logger?.WriteVerbose("Following referral to WHOIS server: {0}", current);
-            string? nextResponse = await QueryWhoisRawAsync(current!, domain, ct).ConfigureAwait(false);
+            string? nextResponse = await QueryWhoisRawAsyncInternal(current!, domain, ct, callerCancellationToken).ConfigureAwait(false);
             if (nextResponse == null || string.IsNullOrWhiteSpace(nextResponse)) break;
 
             // Overwrite data with registrar WHOIS details
@@ -668,7 +670,12 @@ public partial class WhoisAnalysis : IHasAssessments {
         }
     }
 
-    private async Task<string?> QueryWhoisRawAsync(string server, string domain, CancellationToken ct)
+    private Task<string?> QueryWhoisRawAsync(string server, string domain, CancellationToken ct)
+    {
+        return QueryWhoisRawAsyncInternal(server, domain, ct, ct);
+    }
+
+    private async Task<string?> QueryWhoisRawAsyncInternal(string server, string domain, CancellationToken ct, CancellationToken callerCancellationToken = default)
     {
         try
         {
@@ -715,6 +722,10 @@ public partial class WhoisAnalysis : IHasAssessments {
             if (text.Contains('\uFFFD')) text = Encoding.GetEncoding("ISO-8859-1").GetString(responseBytes);
             text = Regex.Replace(text, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant | RegexOptions.Multiline);
             return text;
+        }
+        catch (OperationCanceledException) when (callerCancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {

@@ -47,7 +47,25 @@ public sealed class CmdletTestEdnsSupport : ExportableAsyncPSCmdlet {
             var view = DomainDetective.Views.Converters.Convert(healthCheck.EdnsSupportAnalysis);
             WriteObject(view);
             if (IsExportRequested()) {
-                await ExportNotImplementedAsync("Test-DDDnsEdnsSupport");
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { view },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        domain,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"EDNS Support Report - {domain}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDDnsEdnsSupport");
+                    }
+                } catch (Exception ex) {
+                    WriteWarning($"EDNS support export failed: {ex.Message}");
+                }
             }
         }
 

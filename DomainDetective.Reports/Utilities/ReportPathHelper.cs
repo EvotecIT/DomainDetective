@@ -24,6 +24,7 @@ public static class ReportPathHelper
                     return GenerateDefaultPath(subject, format, p);
                 }
 
+                EnsureParentDirectoryExists(p);
                 return p;
             }
             catch
@@ -75,6 +76,27 @@ public static class ReportPathHelper
         }
 
         return ResolveOutputPath(explicitPath, defaultOutputDirectory, subject, format);
+    }
+
+    public static void EnsureParentDirectoryExists(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+        }
+        catch
+        {
+            // Best-effort only. Callers can still handle write failures.
+        }
     }
 
     public static string GenerateDefaultPath(string subject, ReportFormat format, string? outputDirectory)

@@ -59,10 +59,11 @@ namespace DomainDetective.PowerShell {
         /// Parses the specified DMARC aggregate report and writes each summary.
         /// </summary>
         /// <returns>A completed task.</returns>
-        protected override Task ProcessRecordAsync() {
+        protected override async Task ProcessRecordAsync() {
             var files = ExpandPaths(Path);
             var reports = new List<DmarcAggregateReport>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            IReadOnlyList<object> exportItems = Array.Empty<object>();
             foreach (var f in files) {
                 try {
                     var report = DmarcReportParser.Parse(f);
@@ -84,17 +85,20 @@ namespace DomainDetective.PowerShell {
                     var ip = allRecords.SummarizeFailuresByIp().OrderByDescending(x => x.Count).ToList();
                     WriteObject(ip, true);
                     ExportIfRequested(ip);
+                    exportItems = ip.Cast<object>().ToList();
                     break;
                 case DmarcAggregateSummarizeBy.HeaderFrom:
                     var hf = allRecords.SummarizeFailuresByHeaderFrom().OrderByDescending(x => x.Count).ToList();
                     WriteObject(hf, true);
                     ExportIfRequested(hf);
+                    exportItems = hf.Cast<object>().ToList();
                     break;
                 case DmarcAggregateSummarizeBy.Reporter:
                     var pairs = reports.SelectMany(r => r.Records.Select(rec => (Report: r, Record: rec))).ToList();
                     var rep = pairs.SummarizeFailuresByReporter().OrderByDescending(x => x.Count).ToList();
                     WriteObject(rep, true);
                     ExportIfRequested(rep);
+                    exportItems = rep.Cast<object>().ToList();
                     break;
                 case DmarcAggregateSummarizeBy.Asn:
                     // Enrich with ASN & Country prior to summarizing
@@ -102,21 +106,25 @@ namespace DomainDetective.PowerShell {
                     var asn = allRecords.SummarizeFailuresByAsn().OrderByDescending(x => x.Count).ToList();
                     WriteObject(asn, true);
                     ExportIfRequested(asn);
+                    exportItems = asn.Cast<object>().ToList();
                     break;
                 case DmarcAggregateSummarizeBy.Country:
                     DmarcAggregateEnrichment.EnrichAsync(allRecords).GetAwaiter().GetResult();
                     var ctry = allRecords.SummarizeFailuresByCountry().OrderByDescending(x => x.Count).ToList();
                     WriteObject(ctry, true);
                     ExportIfRequested(ctry);
+                    exportItems = ctry.Cast<object>().ToList();
                     break;
                 default:
                     var byDomain = SummarizeByDomain(allRecords).OrderByDescending(x => x.TotalCount).ToList();
                     WriteObject(byDomain, true);
                     ExportIfRequested(byDomain);
+                    exportItems = byDomain.Cast<object>().ToList();
                     break;
             }
-            if (IsExportRequested()) { return ExportNotImplementedAsync(); }
-            return Task.CompletedTask;
+            if (IsExportRequested()) {
+                await ExportReportsAsync(exportItems);
+            }
         }
 
         private static IEnumerable<string> ExpandPaths(string input) {
@@ -153,6 +161,63 @@ namespace DomainDetective.PowerShell {
             if (Json.IsPresent) {
                 var json = System.Text.Json.JsonSerializer.Serialize(data, DomainDetective.Helpers.JsonOptions.Default);
                 WriteObject(json);
+            }
+        }
+
+        private async Task ExportReportsAsync(IReadOnlyList<object> items) {
+            var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+            var label = $"dmarc-aggregate-{SummarizeBy.ToString().ToLowerInvariant()}";
+            var supportedCompositionFormats = formats
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .ToArray();
+            var generated = false;
+            var hadUnsupportedFormats = formats.Any(f =>
+                f != DomainDetective.Reports.ReportFormat.Word
+                && f != DomainDetective.Reports.ReportFormat.Html
+                && f != DomainDetective.Reports.ReportFormat.Json);
+
+            if (supportedCompositionFormats.Length > 0) {
+                try {
+                    var compositionUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        items,
+                        supportedCompositionFormats,
+                        ExportPath,
+                        label,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"DMARC Aggregate Report - {SummarizeBy}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out compositionUnsupportedFormats);
+                    generated = true;
+                    hadUnsupportedFormats |= compositionUnsupportedFormats;
+                } catch (Exception ex) {
+                    WriteWarning($"DMARC aggregate export failed: {ex.Message}");
+                }
+            }
+
+            if (formats.Contains(DomainDetective.Reports.ReportFormat.Json)) {
+                try {
+                    var outPath = ResolveOutPathForFormat(
+                        ExportPath,
+                        ExportDefaults.OutputDirectory,
+                        label,
+                        DomainDetective.Reports.ReportFormat.Json,
+                        formats);
+                    var json = System.Text.Json.JsonSerializer.Serialize(items, DomainDetective.Helpers.JsonOptions.Default);
+                    File.WriteAllText(outPath, json);
+                    generated = true;
+                    WriteVerbose($"DMARC aggregate JSON saved: {outPath}");
+                    if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                        TryOpenReport(outPath);
+                    }
+                } catch (Exception ex) {
+                    WriteWarning($"DMARC aggregate JSON export failed: {ex.Message}");
+                }
+            }
+
+            if (!generated || hadUnsupportedFormats) {
+                await ExportNotImplementedAsync("Test-DDDmarcAggregate");
             }
         }
     }

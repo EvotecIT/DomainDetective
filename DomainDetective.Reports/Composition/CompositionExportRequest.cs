@@ -21,6 +21,7 @@ public sealed class CompositionExportRequest
     public string? CompanyYear { get; set; }
     public string? LogoPath { get; set; }
     public string? HeaderText { get; set; }
+    public string? FooterText { get; set; }
     public string? WatermarkText { get; set; }
     public int? SummaryColumnCap { get; set; }
     public int? HeaderLogoSizePx { get; set; }

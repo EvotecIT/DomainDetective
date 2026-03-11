@@ -89,14 +89,38 @@ namespace DomainDetective.PowerShell {
 
                 // 2) Export (post-run) if requested, after emitting data
                 if (IsExportRequested()) {
-                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                    var outPath = ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, domain, fmt);
+                    var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format)
+                        .Distinct()
+                        .ToArray();
                     var wantArtifacts = ExportArtifacts.IsPresent || ExportDefaults.EmitArtifacts;
+                    var compositionFormats = formats
+                        .Where(f => f == ReportFormat.Word || f == ReportFormat.Html)
+                        .ToArray();
+                    var dispatcherFormats = formats
+                        .Where(f => f != ReportFormat.Word && f != ReportFormat.Html)
+                        .ToList();
+
+                    if (wantArtifacts) {
+                        try {
+                            var artDir = !string.IsNullOrWhiteSpace(this.ArtifactsDirectory)
+                                ? this.ArtifactsDirectory
+                                : (string.IsNullOrWhiteSpace(ExportDefaults.ArtifactsDirectory) ? null : ExportDefaults.ArtifactsDirectory);
+                            var dir = DomainDetective.Reports.ReportRunService.WriteArtifactsOnly(
+                                logger,
+                                domain,
+                                healthCheck,
+                                ExportPath,
+                                ExportDefaults.OutputDirectory,
+                                artDir);
+                            WriteVerbose($"Artifacts written to {dir}.");
+                        } catch (System.Exception ex) {
+                            WriteWarning($"Artifact export failed: {ex.Message}");
+                        }
+                    }
 
                     // If specific HealthCheckType selection is provided and we support writers for it,
                     // use the composition aggregators for Word/HTML to ensure identical section rendering.
-                    var wantsComposition = (fmt == ReportFormat.Word || fmt == ReportFormat.Html);
-                    if (wantsComposition) {
+                    if (compositionFormats.Length > 0) {
                         // Enrich with transport policies when user didn't specify a subset
                         if (HealthCheckType == null || HealthCheckType.Length == 0) {
                             try { await healthCheck.VerifyMTASTS(domain, CancelToken); } catch { }
@@ -202,87 +226,45 @@ namespace DomainDetective.PowerShell {
                         }
 
                         try {
-                            if (fmt == ReportFormat.Word) {
-                                DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                                    outPath,
-                                    items,
-                                    Reports.ReportScope.Normal,
-                                    showInfoFindings: true,
-                                    narrativePlacement: ExportDefaults.NarrativePlacement,
-                                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Security Report — {domain}" : ExportDefaults.NarrativeTitle,
-                                    subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                                    categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                                    keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                                    creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                                    companyName: ExportDefaults.CompanyName,
-                                    companyAddress: ExportDefaults.CompanyAddress,
-                                    companyYear: ExportDefaults.CompanyYear,
-                                    logoPath: string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
-                                    headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-                                    watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
-                                    summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                                    headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                                    footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                                if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                                    TryOpen(outPath);
-                                }
-                            } else {
-                                DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                                    outPath,
-                                    items,
-                                    Reports.ReportScope.Normal,
-                                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                                    ExportDefaults.NarrativePlacement,
-                                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                                    authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                                    descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
-                            }
-                            return;
+                            var hadUnsupportedFormats = false;
+                            CompositionExportHelper.WriteReports(
+                                items,
+                                compositionFormats,
+                                ExportPath,
+                                domain,
+                                Reports.ReportScope.Normal,
+                                $"Security Report — {domain}",
+                                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                                TryOpen,
+                                out hadUnsupportedFormats);
                         } catch (System.Exception ex) {
                             WriteWarning($"Composition export failed, falling back to default: {ex.Message}");
-                            // fall through to default behavior
+                            dispatcherFormats.InsertRange(0, compositionFormats);
                         }
                     }
 
-                    try {
-                        if (wantArtifacts) {
-                            var artDir = !string.IsNullOrWhiteSpace(this.ArtifactsDirectory)
-                                ? this.ArtifactsDirectory
-                                : (string.IsNullOrWhiteSpace(ExportDefaults.ArtifactsDirectory) ? null : ExportDefaults.ArtifactsDirectory);
-                            var (dir, reportResult) = await DomainDetective.Reports.ReportRunService.ExportOnlyAsync(
-                                logger,
-                                domain,
-                                healthCheck,
-                                fmt,
-                                outPath,
-                                ExportDefaults.OutputDirectory,
-                                false,
-                                artDir);
-                            WriteVerbose($"Artifacts written to {dir}.");
+                    if (dispatcherFormats.Count > 0) {
+                        var dispatcher = new ReportDispatcher();
+                        foreach (var format in dispatcherFormats.Distinct()) {
+                            try {
+                                var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, format, formats);
+                                var options = new ReportOptions { Format = format, OutputPath = outPath };
+                                options.CustomProperties["Domain"] = domain;
+                                var reportResult = await dispatcher.GenerateAsync(
+                                    healthCheck,
+                                    options,
+                                    domain,
+                                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser);
+
                             if (reportResult.Success) {
                                 WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
-                                if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                                    TryOpen(reportResult.FilePath);
-                                }
-                            } else {
-                                WriteWarning(reportResult.ErrorMessage ?? "Report generation failed.");
-                            }
-                        } else {
-                            var dispatcher = new ReportDispatcher();
-                            var options = new ReportOptions { Format = fmt, OutputPath = outPath };
-                            options.CustomProperties["Domain"] = domain;
-                            var reportResult = await dispatcher.GenerateAsync(healthCheck, options, domain, false);
-                            if (reportResult.Success) {
-                                WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
-                                if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                                    TryOpen(reportResult.FilePath);
-                                }
                             } else {
                                 WriteWarning(reportResult.ErrorMessage ?? "Export failed.");
                             }
+                            } catch (System.Exception ex) {
+                                WriteWarning($"Export failed: {ex.Message}");
+                            }
                         }
-                    } catch (System.Exception ex) {
-                        WriteWarning($"Export failed: {ex.Message}");
                     }
                 }
             }
@@ -301,6 +283,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-
 

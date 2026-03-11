@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using DomainDetective;
+using DomainDetective.Reports;
 using DomainDetective.Reports.Artifacts;
 
 namespace DomainDetective.Tests {
@@ -58,6 +59,45 @@ namespace DomainDetective.Tests {
             Assert.Contains("\"metadata\"", scan);
             Assert.Contains("TEST.WARNING", scan);
             Assert.Contains("TEST.ERROR", scan);
+        }
+
+        [Fact]
+        public void ReportRunService_Can_Write_Artifacts_Without_Generating_A_Report()
+        {
+            var hc = new DomainHealthCheck();
+            hc.DmarcAnalysis.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Message = "Artifact only warning",
+                Code = "TEST.ARTIFACT",
+                Category = "TEST",
+                Target = "example.com",
+                Timestamp = DateTimeOffset.UtcNow
+            });
+
+            var tmp = Path.Combine(Path.GetTempPath(), "dd-artifacts-only-" + Guid.NewGuid().ToString("n"));
+            Directory.CreateDirectory(tmp);
+
+            try
+            {
+                var logger = new InternalLogger(false);
+                var runDirectory = ReportRunService.WriteArtifactsOnly(
+                    logger,
+                    "example.com",
+                    hc,
+                    exportPath: null,
+                    defaultOutputDirectory: tmp);
+
+                Assert.True(Directory.Exists(runDirectory));
+                Assert.True(File.Exists(Path.Combine(runDirectory, "scan.json")));
+                Assert.True(File.Exists(Path.Combine(runDirectory, "metrics.json")));
+            }
+            finally
+            {
+                if (Directory.Exists(tmp))
+                {
+                    Directory.Delete(tmp, recursive: true);
+                }
+            }
         }
     }
 }

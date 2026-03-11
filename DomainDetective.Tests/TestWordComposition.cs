@@ -74,4 +74,47 @@ public class TestWordComposition
             try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
         }
     }
+
+    [Fact]
+    public void FooterText_Is_Written_To_Word_Composition_Output()
+    {
+        var spfView = new SpfRecordInfo
+        {
+            Check = HealthCheckType.SPF,
+            Area = AnalysisArea.Mail,
+            Subject = "example.com",
+            SpfRecord = "v=spf1 -all",
+            Assessments = Array.Empty<Assessment>(),
+            Recommendations = Array.Empty<RecommendationAdvice>(),
+            Positives = Array.Empty<RecommendationAdvice>()
+        };
+
+        var tmp = Path.Combine(Path.GetTempPath(), $"dd-word-footer-{Guid.NewGuid():N}.docx");
+        try
+        {
+            WordCompositionReport.Generate(
+                tmp,
+                new List<object> { spfView },
+                ReportScope.Minimal,
+                showInfoFindings: false,
+                footerText: "Footer from test");
+
+            using var zip = ZipFile.OpenRead(tmp);
+            var footerText = string.Join(" ",
+                zip.Entries
+                    .Where(e => e.FullName.StartsWith("word/footer", StringComparison.OrdinalIgnoreCase))
+                    .Select(entry =>
+                    {
+                        using var stream = entry.Open();
+                        using var reader = new StreamReader(stream);
+                        return reader.ReadToEnd();
+                    }));
+
+            Assert.Contains("Footer from test", footerText);
+        }
+        finally
+        {
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+        }
+    }
 }

@@ -47,28 +47,24 @@ namespace DomainDetective.PowerShell {
                 var view = DomainDetective.Views.Converters.Convert(healthCheck.CAAAnalysis);
                 WriteObject(view);
                 if (IsExportRequested()) {
-                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                    if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                        var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, domain, fmt);
-                        try {
-                            DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                                outPath,
-                                new System.Collections.Generic.List<object> { view },
-                                DomainDetective.Reports.ReportScope.Normal,
-                                showInfoFindings: true,
-                                narrativePlacement: ExportDefaults.NarrativePlacement,
-                                titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"CAA Report — {domain}" : ExportDefaults.NarrativeTitle,
-                                summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                                headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                                footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                                TryOpenReport(outPath);
-                            }
-                        } catch (System.Exception ex) {
-                            WriteWarning($"CAA export failed: {ex.Message}");
+                    try {
+                        var hadUnsupportedFormats = false;
+                        CompositionExportHelper.WriteReports(
+                            new System.Collections.Generic.List<object> { view },
+                            GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                            ExportPath,
+                            domain,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            $"CAA Report — {domain}",
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            TryOpenReport,
+                            out hadUnsupportedFormats);
+
+                        if (hadUnsupportedFormats) {
+                            await ExportNotImplementedAsync("Test-DDDnsCaaRecord");
                         }
-                    } else {
-                        await ExportNotImplementedAsync("Test-DDDnsCaaRecord");
+                    } catch (System.Exception ex) {
+                        WriteWarning($"CAA export failed: {ex.Message}");
                     }
                 }
             }
@@ -77,7 +73,5 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-
 
 

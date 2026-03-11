@@ -44,7 +44,27 @@ namespace DomainDetective.PowerShell {
             await _healthCheck.CheckMailLatency(HostName, Port);
             var view = DomainDetective.Views.Converters.Convert(_healthCheck.MailLatencyAnalysis);
             WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            if (IsExportRequested()) {
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { view },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        HostName,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"Mail Latency Report - {HostName}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDEmailLatency");
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"Mail latency export failed: {ex.Message}");
+                }
+            }
         }
     }
 }

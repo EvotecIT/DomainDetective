@@ -160,6 +160,37 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task FallsBackToLaterResolvedAddressWhenFirstOneFails() {
+#if NET472
+            if (!Socket.OSSupportsIPv6) {
+                return;
+            }
+#else
+            if (!Socket.OSSupportsIPv6) {
+                return;
+            }
+#endif
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var accept = listener.AcceptTcpClientAsync();
+
+            try {
+                var analysis = new PortScanAnalysis {
+                    Timeout = ScanTimeout,
+                    HostAddressResolver = _ => Task.FromResult(new[] { IPAddress.IPv6Loopback, IPAddress.Loopback })
+                };
+
+                await analysis.Scan("dualstack.test", new[] { port }, new InternalLogger());
+                using var _ = await accept;
+
+                Assert.True(analysis.Results[port].TcpOpen);
+            } finally {
+                listener.Stop();
+            }
+        }
+
+        [Fact]
         public async Task ScansUsingSmbProfile() {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();

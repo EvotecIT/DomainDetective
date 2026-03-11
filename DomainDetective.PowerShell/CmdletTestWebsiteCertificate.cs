@@ -56,7 +56,27 @@ namespace DomainDetective.PowerShell {
             if (ShowChain && _healthCheck.CertificateAnalysis.Chain.Count > 0) {
                 WriteObject(_healthCheck.CertificateAnalysis.Chain, true);
             }
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            if (IsExportRequested()) {
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { view },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        Url,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"Website Certificate Report - {Url}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDDomainCertificate");
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"Website certificate export failed: {ex.Message}");
+                }
+            }
         }
     }
 }

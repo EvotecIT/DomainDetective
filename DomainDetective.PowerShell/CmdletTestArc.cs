@@ -1,5 +1,6 @@
 using DnsClientX;
 using System.IO;
+using System.Linq;
 using System.Management.Automation;
 using System.Threading.Tasks;
 
@@ -34,6 +35,7 @@ namespace DomainDetective.PowerShell {
     private DomainHealthCheck _healthCheck = null!;
     private readonly System.Collections.Generic.List<object> _items = new();
     private readonly System.Collections.Generic.List<string> _subjects = new();
+    private bool _hadUnsupportedFormats;
 
         /// <summary>
         /// Initializes logging and the ARC health checker.
@@ -68,14 +70,17 @@ namespace DomainDetective.PowerShell {
             // Prefer consistent view output across cmdlets
             WriteObject(view);
             if (!IsExportRequested()) return;
-            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-            if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+            var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+            var label = ParameterSetName == "File" && !string.IsNullOrWhiteSpace(File) ? System.IO.Path.GetFileName(File) : "Message";
+            var wantsComposition = formats.Contains(DomainDetective.Reports.ReportFormat.Word)
+                || formats.Contains(DomainDetective.Reports.ReportFormat.Html);
+            if (wantsComposition) {
                 _items.Add(view);
-                var label = ParameterSetName == "File" && !string.IsNullOrWhiteSpace(File) ? System.IO.Path.GetFileName(File) : "Message";
                 _subjects.Add(label);
-            } else if (fmt == DomainDetective.Reports.ReportFormat.Json) {
-                var label = ParameterSetName == "File" && !string.IsNullOrWhiteSpace(File) ? System.IO.Path.GetFileName(File) : "arc";
-                var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
+            }
+
+            if (formats.Contains(DomainDetective.Reports.ReportFormat.Json)) {
+                var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Json, formats);
                 try {
                     var json = System.Text.Json.JsonSerializer.Serialize(result, DomainDetective.Helpers.JsonOptions.Default);
                     System.IO.File.WriteAllText(outPath, json);
@@ -84,7 +89,17 @@ namespace DomainDetective.PowerShell {
                 } catch (System.Exception ex) {
                     WriteWarning($"ARC export failed: {ex.Message}");
                 }
-            } else {
+            }
+
+            var hasUnsupportedFormats = formats.Any(f =>
+                f != DomainDetective.Reports.ReportFormat.Word
+                && f != DomainDetective.Reports.ReportFormat.Html
+                && f != DomainDetective.Reports.ReportFormat.Json);
+            _hadUnsupportedFormats |= hasUnsupportedFormats;
+
+            if (!wantsComposition && !formats.Contains(DomainDetective.Reports.ReportFormat.Json)) {
+                await ExportNotImplementedAsync("Test-DDEmailArcRecord");
+            } else if (hasUnsupportedFormats) {
                 await ExportNotImplementedAsync("Test-DDEmailArcRecord");
             }
         }
@@ -94,8 +109,10 @@ namespace DomainDetective.PowerShell {
         /// </summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
-            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-            if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
+            var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format)
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .ToArray();
+            if (formats.Length == 0) return Task.CompletedTask;
 
             var label = _subjects.Count switch {
                 0 => "arc",
@@ -103,40 +120,21 @@ namespace DomainDetective.PowerShell {
                 2 => $"{_subjects[0]}+{_subjects[1]}",
                 _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
             };
-            var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
             try {
-                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                    DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                        outPath,
-                        _items,
-                        DomainDetective.Reports.ReportScope.Detailed,
-                        showInfoFindings: true,
-                        narrativePlacement: ExportDefaults.NarrativePlacement,
-                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"ARC Report — {label}" : ExportDefaults.NarrativeTitle,
-                        subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                        categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                        keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                        creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                        companyName: string.IsNullOrWhiteSpace(ExportDefaults.CompanyName) ? null : ExportDefaults.CompanyName,
-                        companyAddress: string.IsNullOrWhiteSpace(ExportDefaults.CompanyAddress) ? null : ExportDefaults.CompanyAddress,
-                        companyYear: string.IsNullOrWhiteSpace(ExportDefaults.CompanyYear) ? null : ExportDefaults.CompanyYear,
-                        logoPath: string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
-                        headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-                        watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
-                        summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                        headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                        footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                    if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                } else {
-                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                        outPath,
-                        _items,
-                        DomainDetective.Reports.ReportScope.Detailed,
-                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                        ExportDefaults.NarrativePlacement,
-                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                        authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                        descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+                var hadUnsupportedFormats = false;
+                CompositionExportHelper.WriteReports(
+                    _items,
+                    formats,
+                    ExportPath,
+                    label,
+                    DomainDetective.Reports.ReportScope.Detailed,
+                    $"ARC Report — {label}",
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    TryOpenReport,
+                    out hadUnsupportedFormats);
+
+                if (_hadUnsupportedFormats || hadUnsupportedFormats) {
+                    return ExportNotImplementedAsync("Test-DDEmailArcRecord");
                 }
             } catch (System.Exception ex) {
                 WriteWarning($"ARC export failed: {ex.Message}");

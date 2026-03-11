@@ -50,6 +50,7 @@ public class PortScanAnalysis : IHasAssessments
     /// <summary>Factory used to create <see cref="UdpClient"/> instances.</summary>
     internal Func<AddressFamily, UdpClient> UdpClientFactory { get; set; } = af => new UdpClient(af);
     internal Func<AddressFamily, TcpClient> TcpClientFactory { get; set; } = af => new TcpClient(af);
+    internal Func<string, Task<IPAddress[]>> HostAddressResolver { get; set; } = Dns.GetHostAddressesAsync;
 
     /// <summary>Structured assessments captured during port scans.</summary>
     public List<Assessment> Assessments { get; } = new();
@@ -144,30 +145,93 @@ public class PortScanAnalysis : IHasAssessments
     private async Task<ScanResult> ScanPort(string host, int port, InternalLogger? logger, CancellationToken token)
     {
         using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "PORTSCAN", target: $"{host}:{port}") : null;
-        bool tcpOpen = false;
-        bool udpOpen = false;
-        string? banner = null;
         var sw = Stopwatch.StartNew();
-        string? error = null;
+        IReadOnlyList<IPAddress> addresses;
+        try
+        {
+            addresses = await ResolveAddressesAsync(host).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            return new ScanResult { TcpOpen = false, UdpOpen = false, TcpLatency = sw.Elapsed, Error = ex.Message };
+        }
 
-        IPAddress address;
-        if (IPAddress.TryParse(host, out var parsedAddress) && parsedAddress != null) {
-            address = parsedAddress;
-        } else {
-            try {
-                address = (await Dns.GetHostAddressesAsync(host).ConfigureAwait(false)).First();
-            } catch (Exception ex) {
-                error = ex.Message;
-                return new ScanResult { TcpOpen = false, UdpOpen = false, TcpLatency = sw.Elapsed, Error = error };
+        var aggregate = new ScanResult();
+        string? lastError = null;
+        foreach (var address in addresses)
+        {
+            token.ThrowIfCancellationRequested();
+            var current = await ScanAddressAsync(host, address, port, logger, token).ConfigureAwait(false);
+            if (current.TcpOpen || current.UdpOpen)
+            {
+                aggregate = MergeResults(aggregate, current);
+                if (aggregate.TcpOpen && aggregate.UdpOpen)
+                {
+                    return aggregate;
+                }
+                lastError = current.Error;
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(current.Error))
+            {
+                lastError = current.Error;
+            }
+
+            if (!aggregate.TcpOpen && current.TcpLatency > aggregate.TcpLatency)
+            {
+                aggregate = new ScanResult
+                {
+                    TcpOpen = aggregate.TcpOpen,
+                    UdpOpen = aggregate.UdpOpen,
+                    TcpLatency = current.TcpLatency,
+                    Error = aggregate.Error,
+                    Banner = aggregate.Banner
+                };
             }
         }
 
-        using (var client = TcpClientFactory(address.AddressFamily))
+        return new ScanResult
         {
+            TcpOpen = aggregate.TcpOpen,
+            UdpOpen = aggregate.UdpOpen,
+            TcpLatency = aggregate.TcpLatency,
+            Error = lastError,
+            Banner = aggregate.Banner
+        };
+    }
+
+    private async Task<IReadOnlyList<IPAddress>> ResolveAddressesAsync(string host)
+    {
+        if (IPAddress.TryParse(host, out var parsedAddress) && parsedAddress != null)
+        {
+            return new[] { parsedAddress };
+        }
+
+        var addresses = await HostAddressResolver(host).ConfigureAwait(false);
+        if (addresses == null || addresses.Length == 0)
+        {
+            throw new SocketException((int)SocketError.HostNotFound);
+        }
+
+        return addresses
+            .Where(address => address != null)
+            .Distinct()
+            .ToArray();
+    }
+
+    private async Task<ScanResult> ScanAddressAsync(string host, IPAddress address, int port, InternalLogger? logger, CancellationToken token)
+    {
+        bool tcpOpen = false;
+        bool udpOpen = false;
+        string? banner = null;
+        string? error = null;
+        var sw = Stopwatch.StartNew();
+
+        using (var client = TcpClientFactory(address.AddressFamily)) {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(Timeout);
-            try
-            {
+            try {
 #if NET8_0_OR_GREATER
                 await client.ConnectAsync(address, port, cts.Token).ConfigureAwait(false);
 #else
@@ -175,9 +239,7 @@ public class PortScanAnalysis : IHasAssessments
 #endif
                 tcpOpen = true;
                 banner = await DetectServiceAsync(client, port, cts.Token).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
-            {
+            } catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException) {
                 logger?.WriteVerbose("TCP {0}:{1} closed - {2}", address, port, ex.Message);
                 error = ex.Message;
             }
@@ -233,6 +295,20 @@ public class PortScanAnalysis : IHasAssessments
         }
 
         return new ScanResult { TcpOpen = tcpOpen, UdpOpen = udpOpen, TcpLatency = sw.Elapsed, Error = error, Banner = banner };
+    }
+
+    private static ScanResult MergeResults(ScanResult baseline, ScanResult current)
+    {
+        return new ScanResult
+        {
+            TcpOpen = baseline.TcpOpen || current.TcpOpen,
+            UdpOpen = baseline.UdpOpen || current.UdpOpen,
+            TcpLatency = baseline.TcpOpen
+                ? baseline.TcpLatency
+                : current.TcpLatency,
+            Error = baseline.Error ?? current.Error,
+            Banner = baseline.Banner ?? current.Banner
+        };
     }
 
     private static IEnumerable<Func<NetworkStream, CancellationToken, Task<string?>>> GetStrategies(int port)
@@ -376,4 +452,3 @@ public class PortScanAnalysis : IHasAssessments
         return false;
     }
 }
-

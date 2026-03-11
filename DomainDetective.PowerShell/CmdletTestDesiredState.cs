@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Management.Automation;
 using System.Threading.Tasks;
 using DnsClientX;
@@ -132,12 +133,12 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
                 WriteObject(view);
 
                 if (IsExportRequested()) {
-                    var request = new DomainDetective.Reports.CompositionExportRequest {
-                        Items = new object[] { view },
-                        Formats = GetRequestedFormatsOrDefault(DomainDetective.Reports.ReportFormat.Html),
-                        ExportPath = ExportPath,
-                        OpenInBrowser = OpenInBrowser.IsPresent
-                    };
+                    var request = CreateExportRequest(
+                        new[] { (object)view },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        OpenInBrowser.IsPresent,
+                        ExportDefaults.OpenInBrowser);
                     await DomainDetective.Reports.CompositionExportService.ExportAsync(request, logger, CancelToken).ConfigureAwait(false);
                 }
             } catch (OperationCanceledException) {
@@ -150,5 +151,32 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
         }
 
         await ForEachAsync(DomainName, ProcessDomainAsync);
+    }
+
+    internal static DomainDetective.Reports.CompositionExportRequest CreateExportRequest(
+        IReadOnlyList<object> items,
+        IReadOnlyList<DomainDetective.Reports.ReportFormat> formats,
+        string? exportPath,
+        bool openInBrowserRequested,
+        bool defaultOpenInBrowser)
+    {
+        return new DomainDetective.Reports.CompositionExportRequest {
+            Items = items ?? Array.Empty<object>(),
+            Formats = formats ?? Array.Empty<DomainDetective.Reports.ReportFormat>(),
+            ExportPath = exportPath,
+            DefaultOutputDirectory = ExportDefaults.OutputDirectory,
+            OpenInBrowser = openInBrowserRequested || defaultOpenInBrowser,
+            NarrativePlacement = ExportDefaults.NarrativePlacement,
+            CompanyName = string.IsNullOrWhiteSpace(ExportDefaults.CompanyName) ? null : ExportDefaults.CompanyName,
+            CompanyAddress = string.IsNullOrWhiteSpace(ExportDefaults.CompanyAddress) ? null : ExportDefaults.CompanyAddress,
+            CompanyYear = string.IsNullOrWhiteSpace(ExportDefaults.CompanyYear) ? null : ExportDefaults.CompanyYear,
+            LogoPath = string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
+            HeaderText = string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
+            FooterText = string.IsNullOrWhiteSpace(ExportDefaults.FooterText) ? null : ExportDefaults.FooterText,
+            WatermarkText = string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
+            HeaderLogoSizePx = ExportDefaults.HeaderLogoSizePx,
+            FooterLogoSizePx = ExportDefaults.FooterLogoSizePx,
+            AutoCollectTtl = true
+        };
     }
 }

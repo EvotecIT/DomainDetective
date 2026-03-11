@@ -137,6 +137,9 @@ namespace DomainDetective.PowerShell {
                     WriteProgress(record);
                 });
                 var results = await analysis.QueryAsync(domain, RecordType, serverList, CancelToken, progress);
+                var report = new DnsPropagationReportAnalysis();
+                report.Load(domain, RecordType, results, maxResultsToKeep: MaxResultsToKeep);
+                var view = DomainDetective.Views.Converters.Convert(report);
                 IEnumerable<string>? changes = null;
                 if (Diff.IsPresent) {
                     changes = analysis.GetSnapshotChanges(domain, RecordType, results);
@@ -145,9 +148,6 @@ namespace DomainDetective.PowerShell {
                     var details = DnsPropagationAnalysis.GetComparisonDetails(results);
                     WriteObject(details, true);
                 } else if (AsView.IsPresent) {
-                    var report = new DnsPropagationReportAnalysis();
-                    report.Load(domain, RecordType, results, maxResultsToKeep: MaxResultsToKeep);
-                    var view = DomainDetective.Views.Converters.Convert(report);
                     WriteObject(view);
                 } else {
                     WriteObject(results, true);
@@ -159,7 +159,61 @@ namespace DomainDetective.PowerShell {
                     WriteObject(changes, true);
                 }
                 if (IsExportRequested()) {
-                    await ExportNotImplementedAsync();
+                    var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+                    var compositionFormats = formats
+                        .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                        .ToArray();
+                    var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
+                    var hadUnsupportedFormats = formats.Any(f =>
+                        f != DomainDetective.Reports.ReportFormat.Word
+                        && f != DomainDetective.Reports.ReportFormat.Html
+                        && f != DomainDetective.Reports.ReportFormat.Json);
+                    var generated = false;
+                    var label = $"{domain}-{RecordType}";
+
+                    if (compositionFormats.Length > 0) {
+                        try {
+                            var compositionUnsupportedFormats = false;
+                            CompositionExportHelper.WriteReports(
+                                new List<object> { view },
+                                compositionFormats,
+                                ExportPath,
+                                label,
+                                DomainDetective.Reports.ReportScope.Normal,
+                                $"DNS Propagation Report - {domain} ({RecordType})",
+                                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                                TryOpenReport,
+                                out compositionUnsupportedFormats);
+                            generated = true;
+                            hadUnsupportedFormats |= compositionUnsupportedFormats;
+                        } catch (Exception ex) {
+                            WriteWarning($"DNS propagation export failed: {ex.Message}");
+                        }
+                    }
+
+                    if (wantsJson) {
+                        var outPath = ResolveOutPathForFormat(
+                            ExportPath,
+                            ExportDefaults.OutputDirectory,
+                            label,
+                            DomainDetective.Reports.ReportFormat.Json,
+                            formats);
+                        try {
+                            var json = System.Text.Json.JsonSerializer.Serialize(report, DomainDetective.Helpers.JsonOptions.Default);
+                            File.WriteAllText(outPath, json);
+                            generated = true;
+                            WriteVerbose($"DNS propagation JSON saved: {outPath}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                                TryOpenReport(outPath);
+                            }
+                        } catch (Exception ex) {
+                            WriteWarning($"DNS propagation export failed: {ex.Message}");
+                        }
+                    }
+
+                    if (!generated || hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDDnsPropagation");
+                    }
                 }
             }
 
@@ -167,5 +221,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
 

@@ -70,7 +70,27 @@ public sealed class CmdletTestPortScan : ExportableAsyncPSCmdlet
         await _healthCheck.ScanPorts(HostName, Ports, Profile, default, ShowProgress.IsPresent);
         var view = DomainDetective.Views.Converters.Convert(_healthCheck.PortScanAnalysis);
         WriteObject(view);
-        if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+        if (IsExportRequested()) {
+            try {
+                var hadUnsupportedFormats = false;
+                CompositionExportHelper.WriteReports(
+                    new System.Collections.Generic.List<object> { view },
+                    GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                    ExportPath,
+                    HostName,
+                    DomainDetective.Reports.ReportScope.Normal,
+                    $"Port Scan Report - {HostName}",
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    TryOpenReport,
+                    out hadUnsupportedFormats);
+
+                if (hadUnsupportedFormats) {
+                    await ExportNotImplementedAsync("Test-DDNetworkPortScan");
+                }
+            } catch (System.Exception ex) {
+                WriteWarning($"Port scan export failed: {ex.Message}");
+            }
+        }
     }
 }
 

@@ -33,7 +33,8 @@ namespace DomainDetective.PowerShell {
     ///   Values: <c>MxOnly</c>, <c>MxAOnly</c>, <c>MxAAAAOnly</c>, <c>ApexOnly</c>, <c>ApexAOnly</c>, <c>ApexAAAAOnly</c>, <c>MxAndApex</c>, <c>MxThenApexFallback</c> (default).
     ///
     /// Notes:
-    /// - Export switches are available but dedicated reports are not yet implemented; using them will emit a TODO message.
+    /// - Word and HTML composition exports are supported.
+    /// - Other export formats continue to use the shared "not implemented" warning path.
     /// </remarks>
     /// <example>
     ///   <summary>Default: domain + MX-IP checks.</summary>
@@ -209,8 +210,9 @@ namespace DomainDetective.PowerShell {
 AfterWrite:
             if (IsExportRequested()) {
                 try {
-                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                    if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+                    var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                    if (wantsComposition) {
                         var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
                         // Ensure a non-empty Subject for grouping when inputs are IP-only
                         if (string.IsNullOrWhiteSpace(view.Subject)) {
@@ -219,33 +221,20 @@ AfterWrite:
                         }
                         var items = new System.Collections.Generic.List<object> { view };
                         var label = view.Subject ?? "DNSBL";
-                        var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
-                        if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                            DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                                outPath,
-                                items,
-                                DomainDetective.Reports.ReportScope.Normal,
-                                showInfoFindings: true,
-                                narrativePlacement: ExportDefaults.NarrativePlacement,
-                                titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"DNSBL Report — {label}" : ExportDefaults.NarrativeTitle,
-                                subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                                categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                                keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                                creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                                summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                                headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                                footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                        } else {
-                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                                outPath,
-                                items,
-                                DomainDetective.Reports.ReportScope.Normal,
-                                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                                ExportDefaults.NarrativePlacement,
-                                titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                                authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                                descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+                        var hadUnsupportedFormats = false;
+                        CompositionExportHelper.WriteReports(
+                            items,
+                            formats,
+                            ExportPath,
+                            label,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            $"DNSBL Report — {label}",
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            TryOpenReport,
+                            out hadUnsupportedFormats);
+
+                        if (hadUnsupportedFormats) {
+                            await ExportNotImplementedAsync();
                         }
                     } else {
                         await ExportNotImplementedAsync();

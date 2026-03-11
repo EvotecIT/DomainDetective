@@ -59,34 +59,16 @@ public class TestEdnsSupportAnalysis {
 
     [Fact]
     public async Task RetriesOverTcpWhenTruncated() {
-        var port = 0;
+        var port = PortHelper.GetFreePort();
         UdpClient? udpServer = null;
         TcpListener? tcpListener = null;
         Task? udpTask = null;
         Task? tcpTask = null;
 
         try {
-            for (var attempt = 0; attempt < 20; attempt++) {
-                tcpListener?.Stop();
-                udpServer?.Dispose();
-
-                tcpListener = new TcpListener(IPAddress.Loopback, 0);
-                tcpListener.Start();
-                port = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
-
-                try {
-                    udpServer = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
-                    break;
-                } catch (SocketException) {
-                    tcpListener.Stop();
-                    tcpListener = null;
-                    udpServer = null;
-                }
-            }
-
-            if (tcpListener == null || udpServer == null || port == 0) {
-                throw new InvalidOperationException("Failed to allocate a shared UDP/TCP port for the test harness.");
-            }
+            tcpListener = new TcpListener(IPAddress.Loopback, port);
+            tcpListener.Start();
+            udpServer = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
 
             var udp = udpServer;
             var listener = tcpListener;
@@ -164,6 +146,7 @@ public class TestEdnsSupportAnalysis {
             }
 
             udpServer?.Dispose();
+            PortHelper.ReleasePort(port);
 
             if (udpTask != null) {
                 try {
@@ -183,6 +166,83 @@ public class TestEdnsSupportAnalysis {
         }
     }
 
+    [Fact]
+    public async Task UsesRequestedDomainInEdnsProbe() {
+        var port = PortHelper.GetFreePort();
+        string? queryName = null;
+        using var udpServer = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+        var udpTask = Task.Run(async () => {
+            var request = await udpServer.ReceiveAsync();
+            queryName = ReadQueryName(request.Buffer);
+            var q = request.Buffer;
+            var response = new byte[23];
+            response[0] = q[0];
+            response[1] = q[1];
+            response[2] = (byte)(0x80 | (q[2] & 0x01));
+            response[3] = 0x00;
+            response[10] = 0x00;
+            response[11] = 0x01;
+            response[12] = 0x00;
+            response[13] = 0x00;
+            response[14] = 0x29;
+            response[15] = 0x10;
+            response[16] = 0x00;
+            response[17] = 0x00;
+            response[18] = 0x00;
+            response[19] = 0x00;
+            response[20] = 0x00;
+            response[21] = 0x00;
+            response[22] = 0x00;
+            await udpServer.SendAsync(response, response.Length, request.RemoteEndPoint);
+        });
+
+        try {
+            var analysis = new EdnsSupportAnalysis {
+                QueryDnsOverride = (name, type) => {
+                    if (type == DnsRecordType.NS) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "ns.example.com", Type = DnsRecordType.NS } });
+                    }
+
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = $"127.0.0.1:{port}", Type = DnsRecordType.A } });
+                }
+            };
+
+            await analysis.Analyze("contoso.example", new InternalLogger());
+            Assert.Equal("contoso.example", queryName);
+        }
+        finally {
+            udpServer.Dispose();
+            PortHelper.ReleasePort(port);
+            await udpTask;
+        }
+    }
+
+    [Fact]
+    public async Task UsesIpv6AuthoritativeServerAddressesWhenIpv4Missing() {
+        var seenAddresses = new List<string>();
+        var analysis = new EdnsSupportAnalysis {
+            QueryDnsOverride = (name, type) => {
+                if (type == DnsRecordType.NS) {
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "ns.example.com", Type = DnsRecordType.NS } });
+                }
+                if (type == DnsRecordType.AAAA) {
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "2001:db8::53", Type = DnsRecordType.AAAA } });
+                }
+
+                return Task.FromResult(Array.Empty<DnsAnswer>());
+            },
+            QueryServerOverride = serverAddress => {
+                seenAddresses.Add(serverAddress);
+                return Task.FromResult(new EdnsSupportInfo { Supported = true, UdpPayloadSize = 1232, DoBit = false });
+            }
+        };
+
+        await analysis.Analyze("example.com", new InternalLogger());
+
+        Assert.Contains("2001:db8::53", seenAddresses);
+        Assert.Contains(analysis.ServerSupport.Keys, key => key.Contains("2001:db8::53", StringComparison.Ordinal));
+    }
+
     private static async Task ReadExactlyAsync(NetworkStream stream, byte[] buffer, int offset, int count) {
         int total = 0;
         while (total < count) {
@@ -192,5 +252,21 @@ public class TestEdnsSupportAnalysis {
             }
             total += read;
         }
+    }
+
+    private static string ReadQueryName(byte[] message) {
+        var offset = 12;
+        var labels = new List<string>();
+        while (offset < message.Length) {
+            var length = message[offset++];
+            if (length == 0) {
+                break;
+            }
+
+            labels.Add(System.Text.Encoding.ASCII.GetString(message, offset, length));
+            offset += length;
+        }
+
+        return string.Join(".", labels);
     }
 }

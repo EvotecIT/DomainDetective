@@ -121,6 +121,7 @@ namespace DomainDetective.PowerShell {
                         companyYear: string.IsNullOrWhiteSpace(ExportDefaults.CompanyYear) ? null : ExportDefaults.CompanyYear,
                         logoPath: string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
                         headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
+                        footerText: string.IsNullOrWhiteSpace(ExportDefaults.FooterText) ? null : ExportDefaults.FooterText,
                         watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
                         summaryColumnCap: ExportDefaults.SummaryColumnCap,
                         headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
@@ -146,4 +147,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

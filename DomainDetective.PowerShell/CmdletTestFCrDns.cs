@@ -46,7 +46,25 @@ public sealed class CmdletTestFCrDns : ExportableAsyncPSCmdlet {
             var view = DomainDetective.Views.Converters.Convert(healthCheck.FcrDnsAnalysis);
             WriteObject(view);
             if (IsExportRequested()) {
-                await ExportNotImplementedAsync("Test-DDDnsForwardReverse");
+                try {
+                    var hadUnsupportedFormats = false;
+                    CompositionExportHelper.WriteReports(
+                        new System.Collections.Generic.List<object> { view },
+                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                        ExportPath,
+                        domain,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        $"FCrDNS Report — {domain}",
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        TryOpenReport,
+                        out hadUnsupportedFormats);
+
+                    if (hadUnsupportedFormats) {
+                        await ExportNotImplementedAsync("Test-DDDnsForwardReverse");
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"FCrDNS export failed: {ex.Message}");
+                }
             }
         }
 

@@ -37,6 +37,7 @@ namespace DomainDetective.PowerShell {
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
         private readonly object _exportLock = new();
+        private bool _hadUnsupportedFormats;
 
         // BeginProcessing handled per-domain to allow safe parallelism.
         /// <summary>
@@ -74,18 +75,28 @@ namespace DomainDetective.PowerShell {
                         WriteWarning($"No matching DKIM selectors found for {domain}.");
                     }
                 }
-                WriteObject(output, true);
+                if (FullResponse.IsPresent) {
+                    WriteObject(healthCheck.DKIMAnalysis);
+                } else {
+                    WriteObject(output, true);
+                }
 
                 if (IsExportRequested()) {
-                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                    if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+                    var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                    var hasUnsupportedFormats = formats.Any(f => f != DomainDetective.Reports.ReportFormat.Word && f != DomainDetective.Reports.ReportFormat.Html);
+
+                    if (wantsComposition) {
                         lock (_exportLock) {
                             _items.AddRange(output);
                             if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
                                 _subjects.Add(domain);
                             }
+                            _hadUnsupportedFormats |= hasUnsupportedFormats;
                         }
-                    } else {
+                    }
+
+                    if (!wantsComposition) {
                         await ExportNotImplementedAsync("Test-DDEmailDkimRecord");
                     }
                 }
@@ -97,8 +108,10 @@ namespace DomainDetective.PowerShell {
         /// <summary>Composes DKIM sections into one document for Word/HTML export.</summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
-            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-            if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
+            var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format)
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .ToArray();
+            if (formats.Length == 0) return Task.CompletedTask;
 
             var label = _subjects.Count switch {
                 0 => "dkim",
@@ -106,34 +119,21 @@ namespace DomainDetective.PowerShell {
                 2 => $"{_subjects[0]}+{_subjects[1]}",
                 _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
             };
-            var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
             try {
-                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                    DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                        outPath,
-                        _items,
-                        DomainDetective.Reports.ReportScope.Detailed,
-                        showInfoFindings: true,
-                        narrativePlacement: ExportDefaults.NarrativePlacement,
-                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"DKIM Report — {label}" : ExportDefaults.NarrativeTitle,
-                        subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                        categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                        keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                        creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                        summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                        headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                        footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                    if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                } else {
-                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                        outPath,
-                        _items,
-                        DomainDetective.Reports.ReportScope.Detailed,
-                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                        ExportDefaults.NarrativePlacement,
-                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
-                        authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                        descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+                var hadUnsupportedFormats = false;
+                CompositionExportHelper.WriteReports(
+                    _items,
+                    formats,
+                    ExportPath,
+                    label,
+                    DomainDetective.Reports.ReportScope.Detailed,
+                    $"DKIM Report — {label}",
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    TryOpenReport,
+                    out hadUnsupportedFormats);
+
+                if (_hadUnsupportedFormats || hadUnsupportedFormats) {
+                    return ExportNotImplementedAsync("Test-DDEmailDkimRecord");
                 }
             } catch (System.Exception ex) {
                 WriteWarning($"DKIM export failed: {ex.Message}");
@@ -142,4 +142,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
