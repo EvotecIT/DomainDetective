@@ -344,7 +344,7 @@ namespace DomainDetective {
             }
         }
 
-        private static string? BuildFailureReason(Exception? exception)
+        internal static string? BuildFailureReason(Exception? exception)
         {
             if (exception == null)
             {
@@ -391,14 +391,22 @@ namespace DomainDetective {
                 }
 #endif
 
-                if (current is TimeoutException ||
-                    current is TaskCanceledException ||
-                    current is OperationCanceledException)
+                if (current is TimeoutException)
                 {
                     const string timeoutMarker = "FailureKind:Timeout";
                     if (!parts.Any(existing => string.Equals(existing, timeoutMarker, StringComparison.OrdinalIgnoreCase)))
                     {
                         parts.Add(timeoutMarker);
+                    }
+                }
+
+                if (current is TaskCanceledException ||
+                    current is OperationCanceledException)
+                {
+                    const string cancelledMarker = "FailureKind:Cancelled";
+                    if (!parts.Any(existing => string.Equals(existing, cancelledMarker, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        parts.Add(cancelledMarker);
                     }
                 }
 

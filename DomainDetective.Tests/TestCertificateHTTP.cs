@@ -11,7 +11,6 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using DnsClientX;
 using DomainDetective.Tests.Fixtures;
 
@@ -46,14 +45,23 @@ namespace DomainDetective.Tests {
             var timeout = new TimeoutException("The operation timed out.", socket);
             var http = new HttpRequestException("Unable to connect to the remote server.", timeout);
 
-            MethodInfo buildFailureReason = typeof(CertificateAnalysis)
-                .GetMethod("BuildFailureReason", BindingFlags.NonPublic | BindingFlags.Static)!;
-
-            string? reason = (string?)buildFailureReason.Invoke(null, new object?[] { http });
+            string? reason = CertificateAnalysis.BuildFailureReason(http);
 
             Assert.NotNull(reason);
             Assert.Contains("SocketError:TimedOut", reason, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("FailureKind:Timeout", reason, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void BuildFailureReason_AppendsCancelledMarkerForCancellation() {
+            var cancelled = new TaskCanceledException("Request was cancelled.");
+            var http = new HttpRequestException("Request aborted.", cancelled);
+
+            string? reason = CertificateAnalysis.BuildFailureReason(http);
+
+            Assert.NotNull(reason);
+            Assert.Contains("FailureKind:Cancelled", reason, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("FailureKind:Timeout", reason, StringComparison.OrdinalIgnoreCase);
         }
 
 #if NET8_0_OR_GREATER
@@ -65,10 +73,7 @@ namespace DomainDetective.Tests {
                 null,
                 null);
 
-            MethodInfo buildFailureReason = typeof(CertificateAnalysis)
-                .GetMethod("BuildFailureReason", BindingFlags.NonPublic | BindingFlags.Static)!;
-
-            string? reason = (string?)buildFailureReason.Invoke(null, new object?[] { http });
+            string? reason = CertificateAnalysis.BuildFailureReason(http);
 
             Assert.NotNull(reason);
             Assert.Contains("HttpRequestError:NameResolutionError", reason, StringComparison.OrdinalIgnoreCase);

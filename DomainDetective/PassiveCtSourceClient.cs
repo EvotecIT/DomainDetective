@@ -130,15 +130,15 @@ internal sealed class PassiveCtSourceClient
                     }
 
                     result.Warnings.Add(warning);
-                    result.Diagnostics.Add(new PassiveCtDiagnosticEntry
-                    {
-                        SourceName = request.SourceName,
-                        RequestUrl = request.Url,
-                        State = "InvalidPayload",
-                        RetrySuggested = true,
-                        CooldownUntilUtc = useSharedSourceState ? TryGetSourceCooldownUtc(request.SourceName) : null,
-                        Failure = payloadValidationFailure
-                    });
+                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                {
+                    SourceName = request.SourceName,
+                    RequestUrl = request.Url,
+                    State = "InvalidPayload",
+                    RetrySuggested = true,
+                    CooldownUntilUtc = useSharedSourceState ? TryGetSourceCooldownUtc(request.SourceName) : null,
+                    Failure = SanitizeFailureText(payloadValidationFailure)
+                });
                     logger?.WriteVerbose("{0}", warning);
                     continue;
                 }
@@ -207,7 +207,7 @@ internal sealed class PassiveCtSourceClient
                     RetryAfterSeconds = outcome.RetryAfter.HasValue
                         ? (int?)Math.Ceiling(outcome.RetryAfter.Value.TotalSeconds)
                         : null,
-                    Failure = outcome.Failure
+                    Failure = SanitizeFailureText(outcome.Failure)
                 });
                 logger?.WriteVerbose("{0}", warning);
             }
@@ -220,7 +220,7 @@ internal sealed class PassiveCtSourceClient
                     SourceName = request.SourceName,
                     RequestUrl = request.Url,
                     State = "Failed",
-                    Failure = outcome.Failure
+                    Failure = SanitizeFailureText(outcome.Failure)
                 });
                 logger?.WriteVerbose("{0}", warning);
             }
@@ -349,8 +349,18 @@ internal sealed class PassiveCtSourceClient
 
         string failureText = failure ?? string.Empty;
         return failureText.IndexOf("429", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               failureText.IndexOf("Retry-After", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               failureText.IndexOf("rate", StringComparison.OrdinalIgnoreCase) >= 0;
+               failureText.IndexOf("Retry-After", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    internal static string? SanitizeFailureText(string? failure)
+    {
+        if (string.IsNullOrWhiteSpace(failure))
+        {
+            return null;
+        }
+
+        string normalized = failure!;
+        return normalized.Replace('\r', ' ').Replace('\n', ' ').Trim();
     }
 
     private static DateTimeOffset MarkTransientFailure(string sourceName, TimeSpan cooldown)

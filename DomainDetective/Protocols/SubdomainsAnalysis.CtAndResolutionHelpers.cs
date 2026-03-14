@@ -361,9 +361,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 RetrySuggested = diagnostic.RetrySuggested,
                 CooldownUntilUtc = diagnostic.CooldownUntilUtc,
                 RetryAfterSeconds = diagnostic.RetryAfterSeconds,
-                Failure = string.IsNullOrWhiteSpace(diagnostic.Failure)
-                    ? null
-                    : diagnostic.Failure!.Replace('\r', ' ').Replace('\n', ' ').Trim()
+                Failure = PassiveCtSourceClient.SanitizeFailureText(diagnostic.Failure)
             });
         }
 
