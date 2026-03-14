@@ -412,6 +412,7 @@ namespace DomainDetective {
                 Expired = entry.Expired,
                 ChainComplete = entry.ChainComplete,
                 IsReachable = analysis.IsReachable,
+                FailureReason = analysis.FailureReason,
                 IsSelfSigned = analysis.IsSelfSigned,
                 HostnameMatch = analysis.HostnameMatch,
                 PresentInCtLogs = analysis.PresentInCtLogs,

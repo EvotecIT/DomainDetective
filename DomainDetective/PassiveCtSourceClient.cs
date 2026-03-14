@@ -34,6 +34,7 @@ internal sealed class PassiveCtSourceClient
     {
         public List<SourcePayload> Payloads { get; } = new();
         public List<string> Warnings { get; } = new();
+        public List<PassiveCtDiagnosticEntry> Diagnostics { get; } = new();
         public bool RetrySuggested { get; set; }
     }
 
@@ -90,6 +91,14 @@ internal sealed class PassiveCtSourceClient
                     cooldownUntilUtc.ToString("u") +
                     "; check later or let the next run retry.";
                 result.Warnings.Add(cooldownMessage);
+                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                {
+                    SourceName = request.SourceName,
+                    RequestUrl = request.Url,
+                    State = "CoolingDown",
+                    RetrySuggested = true,
+                    CooldownUntilUtc = cooldownUntilUtc
+                });
                 logger?.WriteVerbose("{0}", cooldownMessage);
                 continue;
             }
@@ -121,6 +130,15 @@ internal sealed class PassiveCtSourceClient
                     }
 
                     result.Warnings.Add(warning);
+                    result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = request.SourceName,
+                        RequestUrl = request.Url,
+                        State = "InvalidPayload",
+                        RetrySuggested = true,
+                        CooldownUntilUtc = useSharedSourceState ? TryGetSourceCooldownUtc(request.SourceName) : null,
+                        Failure = payloadValidationFailure
+                    });
                     logger?.WriteVerbose("{0}", warning);
                     continue;
                 }
@@ -135,6 +153,12 @@ internal sealed class PassiveCtSourceClient
                     SourceName = request.SourceName,
                     Url = request.Url,
                     Payload = outcome.Payload!
+                });
+                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                {
+                    SourceName = request.SourceName,
+                    RequestUrl = request.Url,
+                    State = "Succeeded"
                 });
                 if (!effectiveOptions.QueryAllSources)
                 {
@@ -173,12 +197,31 @@ internal sealed class PassiveCtSourceClient
                 }
 
                 result.Warnings.Add(warning);
+                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                {
+                    SourceName = request.SourceName,
+                    RequestUrl = request.Url,
+                    State = IsRateLimitedFailure(outcome.Failure, outcome.RetryAfter) ? "RateLimited" : "TemporarilyUnavailable",
+                    RetrySuggested = true,
+                    CooldownUntilUtc = useSharedSourceState ? TryGetSourceCooldownUtc(request.SourceName) : null,
+                    RetryAfterSeconds = outcome.RetryAfter.HasValue
+                        ? (int?)Math.Ceiling(outcome.RetryAfter.Value.TotalSeconds)
+                        : null,
+                    Failure = outcome.Failure
+                });
                 logger?.WriteVerbose("{0}", warning);
             }
             else if (!string.IsNullOrWhiteSpace(outcome.Failure))
             {
                 string warning = "Passive CT source '" + request.SourceName + "' failed: " + outcome.Failure;
                 result.Warnings.Add(warning);
+                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                {
+                    SourceName = request.SourceName,
+                    RequestUrl = request.Url,
+                    State = "Failed",
+                    Failure = outcome.Failure
+                });
                 logger?.WriteVerbose("{0}", warning);
             }
         }
@@ -285,6 +328,29 @@ internal sealed class PassiveCtSourceClient
             cooldownUntilUtc = state.CooldownUntilUtc;
             return true;
         }
+    }
+
+    private static DateTimeOffset? TryGetSourceCooldownUtc(string sourceName)
+    {
+        return TryGetCooldown(sourceName, out DateTimeOffset cooldownUntilUtc) ? cooldownUntilUtc : null;
+    }
+
+    private static bool IsRateLimitedFailure(string? failure, TimeSpan? retryAfter)
+    {
+        if (retryAfter.HasValue && retryAfter.Value > TimeSpan.Zero)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(failure))
+        {
+            return false;
+        }
+
+        string failureText = failure ?? string.Empty;
+        return failureText.IndexOf("429", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               failureText.IndexOf("Retry-After", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               failureText.IndexOf("rate", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static DateTimeOffset MarkTransientFailure(string sourceName, TimeSpan cooldown)

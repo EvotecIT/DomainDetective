@@ -106,6 +106,10 @@ internal sealed class NativeCtCursorState {
         return $"shared|{scope}|{logUrl}";
     }
 
+    public static string BuildLogHealthKey(string logUrl) {
+        return $"health|{logUrl}";
+    }
+
     private static string BuildSharedScopeFingerprint(IReadOnlyCollection<string> domains) {
         IReadOnlyList<string> normalizedDomains = domains
             .Where(static domain => !string.IsNullOrWhiteSpace(domain))

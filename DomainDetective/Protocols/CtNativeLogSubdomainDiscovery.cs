@@ -86,6 +86,7 @@ internal sealed class NativeCtLogIngestionStatus {
     public string CursorKey { get; set; } = string.Empty;
     public string? DomainScope { get; set; }
     public bool SharedIngestion { get; set; }
+    public bool IsRetired { get; set; }
     public bool SkippedByCircuitBreaker { get; set; }
     public bool Succeeded { get; set; }
     public string? Failure { get; set; }
@@ -105,6 +106,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         public string Url { get; init; } = string.Empty;
         public DateTimeOffset? TemporalStartUtc { get; init; }
         public DateTimeOffset? TemporalEndUtc { get; init; }
+        public bool IsRetired { get; init; }
         public int SourceOrder { get; init; }
     }
 
@@ -138,16 +140,18 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             cancellationToken.ThrowIfCancellationRequested();
             result.LogsAttempted++;
             var key = NativeCtCursorState.BuildKey(baseDomain, logUrl);
+            var logHealthKey = NativeCtCursorState.BuildLogHealthKey(logUrl);
             var status = new NativeCtLogIngestionStatus {
                 LogUrl = logUrl,
                 CursorKey = key,
                 DomainScope = baseDomain,
-                SharedIngestion = false
+                SharedIngestion = false,
+                IsRetired = logDescriptor.IsRetired
             };
             result.LogStatuses.Add(status);
 
             try {
-                if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                if (cursor.IsCircuitOpen(logHealthKey, DateTimeOffset.UtcNow, out var openUntilUtc)) {
                     result.Warnings.Add($"Native CT log skipped (circuit open) for {logUrl} until {openUntilUtc:O}");
                     status.SkippedByCircuitBreaker = true;
                     status.CircuitOpenUntilUtc = openUntilUtc;
@@ -243,6 +247,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     result.CertificateObservationCount,
                     result.Subdomains.Count);
                 cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
+                cursor.RecordSuccess(logHealthKey, DateTimeOffset.UtcNow);
                 status.LastProcessedIndex = cursor.GetLastProcessedIndex(key);
                 status.EstimatedLagAfter = status.TreeSize.HasValue
                     ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
@@ -262,6 +267,12 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     ex.Message,
                     options.CircuitBreakerFailureThreshold,
                     options.CircuitBreakerDuration);
+                cursor.RecordFailure(
+                    logHealthKey,
+                    DateTimeOffset.UtcNow,
+                    ex.Message,
+                    options.CircuitBreakerFailureThreshold,
+                    options.CircuitBreakerDuration);
                 result.Warnings.Add($"Native CT log failed for {logUrl}: {ex.Message}");
                 logger?.WriteVerbose("Native CT log failed for {0}: {1}", logUrl, ex.Message);
                 status.Failure = ex.Message;
@@ -269,7 +280,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 status.EstimatedLagAfter = status.TreeSize.HasValue
                     ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
                     : null;
-                if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                if (cursor.IsCircuitOpen(logHealthKey, DateTimeOffset.UtcNow, out var openUntilUtc)) {
                     status.CircuitOpenUntilUtc = openUntilUtc;
                 }
             }
@@ -329,15 +340,17 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             cancellationToken.ThrowIfCancellationRequested();
             result.LogsAttempted++;
             var key = NativeCtCursorState.BuildSharedKey(logUrl, normalizedDomains);
+            var logHealthKey = NativeCtCursorState.BuildLogHealthKey(logUrl);
             var status = new NativeCtLogIngestionStatus {
                 LogUrl = logUrl,
                 CursorKey = key,
-                SharedIngestion = true
+                SharedIngestion = true,
+                IsRetired = logDescriptor.IsRetired
             };
             result.LogStatuses.Add(status);
 
             try {
-                if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                if (cursor.IsCircuitOpen(logHealthKey, DateTimeOffset.UtcNow, out var openUntilUtc)) {
                     result.Warnings.Add($"Native CT shared log skipped (circuit open) for {logUrl} until {openUntilUtc:O}");
                     status.SkippedByCircuitBreaker = true;
                     status.CircuitOpenUntilUtc = openUntilUtc;
@@ -432,6 +445,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     logUrl,
                     result.CertificateObservationCount);
                 cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
+                cursor.RecordSuccess(logHealthKey, DateTimeOffset.UtcNow);
                 status.LastProcessedIndex = cursor.GetLastProcessedIndex(key);
                 status.EstimatedLagAfter = status.TreeSize.HasValue
                     ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
@@ -451,6 +465,12 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     ex.Message,
                     options.CircuitBreakerFailureThreshold,
                     options.CircuitBreakerDuration);
+                cursor.RecordFailure(
+                    logHealthKey,
+                    DateTimeOffset.UtcNow,
+                    ex.Message,
+                    options.CircuitBreakerFailureThreshold,
+                    options.CircuitBreakerDuration);
                 result.Warnings.Add($"Native CT shared log failed for {logUrl}: {ex.Message}");
                 logger?.WriteVerbose("Native CT shared log failed for {0}: {1}", logUrl, ex.Message);
                 status.Failure = ex.Message;
@@ -458,7 +478,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 status.EstimatedLagAfter = status.TreeSize.HasValue
                     ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
                     : null;
-                if (cursor.IsCircuitOpen(key, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                if (cursor.IsCircuitOpen(logHealthKey, DateTimeOffset.UtcNow, out var openUntilUtc)) {
                     status.CircuitOpenUntilUtc = openUntilUtc;
                 }
             }
@@ -480,7 +500,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             foreach (var raw in options.ExplicitLogUrls) {
                 var normalized = NormalizeLogUrl(raw);
                 if (normalized != null) {
-                    AddResolvedLogDescriptor(descriptors, normalized, null, null, sourceOrder++);
+                    AddResolvedLogDescriptor(descriptors, normalized, null, null, isRetired: false, sourceOrder++);
                 }
             }
             return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
@@ -587,8 +607,93 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         IReadOnlyList<ResolvedCtLogDescriptor> logs,
         int maxLogsToProcess,
         bool prioritizeLatestExactMatch) {
-        var ordered = logs
+        IReadOnlyList<ResolvedCtLogDescriptor> normalizedLogs = logs
             .Where(static log => log != null && !string.IsNullOrWhiteSpace(log.Url))
+            .ToList();
+        if (normalizedLogs.Count == 0) {
+            return Array.Empty<ResolvedCtLogDescriptor>();
+        }
+
+        bool containsRetiredLogs = normalizedLogs.Any(static log => log.IsRetired);
+        if (!containsRetiredLogs) {
+            return ApplyLogCapWithoutRetiredBias(normalizedLogs, maxLogsToProcess, prioritizeLatestExactMatch);
+        }
+
+        var currentLogs = normalizedLogs
+            .Where(static log => !log.IsRetired)
+            .ToList();
+        var retiredLogs = normalizedLogs
+            .Where(static log => log.IsRetired)
+            .ToList();
+
+        if (retiredLogs.Count == 0) {
+            return ApplyLogCapWithoutRetiredBias(currentLogs, maxLogsToProcess, prioritizeLatestExactMatch);
+        }
+
+        if (maxLogsToProcess <= 0 || normalizedLogs.Count <= maxLogsToProcess) {
+            var orderedCurrent = ApplyLogCapWithoutRetiredBias(currentLogs, 0, prioritizeLatestExactMatch);
+            var orderedRetired = ApplyLogCapWithoutRetiredBias(retiredLogs, 0, prioritizeLatestExactMatch: true);
+            return orderedCurrent.Concat(orderedRetired).ToList();
+        }
+
+        int retiredBudget = Math.Min(retiredLogs.Count, ComputeHistoricalRetiredLogBudget(maxLogsToProcess));
+        int currentBudget = Math.Max(0, maxLogsToProcess - retiredBudget);
+
+        var selected = new List<ResolvedCtLogDescriptor>(maxLogsToProcess);
+        var selectedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (ResolvedCtLogDescriptor descriptor in ApplyLogCapWithoutRetiredBias(
+                     currentLogs,
+                     currentBudget,
+                     prioritizeLatestExactMatch: true))
+        {
+            if (selected.Count >= maxLogsToProcess) {
+                break;
+            }
+
+            if (selectedUrls.Add(descriptor.Url)) {
+                selected.Add(descriptor);
+            }
+        }
+
+        foreach (ResolvedCtLogDescriptor descriptor in ApplyLogCapWithoutRetiredBias(
+                     retiredLogs,
+                     retiredBudget,
+                     prioritizeLatestExactMatch: true))
+        {
+            if (selected.Count >= maxLogsToProcess) {
+                break;
+            }
+
+            if (selectedUrls.Add(descriptor.Url)) {
+                selected.Add(descriptor);
+            }
+        }
+
+        if (selected.Count < maxLogsToProcess) {
+            foreach (ResolvedCtLogDescriptor descriptor in ApplyLogCapWithoutRetiredBias(
+                         retiredLogs,
+                         0,
+                         prioritizeLatestExactMatch: true))
+            {
+                if (selected.Count >= maxLogsToProcess) {
+                    break;
+                }
+
+                if (selectedUrls.Add(descriptor.Url)) {
+                    selected.Add(descriptor);
+                }
+            }
+        }
+
+        return selected;
+    }
+
+    private static IReadOnlyList<ResolvedCtLogDescriptor> ApplyLogCapWithoutRetiredBias(
+        IReadOnlyList<ResolvedCtLogDescriptor> logs,
+        int maxLogsToProcess,
+        bool prioritizeLatestExactMatch) {
+        var ordered = logs
             .OrderBy(static log => log.SourceOrder)
             .ThenBy(static log => log.Url, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -645,6 +750,14 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         return prioritizeLatestExactMatch
             ? BuildLatestFirstProcessingOrder(selectedDated, selectedUndated)
             : BuildDistributedProcessingOrder(selectedDated, selectedUndated);
+    }
+
+    private static int ComputeHistoricalRetiredLogBudget(int maxLogsToProcess) {
+        if (maxLogsToProcess <= 1) {
+            return 0;
+        }
+
+        return Math.Max(1, maxLogsToProcess / 6);
     }
 
     private static IReadOnlyList<ResolvedCtLogDescriptor> BuildDistributedProcessingOrder(
@@ -707,7 +820,13 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         var normalized = NormalizeLogUrl(url);
         if (normalized != null) {
             TryGetTemporalInterval(log, out var temporalStartUtc, out var temporalEndUtc);
-            AddResolvedLogDescriptor(descriptors, normalized, temporalStartUtc, temporalEndUtc, sourceOrder++);
+            AddResolvedLogDescriptor(
+                descriptors,
+                normalized,
+                temporalStartUtc,
+                temporalEndUtc,
+                IsRetiredLog(log),
+                sourceOrder++);
         }
     }
 
@@ -716,6 +835,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         string url,
         DateTimeOffset? temporalStartUtc,
         DateTimeOffset? temporalEndUtc,
+        bool isRetired,
         int sourceOrder) {
         if (string.IsNullOrWhiteSpace(url)) {
             return;
@@ -726,6 +846,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 Url = url,
                 TemporalStartUtc = existing.TemporalStartUtc ?? temporalStartUtc,
                 TemporalEndUtc = existing.TemporalEndUtc ?? temporalEndUtc,
+                IsRetired = existing.IsRetired || isRetired,
                 SourceOrder = Math.Min(existing.SourceOrder, sourceOrder)
             };
             return;
@@ -735,6 +856,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             Url = url,
             TemporalStartUtc = temporalStartUtc,
             TemporalEndUtc = temporalEndUtc,
+            IsRetired = isRetired,
             SourceOrder = sourceOrder
         };
     }
@@ -826,6 +948,14 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         return true;
+    }
+
+    private static bool IsRetiredLog(JsonElement log) {
+        if (!log.TryGetProperty("state", out var state) || state.ValueKind != JsonValueKind.Object) {
+            return false;
+        }
+
+        return state.TryGetProperty("retired", out _);
     }
 
     private static string? NormalizeLogUrl(string? rawUrl) {

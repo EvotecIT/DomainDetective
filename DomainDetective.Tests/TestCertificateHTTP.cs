@@ -11,6 +11,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using DnsClientX;
 using DomainDetective.Tests.Fixtures;
 
@@ -38,6 +39,41 @@ namespace DomainDetective.Tests {
             Assert.Contains(nameof(HttpRequestException), eventArgs!.FullMessage);
             Assert.Null(analysis.ProtocolVersion);
         }
+
+        [Fact]
+        public void BuildFailureReason_AppendsSocketAndTimeoutMarkers() {
+            var socket = new SocketException((int)SocketError.TimedOut);
+            var timeout = new TimeoutException("The operation timed out.", socket);
+            var http = new HttpRequestException("Unable to connect to the remote server.", timeout);
+
+            MethodInfo buildFailureReason = typeof(CertificateAnalysis)
+                .GetMethod("BuildFailureReason", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+            string? reason = (string?)buildFailureReason.Invoke(null, new object?[] { http });
+
+            Assert.NotNull(reason);
+            Assert.Contains("SocketError:TimedOut", reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("FailureKind:Timeout", reason, StringComparison.OrdinalIgnoreCase);
+        }
+
+#if NET8_0_OR_GREATER
+        [Fact]
+        public void BuildFailureReason_AppendsHttpRequestErrorMarker() {
+            var http = new HttpRequestException(
+                HttpRequestError.NameResolutionError,
+                "Name resolution failed.",
+                null,
+                null);
+
+            MethodInfo buildFailureReason = typeof(CertificateAnalysis)
+                .GetMethod("BuildFailureReason", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+            string? reason = (string?)buildFailureReason.Invoke(null, new object?[] { http });
+
+            Assert.NotNull(reason);
+            Assert.Contains("HttpRequestError:NameResolutionError", reason, StringComparison.OrdinalIgnoreCase);
+        }
+#endif
 
         [Fact]
         public async Task ValidHostSetsProtocolVersion() {

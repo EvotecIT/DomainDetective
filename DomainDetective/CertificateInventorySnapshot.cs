@@ -12,6 +12,7 @@ namespace DomainDetective {
         public List<CertificateInventoryEntry> Entries { get; set; } = new();
         public List<NativeCtLogDiagnosticEntry> NativeCtLogDiagnostics { get; set; } = new();
         public List<string> NativeCtLogDiagnosticsRaw { get; set; } = new();
+        public List<PassiveCtDiagnosticEntry> PassiveCtDiagnostics { get; set; } = new();
     }
 
     /// <summary>
@@ -20,6 +21,7 @@ namespace DomainDetective {
     public sealed class NativeCtLogDiagnosticEntry {
         public string Scope { get; set; } = string.Empty;
         public bool SharedIngestion { get; set; }
+        public bool IsRetired { get; set; }
         public string State { get; set; } = "Unknown";
         public string LogUrl { get; set; } = string.Empty;
         public long? TreeSize { get; set; }
@@ -27,6 +29,21 @@ namespace DomainDetective {
         public long? LagBefore { get; set; }
         public long? LagAfter { get; set; }
         public DateTimeOffset? CircuitOpenUntilUtc { get; set; }
+        public string? Failure { get; set; }
+    }
+
+    /// <summary>
+    /// Structured passive/public CT provider diagnostic captured alongside inventory snapshots.
+    /// </summary>
+    public sealed class PassiveCtDiagnosticEntry {
+        public string Scope { get; set; } = string.Empty;
+        public string QueryKind { get; set; } = string.Empty;
+        public string SourceName { get; set; } = string.Empty;
+        public string RequestUrl { get; set; } = string.Empty;
+        public string State { get; set; } = "Unknown";
+        public bool RetrySuggested { get; set; }
+        public DateTimeOffset? CooldownUntilUtc { get; set; }
+        public int? RetryAfterSeconds { get; set; }
         public string? Failure { get; set; }
     }
 
@@ -65,6 +82,8 @@ namespace DomainDetective {
         public bool Expired { get; set; }
         public bool ChainComplete { get; set; }
         public bool IsReachable { get; set; }
+        /// <summary>Best-effort reason captured when the live probe failed to complete successfully.</summary>
+        public string? FailureReason { get; set; }
         public bool IsSelfSigned { get; set; }
         public bool HostnameMatch { get; set; }
         public bool PresentInCtLogs { get; set; }

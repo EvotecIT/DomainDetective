@@ -325,6 +325,9 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>Structured native CT per-log diagnostics observed during CT subdomain discovery.</summary>
     public IReadOnlyList<NativeCtLogDiagnosticEntry> NativeCtLogDiagnosticEntries { get; set; } = Array.Empty<NativeCtLogDiagnosticEntry>();
 
+    /// <summary>Structured passive/public CT diagnostics observed during CT discovery and metadata backfill.</summary>
+    public IReadOnlyList<PassiveCtDiagnosticEntry> PassiveCtDiagnosticEntries { get; set; } = Array.Empty<PassiveCtDiagnosticEntry>();
+
     /// <summary>Captured snapshot object.</summary>
     public CertificateInventorySnapshot Snapshot { get; set; } = new();
 }
@@ -509,6 +512,7 @@ public sealed partial class CertificateInventoryCapture {
         var warnings = new List<string>();
         var nativeCtLogDiagnostics = new List<string>();
         var nativeCtLogDiagnosticEntries = new List<NativeCtLogDiagnosticEntry>();
+        var passiveCtDiagnosticEntries = new List<PassiveCtDiagnosticEntry>();
         var ctDiscoveredSubdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var ctDiscoveredSubdomainEntries = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         const int totalStages = 9;
@@ -563,6 +567,7 @@ public sealed partial class CertificateInventoryCapture {
                     warnings,
                     nativeCtLogDiagnostics,
                     nativeCtLogDiagnosticEntries,
+                    passiveCtDiagnosticEntries,
                     logger,
                     cancellationToken).ConfigureAwait(false);
             }
@@ -572,6 +577,7 @@ public sealed partial class CertificateInventoryCapture {
                 discoveredSubdomains,
                 options,
                 warnings,
+                passiveCtDiagnosticEntries,
                 logger,
                 cancellationToken).ConfigureAwait(false);
 
@@ -597,6 +603,7 @@ public sealed partial class CertificateInventoryCapture {
             ctDiscoveredSubdomainEntries,
             options,
             warnings,
+            passiveCtDiagnosticEntries,
             logger,
             cancellationToken).ConfigureAwait(false);
         foreach (var exactEntry in exactHostSeedCtMetadata) {
@@ -767,7 +774,8 @@ public sealed partial class CertificateInventoryCapture {
             Port = distinctPorts.Count == 1 ? distinctPorts[0] : 0,
             Entries = deduped,
             NativeCtLogDiagnostics = nativeCtLogDiagnosticEntries.Select(CloneNativeCtLogDiagnosticEntry).ToList(),
-            NativeCtLogDiagnosticsRaw = nativeCtLogDiagnostics.ToList()
+            NativeCtLogDiagnosticsRaw = nativeCtLogDiagnostics.ToList(),
+            PassiveCtDiagnostics = passiveCtDiagnosticEntries.Select(ClonePassiveCtDiagnosticEntry).ToList()
         };
         AdvanceStage("Snapshot synthesis");
 
@@ -832,6 +840,7 @@ public sealed partial class CertificateInventoryCapture {
             Warnings = warnings,
             NativeCtLogDiagnostics = nativeCtLogDiagnostics,
             NativeCtLogDiagnosticEntries = nativeCtLogDiagnosticEntries,
+            PassiveCtDiagnosticEntries = passiveCtDiagnosticEntries,
             Snapshot = snapshot
         };
     }
