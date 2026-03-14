@@ -75,6 +75,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         NativeCtLogDiagnostics = Array.Empty<string>();
         NativeCtLogDiagnosticEntries = Array.Empty<NativeCtLogDiagnosticEntry>();
         PassiveCtWarnings = Array.Empty<string>();
+        PassiveCtDiagnosticEntries = Array.Empty<PassiveCtDiagnosticEntry>();
     }
 
     private string? BuildCrtShUrl(string domain)
@@ -315,6 +316,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
             output.Add(new NativeCtLogDiagnosticEntry {
                 Scope = scope,
                 SharedIngestion = status.SharedIngestion,
+                IsRetired = status.IsRetired,
                 State = status.SkippedByCircuitBreaker ? "CircuitOpen" : (status.Succeeded ? "Succeeded" : "Failed"),
                 LogUrl = status.LogUrl,
                 TreeSize = status.TreeSize,
@@ -325,6 +327,41 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 Failure = string.IsNullOrWhiteSpace(status.Failure)
                     ? null
                     : status.Failure!.Replace('\r', ' ').Replace('\n', ' ').Trim()
+            });
+        }
+
+        return output;
+    }
+
+    private static IReadOnlyList<PassiveCtDiagnosticEntry> BuildPassiveCtDiagnosticEntries(
+        IReadOnlyList<PassiveCtDiagnosticEntry> diagnostics,
+        string domain,
+        string queryKind)
+    {
+        if (diagnostics == null || diagnostics.Count == 0)
+        {
+            return Array.Empty<PassiveCtDiagnosticEntry>();
+        }
+
+        var output = new List<PassiveCtDiagnosticEntry>(diagnostics.Count);
+        foreach (PassiveCtDiagnosticEntry diagnostic in diagnostics)
+        {
+            if (diagnostic == null || string.IsNullOrWhiteSpace(diagnostic.SourceName))
+            {
+                continue;
+            }
+
+            output.Add(new PassiveCtDiagnosticEntry
+            {
+                Scope = domain ?? string.Empty,
+                QueryKind = queryKind ?? string.Empty,
+                SourceName = diagnostic.SourceName ?? string.Empty,
+                RequestUrl = diagnostic.RequestUrl ?? string.Empty,
+                State = diagnostic.State ?? string.Empty,
+                RetrySuggested = diagnostic.RetrySuggested,
+                CooldownUntilUtc = diagnostic.CooldownUntilUtc,
+                RetryAfterSeconds = diagnostic.RetryAfterSeconds,
+                Failure = PassiveCtSourceClient.SanitizeFailureText(diagnostic.Failure)
             });
         }
 

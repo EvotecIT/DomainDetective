@@ -13,6 +13,7 @@ public sealed partial class CertificateInventoryCapture {
         IReadOnlyList<SubdomainDiscoveryEntry> discoveredEntries,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
+        List<PassiveCtDiagnosticEntry> passiveCtDiagnosticEntries,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (discoveredEntries == null || discoveredEntries.Count == 0) {
@@ -127,6 +128,7 @@ public sealed partial class CertificateInventoryCapture {
                 remainingMissingNames!,
                 options,
                 warnings,
+                passiveCtDiagnosticEntries,
                 logger,
                 cancellationToken).ConfigureAwait(false);
             foreach (var exactEntry in exactBackfilled) {
@@ -156,6 +158,7 @@ public sealed partial class CertificateInventoryCapture {
         IReadOnlyDictionary<string, SubdomainDiscoveryEntry> existingEntries,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
+        List<PassiveCtDiagnosticEntry> passiveCtDiagnosticEntries,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (seeds == null || seeds.Count == 0 || options == null) {
@@ -187,6 +190,7 @@ public sealed partial class CertificateInventoryCapture {
             exactHostSeeds,
             options,
             warnings,
+            passiveCtDiagnosticEntries,
             logger,
             cancellationToken).ConfigureAwait(false);
     }
@@ -282,6 +286,7 @@ public sealed partial class CertificateInventoryCapture {
         IReadOnlyList<string> hostNames,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
+        List<PassiveCtDiagnosticEntry> passiveCtDiagnosticEntries,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (hostNames == null || hostNames.Count == 0) {
@@ -319,7 +324,7 @@ public sealed partial class CertificateInventoryCapture {
                                 !string.IsNullOrWhiteSpace(entry.Name) &&
                                 hostName.Equals(entry.Name.Trim(), StringComparison.OrdinalIgnoreCase));
                     } else {
-                        exactEntry = await QueryPassiveCtMetadataExactAsync(hostName, options, warnings, logger, sharedClient!, cancellationToken)
+                        exactEntry = await QueryPassiveCtMetadataExactAsync(hostName, options, warnings, passiveCtDiagnosticEntries, logger, sharedClient!, cancellationToken)
                             .ConfigureAwait(false);
                     }
 
@@ -351,6 +356,7 @@ public sealed partial class CertificateInventoryCapture {
         string hostName,
         CertificateInventoryCaptureOptions options,
         List<string>? warnings,
+        List<PassiveCtDiagnosticEntry>? passiveCtDiagnosticEntries,
         InternalLogger logger,
         PassiveCtSourceClient client,
         CancellationToken cancellationToken) {
@@ -378,6 +384,25 @@ public sealed partial class CertificateInventoryCapture {
             queryOverride: null,
             logger,
             cancellationToken).ConfigureAwait(false);
+        if (passiveCtDiagnosticEntries != null && queryResult.Diagnostics.Count > 0) {
+            foreach (PassiveCtDiagnosticEntry diagnostic in queryResult.Diagnostics) {
+                if (diagnostic == null || string.IsNullOrWhiteSpace(diagnostic.SourceName)) {
+                    continue;
+                }
+
+                passiveCtDiagnosticEntries.Add(new PassiveCtDiagnosticEntry {
+                    Scope = normalizedHost,
+                    QueryKind = "MetadataExact",
+                    SourceName = diagnostic.SourceName ?? string.Empty,
+                    RequestUrl = diagnostic.RequestUrl ?? string.Empty,
+                    State = diagnostic.State ?? string.Empty,
+                    RetrySuggested = diagnostic.RetrySuggested,
+                    CooldownUntilUtc = diagnostic.CooldownUntilUtc,
+                    RetryAfterSeconds = diagnostic.RetryAfterSeconds,
+                    Failure = PassiveCtSourceClient.SanitizeFailureText(diagnostic.Failure)
+                });
+            }
+        }
         if (warnings != null && queryResult.Warnings.Count > 0) {
             foreach (string warning in queryResult.Warnings) {
                 warnings.Add("Passive CT exact metadata for " + normalizedHost + ": " + warning);

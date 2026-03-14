@@ -40,6 +40,47 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildFailureReason_AppendsSocketAndTimeoutMarkers() {
+            var socket = new SocketException((int)SocketError.TimedOut);
+            var timeout = new TimeoutException("The operation timed out.", socket);
+            var http = new HttpRequestException("Unable to connect to the remote server.", timeout);
+
+            string? reason = CertificateAnalysis.BuildFailureReason(http);
+
+            Assert.NotNull(reason);
+            Assert.Contains("SocketError:TimedOut", reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("FailureKind:Timeout", reason, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void BuildFailureReason_AppendsCancelledMarkerForCancellation() {
+            var cancelled = new TaskCanceledException("Request was cancelled.");
+            var http = new HttpRequestException("Request aborted.", cancelled);
+
+            string? reason = CertificateAnalysis.BuildFailureReason(http);
+
+            Assert.NotNull(reason);
+            Assert.Contains("FailureKind:Cancelled", reason, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("FailureKind:Timeout", reason, StringComparison.OrdinalIgnoreCase);
+        }
+
+#if NET8_0_OR_GREATER
+        [Fact]
+        public void BuildFailureReason_AppendsHttpRequestErrorMarker() {
+            var http = new HttpRequestException(
+                HttpRequestError.NameResolutionError,
+                "Name resolution failed.",
+                null,
+                null);
+
+            string? reason = CertificateAnalysis.BuildFailureReason(http);
+
+            Assert.NotNull(reason);
+            Assert.Contains("HttpRequestError:NameResolutionError", reason, StringComparison.OrdinalIgnoreCase);
+        }
+#endif
+
+        [Fact]
         public async Task ValidHostSetsProtocolVersion() {
             var logger = new InternalLogger();
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };

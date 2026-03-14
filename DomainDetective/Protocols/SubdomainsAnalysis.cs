@@ -286,6 +286,9 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     /// <summary>Passive/public CT source warnings captured during this analysis run.</summary>
     public IReadOnlyList<string> PassiveCtWarnings { get; private set; } = Array.Empty<string>();
 
+    /// <summary>Structured passive/public CT source diagnostics captured during this analysis run.</summary>
+    public IReadOnlyList<PassiveCtDiagnosticEntry> PassiveCtDiagnosticEntries { get; private set; } = Array.Empty<PassiveCtDiagnosticEntry>();
+
     /// <summary>
     /// Performs CT-backed subdomain discovery for the specified <paramref name="domain"/>.
     /// </summary>
@@ -344,6 +347,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 .Where(static warning => !string.IsNullOrWhiteSpace(warning))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            PassiveCtDiagnosticEntries = BuildPassiveCtDiagnosticEntries(passiveResult.Diagnostics, Subject, "SubdomainDiscovery");
             foreach (PassiveCtSourceClient.SourcePayload payload in passiveResult.Payloads)
             {
                 payloads.Add((payload.SourceName, payload.Payload));

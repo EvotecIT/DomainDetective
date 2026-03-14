@@ -147,6 +147,76 @@ public class TestNativeCtLogSubdomainDiscovery {
     }
 
     [Fact]
+    public async Task DiscoverForDomainsAsync_GlobalLogCircuitBreakerSkipsDeadLogAcrossDifferentScopes() {
+        string cursorPath = CreateTemporaryCursorStatePath();
+        var getSthCalls = 0;
+
+        try {
+            var source = new NativeCtLogSubdomainDiscovery {
+                QueryOverride = (url, _) => {
+                    if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/log1/"" } ] } ] }");
+                    }
+                    if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        getSthCalls++;
+                        throw new HttpRequestException("Simulated shared CT outage.");
+                    }
+
+                    throw new InvalidOperationException("Unexpected URL: " + url);
+                }
+            };
+
+            var options = new NativeCtLogSubdomainDiscoveryOptions {
+                BaseDomain = "example.com",
+                LogListUrl = "https://ct-log-list.example/logs.json",
+                CursorStatePath = cursorPath,
+                RetryCount = 0,
+                CircuitBreakerFailureThreshold = 1,
+                CircuitBreakerDuration = TimeSpan.FromMinutes(5),
+                MaxCtRowsToProcess = 100,
+                MaxSubdomains = 100,
+                MaxLogsToProcess = 10,
+                MaxEntriesPerLog = 100,
+                EntryBatchSize = 100,
+                InitialBackfillEntriesPerLog = 100,
+                IncludeRetiredLogs = false
+            };
+
+            var first = await source.DiscoverForDomainsAsync(
+                new[] { "example.com", "evotec.xyz" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+            var second = await source.DiscoverForDomainsAsync(
+                new[] { "eurofins.com", "evotec.pl" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.False(first.SourceSucceeded);
+            Assert.False(second.SourceSucceeded);
+            Assert.Equal(1, getSthCalls);
+            Assert.Single(first.LogStatuses);
+            Assert.Single(second.LogStatuses);
+            Assert.False(first.LogStatuses[0].Succeeded);
+            Assert.True(second.LogStatuses[0].SkippedByCircuitBreaker);
+            Assert.NotNull(second.LogStatuses[0].CircuitOpenUntilUtc);
+            Assert.Equal(
+                NativeCtCursorState.BuildSharedKey(
+                    "https://ct.test.example/log1/",
+                    new[] { "eurofins.com", "evotec.pl" }),
+                second.LogStatuses[0].CursorKey);
+        } finally {
+            try {
+                if (File.Exists(cursorPath)) {
+                    File.Delete(cursorPath);
+                }
+            } catch {
+            }
+        }
+    }
+
+    [Fact]
     public async Task DiscoverForDomainsAsync_CorrelatesEntriesAcrossDomains() {
         using var exampleCert = CreateSelfSigned("portal.example.com");
         using var evotecCert = CreateSelfSigned("api.evotec.xyz");
@@ -452,6 +522,61 @@ public class TestNativeCtLogSubdomainDiscovery {
         Assert.True(result.SourceSucceeded);
         Assert.Contains("historical.example.com", result.SubdomainsByDomain["example.com"].Keys);
         Assert.Contains(requestedUrls, static url => url.Contains("ct.test.example/retired/", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_CappedRunPrefersCurrentLogsBeforeRetiredLogs() {
+        var requestedSthUrls = new List<string>();
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(url, "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(
+                        @"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [
+                            { ""url"": ""ct.test.example/current-a/"", ""state"": { ""usable"": {} } },
+                            { ""url"": ""ct.test.example/current-b/"", ""state"": { ""usable"": {} } },
+                            { ""url"": ""ct.test.example/current-c/"", ""state"": { ""usable"": {} } },
+                            { ""url"": ""ct.test.example/current-d/"", ""state"": { ""usable"": {} } },
+                            { ""url"": ""ct.test.example/retired-2022/"", ""state"": { ""retired"": {} }, ""temporal_interval"": { ""start_inclusive"": ""2022-01-01T00:00:00Z"", ""end_exclusive"": ""2023-01-01T00:00:00Z"" } },
+                            { ""url"": ""ct.test.example/retired-2023/"", ""state"": { ""retired"": {} }, ""temporal_interval"": { ""start_inclusive"": ""2023-01-01T00:00:00Z"", ""end_exclusive"": ""2024-01-01T00:00:00Z"" } },
+                            { ""url"": ""ct.test.example/retired-2024/"", ""state"": { ""retired"": {} }, ""temporal_interval"": { ""start_inclusive"": ""2024-01-01T00:00:00Z"", ""end_exclusive"": ""2025-01-01T00:00:00Z"" } },
+                            { ""url"": ""ct.test.example/retired-2025/"", ""state"": { ""retired"": {} }, ""temporal_interval"": { ""start_inclusive"": ""2025-01-01T00:00:00Z"", ""end_exclusive"": ""2026-01-01T00:00:00Z"" } }
+                        ] } ] }");
+                }
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    requestedSthUrls.Add(url);
+                    return Task.FromResult(@"{ ""tree_size"": 0 }");
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "example.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 3,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = true
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "example.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Equal(3, requestedSthUrls.Count);
+        Assert.Equal(2, requestedSthUrls.Count(static url => url.Contains("ct.test.example/current-", StringComparison.OrdinalIgnoreCase)));
+        Assert.Equal(1, requestedSthUrls.Count(static url => url.Contains("ct.test.example/retired-", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(requestedSthUrls, static url => url.Contains("ct.test.example/retired-2025/", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(requestedSthUrls, static url => url.Contains("ct.test.example/retired-2022/", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

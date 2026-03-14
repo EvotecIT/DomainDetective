@@ -19,6 +19,7 @@ public sealed partial class CertificateInventoryCapture {
         List<string> warnings,
         List<string> nativeCtLogDiagnostics,
         List<NativeCtLogDiagnosticEntry> nativeCtLogDiagnosticEntries,
+        List<PassiveCtDiagnosticEntry> passiveCtDiagnosticEntries,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (seeds == null || seeds.Count == 0 || !options.IncludeCtDiscoveredSubdomains) {
@@ -86,6 +87,7 @@ public sealed partial class CertificateInventoryCapture {
         var warningLock = new object();
         var diagnosticsLock = new object();
         var diagnosticEntriesLock = new object();
+        var passiveDiagnosticsLock = new object();
         var discoveredLock = new object();
         var discoveredByDomain = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
@@ -175,6 +177,15 @@ public sealed partial class CertificateInventoryCapture {
                             foreach (var diagnosticEntry in analysis.NativeCtLogDiagnosticEntries) {
                                 if (diagnosticEntry != null) {
                                     nativeCtLogDiagnosticEntries.Add(CloneNativeCtLogDiagnosticEntry(diagnosticEntry));
+                                }
+                            }
+                        }
+                    }
+                    if (analysis.PassiveCtDiagnosticEntries != null && analysis.PassiveCtDiagnosticEntries.Count > 0) {
+                        lock (passiveDiagnosticsLock) {
+                            foreach (PassiveCtDiagnosticEntry diagnosticEntry in analysis.PassiveCtDiagnosticEntries) {
+                                if (diagnosticEntry != null) {
+                                    passiveCtDiagnosticEntries.Add(ClonePassiveCtDiagnosticEntry(diagnosticEntry));
                                 }
                             }
                         }
@@ -766,6 +777,7 @@ public sealed partial class CertificateInventoryCapture {
                 ? "shared:" + string.Join(",", domains.OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase))
                 : (string.IsNullOrWhiteSpace(status.DomainScope) ? "domain:unknown" : "domain:" + status.DomainScope),
             SharedIngestion = status.SharedIngestion,
+            IsRetired = status.IsRetired,
             State = status.SkippedByCircuitBreaker ? "CircuitOpen" : (status.Succeeded ? "Succeeded" : "Failed"),
             LogUrl = status.LogUrl,
             TreeSize = status.TreeSize,
@@ -801,6 +813,7 @@ public sealed partial class CertificateInventoryCapture {
         return new NativeCtLogDiagnosticEntry {
             Scope = entry.Scope,
             SharedIngestion = entry.SharedIngestion,
+            IsRetired = entry.IsRetired,
             State = entry.State,
             LogUrl = entry.LogUrl,
             TreeSize = entry.TreeSize,
@@ -808,6 +821,20 @@ public sealed partial class CertificateInventoryCapture {
             LagBefore = entry.LagBefore,
             LagAfter = entry.LagAfter,
             CircuitOpenUntilUtc = entry.CircuitOpenUntilUtc,
+            Failure = entry.Failure
+        };
+    }
+
+    private static PassiveCtDiagnosticEntry ClonePassiveCtDiagnosticEntry(PassiveCtDiagnosticEntry entry) {
+        return new PassiveCtDiagnosticEntry {
+            Scope = entry.Scope,
+            QueryKind = entry.QueryKind,
+            SourceName = entry.SourceName,
+            RequestUrl = entry.RequestUrl,
+            State = entry.State,
+            RetrySuggested = entry.RetrySuggested,
+            CooldownUntilUtc = entry.CooldownUntilUtc,
+            RetryAfterSeconds = entry.RetryAfterSeconds,
             Failure = entry.Failure
         };
     }

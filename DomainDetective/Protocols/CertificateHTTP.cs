@@ -36,6 +36,8 @@ namespace DomainDetective {
         public bool IsValid { get; set; }
         /// <summary>Gets or sets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; set; }
+        /// <summary>Gets the best-effort failure reason when the endpoint probe does not complete successfully.</summary>
+        public string? FailureReason { get; private set; }
         /// <summary>Gets whether the certificate matches the requested host.</summary>
         public bool HostnameMatch { get; private set; }
         /// <summary>Gets or sets the number of days until expiry.</summary>
@@ -235,6 +237,7 @@ namespace DomainDetective {
             url = builder.ToString();
             Url = url;
             IsSelfSigned = false;
+            FailureReason = null;
             ResetChainSourceTracking();
             bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
@@ -334,10 +337,83 @@ namespace DomainDetective {
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
+                        FailureReason = BuildFailureReason(ex);
                         logger.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, ex.ToString());
                     }
                 }
             }
+        }
+
+        internal static string? BuildFailureReason(Exception? exception)
+        {
+            if (exception == null)
+            {
+                return null;
+            }
+
+            var parts = new List<string>();
+            Exception? current = exception;
+            while (current != null)
+            {
+                string message = current.Message?.Trim() ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(message) &&
+                    !parts.Any(existing => string.Equals(existing, message, StringComparison.OrdinalIgnoreCase)))
+                {
+                    parts.Add(message);
+                }
+
+                if (current is SocketException socketException)
+                {
+                    string socketCode = "SocketError:" + socketException.SocketErrorCode;
+                    if (!parts.Any(existing => string.Equals(existing, socketCode, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        parts.Add(socketCode);
+                    }
+                }
+
+#if NET8_0_OR_GREATER
+                if (current is HttpRequestException httpRequestException)
+                {
+                    string requestErrorMarker = "HttpRequestError:" + httpRequestException.HttpRequestError;
+                    if (!parts.Any(existing => string.Equals(existing, requestErrorMarker, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        parts.Add(requestErrorMarker);
+                    }
+
+                    if (httpRequestException.StatusCode.HasValue)
+                    {
+                        string statusCode = "HttpStatus:" + (int)httpRequestException.StatusCode.Value;
+                        if (!parts.Any(existing => string.Equals(existing, statusCode, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            parts.Add(statusCode);
+                        }
+                    }
+                }
+#endif
+
+                if (current is TimeoutException)
+                {
+                    const string timeoutMarker = "FailureKind:Timeout";
+                    if (!parts.Any(existing => string.Equals(existing, timeoutMarker, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        parts.Add(timeoutMarker);
+                    }
+                }
+
+                if (current is TaskCanceledException ||
+                    current is OperationCanceledException)
+                {
+                    const string cancelledMarker = "FailureKind:Cancelled";
+                    if (!parts.Any(existing => string.Equals(existing, cancelledMarker, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        parts.Add(cancelledMarker);
+                    }
+                }
+
+                current = current.InnerException;
+            }
+
+            return parts.Count == 0 ? exception.GetType().Name : string.Join(" | ", parts);
         }
 
         private async Task QueryRevocationEndpoints(CancellationToken cancellationToken) {
