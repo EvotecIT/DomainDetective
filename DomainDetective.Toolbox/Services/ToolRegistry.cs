@@ -81,7 +81,8 @@ public sealed class ToolRegistry {
             Description = "Validate DNSSEC chain of trust",
             Category = ToolCategory.Dns,
             Icon = "shield",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false
         },
         new ToolDefinition {
             Name = "SOA Lookup",

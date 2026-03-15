@@ -134,7 +134,7 @@
                 case "dns-propagation": await hc.VerifyDnsPropagationAsync(_domain); break;
                 case "caa": await hc.VerifyCAA(_domain); break;
                 case "http-headers": await hc.VerifyWebsiteHttps(_domain); break;
-                case "security-txt": await hc.VerifyContactInfo(_domain); break;
+                case "security-txt": await hc.VerifySecurityTxt(_domain); break;
                 case "rdap": await hc.QueryRDAP(_domain); break;
                 case "dnsbl": await hc.VerifyDNSBL(_domain); break;
                 case "dangling-cname": await hc.VerifyDanglingCname(_domain); break;

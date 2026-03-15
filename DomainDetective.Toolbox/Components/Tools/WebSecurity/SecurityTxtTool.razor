@@ -1,10 +1,10 @@
 @using DomainDetective.Toolbox.Components.Shared
 
-@if (HealthCheck.ContactInfoAnalysis is { } contact) {
-    <ResultCard Title="Security.txt" Status="@(contact.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (contact.Assessments?.Count > 0) {
+@if (HealthCheck.SecurityTXTAnalysis is { } securityTxt) {
+    <ResultCard Title="Security.txt" Status="@(securityTxt.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
+        @if (securityTxt.Assessments?.Count > 0) {
             <ul class="issues-list">
-                @foreach (var a in contact.Assessments) {
+                @foreach (var a in securityTxt.Assessments) {
                     <li>
                         <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
                         <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>

@@ -1,7 +1,7 @@
 {
-  "generatedAtUtc": "2026-03-15T17:03:22.5086359Z",
+  "generatedAtUtc": "2026-03-15T18:33:23.7764064Z",
   "sourceCount": 1,
-  "referenceCount": 14816,
+  "referenceCount": 14817,
   "duplicateCount": 0,
   "references": [
     {
@@ -51429,6 +51429,16 @@
         "DomainDetective.DomainHealthCheck.VerifyRPKI",
         "DomainDetective.DomainHealthCheck.VerifyRPKI(System.String,System.Threading.CancellationToken)",
         "global::DomainDetective.DomainHealthCheck.VerifyRPKI"
+      ]
+    },
+    {
+      "uid": "M:DomainDetective.DomainHealthCheck.VerifySecurityTxt(System.String,CancellationToken)",
+      "name": "DomainHealthCheck.VerifySecurityTxt",
+      "href": "/api/domaindetective-domainhealthcheck/#method-verifysecuritytxt-string-cancellationtoken",
+      "aliases": [
+        "DomainDetective.DomainHealthCheck.VerifySecurityTxt",
+        "DomainDetective.DomainHealthCheck.VerifySecurityTxt(System.String,CancellationToken)",
+        "global::DomainDetective.DomainHealthCheck.VerifySecurityTxt"
       ]
     },
     {
@@ -135728,6 +135738,6 @@
     }
   ],
   "previousReferenceCount": 14816,
-  "referenceDeltaCount": 0,
-  "referenceDeltaPercent": 0
+  "referenceDeltaCount": 1,
+  "referenceDeltaPercent": 0.0067
 }
