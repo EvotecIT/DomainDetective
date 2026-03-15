@@ -31,6 +31,9 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
     public IReadOnlyList<string> SupportedGrantTypes { get; private set; } = Array.Empty<string>();
     public IReadOnlyList<string> SupportedResponseTypes { get; private set; } = Array.Empty<string>();
     public IReadOnlyList<Microsoft365ServiceDetection> Services { get; private set; } = Array.Empty<Microsoft365ServiceDetection>();
+    public Microsoft365WorkloadConfidenceSummary WorkloadSummary { get; private set; } = new();
+    public Microsoft365DnsApplicationSummary DnsApplicationSummary { get; private set; } = new();
+    public Microsoft365EvidenceSummary EvidenceSummary { get; private set; } = new();
     public IReadOnlyList<Microsoft365TenantDomain> TenantDomains { get; private set; } = Array.Empty<Microsoft365TenantDomain>();
     public IReadOnlyList<KnownMicrosoft365Subdomain> KnownSubdomains { get; private set; } = Array.Empty<KnownMicrosoft365Subdomain>();
     public IReadOnlyList<DetectedDnsApplication> DetectedDnsApplications { get; private set; } = Array.Empty<DetectedDnsApplication>();
@@ -89,10 +92,13 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
         KnownSubdomains = BuildKnownSubdomains(subdomains, Subject);
         DetectedDnsApplications = BuildDetectedApplications(dnsInventory, KnownSubdomains);
         Services = BuildServiceDetections(idp, dnsInventory, autodiscover, KnownSubdomains);
+        WorkloadSummary = BuildWorkloadSummary(Services);
+        DnsApplicationSummary = BuildDnsApplicationSummary(DetectedDnsApplications);
         IsMicrosoft365Tenant = DetermineMicrosoft365Presence(idp, dnsInventory, autodiscover, KnownSubdomains, DetectedDnsApplications, Services);
         DetectionConfidence = BuildTenantDetectionConfidence(idp, dnsInventory, autodiscover, KnownSubdomains, Services, DetectedDnsApplications);
         TenantDomains = BuildTenantDomains(Subject, dkim, DetectionConfidence);
         EvidenceLedger = BuildEvidenceLedger(idp, dnsInventory, autodiscover, Services, DetectedDnsApplications, TenantDomains);
+        EvidenceSummary = BuildEvidenceSummary(EvidenceLedger);
         AuthenticationSummary = BuildAuthenticationSummary(null, null);
 
         QuerySucceeded = true;
@@ -197,6 +203,9 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
         SupportedGrantTypes = Array.Empty<string>();
         SupportedResponseTypes = Array.Empty<string>();
         Services = Array.Empty<Microsoft365ServiceDetection>();
+        WorkloadSummary = new Microsoft365WorkloadConfidenceSummary();
+        DnsApplicationSummary = new Microsoft365DnsApplicationSummary();
+        EvidenceSummary = new Microsoft365EvidenceSummary();
         TenantDomains = Array.Empty<Microsoft365TenantDomain>();
         KnownSubdomains = Array.Empty<KnownMicrosoft365Subdomain>();
         DetectedDnsApplications = Array.Empty<DetectedDnsApplication>();
@@ -217,5 +226,8 @@ internal static class Microsoft365Codes {
     public const string AuthConsumerPostureDetected = "m365-auth-consumer-posture-detected";
     public const string AuthRedirectFlowDetected = "m365-auth-redirect-flow-detected";
     public const string AuthNativeCredentialFlowDetected = "m365-auth-native-credential-flow-detected";
+    public const string AuthFederatedRedirectPathDetected = "m365-auth-federated-redirect-path-detected";
+    public const string AuthManagedRedirectPathDetected = "m365-auth-managed-redirect-path-detected";
+    public const string AuthManagedNativePathDetected = "m365-auth-managed-native-path-detected";
     public const string NotDetected = "m365-not-detected";
 }

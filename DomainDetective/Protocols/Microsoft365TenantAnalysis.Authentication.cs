@@ -83,6 +83,7 @@ public sealed partial class Microsoft365TenantAnalysis {
             FederationRedirectUrl = probe?.FederationRedirectUrl,
             DomainPosture = GetAuthenticationDomainPosture(probe),
             CredentialFlow = GetAuthenticationCredentialFlow(probe),
+            AuthenticationPath = GetAuthenticationPath(probe),
             Confidence = probe == null ? Microsoft365DetectionConfidence.Unknown : Microsoft365DetectionConfidence.Strong,
             Evidence = BuildAuthenticationEvidence(probeAddress, probe)
         };
@@ -125,6 +126,45 @@ public sealed partial class Microsoft365TenantAnalysis {
         }
 
         return Microsoft365AuthCredentialFlowKind.Unknown;
+    }
+
+    private Microsoft365AuthPathKind GetAuthenticationPath(MicrosoftCredentialTypeProbe? probe) {
+        if (probe == null) {
+            return Microsoft365AuthPathKind.Unknown;
+        }
+
+        var posture = GetAuthenticationDomainPosture(probe);
+        var flow = GetAuthenticationCredentialFlow(probe);
+
+        if (posture == Microsoft365AuthDomainPostureKind.ManagedTenant && flow == Microsoft365AuthCredentialFlowKind.NativeCredential) {
+            return Microsoft365AuthPathKind.ManagedNative;
+        }
+
+        if (posture == Microsoft365AuthDomainPostureKind.ManagedTenant && flow == Microsoft365AuthCredentialFlowKind.Redirect) {
+            return Microsoft365AuthPathKind.ManagedRedirect;
+        }
+
+        if (posture == Microsoft365AuthDomainPostureKind.FederatedTenant && flow == Microsoft365AuthCredentialFlowKind.Redirect) {
+            return Microsoft365AuthPathKind.FederatedRedirect;
+        }
+
+        if (posture == Microsoft365AuthDomainPostureKind.FederatedTenant) {
+            return Microsoft365AuthPathKind.Federated;
+        }
+
+        if (posture == Microsoft365AuthDomainPostureKind.ConsumerTenant) {
+            return Microsoft365AuthPathKind.ConsumerIdentity;
+        }
+
+        if (flow == Microsoft365AuthCredentialFlowKind.Redirect) {
+            return Microsoft365AuthPathKind.Redirect;
+        }
+
+        if (flow == Microsoft365AuthCredentialFlowKind.NativeCredential) {
+            return Microsoft365AuthPathKind.NativeCredential;
+        }
+
+        return Microsoft365AuthPathKind.Unknown;
     }
 
     private static IReadOnlyList<string> BuildAuthenticationEvidence(string? probeAddress, MicrosoftCredentialTypeProbe? probe) {
@@ -207,6 +247,36 @@ public sealed partial class Microsoft365TenantAnalysis {
                 });
                 break;
         }
+
+        switch (summary.DomainPosture) {
+            case Microsoft365AuthDomainPostureKind.FederatedTenant when summary.CredentialFlow == Microsoft365AuthCredentialFlowKind.Redirect:
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "Microsoft 365",
+                    Code = Microsoft365Codes.AuthFederatedRedirectPathDetected,
+                    Target = target,
+                    Message = $"Microsoft auth probe indicates a federated redirect sign-in path for {domain}."
+                });
+                break;
+            case Microsoft365AuthDomainPostureKind.ManagedTenant when summary.CredentialFlow == Microsoft365AuthCredentialFlowKind.Redirect:
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "Microsoft 365",
+                    Code = Microsoft365Codes.AuthManagedRedirectPathDetected,
+                    Target = target,
+                    Message = $"Microsoft auth probe indicates a managed tenant with a redirect-based sign-in path for {domain}."
+                });
+                break;
+            case Microsoft365AuthDomainPostureKind.ManagedTenant when summary.CredentialFlow == Microsoft365AuthCredentialFlowKind.NativeCredential:
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "Microsoft 365",
+                    Code = Microsoft365Codes.AuthManagedNativePathDetected,
+                    Target = target,
+                    Message = $"Microsoft auth probe indicates a managed tenant with a native credential sign-in path for {domain}."
+                });
+                break;
+        }
     }
 
     private void RemoveAuthenticationSummaryAssessments() {
@@ -216,7 +286,10 @@ public sealed partial class Microsoft365TenantAnalysis {
                 string.Equals(code, Microsoft365Codes.AuthFederatedPostureDetected, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(code, Microsoft365Codes.AuthConsumerPostureDetected, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(code, Microsoft365Codes.AuthRedirectFlowDetected, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(code, Microsoft365Codes.AuthNativeCredentialFlowDetected, StringComparison.OrdinalIgnoreCase)) {
+                string.Equals(code, Microsoft365Codes.AuthNativeCredentialFlowDetected, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, Microsoft365Codes.AuthFederatedRedirectPathDetected, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, Microsoft365Codes.AuthManagedRedirectPathDetected, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, Microsoft365Codes.AuthManagedNativePathDetected, StringComparison.OrdinalIgnoreCase)) {
                 Assessments.RemoveAt(i);
             }
         }
@@ -238,6 +311,8 @@ public sealed partial class Microsoft365TenantAnalysis {
             .OrderByDescending(static entry => entry.Confidence)
             .ThenBy(static entry => entry.Category)
             .ThenBy(static entry => entry.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(12)
             .ToList();
+        EvidenceSummary = BuildEvidenceSummary(EvidenceLedger);
     }
 }

@@ -73,6 +73,20 @@ public enum Microsoft365AuthCredentialFlowKind {
 }
 
 /// <summary>
+/// Best-effort combined Microsoft authentication path derived from posture and flow.
+/// </summary>
+public enum Microsoft365AuthPathKind {
+    Unknown = 0,
+    ManagedNative = 1,
+    ManagedRedirect = 2,
+    FederatedRedirect = 3,
+    Federated = 4,
+    ConsumerIdentity = 5,
+    Redirect = 6,
+    NativeCredential = 7
+}
+
+/// <summary>
 /// Compact typed summary of the public Microsoft authentication probe posture.
 /// </summary>
 public sealed class Microsoft365AuthenticationSummary {
@@ -86,6 +100,7 @@ public sealed class Microsoft365AuthenticationSummary {
     public string? FederationRedirectUrl { get; init; }
     public Microsoft365AuthDomainPostureKind DomainPosture { get; init; }
     public Microsoft365AuthCredentialFlowKind CredentialFlow { get; init; }
+    public Microsoft365AuthPathKind AuthenticationPath { get; init; }
     public Microsoft365DetectionConfidence Confidence { get; init; }
     public IReadOnlyList<string> Evidence { get; init; } = Array.Empty<string>();
 }
@@ -223,6 +238,40 @@ public sealed class Microsoft365ServiceDetection {
 }
 
 /// <summary>
+/// Compact rollup of detected Microsoft 365 workloads by confidence tier.
+/// </summary>
+public sealed class Microsoft365WorkloadConfidenceSummary {
+    public int DetectedCount { get; init; }
+    public int StrongCount { get; init; }
+    public int ModerateCount { get; init; }
+    public int WeakCount { get; init; }
+    public IReadOnlyList<Microsoft365ServiceKind> StrongServices { get; init; } = Array.Empty<Microsoft365ServiceKind>();
+    public IReadOnlyList<Microsoft365ServiceKind> ModerateServices { get; init; } = Array.Empty<Microsoft365ServiceKind>();
+    public IReadOnlyList<Microsoft365ServiceKind> WeakServices { get; init; } = Array.Empty<Microsoft365ServiceKind>();
+}
+
+/// <summary>
+/// Compact rollup entry for detected DNS applications within a single category.
+/// </summary>
+public sealed class Microsoft365DnsApplicationCategorySummary {
+    public DetectedDnsAppCategory Category { get; init; }
+    public int Count { get; init; }
+    public Microsoft365DetectionConfidence HighestConfidence { get; init; }
+    public IReadOnlyList<string> ApplicationNames { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// Compact rollup of detected DNS applications by category.
+/// </summary>
+public sealed class Microsoft365DnsApplicationSummary {
+    public int TotalCount { get; init; }
+    public int CategoryCount { get; init; }
+    public DetectedDnsAppCategory DominantCategory { get; init; }
+    public int DominantCategoryCount { get; init; }
+    public IReadOnlyList<Microsoft365DnsApplicationCategorySummary> Categories { get; init; } = Array.Empty<Microsoft365DnsApplicationCategorySummary>();
+}
+
+/// <summary>
 /// Known Microsoft-related subdomain with typed role classification.
 /// </summary>
 public sealed class KnownMicrosoft365Subdomain {
@@ -254,6 +303,27 @@ public sealed class Microsoft365EvidenceItem {
     public Microsoft365EvidenceCategory Category { get; init; }
     public Microsoft365DetectionConfidence Confidence { get; init; }
     public IReadOnlyList<string> Evidence { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// Compact rollup entry for evidence within a single category.
+/// </summary>
+public sealed class Microsoft365EvidenceCategorySummary {
+    public Microsoft365EvidenceCategory Category { get; init; }
+    public int Count { get; init; }
+    public Microsoft365DetectionConfidence HighestConfidence { get; init; }
+    public IReadOnlyList<string> Labels { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// Compact rollup of evidence ledger items by category.
+/// </summary>
+public sealed class Microsoft365EvidenceSummary {
+    public int TotalCount { get; init; }
+    public int CategoryCount { get; init; }
+    public Microsoft365EvidenceCategory DominantCategory { get; init; }
+    public int DominantCategoryCount { get; init; }
+    public IReadOnlyList<Microsoft365EvidenceCategorySummary> Categories { get; init; } = Array.Empty<Microsoft365EvidenceCategorySummary>();
 }
 
 /// <summary>

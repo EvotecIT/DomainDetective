@@ -117,6 +117,97 @@ public sealed partial class Microsoft365TenantAnalysis {
         };
     }
 
+    private static Microsoft365WorkloadConfidenceSummary BuildWorkloadSummary(IReadOnlyList<Microsoft365ServiceDetection> services) {
+        var detected = services
+            .Where(static service => service.Status == Microsoft365DetectionStatus.Detected)
+            .ToList();
+
+        return new Microsoft365WorkloadConfidenceSummary {
+            DetectedCount = detected.Count,
+            StrongCount = detected.Count(static service => service.Confidence == Microsoft365DetectionConfidence.Strong),
+            ModerateCount = detected.Count(static service => service.Confidence == Microsoft365DetectionConfidence.Moderate),
+            WeakCount = detected.Count(static service => service.Confidence == Microsoft365DetectionConfidence.Weak),
+            StrongServices = detected
+                .Where(static service => service.Confidence == Microsoft365DetectionConfidence.Strong)
+                .Select(static service => service.Kind)
+                .ToList(),
+            ModerateServices = detected
+                .Where(static service => service.Confidence == Microsoft365DetectionConfidence.Moderate)
+                .Select(static service => service.Kind)
+                .ToList(),
+            WeakServices = detected
+                .Where(static service => service.Confidence == Microsoft365DetectionConfidence.Weak)
+                .Select(static service => service.Kind)
+                .ToList()
+        };
+    }
+
+    private static Microsoft365DnsApplicationSummary BuildDnsApplicationSummary(IReadOnlyList<DetectedDnsApplication> detectedApplications) {
+        var categories = detectedApplications
+            .Where(static app => app.Category != DetectedDnsAppCategory.Unknown)
+            .GroupBy(static app => app.Category)
+            .Select(group => new Microsoft365DnsApplicationCategorySummary {
+                Category = group.Key,
+                Count = group.Count(),
+                HighestConfidence = group.Max(static app => app.Confidence),
+                ApplicationNames = group
+                    .Select(static app => app.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            })
+            .OrderByDescending(static item => item.Count)
+            .ThenByDescending(static item => item.HighestConfidence)
+            .ThenBy(static item => GetDetectedDnsAppCategorySortOrder(item.Category))
+            .ThenBy(static item => item.Category.ToString(), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var dominantCategory = categories.Count > 0 ? categories[0].Category : DetectedDnsAppCategory.Unknown;
+        var dominantCategoryCount = categories.Count > 0 ? categories[0].Count : 0;
+
+        return new Microsoft365DnsApplicationSummary {
+            TotalCount = detectedApplications.Count,
+            CategoryCount = categories.Count,
+            DominantCategory = dominantCategory,
+            DominantCategoryCount = dominantCategoryCount,
+            Categories = categories
+        };
+    }
+
+    private static int GetDetectedDnsAppCategorySortOrder(DetectedDnsAppCategory category) {
+        switch (category) {
+            case DetectedDnsAppCategory.Productivity:
+                return 0;
+            case DetectedDnsAppCategory.Identity:
+                return 1;
+            case DetectedDnsAppCategory.Security:
+                return 2;
+            case DetectedDnsAppCategory.Analytics:
+                return 3;
+            case DetectedDnsAppCategory.EmailSecurity:
+                return 4;
+            case DetectedDnsAppCategory.EmailMarketing:
+                return 5;
+            case DetectedDnsAppCategory.EmailSignatures:
+                return 6;
+            case DetectedDnsAppCategory.DmarcReporting:
+                return 7;
+            case DetectedDnsAppCategory.DnsHosting:
+                return 8;
+            case DetectedDnsAppCategory.CDN:
+                return 9;
+            case DetectedDnsAppCategory.CRM:
+                return 10;
+            case DetectedDnsAppCategory.Verification:
+                return 11;
+            case DetectedDnsAppCategory.Other:
+                return 12;
+            case DetectedDnsAppCategory.Unknown:
+            default:
+                return int.MaxValue;
+        }
+    }
+
     private static Microsoft365ServiceDetection BuildExchangeDetection(
         DnsInventoryAnalysis? dnsInventory,
         AutodiscoverAnalysis? autodiscover,
@@ -425,6 +516,58 @@ public sealed partial class Microsoft365TenantAnalysis {
             .ThenBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
             .Take(12)
             .ToList();
+    }
+
+    private static Microsoft365EvidenceSummary BuildEvidenceSummary(IReadOnlyList<Microsoft365EvidenceItem> evidenceLedger) {
+        var categories = evidenceLedger
+            .Where(static item => item.Category != Microsoft365EvidenceCategory.Unknown)
+            .GroupBy(static item => item.Category)
+            .Select(group => new Microsoft365EvidenceCategorySummary {
+                Category = group.Key,
+                Count = group.Count(),
+                HighestConfidence = group.Max(static item => item.Confidence),
+                Labels = group
+                    .Select(static item => item.Label)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static label => label, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            })
+            .OrderByDescending(static item => item.Count)
+            .ThenByDescending(static item => item.HighestConfidence)
+            .ThenBy(static item => GetEvidenceCategorySortOrder(item.Category))
+            .ThenBy(static item => item.Category.ToString(), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var dominantCategory = categories.Count > 0 ? categories[0].Category : Microsoft365EvidenceCategory.Unknown;
+        var dominantCategoryCount = categories.Count > 0 ? categories[0].Count : 0;
+
+        return new Microsoft365EvidenceSummary {
+            TotalCount = evidenceLedger.Count,
+            CategoryCount = categories.Count,
+            DominantCategory = dominantCategory,
+            DominantCategoryCount = dominantCategoryCount,
+            Categories = categories
+        };
+    }
+
+    private static int GetEvidenceCategorySortOrder(Microsoft365EvidenceCategory category) {
+        switch (category) {
+            case Microsoft365EvidenceCategory.Identity:
+                return 0;
+            case Microsoft365EvidenceCategory.Authentication:
+                return 1;
+            case Microsoft365EvidenceCategory.Service:
+                return 2;
+            case Microsoft365EvidenceCategory.Mail:
+                return 3;
+            case Microsoft365EvidenceCategory.DnsApplication:
+                return 4;
+            case Microsoft365EvidenceCategory.Domain:
+                return 5;
+            case Microsoft365EvidenceCategory.Unknown:
+            default:
+                return int.MaxValue;
+        }
     }
 
     private static void AddIdentityEvidence(List<Microsoft365EvidenceItem> items, IdpInfoAnalysis? idp) {

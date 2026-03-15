@@ -128,6 +128,7 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Equal("https://login.microsoftonline.com/", analysis.AuthenticationSummary.FederationRedirectUrl);
         Assert.Equal(Microsoft365AuthDomainPostureKind.ManagedTenant, analysis.AuthenticationSummary.DomainPosture);
         Assert.Equal(Microsoft365AuthCredentialFlowKind.Redirect, analysis.AuthenticationSummary.CredentialFlow);
+        Assert.Equal(Microsoft365AuthPathKind.ManagedRedirect, analysis.AuthenticationSummary.AuthenticationPath);
         Assert.Contains(analysis.AuthenticationSummary.Evidence, item => item == "IfExistsResult=1");
         Assert.Contains(analysis.AuthenticationSummary.Evidence, item => item == "DomainType=3");
         Assert.Contains(analysis.AuthenticationSummary.Evidence, item => item == "PreferredCredential=4");
@@ -147,6 +148,24 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Equal(Microsoft365DetectionConfidence.Moderate, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerApps).Confidence);
         Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerAutomate).Status);
         Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerBi).Status);
+        Assert.Equal(8, analysis.WorkloadSummary.DetectedCount);
+        Assert.Equal(2, analysis.WorkloadSummary.StrongCount);
+        Assert.Equal(6, analysis.WorkloadSummary.ModerateCount);
+        Assert.Equal(0, analysis.WorkloadSummary.WeakCount);
+        Assert.Contains(Microsoft365ServiceKind.ExchangeOnline, analysis.WorkloadSummary.StrongServices);
+        Assert.Contains(Microsoft365ServiceKind.EntraId, analysis.WorkloadSummary.StrongServices);
+        Assert.Equal(analysis.DetectedDnsApplications.Count, analysis.DnsApplicationSummary.TotalCount);
+        Assert.Equal(8, analysis.DnsApplicationSummary.CategoryCount);
+        Assert.Equal(DetectedDnsAppCategory.Productivity, analysis.DnsApplicationSummary.DominantCategory);
+        Assert.True(analysis.DnsApplicationSummary.DominantCategoryCount >= 5);
+        Assert.Equal(analysis.DnsApplicationSummary.DominantCategoryCount, analysis.DnsApplicationSummary.Categories.Single(category => category.Category == DetectedDnsAppCategory.Productivity).Count);
+        Assert.Contains("Microsoft 365", analysis.DnsApplicationSummary.Categories.Single(category => category.Category == DetectedDnsAppCategory.Productivity).ApplicationNames);
+        Assert.True(analysis.DnsApplicationSummary.Categories.Single(category => category.Category == DetectedDnsAppCategory.Identity).Count >= 1);
+        Assert.Equal(analysis.EvidenceLedger.Count, analysis.EvidenceSummary.TotalCount);
+        Assert.True(analysis.EvidenceSummary.CategoryCount >= 5);
+        Assert.Contains(analysis.EvidenceSummary.Categories, category => category.Category == Microsoft365EvidenceCategory.Identity && category.HighestConfidence == Microsoft365DetectionConfidence.Strong);
+        Assert.Contains(analysis.EvidenceSummary.Categories, category => category.Category == Microsoft365EvidenceCategory.Service && category.Count >= 2);
+        Assert.Contains(analysis.EvidenceSummary.Categories, category => category.Category == Microsoft365EvidenceCategory.Authentication && category.Count >= 1);
 
         Assert.Contains(analysis.KnownSubdomains, item => item.Role == KnownSubdomainRole.EnterpriseEnrollment);
         Assert.Contains(analysis.KnownSubdomains, item => item.Role == KnownSubdomainRole.Login);
@@ -183,6 +202,7 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Contains(analysis.Assessments, assessment => assessment.Code == "m365-auth-user-enumeration-exposed");
         Assert.Contains(analysis.Assessments, assessment => assessment.Code == "m365-auth-managed-posture-detected" && assessment.Severity == AssessmentSeverity.Info);
         Assert.Contains(analysis.Assessments, assessment => assessment.Code == "m365-auth-redirect-flow-detected" && assessment.Severity == AssessmentSeverity.Info);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == "m365-auth-managed-redirect-path-detected" && assessment.Severity == AssessmentSeverity.Info);
 
         var view = DomainDetective.Views.Converters.Convert(analysis);
         Assert.True(view.AuthenticationSummary.ProbeResponsive);
@@ -190,10 +210,70 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Equal(3, view.AuthenticationSummary.DomainType);
         Assert.Equal(Microsoft365AuthDomainPostureKind.ManagedTenant, view.AuthenticationSummary.DomainPosture);
         Assert.Equal(Microsoft365AuthCredentialFlowKind.Redirect, view.AuthenticationSummary.CredentialFlow);
+        Assert.Equal(Microsoft365AuthPathKind.ManagedRedirect, view.AuthenticationPath);
+        Assert.Contains("auth-path managed-redirect;", view.Summary);
+        Assert.Contains("workloads S2/M6/W0;", view.Summary);
+        Assert.Contains("app-cats 8 (top Productivity ", view.Summary);
+        Assert.Contains("(strong)", view.Summary);
+        Assert.Contains("evidence-groups ", view.Summary);
         Assert.Contains("auth Exposed / Unknown (managed, redirect; DomainType 3; PrefCredential 4)", view.Summary);
+        Assert.Equal("Auth path: managed-redirect", view.Highlights.First());
+        Assert.Equal("Strong workloads: ExchangeOnline, EntraId", view.Highlights[1]);
+        Assert.Contains(view.Highlights, item => item.StartsWith("App footprint: Productivity ", StringComparison.Ordinal) && item.Contains("(strong)", StringComparison.Ordinal));
+        Assert.Contains(view.Highlights, item => item.StartsWith("Evidence groups: ", StringComparison.Ordinal) && item.Contains("(strong)", StringComparison.Ordinal) && (item.Contains("Services ", StringComparison.Ordinal) || item.Contains("Apps ", StringComparison.Ordinal) || item.Contains("Identity ", StringComparison.Ordinal)));
+        Assert.Contains("User enumeration: exposed", view.Highlights);
         Assert.Contains(view.Recommendations, advice => advice.Code == "m365-auth-user-enumeration-exposed");
         Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-managed-posture-detected");
         Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-redirect-flow-detected");
+        Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-managed-redirect-path-detected");
+    }
+
+    [Fact]
+    public async Task DetectsFederatedRedirectAuthenticationPath()
+    {
+        var idp = new IdpInfoAnalysis();
+        SetBackingField(idp, nameof(IdpInfoAnalysis.Domain), "contoso.com");
+        SetBackingField(idp, nameof(IdpInfoAnalysis.DiscoverySucceeded), true);
+        SetBackingField(idp, nameof(IdpInfoAnalysis.GetUserRealmSucceeded), true);
+        SetBackingField(idp, nameof(IdpInfoAnalysis.NameSpaceType), "Federated");
+        SetBackingField(idp, nameof(IdpInfoAnalysis.IdentityProviderHost), "adfs.contoso.com");
+
+        var subdomains = new SubdomainsAnalysis();
+        SetBackingField(subdomains, nameof(SubdomainsAnalysis.Subject), "contoso.com");
+        SetBackingField(subdomains, nameof(SubdomainsAnalysis.QuerySucceeded), true);
+        SetBackingField(
+            subdomains,
+            nameof(SubdomainsAnalysis.Subdomains),
+            new List<SubdomainDiscoveryEntry> {
+                new() { Name = "login.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves }
+            });
+
+        var analysis = new Microsoft365TenantAnalysis();
+        analysis.Analyze("contoso.com", idp, null, null, subdomains, null, new InternalLogger());
+        await analysis.ProbeAuthenticationAsync("contoso.com", new StubHttpClientFactory(_ => CreateJsonResponse(@"
+{
+  ""Username"": ""dd-authprobe@contoso.com"",
+  ""Display"": ""dd-authprobe@contoso.com"",
+  ""IfExistsResult"": 1,
+  ""ThrottleStatus"": 1,
+  ""Credentials"": { ""PrefCredential"": 4, ""FederationRedirectUrl"": ""https://adfs.contoso.com/adfs/ls/"" },
+  ""EstsProperties"": { ""DomainType"": 3 }
+}")), new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.AuthenticationSummary.ProbeResponsive);
+        Assert.Equal(Microsoft365AuthDomainPostureKind.FederatedTenant, analysis.AuthenticationSummary.DomainPosture);
+        Assert.Equal(Microsoft365AuthCredentialFlowKind.Redirect, analysis.AuthenticationSummary.CredentialFlow);
+        Assert.Equal(Microsoft365AuthPathKind.FederatedRedirect, analysis.AuthenticationSummary.AuthenticationPath);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == "m365-auth-federated-posture-detected" && assessment.Severity == AssessmentSeverity.Info);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == "m365-auth-redirect-flow-detected" && assessment.Severity == AssessmentSeverity.Info);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == "m365-auth-federated-redirect-path-detected" && assessment.Severity == AssessmentSeverity.Info);
+
+        var view = DomainDetective.Views.Converters.Convert(analysis);
+        Assert.Equal(Microsoft365AuthPathKind.FederatedRedirect, view.AuthenticationPath);
+        Assert.Contains("auth-path federated-redirect;", view.Summary);
+        Assert.Equal("Auth path: federated-redirect", view.Highlights.First());
+        Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-federated-posture-detected");
+        Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-federated-redirect-path-detected");
     }
 
     [Fact]
@@ -218,15 +298,36 @@ public class TestMicrosoft365TenantAnalysis
         Assert.True(analysis.IsMicrosoft365Tenant);
         Assert.Equal(Microsoft365DetectionConfidence.Moderate, analysis.DetectionConfidence);
         Assert.NotEmpty(analysis.EvidenceLedger);
+        Assert.Equal(3, analysis.WorkloadSummary.DetectedCount);
+        Assert.Equal(0, analysis.WorkloadSummary.StrongCount);
+        Assert.Equal(3, analysis.WorkloadSummary.ModerateCount);
+        Assert.Equal(0, analysis.WorkloadSummary.WeakCount);
+        Assert.Equal(analysis.DetectedDnsApplications.Count, analysis.DnsApplicationSummary.TotalCount);
+        Assert.Equal(2, analysis.DnsApplicationSummary.CategoryCount);
+        Assert.Contains(analysis.DnsApplicationSummary.Categories, category => category.Category == DetectedDnsAppCategory.Productivity);
+        Assert.Contains(analysis.DnsApplicationSummary.Categories, category => category.Category == DetectedDnsAppCategory.Identity);
+        Assert.True(analysis.DnsApplicationSummary.DominantCategoryCount >= 1);
+        Assert.Equal(analysis.EvidenceLedger.Count, analysis.EvidenceSummary.TotalCount);
+        Assert.True(analysis.EvidenceSummary.CategoryCount >= 2);
+        Assert.Contains(analysis.EvidenceSummary.Categories, category => category.Category == Microsoft365EvidenceCategory.Service && category.Count >= 2);
         Assert.Contains(analysis.TenantDomains, domain => domain.Domain == "contoso.com" && domain.Role == Microsoft365TenantDomainRole.Primary);
         Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.ExchangeOnline).Status);
         Assert.Equal(Microsoft365DetectionConfidence.Moderate, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.ExchangeOnline).Confidence);
         Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.EntraId).Status);
         Assert.Equal(Microsoft365DetectionConfidence.Moderate, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.EntraId).Confidence);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.IntuneEndpoint).Status);
         Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "microsoft-identity-surface");
         Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "microsoft-365-surface");
         Assert.Contains(analysis.EvidenceLedger, item => item.Id == "service-exchangeonline" && item.Confidence == Microsoft365DetectionConfidence.Moderate);
         Assert.Contains(analysis.EvidenceLedger, item => item.Id == "service-entraid" && item.Confidence == Microsoft365DetectionConfidence.Moderate);
+
+        var view = DomainDetective.Views.Converters.Convert(analysis);
+        Assert.Contains("workloads S0/M3/W0;", view.Summary);
+        Assert.Contains("app-cats 2 (top ", view.Summary);
+        Assert.Contains("evidence-groups ", view.Summary);
+        Assert.Equal("Moderate workloads: ExchangeOnline, IntuneEndpoint, EntraId", view.Highlights[0]);
+        Assert.Contains(view.Highlights, item => item.StartsWith("App footprint: ", StringComparison.Ordinal) && item.Contains("Productivity 1 (moderate)", StringComparison.Ordinal) && item.Contains("Identity ", StringComparison.Ordinal) && item.Contains("(moderate)", StringComparison.Ordinal));
+        Assert.Contains(view.Highlights, item => item.StartsWith("Evidence groups: ", StringComparison.Ordinal) && item.Contains("Services ", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -240,6 +341,7 @@ public class TestMicrosoft365TenantAnalysis
         Assert.False(analysis.AuthenticationSummary.ProbeResponsive);
         Assert.Equal(Microsoft365AuthDomainPostureKind.Unknown, analysis.AuthenticationSummary.DomainPosture);
         Assert.Equal(Microsoft365AuthCredentialFlowKind.Unknown, analysis.AuthenticationSummary.CredentialFlow);
+        Assert.Equal(Microsoft365AuthPathKind.Unknown, analysis.AuthenticationSummary.AuthenticationPath);
         Assert.Contains(analysis.Assessments, assessment => assessment.Code == "m365-no-sources");
     }
 

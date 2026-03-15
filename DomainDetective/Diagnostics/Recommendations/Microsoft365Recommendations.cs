@@ -83,5 +83,44 @@ internal sealed class Microsoft365Recommendations : IRecommendationProvider
             Effort = RecommendationEffort.Low,
             Verify = "The auth probe should continue to indicate a non-redirect, native credential preference."
         };
+
+        map[Microsoft365Codes.AuthFederatedRedirectPathDetected] = new RecommendationAdvice
+        {
+            Code = Microsoft365Codes.AuthFederatedRedirectPathDetected,
+            Title = "Federated redirect sign-in path detected",
+            Why = "A federated redirect path confirms the tenant's sign-in journey depends on external identity infrastructure rather than staying entirely on Microsoft's hosted credential flow.",
+            How = "Validate federation redirect targets, certificates, availability monitoring, and incident ownership for the external identity path, and review failover behavior regularly.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "microsoft365", "entra", "federation", "redirect" },
+            Impact = "Authentication resilience depends on both Microsoft and the redirected federation path.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "The public auth probe should continue to return the expected redirect target and federation posture."
+        };
+
+        map[Microsoft365Codes.AuthManagedRedirectPathDetected] = new RecommendationAdvice
+        {
+            Code = Microsoft365Codes.AuthManagedRedirectPathDetected,
+            Title = "Managed tenant with redirect-based sign-in path detected",
+            Why = "A managed tenant that still returns a redirect-based sign-in path suggests additional identity dependencies or branding layers beyond a simple Microsoft-hosted credential prompt.",
+            How = "Review where the redirect leads, confirm the redirect path is intentional, and make sure monitoring and ownership cover that redirected auth dependency.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "microsoft365", "entra", "managed-auth", "redirect" },
+            Impact = "Adds operational dependency to the tenant sign-in experience even when the tenant appears cloud-managed.",
+            Effort = RecommendationEffort.Low,
+            Verify = "The auth probe should continue to show the same redirect behavior and expected target."
+        };
+
+        map[Microsoft365Codes.AuthManagedNativePathDetected] = new RecommendationAdvice
+        {
+            Code = Microsoft365Codes.AuthManagedNativePathDetected,
+            Title = "Managed tenant with native Microsoft sign-in path detected",
+            Why = "This combination indicates the tenant stays on the standard Microsoft-hosted credential path, which is usually the simplest operational model to harden and monitor.",
+            How = "Keep native Microsoft sign-in protections strong with MFA, Conditional Access, risk-based policies, and reviews of legacy authentication exposure.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "microsoft365", "entra", "managed-auth", "native-auth" },
+            Impact = "Confirms a simpler, Microsoft-hosted sign-in posture.",
+            Effort = RecommendationEffort.Low,
+            Verify = "The public auth probe should continue to show native credential preference without a redirect path."
+        };
     }
 }
