@@ -168,14 +168,10 @@ public partial class BimiAnalysis : IHasAssessments {
         /// Shared HTTP client that enforces default TLS certificate validation.
         /// </summary>
         private static readonly HttpClient _client;
-        private static readonly HttpClientHandler _handler;
 
         static BimiAnalysis()
         {
-            NetFrameworkTls.EnsureEnabled();
-            _handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-            _client = new HttpClient(_handler, disposeHandler: false);
-            _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+            _client = HttpClientPlatformFactory.CreateRedirectClient(userAgent: "Mozilla/5.0");
         }
 
         private (HttpClient client, bool dispose) GetOrCreateClient()

@@ -45,7 +45,8 @@ public sealed class ToolRegistry {
             Description = "Verify MTA-STS policy for enforced TLS",
             Category = ToolCategory.EmailSecurity,
             Icon = "lock",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false
         },
         new ToolDefinition {
             Name = "TLS-RPT Check",
@@ -61,7 +62,8 @@ public sealed class ToolRegistry {
             Description = "Validate BIMI record and brand indicator",
             Category = ToolCategory.EmailSecurity,
             Icon = "image",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false
         },
 
         // DNS
@@ -141,7 +143,8 @@ public sealed class ToolRegistry {
             Description = "Analyze security headers (CSP, HSTS, X-Frame-Options, etc.)",
             Category = ToolCategory.WebSecurity,
             Icon = "code",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false
         },
         new ToolDefinition {
             Name = "Security.txt",
@@ -149,7 +152,8 @@ public sealed class ToolRegistry {
             Description = "Check for security.txt disclosure file",
             Category = ToolCategory.WebSecurity,
             Icon = "file-text",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false
         },
 
         // Registration
@@ -159,7 +163,8 @@ public sealed class ToolRegistry {
             Description = "Query domain registration data via RDAP",
             Category = ToolCategory.Registration,
             Icon = "database",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false
         },
 
         // Threat Intel
@@ -187,7 +192,8 @@ public sealed class ToolRegistry {
             Description = "Discover subdomains via Certificate Transparency logs",
             Category = ToolCategory.Subdomain,
             Icon = "layers",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false
         }
     };
 

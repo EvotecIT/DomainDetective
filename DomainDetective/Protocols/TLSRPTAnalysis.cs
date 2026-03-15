@@ -49,7 +49,7 @@ public class TLSRPTAnalysis : IHasAssessments {
         public Dictionary<string, int> RuaHttpStatus { get; private set; } = new();
 
         /// <summary>HTTP client used for HTTPS RUA validation. Override for testing.</summary>
-        public HttpClient HttpClient { get; set; } = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 5 });
+        public HttpClient HttpClient { get; set; } = HttpClientPlatformFactory.CreateRedirectClient(maxAutomaticRedirections: 5);
 
         /// <summary>Relevant standards for TLSRPT analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
