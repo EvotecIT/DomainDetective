@@ -217,6 +217,73 @@ public class TestNativeCtLogSubdomainDiscovery {
     }
 
     [Fact]
+    public async Task DiscoverForDomainsAsync_NameResolutionFailureTripsGlobalCircuitImmediately() {
+        string cursorPath = CreateTemporaryCursorStatePath();
+        var getSthCalls = 0;
+
+        try {
+            var source = new NativeCtLogSubdomainDiscovery {
+                QueryOverride = (url, _) => {
+                    if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase) ||
+                        url.Contains("all_logs_list.json", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/retired/"" } ] } ] }");
+                    }
+                    if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        getSthCalls++;
+                        throw new HttpRequestException("No such host is known. (ct.test.example:443)");
+                    }
+
+                    throw new InvalidOperationException("Unexpected URL: " + url);
+                }
+            };
+
+            var options = new NativeCtLogSubdomainDiscoveryOptions {
+                BaseDomain = "example.com",
+                LogListUrl = "https://ct-log-list.example/logs.json",
+                CursorStatePath = cursorPath,
+                RetryCount = 0,
+                CircuitBreakerFailureThreshold = 3,
+                CircuitBreakerDuration = TimeSpan.FromMinutes(5),
+                MaxCtRowsToProcess = 100,
+                MaxSubdomains = 100,
+                MaxLogsToProcess = 10,
+                MaxEntriesPerLog = 100,
+                EntryBatchSize = 100,
+                InitialBackfillEntriesPerLog = 100,
+                IncludeRetiredLogs = true
+            };
+
+            var first = await source.DiscoverForDomainsAsync(
+                new[] { "example.com" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+            var second = await source.DiscoverForDomainsAsync(
+                new[] { "eurofins.com" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.False(first.SourceSucceeded);
+            Assert.False(second.SourceSucceeded);
+            Assert.Equal(1, getSthCalls);
+            Assert.Single(first.LogStatuses);
+            Assert.Single(second.LogStatuses);
+            Assert.False(first.LogStatuses[0].Succeeded);
+            Assert.True(second.LogStatuses[0].SkippedByCircuitBreaker);
+            Assert.NotNull(second.LogStatuses[0].CircuitOpenUntilUtc);
+            Assert.Contains(second.Warnings, warning => warning.Contains("circuit open", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            try {
+                if (File.Exists(cursorPath)) {
+                    File.Delete(cursorPath);
+                }
+            } catch {
+            }
+        }
+    }
+
+    [Fact]
     public async Task DiscoverForDomainsAsync_CorrelatesEntriesAcrossDomains() {
         using var exampleCert = CreateSelfSigned("portal.example.com");
         using var evotecCert = CreateSelfSigned("api.evotec.xyz");
@@ -525,6 +592,54 @@ public class TestNativeCtLogSubdomainDiscovery {
     }
 
     [Fact]
+    public async Task DiscoverForDomainsAsync_SkipsKnownBogusRetiredLogEntries() {
+        var requestedSthUrls = new List<string>();
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(url, "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(
+                        @"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [
+                            { ""description"": ""Bogus RFC6962 log to avoid breaking misbehaving CT libraries"", ""url"": ""https://ct.example.com/bogus/ipng/"", ""state"": { ""retired"": {} } },
+                            { ""description"": ""Retired historical log"", ""url"": ""ct.test.example/retired/"", ""state"": { ""retired"": {} } }
+                        ] } ] }");
+                }
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    requestedSthUrls.Add(url);
+                    return Task.FromResult(@"{ ""tree_size"": 0 }");
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "example.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 10,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = true
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "example.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Single(requestedSthUrls);
+        Assert.Contains(requestedSthUrls, static url => url.Contains("ct.test.example/retired/", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(requestedSthUrls, static url => url.Contains("ct.example.com/bogus", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(result.LogStatuses, static status => status.LogUrl.Contains("ct.example.com/bogus", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task DiscoverForDomainsAsync_CappedRunPrefersCurrentLogsBeforeRetiredLogs() {
         var requestedSthUrls = new List<string>();
 
@@ -577,6 +692,52 @@ public class TestNativeCtLogSubdomainDiscovery {
         Assert.Equal(1, requestedSthUrls.Count(static url => url.Contains("ct.test.example/retired-", StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(requestedSthUrls, static url => url.Contains("ct.test.example/retired-2025/", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(requestedSthUrls, static url => url.Contains("ct.test.example/retired-2022/", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void NativeCtCursorState_LoadAndSave_SkipKnownBogusLogEntries() {
+        string cursorPath = CreateTemporaryCursorStatePath();
+
+        try {
+            File.WriteAllText(
+                cursorPath,
+                """
+                {
+                  "Version": 2,
+                  "UpdatedAtUtc": "2026-03-14T16:53:40Z",
+                  "Entries": [
+                    {
+                      "Key": "health|https://ct.example.com/bogus/ipng/",
+                      "LastProcessedIndex": null,
+                      "ConsecutiveFailureCount": 1
+                    },
+                    {
+                      "Key": "health|https://ct.test.example/retired/",
+                      "LastProcessedIndex": 123,
+                      "ConsecutiveFailureCount": 0
+                    }
+                  ]
+                }
+                """);
+
+            NativeCtCursorState state = NativeCtCursorState.Load(cursorPath);
+
+            Assert.Null(state.GetLastProcessedIndex("health|https://ct.example.com/bogus/ipng/"));
+            Assert.Equal(123, state.GetLastProcessedIndex("health|https://ct.test.example/retired/"));
+
+            state.Save(cursorPath);
+            string saved = File.ReadAllText(cursorPath);
+
+            Assert.DoesNotContain("ct.example.com/bogus", saved, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("ct.test.example/retired", saved, StringComparison.OrdinalIgnoreCase);
+        } finally {
+            try {
+                if (File.Exists(cursorPath)) {
+                    File.Delete(cursorPath);
+                }
+            } catch {
+            }
+        }
     }
 
     [Fact]

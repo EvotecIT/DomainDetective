@@ -1,0 +1,34 @@
+@if (Issues is not null && Issues.Count > 0) {
+    <ul class="issues-list">
+        @foreach (var issue in Issues) {
+            <li>
+                <span class="status-badge @GetIssueCss(issue)">@GetIssuePrefix(issue)</span>
+                <span>@GetIssueText(issue)</span>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<object>? Issues { get; set; }
+
+    private string GetIssueCss(object issue) {
+        var text = issue.ToString() ?? "";
+        if (text.Contains("error", StringComparison.OrdinalIgnoreCase) || text.Contains("fail", StringComparison.OrdinalIgnoreCase))
+            return "status-badge-fail";
+        if (text.Contains("warning", StringComparison.OrdinalIgnoreCase))
+            return "status-badge-warning";
+        return "status-badge-info";
+    }
+
+    private string GetIssuePrefix(object issue) {
+        var text = issue.ToString() ?? "";
+        if (text.Contains("error", StringComparison.OrdinalIgnoreCase) || text.Contains("fail", StringComparison.OrdinalIgnoreCase))
+            return "Error";
+        if (text.Contains("warning", StringComparison.OrdinalIgnoreCase))
+            return "Warning";
+        return "Info";
+    }
+
+    private string GetIssueText(object issue) => issue.ToString() ?? "";
+}

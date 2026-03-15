@@ -1,0 +1,58 @@
+@page "/"
+@page "/{ToolSlug}"
+@page "/{ToolSlug}/"
+@page "/tools"
+@page "/tools/"
+@page "/tools/{ToolSlug}"
+@page "/tools/{ToolSlug}/"
+@inject ToolRegistry Registry
+
+<PageTitle>@GetPageTitle()</PageTitle>
+
+@if (string.IsNullOrEmpty(ToolSlug)) {
+    <div class="tools-home">
+        <div class="tools-hero">
+            <h1>Domain Analysis Tools</h1>
+            <p>Comprehensive domain security analysis — runs entirely in your browser via DNS-over-HTTPS.</p>
+            <ToolSearch OnSearch="HandleSearch" />
+        </div>
+
+        @if (_filteredTools is not null && _filteredTools.Count > 0) {
+            <ToolCategoryGrid Tools="_filteredTools" />
+        } else if (!string.IsNullOrEmpty(_searchQuery)) {
+            <div class="tools-empty">
+                <p>No tools match "<strong>@_searchQuery</strong>"</p>
+            </div>
+        } else {
+            <ToolCategoryGrid Tools="Registry.GetAll()" />
+        }
+    </div>
+} else {
+    var tool = Registry.GetBySlug(ToolSlug);
+    if (tool is null) {
+        <div class="tool-not-found">
+            <h2>Tool not found</h2>
+            <p>No tool matches "<strong>@ToolSlug</strong>". <a href="./">Browse all tools</a></p>
+        </div>
+    } else {
+        <ToolPage Definition="tool" />
+    }
+}
+
+@code {
+    [Parameter] public string? ToolSlug { get; set; }
+
+    private string? _searchQuery;
+    private IReadOnlyList<ToolDefinition>? _filteredTools;
+
+    private void HandleSearch(string query) {
+        _searchQuery = query;
+        _filteredTools = string.IsNullOrWhiteSpace(query) ? null : Registry.Search(query);
+    }
+
+    private string GetPageTitle() {
+        if (string.IsNullOrEmpty(ToolSlug)) return "Tools | Domain Detective";
+        var tool = Registry.GetBySlug(ToolSlug);
+        return tool is not null ? $"{tool.Name} | Domain Detective" : "Tool Not Found | Domain Detective";
+    }
+}

@@ -1,0 +1,23 @@
+<span class="status-badge @GetCssClass()">
+    @GetLabel()
+</span>
+
+@code {
+    [Parameter] public ResultCard.ResultStatus Status { get; set; }
+
+    private string GetCssClass() => Status switch {
+        ResultCard.ResultStatus.Pass => "status-badge-pass",
+        ResultCard.ResultStatus.Fail => "status-badge-fail",
+        ResultCard.ResultStatus.Warning => "status-badge-warning",
+        ResultCard.ResultStatus.Info => "status-badge-info",
+        _ => "status-badge-info"
+    };
+
+    private string GetLabel() => Status switch {
+        ResultCard.ResultStatus.Pass => "Pass",
+        ResultCard.ResultStatus.Fail => "Fail",
+        ResultCard.ResultStatus.Warning => "Warning",
+        ResultCard.ResultStatus.Info => "Info",
+        _ => "Unknown"
+    };
+}

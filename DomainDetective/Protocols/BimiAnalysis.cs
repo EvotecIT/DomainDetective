@@ -1,6 +1,7 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using DomainDetective.Helpers;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -240,11 +241,11 @@ public partial class BimiAnalysis : IHasAssessments {
                 var bytes = await response.Content.ReadAsByteArrayAsync();
                 X509Certificate2 cert;
                 try {
-                    cert = new X509Certificate2(bytes);
+                    cert = CertificateLoaderCompat.LoadCertificate(bytes);
                 } catch (CryptographicException) {
                     var text = System.Text.Encoding.ASCII.GetString(bytes);
                     var pem = DecodePem(text);
-                    cert = new X509Certificate2(pem);
+                    cert = CertificateLoaderCompat.LoadCertificate(pem);
                 }
                 VmcCertificate = cert;
                 using var chain = new X509Chain();

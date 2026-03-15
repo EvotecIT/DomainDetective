@@ -1,0 +1,12 @@
+{{ if page_toc && page_toc.size > 0 }}
+<aside class="docs-toc" aria-label="On this page">
+  <p class="docs-toc-heading">On this page</p>
+  <nav>
+    <ul>
+      {{ for item in page_toc }}
+      <li><a href="#{{ item.id }}">{{ item.text }}</a></li>
+      {{ end }}
+    </ul>
+  </nav>
+</aside>
+{{ end }}

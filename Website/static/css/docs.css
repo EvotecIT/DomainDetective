@@ -1,0 +1,27 @@
+/* DomainDetective - Documentation Specific Styles */
+
+/* Additional docs styles beyond what's in app.css */
+.docs-article-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+}
+.docs-article-body th,
+.docs-article-body td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--pf-border);
+    text-align: left;
+    font-size: 0.9rem;
+}
+.docs-article-body th {
+    color: var(--pf-muted);
+    font-weight: 500;
+}
+.docs-article-body blockquote {
+    border-left: 3px solid var(--pf-accent);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    background: var(--pf-card-bg);
+    border-radius: 0 var(--pf-radius-sm) var(--pf-radius-sm) 0;
+    color: var(--pf-muted);
+}

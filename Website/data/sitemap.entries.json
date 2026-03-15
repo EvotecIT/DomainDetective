@@ -1,0 +1,10 @@
+[
+  { "url": "/tools/", "changefreq": "weekly", "priority": 0.9 },
+  { "url": "/tools/spf/", "changefreq": "monthly", "priority": 0.8 },
+  { "url": "/tools/dkim/", "changefreq": "monthly", "priority": 0.8 },
+  { "url": "/tools/dmarc/", "changefreq": "monthly", "priority": 0.8 },
+  { "url": "/tools/dns-lookup/", "changefreq": "monthly", "priority": 0.8 },
+  { "url": "/tools/dnssec/", "changefreq": "monthly", "priority": 0.7 },
+  { "url": "/tools/http-headers/", "changefreq": "monthly", "priority": 0.7 },
+  { "url": "/tools/rdap/", "changefreq": "monthly", "priority": 0.7 }
+]

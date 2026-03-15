@@ -1,0 +1,39 @@
+{
+  "categories": [
+    {
+      "name": "Email Security",
+      "slug": "email-security",
+      "tools": ["spf", "dkim", "dmarc", "mx", "mta-sts", "tls-rpt", "bimi"]
+    },
+    {
+      "name": "DNS",
+      "slug": "dns",
+      "tools": ["dns-lookup", "dnssec", "soa", "ns", "dns-propagation"]
+    },
+    {
+      "name": "TLS & Certificates",
+      "slug": "tls-cert",
+      "tools": ["cert-check", "caa", "dane"]
+    },
+    {
+      "name": "Web Security",
+      "slug": "web-security",
+      "tools": ["http-headers", "security-txt"]
+    },
+    {
+      "name": "Registration",
+      "slug": "registration",
+      "tools": ["rdap"]
+    },
+    {
+      "name": "Threat Intelligence",
+      "slug": "threat-intel",
+      "tools": ["dnsbl", "dangling-cname"]
+    },
+    {
+      "name": "Subdomain Discovery",
+      "slug": "subdomain",
+      "tools": ["ct-subdomains"]
+    }
+  ]
+}

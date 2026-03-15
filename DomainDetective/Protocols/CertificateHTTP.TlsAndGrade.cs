@@ -13,6 +13,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Ocsp;
@@ -143,14 +144,11 @@ namespace DomainDetective {
             await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
             TlsProtocol = ssl.SslProtocol;
             Tls13Used = (int)ssl.SslProtocol == 12288;
-            CipherAlgorithm = ssl.CipherAlgorithm;
-            CipherStrength = ssl.CipherStrength;
-#if NET8_0_OR_GREATER
-            CipherSuite = ssl.NegotiatedCipherSuite.ToString();
-#endif
-            if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
-                DhKeyBits = ssl.KeyExchangeStrength;
-            }
+            var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
+            CipherAlgorithm = tlsInfo.CipherAlgorithm;
+            CipherStrength = tlsInfo.CipherStrength;
+            CipherSuite = tlsInfo.CipherSuite;
+            DhKeyBits = tlsInfo.DhKeyBits;
         }
 
         private void PopulateSctAndTlsFeature(InternalLogger logger)

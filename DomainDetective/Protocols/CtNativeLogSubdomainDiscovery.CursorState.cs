@@ -16,6 +16,7 @@ namespace DomainDetective;
 
 
 internal sealed class NativeCtCursorState {
+    private const string KnownBogusCtLogUrlPrefix = "https://ct.example.com/bogus/";
     private readonly Dictionary<string, NativeCtCursorEntryState> _entries = new(StringComparer.OrdinalIgnoreCase);
 
     public long? GetLastProcessedIndex(string key) {
@@ -167,6 +168,9 @@ internal sealed class NativeCtCursorState {
                 if (string.IsNullOrWhiteSpace(key)) {
                     continue;
                 }
+                if (ContainsIgnoredLogUrl(key)) {
+                    continue;
+                }
 
                 var entry = state.GetOrCreateEntry(key);
                 if (item.LastProcessedIndex.HasValue && item.LastProcessedIndex.Value >= 0) {
@@ -201,6 +205,7 @@ internal sealed class NativeCtCursorState {
                 Version = 2,
                 UpdatedAtUtc = DateTimeOffset.UtcNow,
                 Entries = _entries
+                    .Where(static kvp => !ContainsIgnoredLogUrl(kvp.Key))
                     .OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
                     .Select(kvp => new NativeCtCursorStateEntry {
                         Key = kvp.Key,
@@ -227,6 +232,14 @@ internal sealed class NativeCtCursorState {
             _entries[key] = entry;
         }
         return entry;
+    }
+
+    private static bool ContainsIgnoredLogUrl(string key) {
+        if (string.IsNullOrWhiteSpace(key)) {
+            return false;
+        }
+
+        return key.Contains(KnownBogusCtLogUrlPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? NormalizeError(string? value) {

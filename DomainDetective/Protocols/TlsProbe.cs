@@ -110,10 +110,9 @@ public static class TlsProbe
         try
         {
             await ssl.AuthenticateAsClientAsync(sniHost).WaitWithCancellation(ct).ConfigureAwait(false);
-#if NET8_0_OR_GREATER
-            result.CipherSuite = ssl.NegotiatedCipherSuite.ToString();    
-#endif
-            result.KeyExchangeAlgorithm = ssl.KeyExchangeAlgorithm.ToString();
+            var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
+            result.CipherSuite = tlsInfo.CipherSuite;
+            result.KeyExchangeAlgorithm = tlsInfo.KeyExchangeAlgorithm;
         }
         finally
         {
@@ -143,7 +142,7 @@ public static class TlsProbe
         {
             foreach (var element in chain.ChainElements)
             {
-                result.Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                result.Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
             }
             foreach (var s in chain.ChainStatus)
             {
@@ -157,7 +156,7 @@ public static class TlsProbe
         }
 
         result.Certificate?.Dispose();
-        result.Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
+        result.Certificate = CertificateLoaderCompat.Clone(cert);
         result.CertificateSubject = result.Certificate.Subject;
         result.CertificateIssuer = result.Certificate.Issuer;
         result.NotBefore = result.Certificate.NotBefore;
