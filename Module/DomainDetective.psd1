@@ -12,11 +12,11 @@
     PowerShellVersion    = '5.1'
     PrivateData          = @{
         PSData = @{
-            ProjectUri               = 'https://github.com/EvotecIT/DomainDetective'
-            RequireLicenseAcceptance = $false
-            Tags                     = @('Windows', 'MacOS', 'Linux')
+            ProjectUri                 = 'https://github.com/EvotecIT/DomainDetective'
+            RequireLicenseAcceptance   = $false
+            Tags                       = @('Windows', 'MacOS', 'Linux')
             ExternalModuleDependencies = @()
-}
+        }
     }
     RootModule           = 'DomainDetective.psm1'
     RequiredModules      = @()
