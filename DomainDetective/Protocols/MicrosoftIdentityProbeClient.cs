@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -165,15 +166,12 @@ public static class MicrosoftIdentityProbeClient {
             return Array.Empty<string>();
         }
 
-        var values = new List<string>();
-        foreach (var item in property.EnumerateArray()) {
-            var value = item.GetString();
-            if (!string.IsNullOrWhiteSpace(value)) {
-                values.Add(value!);
-            }
-        }
-
-        return values;
+        return property
+            .EnumerateArray()
+            .Select(static item => item.GetString())
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value!)
+            .ToList();
     }
 }
 

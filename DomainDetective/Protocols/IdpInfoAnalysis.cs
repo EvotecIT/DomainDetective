@@ -56,14 +56,7 @@ public class IdpInfoAnalysis : IHasAssessments
             TenantRegionSubScope = discovery.TenantRegionSubScope;
             GrantTypesSupported = discovery.GrantTypesSupported;
             ResponseTypesSupported = discovery.ResponseTypesSupported;
-            try
-            {
-                var parts = new Uri(discovery.TokenEndpoint).AbsolutePath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var p in parts)
-                {
-                    if (Guid.TryParse(p, out var _)) { TenantId = p; break; }
-                }
-            } catch { }
+            TenantId = TryExtractTenantId(discovery.TokenEndpoint);
         }
 
         var realm = await MicrosoftIdentityProbeClient.TryGetUserRealmAsync(domain, HttpClientFactory, ct).ConfigureAwait(false);
@@ -93,6 +86,25 @@ public class IdpInfoAnalysis : IHasAssessments
         if (Uri.TryCreate(url, UriKind.Absolute, out var absolute))
         {
             return absolute.Host;
+        }
+
+        return null;
+    }
+
+    private static string? TryExtractTenantId(string? tokenEndpoint)
+    {
+        if (!Uri.TryCreate(tokenEndpoint, UriKind.Absolute, out var absolute))
+        {
+            return null;
+        }
+
+        var parts = absolute.AbsolutePath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in parts)
+        {
+            if (Guid.TryParse(part, out var _))
+            {
+                return part;
+            }
         }
 
         return null;

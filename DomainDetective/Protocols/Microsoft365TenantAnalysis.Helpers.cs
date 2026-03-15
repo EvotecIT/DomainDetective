@@ -56,18 +56,19 @@ public sealed partial class Microsoft365TenantAnalysis {
             ? new List<DetectedDnsApplication>(dnsInventory.DetectedDnsApplications)
             : new List<DetectedDnsApplication>(DetectedDnsApplicationCatalog.DetectFromInventory(dnsInventory));
 
-        foreach (var knownSubdomain in knownSubdomains) {
-            if (TryMapSubdomainRoleApplication(knownSubdomain.Role, out var id, out var name, out var category)) {
-                AddApp(
-                    apps,
-                    id,
-                    name,
-                    category,
-                    DetectedDnsAppEvidenceKind.Subdomain,
-                    MapSubdomainRoleApplicationConfidence(knownSubdomain.Role),
-                    knownSubdomain.Name,
-                    knownSubdomain.Role.ToString());
-            }
+        foreach (var mappedApplication in knownSubdomains
+                     .Select(static knownSubdomain => TryBuildSubdomainRoleApplication(knownSubdomain))
+                     .Where(static mappedApplication => mappedApplication.HasValue)
+                     .Select(static mappedApplication => mappedApplication!.Value)) {
+            AddApp(
+                apps,
+                mappedApplication.Id,
+                mappedApplication.Name,
+                mappedApplication.Category,
+                DetectedDnsAppEvidenceKind.Subdomain,
+                mappedApplication.Confidence,
+                mappedApplication.KnownSubdomain.Name,
+                mappedApplication.KnownSubdomain.Role.ToString());
         }
 
         return apps
@@ -76,6 +77,19 @@ public sealed partial class Microsoft365TenantAnalysis {
             .OrderBy(static app => app.Category)
             .ThenBy(static app => app.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static (KnownMicrosoft365Subdomain KnownSubdomain, string Id, string Name, DetectedDnsAppCategory Category, Microsoft365DetectionConfidence Confidence)? TryBuildSubdomainRoleApplication(KnownMicrosoft365Subdomain knownSubdomain) {
+        if (!TryMapSubdomainRoleApplication(knownSubdomain.Role, out var id, out var name, out var category)) {
+            return null;
+        }
+
+        return (
+            knownSubdomain,
+            id,
+            name,
+            category,
+            MapSubdomainRoleApplicationConfidence(knownSubdomain.Role));
     }
 
     private static void AddApp(
