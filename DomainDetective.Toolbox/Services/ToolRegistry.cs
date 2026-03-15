@@ -106,7 +106,8 @@ public sealed class ToolRegistry {
             Description = "Check DNS propagation across global resolvers",
             Category = ToolCategory.Dns,
             Icon = "radio",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false
         },
 
         // TLS & Certificates
@@ -175,7 +176,8 @@ public sealed class ToolRegistry {
             Description = "Check domain/IP against DNS blacklists",
             Category = ToolCategory.ThreatIntel,
             Icon = "alert-triangle",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false
         },
         new ToolDefinition {
             Name = "Dangling CNAME",

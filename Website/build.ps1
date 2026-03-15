@@ -211,7 +211,15 @@ try {
         $pipelineArgs += '--watch'
     }
 
-    $modeLabel = $UseDev ? 'dev' : ($UseFast ? 'fast' : ($IsCI ? 'ci' : 'default'))
+    if ($UseDev) {
+        $modeLabel = 'dev'
+    } elseif ($UseFast) {
+        $modeLabel = 'fast'
+    } elseif ($IsCI) {
+        $modeLabel = 'ci'
+    } else {
+        $modeLabel = 'default'
+    }
     Write-Host "Pipeline mode: $modeLabel" -ForegroundColor DarkGray
 
     if ($Serve) {
