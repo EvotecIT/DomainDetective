@@ -84,7 +84,8 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(name), $"Domain name cannot be null or empty when querying {recordType} records.");
             }
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(name, recordType);
+                var answers = await QueryDnsOverride(name, recordType).ConfigureAwait(false);
+                return ApplyLocalFilter(answers, filter, includeAliasesInFilter);
             }
             var filterOptions = includeAliasesInFilter ? new ResolveFilterOptions(true) : new ResolveFilterOptions();
             try {
@@ -148,7 +149,7 @@ namespace DomainDetective {
             if (QueryDnsOverride != null) {
                 List<DnsAnswer> all = new();
                 foreach (var n in names) {
-                    all.AddRange(await QueryDnsOverride(n, recordType));
+                    all.AddRange(ApplyLocalFilter(await QueryDnsOverride(n, recordType).ConfigureAwait(false), filter, includeAliasesInFilter));
                 }
                 return all;
             }
@@ -287,6 +288,20 @@ namespace DomainDetective {
 	            if (names == null || names.Length == 0) {
 	                throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
 	            }
+	            if (QueryDnsOverride != null) {
+	                var list = new List<DnsResponse>(names.Length);
+	                foreach (var n in names) {
+	                    cancellationToken.ThrowIfCancellationRequested();
+	                    var answers = ApplyLocalFilter(await QueryDnsOverride(n, recordType).ConfigureAwait(false), filter, includeAliasesInFilter: false);
+	                    list.Add(new DnsResponse {
+	                        Status = DnsResponseCode.NoError,
+	                        Answers = answers,
+	                        Authorities = Array.Empty<DnsAnswer>(),
+	                        Additional = Array.Empty<DnsAnswer>()
+	                    });
+	                }
+	                return list;
+	            }
 	            if (DnsEndpoints.Count > 0) {
 	                var list = new List<DnsResponse>(names.Length);
 	                foreach (var n in names) {
@@ -325,7 +340,7 @@ namespace DomainDetective {
 	                foreach (var n in names)
 	                {
 	                    cancellationToken.ThrowIfCancellationRequested();
-	                    var answers = await QueryDnsOverride(n, recordType).ConfigureAwait(false);
+	                    var answers = ApplyLocalFilter(await QueryDnsOverride(n, recordType).ConfigureAwait(false), filter, includeAliasesInFilter);
 	                    list.Add(new DnsResponse
 	                    {
 	                        Status = DnsResponseCode.NoError,
@@ -496,6 +511,31 @@ namespace DomainDetective {
                 if (resp != null && IsAnswerUseful(resp)) return resp;
             }
             return null;
+        }
+
+        private static DnsAnswer[] ApplyLocalFilter(DnsAnswer[]? answers, string filter, bool includeAliasesInFilter) {
+            if (answers == null || answers.Length == 0) {
+                return Array.Empty<DnsAnswer>();
+            }
+
+            if (string.IsNullOrEmpty(filter)) {
+                return answers;
+            }
+
+            var filtered = new List<DnsAnswer>(answers.Length);
+            foreach (var answer in answers) {
+                if (includeAliasesInFilter && answer.Type == DnsRecordType.CNAME) {
+                    filtered.Add(answer);
+                    continue;
+                }
+
+                var data = answer.DataRaw ?? answer.Data ?? string.Empty;
+                if (data.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0) {
+                    filtered.Add(answer);
+                }
+            }
+
+            return filtered.ToArray();
         }
     }
 

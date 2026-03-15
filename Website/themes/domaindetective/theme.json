@@ -1,0 +1,86 @@
+{
+  "$schema": "https://raw.githubusercontent.com/EvotecIT/PSPublishModule/main/schemas/powerforge.web.themespec.schema.json",
+  "schemaVersion": 2,
+  "contractVersion": 2,
+  "name": "domaindetective",
+  "engine": "scriban",
+  "layoutsPath": "layouts",
+  "partialsPath": "partials",
+  "defaultLayout": "home",
+  "features": ["docs", "apiDocs", "search", "notFound"],
+  "slots": {
+    "header": "header",
+    "footer": "footer",
+    "api-header": "api-header",
+    "api-footer": "api-footer",
+    "sidebar": "sidebar",
+    "toc": "toc",
+    "theme-tokens": "theme-tokens"
+  },
+  "featureContracts": {
+    "apiDocs": {
+      "requiredPartials": ["api-header", "api-footer"],
+      "cssHrefs": ["/css/app.css", "/css/api.css"],
+      "requiredCssSelectors": [
+        ".api-layout",
+        ".api-sidebar",
+        ".api-content"
+      ]
+    },
+    "docs": {
+      "requiredLayouts": ["docs"],
+      "requiredPartials": ["header", "footer", "sidebar", "toc", "theme-tokens"]
+    },
+    "notFound": {
+      "requiredSurfaces": ["notFound"]
+    }
+  },
+  "tokens": {
+    "color": {
+      "bg": "#0a0e1a",
+      "bgAlt": "#111528",
+      "panel": "#111528",
+      "card": "#141830",
+      "ink": "#e2e8f0",
+      "inkStrong": "#FFFFFF",
+      "muted": "#94a3b8",
+      "accent": "#14b8a6",
+      "accentLight": "#2dd4bf",
+      "accentDark": "#0d9488",
+      "accent2": "#06b6d4",
+      "border": "#1e293b",
+      "success": "#22c55e",
+      "warning": "#f59e0b",
+      "danger": "#ef4444",
+      "headerBg": "rgba(10, 14, 26, 0.85)",
+      "cardBg": "rgba(20, 24, 48, 0.6)",
+      "codeBg": "#0c0f1e",
+      "codeBorder": "rgba(30, 41, 59, 0.8)",
+      "glowPrimary": "rgba(20, 184, 166, 0.15)",
+      "glowSecondary": "rgba(6, 182, 212, 0.12)",
+      "buttonPrimaryBg": "#14b8a6",
+      "buttonPrimaryText": "#0a0e1a",
+      "buttonSecondaryBg": "rgba(6, 182, 212, 0.2)",
+      "buttonSecondaryBorder": "rgba(6, 182, 212, 0.5)",
+      "buttonGhostBorder": "rgba(148, 163, 184, 0.4)"
+    },
+    "radius": {
+      "base": "12px",
+      "sm": "8px",
+      "lg": "16px"
+    },
+    "shadow": {
+      "button": "0 8px 24px rgba(20, 184, 166, 0.15)",
+      "panel": "0 24px 48px rgba(2, 4, 15, 0.45)",
+      "card": "0 12px 28px rgba(2, 4, 15, 0.35)"
+    },
+    "layout": {
+      "maxWidth": "1200px"
+    },
+    "font": {
+      "body": "Inter, system-ui, sans-serif",
+      "display": "Space Grotesk, Inter, sans-serif",
+      "mono": "JetBrains Mono, Consolas, monospace"
+    }
+  }
+}

@@ -57,8 +57,7 @@ namespace DomainDetective {
 
         static HPKPAnalysis()
         {
-            var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-            _client = new HttpClient(handler, disposeHandler: false);
+            _client = Helpers.HttpClientPlatformFactory.CreateRedirectClient();
         }
 
         private void ParseHeader(InternalLogger logger)

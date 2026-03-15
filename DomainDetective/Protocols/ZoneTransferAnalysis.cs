@@ -107,6 +107,23 @@ public class ZoneTransferAnalysis : IHasAssessments
         return value;
     }
 
+    private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, int offset, int count, CancellationToken token)
+    {
+        var totalRead = 0;
+        while (totalRead < count)
+        {
+            var bytesRead = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead, token);
+            if (bytesRead == 0)
+            {
+                return false;
+            }
+
+            totalRead += bytesRead;
+        }
+
+        return true;
+    }
+
     private static void SkipName(byte[] buffer, ref int offset)
     {
         while (true)
@@ -162,39 +179,26 @@ public class ZoneTransferAnalysis : IHasAssessments
             var startSoaSeen = false;
             while (true)
             {
-                int read = await stream.ReadAsync(prefixBuffer, 0, 2, cts.Token);
-                if (read == 0)
+                if (!await ReadExactAsync(stream, prefixBuffer, 0, prefixBuffer.Length, cts.Token))
                 {
                     logger?.WriteWarningCode(ZoneTransferCodes.CheckFailed, "AXFR connection closed by {0}", server);
-                    return false;
-                }
-
-                if (read != 2)
-                {
-                    logger?.WriteWarningCode(ZoneTransferCodes.CheckFailed, "AXFR length prefix truncated from {0}", server);
                     return false;
                 }
 
                 int respLen = (prefixBuffer[0] << 8) | prefixBuffer[1];
                 if (respLen < 12)
                 {
-                    await stream.ReadAsync(new byte[respLen], 0, respLen, cts.Token);
+                    var discard = new byte[respLen];
+                    await ReadExactAsync(stream, discard, 0, discard.Length, cts.Token);
                     logger?.WriteWarningCode(ZoneTransferCodes.CheckFailed, "AXFR response too short from {0}", server);
                     return false;
                 }
 
                 var message = new byte[respLen];
-                int received = 0;
-                while (received < respLen)
+                if (!await ReadExactAsync(stream, message, 0, message.Length, cts.Token))
                 {
-                    var r = await stream.ReadAsync(message, received, respLen - received, cts.Token);
-                    if (r == 0)
-                    {
-                        logger?.WriteWarningCode(ZoneTransferCodes.CheckFailed, "AXFR response stream ended from {0}", server);
-                        return false;
-                    }
-
-                    received += r;
+                    logger?.WriteWarningCode(ZoneTransferCodes.CheckFailed, "AXFR response stream ended from {0}", server);
+                    return false;
                 }
 
                 int offset = 0;

@@ -1,0 +1,21 @@
+<div class="tool-not-available">
+    <h3>Desktop Only</h3>
+    <p>This tool requires direct network connections that aren't available in the browser.</p>
+    <p style="margin-top: 1rem;">Use the CLI or PowerShell module instead:</p>
+    <div class="result-record" style="margin-top: 0.75rem; text-align: left;">
+        @if (!string.IsNullOrEmpty(CliCommand)) {
+            <div>$ domaindetective @CliCommand</div>
+        }
+        @if (!string.IsNullOrEmpty(PowerShellCommand)) {
+            <div style="margin-top: 0.25rem;">PS> @PowerShellCommand</div>
+        }
+    </div>
+    <p style="margin-top: 1rem;">
+        <a href="/docs/quickstart/">Install Domain Detective</a>
+    </p>
+</div>
+
+@code {
+    [Parameter] public string? CliCommand { get; set; }
+    [Parameter] public string? PowerShellCommand { get; set; }
+}

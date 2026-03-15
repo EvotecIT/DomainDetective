@@ -1,0 +1,50 @@
+<footer class="dd-footer">
+  <div class="dd-footer-inner">
+    <div class="dd-footer-grid">
+      <div class="dd-footer-brand">
+        <div class="dd-footer-logo">
+          <svg viewBox="0 0 32 32" width="24" height="24" fill="none">
+            <circle cx="16" cy="16" r="14" stroke="var(--pf-accent)" stroke-width="2" fill="none"/>
+            <path d="M10 16l4 4 8-8" stroke="var(--pf-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <span>DomainDetective</span>
+        </div>
+        <p class="dd-footer-tagline">Comprehensive domain analysis toolkit. 115+ protocol checks for DNS, email security, TLS, and web security. Privacy-first: runs client-side.</p>
+      </div>
+      {{ if navigation.menus && navigation.menus.size > 1 }}
+      <div class="dd-footer-col">
+        <p class="dd-footer-heading">Tools</p>
+        <ul>
+          {{ for link in navigation.menus[1].items }}
+          <li><a href="{{ link.url }}">{{ link.title }}</a></li>
+          {{ end }}
+        </ul>
+      </div>
+      {{ end }}
+      {{ if navigation.menus && navigation.menus.size > 2 }}
+      <div class="dd-footer-col">
+        <p class="dd-footer-heading">Resources</p>
+        <ul>
+          {{ for link in navigation.menus[2].items }}
+          <li><a href="{{ link.url }}">{{ link.title }}</a></li>
+          {{ end }}
+        </ul>
+      </div>
+      {{ end }}
+      {{ if navigation.menus && navigation.menus.size > 3 }}
+      <div class="dd-footer-col">
+        <p class="dd-footer-heading">Company</p>
+        <ul>
+          {{ for link in navigation.menus[3].items }}
+          <li><a href="{{ link.url }}">{{ link.title }}</a></li>
+          {{ end }}
+        </ul>
+      </div>
+      {{ end }}
+    </div>
+    <div class="dd-footer-bottom">
+      <p>Built with <a href="https://github.com/EvotecIT/PSPublishModule">PowerForge</a>.</p>
+      <p>Developed by <a href="https://evotec.xyz" target="_blank" rel="noopener">Evotec Services</a></p>
+    </div>
+  </div>
+</footer>

@@ -1,0 +1,40 @@
+@using DomainDetective.Toolbox.Components.Shared
+
+@if (HealthCheck.SpfAnalysis is { } spf) {
+    <ResultCard Title="SPF Record" Status="@(spf.SpfRecordExists ? ResultCard.ResultStatus.Pass : ResultCard.ResultStatus.Fail)">
+        @if (spf.SpfRecordExists && spf.SpfRecord is not null) {
+            <div class="result-record">@spf.SpfRecord</div>
+            <ResultTable Columns="@(new[] { "Property", "Value" })">
+                <tr><td>DNS Lookups</td><td>@spf.DnsLookupsCount / 10</td></tr>
+                <tr><td>Records Found</td><td>@spf.SpfRecords.Count</td></tr>
+            </ResultTable>
+        } else {
+            <p>No SPF record found for @Domain</p>
+        }
+    </ResultCard>
+
+    @if (spf.Assessments?.Count > 0) {
+        <ResultCard Title="Assessments">
+            <ul class="issues-list">
+                @foreach (var a in spf.Assessments) {
+                    <li>
+                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
+                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
+                    </li>
+                }
+            </ul>
+        </ResultCard>
+    }
+}
+
+@code {
+    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public required string Domain { get; set; }
+
+    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
+        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
+        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
+        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
+        _ => "status-badge-info"
+    };
+}

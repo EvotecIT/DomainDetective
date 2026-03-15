@@ -338,6 +338,16 @@ public sealed class CertificateInventoryCaptureResult {
 public sealed partial class CertificateInventoryCapture {
     private static readonly Lazy<PublicSuffixList> EmbeddedPublicSuffixList = new(LoadPublicSuffixList);
 
+    /// <summary>
+    /// Restores persisted passive CT source cooldowns into the shared in-memory query state.
+    /// Use this after loading diagnostics from a previous capture so a restarted process does not
+    /// immediately hit sources that were recently rate-limited.
+    /// </summary>
+    /// <param name="diagnostics">Passive CT diagnostics containing source cooldown information.</param>
+    public static void RestorePassiveCtSharedCooldownState(IEnumerable<PassiveCtDiagnosticEntry>? diagnostics) {
+        PassiveCtSourceClient.RestoreSharedCooldownState(diagnostics);
+    }
+
     private sealed class CertificateInventorySeed {
         public string Name { get; init; } = string.Empty;
         public string RegistrableDomain { get; init; } = string.Empty;

@@ -1,0 +1,19 @@
+<div class="result-card">
+    <div class="result-card-header">
+        <span class="result-card-title">@Title</span>
+        @if (Status is not null) {
+            <ResultStatusBadge Status="@Status.Value" />
+        }
+    </div>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public ResultStatus? Status { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
+
+@code {
+    public enum ResultStatus { Pass, Fail, Warning, Info }
+}

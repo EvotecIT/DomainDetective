@@ -247,12 +247,16 @@ namespace DomainDetective {
             }
 
             // Best-effort CHAOS TXT fingerprinting for version/hostname disclosure
-            try
-            {
-                await FingerprintChaosAsync(nsIps, logger, _collector, CancellationToken.None);
-            }
-            catch
-            {
+            if (DnsConfiguration.QueryDnsOverride == null) {
+                try
+                {
+                    await FingerprintChaosAsync(nsIps, logger, _collector, CancellationToken.None);
+                }
+                catch
+                {
+                }
+            } else {
+                logger.WriteVerbose("Skipping CHAOS fingerprinting because DNS queries are running through an override.");
             }
         }
 

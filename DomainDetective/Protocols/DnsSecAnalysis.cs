@@ -89,9 +89,7 @@ namespace DomainDetective {
 
         static DnsSecAnalysis()
         {
-            NetFrameworkTls.EnsureEnabled();
-            var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-            _client = new HttpClient(handler, disposeHandler: false);
+            _client = Helpers.HttpClientPlatformFactory.CreateRedirectClient();
             // _client is used for non-DNS HTTP fetches (e.g., trust anchors)
         }
 

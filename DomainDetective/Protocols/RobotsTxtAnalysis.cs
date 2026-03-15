@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -47,9 +48,7 @@ public class RobotsTxtAnalysis : IHasAssessments
 
     static RobotsTxtAnalysis()
     {
-        var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-        _client = new HttpClient(handler, disposeHandler: false);
-        _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; DomainDetective)");
+        _client = HttpClientPlatformFactory.CreateRedirectClient(userAgent: "Mozilla/5.0 (compatible; DomainDetective)");
     }
 
     /// <summary>Clears the shared cache.</summary>

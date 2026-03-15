@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "generatedAtUtc": "2026-03-15T16:33:47.1589547+00:00",
+  "warningCount": 3,
+  "warningKeys": [
+    "Best practice: \u0027domaindetective\u0027 schemaVersion 2 should set \u0027scriptsPath\u0027 for portable JS assets.",
+    "Theme contract: theme \u0027domaindetective\u0027 api-header does not contain \u0027{{NAV_ACTIONS}}\u0027 but site navigation defines actions. API header actions may diverge.",
+    "Theme contract: theme \u0027domaindetective\u0027 api-header does not contain \u0027{{NAV_LINKS}}\u0027. API reference pages may drift from site navigation."
+  ]
+}

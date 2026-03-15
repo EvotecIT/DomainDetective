@@ -1,0 +1,46 @@
+@using DomainDetective.Toolbox.Components.Shared
+
+@if (HealthCheck.MXAnalysis is { } mx) {
+    <ResultCard Title="MX Records" Status="@(mx.MxRecordExists ? ResultCard.ResultStatus.Pass : ResultCard.ResultStatus.Fail)">
+        @if (mx.MxRecordExists && mx.MxRecords?.Count > 0) {
+            <ResultTable Columns="@(new[] { "Priority", "Mail Server" })">
+                @foreach (var record in mx.MxRecords) {
+                    <tr><td>—</td><td>@record</td></tr>
+                }
+            </ResultTable>
+            <div style="margin-top: 0.75rem;">
+                <span>IPv6 Support: </span>
+                <span class="status-badge @(mx.Ipv6Supported ? "status-badge-pass" : "status-badge-warning")">
+                    @(mx.Ipv6Supported ? "Yes" : "No")
+                </span>
+            </div>
+        } else {
+            <p>No MX records found for @Domain</p>
+        }
+    </ResultCard>
+
+    @if (mx.Assessments?.Count > 0) {
+        <ResultCard Title="Assessments">
+            <ul class="issues-list">
+                @foreach (var a in mx.Assessments) {
+                    <li>
+                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
+                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
+                    </li>
+                }
+            </ul>
+        </ResultCard>
+    }
+}
+
+@code {
+    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public required string Domain { get; set; }
+
+    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
+        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
+        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
+        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
+        _ => "status-badge-info"
+    };
+}

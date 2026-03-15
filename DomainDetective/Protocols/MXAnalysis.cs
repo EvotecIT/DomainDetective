@@ -323,6 +323,11 @@ namespace DomainDetective {
         }
 
         private async Task CheckCrossNsConsistencyAsync(string domain, IEnumerable<string> mxHosts, InternalLogger logger) {
+            if (DnsConfiguration.QueryDnsOverride != null) {
+                logger.WriteVerbose("Skipping MX cross-NS consistency checks because DNS queries are running through an override.");
+                return;
+            }
+
             // Discover NS and their IPs
             var nsAnswers = await QueryDns(domain, DnsRecordType.NS) ?? Array.Empty<DnsAnswer>();
             var nsHosts = nsAnswers.Select(a => NormalizeHost(a.Data)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();

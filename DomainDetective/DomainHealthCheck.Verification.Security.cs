@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck {
-        private async Task VerifySecurityTxtAsync(string domainName, CancellationToken cancellationToken) {
+        public async Task VerifySecurityTxt(string domainName, CancellationToken cancellationToken = default) {
             SecurityTXTAnalysis = new SecurityTXTAnalysis();
             await SecurityTXTAnalysis.AnalyzeSecurityTxtRecord(domainName, _logger);
         }

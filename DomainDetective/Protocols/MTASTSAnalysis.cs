@@ -295,9 +295,7 @@ public class MTASTSAnalysis : IHasAssessments {
 
         static MTASTSAnalysis()
         {
-            var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-            _client = new HttpClient(handler, disposeHandler: false);
-            _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+            _client = HttpClientPlatformFactory.CreateRedirectClient(userAgent: "Mozilla/5.0");
         }
 
         /// <summary>
