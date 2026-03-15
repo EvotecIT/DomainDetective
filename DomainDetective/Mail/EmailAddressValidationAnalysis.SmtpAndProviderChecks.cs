@@ -141,37 +141,10 @@ public sealed partial class EmailAddressValidationAnalysis {
         try {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(options.HttpTimeout);
-
-            var payload = new Dictionary<string, object> {
-                { "Username", emailAddress },
-                { "isOtherIdpSupported", true },
-                { "checkPhones", false },
-                { "isRemoteNGCSupported", true },
-                { "isCookieBannerShown", false },
-                { "isFidoSupported", true },
-                { "forceotclogin", false },
-                { "isExternalFederationDisallowed", false },
-                { "isRemoteConnectSupported", false },
-                { "federationFlags", 0 },
-                { "isSignup", false },
-                { "flowToken", string.Empty },
-                { "isAccessPassSupported", true }
-            };
-
-            var client = (HttpClientFactory ?? new SharedHttpClient()).CreateClient();
-            using var request = new HttpRequestMessage(HttpMethod.Post, MicrosoftCredentialTypeUrl) {
-                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-            };
-            request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-            using var response = await client.SendAsync(request, timeoutCts.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) {
-                return null;
-            }
-
-            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            var result = JsonSerializer.Deserialize<MicrosoftCredentialTypeResponse>(json, new JsonSerializerOptions {
-                PropertyNameCaseInsensitive = true
-            });
+            var result = await MicrosoftIdentityProbeClient.TryGetCredentialTypeAsync(
+                emailAddress,
+                HttpClientFactory,
+                timeoutCts.Token).ConfigureAwait(false);
             if (result == null || !result.IfExistsResult.HasValue) {
                 return null;
             }
@@ -301,10 +274,6 @@ public sealed partial class EmailAddressValidationAnalysis {
             return result.Code.Value == 1000 ? false : (bool?)null;
         }
         return null;
-    }
-
-    private sealed class MicrosoftCredentialTypeResponse {
-        public int? IfExistsResult { get; set; }
     }
 
     private sealed class ProtonAvailabilityResponse {

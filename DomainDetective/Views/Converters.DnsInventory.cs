@@ -24,7 +24,7 @@ public static partial class Converters
         var cname = analysis.CnameTargetProvider != DnsCnameTargetProvider.Unknown ? analysis.CnameTargetProvider.ToString() : "-";
         var txt = analysis.TxtSignals != DnsTxtSignals.None ? analysis.TxtSignals.ToString() : "-";
         var caa = analysis.CaaIssuers != DnsCaaIssuers.None ? analysis.CaaIssuers.ToString() : "-";
-        var summary = $"{analysis.TotalRecords} record(s); types {analysis.RecordTypesQueried}; failed {analysis.RecordTypesFailed}; dns {provider}; mail {mail}; cname {cname}; txt {txt}; caa {caa}; authority {(analysis.IncludeAuthorities ? "on" : "off")}; additional {(analysis.IncludeAdditional ? "on" : "off")}";
+        var summary = $"{analysis.TotalRecords} record(s); types {analysis.RecordTypesQueried}; failed {analysis.RecordTypesFailed}; dns {provider}; mail {mail}; cname {cname}; txt {txt}; apps {analysis.DetectedDnsApplications?.Count ?? 0}; caa {caa}; authority {(analysis.IncludeAuthorities ? "on" : "off")}; additional {(analysis.IncludeAdditional ? "on" : "off")}";
 
         return new DnsInventoryInfo
         {
@@ -47,6 +47,7 @@ public static partial class Converters
             CnameTargetEvidence = analysis.CnameTargetEvidence ?? Array.Empty<string>(),
             TxtSignals = analysis.TxtSignals,
             TxtSignalsEvidence = analysis.TxtSignalsEvidence ?? Array.Empty<string>(),
+            DetectedDnsApplications = analysis.DetectedDnsApplications ?? Array.Empty<DetectedDnsApplication>(),
             CaaIssuers = analysis.CaaIssuers,
             CaaIssuersEvidence = analysis.CaaIssuersEvidence ?? Array.Empty<string>(),
             IncludeAuthorities = analysis.IncludeAuthorities,
@@ -88,6 +89,7 @@ public sealed class DnsInventoryInfo
     public IReadOnlyList<string> CnameTargetEvidence { get; set; } = null!;
     public DnsTxtSignals TxtSignals { get; set; }
     public IReadOnlyList<string> TxtSignalsEvidence { get; set; } = null!;
+    public IReadOnlyList<DetectedDnsApplication> DetectedDnsApplications { get; set; } = null!;
     public DnsCaaIssuers CaaIssuers { get; set; }
     public IReadOnlyList<string> CaaIssuersEvidence { get; set; } = null!;
     public bool IncludeAuthorities { get; set; }

@@ -138,5 +138,9 @@ public enum HealthCheckType {
     /// <summary>Assess DNS amplification posture (recursion + EDNS + response size probes).</summary>
     DNSAMPLIFICATION,
     /// <summary>Check DNS over TLS (DoT) support on authoritative name servers.</summary>
-    DNSOVERTLS
+    DNSOVERTLS,
+    /// <summary>Probe Microsoft identity endpoints for tenant hints.</summary>
+    IDENTITYPROVIDER,
+    /// <summary>Aggregate Microsoft 365 tenant, service, identity, and DNS footprint.</summary>
+    MICROSOFT365
 }

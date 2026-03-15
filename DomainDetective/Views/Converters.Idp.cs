@@ -8,13 +8,18 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new IdpInfoView
         {
-            Check = HealthCheckType.MESSAGEHEADER, // closest area; no dedicated HC yet
-            Area = AnalysisArea.Mail,
+            Check = HealthCheckType.IDENTITYPROVIDER,
+            Area = AreaForKind(HealthCheckType.IDENTITYPROVIDER),
             Subject = analysis.Domain,
             DiscoveryUrl = analysis.DiscoveryUrl,
             TenantId = analysis.TenantId,
             NameSpaceType = analysis.NameSpaceType,
             FederatedAuthUrl = analysis.FederatedAuthUrl,
+            IdentityProviderHost = analysis.IdentityProviderHost,
+            CloudInstanceName = analysis.CloudInstanceName,
+            TenantRegionScope = analysis.TenantRegionScope,
+            SupportedGrantTypes = analysis.GrantTypesSupported,
+            SupportedResponseTypes = analysis.ResponseTypesSupported,
             DiscoverySucceeded = analysis.DiscoverySucceeded,
             GetUserRealmSucceeded = analysis.GetUserRealmSucceeded,
             Assessments = analysis.Assessments,
@@ -43,6 +48,16 @@ public sealed class IdpInfoView
     public string? NameSpaceType { get; set; }
     /// <summary>Federated authentication URL returned by GetUserRealm.</summary>
     public string? FederatedAuthUrl { get; set; }
+    /// <summary>Identity provider host inferred from OIDC issuer or federation URL.</summary>
+    public string? IdentityProviderHost { get; set; }
+    /// <summary>Cloud instance hint reported by Microsoft OIDC discovery.</summary>
+    public string? CloudInstanceName { get; set; }
+    /// <summary>Tenant region hint reported by Microsoft OIDC discovery.</summary>
+    public string? TenantRegionScope { get; set; }
+    /// <summary>Grant types reported by Microsoft OIDC discovery.</summary>
+    public IReadOnlyList<string> SupportedGrantTypes { get; set; } = null!;
+    /// <summary>Response types reported by Microsoft OIDC discovery.</summary>
+    public IReadOnlyList<string> SupportedResponseTypes { get; set; } = null!;
     /// <summary>True when OIDC discovery completed successfully.</summary>
     public bool DiscoverySucceeded { get; set; }
     /// <summary>True when GetUserRealm returned a 200 response and was parsed.</summary>

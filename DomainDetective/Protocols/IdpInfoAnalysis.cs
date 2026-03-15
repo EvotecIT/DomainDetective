@@ -13,11 +13,18 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class IdpInfoAnalysis : IHasAssessments
 {
+    public IHttpClientFactory? HttpClientFactory { get; set; }
     public string? Domain { get; private set; }
     public string? DiscoveryUrl { get; private set; }
     public string? TenantId { get; private set; }
     public string? NameSpaceType { get; private set; }
     public string? FederatedAuthUrl { get; private set; }
+    public string? IdentityProviderHost { get; private set; }
+    public string? CloudInstanceName { get; private set; }
+    public string? TenantRegionScope { get; private set; }
+    public string? TenantRegionSubScope { get; private set; }
+    public IReadOnlyList<string> GrantTypesSupported { get; private set; } = Array.Empty<string>();
+    public IReadOnlyList<string> ResponseTypesSupported { get; private set; } = Array.Empty<string>();
     public bool DiscoverySucceeded { get; private set; }
     public bool GetUserRealmSucceeded { get; private set; }
 
@@ -26,71 +33,68 @@ public class IdpInfoAnalysis : IHasAssessments
     public async Task AnalyzeAsync(string domain, InternalLogger? logger = null, CancellationToken ct = default)
     {
         Domain = domain;
-        DiscoverySucceeded = false; GetUserRealmSucceeded = false;
-        // Try login.windows.net first, then microsoftonline.com
-        var candidates = new[] {
-            $"https://login.windows.net/{domain}/.well-known/openid-configuration",
-            $"https://login.microsoftonline.com/{domain}/.well-known/openid-configuration"
-        };
-
-        foreach (var url in candidates)
+        DiscoveryUrl = null;
+        TenantId = null;
+        NameSpaceType = null;
+        FederatedAuthUrl = null;
+        IdentityProviderHost = null;
+        CloudInstanceName = null;
+        TenantRegionScope = null;
+        TenantRegionSubScope = null;
+        GrantTypesSupported = Array.Empty<string>();
+        ResponseTypesSupported = Array.Empty<string>();
+        DiscoverySucceeded = false;
+        GetUserRealmSucceeded = false;
+        var discovery = await MicrosoftIdentityProbeClient.TryGetOpenIdConfigurationAsync(domain, HttpClientFactory, ct).ConfigureAwait(false);
+        if (discovery != null)
         {
+            DiscoveryUrl = discovery.DiscoveryUrl;
+            DiscoverySucceeded = true;
+            IdentityProviderHost = TryGetHost(discovery.Issuer) ?? TryGetHost(discovery.TokenEndpoint);
+            CloudInstanceName = discovery.CloudInstanceName;
+            TenantRegionScope = discovery.TenantRegionScope;
+            TenantRegionSubScope = discovery.TenantRegionSubScope;
+            GrantTypesSupported = discovery.GrantTypesSupported;
+            ResponseTypesSupported = discovery.ResponseTypesSupported;
             try
             {
-                using var resp = await SharedHttpClient.Instance.GetAsync(url, ct).ConfigureAwait(false);
-                if (!resp.IsSuccessStatusCode) continue;
-                System.IO.Stream stream;
-#if NET8_0_OR_GREATER
-                stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-#else
-                stream = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false);
-#endif
-                using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
-                var root = doc.RootElement;
-                var tokenEndpoint = root.TryGetProperty("token_endpoint", out var te) ? te.GetString() : null;
-                if (!string.IsNullOrWhiteSpace(tokenEndpoint))
+                var parts = new Uri(discovery.TokenEndpoint).AbsolutePath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var p in parts)
                 {
-                    DiscoveryUrl = url;
-                    DiscoverySucceeded = true;
-                    // Extract tenant GUID if present in token_endpoint (.../oauth2/token or v2.0 token)
-                    // We will capture the path element that looks like a GUID
-                    try
-                    {
-                        var parts = new Uri(tokenEndpoint!).AbsolutePath.Split(new [] {'/'}, StringSplitOptions.RemoveEmptyEntries);
-                        foreach (var p in parts)
-                        {
-                            if (Guid.TryParse(p, out var _)) { TenantId = p; break; }
-                        }
-                    } catch { }
-                    break;
+                    if (Guid.TryParse(p, out var _)) { TenantId = p; break; }
                 }
-            }
-            catch (HttpRequestException)
-            {
-                continue;
-            }
+            } catch { }
         }
 
-        // GetUserRealm for namespace type and federated URL
-        try
+        var realm = await MicrosoftIdentityProbeClient.TryGetUserRealmAsync(domain, HttpClientFactory, ct).ConfigureAwait(false);
+        if (realm != null)
         {
-            var url = $"https://login.microsoftonline.com/getuserrealm.srf?login=user@{domain}&json=1";
-            using var resp = await SharedHttpClient.Instance.GetAsync(url, ct).ConfigureAwait(false);
-            if (resp.IsSuccessStatusCode)
+            NameSpaceType = realm.NameSpaceType;
+            FederatedAuthUrl = realm.AuthUrl;
+            if (string.IsNullOrWhiteSpace(IdentityProviderHost))
             {
-                System.IO.Stream stream2;
-#if NET8_0_OR_GREATER
-                stream2 = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-#else
-                stream2 = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false);
-#endif
-                using var doc = await JsonDocument.ParseAsync(stream2, cancellationToken: ct).ConfigureAwait(false);
-                var root = doc.RootElement;
-                NameSpaceType = root.TryGetProperty("NameSpaceType", out var ns) ? ns.GetString() : null;
-                FederatedAuthUrl = root.TryGetProperty("AuthURL", out var au) ? au.GetString() : null;
-                GetUserRealmSucceeded = true;
+                IdentityProviderHost = TryGetHost(FederatedAuthUrl) ?? "login.microsoftonline.com";
             }
+            if (string.IsNullOrWhiteSpace(CloudInstanceName))
+            {
+                CloudInstanceName = realm.CloudInstanceName;
+            }
+            GetUserRealmSucceeded = true;
         }
-        catch (HttpRequestException) { }
+    }
+
+    private static string? TryGetHost(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var absolute))
+        {
+            return absolute.Host;
+        }
+
+        return null;
     }
 }

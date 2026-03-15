@@ -94,8 +94,15 @@ public class TestDnsInventoryAnalysis
         Assert.True(analysis.CnameTargetFlags.HasFlag(DnsCnameTargetFlags.FlatteningService));
         Assert.True(analysis.TxtSignals.HasFlag(DnsTxtSignals.Spf));
         Assert.True(analysis.TxtSignals.HasFlag(DnsTxtSignals.GoogleSiteVerification));
+        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "dns-provider-cloudflare" && app.Category == DetectedDnsAppCategory.DnsHosting && app.Confidence == Microsoft365DetectionConfidence.Strong);
+        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "cname-target-cloudflare" && app.Category == DetectedDnsAppCategory.CDN && app.EvidenceKind == DetectedDnsAppEvidenceKind.CnameRecord && app.Confidence == Microsoft365DetectionConfidence.Strong);
+        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "mail-provider-microsoft365" && app.Category == DetectedDnsAppCategory.Productivity && app.Confidence == Microsoft365DetectionConfidence.Strong);
+        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "google-site-verification" && app.EvidenceKind == DetectedDnsAppEvidenceKind.TxtRecord && app.Confidence == Microsoft365DetectionConfidence.Moderate);
         Assert.True(analysis.CaaIssuers.HasFlag(DnsCaaIssuers.LetsEncrypt));
         Assert.True(analysis.CaaIssuers.HasFlag(DnsCaaIssuers.GoogleTrustServices));
+        Assert.Contains(analysis.Assessments, assessment =>
+            assessment.Code == DnsInventoryCodes.TxtSignalsExposed &&
+            assessment.Message.Contains("Google Site Verification", StringComparison.OrdinalIgnoreCase));
 
         Assert.Contains(
             analysis.Queries.SelectMany(q => q.Records),

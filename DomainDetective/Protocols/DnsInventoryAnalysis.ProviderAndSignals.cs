@@ -248,21 +248,33 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                 return;
             }
 
+            var typedEvidence = (DetectedDnsApplications ?? Array.Empty<DetectedDnsApplication>())
+                .Where(static app => app.EvidenceKind == DetectedDnsAppEvidenceKind.TxtRecord)
+                .Where(static app => !string.IsNullOrWhiteSpace(app.Name))
+                .Select(static app => app.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(4)
+                .ToList();
+
             var signals = TxtSignals & ~DnsTxtSignals.Spf;
-            if (signals == DnsTxtSignals.None)
+            if (typedEvidence.Count == 0 && signals == DnsTxtSignals.None)
             {
                 return;
             }
 
-            var evidence = (TxtSignalsEvidence ?? Array.Empty<string>())
-                .Where(e => !string.IsNullOrWhiteSpace(e))
-                .Where(e => e.IndexOf("spf", StringComparison.OrdinalIgnoreCase) < 0)
-                .Take(4)
-                .ToList();
+            IReadOnlyList<string> evidence = typedEvidence;
+            if (typedEvidence.Count == 0)
+            {
+                evidence = (TxtSignalsEvidence ?? Array.Empty<string>())
+                    .Where(e => !string.IsNullOrWhiteSpace(e))
+                    .Where(e => e.IndexOf("spf", StringComparison.OrdinalIgnoreCase) < 0)
+                    .Take(4)
+                    .ToList();
+            }
 
             var msg = evidence.Count > 0
-                ? $"Third-party TXT verification/service tokens present: {string.Join("; ", evidence)}"
-                : "Third-party TXT verification/service tokens present.";
+                ? $"TXT verification/service tokens present: {string.Join("; ", evidence)}"
+                : "TXT verification/service tokens present.";
 
             Assessments.Add(new Assessment
             {

@@ -57,6 +57,8 @@ public class TestGetAnalysisMap
                 return healthCheck.TLSRPTAnalysis;
             case HealthCheckType.BIMI:
                 return healthCheck.BimiAnalysis;
+            case HealthCheckType.IDENTITYPROVIDER:
+                return healthCheck.IdpInfoAnalysis;
             case HealthCheckType.AUTODISCOVER:
                 return healthCheck.AutodiscoverAnalysis;
             case HealthCheckType.CERT:
@@ -151,6 +153,8 @@ public class TestGetAnalysisMap
                 return healthCheck.DnsAmplificationAnalysis;
             case HealthCheckType.DNSOVERTLS:
                 return healthCheck.DnsOverTlsAnalysis;
+            case HealthCheckType.MICROSOFT365:
+                return healthCheck.Microsoft365TenantAnalysis;
             case HealthCheckType.WEBSITE:
             case HealthCheckType.SPFFLATTENED:
             case HealthCheckType.MAILCLASSIFICATION:

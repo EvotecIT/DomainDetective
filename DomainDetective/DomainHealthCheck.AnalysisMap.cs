@@ -66,6 +66,8 @@ public partial class DomainHealthCheck
                 return TLSRPTAnalysis;
             case HealthCheckType.BIMI:
                 return BimiAnalysis;
+            case HealthCheckType.IDENTITYPROVIDER:
+                return IdpInfoAnalysis;
             case HealthCheckType.AUTODISCOVER:
                 return AutodiscoverAnalysis;
             case HealthCheckType.CERT:
@@ -160,6 +162,8 @@ public partial class DomainHealthCheck
                 return DnsAmplificationAnalysis;
             case HealthCheckType.DNSOVERTLS:
                 return DnsOverTlsAnalysis;
+            case HealthCheckType.MICROSOFT365:
+                return Microsoft365TenantAnalysis;
             case HealthCheckType.WEBSITE:
             case HealthCheckType.SPFFLATTENED:
             case HealthCheckType.MAILCLASSIFICATION:

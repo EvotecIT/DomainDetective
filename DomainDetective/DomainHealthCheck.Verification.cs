@@ -134,6 +134,7 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.MTASTS] = () => VerifyMTASTS(domainName, cancellationToken),
                 [HealthCheckType.TLSRPT] = () => VerifyTLSRPT(domainName, cancellationToken),
                 [HealthCheckType.BIMI] = () => VerifyBIMI(domainName, skipIndicatorDownload: exec.SkipBimiIndicatorDownload, cancellationToken: cancellationToken),
+                [HealthCheckType.IDENTITYPROVIDER] = () => VerifyIdpInfo(domainName, cancellationToken),
                 [HealthCheckType.AUTODISCOVER] = () => VerifyAutodiscover(domainName, cancellationToken),
                 [HealthCheckType.CERT] = () => VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken),
                 [HealthCheckType.SECURITYTXT] = () => VerifySecurityTxtAsync(domainName, cancellationToken),
@@ -177,7 +178,8 @@ public partial class DomainHealthCheck {
 	                [HealthCheckType.DNSINVENTORY] = () => VerifyDnsInventoryAsync(domainName, cancellationToken),
 	                [HealthCheckType.DNSTRACE] = () => VerifyDnsTraceAsync(domainName, cancellationToken),
 	                [HealthCheckType.CTTIMELINE] = () => VerifyCtTimelineAsync(domainName, cancellationToken),
-                    [HealthCheckType.DNSPROPAGATION] = () => VerifyDnsPropagationAsync(domainName, cancellationToken)
+                    [HealthCheckType.DNSPROPAGATION] = () => VerifyDnsPropagationAsync(domainName, cancellationToken),
+                    [HealthCheckType.MICROSOFT365] = () => VerifyMicrosoft365TenantAsync(domainName, cancellationToken)
 		            };
 
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
@@ -492,6 +494,8 @@ public partial class DomainHealthCheck {
             filtered.MTASTSAnalysis = active.Contains(HealthCheckType.MTASTS) ? CloneAnalysis(MTASTSAnalysis) : null!;
             filtered.TLSRPTAnalysis = active.Contains(HealthCheckType.TLSRPT) ? CloneAnalysis(TLSRPTAnalysis) : null!;
             filtered.BimiAnalysis = active.Contains(HealthCheckType.BIMI) ? CloneAnalysis(BimiAnalysis) : null!;
+            filtered.IdpInfoAnalysis = active.Contains(HealthCheckType.IDENTITYPROVIDER) ? CloneAnalysis(IdpInfoAnalysis) : null!;
+            filtered.Microsoft365TenantAnalysis = active.Contains(HealthCheckType.MICROSOFT365) ? CloneAnalysis(Microsoft365TenantAnalysis) : null!;
             filtered.AutodiscoverAnalysis = active.Contains(HealthCheckType.AUTODISCOVER) ? CloneAnalysis(AutodiscoverAnalysis) : null!;
             filtered.AutodiscoverHttpAnalysis = active.Contains(HealthCheckType.AUTODISCOVER) ? CloneAnalysis(AutodiscoverHttpAnalysis) : null!;
             filtered.CertificateAnalysis = active.Contains(HealthCheckType.CERT) ? CloneAnalysis(CertificateAnalysis) : null!;

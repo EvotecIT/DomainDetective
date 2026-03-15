@@ -74,7 +74,6 @@ public sealed partial class EmailAddressValidationAnalysis {
     private const string YahooSignupPage = "https://login.yahoo.com/account/create?specId=yidReg&lang=en-US&src=&done=https%3A%2F%2Fwww.yahoo.com&display=login";
     private const string YahooSignupApi = "https://login.yahoo.com/account/module/create?validateField=yid";
     private const string YahooUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-    private const string MicrosoftCredentialTypeUrl = "https://login.microsoftonline.com/common/GetCredentialType";
     private const string ProtonAvailabilityApiV4 = "https://account.proton.me/api/core/v4/users/available";
     private const string ProtonAvailabilityApi = "https://account.proton.me/api/users/available";
     private const string ProtonAvailabilityLegacyApi = "https://account.protonmail.com/api/users/available";
