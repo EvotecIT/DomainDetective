@@ -5,6 +5,12 @@ using System.Linq;
 namespace DomainDetective;
 
 public sealed partial class Microsoft365TenantAnalysis {
+    private static readonly string[] MicrosoftManagedNamespaceSuffixes = {
+        ".onmicrosoft.com",
+        ".onmicrosoft.us",
+        ".partner.onmschina.cn"
+    };
+
     private static IReadOnlyList<Microsoft365TenantDomain> BuildTenantDomains(
         string primaryDomain,
         DkimAnalysis? dkim,
@@ -74,9 +80,16 @@ public sealed partial class Microsoft365TenantAnalysis {
                 continue;
             }
 
-            var namespaceDomain = candidate.Substring(markerIndex + marker.Length);
-            if (namespaceDomain.EndsWith(".onmicrosoft.com", StringComparison.OrdinalIgnoreCase)) {
-                return namespaceDomain;
+            var namespaceStartIndex = markerIndex + marker.Length;
+            if (namespaceStartIndex >= candidate.Length) {
+                continue;
+            }
+
+            var namespaceDomain = candidate.Substring(namespaceStartIndex);
+            for (var suffixIndex = 0; suffixIndex < MicrosoftManagedNamespaceSuffixes.Length; suffixIndex++) {
+                if (namespaceDomain.EndsWith(MicrosoftManagedNamespaceSuffixes[suffixIndex], StringComparison.OrdinalIgnoreCase)) {
+                    return namespaceDomain;
+                }
             }
         }
 

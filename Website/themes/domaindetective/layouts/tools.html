@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ page.title }} | DomainDetective</title>
+  {{ if description_meta_html == "" }}
+  <meta name="description" content="DomainDetective online tools - analyze any domain directly in your browser." />
+  {{ end }}
+  {{ description_meta_html }}
+  {{ canonical_html }}
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  {{ assets.critical_css_html }}
+  {{ include "theme-tokens" }}
+  {{ extra_css_html }}
+  {{ assets.css_html }}
+  {{ include "head-meta" }}
+  {{ head_html }}
+</head>
+<body>
+  {{ include "header" }}
+  <main class="dd-main dd-tools-main">
+{{ content }}
+  </main>
+  {{ include "footer" }}
+  {{ assets.js_html }}
+  {{ extra_scripts_html }}
+</body>
+</html>

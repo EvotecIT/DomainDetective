@@ -400,6 +400,40 @@ internal sealed class PassiveCtSourceClient
         Interlocked.Exchange(ref _rotationCursor, -1);
     }
 
+    internal static void RestoreSharedCooldownState(IEnumerable<PassiveCtDiagnosticEntry>? diagnostics)
+    {
+        if (diagnostics == null)
+        {
+            return;
+        }
+
+        DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+        foreach (PassiveCtDiagnosticEntry diagnostic in diagnostics)
+        {
+            if (diagnostic == null ||
+                string.IsNullOrWhiteSpace(diagnostic.SourceName) ||
+                !diagnostic.CooldownUntilUtc.HasValue)
+            {
+                continue;
+            }
+
+            DateTimeOffset cooldownUntilUtc = diagnostic.CooldownUntilUtc.Value;
+            if (cooldownUntilUtc <= nowUtc)
+            {
+                continue;
+            }
+
+            SourceState state = SharedSourceStates.GetOrAdd(diagnostic.SourceName, static _ => new SourceState());
+            lock (state)
+            {
+                if (cooldownUntilUtc > state.CooldownUntilUtc)
+                {
+                    state.CooldownUntilUtc = cooldownUntilUtc;
+                }
+            }
+        }
+    }
+
     private static async Task<FetchOutcome> FetchSourceAsync(
         SourceRequest request,
         QueryOptions options,

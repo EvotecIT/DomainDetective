@@ -1,0 +1,34 @@
+<section class="code-examples">
+  <div class="section-inner">
+    <h2>Get Started in Seconds</h2>
+    <div class="code-tabs">
+      <div class="code-tab">
+        <h3>C#</h3>
+        <pre><code class="language-csharp">var healthCheck = new DomainHealthCheck();
+await healthCheck.VerifySPF("example.com");
+await healthCheck.VerifyDMARC("example.com");
+await healthCheck.VerifyDKIM("example.com", new[] { "default" });
+
+Console.WriteLine(healthCheck.SpfAnalysis.SpfRecord);
+Console.WriteLine(healthCheck.DmarcAnalysis.DmarcRecord);</code></pre>
+      </div>
+      <div class="code-tab">
+        <h3>PowerShell</h3>
+        <pre><code class="language-powershell">Install-Module DomainDetective
+
+# Quick domain check
+$results = Get-DomainHealthCheck -Domain "example.com"
+$results.SpfAnalysis | Format-Table
+$results.DmarcAnalysis | Format-Table</code></pre>
+      </div>
+      <div class="code-tab">
+        <h3>CLI</h3>
+        <pre><code class="language-bash">dotnet tool install -g DomainDetective.CLI
+
+# Analyze a domain
+domaindetective check example.com --spf --dmarc --dkim
+domaindetective check example.com --all</code></pre>
+      </div>
+    </div>
+  </div>
+</section>

@@ -14,6 +14,7 @@ namespace DomainDetective;
 /// </summary>
 public static class MicrosoftIdentityProbeClient {
     private const string GetCredentialTypeUrl = "https://login.microsoftonline.com/common/GetCredentialType";
+    private static readonly SharedHttpClient FallbackHttpClientFactory = new();
 
     /// <summary>
     /// Tries Microsoft OIDC discovery for a domain using known public endpoints.
@@ -26,7 +27,7 @@ public static class MicrosoftIdentityProbeClient {
             throw new ArgumentNullException(nameof(domain));
         }
 
-        var client = (httpClientFactory ?? new SharedHttpClient()).CreateClient();
+        var client = CreateClient(httpClientFactory);
         var candidates = new[] {
             $"https://login.windows.net/{domain}/.well-known/openid-configuration",
             $"https://login.microsoftonline.com/{domain}/.well-known/openid-configuration"
@@ -58,7 +59,7 @@ public static class MicrosoftIdentityProbeClient {
                     GrantTypesSupported = ReadStringArray(root, "grant_types_supported"),
                     ResponseTypesSupported = ReadStringArray(root, "response_types_supported")
                 };
-            } catch (HttpRequestException) {
+            } catch (Exception ex) when (ShouldTreatAsNullProbeResult(ex, cancellationToken)) {
                 continue;
             }
         }
@@ -77,8 +78,10 @@ public static class MicrosoftIdentityProbeClient {
             throw new ArgumentNullException(nameof(domain));
         }
 
-        var client = (httpClientFactory ?? new SharedHttpClient()).CreateClient();
-        var url = $"https://login.microsoftonline.com/getuserrealm.srf?login=user@{domain}&json=1";
+        var client = CreateClient(httpClientFactory);
+        var url = "https://login.microsoftonline.com/getuserrealm.srf?login=" +
+                  Uri.EscapeDataString("user@" + domain) +
+                  "&json=1";
 
         try {
             using var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
@@ -95,7 +98,7 @@ public static class MicrosoftIdentityProbeClient {
                 AuthUrl = root.TryGetProperty("AuthURL", out var auth) ? auth.GetString() : null,
                 CloudInstanceName = root.TryGetProperty("CloudInstanceName", out var cloud) ? cloud.GetString() : null
             };
-        } catch (HttpRequestException) {
+        } catch (Exception ex) when (ShouldTreatAsNullProbeResult(ex, cancellationToken)) {
             return null;
         }
     }
@@ -127,10 +130,12 @@ public static class MicrosoftIdentityProbeClient {
             { "isAccessPassSupported", true }
         };
 
-        var client = (httpClientFactory ?? new SharedHttpClient()).CreateClient();
+        var client = CreateClient(httpClientFactory);
         using var request = new HttpRequestMessage(HttpMethod.Post, GetCredentialTypeUrl) {
             Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
         };
+        // Microsoft returns the most consistent public tenant-routing response here when the request
+        // looks like a normal browser sign-in flow rather than an API-only client.
         request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
 
         try {
@@ -153,12 +158,23 @@ public static class MicrosoftIdentityProbeClient {
                 ThrottleStatus = root.TryGetProperty("ThrottleStatus", out var throttle) && throttle.TryGetInt32(out var throttleStatus) ? throttleStatus : null,
                 PreferredCredential = credentials.ValueKind == JsonValueKind.Object && credentials.TryGetProperty("PrefCredential", out var pref) && pref.TryGetInt32(out var prefCredential) ? prefCredential : null,
                 FederationRedirectUrl = credentials.ValueKind == JsonValueKind.Object && credentials.TryGetProperty("FederationRedirectUrl", out var redirect) ? redirect.GetString() : null,
-                DomainType = estsProperties.ValueKind == JsonValueKind.Object && estsProperties.TryGetProperty("DomainType", out var domainType) && domainType.TryGetInt32(out var domainTypeCode) ? domainTypeCode : null,
-                RawJson = root.GetRawText()
+                DomainType = estsProperties.ValueKind == JsonValueKind.Object && estsProperties.TryGetProperty("DomainType", out var domainType) && domainType.TryGetInt32(out var domainTypeCode) ? domainTypeCode : null
             };
-        } catch (HttpRequestException) {
+        } catch (Exception ex) when (ShouldTreatAsNullProbeResult(ex, cancellationToken)) {
             return null;
         }
+    }
+
+    private static HttpClient CreateClient(IHttpClientFactory? httpClientFactory) {
+        return (httpClientFactory ?? FallbackHttpClientFactory).CreateClient();
+    }
+
+    private static bool ShouldTreatAsNullProbeResult(Exception exception, CancellationToken cancellationToken) {
+        if (exception is JsonException || exception is HttpRequestException) {
+            return true;
+        }
+
+        return exception is TaskCanceledException && !cancellationToken.IsCancellationRequested;
     }
 
     private static IReadOnlyList<string> ReadStringArray(JsonElement root, string propertyName) {
@@ -211,5 +227,4 @@ public sealed class MicrosoftCredentialTypeProbe {
     public int? PreferredCredential { get; init; }
     public string? FederationRedirectUrl { get; init; }
     public int? DomainType { get; init; }
-    public string? RawJson { get; init; }
 }

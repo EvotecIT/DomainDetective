@@ -13,6 +13,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Ocsp;
@@ -123,7 +124,7 @@ namespace DomainDetective {
         /// <summary>Indicates if TLS 1.3 was negotiated.</summary>
         public bool Tls13Used { get; private set; }
         /// <summary>Gets the negotiated cipher algorithm.</summary>
-        public CipherAlgorithmType CipherAlgorithm { get; private set; }
+        public string CipherAlgorithm { get; private set; } = string.Empty;
         /// <summary>Gets the cipher strength.</summary>
         public int CipherStrength { get; private set; }
         /// <summary>Gets the negotiated cipher suite name.</summary>
@@ -251,12 +252,12 @@ namespace DomainDetective {
                         var leaf = chain != null && chain.ChainElements.Count > 0
                             ? chain.ChainElements[0].Certificate
                             : certificate;
-                        Certificate = new X509Certificate2(leaf.Export(X509ContentType.Cert));
+                        Certificate = CertificateLoaderCompat.Clone(leaf);
 
                         Chain.Clear();
                         if (chain != null) {
                             foreach (var element in chain.ChainElements) {
-                                Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
                             }
                         }
                         RecordChainSource(ChainSourceTlsHandshake);
@@ -301,12 +302,12 @@ namespace DomainDetective {
                                 });
                                 await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
-                                    Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
+                                    Certificate = CertificateLoaderCompat.Clone(cert);
                                     var xchain = new X509Chain();
                                     xchain.Build(cert);
                                     Chain.Clear();
                                     foreach (var element in xchain.ChainElements) {
-                                        Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                                        Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
                                     }
                                     RecordChainSource(ChainSourceSslStreamBuild);
                                     IsSelfSigned = IsSelfSignedCertificate(Certificate);
@@ -605,7 +606,7 @@ namespace DomainDetective {
         /// <param name="certificate">Certificate instance to inspect.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         public async Task AnalyzeCertificate(X509Certificate2 certificate, CancellationToken cancellationToken = default) {
-            Certificate = new X509Certificate2(certificate.RawData);
+            Certificate = CertificateLoaderCompat.Clone(certificate);
             IsSelfSigned = false;
             ResetChainSourceTracking();
             var chain = new X509Chain();
@@ -613,7 +614,7 @@ namespace DomainDetective {
             IsValid = chain.Build(certificate);
             Chain.Clear();
             foreach (var element in chain.ChainElements) {
-                Chain.Add(new X509Certificate2(element.Certificate.RawData));
+                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
             }
             RecordChainSource(SkipRevocation ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
             IsSelfSigned = IsSelfSignedCertificate(Certificate);
@@ -653,7 +654,7 @@ namespace DomainDetective {
 
             Chain.Clear();
             foreach (var element in chain.ChainElements) {
-                Chain.Add(new X509Certificate2(element.Certificate.RawData));
+                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
             }
             RecordChainSource(revocationMode == X509RevocationMode.NoCheck ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
             return true;

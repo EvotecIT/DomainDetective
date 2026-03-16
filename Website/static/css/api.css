@@ -1,0 +1,64 @@
+/* DomainDetective - API Documentation Styles */
+
+.api-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    max-width: var(--pf-max-width);
+    margin: 0 auto;
+    min-height: calc(100vh - 60px);
+}
+
+.api-sidebar {
+    padding: 1.5rem 1rem;
+    border-right: 1px solid var(--pf-border);
+    position: sticky;
+    top: 60px;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+    font-size: 0.875rem;
+}
+
+.api-sidebar a {
+    display: block;
+    padding: 0.3rem 0.75rem;
+    color: var(--pf-muted);
+    border-radius: var(--pf-radius-sm);
+    transition: color 0.2s, background 0.2s;
+}
+.api-sidebar a:hover { color: var(--pf-accent); background: var(--pf-glow-primary); }
+.api-sidebar a.active { color: var(--pf-accent); font-weight: 600; }
+
+.api-content {
+    padding: 2rem 2.5rem;
+    min-width: 0;
+}
+
+.api-content h1 { font-size: 2rem; }
+.api-content h2 { margin-top: 2rem; font-size: 1.5rem; }
+.api-content h3 { margin-top: 1.5rem; font-size: 1.1rem; }
+
+.api-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+}
+.api-content th,
+.api-content td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--pf-border);
+    text-align: left;
+    font-size: 0.9rem;
+}
+.api-content th {
+    color: var(--pf-muted);
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+@media (max-width: 768px) {
+    .api-layout { grid-template-columns: 1fr; }
+    .api-sidebar { display: none; }
+    .api-content { padding: 1.5rem 1rem; }
+}

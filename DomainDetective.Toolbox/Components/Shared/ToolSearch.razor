@@ -1,0 +1,18 @@
+<div class="tool-search">
+    <svg class="tool-search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input type="text" placeholder="Search tools (SPF, DKIM, DNS, WHOIS...)"
+           value="@_query" @oninput="OnInput" />
+</div>
+
+@code {
+    [Parameter] public EventCallback<string> OnSearch { get; set; }
+
+    private string _query = "";
+
+    private async Task OnInput(ChangeEventArgs e) {
+        _query = e.Value?.ToString() ?? "";
+        await OnSearch.InvokeAsync(_query);
+    }
+}

@@ -175,10 +175,13 @@ jobs:
 
       - name: Run tests (DomainDetective.Tests) (net8.0)
         if: matrix.framework != 'net472'
+        # Keep the build step and test step separate here, but let `dotnet test` build again for net8
+        # so the PR merge ref uses the exact runner-generated outputs for test host assets and coverage.
         run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
       - name: Run tests (DomainDetective.CLI.Tests)
         if: matrix.run_cli_tests == true
+        # See the note above for the DomainDetective.Tests net8.0 invocation.
         run: dotnet test DomainDetective.CLI.Tests/DomainDetective.CLI.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
       - name: Summarize failing tests

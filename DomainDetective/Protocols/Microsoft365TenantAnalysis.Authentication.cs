@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective.Helpers;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,11 +20,14 @@ public sealed partial class Microsoft365TenantAnalysis {
             throw new ArgumentNullException(nameof(domain));
         }
 
-        if (!IsMicrosoft365Tenant) {
-            return;
-        }
+        domain = DomainHelper.ValidateIdn(domain);
+        RemoveAuthenticationSummaryAssessments();
+        UserEnumerationStatus = Microsoft365AuthExposureStatus.Unknown;
+        SmartLockoutStatus = Microsoft365AuthExposureStatus.Unknown;
 
-        var probeAddress = "dd-authprobe-" + Guid.NewGuid().ToString("N") + "@" + domain;
+        // The public GetCredentialType endpoint behaves like an interactive browser flow and returns
+        // the most useful tenant-routing information when the probe resembles a normal sign-in request.
+        var probeAddress = AuthenticationProbePrefix + Guid.NewGuid().ToString("N") + "@" + domain;
         var probe = await MicrosoftIdentityProbeClient.TryGetCredentialTypeAsync(
             probeAddress,
             httpClientFactory,
@@ -35,9 +39,18 @@ public sealed partial class Microsoft365TenantAnalysis {
         AuthenticationProbeSucceeded = true;
         AuthenticationProbeAddress = probeAddress;
         AuthenticationProbe = probe;
+        UserEnumerationStatus = MapUserEnumerationStatus(probe);
+        SmartLockoutStatus = MapSmartLockoutStatus(probe);
 
-        if (probe.IfExistsResult.HasValue) {
-            UserEnumerationStatus = Microsoft365AuthExposureStatus.Exposed;
+        if (!IsMicrosoft365Tenant && IsAuthenticationProbeMicrosoft365Signal(probe)) {
+            IsMicrosoft365Tenant = true;
+            if (DetectionConfidence < Microsoft365DetectionConfidence.Moderate) {
+                DetectionConfidence = Microsoft365DetectionConfidence.Moderate;
+            }
+            RemoveAssessmentByCode(Microsoft365Codes.NotDetected);
+        }
+
+        if (UserEnumerationStatus == Microsoft365AuthExposureStatus.Exposed) {
             Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "Microsoft 365",
@@ -105,7 +118,7 @@ public sealed partial class Microsoft365TenantAnalysis {
 
         if (FederationMode == Microsoft365FederationMode.CloudManaged ||
             string.Equals(NameSpaceType, "Managed", StringComparison.OrdinalIgnoreCase) ||
-            probe.DomainType.HasValue) {
+            probe.DomainType == 3) {
             return Microsoft365AuthDomainPostureKind.ManagedTenant;
         }
 
@@ -182,16 +195,15 @@ public sealed partial class Microsoft365TenantAnalysis {
         evidence.Add("DomainType=" + FormatProbeValue(probe.DomainType));
         evidence.Add("PreferredCredential=" + FormatProbeValue(probe.PreferredCredential));
 
-        if (!string.IsNullOrWhiteSpace(probe.FederationRedirectUrl)) {
-            evidence.Add("FederationRedirectUrl=" + probe.FederationRedirectUrl);
+        var redirectHost = TryGetFederationRedirectHost(probe.FederationRedirectUrl);
+        if (!string.IsNullOrWhiteSpace(redirectHost)) {
+            evidence.Add("FederationRedirectHost=" + redirectHost);
         }
 
         return evidence;
     }
 
     private void AddAuthenticationSummaryAssessments(string domain, Microsoft365AuthenticationSummary summary) {
-        RemoveAuthenticationSummaryAssessments();
-
         if (!summary.ProbeResponsive) {
             return;
         }
@@ -283,6 +295,8 @@ public sealed partial class Microsoft365TenantAnalysis {
         for (var i = Assessments.Count - 1; i >= 0; i--) {
             var code = Assessments[i].Code;
             if (string.Equals(code, Microsoft365Codes.AuthManagedPostureDetected, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, Microsoft365Codes.AuthProbeDetected, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, Microsoft365Codes.AuthUserEnumerationExposed, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(code, Microsoft365Codes.AuthFederatedPostureDetected, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(code, Microsoft365Codes.AuthConsumerPostureDetected, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(code, Microsoft365Codes.AuthRedirectFlowDetected, StringComparison.OrdinalIgnoreCase) ||
@@ -304,15 +318,59 @@ public sealed partial class Microsoft365TenantAnalysis {
             Evidence = BuildAuthenticationEvidence(probeAddress, probe)
         };
 
-        EvidenceLedger = (EvidenceLedger ?? Array.Empty<Microsoft365EvidenceItem>())
-            .Concat(new[] { item })
+        EvidenceLedger = new[] { item }
+            .Concat(EvidenceLedger ?? Array.Empty<Microsoft365EvidenceItem>())
             .GroupBy(static entry => entry.Id, StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.First())
             .OrderByDescending(static entry => entry.Confidence)
             .ThenBy(static entry => entry.Category)
             .ThenBy(static entry => entry.Label, StringComparer.OrdinalIgnoreCase)
-            .Take(12)
+            .Take(EvidenceLedgerMaxItems)
             .ToList();
         EvidenceSummary = BuildEvidenceSummary(EvidenceLedger);
+    }
+
+    private static Microsoft365AuthExposureStatus MapUserEnumerationStatus(MicrosoftCredentialTypeProbe probe) {
+        if (!probe.IfExistsResult.HasValue) {
+            return Microsoft365AuthExposureStatus.Unknown;
+        }
+
+        return probe.IfExistsResult.Value switch {
+            0 => Microsoft365AuthExposureStatus.Exposed,
+            1 => Microsoft365AuthExposureStatus.Exposed,
+            5 => Microsoft365AuthExposureStatus.Unknown,
+            6 => Microsoft365AuthExposureStatus.Unknown,
+            _ => Microsoft365AuthExposureStatus.Unknown
+        };
+    }
+
+    private static Microsoft365AuthExposureStatus MapSmartLockoutStatus(MicrosoftCredentialTypeProbe probe) {
+        return Microsoft365AuthExposureStatus.Unknown;
+    }
+
+    private static bool IsAuthenticationProbeMicrosoft365Signal(MicrosoftCredentialTypeProbe probe) {
+        return probe.DomainType.HasValue ||
+               probe.PreferredCredential.HasValue ||
+               !string.IsNullOrWhiteSpace(probe.FederationRedirectUrl);
+    }
+
+    private static string? TryGetFederationRedirectHost(string? federationRedirectUrl) {
+        if (string.IsNullOrWhiteSpace(federationRedirectUrl)) {
+            return null;
+        }
+
+        if (!Uri.TryCreate(federationRedirectUrl, UriKind.Absolute, out var uri)) {
+            return null;
+        }
+
+        return uri.Host;
+    }
+
+    private void RemoveAssessmentByCode(string code) {
+        for (var i = Assessments.Count - 1; i >= 0; i--) {
+            if (string.Equals(Assessments[i].Code, code, StringComparison.OrdinalIgnoreCase)) {
+                Assessments.RemoveAt(i);
+            }
+        }
     }
 }

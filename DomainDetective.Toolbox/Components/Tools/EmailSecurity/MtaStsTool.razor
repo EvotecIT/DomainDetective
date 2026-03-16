@@ -1,0 +1,30 @@
+@using DomainDetective.Toolbox.Components.Shared
+
+@if (HealthCheck.MTASTSAnalysis is { } mtasts) {
+    <ResultCard Title="MTA-STS" Status="@(mtasts.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
+        @if (mtasts.Assessments?.Count > 0) {
+            <ul class="issues-list">
+                @foreach (var a in mtasts.Assessments) {
+                    <li>
+                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
+                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
+                    </li>
+                }
+            </ul>
+        } else {
+            <p>No MTA-STS issues found.</p>
+        }
+    </ResultCard>
+}
+
+@code {
+    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public required string Domain { get; set; }
+
+    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
+        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
+        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
+        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
+        _ => "status-badge-info"
+    };
+}

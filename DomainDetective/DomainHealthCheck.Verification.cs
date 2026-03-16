@@ -137,7 +137,7 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.IDENTITYPROVIDER] = () => VerifyIdpInfo(domainName, cancellationToken),
                 [HealthCheckType.AUTODISCOVER] = () => VerifyAutodiscover(domainName, cancellationToken),
                 [HealthCheckType.CERT] = () => VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken),
-                [HealthCheckType.SECURITYTXT] = () => VerifySecurityTxtAsync(domainName, cancellationToken),
+                [HealthCheckType.SECURITYTXT] = () => VerifySecurityTxt(domainName, cancellationToken),
                 [HealthCheckType.ROBOTS] = () => VerifyRobotsAsync(domainName, cancellationToken),
                 [HealthCheckType.SOA] = () => VerifySOA(domainName, cancellationToken),
                 [HealthCheckType.OPENRELAY] = () => VerifyOpenRelay(domainName, 25, cancellationToken),

@@ -1,0 +1,50 @@
+@using DomainDetective.Toolbox.Components.Shared
+
+@if (HealthCheck.DKIMAnalysis is { } dkim) {
+    @foreach (var kvp in dkim.AnalysisResults) {
+        var selector = kvp.Key;
+        var result = kvp.Value;
+
+        <ResultCard Title="@($"DKIM — {selector}")" Status="@(result.ValidPublicKey ? ResultCard.ResultStatus.Pass : ResultCard.ResultStatus.Fail)">
+            @if (result.DkimRecord is not null) {
+                <div class="result-record">@result.DkimRecord</div>
+                <ResultTable Columns="@(new[] { "Property", "Value" })">
+                    <tr><td>Selector</td><td>@selector</td></tr>
+                    <tr><td>Key Length</td><td>@(result.KeyLength > 0 ? $"{result.KeyLength} bits" : "Unknown")</td></tr>
+                    <tr><td>Valid Public Key</td><td>@(result.ValidPublicKey ? "Yes" : "No")</td></tr>
+                    @if (result.Provider is not null) {
+                        <tr><td>Provider</td><td>@result.Provider</td></tr>
+                    }
+                </ResultTable>
+            } else {
+                <p>No DKIM record found for selector <strong>@selector</strong></p>
+            }
+        </ResultCard>
+    }
+
+    @if (dkim.Assessments?.Count > 0) {
+        <ResultCard Title="Assessments">
+            <ul class="issues-list">
+                @foreach (var a in dkim.Assessments) {
+                    <li>
+                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
+                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
+                    </li>
+                }
+            </ul>
+        </ResultCard>
+    }
+}
+
+@code {
+    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public required string Domain { get; set; }
+    [Parameter] public string Selector { get; set; } = "default";
+
+    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
+        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
+        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
+        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
+        _ => "status-badge-info"
+    };
+}

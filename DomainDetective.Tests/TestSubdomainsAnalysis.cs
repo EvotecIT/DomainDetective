@@ -313,6 +313,78 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
+    public async Task RestoredPassiveCtCooldownSkipsNetworkQueryUntilCooldownExpires()
+    {
+        var requestCount = 0;
+        var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
+        {
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask)
+                    {
+                        break;
+                    }
+
+                    using var client = await clientTask;
+                    Interlocked.Increment(ref requestCount);
+                }
+            }
+            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            {
+            }
+            catch (SocketException) when (token.IsCancellationRequested)
+            {
+            }
+        }, token));
+        await server.InitializeAsync();
+
+        try
+        {
+            CertificateInventoryCapture.RestorePassiveCtSharedCooldownState(new[]
+            {
+                new PassiveCtDiagnosticEntry
+                {
+                    SourceName = "crt.sh",
+                    CooldownUntilUtc = DateTimeOffset.UtcNow.AddSeconds(30)
+                }
+            });
+
+            var client = new PassiveCtSourceClient();
+            var requests = new[]
+            {
+                new PassiveCtSourceClient.SourceRequest
+                {
+                    SourceName = "crt.sh",
+                    Url = $"http://127.0.0.1:{server.Port}/"
+                }
+            };
+
+            PassiveCtSourceClient.QueryResult result = await client.QueryAsync(
+                requests,
+                new PassiveCtSourceClient.QueryOptions
+                {
+                    RetryCount = 0,
+                    SourceCooldown = TimeSpan.FromSeconds(30)
+                },
+                null,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.True(result.RetrySuggested);
+            Assert.Contains(result.Warnings, static warning => warning.Contains("cooling down", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(0, requestCount);
+        }
+        finally
+        {
+            await server.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task NativeCtLogOnlyDiscoversSubdomains()
     {
         using var cert = CreateSelfSigned("api.example.com");

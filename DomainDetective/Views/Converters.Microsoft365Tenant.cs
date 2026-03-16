@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace DomainDetective.Views;
 
@@ -327,26 +328,27 @@ public sealed class Microsoft365TenantInfo
     public bool AuthenticationProbeSucceeded { get; set; }
     public string? AuthenticationProbeAddress { get; set; }
     public MicrosoftCredentialTypeProbe? AuthenticationProbe { get; set; }
-    public Microsoft365AuthenticationSummary AuthenticationSummary { get; set; } = null!;
+    public Microsoft365AuthenticationSummary AuthenticationSummary { get; set; } = new();
     public Microsoft365AuthPathKind AuthenticationPath { get; set; }
-    public IReadOnlyList<string> SupportedGrantTypes { get; set; } = null!;
-    public IReadOnlyList<string> SupportedResponseTypes { get; set; } = null!;
-    public IReadOnlyList<Microsoft365ServiceDetection> Services { get; set; } = null!;
-    public Microsoft365WorkloadConfidenceSummary WorkloadSummary { get; set; } = null!;
-    public Microsoft365DnsApplicationSummary DnsApplicationSummary { get; set; } = null!;
-    public Microsoft365EvidenceSummary EvidenceSummary { get; set; } = null!;
-    public IReadOnlyList<Microsoft365TenantDomain> TenantDomains { get; set; } = null!;
-    public IReadOnlyList<KnownMicrosoft365Subdomain> KnownSubdomains { get; set; } = null!;
-    public IReadOnlyList<DetectedDnsApplication> DetectedDnsApplications { get; set; } = null!;
-    public IReadOnlyList<Microsoft365EvidenceItem> EvidenceLedger { get; set; } = null!;
-    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
-    public string Status { get; set; } = null!;
+    public IReadOnlyList<string> SupportedGrantTypes { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> SupportedResponseTypes { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<Microsoft365ServiceDetection> Services { get; set; } = Array.Empty<Microsoft365ServiceDetection>();
+    public Microsoft365WorkloadConfidenceSummary WorkloadSummary { get; set; } = new();
+    public Microsoft365DnsApplicationSummary DnsApplicationSummary { get; set; } = new();
+    public Microsoft365EvidenceSummary EvidenceSummary { get; set; } = new();
+    public IReadOnlyList<Microsoft365TenantDomain> TenantDomains { get; set; } = Array.Empty<Microsoft365TenantDomain>();
+    public IReadOnlyList<KnownMicrosoft365Subdomain> KnownSubdomains { get; set; } = Array.Empty<KnownMicrosoft365Subdomain>();
+    public IReadOnlyList<DetectedDnsApplication> DetectedDnsApplications { get; set; } = Array.Empty<DetectedDnsApplication>();
+    public IReadOnlyList<Microsoft365EvidenceItem> EvidenceLedger { get; set; } = Array.Empty<Microsoft365EvidenceItem>();
+    public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; } = null!;
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
-    public IReadOnlyList<string> References { get; set; } = null!;
-    public IReadOnlyList<string> Highlights { get; set; } = null!;
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> Highlights { get; set; } = Array.Empty<string>();
+    [JsonIgnore]
     public Microsoft365TenantAnalysis Raw { get; set; } = null!;
 }

@@ -155,7 +155,7 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Contains(Microsoft365ServiceKind.ExchangeOnline, analysis.WorkloadSummary.StrongServices);
         Assert.Contains(Microsoft365ServiceKind.EntraId, analysis.WorkloadSummary.StrongServices);
         Assert.Equal(analysis.DetectedDnsApplications.Count, analysis.DnsApplicationSummary.TotalCount);
-        Assert.Equal(8, analysis.DnsApplicationSummary.CategoryCount);
+        Assert.Equal(7, analysis.DnsApplicationSummary.CategoryCount);
         Assert.Equal(DetectedDnsAppCategory.Productivity, analysis.DnsApplicationSummary.DominantCategory);
         Assert.True(analysis.DnsApplicationSummary.DominantCategoryCount >= 5);
         Assert.Equal(analysis.DnsApplicationSummary.DominantCategoryCount, analysis.DnsApplicationSummary.Categories.Single(category => category.Category == DetectedDnsAppCategory.Productivity).Count);
@@ -182,8 +182,8 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "microsoft-365");
         Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "microsoft-365" && app.Confidence == Microsoft365DetectionConfidence.Strong);
         Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "atlassian");
-        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "mailchimp" && app.Category == DetectedDnsAppCategory.EmailMarketing);
-        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "openai" && app.Category == DetectedDnsAppCategory.Security);
+        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "mailchimp" && app.Category == DetectedDnsAppCategory.EmailMarketing && app.Confidence == Microsoft365DetectionConfidence.Weak);
+        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "openai" && app.Category == DetectedDnsAppCategory.Productivity);
         Assert.Contains(analysis.DetectedDnsApplications, app => app.Category == DetectedDnsAppCategory.DnsHosting && app.Confidence == Microsoft365DetectionConfidence.Strong);
         Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "microsoft-identity-surface" && app.Category == DetectedDnsAppCategory.Identity && app.Confidence == Microsoft365DetectionConfidence.Moderate);
         Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "microsoft-365-surface" && app.Category == DetectedDnsAppCategory.Productivity);
@@ -213,7 +213,7 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Equal(Microsoft365AuthPathKind.ManagedRedirect, view.AuthenticationPath);
         Assert.Contains("auth-path managed-redirect;", view.Summary);
         Assert.Contains("workloads S2/M6/W0;", view.Summary);
-        Assert.Contains("app-cats 8 (top Productivity ", view.Summary);
+        Assert.Contains("app-cats 7 (top Productivity ", view.Summary);
         Assert.Contains("(strong)", view.Summary);
         Assert.Contains("evidence-groups ", view.Summary);
         Assert.Contains("auth Exposed / Unknown (managed, redirect; DomainType 3; PrefCredential 4)", view.Summary);
@@ -226,6 +226,52 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-managed-posture-detected");
         Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-redirect-flow-detected");
         Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-managed-redirect-path-detected");
+    }
+
+    [Fact]
+    public async Task DoesNotFlagUserEnumerationAsExposedWhenProbeIsThrottled() {
+        var subdomains = new SubdomainsAnalysis();
+        SetBackingField(subdomains, nameof(SubdomainsAnalysis.Subject), "contoso.com");
+        SetBackingField(subdomains, nameof(SubdomainsAnalysis.QuerySucceeded), true);
+        SetBackingField(subdomains, nameof(SubdomainsAnalysis.Subdomains), new List<SubdomainDiscoveryEntry>());
+
+        var analysis = new Microsoft365TenantAnalysis();
+        analysis.Analyze("contoso.com", null, null, null, subdomains, null, null);
+
+        await analysis.ProbeAuthenticationAsync("contoso.com", new StubHttpClientFactory(_ => CreateJsonResponse(@"
+{
+  ""Username"": ""dd-authprobe@contoso.com"",
+  ""Display"": ""dd-authprobe@contoso.com"",
+  ""IfExistsResult"": 5,
+  ""ThrottleStatus"": 1,
+  ""Credentials"": { ""PrefCredential"": 4 },
+  ""EstsProperties"": { ""DomainType"": 3 }
+}")), new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.AuthenticationProbeSucceeded);
+        Assert.Equal(Microsoft365AuthExposureStatus.Unknown, analysis.UserEnumerationStatus);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == "m365-auth-user-enumeration-exposed");
+    }
+
+    [Fact]
+    public void IgnoresLookalikeSubdomainsWhenClassifyingKnownRoles() {
+        var subdomains = new SubdomainsAnalysis();
+        SetBackingField(subdomains, nameof(SubdomainsAnalysis.Subject), "contoso.com");
+        SetBackingField(subdomains, nameof(SubdomainsAnalysis.QuerySucceeded), true);
+        SetBackingField(
+            subdomains,
+            nameof(SubdomainsAnalysis.Subdomains),
+            new List<SubdomainDiscoveryEntry> {
+                new() { Name = "myteams.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves },
+                new() { Name = "filesharepoint.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves },
+                new() { Name = "onedrivedocs.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves },
+                new() { Name = "powerbireports.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves }
+            });
+
+        var analysis = new Microsoft365TenantAnalysis();
+        analysis.Analyze("contoso.com", null, null, null, subdomains, null, new InternalLogger());
+
+        Assert.Empty(analysis.KnownSubdomains);
     }
 
     [Fact]

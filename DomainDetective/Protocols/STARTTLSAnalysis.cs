@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective {
     /// <summary>
@@ -160,12 +161,13 @@ public class STARTTLSAnalysis : IHasAssessments {
                         proto = ssl.SslProtocol.ToString();
 #endif
                         // Capture cipher/algorithms and certificate metadata
-                        resultCipherAlg = ssl.CipherAlgorithm.ToString();
-                        resultCipherStrength = ssl.CipherStrength;
-                        resultHashAlg = ssl.HashAlgorithm.ToString();
-                        resultHashStrength = ssl.HashStrength;
-                        resultKeyExAlg = ssl.KeyExchangeAlgorithm.ToString();
-                        resultKeyExStrength = ssl.KeyExchangeStrength;
+                        var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
+                        resultCipherAlg = tlsInfo.CipherAlgorithm;
+                        resultCipherStrength = tlsInfo.CipherStrength;
+                        resultHashAlg = tlsInfo.HashAlgorithm;
+                        resultHashStrength = tlsInfo.HashStrength;
+                        resultKeyExAlg = tlsInfo.KeyExchangeAlgorithm;
+                        resultKeyExStrength = tlsInfo.KeyExchangeStrength;
 #if NET8_0_OR_GREATER
                         var nap = ssl.NegotiatedApplicationProtocol;
                         if (!nap.Protocol.IsEmpty) {

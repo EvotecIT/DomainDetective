@@ -83,7 +83,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         try {
-            using var cert = new X509Certificate2(certBytes);
+            using var cert = CertificateLoaderCompat.LoadCertificate(certBytes);
             var matchedNames = new List<string>();
             foreach (var candidate in ExtractCandidateNames(cert)) {
                 if (exactMatchOnly) {
@@ -187,7 +187,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         try {
-            using var cert = new X509Certificate2(certBytes);
+            using var cert = CertificateLoaderCompat.LoadCertificate(certBytes);
             var matchedByDomain = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var candidate in ExtractCandidateNames(cert)) {
                 foreach (var exactDomain in MatchExactHostCandidates(candidate, exactMatchDomains)) {

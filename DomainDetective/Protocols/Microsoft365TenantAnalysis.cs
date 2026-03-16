@@ -9,6 +9,9 @@ namespace DomainDetective;
 /// Aggregates Microsoft 365 tenant identity, service, subdomain, and DNS application hints.
 /// </summary>
 public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
+    private const int EvidenceLedgerMaxItems = 12;
+    private const string AuthenticationProbePrefix = "dd-authprobe-";
+
     public string? Subject { get; private set; }
     public bool QuerySucceeded { get; private set; }
     public string? FailureReason { get; private set; }
@@ -99,7 +102,6 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
         TenantDomains = BuildTenantDomains(Subject, dkim, DetectionConfidence);
         EvidenceLedger = BuildEvidenceLedger(idp, dnsInventory, autodiscover, Services, DetectedDnsApplications, TenantDomains);
         EvidenceSummary = BuildEvidenceSummary(EvidenceLedger);
-        AuthenticationSummary = BuildAuthenticationSummary(null, null);
 
         QuerySucceeded = true;
 

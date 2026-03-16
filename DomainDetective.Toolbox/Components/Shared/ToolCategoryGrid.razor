@@ -1,0 +1,29 @@
+@using DomainDetective.Toolbox.Models
+@using DomainDetective.Toolbox.Services
+
+<div class="category-grid">
+    @foreach (var category in GetCategories()) {
+        var categoryTools = Tools.Where(t => t.Category == category).ToList();
+        if (categoryTools.Count == 0) continue;
+
+        <div class="category-card">
+            <div class="category-card-header">
+                <h3>@ToolRegistry.GetCategoryDisplayName(category)</h3>
+            </div>
+            <div class="category-tools">
+                @foreach (var tool in categoryTools) {
+                    <a href="@($"{tool.Slug}/")" class="category-tool-link">
+                        <span>@tool.Name</span>
+                    </a>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public required IReadOnlyList<ToolDefinition> Tools { get; set; }
+
+    private IEnumerable<ToolCategory> GetCategories() =>
+        Tools.Select(t => t.Category).Distinct().OrderBy(c => c);
+}

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DomainDetective.Helpers;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -49,11 +50,11 @@ public class SmimeCertificateAnalysis {
         byte[] data;
         try {
             data = File.ReadAllBytes(path);
-            Certificate = new X509Certificate2(data);
+            Certificate = CertificateLoaderCompat.LoadCertificate(data);
         } catch (CryptographicException) {
             var text = File.ReadAllText(path);
             data = DecodePem(text);
-            Certificate = new X509Certificate2(data);
+            Certificate = CertificateLoaderCompat.LoadCertificate(data);
         }
 
         var chain = new X509Chain { ChainPolicy = { RevocationMode = X509RevocationMode.NoCheck } };
@@ -64,7 +65,7 @@ public class SmimeCertificateAnalysis {
         IsValid = chainValid && HasSecureEmailEku && IsTrustedRoot;
         Chain.Clear();
         foreach (var element in chain.ChainElements) {
-            Chain.Add(new X509Certificate2(element.Certificate.RawData));
+            Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
         }
 
         DaysToExpire = (int)(Certificate.NotAfter - DateTime.UtcNow).TotalDays;

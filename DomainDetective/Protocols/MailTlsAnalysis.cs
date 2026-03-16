@@ -8,6 +8,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -38,7 +39,7 @@ public class MailTlsAnalysis : IHasAssessments {
         public bool SupportsTls10 { get; set; }
         public bool Tls13Used { get; set; }
         public bool HostnameMatch { get; set; }
-        public CipherAlgorithmType CipherAlgorithm { get; set; }
+        public string CipherAlgorithm { get; set; } = string.Empty;
         public int CipherStrength { get; set; }
         public string CipherSuite { get; set; } = string.Empty;
         public int DhKeyBits { get; set; }
@@ -94,6 +95,16 @@ public class MailTlsAnalysis : IHasAssessments {
         _ => "QUIT"
     };
 
+    private static void PopulateNegotiatedTlsDetails(TlsResult result, SslStream ssl)
+    {
+        var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
+        result.CipherAlgorithm = tlsInfo.CipherAlgorithm;
+        result.CipherStrength = tlsInfo.CipherStrength;
+        result.CipherSuite = tlsInfo.CipherSuite;
+        result.DhKeyBits = tlsInfo.DhKeyBits;
+        result.KeyExchangeAlgorithm = tlsInfo.KeyExchangeAlgorithm;
+    }
+
     private async Task<TlsResult> CheckTls(MailProtocol protocol, string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
         string category = protocol switch { MailProtocol.Smtp => "SMTPTLS", MailProtocol.Imap => "IMAPTLS", MailProtocol.Pop3 => "POP3TLS", _ => "MAILTLS" };
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: category, target: $"{host}:{port}");
@@ -116,7 +127,7 @@ public class MailTlsAnalysis : IHasAssessments {
                     result.Chain.Clear();
                     result.ChainErrors.Clear();
                     if (certificate is X509Certificate2 cert) {
-                        result.Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
+                        result.Certificate = CertificateLoaderCompat.Clone(cert);
                         result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
                         result.DaysValid = (int)(cert.NotAfter - cert.NotBefore).TotalDays;
                         result.IsExpired = cert.NotAfter < DateTime.Now;
@@ -155,7 +166,7 @@ public class MailTlsAnalysis : IHasAssessments {
                         } catch { }
                         if (chain != null) {
                             foreach (var element in chain.ChainElements) {
-                                result.Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                                result.Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
                             }
                             foreach (var status in chain.ChainStatus) {
                                 result.ChainErrors.Add(status.Status);
@@ -166,15 +177,7 @@ public class MailTlsAnalysis : IHasAssessments {
                 });
                 try {
                     await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
-                    result.CipherAlgorithm = ssl.CipherAlgorithm;
-                    result.CipherStrength = ssl.CipherStrength;
-#if NET8_0_OR_GREATER
-                    result.CipherSuite = ssl.NegotiatedCipherSuite.ToString();
-#endif
-                    result.KeyExchangeAlgorithm = ssl.KeyExchangeAlgorithm.ToString();
-                    if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
-                        result.DhKeyBits = ssl.KeyExchangeStrength;
-                    }
+                    PopulateNegotiatedTlsDetails(result, ssl);
                     try {
                         var suite = result.CipherSuite ?? string.Empty;
                         if (!string.IsNullOrEmpty(suite)) {
@@ -338,7 +341,7 @@ public class MailTlsAnalysis : IHasAssessments {
                 result.Chain.Clear();
                 result.ChainErrors.Clear();
                 if (certificate is X509Certificate2 cert) {
-                    result.Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
+                    result.Certificate = CertificateLoaderCompat.Clone(cert);
                     result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
                     result.DaysValid = (int)(cert.NotAfter - cert.NotBefore).TotalDays;
                     result.IsExpired = cert.NotAfter < DateTime.Now;
@@ -375,7 +378,7 @@ public class MailTlsAnalysis : IHasAssessments {
                     } catch { }
                     if (chain != null) {
                         foreach (var element in chain.ChainElements) {
-                            result.Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                            result.Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
                         }
                         foreach (var status in chain.ChainStatus) {
                             result.ChainErrors.Add(status.Status);
@@ -387,15 +390,7 @@ public class MailTlsAnalysis : IHasAssessments {
 
             try {
                 await sslStream.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
-                result.CipherAlgorithm = sslStream.CipherAlgorithm;
-                result.CipherStrength = sslStream.CipherStrength;
-#if NET8_0_OR_GREATER
-                result.CipherSuite = sslStream.NegotiatedCipherSuite.ToString();
-#endif
-                result.KeyExchangeAlgorithm = sslStream.KeyExchangeAlgorithm.ToString();
-                if (sslStream.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
-                    result.DhKeyBits = sslStream.KeyExchangeStrength;
-                }
+                PopulateNegotiatedTlsDetails(result, sslStream);
                 try {
                     var suite = result.CipherSuite ?? string.Empty;
                     if (!string.IsNullOrEmpty(suite)) {

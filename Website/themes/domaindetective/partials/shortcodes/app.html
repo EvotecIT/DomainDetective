@@ -1,0 +1,10 @@
+{{ src = shortcode.attrs.src; label = shortcode.attrs.label; title = shortcode.attrs.title }}
+{{ if src == "" }}{{ src = "/tools/" }}{{ end }}
+{{ if label == "" }}{{ label = "Open tools" }}{{ end }}
+<div class="dd-app-link">
+  <div class="dd-app-link-body">
+    <strong>{{ title }}</strong>
+    <span>{{ src }}</span>
+  </div>
+  <a class="dd-button dd-button-primary" href="{{ src }}">{{ label }}</a>
+</div>

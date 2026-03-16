@@ -1,0 +1,17 @@
+<table class="result-table">
+    <thead>
+        <tr>
+            @foreach (var col in Columns) {
+                <th>@col</th>
+            }
+        </tr>
+    </thead>
+    <tbody>
+        @ChildContent
+    </tbody>
+</table>
+
+@code {
+    [Parameter] public string[] Columns { get; set; } = Array.Empty<string>();
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

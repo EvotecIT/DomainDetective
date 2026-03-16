@@ -114,6 +114,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
     private const int PrecertEntryType = 1;
     private const string SubjectAlternativeNameOid = "2.5.29.17";
     private const string HistoricalAllLogsListUrl = "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json";
+    private const string KnownBogusCtLogUrlPrefix = "https://ct.example.com/bogus/";
 
     public Func<string, CancellationToken, Task<string>>? QueryOverride { get; set; }
 
@@ -261,18 +262,19 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     break;
                 }
             } catch (Exception ex) {
+                (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex.Message, options, logDescriptor);
                 cursor.RecordFailure(
                     key,
                     DateTimeOffset.UtcNow,
                     ex.Message,
-                    options.CircuitBreakerFailureThreshold,
-                    options.CircuitBreakerDuration);
+                    failureThreshold,
+                    circuitDuration);
                 cursor.RecordFailure(
                     logHealthKey,
                     DateTimeOffset.UtcNow,
                     ex.Message,
-                    options.CircuitBreakerFailureThreshold,
-                    options.CircuitBreakerDuration);
+                    failureThreshold,
+                    circuitDuration);
                 result.Warnings.Add($"Native CT log failed for {logUrl}: {ex.Message}");
                 logger?.WriteVerbose("Native CT log failed for {0}: {1}", logUrl, ex.Message);
                 status.Failure = ex.Message;
@@ -459,18 +461,19 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     break;
                 }
             } catch (Exception ex) {
+                (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex.Message, options, logDescriptor);
                 cursor.RecordFailure(
                     key,
                     DateTimeOffset.UtcNow,
                     ex.Message,
-                    options.CircuitBreakerFailureThreshold,
-                    options.CircuitBreakerDuration);
+                    failureThreshold,
+                    circuitDuration);
                 cursor.RecordFailure(
                     logHealthKey,
                     DateTimeOffset.UtcNow,
                     ex.Message,
-                    options.CircuitBreakerFailureThreshold,
-                    options.CircuitBreakerDuration);
+                    failureThreshold,
+                    circuitDuration);
                 result.Warnings.Add($"Native CT shared log failed for {logUrl}: {ex.Message}");
                 logger?.WriteVerbose("Native CT shared log failed for {0}: {1}", logUrl, ex.Message);
                 status.Failure = ex.Message;
@@ -816,9 +819,11 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         if (!ShouldIncludeLog(log, options.IncludePendingLogs, options.IncludeRetiredLogs)) {
             return;
         }
+        var description = GetString(log, "description");
         var url = GetString(log, "url");
         var normalized = NormalizeLogUrl(url);
-        if (normalized != null) {
+        if (normalized != null &&
+            !IsKnownBogusLog(normalized, description)) {
             TryGetTemporalInterval(log, out var temporalStartUtc, out var temporalEndUtc);
             AddResolvedLogDescriptor(
                 descriptors,
@@ -956,6 +961,50 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         return state.TryGetProperty("retired", out _);
+    }
+
+    private static bool IsKnownBogusLog(string normalizedUrl, string? description) {
+        if (string.IsNullOrWhiteSpace(normalizedUrl)) {
+            return false;
+        }
+
+        if (normalizedUrl.StartsWith(KnownBogusCtLogUrlPrefix, StringComparison.OrdinalIgnoreCase)) {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(description) &&
+               description!.Contains("Bogus RFC6962 log", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static (int FailureThreshold, TimeSpan CircuitDuration) ResolveCircuitBreakerPolicy(
+        string? errorMessage,
+        NativeCtLogSubdomainDiscoveryOptions options,
+        ResolvedCtLogDescriptor logDescriptor) {
+        int defaultThreshold = Math.Max(1, options.CircuitBreakerFailureThreshold);
+        TimeSpan defaultDuration = options.CircuitBreakerDuration <= TimeSpan.Zero
+            ? TimeSpan.FromMinutes(10)
+            : options.CircuitBreakerDuration;
+        if (!IsNameResolutionFailure(errorMessage)) {
+            return (defaultThreshold, defaultDuration);
+        }
+
+        TimeSpan resolutionFailureDuration = logDescriptor != null && logDescriptor.IsRetired
+            ? TimeSpan.FromHours(24)
+            : TimeSpan.FromHours(6);
+        if (resolutionFailureDuration < defaultDuration) {
+            resolutionFailureDuration = defaultDuration;
+        }
+
+        return (1, resolutionFailureDuration);
+    }
+
+    internal static bool IsNameResolutionFailure(string? errorMessage) {
+        if (string.IsNullOrWhiteSpace(errorMessage)) {
+            return false;
+        }
+
+        return errorMessage.Contains("No such host is known", StringComparison.OrdinalIgnoreCase) ||
+               errorMessage.Contains("no data of the requested type was found", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? NormalizeLogUrl(string? rawUrl) {

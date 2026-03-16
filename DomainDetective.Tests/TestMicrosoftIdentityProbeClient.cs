@@ -72,6 +72,20 @@ public class TestMicrosoftIdentityProbeClient
         Assert.Equal("https://login.microsoftonline.com/", probe.FederationRedirectUrl);
     }
 
+    [Fact]
+    public async Task ReturnsNullForMalformedJsonResponses()
+    {
+        var factory = new StubHttpClientFactory(_ => CreateJsonResponse("{ not-valid-json"));
+
+        var discovery = await MicrosoftIdentityProbeClient.TryGetOpenIdConfigurationAsync("contoso.com", factory, CancellationToken.None);
+        var realm = await MicrosoftIdentityProbeClient.TryGetUserRealmAsync("contoso.com", factory, CancellationToken.None);
+        var probe = await MicrosoftIdentityProbeClient.TryGetCredentialTypeAsync("user@contoso.com", factory, CancellationToken.None);
+
+        Assert.Null(discovery);
+        Assert.Null(realm);
+        Assert.Null(probe);
+    }
+
     private static HttpResponseMessage CreateJsonResponse(string json)
     {
         return new HttpResponseMessage(HttpStatusCode.OK) {

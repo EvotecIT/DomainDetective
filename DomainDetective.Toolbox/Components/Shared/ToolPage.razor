@@ -1,0 +1,158 @@
+@using DomainDetective.Toolbox.Models
+@using DomainDetective.Toolbox.Services
+@inject BrowserDnsService DnsService
+
+<div class="tool-page">
+    <div class="tool-breadcrumb">
+        <a href="./">Tools</a> / @ToolRegistry.GetCategoryDisplayName(Definition.Category) / @Definition.Name
+    </div>
+
+    <div class="tool-page-header">
+        <h1>@Definition.Name</h1>
+        <p>@Definition.Description</p>
+    </div>
+
+    @if (!Definition.BrowserCompatible) {
+        <ToolNotAvailable CliCommand="@Definition.Slug" PowerShellCommand="@GetPowerShellCommand()" />
+    } else {
+        <form class="tool-input-form" @onsubmit="RunAnalysis" @onsubmit:preventDefault>
+            <input type="text" @bind="_domain" placeholder="@(Definition.InputPlaceholder ?? "example.com")" />
+            @if (Definition.SecondaryInputLabel is not null) {
+                <input type="text" @bind="_secondaryInput" placeholder="@(Definition.SecondaryInputPlaceholder ?? "")" class="tool-input-secondary" />
+            }
+            <button type="submit" class="tool-run-btn" disabled="@_isLoading">
+                @(_isLoading ? "Analyzing..." : "Analyze")
+            </button>
+        </form>
+
+        @if (_isLoading) {
+            <LoadingSpinner Message="@($"Analyzing {_domain}...")" />
+        }
+
+        @if (_error is not null) {
+            <ResultCard Title="Error" Status="ResultCard.ResultStatus.Fail">
+                <p>@_error</p>
+            </ResultCard>
+        }
+
+        @if (_healthCheck is not null && !_isLoading) {
+            @switch (Definition.Slug) {
+                case "spf":
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.SpfTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "dkim":
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.DkimTool HealthCheck="_healthCheck" Domain="_domain" Selector="@(_secondaryInput ?? "default")" />
+                    break;
+                case "dmarc":
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.DmarcTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "mx":
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.MxTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "mta-sts":
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.MtaStsTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "tls-rpt":
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.TlsRptTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "bimi":
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.BimiTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "dns-lookup":
+                    <DomainDetective.Toolbox.Components.Tools.Dns.DnsLookupTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "dnssec":
+                    <DomainDetective.Toolbox.Components.Tools.Dns.DnssecTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "soa":
+                    <DomainDetective.Toolbox.Components.Tools.Dns.SoaTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "ns":
+                    <DomainDetective.Toolbox.Components.Tools.Dns.NsTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "dns-propagation":
+                    <DomainDetective.Toolbox.Components.Tools.Dns.DnsPropagationTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "caa":
+                    <DomainDetective.Toolbox.Components.Tools.TlsCert.CaaTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "http-headers":
+                    <DomainDetective.Toolbox.Components.Tools.WebSecurity.HttpHeadersTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "security-txt":
+                    <DomainDetective.Toolbox.Components.Tools.WebSecurity.SecurityTxtTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "rdap":
+                    <DomainDetective.Toolbox.Components.Tools.Registration.RdapTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "dnsbl":
+                    <DomainDetective.Toolbox.Components.Tools.ThreatIntel.DnsblTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "dangling-cname":
+                    <DomainDetective.Toolbox.Components.Tools.ThreatIntel.DanglingCnameTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+                case "ct-subdomains":
+                    <DomainDetective.Toolbox.Components.Tools.Subdomain.CtSubdomainTool HealthCheck="_healthCheck" Domain="_domain" />
+                    break;
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public required ToolDefinition Definition { get; set; }
+
+    private string _domain = "";
+    private string? _secondaryInput;
+    private bool _isLoading;
+    private string? _error;
+    private DomainHealthCheck? _healthCheck;
+
+    private async Task RunAnalysis() {
+        if (string.IsNullOrWhiteSpace(_domain)) return;
+
+        _isLoading = true;
+        _error = null;
+        _healthCheck = null;
+        StateHasChanged();
+
+        try {
+            var hc = DnsService.CreateHealthCheck();
+
+            switch (Definition.Slug) {
+                case "spf": await hc.VerifySPF(_domain); break;
+                case "dkim": await hc.VerifyDKIM(_domain, new[] { _secondaryInput ?? "default" }); break;
+                case "dmarc": await hc.VerifyDMARC(_domain); break;
+                case "mx": await hc.VerifyMX(_domain); break;
+                case "mta-sts": await hc.VerifyMTASTS(_domain); break;
+                case "tls-rpt": await hc.VerifyTLSRPT(_domain); break;
+                case "bimi": await hc.VerifyBIMI(_domain); break;
+                case "dns-lookup": await hc.VerifyDnsInventoryAsync(_domain); break;
+                case "dnssec": await hc.VerifyDNSSEC(_domain); break;
+                case "soa": await hc.VerifySOA(_domain); break;
+                case "ns": await hc.VerifyNS(_domain); break;
+                case "dns-propagation": await hc.VerifyDnsPropagationAsync(_domain); break;
+                case "caa": await hc.VerifyCAA(_domain); break;
+                case "http-headers": await hc.VerifyWebsiteHttps(_domain); break;
+                case "security-txt": await hc.VerifySecurityTxt(_domain); break;
+                case "rdap": await hc.QueryRDAP(_domain); break;
+                case "dnsbl": await hc.VerifyDNSBL(_domain); break;
+                case "dangling-cname": await hc.VerifyDanglingCname(_domain); break;
+                case "ct-subdomains": await hc.VerifySubdomainsAsync(_domain); break;
+            }
+
+            _healthCheck = hc;
+        } catch (Exception ex) {
+            _error = ex.Message;
+        } finally {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetPowerShellCommand() => Definition.Slug switch {
+        "cert-check" => "Get-DomainCertificate -Domain example.com",
+        "dane" => "Get-DomainDANE -Domain example.com",
+        _ => $"Get-DomainHealthCheck -Domain example.com"
+    };
+}

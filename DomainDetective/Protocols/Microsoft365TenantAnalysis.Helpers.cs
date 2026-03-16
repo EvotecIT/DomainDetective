@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective.Helpers;
 using DomainDetective.Providers.Dns;
 using DomainDetective.Providers.Email;
 
@@ -52,9 +53,13 @@ public sealed partial class Microsoft365TenantAnalysis {
     private static IReadOnlyList<DetectedDnsApplication> BuildDetectedApplications(
         DnsInventoryAnalysis? dnsInventory,
         IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains) {
-        var apps = dnsInventory?.DetectedDnsApplications?.Count > 0
-            ? new List<DetectedDnsApplication>(dnsInventory.DetectedDnsApplications)
-            : new List<DetectedDnsApplication>(DetectedDnsApplicationCatalog.DetectFromInventory(dnsInventory));
+        var apps = new List<DetectedDnsApplication>();
+        if (dnsInventory?.DetectedDnsApplications?.Count > 0) {
+            apps.AddRange(dnsInventory.DetectedDnsApplications);
+        }
+        if (dnsInventory != null) {
+            apps.AddRange(DetectedDnsApplicationCatalog.DetectFromInventory(dnsInventory));
+        }
 
         foreach (var mappedApplication in knownSubdomains
                      .Select(static knownSubdomain => TryBuildSubdomainRoleApplication(knownSubdomain))
@@ -528,7 +533,7 @@ public sealed partial class Microsoft365TenantAnalysis {
             .OrderByDescending(static item => item.Confidence)
             .ThenBy(static item => item.Category)
             .ThenBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
-            .Take(12)
+            .Take(EvidenceLedgerMaxItems)
             .ToList();
     }
 
@@ -824,7 +829,9 @@ public sealed partial class Microsoft365TenantAnalysis {
         var normalizedName = NormalizeHost(fqdn);
         var normalizedBase = NormalizeHost(baseDomain);
         if (normalizedName.Length == 0 || normalizedBase.Length == 0) return KnownSubdomainRole.Unknown;
-        if (!normalizedName.EndsWith("." + normalizedBase, StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Unknown;
+        if (normalizedBase.IndexOf('.') < 0) return KnownSubdomainRole.Unknown;
+        if (!DomainHelper.IsDomainOrSubdomainOfNormalized(normalizedName, normalizedBase)) return KnownSubdomainRole.Unknown;
+        if (string.Equals(normalizedName, normalizedBase, StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Unknown;
 
         var relative = normalizedName.Substring(0, normalizedName.Length - normalizedBase.Length - 1);
         if (relative.Length == 0) return KnownSubdomainRole.Unknown;
@@ -842,9 +849,9 @@ public sealed partial class Microsoft365TenantAnalysis {
         if (string.Equals(first, "lyncdiscover", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.LyncDiscover;
         if (string.Equals(first, "sip", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Sip;
         if (string.Equals(first, "msoid", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.MsoId;
-        if (string.Equals(first, "sharepoint", StringComparison.OrdinalIgnoreCase) || labels.Contains("sharepoint", StringComparer.OrdinalIgnoreCase)) return KnownSubdomainRole.SharePoint;
-        if (string.Equals(first, "onedrive", StringComparison.OrdinalIgnoreCase) || labels.Contains("onedrive", StringComparer.OrdinalIgnoreCase)) return KnownSubdomainRole.OneDrive;
-        if (string.Equals(first, "teams", StringComparison.OrdinalIgnoreCase) || labels.Contains("teams", StringComparer.OrdinalIgnoreCase)) return KnownSubdomainRole.Teams;
+        if (string.Equals(first, "sharepoint", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.SharePoint;
+        if (string.Equals(first, "onedrive", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.OneDrive;
+        if (string.Equals(first, "teams", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Teams;
         if (string.Equals(first, "portal", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Portal;
         if (string.Equals(first, "fs", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.FederationService;
         if (string.Equals(first, "login", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Login;
@@ -856,7 +863,7 @@ public sealed partial class Microsoft365TenantAnalysis {
         if (string.Equals(first, "api", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Api;
         if (string.Equals(first, "cdn", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Cdn;
         if (string.Equals(first, "apps", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Apps;
-        if (string.Equals(first, "powerbi", StringComparison.OrdinalIgnoreCase) || labels.Contains("powerbi", StringComparer.OrdinalIgnoreCase)) return KnownSubdomainRole.PowerBi;
+        if (string.Equals(first, "powerbi", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.PowerBi;
         if (string.Equals(first, "flow", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Flow;
         if (string.Equals(first, "automate", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Automate;
         if (string.Equals(first, "static", StringComparison.OrdinalIgnoreCase) ||
@@ -928,9 +935,17 @@ public sealed partial class Microsoft365TenantAnalysis {
     private static bool IsMicrosoftHost(string? host) {
         var normalized = NormalizeHost(host);
         return normalized.EndsWith(".outlook.com", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith(".outlook.office365.us", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith(".outlook.office.de", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith(".outlook.office365.de", StringComparison.OrdinalIgnoreCase) ||
                normalized.EndsWith(".microsoftonline.com", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith(".microsoftonline.us", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith(".partner.microsoftonline.cn", StringComparison.OrdinalIgnoreCase) ||
                normalized.EndsWith(".office365.com", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith(".office365.us", StringComparison.OrdinalIgnoreCase) ||
                normalized.EndsWith(".sharepoint.com", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith(".sharepoint.us", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith(".sharepoint.cn", StringComparison.OrdinalIgnoreCase) ||
                normalized.EndsWith(".lync.com", StringComparison.OrdinalIgnoreCase);
     }
 
