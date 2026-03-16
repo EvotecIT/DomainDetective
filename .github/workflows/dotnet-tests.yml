@@ -23,6 +23,7 @@ env:
   TEST_VERBOSITY: minimal
   SUMMARIZE_FAILURES: true
   DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1'
+  NET8_SOLUTION_FILTER: 'DomainDetective.Net8.slnf'
 
 jobs:
   test:
@@ -66,7 +67,12 @@ jobs:
           }
           Write-Host ".NET Framework 4.7.2 targeting pack available."
 
-      - name: Restore dependencies
+      - name: Restore dependencies (net8.0)
+        if: matrix.framework == 'net8.0'
+        run: dotnet restore ${{ env.NET8_SOLUTION_FILTER }}
+
+      - name: Restore dependencies (net472)
+        if: matrix.framework == 'net472'
         run: dotnet restore DomainDetective.sln
 
       - name: Build solution (net8.0)
@@ -75,7 +81,7 @@ jobs:
         run: |
           $args = @(
             "build",
-            "DomainDetective.sln",
+            "${{ env.NET8_SOLUTION_FILTER }}",
             "--configuration", "${{ env.BUILD_CONFIGURATION }}",
             "--framework", "${{ matrix.framework }}",
             "--no-restore",
@@ -100,7 +106,7 @@ jobs:
               Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "bin") -ErrorAction SilentlyContinue
 
               Start-Sleep -Seconds 2
-              dotnet build DomainDetective.sln --configuration "${{ env.BUILD_CONFIGURATION }}" --framework "${{ matrix.framework }}" --no-restore -m:1 -p:UseSharedCompilation=false
+              dotnet build "${{ env.NET8_SOLUTION_FILTER }}" --configuration "${{ env.BUILD_CONFIGURATION }}" --framework "${{ matrix.framework }}" --no-restore -m:1 -p:UseSharedCompilation=false
               exit $LASTEXITCODE
             }
 

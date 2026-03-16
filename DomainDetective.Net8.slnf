@@ -1,0 +1,19 @@
+{
+  "solution": {
+    "path": "DomainDetective.sln",
+    "projects": [
+      "DomainDetective\\DomainDetective.csproj",
+      "DomainDetective.Example\\DomainDetective.Example.csproj",
+      "DomainDetective.Tests\\DomainDetective.Tests.csproj",
+      "DomainDetective.PowerShell\\DomainDetective.PowerShell.csproj",
+      "DomainDetective.CLI\\DomainDetective.CLI.csproj",
+      "DomainDetective.Reports\\DomainDetective.Reports.csproj",
+      "DomainDetective.CLI.Tests\\DomainDetective.CLI.Tests.csproj",
+      "DomainDetective.Benchmarks\\DomainDetective.Benchmarks.csproj",
+      "DomainDetective.Reports.Html\\DomainDetective.Reports.Html.csproj",
+      "DomainDetective.Reports.Office\\DomainDetective.Reports.Office.csproj",
+      "DomainDetective.Reports.Pdf\\DomainDetective.Reports.Pdf.csproj",
+      "DomainDetective.Reports.Markdown\\DomainDetective.Reports.Markdown.csproj"
+    ]
+  }
+}
