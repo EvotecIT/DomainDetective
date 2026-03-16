@@ -705,7 +705,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             .Where(log => log != null && !IsFutureLog(log, observedUtc))
             .ToList();
 
-        return eligible.Count > 0 ? eligible : logs;
+        return eligible;
     }
 
     private static bool IsFutureLog(ResolvedCtLogDescriptor log, DateTimeOffset observedUtc) {
@@ -1011,28 +1011,22 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         string? errorMessage = exception?.Message;
         bool retiredLog = logDescriptor != null && logDescriptor.IsRetired;
         if (IsNameResolutionFailure(errorMessage)) {
-            TimeSpan resolutionFailureDuration = retiredLog
+            return (1, ClampCircuitDuration(retiredLog
                 ? TimeSpan.FromHours(24)
-                : TimeSpan.FromHours(6);
-            if (resolutionFailureDuration < defaultDuration) {
-                resolutionFailureDuration = defaultDuration;
-            }
-
-            return (1, resolutionFailureDuration);
+                : TimeSpan.FromHours(6), defaultDuration));
         }
 
         if (IsPermanentHttpLogFailure(exception)) {
-            TimeSpan permanentFailureDuration = retiredLog
+            return (1, ClampCircuitDuration(retiredLog
                 ? TimeSpan.FromHours(24)
-                : TimeSpan.FromHours(6);
-            if (permanentFailureDuration < defaultDuration) {
-                permanentFailureDuration = defaultDuration;
-            }
-
-            return (1, permanentFailureDuration);
+                : TimeSpan.FromHours(6), defaultDuration));
         }
 
         return (defaultThreshold, defaultDuration);
+    }
+
+    private static TimeSpan ClampCircuitDuration(TimeSpan candidate, TimeSpan minimum) {
+        return candidate < minimum ? minimum : candidate;
     }
 
     internal static bool IsNameResolutionFailure(string? errorMessage) {
@@ -1049,7 +1043,8 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             return false;
         }
 
-        if (exception is HttpRequestException httpRequestException) {
+        HttpRequestException? httpRequestException = FindHttpRequestException(exception);
+        if (httpRequestException != null) {
             int? statusCode = TryGetHttpStatusCode(httpRequestException);
             if (statusCode == 404 || statusCode == 410) {
                 return true;
@@ -1061,8 +1056,21 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             return false;
         }
 
+        // Best-effort fallback for runtimes that bubble an HttpRequestException without a populated
+        // StatusCode. This English message format is locale-sensitive, so the typed status-code path
+        // above remains the primary signal when it is available.
         return message.Contains("Response status code does not indicate success: 404", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("Response status code does not indicate success: 410", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static HttpRequestException? FindHttpRequestException(Exception? exception) {
+        for (Exception? current = exception; current != null; current = current.InnerException) {
+            if (current is HttpRequestException httpRequestException) {
+                return httpRequestException;
+            }
+        }
+
+        return null;
     }
 
     private static string? NormalizeLogUrl(string? rawUrl) {

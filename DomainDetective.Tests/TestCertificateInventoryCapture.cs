@@ -290,13 +290,23 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
-    public void ComputeNativeSharedMaxSubdomains_UsesConfiguredAggregateLimitInsteadOfHardcodedClamp() {
+    public void ComputeNativeSharedMaxSubdomains_ReturnsComputedValueWhenBelowConfiguredCeiling() {
         int effective = CertificateInventoryCapture.ComputeNativeSharedMaxSubdomains(
             domainCount: 300,
             maxCtSubdomainsPerDomain: 5_000,
             nativeCtSharedMaxSubdomainsTotal: 2_000_000);
 
         Assert.Equal(1_500_000, effective);
+    }
+
+    [Fact]
+    public void ComputeNativeSharedMaxSubdomains_UsesConfiguredAggregateLimitWhenComputedValueExceedsCeiling() {
+        int effective = CertificateInventoryCapture.ComputeNativeSharedMaxSubdomains(
+            domainCount: 1_000,
+            maxCtSubdomainsPerDomain: 5_000,
+            nativeCtSharedMaxSubdomainsTotal: 2_000_000);
+
+        Assert.Equal(2_000_000, effective);
     }
 
     [Fact]
