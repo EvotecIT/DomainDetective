@@ -69,7 +69,7 @@
                 {{ if action.text && action.text != "" }} {{ action.text }}{{ else if (!action.icon_html && !action.icon) && action.title && action.title != "" }} {{ action.title }}{{ end }}
               </button>
             {{~ else if action.url ~}}
-              <a href="{{ action.url }}"{{ if action.css_class }} class="{{ action.css_class }}"{{ end }}{{ if action.target }} target="{{ action.target }}"{{ end }}{{ if action.rel }} rel="{{ action.rel }}"{{ end }}{{ if action.title }} title="{{ action.title }}"{{ end }}{{ if action.aria_label }} aria-label="{{ action.aria_label }}"{{ else if action.title }} aria-label="{{ action.title }}"{{ end }}>
+              <a href="{{ action.url }}"{{ if action.css_class }} class="{{ action.css_class }}"{{ end }}{{ if action.target }} target="{{ action.target }}"{{ else if action.external }} target="_blank"{{ end }}{{ if action.rel }} rel="{{ action.rel }}"{{ else if action.external }} rel="noopener"{{ end }}{{ if action.title }} title="{{ action.title }}"{{ end }}{{ if action.aria_label }} aria-label="{{ action.aria_label }}"{{ else if action.title }} aria-label="{{ action.title }}"{{ end }}>
                 {{ if action.icon_html && action.icon_html != "" }}{{ action.icon_html }}{{ else if action.icon && action.icon != "" }}{{ action.icon }}{{ end }}
                 {{ if action.text && action.text != "" }} {{ action.text }}{{ else if (!action.icon_html && !action.icon) && action.title && action.title != "" }} {{ action.title }}{{ end }}
               </a>

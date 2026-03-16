@@ -48,9 +48,13 @@
         {{ if page.collection == "blog" && page.kind == "Section" }}
         <section class="dd-editorial-list dd-editorial-list-blog" aria-label="Blog entries">
           {{ for item in items }}
+          {{~ item_path = item.output_path | string.replace "\\" "/" ~}}
+          {{~ item_url = item_path | string.replace "index.html" "" ~}}
+          {{~ if item_url == "" ~}}{{~ item_url = "/" ~}}{{~ end ~}}
+          {{~ if !(item_url | string.starts_with "/") ~}}{{~ item_url = "/" + item_url ~}}{{~ end ~}}
           <article class="dd-editorial-card dd-editorial-card-blog">
             {{ if item.meta && item.meta.image }}
-            <a class="dd-editorial-media-link" href="{{ item.output_path }}" aria-label="Read {{ item.title }}">
+            <a class="dd-editorial-media-link" href="{{ item_url }}" aria-label="Read {{ item.title }}">
               <img class="dd-editorial-media" src="{{ item.meta.image }}" alt="{{ item.title }}" loading="lazy" decoding="async" />
             </a>
             {{ end }}
@@ -58,7 +62,7 @@
               {{ if item.date }}<time datetime="{{ item.date }}">{{ item.date }}</time>{{ end }}
               {{ if item.meta && item.meta.categories && item.meta.categories.size > 0 }}<span>{{ item.meta.categories[0] }}</span>{{ end }}
             </p>
-            <h2 class="dd-editorial-title"><a href="{{ item.output_path }}">{{ item.title }}</a></h2>
+            <h2 class="dd-editorial-title"><a href="{{ item_url }}">{{ item.title }}</a></h2>
             {{ if item.description }}
             <p class="dd-editorial-summary">{{ item.description }}</p>
             {{ end }}
@@ -89,13 +93,17 @@
         {{ else }}
         <section class="dd-editorial-list" aria-label="Content entries">
           {{ for item in items }}
+          {{~ item_path = item.output_path | string.replace "\\" "/" ~}}
+          {{~ item_url = item_path | string.replace "index.html" "" ~}}
+          {{~ if item_url == "" ~}}{{~ item_url = "/" ~}}{{~ end ~}}
+          {{~ if !(item_url | string.starts_with "/") ~}}{{~ item_url = "/" + item_url ~}}{{~ end ~}}
           <article class="dd-editorial-card">
             {{ if item.meta && item.meta.image }}
-            <a class="dd-editorial-media-link" href="{{ item.output_path }}" aria-label="Read {{ item.title }}">
+            <a class="dd-editorial-media-link" href="{{ item_url }}" aria-label="Read {{ item.title }}">
               <img class="dd-editorial-media" src="{{ item.meta.image }}" alt="{{ item.title }}" loading="lazy" decoding="async" />
             </a>
             {{ end }}
-            <h2 class="dd-editorial-title"><a href="{{ item.output_path }}">{{ item.title }}</a></h2>
+            <h2 class="dd-editorial-title"><a href="{{ item_url }}">{{ item.title }}</a></h2>
             <p class="dd-editorial-meta">
               {{ if item.date }}<time datetime="{{ item.date }}">{{ item.date }}</time>{{ end }}
               {{ if item.meta && item.meta.categories && item.meta.categories.size > 0 }}<span>{{ item.meta.categories[0] }}</span>{{ end }}

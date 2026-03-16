@@ -3,6 +3,36 @@
 (function () {
     'use strict';
 
+    function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+
+        return new Promise(function (resolve, reject) {
+            try {
+                var textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.setAttribute('readonly', '');
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                textArea.setSelectionRange(0, textArea.value.length);
+
+                if (document.execCommand('copy')) {
+                    document.body.removeChild(textArea);
+                    resolve();
+                    return;
+                }
+
+                document.body.removeChild(textArea);
+                reject(new Error('Copy command was not successful.'));
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
     // Theme toggle (3-way: dark -> light -> auto)
     var themeBtn = document.querySelector('.theme-cycle-btn');
     if (themeBtn) {
@@ -121,10 +151,17 @@
     document.querySelectorAll('.hero-copy-btn, .hero-copy').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var text = btn.getAttribute('data-copy') || btn.previousElementSibling.textContent.trim();
-            navigator.clipboard.writeText(text).then(function () {
-                var orig = btn.textContent;
+            var originalHtml = btn.innerHTML;
+            copyText(text).then(function () {
                 btn.textContent = 'Copied!';
-                setTimeout(function () { btn.textContent = orig; }, 1500);
+                setTimeout(function () {
+                    btn.innerHTML = originalHtml;
+                }, 1500);
+            }).catch(function () {
+                btn.textContent = 'Copy failed';
+                setTimeout(function () {
+                    btn.innerHTML = originalHtml;
+                }, 1500);
             });
         });
     });
