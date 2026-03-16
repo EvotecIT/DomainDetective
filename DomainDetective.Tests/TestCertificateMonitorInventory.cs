@@ -82,8 +82,7 @@ namespace DomainDetective.Tests {
                             EnableCensysCtSource = true,
                             CensysApiId = "id",
                             CensysApiSecret = "secret",
-                            CensysCtApiUrlTemplate = string.Empty,
-                            CtLogQueryOverride = _ => Task.FromResult("[]")
+                            CensysCtApiUrlTemplate = string.Empty
                         };
                         analysis.CtLogApiTemplates.Clear();
                         await analysis.AnalyzeCertificate(cert, cancellationToken);
@@ -134,6 +133,37 @@ namespace DomainDetective.Tests {
                     Directory.Delete(tempDir, true);
                 }
             }
+        }
+
+        [Fact]
+        public async Task ToInventoryEntry_TreatsLiveCertificateEvidenceAsReachable() {
+            using var cert = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+            var analysis = new CertificateAnalysis();
+            await analysis.AnalyzeCertificate(cert);
+            analysis.Url = "https://edge.example.test/";
+            analysis.IsReachable = false;
+            typeof(CertificateAnalysis)
+                .GetProperty("FailureReason", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)!
+                .SetValue(analysis, "The request was canceled due to timeout.");
+
+            var entry = new CertificateMonitor.Entry {
+                Host = "edge.example.test",
+                Url = "https://edge.example.test/",
+                ResolvedHost = "edge.example.test",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                ExpiryDate = cert.NotAfter,
+                Valid = true,
+                Expired = false,
+                ChainComplete = false,
+                Analysis = analysis
+            };
+
+            var snapshotEntry = CertificateMonitor.ToInventoryEntry(entry);
+
+            Assert.True(snapshotEntry.IsReachable);
+            Assert.Null(snapshotEntry.FailureReason);
         }
 
         [Fact]

@@ -374,6 +374,7 @@ namespace DomainDetective {
         public static CertificateInventoryEntry ToInventoryEntry(Entry entry) {
             var analysis = entry.Analysis;
             var certificate = analysis.Certificate;
+            var hasLiveCertificateEvidence = HasLiveCertificateEvidence(analysis, certificate);
             var issuerIdentity = CertificateIssuerClassifier.Classify(certificate);
             var chain = analysis.Chain != null && analysis.Chain.Count > 0
                 ? analysis.Chain
@@ -411,8 +412,8 @@ namespace DomainDetective {
                 Valid = entry.Valid,
                 Expired = entry.Expired,
                 ChainComplete = entry.ChainComplete,
-                IsReachable = analysis.IsReachable,
-                FailureReason = analysis.FailureReason,
+                IsReachable = analysis.IsReachable || hasLiveCertificateEvidence,
+                FailureReason = hasLiveCertificateEvidence ? null : analysis.FailureReason,
                 IsSelfSigned = analysis.IsSelfSigned,
                 HostnameMatch = analysis.HostnameMatch,
                 PresentInCtLogs = analysis.PresentInCtLogs,
@@ -449,6 +450,16 @@ namespace DomainDetective {
                 }
             }
             return snapshotEntry;
+        }
+
+        private static bool HasLiveCertificateEvidence(CertificateAnalysis analysis, X509Certificate2? certificate) {
+            if (analysis == null) {
+                return false;
+            }
+
+            return certificate != null ||
+                   !string.IsNullOrWhiteSpace(analysis.Subject) ||
+                   analysis.Chain.Count > 0;
         }
 
         /// <summary>Builds a normalized summary view for persisted inventory snapshots.</summary>
