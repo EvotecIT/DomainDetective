@@ -47,6 +47,12 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>When true (default), reuses one native CT ingestion pass across all domains in a capture run.</summary>
     public bool EnableNativeCtSharedIngestion { get; set; } = true;
 
+    /// <summary>Maximum total CT rows processed by one shared native ingestion pass (0 means uncapped).</summary>
+    public int NativeCtSharedMaxRowsTotal { get; set; } = 2_000_000;
+
+    /// <summary>Maximum total CT-discovered subdomains retained by one shared native ingestion pass (0 means uncapped).</summary>
+    public int NativeCtSharedMaxSubdomainsTotal { get; set; } = 500_000;
+
     /// <summary>When true, uses only native CT log polling for subdomain discovery (skips crt.sh/Cert Spotter).</summary>
     public bool NativeCtLogOnly { get; set; }
 
@@ -464,6 +470,12 @@ public sealed partial class CertificateInventoryCapture {
         }
         if (options.MaxCtSubdomainsPerDomain < 0) {
             throw new ArgumentOutOfRangeException(nameof(options.MaxCtSubdomainsPerDomain), "MaxCtSubdomainsPerDomain must be 0 or greater.");
+        }
+        if (options.NativeCtSharedMaxRowsTotal < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtSharedMaxRowsTotal), "NativeCtSharedMaxRowsTotal must be 0 or greater.");
+        }
+        if (options.NativeCtSharedMaxSubdomainsTotal < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.NativeCtSharedMaxSubdomainsTotal), "NativeCtSharedMaxSubdomainsTotal must be 0 or greater.");
         }
         if (options.NativeCtEntryBatchSize < 1 || options.NativeCtEntryBatchSize > 2048) {
             throw new ArgumentOutOfRangeException(nameof(options.NativeCtEntryBatchSize), "NativeCtEntryBatchSize must be between 1 and 2048.");
