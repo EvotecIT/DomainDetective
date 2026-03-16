@@ -18,7 +18,6 @@ permissions:
   contents: read
 
 env:
-  DOTNET_VERSION: '8.x'
   BUILD_CONFIGURATION: 'Release'
   TEST_VERBOSITY: minimal
   SUMMARIZE_FAILURES: true
@@ -38,13 +37,22 @@ jobs:
             framework: net8.0
             run_cli_tests: true
           - os: windows-latest
+            framework: net10.0
+            run_cli_tests: true
+          - os: windows-latest
             framework: net472
             run_cli_tests: false
           - os: ubuntu-latest
             framework: net8.0
             run_cli_tests: true
+          - os: ubuntu-latest
+            framework: net10.0
+            run_cli_tests: true
           - os: macos-latest
             framework: net8.0
+            run_cli_tests: true
+          - os: macos-latest
+            framework: net10.0
             run_cli_tests: true
 
     steps:
@@ -54,7 +62,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-version: |
+            8.x
+            10.x
 
       - name: Verify .NET Framework 4.7.2 targeting pack
         if: matrix.framework == 'net472'
@@ -73,6 +83,10 @@ jobs:
 
       - name: Restore dependencies (net472)
         if: matrix.framework == 'net472'
+        run: dotnet restore DomainDetective.sln
+
+      - name: Restore dependencies (net10.0)
+        if: matrix.framework == 'net10.0'
         run: dotnet restore DomainDetective.sln
 
       - name: Build solution (net8.0)
@@ -113,6 +127,44 @@ jobs:
             exit $exitCode
           }
 
+      - name: Build solution (net10.0)
+        if: matrix.framework == 'net10.0'
+        shell: pwsh
+        run: |
+          $args = @(
+            "build",
+            "DomainDetective.sln",
+            "--configuration", "${{ env.BUILD_CONFIGURATION }}",
+            "--framework", "${{ matrix.framework }}",
+            "--no-restore",
+            "-m:1",
+            "-p:UseSharedCompilation=false"
+          )
+
+          dotnet @args 2>&1 | Tee-Object -Variable buildOutput
+          $exitCode = $LASTEXITCODE
+
+          if ($exitCode -ne 0) {
+            $text = $buildOutput -join "`n"
+            $isTransientCliLock = ($text -match "GenerateRuntimeConfigurationFiles" -or $text -match "CS2012") -and
+                                  $text -match "DomainDetective\\.CLI" -and
+                                  $text -match "being used by another process"
+
+            if ($isTransientCliLock) {
+              Write-Host "Detected transient DomainDetective.CLI file lock. Retrying..."
+
+              Get-Process -Name VBCSCompiler -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+              Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "obj") -ErrorAction SilentlyContinue
+              Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "bin") -ErrorAction SilentlyContinue
+
+              Start-Sleep -Seconds 2
+              dotnet build DomainDetective.sln --configuration "${{ env.BUILD_CONFIGURATION }}" --framework "${{ matrix.framework }}" --no-restore -m:1 -p:UseSharedCompilation=false
+              exit $LASTEXITCODE
+            }
+
+            exit $exitCode
+          }
+
       - name: Build tests (net472)
         if: matrix.framework == 'net472'
         run: dotnet build DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net472 --no-restore
@@ -121,13 +173,13 @@ jobs:
         if: matrix.framework == 'net472'
         run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --filter "FullyQualifiedName!~DomainDetective.Tests.TestDnssecRecordValidation"
 
-      - name: Run tests (DomainDetective.Tests) (net8.0)
+      - name: Run tests (DomainDetective.Tests) (modern .NET)
         if: matrix.framework != 'net472'
         run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
       - name: Run tests (DomainDetective.CLI.Tests)
         if: matrix.run_cli_tests == true
-        run: dotnet test DomainDetective.CLI.Tests/DomainDetective.CLI.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
+        run: dotnet test DomainDetective.CLI.Tests/DomainDetective.CLI.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
       - name: Summarize failing tests
         if: failure() && env.SUMMARIZE_FAILURES == 'true'
