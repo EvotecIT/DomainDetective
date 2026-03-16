@@ -3,6 +3,7 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.Helpers;
 
+// Intentionally public: shared by the core library, CLI, and PowerShell assemblies.
 public static class CertificateLoaderCompat
 {
     public static X509Certificate2 LoadCertificate(byte[] rawData)

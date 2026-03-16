@@ -22,6 +22,7 @@ env:
   TEST_VERBOSITY: minimal
   SUMMARIZE_FAILURES: true
   DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1'
+  # The full solution contains net10-only website projects, so net8 CI restores/builds a filtered project set.
   NET8_SOLUTION_FILTER: 'DomainDetective.Net8.slnf'
 
 jobs:

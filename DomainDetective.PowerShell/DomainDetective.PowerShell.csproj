@@ -47,6 +47,7 @@
         <Delete Files="$(OutDir)System.Management.dll" />
     </Target>
 
+    <!-- XmlDoc2CmdletDoc 0.7.0 does not currently run successfully under net10.0. -->
     <ItemGroup Condition=" '$(TargetFramework)' != 'net10.0' ">
         <PackageReference Include="MatejKafka.XmlDoc2CmdletDoc" Version="0.7.0">
             <PrivateAssets>all</PrivateAssets>
