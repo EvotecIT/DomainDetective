@@ -138,7 +138,9 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ToInventoryEntry_TreatsLiveCertificateEvidenceAsReachable() {
             using var cert = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis {
+                CtLogQueryOverride = _ => Task.FromResult("[]")
+            };
             await analysis.AnalyzeCertificate(cert);
             analysis.Url = "https://edge.example.test/";
             analysis.IsReachable = false;
