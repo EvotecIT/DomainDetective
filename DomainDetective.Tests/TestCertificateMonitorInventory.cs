@@ -139,6 +139,7 @@ namespace DomainDetective.Tests {
         public async Task ToInventoryEntry_TreatsLiveCertificateEvidenceAsReachable() {
             using var cert = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
             var analysis = new CertificateAnalysis {
+                SkipRevocation = true,
                 CtLogQueryOverride = _ => Task.FromResult("[]")
             };
             await analysis.AnalyzeCertificate(cert);

@@ -20,6 +20,11 @@
 <body>
   {{ include "header" }}
   <div class="docs-layout">
+    <button class="docs-sidebar-toggle" type="button" aria-label="Toggle documentation navigation" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      <span>Docs Menu</span>
+    </button>
+    <div class="docs-sidebar-overlay"></div>
     <aside class="docs-sidebar">
       {{ include "sidebar" }}
     </aside>

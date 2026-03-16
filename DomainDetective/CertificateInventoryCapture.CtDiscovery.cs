@@ -276,8 +276,14 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var source = new NativeCtLogSubdomainDiscovery();
-        var effectiveMaxRows = ComputeNativeSharedMaxRows(domains.Count, options.MaxCtRowsPerDomain);
-        var effectiveMaxSubdomains = ComputeNativeSharedMaxSubdomains(domains.Count, options.MaxCtSubdomainsPerDomain);
+        var effectiveMaxRows = ComputeNativeSharedMaxRows(
+            domains.Count,
+            options.MaxCtRowsPerDomain,
+            options.NativeCtSharedMaxRowsTotal);
+        var effectiveMaxSubdomains = ComputeNativeSharedMaxSubdomains(
+            domains.Count,
+            options.MaxCtSubdomainsPerDomain,
+            options.NativeCtSharedMaxSubdomainsTotal);
         var sourceOptions = new NativeCtLogSubdomainDiscoveryOptions {
             BaseDomain = domains[0],
             MaxCtRowsToProcess = effectiveMaxRows,
@@ -698,24 +704,24 @@ public sealed partial class CertificateInventoryCapture {
         return string.IsNullOrWhiteSpace(second) ? null : second;
     }
 
-    private static int ComputeNativeSharedMaxRows(int domainCount, int maxCtRowsPerDomain) {
+    internal static int ComputeNativeSharedMaxRows(
+        int domainCount,
+        int maxCtRowsPerDomain,
+        int nativeCtSharedMaxRowsTotal) {
         if (domainCount <= 0) {
-            return maxCtRowsPerDomain > 0 ? maxCtRowsPerDomain : 200000;
+            return ResolveNativeSharedAggregateLimit(maxCtRowsPerDomain, nativeCtSharedMaxRowsTotal);
         }
 
         if (maxCtRowsPerDomain <= 0) {
-            return 200000;
+            return ResolveNativeSharedAggregateLimit(0, nativeCtSharedMaxRowsTotal);
         }
 
         var multiplier = Math.Min(25, domainCount);
         var candidate = (long)maxCtRowsPerDomain * multiplier;
-        if (candidate > 2000000) {
-            candidate = 2000000;
-        }
         if (candidate < maxCtRowsPerDomain) {
             candidate = maxCtRowsPerDomain;
         }
-        return (int)candidate;
+        return ResolveNativeSharedAggregateLimit(candidate, nativeCtSharedMaxRowsTotal);
     }
 
     private static int ComputeVerifyCap(int domainCount, int maxCtSubdomainsPerDomain, int discoveredCount) {
@@ -742,29 +748,40 @@ public sealed partial class CertificateInventoryCapture {
         return cap;
     }
 
-    private static int ComputeNativeSharedMaxSubdomains(int domainCount, int maxCtSubdomainsPerDomain) {
+    internal static int ComputeNativeSharedMaxSubdomains(
+        int domainCount,
+        int maxCtSubdomainsPerDomain,
+        int nativeCtSharedMaxSubdomainsTotal) {
         if (domainCount <= 0) {
-            return maxCtSubdomainsPerDomain > 0 ? maxCtSubdomainsPerDomain : 100000;
+            return ResolveNativeSharedAggregateLimit(maxCtSubdomainsPerDomain, nativeCtSharedMaxSubdomainsTotal);
         }
 
         if (maxCtSubdomainsPerDomain <= 0) {
-            var defaultCap = 100000;
-            if (domainCount <= 1) {
-                return defaultCap;
-            }
-
-            var scaledDefault = (long)defaultCap + ((long)Math.Min(domainCount - 1, 24) * 10000L);
-            return scaledDefault > 350000L ? 350000 : (int)scaledDefault;
+            return ResolveNativeSharedAggregateLimit(0, nativeCtSharedMaxSubdomainsTotal);
         }
 
         var candidate = (long)maxCtSubdomainsPerDomain * Math.Max(1, domainCount);
-        if (candidate > 500000L) {
-            candidate = 500000L;
-        }
         if (candidate < maxCtSubdomainsPerDomain) {
             candidate = maxCtSubdomainsPerDomain;
         }
-        return (int)candidate;
+        return ResolveNativeSharedAggregateLimit(candidate, nativeCtSharedMaxSubdomainsTotal);
+    }
+
+    private static int ResolveNativeSharedAggregateLimit(long candidate, int configuredLimit) {
+        long resolved = candidate;
+        if (configuredLimit > 0 && (resolved <= 0 || resolved > configuredLimit)) {
+            resolved = configuredLimit;
+        }
+
+        if (resolved <= 0) {
+            return 0;
+        }
+
+        if (resolved > int.MaxValue) {
+            return int.MaxValue;
+        }
+
+        return (int)resolved;
     }
 
     private static NativeCtLogDiagnosticEntry? BuildNativeCtLogDiagnosticEntry(NativeCtLogIngestionStatus status, IReadOnlyList<string> domains) {

@@ -1,6 +1,7 @@
 using System.Management.Automation;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Returns details about a certificate file.</summary>
@@ -33,7 +34,7 @@ namespace DomainDetective.PowerShell {
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
             _analysis = new CertificateAnalysis { SkipRevocation = SkipRevocation };
-            await _analysis.AnalyzeCertificate(new X509Certificate2(Path));
+            await _analysis.AnalyzeCertificate(CertificateLoaderCompat.LoadCertificateFromFile(Path));
             var view = DomainDetective.Views.Converters.Convert(_analysis);
             WriteObject(view);
             if (ShowChain && _analysis.Chain.Count > 0) {

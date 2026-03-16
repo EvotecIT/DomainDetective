@@ -295,7 +295,7 @@ internal static class WizardMode {
                 return 1;
             }
             
-            var cert = new System.Security.Cryptography.X509Certificates.X509Certificate2(filePath);
+            var cert = CertificateLoaderCompat.LoadCertificateFromFile(filePath);
             var certAnalysis = new CertificateAnalysis();
             await certAnalysis.AnalyzeCertificate(cert);
             CliHelpers.ShowPropertiesTable($"Certificate from {filePath}", certAnalysis, false);
