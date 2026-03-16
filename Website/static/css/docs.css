@@ -1,27 +1,150 @@
-/* DomainDetective - Documentation Specific Styles */
+/* DomainDetective - Documentation Styles */
 
-/* Additional docs styles beyond what's in app.css */
+.docs-nav {
+    padding-bottom: 1rem;
+}
+
+.docs-nav-section + .docs-nav-section {
+    padding-top: 0.25rem;
+    border-top: 1px solid rgba(0, 217, 255, 0.06);
+}
+
+/* Docs article tables */
 .docs-article-body table {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 1.5rem;
+    border: 1px solid var(--pf-border);
+    border-radius: var(--pf-radius-sm);
+    overflow: hidden;
 }
+
 .docs-article-body th,
 .docs-article-body td {
-    padding: 0.5rem 0.75rem;
+    padding: 0.625rem 1rem;
     border-bottom: 1px solid var(--pf-border);
     text-align: left;
     font-size: 0.9rem;
 }
+
 .docs-article-body th {
     color: var(--pf-muted);
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(0, 217, 255, 0.04);
 }
+
+.docs-article-body tr:hover td {
+    background: rgba(0, 217, 255, 0.03);
+}
+
+.docs-article-body tr:nth-child(even) td {
+    background: rgba(13, 19, 38, 0.3);
+}
+
+/* Blockquotes */
 .docs-article-body blockquote {
     border-left: 3px solid var(--pf-accent);
-    padding: 0.75rem 1rem;
-    margin: 1rem 0;
-    background: var(--pf-card-bg);
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+    background: rgba(0, 217, 255, 0.04);
     border-radius: 0 var(--pf-radius-sm) var(--pf-radius-sm) 0;
     color: var(--pf-muted);
+}
+
+.docs-article-body blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* Inline code in docs */
+.docs-article-body code {
+    font-size: 0.85em;
+    padding: 0.15em 0.4em;
+    background: rgba(0, 217, 255, 0.08);
+    border: 1px solid rgba(0, 217, 255, 0.15);
+    border-radius: 4px;
+    color: var(--pf-accent);
+}
+
+.docs-article-body pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+}
+
+/* Docs sidebar group styling */
+.docs-toc-nav details {
+    margin-bottom: 0.25rem;
+}
+
+.docs-toc-nav details summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 0.375rem 0.75rem;
+    color: var(--pf-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: var(--pf-radius-sm);
+    transition: color 0.2s, background 0.2s;
+}
+
+.docs-toc-nav details summary::-webkit-details-marker {
+    display: none;
+}
+
+.docs-toc-nav details summary:hover {
+    color: var(--pf-accent);
+    background: rgba(0, 217, 255, 0.06);
+}
+
+.docs-toc-nav details[open] summary {
+    color: var(--pf-ink-strong);
+}
+
+/* Heading anchors */
+.docs-article-body h2,
+.docs-article-body h3,
+.docs-article-body h4 {
+    position: relative;
+}
+
+.docs-article-body h2:hover .heading-anchor,
+.docs-article-body h3:hover .heading-anchor,
+.docs-article-body h4:hover .heading-anchor {
+    opacity: 1;
+}
+
+.heading-anchor {
+    opacity: 0;
+    color: var(--pf-accent);
+    text-decoration: none;
+    margin-left: 0.5rem;
+    font-weight: 400;
+    transition: opacity 0.2s;
+}
+
+/* Alert/callout boxes */
+.docs-article-body .callout {
+    padding: 1rem 1.25rem;
+    border-radius: var(--pf-radius-sm);
+    margin: 1.5rem 0;
+    border-left: 3px solid;
+}
+
+.docs-article-body .callout-info {
+    background: rgba(0, 217, 255, 0.06);
+    border-color: var(--pf-accent);
+}
+
+.docs-article-body .callout-warning {
+    background: rgba(245, 158, 11, 0.06);
+    border-color: var(--pf-warning);
+}
+
+.docs-article-body .callout-danger {
+    background: rgba(239, 68, 68, 0.06);
+    border-color: var(--pf-danger);
 }

@@ -49,3 +49,7 @@ $results = $domains | ForEach-Object {
 }
 $results | Format-Table Domain, SpfAnalysis, DmarcAnalysis
 ```
+
+## API Reference
+
+See the [full PowerShell API reference](/api/powershell/) for generated cmdlet and type documentation.

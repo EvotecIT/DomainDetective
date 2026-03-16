@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Security.Cryptography.X509Certificates;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.CLI;
 
@@ -39,7 +40,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
                 throw new FileNotFoundException("Certificate file not found", settings.Cert.FullName);
             }
             var certAnalysis = new CertificateAnalysis { SkipRevocation = settings.SkipRevocation };
-            await certAnalysis.AnalyzeCertificate(new X509Certificate2(settings.Cert.FullName));
+            await certAnalysis.AnalyzeCertificate(CertificateLoaderCompat.LoadCertificateFromFile(settings.Cert.FullName));
             CliHelpers.ShowPropertiesTable($"Certificate {settings.Cert.FullName}", certAnalysis, settings.Unicode);
             return 0;
         }

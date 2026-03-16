@@ -1,7 +1,7 @@
 [
   { "title": "Getting Started", "href": "/docs/" },
   { "title": "Quick Start", "href": "/docs/quickstart/" },
-  { "title": "C# API", "href": "/docs/csharp-api/" },
+  { "title": "C# API Guide", "href": "/docs/csharp-api/" },
   { "title": "PowerShell Cmdlets", "href": "/docs/powershell-cmdlets/" },
   { "title": "CLI Usage", "href": "/docs/cli-usage/" },
   { "title": "Configuration", "href": "/docs/configuration/" },

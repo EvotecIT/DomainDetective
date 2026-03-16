@@ -6,8 +6,9 @@
   "engine": "scriban",
   "layoutsPath": "layouts",
   "partialsPath": "partials",
+  "scriptsPath": "scripts",
   "defaultLayout": "home",
-  "features": ["docs", "apiDocs", "search", "notFound"],
+  "features": ["docs", "apiDocs", "blog", "search", "notFound"],
   "slots": {
     "header": "header",
     "footer": "footer",
@@ -31,37 +32,41 @@
       "requiredLayouts": ["docs"],
       "requiredPartials": ["header", "footer", "sidebar", "toc", "theme-tokens"]
     },
+    "blog": {
+      "requiredLayouts": ["page"],
+      "requiredPartials": ["header", "footer", "theme-tokens"]
+    },
     "notFound": {
       "requiredSurfaces": ["notFound"]
     }
   },
   "tokens": {
     "color": {
-      "bg": "#0a0e1a",
-      "bgAlt": "#111528",
-      "panel": "#111528",
-      "card": "#141830",
+      "bg": "#060B18",
+      "bgAlt": "#0D1326",
+      "panel": "#0D1326",
+      "card": "#111833",
       "ink": "#e2e8f0",
       "inkStrong": "#FFFFFF",
       "muted": "#94a3b8",
-      "accent": "#14b8a6",
-      "accentLight": "#2dd4bf",
-      "accentDark": "#0d9488",
-      "accent2": "#06b6d4",
-      "border": "#1e293b",
+      "accent": "#00D9FF",
+      "accentLight": "#33E1FF",
+      "accentDark": "#00A8C6",
+      "accent2": "#8B5CF6",
+      "border": "#1a2744",
       "success": "#22c55e",
       "warning": "#f59e0b",
       "danger": "#ef4444",
-      "headerBg": "rgba(10, 14, 26, 0.85)",
-      "cardBg": "rgba(20, 24, 48, 0.6)",
-      "codeBg": "#0c0f1e",
-      "codeBorder": "rgba(30, 41, 59, 0.8)",
-      "glowPrimary": "rgba(20, 184, 166, 0.15)",
-      "glowSecondary": "rgba(6, 182, 212, 0.12)",
-      "buttonPrimaryBg": "#14b8a6",
-      "buttonPrimaryText": "#0a0e1a",
-      "buttonSecondaryBg": "rgba(6, 182, 212, 0.2)",
-      "buttonSecondaryBorder": "rgba(6, 182, 212, 0.5)",
+      "headerBg": "rgba(6, 11, 24, 0.88)",
+      "cardBg": "rgba(17, 24, 51, 0.6)",
+      "codeBg": "#080D1C",
+      "codeBorder": "rgba(26, 39, 68, 0.8)",
+      "glowPrimary": "rgba(0, 217, 255, 0.15)",
+      "glowSecondary": "rgba(139, 92, 246, 0.12)",
+      "buttonPrimaryBg": "#00D9FF",
+      "buttonPrimaryText": "#060B18",
+      "buttonSecondaryBg": "rgba(139, 92, 246, 0.2)",
+      "buttonSecondaryBorder": "rgba(139, 92, 246, 0.5)",
       "buttonGhostBorder": "rgba(148, 163, 184, 0.4)"
     },
     "radius": {
@@ -70,9 +75,9 @@
       "lg": "16px"
     },
     "shadow": {
-      "button": "0 8px 24px rgba(20, 184, 166, 0.15)",
-      "panel": "0 24px 48px rgba(2, 4, 15, 0.45)",
-      "card": "0 12px 28px rgba(2, 4, 15, 0.35)"
+      "button": "0 8px 24px rgba(0, 217, 255, 0.15)",
+      "panel": "0 24px 48px rgba(2, 4, 15, 0.5)",
+      "card": "0 12px 28px rgba(2, 4, 15, 0.4)"
     },
     "layout": {
       "maxWidth": "1200px"

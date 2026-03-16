@@ -1,0 +1,70 @@
+{
+  "hero": {
+    "label": "FAQ",
+    "title": "Frequently Asked Questions",
+    "description": "Common questions about DomainDetective, the website tools, and client-side DNS analysis."
+  },
+  "sections": [
+    {
+      "title": "General",
+      "items": [
+        {
+          "id": "what-is-domaindetective",
+          "question": "What is DomainDetective?",
+          "answer": [
+            "<p>DomainDetective is a comprehensive domain analysis toolkit that performs 115+ protocol checks covering email authentication, DNS security, TLS, HTTP security, threat intelligence, and subdomain discovery. It is available as a C# library, PowerShell module, CLI tool, and online web tools.</p>"
+          ]
+        },
+        {
+          "id": "is-my-data-safe",
+          "question": "Is my data safe when using the online tools?",
+          "answer": [
+            "<p>Yes. All analysis runs entirely client-side in your browser using DNS-over-HTTPS (DoH). No domain data, query results, or analysis output is transmitted to or stored on our servers.</p>"
+          ]
+        },
+        {
+          "id": "what-checks-are-supported",
+          "question": "What protocols and checks are supported?",
+          "answer": [
+            "<p>DomainDetective covers SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DNS records (A, AAAA, MX, NS, SOA, TXT, CNAME, CAA), DNSSEC validation, TLS certificate analysis, DANE/TLSA, HTTP security headers, security.txt, DNSBL, RDAP/WHOIS, dangling CNAME detection, and Certificate Transparency subdomain discovery.</p>"
+          ]
+        },
+        {
+          "id": "can-i-use-it-in-my-app",
+          "question": "Can I use DomainDetective in my own application?",
+          "answer": [
+            "<p>Absolutely. DomainDetective is available as a NuGet package for .NET applications and as a PowerShell module from the PowerShell Gallery. Install it with <code>dotnet add package DomainDetective</code> or <code>Install-Module DomainDetective</code>.</p>"
+          ]
+        },
+        {
+          "id": "is-it-really-free",
+          "question": "Is DomainDetective really free?",
+          "answer": [
+            "<p>Yes. DomainDetective is open source under the MIT license. You can use it freely in personal and commercial projects, inspect the source code, and contribute improvements on GitHub.</p>"
+          ]
+        },
+        {
+          "id": "custom-dns-resolvers",
+          "question": "How do I configure custom DNS resolvers?",
+          "answer": [
+            "<p>You can configure custom DNS resolvers using <code>DomainHealthCheckConfiguration</code>. By default, DomainDetective uses public resolvers such as Cloudflare, Google, and Quad9. See the configuration docs for details.</p>"
+          ]
+        },
+        {
+          "id": "cross-platform-support",
+          "question": "Does it work on Linux and macOS?",
+          "answer": [
+            "<p>Yes. The C# library and CLI tool run on any platform supported by .NET 8+ and .NET 10. The PowerShell module works on both Windows PowerShell 5.1 and PowerShell 7.0+.</p>"
+          ]
+        },
+        {
+          "id": "browser-dns-queries",
+          "question": "How are DNS queries performed in the browser?",
+          "answer": [
+            "<p>The online tools use DNS-over-HTTPS (DoH) to query DNS records directly from your browser. Queries are encrypted and sent straight to public resolvers without a DomainDetective server in the middle.</p>"
+          ]
+        }
+      ]
+    }
+  ]
+}

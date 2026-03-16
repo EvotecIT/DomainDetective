@@ -22,4 +22,7 @@ Welcome to the DomainDetective documentation.
 
 ## API Reference
 
-- [C# API Reference](/api/) - Full API documentation generated from source
+- [C# API Reference](/api/) - Full generated reference for the .NET library
+- [PowerShell API Reference](/api/powershell/) - Full generated reference for the PowerShell module
+- [PowerShell Cmdlets](/docs/powershell-cmdlets/) - Module-focused examples and command usage
+- [CLI Usage](/docs/cli-usage/) - Command-line workflows and batch processing
