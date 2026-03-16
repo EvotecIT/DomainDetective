@@ -1,46 +1,92 @@
-<section class="tools-preview">
+<section class="tools-preview" id="tools">
   <div class="section-inner">
-    <h2>Domain Analysis Tools</h2>
-    <p class="section-desc">Run any check directly in your browser via DNS-over-HTTPS. No installation required.</p>
+    <div class="section-header">
+      <span class="section-eyebrow">Online Tools</span>
+      <h2>Domain Analysis Tools</h2>
+      <p class="section-desc">Run any check directly in your browser via DNS-over-HTTPS. No installation required.</p>
+    </div>
     <div class="tools-grid">
-      <div class="tool-card">
+      <a href="/tools/spf/" class="tool-card tool-card-email">
+        <div class="tool-card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
         <h3>Email Security</h3>
         <ul>
-          <li><a href="/tools/spf/">SPF Lookup</a></li>
-          <li><a href="/tools/dkim/">DKIM Lookup</a></li>
-          <li><a href="/tools/dmarc/">DMARC Lookup</a></li>
-          <li><a href="/tools/mx/">MX Lookup</a></li>
+          <li>SPF Lookup</li>
+          <li>DKIM Lookup</li>
+          <li>DMARC Lookup</li>
+          <li>MX Records</li>
+          <li>MTA-STS</li>
+          <li>TLS-RPT</li>
+          <li>BIMI Lookup</li>
         </ul>
-      </div>
-      <div class="tool-card">
+      </a>
+      <a href="/tools/dns-lookup/" class="tool-card tool-card-dns">
+        <div class="tool-card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
         <h3>DNS</h3>
         <ul>
-          <li><a href="/tools/dns-lookup/">DNS Lookup</a></li>
-          <li><a href="/tools/dnssec/">DNSSEC Check</a></li>
-          <li><a href="/tools/ns/">NS Lookup</a></li>
-          <li><a href="/tools/soa/">SOA Lookup</a></li>
+          <li>DNS Lookup</li>
+          <li>DNSSEC Check</li>
+          <li>NS Lookup</li>
+          <li>SOA Lookup</li>
+          <li>DNS Propagation</li>
         </ul>
-      </div>
-      <div class="tool-card">
+      </a>
+      <a href="/tools/http-headers/" class="tool-card tool-card-web">
+        <div class="tool-card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
         <h3>Web Security</h3>
         <ul>
-          <li><a href="/tools/http-headers/">HTTP Headers</a></li>
-          <li><a href="/tools/security-txt/">Security.txt</a></li>
-          <li><a href="/tools/caa/">CAA Records</a></li>
+          <li>HTTP Headers</li>
+          <li>Security.txt</li>
+          <li>CAA Records</li>
         </ul>
-      </div>
-      <div class="tool-card">
-        <h3>Threat Intel</h3>
+      </a>
+      <a href="/tools/cert-check/" class="tool-card tool-card-tls">
+        <div class="tool-card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3>TLS &amp; Certificates</h3>
         <ul>
-          <li><a href="/tools/dnsbl/">DNSBL Check</a></li>
-          <li><a href="/tools/rdap/">RDAP / WHOIS</a></li>
-          <li><a href="/tools/dangling-cname/">Dangling CNAME</a></li>
-          <li><a href="/tools/ct-subdomains/">CT Subdomains</a></li>
+          <li>Certificate Check</li>
+          <li>CAA Lookup</li>
+          <li>DANE Check</li>
         </ul>
-      </div>
+      </a>
+      <a href="/tools/rdap/" class="tool-card tool-card-reg">
+        <div class="tool-card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <h3>Registration</h3>
+        <ul>
+          <li>RDAP / WHOIS</li>
+        </ul>
+      </a>
+      <a href="/tools/dnsbl/" class="tool-card tool-card-threat">
+        <div class="tool-card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <h3>Threat Intelligence</h3>
+        <ul>
+          <li>DNSBL Check</li>
+          <li>Dangling CNAME</li>
+        </ul>
+      </a>
+      <a href="/tools/ct-subdomains/" class="tool-card tool-card-subdomain">
+        <div class="tool-card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/></svg>
+        </div>
+        <h3>Subdomain Discovery</h3>
+        <ul>
+          <li>CT Subdomain Discovery</li>
+        </ul>
+      </a>
     </div>
-    <p style="text-align:center; margin-top:2rem;">
-      <a href="/tools/" class="dd-button dd-button-secondary">View All Tools</a>
+    <p class="tools-preview-cta">
+      <a href="/tools/" class="dd-button dd-button-ghost">View All 20+ Tools</a>
     </p>
   </div>
 </section>

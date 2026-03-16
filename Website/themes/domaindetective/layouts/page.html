@@ -21,16 +21,74 @@
   {{ include "header" }}
   <main class="dd-main">
     <div class="dd-container">
-      <article class="dd-article">
+      <article class="dd-article" data-collection="{{ page.collection }}" data-kind="{{ page.kind }}">
+        {{ if page.collection == "blog" && page.kind == "Page" }}
+        <nav class="dd-blog-breadcrumbs" aria-label="Blog breadcrumb">
+          <a class="dd-blog-breadcrumb-link" href="/blog/">Back to Blog</a>
+        </nav>
+        {{ end }}
         <header class="dd-article-header">
           <h1>{{ page.title }}</h1>
           {{ if page.description }}
           <p class="dd-article-desc">{{ page.description }}</p>
           {{ end }}
+          {{ if page.collection == "blog" && page.kind == "Page" && page.date }}
+          <div class="dd-article-meta">
+            <time datetime="{{ page.date }}">{{ page.date }}</time>
+            {{ if page.meta && page.meta.categories && page.meta.categories.size > 0 }}
+            <span class="dd-article-category">{{ page.meta.categories[0] }}</span>
+            {{ end }}
+          </div>
+          {{ end }}
         </header>
         <div class="dd-article-body">
 {{ content }}
         </div>
+        {{ if items && items.size > 0 }}
+        {{ if page.collection == "blog" && page.kind == "Section" }}
+        {{ pf.editorial_cards 0 160 true true true true "16/9" "" "featured" "dd-editorial-list dd-editorial-list-blog" "dd-editorial-card dd-editorial-card-blog" }}
+        {{ pf.editorial_pager "Newer posts" "Older posts" "dd-editorial-pager dd-editorial-pager-blog" }}
+        {{ else }}
+        <section class="dd-editorial-list" aria-label="Content entries">
+          {{ for item in items }}
+          <article class="dd-editorial-card">
+            {{ if item.meta && item.meta.image }}
+            <a class="dd-editorial-media-link" href="{{ item.output_path }}" aria-label="Read {{ item.title }}">
+              <img class="dd-editorial-media" src="{{ item.meta.image }}" alt="{{ item.title }}" loading="lazy" decoding="async" />
+            </a>
+            {{ end }}
+            <h2 class="dd-editorial-title"><a href="{{ item.output_path }}">{{ item.title }}</a></h2>
+            <p class="dd-editorial-meta">
+              {{ if item.date }}<time datetime="{{ item.date }}">{{ item.date }}</time>{{ end }}
+              {{ if item.meta && item.meta.categories && item.meta.categories.size > 0 }}<span>{{ item.meta.categories[0] }}</span>{{ end }}
+            </p>
+            {{ if item.description }}
+            <p class="dd-editorial-summary">{{ item.description }}</p>
+            {{ end }}
+          </article>
+          {{ end }}
+        </section>
+        {{ if pagination && (pagination.prev_url || pagination.next_url) }}
+        <nav class="dd-editorial-pager" aria-label="Pagination">
+          {{ if pagination.prev_url }}
+          <a class="dd-editorial-pager-link" href="{{ pagination.prev_url }}">Newer posts</a>
+          {{ else }}
+          <span class="dd-editorial-pager-link is-disabled">Newer posts</span>
+          {{ end }}
+          {{ if pagination.next_url }}
+          <a class="dd-editorial-pager-link" href="{{ pagination.next_url }}">Older posts</a>
+          {{ else }}
+          <span class="dd-editorial-pager-link is-disabled">Older posts</span>
+          {{ end }}
+        </nav>
+        {{ end }}
+        {{ end }}
+        {{ end }}
+        {{ if page.collection == "blog" && page.kind == "Page" }}
+        <section class="dd-blog-post-nav" aria-label="More blog posts">
+          <a class="dd-editorial-pager-link" href="/blog/">Back to Blog</a>
+        </section>
+        {{ end }}
       </article>
     </div>
   </main>

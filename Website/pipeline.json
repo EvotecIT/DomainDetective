@@ -41,6 +41,15 @@
       "skipIfProjectMissing": true
     },
     {
+      "task": "dotnet-build",
+      "id": "build-powershell",
+      "dependsOn": "verify-site",
+      "project": "../DomainDetective.PowerShell/DomainDetective.PowerShell.csproj",
+      "framework": "net8.0",
+      "configuration": "Release",
+      "skipIfProjectMissing": true
+    },
+    {
       "task": "dotnet-publish",
       "id": "publish-toolbox",
       "dependsOn": "build-library",
@@ -52,7 +61,7 @@
     },
     {
       "task": "apidocs",
-      "id": "build-apidocs",
+      "id": "build-apidocs-csharp",
       "dependsOn": "build-library",
       "config": "./site.json",
       "xml": "../DomainDetective/bin/Release/net10.0/DomainDetective.xml",
@@ -75,12 +84,34 @@
       "coveragePreviewCount": 10
     },
     {
+      "task": "apidocs",
+      "id": "build-apidocs-powershell",
+      "dependsOn": "build-powershell",
+      "config": "./site.json",
+      "xml": "../DomainDetective.PowerShell/bin/Release/net8.0/DomainDetective.PowerShell.xml",
+      "assembly": "../DomainDetective.PowerShell/bin/Release/net8.0/DomainDetective.PowerShell.dll",
+      "out": "./_site/api/powershell",
+      "title": "DomainDetective PowerShell API Reference",
+      "baseUrl": "/api/powershell",
+      "format": "both",
+      "css": "/css/app.css,/css/api.css",
+      "template": "docs",
+      "injectCriticalCss": true,
+      "nav": "./site.json",
+      "navContextPath": "/",
+      "sourceRoot": "..",
+      "sourceUrl": "https://github.com/EvotecIT/DomainDetective/blob/master/{path}#L{line}",
+      "includeNamespace": "DomainDetective.PowerShell",
+      "socialAutoGenerate": false
+    },
+    {
       "task": "xref-merge",
       "id": "merge-xref",
-      "dependsOn": "build-apidocs",
+      "dependsOn": ["build-apidocs-csharp", "build-apidocs-powershell"],
       "out": "./data/xrefmap.json",
       "mapFiles": [
-        "./_site/api/xrefmap.json"
+        "./_site/api/xrefmap.json",
+        "./_site/api/powershell/xrefmap.json"
       ],
       "preferLast": true,
       "maxReferences": 50000,

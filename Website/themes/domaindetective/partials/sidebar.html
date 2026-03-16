@@ -1,5 +1,48 @@
-{{ if toc_tree }}
-<nav class="docs-toc-nav" aria-label="Documentation navigation">
-  {{ pf.toc_tree toc_tree }}
+{{~ current_path = page.output_path | string.replace "\\" "/" ~}}
+{{~ current_url = "/" + (current_path | string.replace "index.html" "") ~}}
+{{~ if current_url == "//" ~}}{{~ current_url = "/" ~}}{{~ end ~}}
+{{~ docs_surface = null ~}}
+{{~ if navigation.surfaces && navigation.surfaces.size > 0 ~}}
+  {{~ for surface in navigation.surfaces ~}}
+    {{~ if surface.name == "docs" ~}}
+      {{~ docs_surface = surface ~}}
+    {{~ end ~}}
+  {{~ end ~}}
+{{~ end ~}}
+<nav class="docs-nav" aria-label="Documentation navigation">
+  {{ if docs_surface && docs_surface.sidebar && docs_surface.sidebar.items && docs_surface.sidebar.items.size > 0 }}
+  <div class="docs-nav-section">
+    <div class="docs-nav-title">Documentation</div>
+    {{ for link in docs_surface.sidebar.items }}
+      {{ if link.url }}
+        {{~ link_active = current_url == link.url || (link.url != "/" && (current_url | string.starts_with link.url)) ~}}
+        <a href="{{ link.url }}"{{ if link_active }} class="active"{{ end }}>{{ link.title }}</a>
+        {{ if link.items && link.items.size > 0 }}
+        <div class="docs-nav-children">
+          {{ for child in link.items }}
+            {{ if child.url }}
+              {{~ child_active = current_url == child.url || (child.url != "/" && (current_url | string.starts_with child.url)) ~}}
+              <a href="{{ child.url }}"{{ if child_active }} class="active"{{ end }}>{{ child.title }}</a>
+            {{ end }}
+          {{ end }}
+        </div>
+        {{ end }}
+      {{ end }}
+    {{ end }}
+  </div>
+  {{ end }}
+
+  <div class="docs-nav-section">
+    <div class="docs-nav-title">API Reference</div>
+    <a href="/api/"{{ if current_url == "/api/" || (current_url | string.starts_with "/api/") && !(current_url | string.starts_with "/api/powershell/") }} class="active"{{ end }}>C# API Reference</a>
+    <a href="/api/powershell/"{{ if current_url == "/api/powershell/" || (current_url | string.starts_with "/api/powershell/") }} class="active"{{ end }}>PowerShell API Reference</a>
+  </div>
+
+  <div class="docs-nav-section">
+    <div class="docs-nav-title">Resources</div>
+    <a href="/downloads/">Downloads</a>
+    <a href="/blog/">Blog</a>
+    <a href="/faq/">FAQ</a>
+    <a href="https://github.com/EvotecIT/DomainDetective" target="_blank" rel="noopener">Project Repository</a>
+  </div>
 </nav>
-{{ end }}

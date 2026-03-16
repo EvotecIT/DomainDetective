@@ -32,4 +32,4 @@ The documentation and marketing pages are static HTML served via GitHub Pages. N
 
 ### Contact
 
-For privacy questions, open an issue on [GitHub](https://github.com/EvotecIT/DomainDetective/issues).
+For privacy questions, open an issue on [GitHub Issues](https://github.com/EvotecIT/DomainDetective/issues).
