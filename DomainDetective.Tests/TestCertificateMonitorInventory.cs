@@ -82,7 +82,8 @@ namespace DomainDetective.Tests {
                             EnableCensysCtSource = true,
                             CensysApiId = "id",
                             CensysApiSecret = "secret",
-                            CensysCtApiUrlTemplate = string.Empty
+                            CensysCtApiUrlTemplate = string.Empty,
+                            CtLogQueryOverride = _ => Task.FromResult("[]")
                         };
                         analysis.CtLogApiTemplates.Clear();
                         await analysis.AnalyzeCertificate(cert, cancellationToken);
