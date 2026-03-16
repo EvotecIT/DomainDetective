@@ -73,38 +73,96 @@ jobs:
         if: matrix.framework == 'net8.0'
         shell: pwsh
         run: |
-          $args = @(
-            "build",
-            "DomainDetective.sln",
-            "--configuration", "${{ env.BUILD_CONFIGURATION }}",
-            "--framework", "${{ matrix.framework }}",
-            "--no-restore",
-            "-m:1",
-            "-p:UseSharedCompilation=false"
-          )
+          function Get-ProjectFrameworks {
+            param(
+              [Parameter(Mandatory)]
+              [string] $ProjectPath
+            )
 
-          dotnet @args 2>&1 | Tee-Object -Variable buildOutput
-          $exitCode = $LASTEXITCODE
+            [xml] $projectXml = Get-Content -Raw -Path $ProjectPath
+            [string[]] $frameworks = @()
 
-          if ($exitCode -ne 0) {
-            $text = $buildOutput -join "`n"
-            $isTransientCliLock = ($text -match "GenerateRuntimeConfigurationFiles" -or $text -match "CS2012") -and
-                                  $text -match "DomainDetective\\.CLI" -and
-                                  $text -match "being used by another process"
+            foreach ($propertyGroup in $projectXml.Project.PropertyGroup) {
+              if ($propertyGroup.TargetFramework) {
+                $frameworks += [string] $propertyGroup.TargetFramework
+              }
 
-            if ($isTransientCliLock) {
-              Write-Host "Detected transient DomainDetective.CLI file lock. Retrying..."
-
-              Get-Process -Name VBCSCompiler -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-              Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "obj") -ErrorAction SilentlyContinue
-              Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "bin") -ErrorAction SilentlyContinue
-
-              Start-Sleep -Seconds 2
-              dotnet build DomainDetective.sln --configuration "${{ env.BUILD_CONFIGURATION }}" --framework "${{ matrix.framework }}" --no-restore -m:1 -p:UseSharedCompilation=false
-              exit $LASTEXITCODE
+              if ($propertyGroup.TargetFrameworks) {
+                $frameworks += ([string] $propertyGroup.TargetFrameworks).Split(';', [System.StringSplitOptions]::RemoveEmptyEntries)
+              }
             }
 
-            exit $exitCode
+            $frameworks |
+              Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+              Select-Object -Unique
+          }
+
+          function Invoke-FrameworkBuild {
+            param(
+              [Parameter(Mandatory)]
+              [string] $ProjectPath,
+              [Parameter(Mandatory)]
+              [string] $Framework
+            )
+
+            $args = @(
+              "build",
+              $ProjectPath,
+              "--configuration", "${{ env.BUILD_CONFIGURATION }}",
+              "--framework", $Framework,
+              "--no-restore",
+              "-m:1",
+              "-p:UseSharedCompilation=false"
+            )
+
+            dotnet @args 2>&1 | Tee-Object -Variable buildOutput
+            $exitCode = $LASTEXITCODE
+
+            if ($exitCode -eq 0) {
+              return
+            }
+
+            $text = $buildOutput -join "`n"
+            $isTransientCliLock = ($text -match "GenerateRuntimeConfigurationFiles" -or $text -match "CS2012") -and
+                                  $ProjectPath -match "DomainDetective\.CLI" -and
+                                  $text -match "being used by another process"
+
+            if (-not $isTransientCliLock) {
+              exit $exitCode
+            }
+
+            Write-Host "Detected transient DomainDetective.CLI file lock while building $ProjectPath. Retrying..."
+
+            Get-Process -Name VBCSCompiler -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "obj") -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "bin") -ErrorAction SilentlyContinue
+
+            Start-Sleep -Seconds 2
+            dotnet build $ProjectPath --configuration "${{ env.BUILD_CONFIGURATION }}" --framework $Framework --no-restore -m:1 -p:UseSharedCompilation=false
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+
+          $projects = Get-ChildItem -Recurse -Filter *.csproj -File |
+            Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } |
+            ForEach-Object {
+              [pscustomobject] @{
+                Path = $_.FullName
+                Frameworks = @(Get-ProjectFrameworks -ProjectPath $_.FullName)
+              }
+            } |
+            Where-Object { $_.Frameworks -contains "${{ matrix.framework }}" } |
+            Sort-Object Path
+
+          if ($projects.Count -eq 0) {
+            Write-Error "No projects supporting framework ${{ matrix.framework }} were found."
+            exit 1
+          }
+
+          foreach ($project in $projects) {
+            Write-Host "Building $($project.Path) for ${{ matrix.framework }}"
+            Invoke-FrameworkBuild -ProjectPath $project.Path -Framework "${{ matrix.framework }}"
           }
 
       - name: Build tests (net472)
