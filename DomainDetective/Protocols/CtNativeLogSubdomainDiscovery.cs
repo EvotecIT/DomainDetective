@@ -262,7 +262,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     break;
                 }
             } catch (Exception ex) {
-                (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex.Message, options, logDescriptor);
+                (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex, options, logDescriptor);
                 cursor.RecordFailure(
                     key,
                     DateTimeOffset.UtcNow,
@@ -461,7 +461,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     break;
                 }
             } catch (Exception ex) {
-                (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex.Message, options, logDescriptor);
+                (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex, options, logDescriptor);
                 cursor.RecordFailure(
                     key,
                     DateTimeOffset.UtcNow,
@@ -528,7 +528,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 sourceOrder).ConfigureAwait(false);
         }
 
-        return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
+        var resolvedDescriptors = descriptors.Values.ToList();
+        var eligibleDescriptors = FilterLogsForCurrentQuery(resolvedDescriptors, DateTimeOffset.UtcNow);
+        return ApplyLogCap(eligibleDescriptors, options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
     }
 
     private async Task<int> PopulateDescriptorsFromLogListAsync(
@@ -690,6 +692,28 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         return selected;
+    }
+
+    private static IReadOnlyList<ResolvedCtLogDescriptor> FilterLogsForCurrentQuery(
+        IReadOnlyList<ResolvedCtLogDescriptor> logs,
+        DateTimeOffset observedUtc) {
+        if (logs == null || logs.Count == 0) {
+            return Array.Empty<ResolvedCtLogDescriptor>();
+        }
+
+        var eligible = logs
+            .Where(log => log != null && !IsFutureLog(log, observedUtc))
+            .ToList();
+
+        return eligible.Count > 0 ? eligible : logs;
+    }
+
+    private static bool IsFutureLog(ResolvedCtLogDescriptor log, DateTimeOffset observedUtc) {
+        if (log == null || !log.TemporalStartUtc.HasValue) {
+            return false;
+        }
+
+        return log.TemporalStartUtc.Value > observedUtc;
     }
 
     private static IReadOnlyList<ResolvedCtLogDescriptor> ApplyLogCapWithoutRetiredBias(
@@ -977,25 +1001,38 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
     }
 
     private static (int FailureThreshold, TimeSpan CircuitDuration) ResolveCircuitBreakerPolicy(
-        string? errorMessage,
+        Exception exception,
         NativeCtLogSubdomainDiscoveryOptions options,
         ResolvedCtLogDescriptor logDescriptor) {
         int defaultThreshold = Math.Max(1, options.CircuitBreakerFailureThreshold);
         TimeSpan defaultDuration = options.CircuitBreakerDuration <= TimeSpan.Zero
             ? TimeSpan.FromMinutes(10)
             : options.CircuitBreakerDuration;
-        if (!IsNameResolutionFailure(errorMessage)) {
-            return (defaultThreshold, defaultDuration);
+        string? errorMessage = exception?.Message;
+        bool retiredLog = logDescriptor != null && logDescriptor.IsRetired;
+        if (IsNameResolutionFailure(errorMessage)) {
+            TimeSpan resolutionFailureDuration = retiredLog
+                ? TimeSpan.FromHours(24)
+                : TimeSpan.FromHours(6);
+            if (resolutionFailureDuration < defaultDuration) {
+                resolutionFailureDuration = defaultDuration;
+            }
+
+            return (1, resolutionFailureDuration);
         }
 
-        TimeSpan resolutionFailureDuration = logDescriptor != null && logDescriptor.IsRetired
-            ? TimeSpan.FromHours(24)
-            : TimeSpan.FromHours(6);
-        if (resolutionFailureDuration < defaultDuration) {
-            resolutionFailureDuration = defaultDuration;
+        if (IsPermanentHttpLogFailure(exception)) {
+            TimeSpan permanentFailureDuration = retiredLog
+                ? TimeSpan.FromHours(24)
+                : TimeSpan.FromHours(6);
+            if (permanentFailureDuration < defaultDuration) {
+                permanentFailureDuration = defaultDuration;
+            }
+
+            return (1, permanentFailureDuration);
         }
 
-        return (1, resolutionFailureDuration);
+        return (defaultThreshold, defaultDuration);
     }
 
     internal static bool IsNameResolutionFailure(string? errorMessage) {
@@ -1005,6 +1042,27 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
         return errorMessage.Contains("No such host is known", StringComparison.OrdinalIgnoreCase) ||
                errorMessage.Contains("no data of the requested type was found", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsPermanentHttpLogFailure(Exception? exception) {
+        if (exception == null) {
+            return false;
+        }
+
+        if (exception is HttpRequestException httpRequestException) {
+            int? statusCode = TryGetHttpStatusCode(httpRequestException);
+            if (statusCode == 404 || statusCode == 410) {
+                return true;
+            }
+        }
+
+        string? message = exception.Message;
+        if (string.IsNullOrWhiteSpace(message)) {
+            return false;
+        }
+
+        return message.Contains("Response status code does not indicate success: 404", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Response status code does not indicate success: 410", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? NormalizeLogUrl(string? rawUrl) {

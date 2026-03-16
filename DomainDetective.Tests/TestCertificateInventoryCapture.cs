@@ -280,6 +280,26 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public void ComputeNativeSharedMaxRows_UsesConfiguredAggregateLimitInsteadOfHardcodedClamp() {
+        int effective = CertificateInventoryCapture.ComputeNativeSharedMaxRows(
+            domainCount: 25,
+            maxCtRowsPerDomain: 150_000,
+            nativeCtSharedMaxRowsTotal: 3_000_000);
+
+        Assert.Equal(3_000_000, effective);
+    }
+
+    [Fact]
+    public void ComputeNativeSharedMaxSubdomains_UsesConfiguredAggregateLimitInsteadOfHardcodedClamp() {
+        int effective = CertificateInventoryCapture.ComputeNativeSharedMaxSubdomains(
+            domainCount: 300,
+            maxCtSubdomainsPerDomain: 5_000,
+            nativeCtSharedMaxSubdomainsTotal: 2_000_000);
+
+        Assert.Equal(1_500_000, effective);
+    }
+
+    [Fact]
     public async Task CaptureAsync_PrioritizesExpiringTargets_WhenApplyingMaxTargetsLimit() {
         var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-priority-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(cacheDirectory);
