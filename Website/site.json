@@ -44,6 +44,20 @@
       "EditorialCardImageFit": "cover"
     }
   ],
+  "Taxonomies": [
+    {
+      "Name": "tags",
+      "BasePath": "/tags",
+      "ListLayout": "page",
+      "TermLayout": "page"
+    },
+    {
+      "Name": "categories",
+      "BasePath": "/categories",
+      "ListLayout": "page",
+      "TermLayout": "page"
+    }
+  ],
   "Head": {
     "Links": [
       { "Rel": "icon", "Href": "/favicon.svg", "Type": "image/svg+xml" },

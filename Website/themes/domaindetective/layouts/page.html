@@ -21,7 +21,7 @@
   {{ include "header" }}
   <main class="dd-main">
     <div class="dd-container">
-      <article class="dd-article" data-collection="{{ page.collection }}" data-kind="{{ page.kind }}">
+      <article class="dd-article" data-collection="{{ page.collection }}" data-kind="{{ page.kind }}" data-route="{{ page.output_path }}">
         {{ if page.collection == "blog" && page.kind == "Page" }}
         <nav class="dd-blog-breadcrumbs" aria-label="Blog breadcrumb">
           <a class="dd-blog-breadcrumb-link" href="/blog/">Back to Blog</a>
@@ -46,8 +46,46 @@
         </div>
         {{ if items && items.size > 0 }}
         {{ if page.collection == "blog" && page.kind == "Section" }}
-        {{ pf.editorial_cards 0 160 true true true true "16/9" "" "featured" "dd-editorial-list dd-editorial-list-blog" "dd-editorial-card dd-editorial-card-blog" }}
-        {{ pf.editorial_pager "Newer posts" "Older posts" "dd-editorial-pager dd-editorial-pager-blog" }}
+        <section class="dd-editorial-list dd-editorial-list-blog" aria-label="Blog entries">
+          {{ for item in items }}
+          <article class="dd-editorial-card dd-editorial-card-blog">
+            {{ if item.meta && item.meta.image }}
+            <a class="dd-editorial-media-link" href="{{ item.output_path }}" aria-label="Read {{ item.title }}">
+              <img class="dd-editorial-media" src="{{ item.meta.image }}" alt="{{ item.title }}" loading="lazy" decoding="async" />
+            </a>
+            {{ end }}
+            <p class="dd-editorial-meta">
+              {{ if item.date }}<time datetime="{{ item.date }}">{{ item.date }}</time>{{ end }}
+              {{ if item.meta && item.meta.categories && item.meta.categories.size > 0 }}<span>{{ item.meta.categories[0] }}</span>{{ end }}
+            </p>
+            <h2 class="dd-editorial-title"><a href="{{ item.output_path }}">{{ item.title }}</a></h2>
+            {{ if item.description }}
+            <p class="dd-editorial-summary">{{ item.description }}</p>
+            {{ end }}
+            {{ if item.meta && item.meta.tags && item.meta.tags.size > 0 }}
+            <div class="dd-editorial-tags" aria-label="Tags">
+              {{ for tag in item.meta.tags }}
+              <span class="tag">{{ tag }}</span>
+              {{ end }}
+            </div>
+            {{ end }}
+          </article>
+          {{ end }}
+        </section>
+        {{ if pagination && (pagination.prev_url || pagination.next_url) }}
+        <nav class="dd-editorial-pager dd-editorial-pager-blog" aria-label="Pagination">
+          {{ if pagination.prev_url && pagination.prev_url != "" }}
+          <a class="dd-editorial-pager-link" href="{{ pagination.prev_url }}">Newer posts</a>
+          {{ else }}
+          <span class="dd-editorial-pager-link is-disabled">Newer posts</span>
+          {{ end }}
+          {{ if pagination.next_url && pagination.next_url != "" }}
+          <a class="dd-editorial-pager-link" href="{{ pagination.next_url }}">Older posts</a>
+          {{ else }}
+          <span class="dd-editorial-pager-link is-disabled">Older posts</span>
+          {{ end }}
+        </nav>
+        {{ end }}
         {{ else }}
         <section class="dd-editorial-list" aria-label="Content entries">
           {{ for item in items }}
@@ -70,12 +108,12 @@
         </section>
         {{ if pagination && (pagination.prev_url || pagination.next_url) }}
         <nav class="dd-editorial-pager" aria-label="Pagination">
-          {{ if pagination.prev_url }}
+          {{ if pagination.prev_url && pagination.prev_url != "" }}
           <a class="dd-editorial-pager-link" href="{{ pagination.prev_url }}">Newer posts</a>
           {{ else }}
           <span class="dd-editorial-pager-link is-disabled">Newer posts</span>
           {{ end }}
-          {{ if pagination.next_url }}
+          {{ if pagination.next_url && pagination.next_url != "" }}
           <a class="dd-editorial-pager-link" href="{{ pagination.next_url }}">Older posts</a>
           {{ else }}
           <span class="dd-editorial-pager-link is-disabled">Older posts</span>
@@ -86,7 +124,11 @@
         {{ end }}
         {{ if page.collection == "blog" && page.kind == "Page" }}
         <section class="dd-blog-post-nav" aria-label="More blog posts">
-          <a class="dd-editorial-pager-link" href="/blog/">Back to Blog</a>
+          <div class="dd-blog-post-nav-actions">
+            <a class="dd-editorial-pager-link" href="/blog/">Back to Blog Index</a>
+          </div>
+          <h2 class="dd-blog-post-nav-title">Continue Reading</h2>
+          <p class="dd-blog-post-nav-desc">More practical walkthroughs, release notes, and domain security guidance from Domain Detective.</p>
         </section>
         {{ end }}
       </article>

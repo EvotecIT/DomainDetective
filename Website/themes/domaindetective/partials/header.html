@@ -1,6 +1,7 @@
 {{~ current_output = page.output_path | string.replace "\\" "/" ~}}
-{{~ current_url = "/" + (current_output | string.replace "index.html" "") ~}}
-{{~ if current_url == "//" ~}}{{~ current_url = "/" ~}}{{~ end ~}}
+{{~ current_url = current_output | string.replace "index.html" "" ~}}
+{{~ if current_url == "" ~}}{{~ current_url = "/" ~}}{{~ end ~}}
+{{~ if !(current_url | string.starts_with "/") ~}}{{~ current_url = "/" + current_url ~}}{{~ end ~}}
 <header class="dd-header">
   <div class="dd-header-inner">
     <a href="/" class="dd-brand">
