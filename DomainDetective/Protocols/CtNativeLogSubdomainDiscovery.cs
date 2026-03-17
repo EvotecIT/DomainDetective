@@ -24,6 +24,8 @@ internal sealed class NativeCtLogSubdomainDiscoveryOptions {
     public int MaxSubdomains { get; set; } = 10000;
     public string LogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
     public IReadOnlyList<string> ExplicitLogUrls { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> PreferredLogUrlPrefixes { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> ExcludedLogUrlPrefixes { get; set; } = Array.Empty<string>();
     public int MaxLogsToProcess { get; set; } = 12;
     public int MaxEntriesPerLog { get; set; } = 2000;
     public int EntryBatchSize { get; set; } = 256;
@@ -128,17 +130,22 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
         var result = new NativeCtLogSubdomainDiscoveryResult();
         var baseDomain = DomainHelper.ValidateIdn(options.BaseDomain);
-        var logDescriptors = await ResolveLogUrlsAsync(options, cancellationToken).ConfigureAwait(false);
+        var logDescriptors = await ResolveLogUrlsAsync(options, cancellationToken, applyCap: false).ConfigureAwait(false);
         if (logDescriptors.Count == 0) {
             result.Warnings.Add("Native CT: no log URLs resolved.");
             return result;
         }
 
         var cursor = NativeCtCursorState.Load(options.CursorStatePath);
+        logDescriptors = PrioritizeLogDescriptorsByHealth(logDescriptors, cursor, options, DateTimeOffset.UtcNow);
         var stoppedAfterMatchedObservationTarget = false;
+        var consumedLogBudget = 0;
         foreach (var logDescriptor in logDescriptors) {
             var logUrl = logDescriptor.Url;
             cancellationToken.ThrowIfCancellationRequested();
+            if (HasConsumedLogBudget(options.MaxLogsToProcess, consumedLogBudget)) {
+                break;
+            }
             result.LogsAttempted++;
             var key = NativeCtCursorState.BuildKey(baseDomain, logUrl);
             var logHealthKey = NativeCtCursorState.BuildLogHealthKey(logUrl);
@@ -159,6 +166,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     continue;
                 }
 
+                consumedLogBudget++;
                 var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
                 status.TreeSize = sth.TreeSize;
                 result.LogsSucceeded++;
@@ -329,17 +337,22 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             result.SubdomainsByDomain[domain] = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
         }
 
-        var logDescriptors = await ResolveLogUrlsAsync(options, cancellationToken).ConfigureAwait(false);
+        var logDescriptors = await ResolveLogUrlsAsync(options, cancellationToken, applyCap: false).ConfigureAwait(false);
         if (logDescriptors.Count == 0) {
             result.Warnings.Add("Native CT: no log URLs resolved.");
             return result;
         }
 
         var cursor = NativeCtCursorState.Load(options.CursorStatePath);
+        logDescriptors = PrioritizeLogDescriptorsByHealth(logDescriptors, cursor, options, DateTimeOffset.UtcNow);
         var stoppedAfterMatchedObservationTarget = false;
+        var consumedLogBudget = 0;
         foreach (var logDescriptor in logDescriptors) {
             var logUrl = logDescriptor.Url;
             cancellationToken.ThrowIfCancellationRequested();
+            if (HasConsumedLogBudget(options.MaxLogsToProcess, consumedLogBudget)) {
+                break;
+            }
             result.LogsAttempted++;
             var key = NativeCtCursorState.BuildSharedKey(logUrl, normalizedDomains);
             var logHealthKey = NativeCtCursorState.BuildLogHealthKey(logUrl);
@@ -359,6 +372,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     continue;
                 }
 
+                consumedLogBudget++;
                 var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
                 status.TreeSize = sth.TreeSize;
                 result.LogsSucceeded++;
@@ -496,17 +510,24 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         return result;
     }
 
-    private async Task<IReadOnlyList<ResolvedCtLogDescriptor>> ResolveLogUrlsAsync(NativeCtLogSubdomainDiscoveryOptions options, CancellationToken cancellationToken) {
+    private async Task<IReadOnlyList<ResolvedCtLogDescriptor>> ResolveLogUrlsAsync(
+        NativeCtLogSubdomainDiscoveryOptions options,
+        CancellationToken cancellationToken,
+        bool applyCap) {
         var descriptors = new Dictionary<string, ResolvedCtLogDescriptor>(StringComparer.OrdinalIgnoreCase);
         var sourceOrder = 0;
         if (options.ExplicitLogUrls != null && options.ExplicitLogUrls.Count > 0) {
+            IReadOnlyList<ResolvedCtLogDescriptor> explicitDescriptors = descriptors.Values.ToList();
             foreach (var raw in options.ExplicitLogUrls) {
                 var normalized = NormalizeLogUrl(raw);
                 if (normalized != null) {
                     AddResolvedLogDescriptor(descriptors, normalized, null, null, isRetired: false, sourceOrder++);
                 }
             }
-            return ApplyLogCap(descriptors.Values.ToList(), options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
+            explicitDescriptors = ApplyLogSelectionPolicy(descriptors.Values.ToList(), options);
+            return applyCap
+                ? ApplyLogCap(explicitDescriptors, options.MaxLogsToProcess, options.PrioritizeLatestExactMatch)
+                : BuildExtendedProcessingOrder(explicitDescriptors, options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
         }
 
         if (string.IsNullOrWhiteSpace(options.LogListUrl)) {
@@ -529,8 +550,171 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         var resolvedDescriptors = descriptors.Values.ToList();
-        var eligibleDescriptors = FilterLogsForCurrentQuery(resolvedDescriptors, DateTimeOffset.UtcNow);
-        return ApplyLogCap(eligibleDescriptors, options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
+        var eligibleDescriptors = ApplyLogSelectionPolicy(
+            FilterLogsForCurrentQuery(resolvedDescriptors, DateTimeOffset.UtcNow),
+            options);
+        return applyCap
+            ? ApplyLogCap(eligibleDescriptors, options.MaxLogsToProcess, options.PrioritizeLatestExactMatch)
+            : BuildExtendedProcessingOrder(eligibleDescriptors, options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
+    }
+
+    private static bool HasConsumedLogBudget(int maxLogsToProcess, int consumedLogBudget) {
+        return maxLogsToProcess > 0 && consumedLogBudget >= maxLogsToProcess;
+    }
+
+    private static IReadOnlyList<ResolvedCtLogDescriptor> PrioritizeLogDescriptorsByHealth(
+        IReadOnlyList<ResolvedCtLogDescriptor> logDescriptors,
+        NativeCtCursorState cursor,
+        NativeCtLogSubdomainDiscoveryOptions options,
+        DateTimeOffset observedUtc) {
+        if (logDescriptors == null || logDescriptors.Count <= 1 || cursor == null || options == null || options.MaxLogsToProcess <= 0) {
+            return logDescriptors ?? Array.Empty<ResolvedCtLogDescriptor>();
+        }
+
+        var preferredPrefixes = NormalizeLogUrlPrefixes(options.PreferredLogUrlPrefixes);
+        int selectedCount = Math.Min(options.MaxLogsToProcess, logDescriptors.Count);
+        return logDescriptors
+            .Select((descriptor, index) => new {
+                Descriptor = descriptor,
+                Index = index,
+                SelectedBoost = index < selectedCount ? 0 : 1,
+                HealthPriority = ClassifyLogHealthPriority(cursor, descriptor.Url, observedUtc),
+                PolicyPriority = preferredPrefixes.Count > 0 && MatchesAnyPrefix(descriptor.Url, preferredPrefixes) ? 0 : 1,
+                LastSuccessUtc = GetLastSuccessUtc(cursor, descriptor.Url),
+                CircuitOpenUntilUtc = GetCircuitOpenUntilUtc(cursor, descriptor.Url)
+            })
+            .OrderBy(static row => row.HealthPriority)
+            .ThenBy(static row => row.PolicyPriority)
+            .ThenBy(static row => row.SelectedBoost)
+            .ThenByDescending(static row => row.LastSuccessUtc ?? DateTimeOffset.MinValue)
+            .ThenBy(static row => row.CircuitOpenUntilUtc ?? DateTimeOffset.MaxValue)
+            .ThenBy(static row => row.Index)
+            .Select(static row => row.Descriptor)
+            .ToList();
+    }
+
+    private static IReadOnlyList<ResolvedCtLogDescriptor> ApplyLogSelectionPolicy(
+        IReadOnlyList<ResolvedCtLogDescriptor> logDescriptors,
+        NativeCtLogSubdomainDiscoveryOptions options) {
+        if (logDescriptors == null || logDescriptors.Count == 0) {
+            return Array.Empty<ResolvedCtLogDescriptor>();
+        }
+
+        var excludedPrefixes = NormalizeLogUrlPrefixes(options.ExcludedLogUrlPrefixes);
+        var preferredPrefixes = NormalizeLogUrlPrefixes(options.PreferredLogUrlPrefixes);
+
+        IEnumerable<ResolvedCtLogDescriptor> filtered = logDescriptors;
+        if (excludedPrefixes.Count > 0) {
+            filtered = filtered.Where(descriptor => !MatchesAnyPrefix(descriptor.Url, excludedPrefixes));
+        }
+
+        return filtered
+            .Select((descriptor, index) => new {
+                Descriptor = descriptor,
+                Index = index,
+                Preferred = preferredPrefixes.Count > 0 && MatchesAnyPrefix(descriptor.Url, preferredPrefixes)
+            })
+            .OrderBy(static row => row.Preferred ? 0 : 1)
+            .ThenBy(static row => row.Index)
+            .Select(static row => row.Descriptor)
+            .ToList();
+    }
+
+    private static List<string> NormalizeLogUrlPrefixes(IReadOnlyList<string>? rawPrefixes) {
+        if (rawPrefixes == null || rawPrefixes.Count == 0) {
+            return new List<string>();
+        }
+
+        var normalized = new List<string>(rawPrefixes.Count);
+        foreach (var rawPrefix in rawPrefixes) {
+            var prefix = NormalizeLogUrl(rawPrefix);
+            if (!string.IsNullOrWhiteSpace(prefix) &&
+                !normalized.Contains(prefix, StringComparer.OrdinalIgnoreCase)) {
+                normalized.Add(prefix!);
+            }
+        }
+
+        return normalized;
+    }
+
+    private static bool MatchesAnyPrefix(string logUrl, IReadOnlyList<string> prefixes) {
+        if (string.IsNullOrWhiteSpace(logUrl) || prefixes == null || prefixes.Count == 0) {
+            return false;
+        }
+
+        foreach (var prefix in prefixes) {
+            if (!string.IsNullOrWhiteSpace(prefix) &&
+                logUrl.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<ResolvedCtLogDescriptor> BuildExtendedProcessingOrder(
+        IReadOnlyList<ResolvedCtLogDescriptor> logs,
+        int maxLogsToProcess,
+        bool prioritizeLatestExactMatch) {
+        IReadOnlyList<ResolvedCtLogDescriptor> prioritized = ApplyLogCap(logs, maxLogsToProcess, prioritizeLatestExactMatch);
+        IReadOnlyList<ResolvedCtLogDescriptor> uncapped = ApplyLogCap(logs, 0, prioritizeLatestExactMatch);
+        if (prioritized.Count == 0) {
+            return uncapped;
+        }
+
+        var ordered = new List<ResolvedCtLogDescriptor>(uncapped.Count);
+        var selectedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (ResolvedCtLogDescriptor descriptor in prioritized) {
+            if (selectedUrls.Add(descriptor.Url)) {
+                ordered.Add(descriptor);
+            }
+        }
+
+        foreach (ResolvedCtLogDescriptor descriptor in uncapped) {
+            if (selectedUrls.Add(descriptor.Url)) {
+                ordered.Add(descriptor);
+            }
+        }
+
+        return ordered;
+    }
+
+    private static int ClassifyLogHealthPriority(
+        NativeCtCursorState cursor,
+        string logUrl,
+        DateTimeOffset observedUtc) {
+        if (!cursor.TryGetLogHealthSnapshot(logUrl, out NativeCtCursorEntrySnapshot snapshot)) {
+            return 1;
+        }
+
+        if (snapshot.CircuitOpenUntilUtc.HasValue && snapshot.CircuitOpenUntilUtc.Value > observedUtc) {
+            return 4;
+        }
+
+        if (snapshot.LastSuccessUtc.HasValue &&
+            (!snapshot.LastAttemptUtc.HasValue || snapshot.LastSuccessUtc.Value >= snapshot.LastAttemptUtc.Value)) {
+            return 0;
+        }
+
+        if (!snapshot.LastAttemptUtc.HasValue) {
+            return 1;
+        }
+
+        return IsLikelyPermanentNativeCtFailure(snapshot.LastError)
+            ? 3
+            : 2;
+    }
+
+    private static DateTimeOffset? GetLastSuccessUtc(NativeCtCursorState cursor, string logUrl) {
+        return cursor.TryGetLogHealthSnapshot(logUrl, out NativeCtCursorEntrySnapshot snapshot)
+            ? snapshot.LastSuccessUtc
+            : null;
+    }
+
+    private static DateTimeOffset? GetCircuitOpenUntilUtc(NativeCtCursorState cursor, string logUrl) {
+        return cursor.TryGetLogHealthSnapshot(logUrl, out NativeCtCursorEntrySnapshot snapshot)
+            ? snapshot.CircuitOpenUntilUtc
+            : null;
     }
 
     private async Task<int> PopulateDescriptorsFromLogListAsync(
@@ -1061,6 +1245,16 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         // above remains the primary signal when it is available.
         return message.Contains("Response status code does not indicate success: 404", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("Response status code does not indicate success: 410", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsLikelyPermanentNativeCtFailure(string? errorMessage) {
+        if (string.IsNullOrWhiteSpace(errorMessage)) {
+            return false;
+        }
+
+        return IsNameResolutionFailure(errorMessage) ||
+               errorMessage.Contains("Response status code does not indicate success: 404", StringComparison.OrdinalIgnoreCase) ||
+               errorMessage.Contains("Response status code does not indicate success: 410", StringComparison.OrdinalIgnoreCase);
     }
 
     private static HttpRequestException? FindHttpRequestException(Exception? exception) {

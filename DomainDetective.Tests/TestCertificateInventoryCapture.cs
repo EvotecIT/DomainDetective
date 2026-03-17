@@ -747,6 +747,85 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_PreservesLowConfidenceCtHostsButSkipsUnknownWVariantsFromHttpsProbes() {
+        var verboseMessages = new List<string>();
+        var probedHosts = new List<string>();
+        var capture = new CertificateInventoryCapture {
+            CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
+                    new SubdomainDiscoveryEntry {
+                        Name = "w.example.com",
+                        ResolutionStatus = SubdomainResolutionStatus.Unknown,
+                        CtSources = new[] { "crt.sh" }
+                    },
+                    new SubdomainDiscoveryEntry {
+                        Name = "ww.example.com",
+                        ResolutionStatus = SubdomainResolutionStatus.Unknown,
+                        CtSources = new[] { "crt.sh" }
+                    },
+                    new SubdomainDiscoveryEntry {
+                        Name = "www.example.com",
+                        ResolutionStatus = SubdomainResolutionStatus.Unknown,
+                        CtSources = new[] { "crt.sh" }
+                    },
+                    new SubdomainDiscoveryEntry {
+                        Name = "wwww.example.com",
+                        ResolutionStatus = SubdomainResolutionStatus.Unknown,
+                        CtSources = new[] { "crt.sh" }
+                    },
+                    new SubdomainDiscoveryEntry {
+                        Name = "api.example.com",
+                        ResolutionStatus = SubdomainResolutionStatus.Unknown,
+                        CtSources = new[] { "crt.sh" }
+                    }
+                };
+                return Task.FromResult(discovered);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                foreach (string target in httpsTargets) {
+                    probedHosts.Add(new Uri(target).Host);
+                }
+
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = false,
+            EnablePassiveCtFallback = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+
+        var logger = new InternalLogger(false);
+        logger.OnVerboseMessage += (_, args) => {
+            if (!string.IsNullOrWhiteSpace(args.Message)) {
+                verboseMessages.Add(args.Message);
+            }
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com" }, options, logger, CancellationToken.None);
+
+        Assert.Equal(5, result.CtDiscoveredSubdomainCount);
+        Assert.Contains("www.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("api.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("w.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ww.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("wwww.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains(
+            verboseMessages,
+            message => message.Contains("low-confidence historical-only candidate", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task CaptureAsync_HydratesUnreachableCtEndpointWithNativeCtMetadata_WhenPassiveFallbackDisabled() {
         var ctFirstSeen = new DateTimeOffset(2025, 2, 1, 9, 0, 0, TimeSpan.Zero);
         var ctLastSeen = new DateTimeOffset(2026, 3, 5, 15, 42, 37, TimeSpan.Zero);
@@ -935,6 +1014,8 @@ public class TestCertificateInventoryCapture {
 
     [Fact]
     public async Task CaptureAsync_BackfillsCtCertificateMetadataWhenPassiveMetadataFallbackEnabledWithoutPassiveDiscoveryFallback() {
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+        try {
         var nativeCtFirstSeen = new DateTimeOffset(2026, 3, 5, 10, 21, 27, TimeSpan.Zero);
         var nativeCtLastSeen = new DateTimeOffset(2026, 3, 5, 15, 42, 37, TimeSpan.Zero);
         var passiveCtEntryTimestamp = new DateTimeOffset(2022, 7, 11, 15, 36, 47, TimeSpan.Zero);
@@ -1032,6 +1113,9 @@ public class TestCertificateInventoryCapture {
         Assert.Equal(passiveCtEntryTimestamp, endpoint.CtLatestCertificateEntryTimestampUtc);
         Assert.Contains("native-ct", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+        } finally {
+            PassiveCtSourceClient.ResetSharedStateForTesting();
+        }
     }
 
     [Fact]
@@ -1559,6 +1643,8 @@ public class TestCertificateInventoryCapture {
 
     [Fact]
     public async Task CaptureAsync_KeepsCtDiscoveredCountersConsistentWhenExactHostRescueAddsMetadata() {
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+        try {
         var ctEntryTimestamp = new DateTimeOffset(2022, 7, 11, 15, 36, 47, TimeSpan.Zero);
         var notBefore = new DateTimeOffset(2022, 7, 11, 0, 0, 0, TimeSpan.Zero);
         var notAfter = new DateTimeOffset(2023, 8, 11, 23, 59, 59, TimeSpan.Zero);
@@ -1635,6 +1721,9 @@ public class TestCertificateInventoryCapture {
         var discovered = Assert.Single(result.CtDiscoveredSubdomainEntries);
         Assert.Equal("airtoxics.eurofins.com", discovered.Name);
         Assert.Equal("CN=airtoxics.eurofins.com", discovered.LatestCertificateSubject);
+        } finally {
+            PassiveCtSourceClient.ResetSharedStateForTesting();
+        }
     }
 
     [Fact]
@@ -1732,6 +1821,451 @@ public class TestCertificateInventoryCapture {
         var endpoint = Assert.Single(result.Snapshot.Entries, entry => entry.Host.Equals("airtoxics.eurofins.com", StringComparison.OrdinalIgnoreCase));
         Assert.Equal("CN=airtoxics.eurofins.com", endpoint.CertificateSubject);
         Assert.Equal(passiveCtEntryTimestamp, endpoint.CtLatestCertificateEntryTimestampUtc);
+    }
+
+    [Fact]
+    public void PassiveCtRunSuppressionReason_RequiresBothSharedSourcesToBeBlocked()
+    {
+        var diagnostics = new[]
+        {
+            new PassiveCtDiagnosticEntry
+            {
+                SourceName = "crt.sh",
+                State = "CoolingDown",
+                RetrySuggested = true,
+                CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(2)
+            },
+            new PassiveCtDiagnosticEntry
+            {
+                SourceName = "certspotter",
+                State = "Succeeded",
+                RetrySuggested = false
+            }
+        };
+
+        object?[] arguments = { diagnostics, null };
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "TryBuildPassiveCtRunSuppressionReason",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        bool result = (bool)method!.Invoke(null, arguments)!;
+
+        Assert.False(result);
+        Assert.True(string.IsNullOrEmpty(arguments[1] as string));
+    }
+
+    [Fact]
+    public void PassiveCtRunSuppressionReason_TriggersWhenBothSharedSourcesAreCoolingDown()
+    {
+        var diagnostics = new[]
+        {
+            new PassiveCtDiagnosticEntry
+            {
+                SourceName = "crt.sh",
+                State = "RateLimited",
+                RetrySuggested = true,
+                CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(2)
+            },
+            new PassiveCtDiagnosticEntry
+            {
+                SourceName = "certspotter",
+                State = "CoolingDown",
+                RetrySuggested = true,
+                CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(5)
+            }
+        };
+
+        object?[] arguments = { diagnostics, null };
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "TryBuildPassiveCtRunSuppressionReason",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        bool result = (bool)method!.Invoke(null, arguments)!;
+
+        Assert.True(result);
+        string reason = Assert.IsType<string>(arguments[1]);
+        Assert.Contains("crt.sh", reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("certspotter", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_UsesCtDiscoveryScopeOverrideButStillProbesExactHostSeeds()
+    {
+        IReadOnlyList<string>? ctDiscoveryDomains = null;
+        IReadOnlyList<string>? httpsProbeTargets = null;
+        var capture = new CertificateInventoryCapture
+        {
+            CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) =>
+            {
+                ctDiscoveryDomains = domains.ToList();
+                return Task.FromResult<IReadOnlyList<SubdomainDiscoveryEntry>>(Array.Empty<SubdomainDiscoveryEntry>());
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) =>
+            {
+                httpsProbeTargets = httpsTargets.ToList();
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions
+        {
+            IncludeApexHttps = true,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+        options.CtDiscoveryDomains.Add("eurofins.com");
+
+        await capture.CaptureAsync(
+            new[] { "eurofins.com", "airtoxics.eurofins.com" },
+            options,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Equal(new[] { "eurofins.com" }, ctDiscoveryDomains);
+        Assert.NotNull(httpsProbeTargets);
+        Assert.Contains("https://eurofins.com/", httpsProbeTargets!, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("https://airtoxics.eurofins.com/", httpsProbeTargets!, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ExactCtMetadataBackfill_SkipsWhenSharedPassiveSourcesAreCoolingDown()
+    {
+        var capture = new CertificateInventoryCapture
+        {
+            CtPassiveMetadataBackfillOverride = (_, _, _, _) =>
+                throw new InvalidOperationException("Passive CT exact metadata query should have been suppressed.")
+        };
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "BackfillMissingCtCertificateMetadataExactAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(method);
+
+        var warnings = new List<string>();
+        var diagnostics = new List<PassiveCtDiagnosticEntry>
+        {
+            new()
+            {
+                SourceName = "crt.sh",
+                State = "CoolingDown",
+                RetrySuggested = true,
+                CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(2)
+            },
+            new()
+            {
+                SourceName = "certspotter",
+                State = "RateLimited",
+                RetrySuggested = true,
+                CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(5)
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions
+        {
+            EnablePassiveCtFallback = true,
+            EnablePassiveCtMetadataFallback = true
+        };
+
+        Task<IReadOnlyList<SubdomainDiscoveryEntry>> task =
+            (Task<IReadOnlyList<SubdomainDiscoveryEntry>>)method!.Invoke(
+                capture,
+                new object[]
+                {
+                    new[] { "api.example.com", "portal.example.com" },
+                    options,
+                    warnings,
+                    diagnostics,
+                    new InternalLogger(false),
+                    CancellationToken.None
+                })!;
+
+        IReadOnlyList<SubdomainDiscoveryEntry> result = await task;
+
+        Assert.Empty(result);
+        Assert.Contains(
+            warnings,
+            warning => warning.Contains("Passive CT exact metadata backfill skipped", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ExactCtMetadataBackfill_SkipsWhenRestoredSharedPassiveCooldownsAreStillActive()
+    {
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+        try
+        {
+            CertificateInventoryCapture.RestorePassiveCtSharedCooldownState(
+                new[]
+                {
+                    new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = "crt.sh",
+                        State = "RateLimited",
+                        RetrySuggested = true,
+                        CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(2)
+                    },
+                    new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = "certspotter",
+                        State = "CoolingDown",
+                        RetrySuggested = true,
+                        CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(5)
+                    }
+                });
+
+            var capture = new CertificateInventoryCapture
+            {
+                CtPassiveMetadataBackfillOverride = (_, _, _, _) =>
+                    throw new InvalidOperationException("Passive CT exact metadata query should have been suppressed from restored shared cooldown state.")
+            };
+            var method = typeof(CertificateInventoryCapture).GetMethod(
+                "BackfillMissingCtCertificateMetadataExactAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+
+            Assert.NotNull(method);
+
+            var warnings = new List<string>();
+            var options = new CertificateInventoryCaptureOptions
+            {
+                EnablePassiveCtFallback = true,
+                EnablePassiveCtMetadataFallback = true
+            };
+
+            Task<IReadOnlyList<SubdomainDiscoveryEntry>> task =
+                (Task<IReadOnlyList<SubdomainDiscoveryEntry>>)method!.Invoke(
+                    capture,
+                    new object[]
+                    {
+                        new[] { "api.example.com", "portal.example.com" },
+                        options,
+                        warnings,
+                        new List<PassiveCtDiagnosticEntry>(),
+                        new InternalLogger(false),
+                        CancellationToken.None
+                    })!;
+
+            IReadOnlyList<SubdomainDiscoveryEntry> result = await task;
+
+            Assert.Empty(result);
+            Assert.Contains(
+                warnings,
+                warning => warning.Contains("Passive CT exact metadata backfill skipped", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            PassiveCtSourceClient.ResetSharedStateForTesting();
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotAnnounceExactPassiveMetadataQueryWhenSharedCooldownAlreadyBlocksRun()
+    {
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+        try
+        {
+            CertificateInventoryCapture.RestorePassiveCtSharedCooldownState(
+                new[]
+                {
+                    new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = "crt.sh",
+                        State = "CoolingDown",
+                        RetrySuggested = true,
+                        CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(2)
+                    },
+                    new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = "certspotter",
+                        State = "CoolingDown",
+                        RetrySuggested = true,
+                        CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(5)
+                    }
+                });
+
+            var verboseMessages = new List<string>();
+            var capture = new CertificateInventoryCapture
+            {
+                HttpsProbeOverride = (_, _, _, _) => Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>()),
+                CtPassiveMetadataBackfillOverride = (_, _, _, _) =>
+                    throw new InvalidOperationException("Passive CT exact metadata query should not start when the shared cooldown already blocks the run.")
+            };
+
+            var options = new CertificateInventoryCaptureOptions
+            {
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeCtDiscoveredSubdomains = false,
+                VerifyCtDiscoveredSubdomains = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                EnablePassiveCtFallback = true,
+                EnablePassiveCtMetadataFallback = true,
+                BackfillMissingCtCertificateMetadata = true,
+                PersistSnapshot = false
+            };
+
+            var logger = new InternalLogger(false);
+            logger.OnVerboseMessage += (_, args) =>
+            {
+                if (!string.IsNullOrWhiteSpace(args.Message))
+                {
+                    verboseMessages.Add(args.Message);
+                }
+            };
+
+            CertificateInventoryCaptureResult result = await capture.CaptureAsync(
+                new[] { "airtoxics.eurofins.com" },
+                options,
+                logger,
+                CancellationToken.None);
+
+            Assert.NotNull(result);
+            Assert.DoesNotContain(
+                verboseMessages,
+                message => message.Contains("CT metadata backfill: querying exact passive CT metadata", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(
+                verboseMessages,
+                message => message.Contains("Passive CT exact metadata backfill skipped", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            PassiveCtSourceClient.ResetSharedStateForTesting();
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_SkipsExactHostSeedMetadataBackfillForSuppressedHosts()
+    {
+        var verboseMessages = new List<string>();
+        var capture = new CertificateInventoryCapture
+        {
+            HttpsProbeOverride = (_, _, _, _) => Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>()),
+            CtPassiveMetadataBackfillOverride = (_, _, _, _) =>
+                throw new InvalidOperationException("Suppressed exact-host seed should not trigger passive CT metadata rescue.")
+        };
+
+        var options = new CertificateInventoryCaptureOptions
+        {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = false,
+            VerifyCtDiscoveredSubdomains = false,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            EnablePassiveCtFallback = true,
+            EnablePassiveCtMetadataFallback = true,
+            BackfillMissingCtCertificateMetadata = true,
+            PersistSnapshot = false
+        };
+        options.ExactHostSeedCtMetadataSuppressedHosts.Add("airtoxics.eurofins.com");
+
+        var logger = new InternalLogger(false);
+        logger.OnVerboseMessage += (_, args) =>
+        {
+            if (!string.IsNullOrWhiteSpace(args.Message))
+            {
+                verboseMessages.Add(args.Message);
+            }
+        };
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(
+            new[] { "airtoxics.eurofins.com" },
+            options,
+            logger,
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.DoesNotContain(
+            verboseMessages,
+            message => message.Contains("CT metadata backfill: querying exact passive CT metadata", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task BackfillMissingCtCertificateMetadataAsync_SkipsSuppressedRemainingHosts()
+    {
+        var verboseMessages = new List<string>();
+        var capture = new CertificateInventoryCapture
+        {
+            CtPassiveMetadataBackfillOverride = (requestedHosts, _, _, _) =>
+            {
+                if (requestedHosts.Count == 1 &&
+                    string.Equals(requestedHosts[0], "eurofins.com", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult<IReadOnlyList<SubdomainDiscoveryEntry>>(Array.Empty<SubdomainDiscoveryEntry>());
+                }
+
+                throw new InvalidOperationException("Suppressed remaining host should not trigger passive CT metadata rescue.");
+            }
+        };
+
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "BackfillMissingCtCertificateMetadataAsync",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var options = new CertificateInventoryCaptureOptions
+        {
+            EnablePassiveCtFallback = true,
+            EnablePassiveCtMetadataFallback = true,
+            BackfillMissingCtCertificateMetadata = true
+        };
+        options.ExactHostSeedCtMetadataSuppressedHosts.Add("airtoxics.eurofins.com");
+
+        var logger = new InternalLogger(false);
+        logger.OnVerboseMessage += (_, args) =>
+        {
+            if (!string.IsNullOrWhiteSpace(args.Message))
+            {
+                verboseMessages.Add(args.Message);
+            }
+        };
+
+        Task<IReadOnlyList<SubdomainDiscoveryEntry>> task =
+            (Task<IReadOnlyList<SubdomainDiscoveryEntry>>)method!.Invoke(
+                capture,
+                new object[]
+                {
+                    new[] { "eurofins.com" },
+                    new[]
+                    {
+                        new SubdomainDiscoveryEntry
+                        {
+                            Name = "airtoxics.eurofins.com",
+                            ResolutionStatus = SubdomainResolutionStatus.Unknown
+                        }
+                    },
+                    options,
+                    new List<string>(),
+                    new List<PassiveCtDiagnosticEntry>(),
+                    logger,
+                    CancellationToken.None
+                })!;
+
+        IReadOnlyList<SubdomainDiscoveryEntry> result = await task;
+
+        Assert.Single(result);
+        Assert.Equal("airtoxics.eurofins.com", result[0].Name);
+        Assert.DoesNotContain(
+            verboseMessages,
+            message => message.Contains("CT metadata backfill: querying exact passive CT metadata", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            verboseMessages,
+            message => message.Contains("skipping exact passive CT metadata", StringComparison.OrdinalIgnoreCase));
     }
 
     private static CertificateMonitor.Entry CreateHttpsEntry(string url, X509Certificate2 certificate) {

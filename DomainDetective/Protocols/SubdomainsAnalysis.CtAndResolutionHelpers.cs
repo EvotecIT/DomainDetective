@@ -175,6 +175,8 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
             MaxSubdomains = MaxSubdomains,
             LogListUrl = NativeCtLogListUrl,
             ExplicitLogUrls = NativeCtLogUrls.ToList(),
+            PreferredLogUrlPrefixes = NativeCtPreferredLogUrlPrefixes.ToList(),
+            ExcludedLogUrlPrefixes = NativeCtExcludedLogUrlPrefixes.ToList(),
             MaxLogsToProcess = NativeCtMaxLogs,
             MaxEntriesPerLog = NativeCtMaxEntriesPerLog,
             EntryBatchSize = NativeCtEntryBatchSize,

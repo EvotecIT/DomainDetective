@@ -111,6 +111,30 @@ internal sealed class NativeCtCursorState {
         return $"health|{logUrl}";
     }
 
+    public bool TryGetLogHealthSnapshot(string logUrl, out NativeCtCursorEntrySnapshot snapshot) {
+        return TryGetEntrySnapshot(BuildLogHealthKey(logUrl), out snapshot);
+    }
+
+    public bool TryGetEntrySnapshot(string key, out NativeCtCursorEntrySnapshot snapshot) {
+        snapshot = default;
+        if (string.IsNullOrWhiteSpace(key)) {
+            return false;
+        }
+
+        if (!_entries.TryGetValue(key, out var entry)) {
+            return false;
+        }
+
+        snapshot = new NativeCtCursorEntrySnapshot(
+            entry.LastProcessedIndex,
+            entry.ConsecutiveFailureCount,
+            entry.CircuitOpenUntilUtc,
+            entry.LastAttemptUtc,
+            entry.LastSuccessUtc,
+            entry.LastError);
+        return true;
+    }
+
     private static string BuildSharedScopeFingerprint(IReadOnlyCollection<string> domains) {
         IReadOnlyList<string> normalizedDomains = domains
             .Where(static domain => !string.IsNullOrWhiteSpace(domain))
@@ -279,3 +303,11 @@ internal sealed class NativeCtCursorState {
         public string? LastError { get; set; }
     }
 }
+
+internal readonly record struct NativeCtCursorEntrySnapshot(
+    long? LastProcessedIndex,
+    int ConsecutiveFailureCount,
+    DateTimeOffset? CircuitOpenUntilUtc,
+    DateTimeOffset? LastAttemptUtc,
+    DateTimeOffset? LastSuccessUtc,
+    string? LastError);

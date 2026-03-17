@@ -63,6 +63,12 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     /// <summary>Optional explicit CT log URLs for native discovery (skips log-list download when provided).</summary>
     public List<string> NativeCtLogUrls { get; } = new();
 
+    /// <summary>Optional native CT log URL prefixes that should be preferred ahead of other eligible logs.</summary>
+    public List<string> NativeCtPreferredLogUrlPrefixes { get; } = new();
+
+    /// <summary>Optional native CT log URL prefixes that should be excluded from discovery.</summary>
+    public List<string> NativeCtExcludedLogUrlPrefixes { get; } = new();
+
     /// <summary>Maximum CT logs processed per native run (0 means all).</summary>
     public int NativeCtMaxLogs { get; set; } = 12;
 

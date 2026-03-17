@@ -41,6 +41,18 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Maximum CT-discovered subdomains retained per domain (0 means no explicit cap override).</summary>
     public int MaxCtSubdomainsPerDomain { get; set; } = 2_000;
 
+    /// <summary>
+    /// Optional domain list used only for CT subdomain discovery and CT metadata hydration.
+    /// When empty, the full normalized input domain list is used.
+    /// </summary>
+    public List<string> CtDiscoveryDomains { get; } = new();
+
+    /// <summary>
+    /// Optional hosts that should skip passive CT metadata rescue because the caller already has
+    /// durable CT-backed evidence for them or recently observed empty-result metadata attempts.
+    /// </summary>
+    public List<string> ExactHostSeedCtMetadataSuppressedHosts { get; } = new();
+
     /// <summary>When true, uses native RFC6962 CT log polling for subdomain discovery.</summary>
     public bool EnableNativeCtLogSubdomainSource { get; set; }
 
@@ -89,6 +101,12 @@ public sealed class CertificateInventoryCaptureOptions {
 
     /// <summary>Optional explicit CT log URLs for native subdomain discovery.</summary>
     public List<string> NativeCtLogUrls { get; } = new();
+
+    /// <summary>Optional native CT log URL prefixes that should be preferred ahead of other eligible logs.</summary>
+    public List<string> NativeCtPreferredLogUrlPrefixes { get; } = new();
+
+    /// <summary>Optional native CT log URL prefixes that should be excluded from discovery.</summary>
+    public List<string> NativeCtExcludedLogUrlPrefixes { get; } = new();
 
     /// <summary>Maximum CT logs processed per domain during native subdomain discovery (0 means all).</summary>
     public int NativeCtMaxLogs { get; set; } = 12;
@@ -547,11 +565,21 @@ public sealed partial class CertificateInventoryCapture {
         AppendCtConfigurationWarnings(options, warnings);
         var normalizedDomains = NormalizeDomains(domains, warnings);
         var seeds = BuildSeeds(normalizedDomains);
+        var normalizedCtDiscoveryDomains = options.CtDiscoveryDomains.Count == 0
+            ? normalizedDomains
+            : NormalizeDomains(options.CtDiscoveryDomains, warnings);
+        var ctDiscoverySeeds = BuildSeeds(normalizedCtDiscoveryDomains);
         logger.WriteVerbose("Certificate inventory capture started for {0} normalized domain(s).", normalizedDomains.Count);
         logger.WriteVerbose(
             "Seed classification: exactHostSeeds={0}, registrableDomainSeeds={1}.",
             seeds.Count(static seed => seed.IsExactHostSeed),
             seeds.Count(static seed => !seed.IsExactHostSeed));
+        if (options.CtDiscoveryDomains.Count > 0) {
+            logger.WriteVerbose(
+                "CT discovery scope override selected {0} normalized domain(s) from {1} total seed(s).",
+                normalizedCtDiscoveryDomains.Count,
+                normalizedDomains.Count);
+        }
         logger.WriteVerbose("Capture settings: MaxParallelism={0}, DiscoveryParallelism={1}, MaxTargets={2}, MaxProbeStartsPerSecond={3}.", options.MaxParallelism, options.DiscoveryParallelism, options.MaxTargets, options.MaxProbeStartsPerSecond);
         AdvanceStage("Domain normalization");
 
@@ -569,12 +597,12 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
-        if (options.IncludeCtDiscoveredSubdomains && normalizedDomains.Count > 0) {
+        if (options.IncludeCtDiscoveredSubdomains && normalizedCtDiscoveryDomains.Count > 0) {
             IReadOnlyList<SubdomainDiscoveryEntry> discoveredSubdomains;
             if (CtSubdomainEntryDiscoveryOverride != null) {
-                discoveredSubdomains = await CtSubdomainEntryDiscoveryOverride(normalizedDomains, options, logger, cancellationToken).ConfigureAwait(false);
+                discoveredSubdomains = await CtSubdomainEntryDiscoveryOverride(normalizedCtDiscoveryDomains, options, logger, cancellationToken).ConfigureAwait(false);
             } else if (CtSubdomainDiscoveryOverride != null) {
-                var overridden = await CtSubdomainDiscoveryOverride(normalizedDomains, options, logger, cancellationToken).ConfigureAwait(false);
+                var overridden = await CtSubdomainDiscoveryOverride(normalizedCtDiscoveryDomains, options, logger, cancellationToken).ConfigureAwait(false);
                 discoveredSubdomains = overridden
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .Select(name => new SubdomainDiscoveryEntry {
@@ -584,7 +612,7 @@ public sealed partial class CertificateInventoryCapture {
                     .ToList();
             } else {
                 discoveredSubdomains = await DiscoverCtSubdomainsAsync(
-                    seeds,
+                    ctDiscoverySeeds,
                     options,
                     warnings,
                     nativeCtLogDiagnostics,
@@ -595,7 +623,7 @@ public sealed partial class CertificateInventoryCapture {
             }
 
             discoveredSubdomains = await BackfillMissingCtCertificateMetadataAsync(
-                normalizedDomains,
+                normalizedCtDiscoveryDomains,
                 discoveredSubdomains,
                 options,
                 warnings,
@@ -603,6 +631,7 @@ public sealed partial class CertificateInventoryCapture {
                 logger,
                 cancellationToken).ConfigureAwait(false);
 
+            int skippedLowConfidenceCtProbeTargets = 0;
             foreach (var subdomain in discoveredSubdomains) {
                 if (subdomain == null || string.IsNullOrWhiteSpace(subdomain.Name)) {
                     continue;
@@ -611,10 +640,19 @@ public sealed partial class CertificateInventoryCapture {
                 var normalizedSubdomain = subdomain.Name.Trim();
                 ctDiscoveredSubdomains.Add(normalizedSubdomain);
                 MergeCtSubdomainEntry(ctDiscoveredSubdomainEntries, subdomain);
-                if (!options.VerifyCtDiscoveredSubdomains ||
-                    subdomain.ResolutionStatus == SubdomainResolutionStatus.Resolves) {
+                if (ShouldPromoteCtDiscoveredSubdomainToHttpsProbe(normalizedSubdomain, subdomain, options)) {
                     httpsTargets.Add(BuildHttpsUrl(normalizedSubdomain, options.HttpsPort));
+                } else if (!options.VerifyCtDiscoveredSubdomains &&
+                           subdomain.ResolutionStatus == SubdomainResolutionStatus.Unknown &&
+                           LooksLikeLowConfidenceCtOnlyProbeVariant(normalizedSubdomain)) {
+                    skippedLowConfidenceCtProbeTargets++;
                 }
+            }
+
+            if (skippedLowConfidenceCtProbeTargets > 0) {
+                logger.WriteVerbose(
+                    "CT discovery preserved {0} low-confidence historical-only candidate(s) without promoting them into HTTPS probes.",
+                    skippedLowConfidenceCtProbeTargets);
             }
 
             logger.WriteVerbose("CT subdomain discovery returned {0} unique candidate(s).", ctDiscoveredSubdomains.Count);
@@ -970,6 +1008,49 @@ public sealed partial class CertificateInventoryCapture {
             parsed.Port = defaultPort;
         }
         return parsed.Uri.ToString();
+    }
+
+    private static bool ShouldPromoteCtDiscoveredSubdomainToHttpsProbe(
+        string normalizedSubdomain,
+        SubdomainDiscoveryEntry subdomain,
+        CertificateInventoryCaptureOptions options) {
+        if (subdomain == null) {
+            return false;
+        }
+
+        if (options.VerifyCtDiscoveredSubdomains) {
+            return subdomain.ResolutionStatus == SubdomainResolutionStatus.Resolves;
+        }
+
+        if (subdomain.ResolutionStatus == SubdomainResolutionStatus.Resolves) {
+            return true;
+        }
+
+        if (subdomain.ResolutionStatus != SubdomainResolutionStatus.Unknown) {
+            return false;
+        }
+
+        return !LooksLikeLowConfidenceCtOnlyProbeVariant(normalizedSubdomain);
+    }
+
+    private static bool LooksLikeLowConfidenceCtOnlyProbeVariant(string? candidate) {
+        if (string.IsNullOrWhiteSpace(candidate)) {
+            return false;
+        }
+
+        string normalizedCandidate = candidate!;
+        string normalized = normalizedCandidate.Trim().TrimEnd('.');
+        int separatorIndex = normalized.IndexOf('.');
+        if (separatorIndex <= 0) {
+            return false;
+        }
+
+        string firstLabel = normalized.Substring(0, separatorIndex);
+        if (firstLabel.Length == 3 || firstLabel.Length > 4) {
+            return false;
+        }
+
+        return firstLabel.All(static character => character == 'w' || character == 'W');
     }
 
     private static void AddMailTargetsForHost(string host, CertificateInventoryCaptureOptions options, Dictionary<string, MailEndpointTarget> targets) {
