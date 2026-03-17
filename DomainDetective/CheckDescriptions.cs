@@ -92,6 +92,10 @@ public static class CheckDescriptions {
                 "Verify BIMI records.",
                 null,
                 "Provide a valid BIMI record and hosted logo."),
+            [HealthCheckType.IDENTITYPROVIDER] = new(
+                "Probe Microsoft identity endpoints for tenant hints.",
+                "https://learn.microsoft.com/en-us/entra/identity-platform/",
+                "Review OIDC discovery, GetUserRealm, and federation posture for the domain."),
             // Verify Autodiscover
             [HealthCheckType.AUTODISCOVER] = new(
                 "Verify Autodiscover configuration.",
@@ -293,7 +297,11 @@ public static class CheckDescriptions {
             [HealthCheckType.CTTIMELINE] = new(
                 "Build a certificate transparency (CT) timeline for certificate issuance and validity.",
                 "https://datatracker.ietf.org/doc/html/rfc6962",
-                "Review issuance patterns, issuer diversity, and active vs expired certificates.")
+                "Review issuance patterns, issuer diversity, and active vs expired certificates."),
+            [HealthCheckType.MICROSOFT365] = new(
+                "Aggregate Microsoft 365 tenant, service, identity, and DNS footprint.",
+                "https://learn.microsoft.com/en-us/entra/identity-platform/",
+                "Reuse tenant identity, DNS inventory, subdomain, and Autodiscover evidence to model Microsoft 365 posture without duplicate probing.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>

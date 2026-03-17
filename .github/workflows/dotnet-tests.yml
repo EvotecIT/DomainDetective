@@ -159,7 +159,7 @@ jobs:
               Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "bin") -ErrorAction SilentlyContinue
 
               Start-Sleep -Seconds 2
-              dotnet build DomainDetective.sln --configuration "${{ env.BUILD_CONFIGURATION }}" --framework "${{ matrix.framework }}" --no-restore -m:1 -p:UseSharedCompilation=false
+              dotnet build "DomainDetective.sln" --configuration "${{ env.BUILD_CONFIGURATION }}" --framework "${{ matrix.framework }}" --no-restore -m:1 -p:UseSharedCompilation=false
               exit $LASTEXITCODE
             }
 

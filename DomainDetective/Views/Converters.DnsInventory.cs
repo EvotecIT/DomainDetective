@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using DomainDetective.Providers.Email;
 using DomainDetective.Providers.Dns;
 
@@ -24,7 +25,7 @@ public static partial class Converters
         var cname = analysis.CnameTargetProvider != DnsCnameTargetProvider.Unknown ? analysis.CnameTargetProvider.ToString() : "-";
         var txt = analysis.TxtSignals != DnsTxtSignals.None ? analysis.TxtSignals.ToString() : "-";
         var caa = analysis.CaaIssuers != DnsCaaIssuers.None ? analysis.CaaIssuers.ToString() : "-";
-        var summary = $"{analysis.TotalRecords} record(s); types {analysis.RecordTypesQueried}; failed {analysis.RecordTypesFailed}; dns {provider}; mail {mail}; cname {cname}; txt {txt}; caa {caa}; authority {(analysis.IncludeAuthorities ? "on" : "off")}; additional {(analysis.IncludeAdditional ? "on" : "off")}";
+        var summary = $"{analysis.TotalRecords} record(s); types {analysis.RecordTypesQueried}; failed {analysis.RecordTypesFailed}; dns {provider}; mail {mail}; cname {cname}; txt {txt}; apps {analysis.DetectedDnsApplications?.Count ?? 0}; caa {caa}; authority {(analysis.IncludeAuthorities ? "on" : "off")}; additional {(analysis.IncludeAdditional ? "on" : "off")}";
 
         return new DnsInventoryInfo
         {
@@ -47,6 +48,7 @@ public static partial class Converters
             CnameTargetEvidence = analysis.CnameTargetEvidence ?? Array.Empty<string>(),
             TxtSignals = analysis.TxtSignals,
             TxtSignalsEvidence = analysis.TxtSignalsEvidence ?? Array.Empty<string>(),
+            DetectedDnsApplications = analysis.DetectedDnsApplications ?? Array.Empty<DetectedDnsApplication>(),
             CaaIssuers = analysis.CaaIssuers,
             CaaIssuersEvidence = analysis.CaaIssuersEvidence ?? Array.Empty<string>(),
             IncludeAuthorities = analysis.IncludeAuthorities,
@@ -79,29 +81,31 @@ public sealed class DnsInventoryInfo
     public int TotalRecords { get; set; }
     public DnsProvider Provider { get; set; }
     public int ProviderScore { get; set; }
-    public IReadOnlyList<string> ProviderEvidence { get; set; } = null!;
+    public IReadOnlyList<string> ProviderEvidence { get; set; } = Array.Empty<string>();
     public MailProviderKind MailProvider { get; set; }
     public int MailProviderScore { get; set; }
-    public IReadOnlyList<string> MailProviderEvidence { get; set; } = null!;
+    public IReadOnlyList<string> MailProviderEvidence { get; set; } = Array.Empty<string>();
     public DnsCnameTargetProvider CnameTargetProvider { get; set; }
     public DnsCnameTargetFlags CnameTargetFlags { get; set; }
-    public IReadOnlyList<string> CnameTargetEvidence { get; set; } = null!;
+    public IReadOnlyList<string> CnameTargetEvidence { get; set; } = Array.Empty<string>();
     public DnsTxtSignals TxtSignals { get; set; }
-    public IReadOnlyList<string> TxtSignalsEvidence { get; set; } = null!;
+    public IReadOnlyList<string> TxtSignalsEvidence { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<DetectedDnsApplication> DetectedDnsApplications { get; set; } = Array.Empty<DetectedDnsApplication>();
     public DnsCaaIssuers CaaIssuers { get; set; }
-    public IReadOnlyList<string> CaaIssuersEvidence { get; set; } = null!;
+    public IReadOnlyList<string> CaaIssuersEvidence { get; set; } = Array.Empty<string>();
     public bool IncludeAuthorities { get; set; }
     public bool IncludeAdditional { get; set; }
     public int MaxRecordsPerSection { get; set; }
     public int QueryConcurrency { get; set; }
-    public IReadOnlyList<DnsInventoryQuery> Queries { get; set; } = null!;
-    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
-    public string Status { get; set; } = null!;
+    public IReadOnlyList<DnsInventoryQuery> Queries { get; set; } = Array.Empty<DnsInventoryQuery>();
+    public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; } = null!;
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
-    public IReadOnlyList<string> References { get; set; } = null!;
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = Array.Empty<string>();
+    [JsonIgnore]
     public DnsInventoryAnalysis Raw { get; set; } = null!;
 }

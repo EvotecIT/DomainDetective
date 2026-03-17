@@ -235,6 +235,12 @@ namespace DomainDetective {
         public IdpInfoAnalysis IdpInfoAnalysis { get; private set; } = new IdpInfoAnalysis();
 
         /// <summary>
+        /// Gets the Microsoft 365 aggregate analysis.
+        /// </summary>
+        /// <value>Typed Microsoft 365 tenant, service, and DNS application hints.</value>
+        public Microsoft365TenantAnalysis Microsoft365TenantAnalysis { get; private set; } = new Microsoft365TenantAnalysis();
+
+        /// <summary>
         /// Gets the apex address (A/AAAA) analysis.
         /// </summary>
         /// <value>Results of apex A/AAAA lookups.</value>
