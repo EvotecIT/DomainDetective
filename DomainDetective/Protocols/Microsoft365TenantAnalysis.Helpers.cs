@@ -54,9 +54,6 @@ public sealed partial class Microsoft365TenantAnalysis {
         DnsInventoryAnalysis? dnsInventory,
         IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains) {
         var apps = new List<DetectedDnsApplication>();
-        if (dnsInventory?.DetectedDnsApplications?.Count > 0) {
-            apps.AddRange(dnsInventory.DetectedDnsApplications);
-        }
         if (dnsInventory != null) {
             apps.AddRange(DetectedDnsApplicationCatalog.DetectFromInventory(dnsInventory));
         }

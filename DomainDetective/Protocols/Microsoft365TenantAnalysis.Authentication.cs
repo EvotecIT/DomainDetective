@@ -344,6 +344,8 @@ public sealed partial class Microsoft365TenantAnalysis {
         };
     }
 
+    // Public GetCredentialType responses do not reliably expose whether smart lockout is enabled,
+    // so stay conservative and avoid implying a posture we cannot infer from this probe alone.
     private static Microsoft365AuthExposureStatus MapSmartLockoutStatus(MicrosoftCredentialTypeProbe probe) {
         return Microsoft365AuthExposureStatus.Unknown;
     }

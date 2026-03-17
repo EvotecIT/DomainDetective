@@ -55,23 +55,23 @@ public sealed class IdpInfoView
     /// <summary>Tenant region hint reported by Microsoft OIDC discovery.</summary>
     public string? TenantRegionScope { get; set; }
     /// <summary>Grant types reported by Microsoft OIDC discovery.</summary>
-    public IReadOnlyList<string> SupportedGrantTypes { get; set; } = null!;
+    public IReadOnlyList<string> SupportedGrantTypes { get; set; } = System.Array.Empty<string>();
     /// <summary>Response types reported by Microsoft OIDC discovery.</summary>
-    public IReadOnlyList<string> SupportedResponseTypes { get; set; } = null!;
+    public IReadOnlyList<string> SupportedResponseTypes { get; set; } = System.Array.Empty<string>();
     /// <summary>True when OIDC discovery completed successfully.</summary>
     public bool DiscoverySucceeded { get; set; }
     /// <summary>True when GetUserRealm returned a 200 response and was parsed.</summary>
     public bool GetUserRealmSucceeded { get; set; }
     /// <summary>Structured assessments captured during analysis.</summary>
-    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Computed status string (OK/Warning/Error) from assessments.</summary>
-    public string Status { get; set; } = null!;
+    public string Status { get; set; } = string.Empty;
     /// <summary>Total number of warnings encountered.</summary>
     public int WarningCount { get; set; }
     /// <summary>Total number of errors encountered.</summary>
     public int ErrorCount { get; set; }
     /// <summary>One-line summary containing key IdP hints.</summary>
-    public string Summary { get; set; } = null!;
+    public string Summary { get; set; } = string.Empty;
     /// <summary>Raw analysis object.</summary>
     public IdpInfoAnalysis Raw { get; set; } = null!;
 }

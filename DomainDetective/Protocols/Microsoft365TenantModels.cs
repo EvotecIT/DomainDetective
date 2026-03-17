@@ -92,6 +92,11 @@ public enum Microsoft365AuthPathKind {
 public sealed class Microsoft365AuthenticationSummary {
     public bool ProbeResponsive { get; init; }
     public Microsoft365AuthExposureStatus UserEnumerationStatus { get; init; }
+    /// <summary>
+    /// Conservative best-effort smart lockout posture.
+    /// Public Microsoft auth probes do not currently expose enough signal to infer this reliably,
+    /// so this remains <see cref="Microsoft365AuthExposureStatus.Unknown"/> unless a future probe adds a safe signal.
+    /// </summary>
     public Microsoft365AuthExposureStatus SmartLockoutStatus { get; init; }
     public int? IfExistsResult { get; init; }
     public int? ThrottleStatus { get; init; }

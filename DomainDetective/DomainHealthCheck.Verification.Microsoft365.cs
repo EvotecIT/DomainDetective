@@ -34,13 +34,11 @@ public partial class DomainHealthCheck {
             await VerifySubdomainsAsync(domainName, cancellationToken).ConfigureAwait(false);
         }
 
-        if (!string.Equals(AutodiscoverAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase) ||
-            (!AutodiscoverAnalysis.SrvRecordExists && !AutodiscoverAnalysis.AutodiscoverCnameExists && !AutodiscoverAnalysis.AutoconfigCnameExists)) {
+        if (!string.Equals(AutodiscoverAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase)) {
             await VerifyAutodiscover(domainName, cancellationToken).ConfigureAwait(false);
         }
 
-        if (!string.Equals(DKIMAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase) ||
-            (DKIMAnalysis.AnalysisResults?.Count ?? 0) == 0) {
+        if (!string.Equals(DKIMAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase)) {
             await VerifyDKIM(domainName, Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
         }
 
