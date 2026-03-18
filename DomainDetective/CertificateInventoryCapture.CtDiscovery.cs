@@ -451,6 +451,7 @@ public sealed partial class CertificateInventoryCapture {
             }
 
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            Interlocked.Increment(ref analyzedDomains);
             tasks.Add(Task.Run(async () => {
                 try {
                     if (Volatile.Read(ref suspendRemainingPassiveQueries) != 0) {
@@ -481,7 +482,6 @@ public sealed partial class CertificateInventoryCapture {
                         analysis.MaxResolutionChecks = options.MaxCtSubdomainsPerDomain;
                     }
 
-                    Interlocked.Increment(ref analyzedDomains);
                     await analysis.AnalyzeAsync(domain, logger, cancellationToken).ConfigureAwait(false);
                     if (analysis.PassiveCtWarnings != null && analysis.PassiveCtWarnings.Count > 0) {
                         lock (warningLock) {
