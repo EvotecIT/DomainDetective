@@ -195,16 +195,37 @@ public sealed partial class CertificateInventoryCapture {
             .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        HashSet<string> targetedExactCtMetadataHosts = options.ExactPassiveCtMetadataTargetHosts
+            .Where(static host => !string.IsNullOrWhiteSpace(host))
+            .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (targetedExactCtMetadataHosts.Count == 0) {
+            targetedExactCtMetadataHosts = options.CtMetadataTargetHosts
+            .Where(static host => !string.IsNullOrWhiteSpace(host))
+            .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
         var exactHostSeeds = seeds
             .Where(static seed => seed != null && seed.IsExactHostSeed && !string.IsNullOrWhiteSpace(seed.Name))
             .Select(static seed => seed.Name.Trim())
             .Where(host => !suppressedHosts.Contains(host.Trim().TrimEnd('.').ToLowerInvariant()))
+            .Where(host =>
+                targetedExactCtMetadataHosts.Count == 0 ||
+                targetedExactCtMetadataHosts.Contains(host.Trim().TrimEnd('.').ToLowerInvariant()))
             .Where(name => !HasCtCertificateMetadata(existingEntries, name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (exactHostSeeds.Count == 0) {
             return Array.Empty<SubdomainDiscoveryEntry>();
+        }
+
+        if (targetedExactCtMetadataHosts.Count > 0) {
+            logger.WriteVerbose(
+                "CT metadata backfill: targeted exact passive CT metadata to {0} exact host seed(s) from {1} caller-supplied target host(s).",
+                exactHostSeeds.Count,
+                targetedExactCtMetadataHosts.Count);
         }
 
         if (!TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out _)) {
@@ -344,62 +365,65 @@ public sealed partial class CertificateInventoryCapture {
 
         if (usePassiveNetworkQueries) {
             var sharedClient = new PassiveCtSourceClient();
-            for (int index = 0; index < normalizedHostNames.Count; index++) {
+            int exactNetworkParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
+                options.DiscoveryParallelism,
+                normalizedHostNames.Count,
+                usePassiveNetworkQueries: true);
+            int scheduledHosts = 0;
+            while (scheduledHosts < normalizedHostNames.Count) {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string hostName = normalizedHostNames[index];
-                try {
-                    SubdomainDiscoveryEntry? exactEntry = await QueryPassiveCtMetadataExactAsync(
-                            hostName,
-                            options,
-                            warnings,
-                            passiveCtDiagnosticEntries,
-                            logger,
-                            sharedClient,
-                            cancellationToken)
-                        .ConfigureAwait(false);
-
-                    if (exactEntry == null || string.IsNullOrWhiteSpace(exactEntry.Name)) {
-                        if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string remainingSuppressionReason)) {
-                            int skippedHosts = normalizedHostNames.Count - index - 1;
-                            if (skippedHosts > 0) {
-                                string warning =
-                                    "Passive CT exact metadata backfill skipped " +
-                                    skippedHosts.ToString(System.Globalization.CultureInfo.InvariantCulture) +
-                                    " remaining host(s) after shared source cooldown was detected: " +
-                                    remainingSuppressionReason;
-                                warnings?.Add(warning);
-                                logger.WriteVerbose("{0}", warning);
-                            }
-
-                            break;
-                        }
-
-                        continue;
-                    }
-
-                    lock (results) {
-                        MergeCtSubdomainEntry(results, exactEntry);
-                    }
-                } catch (Exception ex) {
-                    logger.WriteVerbose(
-                        "CT metadata backfill exact lookup failed for {0}: {1}",
-                        hostName,
-                        ex.Message);
+                if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string preBatchSuppressionReason)) {
+                    LogExactPassiveCtMetadataSuppression(
+                        warnings,
+                        logger,
+                        normalizedHostNames.Count - scheduledHosts,
+                        preBatchSuppressionReason);
+                    break;
                 }
 
-                if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string remainingSuppressionReasonAfterSuccess)) {
-                    int skippedHosts = normalizedHostNames.Count - index - 1;
-                    if (skippedHosts > 0) {
-                        string warning =
-                            "Passive CT exact metadata backfill skipped " +
-                            skippedHosts.ToString(System.Globalization.CultureInfo.InvariantCulture) +
-                            " remaining host(s) after shared source cooldown was detected: " +
-                            remainingSuppressionReasonAfterSuccess;
-                        warnings?.Add(warning);
-                        logger.WriteVerbose("{0}", warning);
-                    }
+                List<string> batch = normalizedHostNames
+                    .Skip(scheduledHosts)
+                    .Take(exactNetworkParallelism)
+                    .ToList();
+                var batchTasks = new List<Task>(batch.Count);
+                foreach (string hostName in batch) {
+                    batchTasks.Add(Task.Run(async () => {
+                        try {
+                            SubdomainDiscoveryEntry? exactEntry = await QueryPassiveCtMetadataExactAsync(
+                                    hostName,
+                                    options,
+                                    warnings,
+                                    passiveCtDiagnosticEntries,
+                                    logger,
+                                    sharedClient,
+                                    cancellationToken)
+                                .ConfigureAwait(false);
+                            if (exactEntry == null || string.IsNullOrWhiteSpace(exactEntry.Name)) {
+                                return;
+                            }
 
+                            lock (results) {
+                                MergeCtSubdomainEntry(results, exactEntry);
+                            }
+                        } catch (Exception ex) {
+                            logger.WriteVerbose(
+                                "CT metadata backfill exact lookup failed for {0}: {1}",
+                                hostName,
+                                ex.Message);
+                        }
+                    }, cancellationToken));
+                }
+
+                await Task.WhenAll(batchTasks).ConfigureAwait(false);
+                scheduledHosts += batch.Count;
+
+                if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string postBatchSuppressionReason)) {
+                    LogExactPassiveCtMetadataSuppression(
+                        warnings,
+                        logger,
+                        normalizedHostNames.Count - scheduledHosts,
+                        postBatchSuppressionReason);
                     break;
                 }
             }
@@ -409,12 +433,12 @@ public sealed partial class CertificateInventoryCapture {
                 .ToList();
         }
 
-        int maxParallelism = Math.Max(1, options.DiscoveryParallelism);
-        using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
-        var tasks = new List<Task>(normalizedHostNames.Count);
+        int overrideParallelism = Math.Max(1, options.DiscoveryParallelism);
+        using var gate = new SemaphoreSlim(overrideParallelism, overrideParallelism);
+        var overrideTasks = new List<Task>(normalizedHostNames.Count);
         foreach (string hostName in normalizedHostNames) {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            tasks.Add(Task.Run(async () => {
+            overrideTasks.Add(Task.Run(async () => {
                 try {
                     IReadOnlyList<SubdomainDiscoveryEntry> overridden = await CtPassiveMetadataBackfillOverride!(
                         new[] { hostName },
@@ -445,10 +469,43 @@ public sealed partial class CertificateInventoryCapture {
             }, cancellationToken));
         }
 
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        await Task.WhenAll(overrideTasks).ConfigureAwait(false);
         return results.Values
             .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    internal static int ResolveExactPassiveCtMetadataBackfillParallelism(
+        int configuredDiscoveryParallelism,
+        int hostCount,
+        bool usePassiveNetworkQueries) {
+        int configuredParallelism = Math.Max(1, configuredDiscoveryParallelism);
+        int effectiveParallelism = usePassiveNetworkQueries
+            ? Math.Min(configuredParallelism, 8)
+            : configuredParallelism;
+        return Math.Min(Math.Max(1, hostCount), effectiveParallelism);
+    }
+
+    private static void LogExactPassiveCtMetadataSuppression(
+        List<string>? warnings,
+        InternalLogger logger,
+        int skippedHosts,
+        string suppressionReason) {
+        if (skippedHosts <= 0 || string.IsNullOrWhiteSpace(suppressionReason)) {
+            return;
+        }
+
+        string warning =
+            "Passive CT exact metadata backfill skipped " +
+            skippedHosts.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+            " remaining host(s) after shared source cooldown was detected: " +
+            suppressionReason;
+        if (warnings != null) {
+            lock (warnings) {
+                warnings.Add(warning);
+            }
+        }
+        logger.WriteVerbose("{0}", warning);
     }
 
     private static async Task<SubdomainDiscoveryEntry?> QueryPassiveCtMetadataExactAsync(
@@ -464,50 +521,166 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         string normalizedHost = hostName.Trim().TrimEnd('.').ToLowerInvariant();
-        IReadOnlyList<PassiveCtSourceClient.SourceRequest> requests = BuildPassiveCtMetadataSourceRequests(normalizedHost);
+        IReadOnlyList<PassiveCtSourceClient.SourceRequest> requests = PassiveCtSourceClient.OrderRequestsBySourceHealth(
+            BuildPassiveCtMetadataSourceRequests(normalizedHost));
         if (requests.Count == 0) {
             return null;
         }
 
-        PassiveCtSourceClient.QueryResult queryResult = await client.QueryAsync(
-            requests,
-            new PassiveCtSourceClient.QueryOptions {
-                RequestTimeout = options.PassiveCtRequestTimeout,
-                RetryCount = options.PassiveCtRetryCount,
-                RetryBaseDelay = options.PassiveCtRetryBaseDelay,
-                RetryMaxDelay = options.PassiveCtRetryMaxDelay,
-                SourceCooldown = options.PassiveCtSourceCooldown,
-                QueryAllSources = true,
-                PayloadValidator = ValidatePassiveCtMetadataArrayPayload
-            },
-            queryOverride: null,
-            logger,
-            cancellationToken).ConfigureAwait(false);
-        if (passiveCtDiagnosticEntries != null && queryResult.Diagnostics.Count > 0) {
-            foreach (PassiveCtDiagnosticEntry diagnostic in queryResult.Diagnostics) {
-                if (diagnostic == null || string.IsNullOrWhiteSpace(diagnostic.SourceName)) {
-                    continue;
-                }
+        var exhaustedNoRowRequests = new List<PassiveCtSourceClient.SourceRequest>(requests.Count);
+        var evaluatedSources = new List<string>(requests.Count);
+        bool exactNoRowsFullyExhausted = true;
+        foreach (PassiveCtSourceClient.SourceRequest request in requests) {
+            PassiveCtSourceClient.QueryResult queryResult = await client.QueryAsync(
+                new[] { request },
+                new PassiveCtSourceClient.QueryOptions {
+                    RequestTimeout = options.PassiveCtRequestTimeout,
+                    RetryCount = options.PassiveCtRetryCount,
+                    RetryBaseDelay = options.PassiveCtRetryBaseDelay,
+                    RetryMaxDelay = options.PassiveCtRetryMaxDelay,
+                    SourceCooldown = options.PassiveCtSourceCooldown,
+                    QueryAllSources = false,
+                    PayloadValidator = ValidatePassiveCtMetadataArrayPayload
+                },
+                queryOverride: null,
+                logger,
+                cancellationToken).ConfigureAwait(false);
+            AppendPassiveCtExactQueryDiagnostics(
+                normalizedHost,
+                warnings,
+                passiveCtDiagnosticEntries,
+                queryResult);
+            if (!CanPersistPassiveCtExactNoRowsDiagnostic(queryResult)) {
+                exactNoRowsFullyExhausted = false;
+            }
+            if (queryResult.Payloads.Count == 0) {
+                continue;
+            }
 
+            if (CanPersistPassiveCtExactNoRowsDiagnostic(queryResult)) {
+                exhaustedNoRowRequests.Add(request);
+            }
+
+            evaluatedSources.Add(request.SourceName);
+            SubdomainDiscoveryEntry? exactEntry = TryBuildExactCtMetadataEntry(normalizedHost, queryResult.Payloads);
+            if (exactEntry != null) {
+                return exactEntry;
+            }
+        }
+
+        if (evaluatedSources.Count == 0) {
+            return null;
+        }
+
+        if (exactNoRowsFullyExhausted) {
+            AppendPassiveCtExactNoRowsDiagnostics(normalizedHost, exhaustedNoRowRequests, passiveCtDiagnosticEntries);
+        }
+
+        logger.WriteVerbose(
+            "CT metadata backfill exact lookup returned no rows for {0} after checking source(s): {1}.",
+            normalizedHost,
+            string.Join(", ", evaluatedSources));
+        return null;
+    }
+
+    internal static bool CanPersistPassiveCtExactNoRowsDiagnostic(
+        PassiveCtSourceClient.QueryResult? queryResult) {
+        if (queryResult == null || queryResult.RetrySuggested) {
+            return false;
+        }
+
+        foreach (PassiveCtDiagnosticEntry diagnostic in queryResult.Diagnostics) {
+            if (diagnostic == null) {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(diagnostic.State) &&
+                !string.Equals(diagnostic.State, "Succeeded", StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    internal static void AppendPassiveCtExactNoRowsDiagnostics(
+        string normalizedHost,
+        IEnumerable<PassiveCtSourceClient.SourceRequest>? exhaustedRequests,
+        List<PassiveCtDiagnosticEntry>? passiveCtDiagnosticEntries) {
+        if (string.IsNullOrWhiteSpace(normalizedHost) ||
+            passiveCtDiagnosticEntries == null ||
+            exhaustedRequests == null) {
+            return;
+        }
+
+        var requests = new List<PassiveCtSourceClient.SourceRequest>();
+        var seenSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (PassiveCtSourceClient.SourceRequest request in exhaustedRequests) {
+            if (request == null ||
+                string.IsNullOrWhiteSpace(request.SourceName) ||
+                !seenSources.Add(request.SourceName)) {
+                continue;
+            }
+
+            requests.Add(request);
+        }
+
+        if (requests.Count == 0) {
+            return;
+        }
+
+        lock (passiveCtDiagnosticEntries) {
+            foreach (PassiveCtSourceClient.SourceRequest request in requests) {
                 passiveCtDiagnosticEntries.Add(new PassiveCtDiagnosticEntry {
                     Scope = normalizedHost,
                     QueryKind = "MetadataExact",
-                    SourceName = diagnostic.SourceName ?? string.Empty,
-                    RequestUrl = diagnostic.RequestUrl ?? string.Empty,
-                    State = diagnostic.State ?? string.Empty,
-                    RetrySuggested = diagnostic.RetrySuggested,
-                    CooldownUntilUtc = diagnostic.CooldownUntilUtc,
-                    RetryAfterSeconds = diagnostic.RetryAfterSeconds,
-                    Failure = PassiveCtSourceClient.SanitizeFailureText(diagnostic.Failure)
+                    SourceName = request.SourceName ?? string.Empty,
+                    RequestUrl = request.Url ?? string.Empty,
+                    State = "NoRows"
                 });
             }
         }
-        if (warnings != null && queryResult.Warnings.Count > 0) {
-            foreach (string warning in queryResult.Warnings) {
-                warnings.Add("Passive CT exact metadata for " + normalizedHost + ": " + warning);
+    }
+
+    private static void AppendPassiveCtExactQueryDiagnostics(
+        string normalizedHost,
+        List<string>? warnings,
+        List<PassiveCtDiagnosticEntry>? passiveCtDiagnosticEntries,
+        PassiveCtSourceClient.QueryResult queryResult) {
+        if (passiveCtDiagnosticEntries != null && queryResult.Diagnostics.Count > 0) {
+            lock (passiveCtDiagnosticEntries) {
+                foreach (PassiveCtDiagnosticEntry diagnostic in queryResult.Diagnostics) {
+                    if (diagnostic == null || string.IsNullOrWhiteSpace(diagnostic.SourceName)) {
+                        continue;
+                    }
+
+                    passiveCtDiagnosticEntries.Add(new PassiveCtDiagnosticEntry {
+                        Scope = normalizedHost,
+                        QueryKind = "MetadataExact",
+                        SourceName = diagnostic.SourceName ?? string.Empty,
+                        RequestUrl = diagnostic.RequestUrl ?? string.Empty,
+                        State = diagnostic.State ?? string.Empty,
+                        RetrySuggested = diagnostic.RetrySuggested,
+                        CooldownUntilUtc = diagnostic.CooldownUntilUtc,
+                        RetryAfterSeconds = diagnostic.RetryAfterSeconds,
+                        Failure = PassiveCtSourceClient.SanitizeFailureText(diagnostic.Failure)
+                    });
+                }
             }
         }
-        if (queryResult.Payloads.Count == 0) {
+        if (warnings != null && queryResult.Warnings.Count > 0) {
+            lock (warnings) {
+                foreach (string warning in queryResult.Warnings) {
+                    warnings.Add("Passive CT exact metadata for " + normalizedHost + ": " + warning);
+                }
+            }
+        }
+    }
+
+    private static SubdomainDiscoveryEntry? TryBuildExactCtMetadataEntry(
+        string normalizedHost,
+        IReadOnlyList<PassiveCtSourceClient.SourcePayload> payloads) {
+        if (string.IsNullOrWhiteSpace(normalizedHost) || payloads == null || payloads.Count == 0) {
             return null;
         }
 
@@ -522,7 +695,7 @@ public sealed partial class CertificateInventoryCapture {
         var ctSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var observationCount = 0;
 
-        foreach (PassiveCtSourceClient.SourcePayload sourcePayload in queryResult.Payloads) {
+        foreach (PassiveCtSourceClient.SourcePayload sourcePayload in payloads) {
             if (string.IsNullOrWhiteSpace(sourcePayload.Payload)) {
                 continue;
             }
@@ -575,7 +748,6 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         if (observationCount == 0) {
-            logger.WriteVerbose("CT metadata backfill exact lookup returned no rows for {0}.", normalizedHost);
             return null;
         }
 

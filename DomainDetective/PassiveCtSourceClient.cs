@@ -15,7 +15,13 @@ internal sealed class PassiveCtSourceClient
     {
         public DateTimeOffset CooldownUntilUtc { get; set; }
         public int ConsecutiveFailures { get; set; }
+        public DateTimeOffset LastSuccessUtc { get; set; }
     }
+
+    internal readonly record struct SourceHealthSnapshot(
+        bool IsCoolingDown,
+        int ConsecutiveFailures,
+        DateTimeOffset LastSuccessUtc);
 
     internal sealed class SourceRequest
     {
@@ -137,10 +143,7 @@ internal sealed class PassiveCtSourceClient
                     continue;
                 }
 
-                if (useSharedSourceState)
-                {
-                    ResetState(request.SourceName);
-                }
+                ResetState(request.SourceName);
 
                 result.Payloads.Add(new SourcePayload
                 {
@@ -377,15 +380,13 @@ internal sealed class PassiveCtSourceClient
 
     private static void ResetState(string sourceName)
     {
-        if (!SharedSourceStates.TryGetValue(sourceName, out SourceState? state))
-        {
-            return;
-        }
+        SourceState state = SharedSourceStates.GetOrAdd(sourceName, static _ => new SourceState());
 
         lock (state)
         {
             state.ConsecutiveFailures = 0;
             state.CooldownUntilUtc = DateTimeOffset.MinValue;
+            state.LastSuccessUtc = DateTimeOffset.UtcNow;
         }
     }
 
@@ -393,6 +394,34 @@ internal sealed class PassiveCtSourceClient
     {
         SharedSourceStates.Clear();
         Interlocked.Exchange(ref _rotationCursor, -1);
+    }
+
+    internal static IReadOnlyList<SourceRequest> OrderRequestsBySourceHealth(IReadOnlyList<SourceRequest>? requests)
+    {
+        if (requests == null || requests.Count == 0)
+        {
+            return Array.Empty<SourceRequest>();
+        }
+
+        if (requests.Count == 1)
+        {
+            return requests;
+        }
+
+        DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+        return requests
+            .Select((request, index) => new
+            {
+                Request = request,
+                Index = index,
+                Health = GetSourceHealthSnapshot(request.SourceName, nowUtc)
+            })
+            .OrderBy(static row => row.Health.IsCoolingDown ? 1 : 0)
+            .ThenBy(static row => row.Health.ConsecutiveFailures > 0 ? 1 : 0)
+            .ThenByDescending(static row => row.Health.LastSuccessUtc)
+            .ThenBy(static row => row.Index)
+            .Select(static row => row.Request)
+            .ToList();
     }
 
     internal static void RestoreSharedCooldownState(IEnumerable<PassiveCtDiagnosticEntry>? diagnostics)
@@ -426,6 +455,36 @@ internal sealed class PassiveCtSourceClient
                     state.CooldownUntilUtc = cooldownUntilUtc;
                 }
             }
+        }
+    }
+
+    internal static SourceHealthSnapshot GetSourceHealthSnapshot(string? sourceName, DateTimeOffset? nowUtc = null)
+    {
+        string normalizedSourceName = sourceName?.Trim() ?? string.Empty;
+        if (normalizedSourceName.Length == 0)
+        {
+            return default;
+        }
+
+        if (!SharedSourceStates.TryGetValue(normalizedSourceName, out SourceState? state))
+        {
+            return default;
+        }
+
+        SourceState resolvedState = state;
+        DateTimeOffset effectiveNowUtc = nowUtc ?? DateTimeOffset.UtcNow;
+        lock (resolvedState)
+        {
+            bool isCoolingDown = resolvedState.CooldownUntilUtc > effectiveNowUtc;
+            if (!isCoolingDown && resolvedState.CooldownUntilUtc != DateTimeOffset.MinValue)
+            {
+                resolvedState.CooldownUntilUtc = DateTimeOffset.MinValue;
+            }
+
+            return new SourceHealthSnapshot(
+                isCoolingDown,
+                resolvedState.ConsecutiveFailures,
+                resolvedState.LastSuccessUtc);
         }
     }
 

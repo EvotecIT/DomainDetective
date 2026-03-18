@@ -35,7 +35,7 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
 
             Assert.NotNull(eventArgs);
-            Assert.Contains(nameof(HttpRequestException), eventArgs!.FullMessage);
+            Assert.Contains("Exception reaching https://nonexistent.invalid", eventArgs!.FullMessage, StringComparison.OrdinalIgnoreCase);
             Assert.Null(analysis.ProtocolVersion);
         }
 
@@ -79,6 +79,26 @@ namespace DomainDetective.Tests {
             Assert.Contains("HttpRequestError:NameResolutionError", reason, StringComparison.OrdinalIgnoreCase);
         }
 #endif
+
+        [Fact]
+        public void BuildFailureLogMessage_UsesCompactSummaryForConnectivityFailures() {
+            var timeout = new TimeoutException("The operation timed out.");
+            var http = new HttpRequestException("Unable to connect to the remote server.", timeout);
+
+            string message = CertificateAnalysis.BuildFailureLogMessage(http);
+
+            Assert.Equal(CertificateAnalysis.BuildFailureReason(http), message);
+            Assert.DoesNotContain(Environment.NewLine + "   at ", message, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void BuildFailureLogMessage_PreservesDetailedUnexpectedExceptions() {
+            var exception = new InvalidOperationException("Unexpected parser state.");
+
+            string message = CertificateAnalysis.BuildFailureLogMessage(exception);
+
+            Assert.Equal(exception.ToString(), message);
+        }
 
         [Fact]
         public async Task ValidHostSetsProtocolVersion() {

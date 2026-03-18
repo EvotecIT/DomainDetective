@@ -521,6 +521,97 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
+    public void PassiveCtClient_OrdersHealthySourceAheadOfCooledDownSource()
+    {
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+        try
+        {
+            CertificateInventoryCapture.RestorePassiveCtSharedCooldownState(
+                new[]
+                {
+                    new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = "crt.sh",
+                        CooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(5)
+                    }
+                });
+
+            var requests = new[]
+            {
+                new PassiveCtSourceClient.SourceRequest
+                {
+                    SourceName = "crt.sh",
+                    Url = "https://crt.sh/?q=%25.example.com&output=json"
+                },
+                new PassiveCtSourceClient.SourceRequest
+                {
+                    SourceName = "certspotter",
+                    Url = "https://api.certspotter.com/v1/issuances?domain=example.com&include_subdomains=true&expand=dns_names"
+                }
+            };
+
+            IReadOnlyList<PassiveCtSourceClient.SourceRequest> ordered =
+                PassiveCtSourceClient.OrderRequestsBySourceHealth(requests);
+
+            Assert.Equal("certspotter", ordered[0].SourceName);
+            Assert.Equal("crt.sh", ordered[1].SourceName);
+        }
+        finally
+        {
+            PassiveCtSourceClient.ResetSharedStateForTesting();
+        }
+    }
+
+    [Fact]
+    public async Task PassiveCtClient_PrefersMostRecentlySuccessfulSourceWhenHealthy()
+    {
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+        try
+        {
+            var client = new PassiveCtSourceClient();
+            await client.QueryAsync(
+                new[]
+                {
+                    new PassiveCtSourceClient.SourceRequest
+                    {
+                        SourceName = "certspotter",
+                        Url = "https://api.certspotter.com/v1/issuances?domain=example.com&include_subdomains=true&expand=dns_names"
+                    }
+                },
+                new PassiveCtSourceClient.QueryOptions
+                {
+                    RetryCount = 0
+                },
+                (_, _) => Task.FromResult(@"[{ ""dns_names"": [""api.example.com""] }]"),
+                new InternalLogger(),
+                CancellationToken.None);
+
+            IReadOnlyList<PassiveCtSourceClient.SourceRequest> ordered =
+                PassiveCtSourceClient.OrderRequestsBySourceHealth(
+                    new[]
+                    {
+                        new PassiveCtSourceClient.SourceRequest
+                        {
+                            SourceName = "crt.sh",
+                            Url = "https://crt.sh/?q=%25.example.com&output=json"
+                        },
+                        new PassiveCtSourceClient.SourceRequest
+                        {
+                            SourceName = "certspotter",
+                            Url = "https://api.certspotter.com/v1/issuances?domain=example.com&include_subdomains=true&expand=dns_names"
+                        }
+                    });
+
+            Assert.Equal("certspotter", ordered[0].SourceName);
+            Assert.Equal("crt.sh", ordered[1].SourceName);
+        }
+        finally
+        {
+            PassiveCtSourceClient.ResetSharedStateForTesting();
+        }
+    }
+
+    [Fact]
     public async Task NativeCtLogOnlyDiscoversSubdomains()
     {
         using var cert = CreateSelfSigned("api.example.com");

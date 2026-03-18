@@ -80,10 +80,8 @@ public sealed partial class CertificateInventoryCapture {
         var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
         monitor.AnalysisOverride = async (url, port, internalLogger, token) => {
             await rateLimiter.WaitAsync(token).ConfigureAwait(false);
-            var analysis = new CertificateAnalysis {
-                CaptureTlsDetails = true
-            };
-            ConfigureHttpsAnalysis(analysis, options);
+            var analysis = new CertificateAnalysis();
+            ConfigureHttpsAnalysis(analysis, options, url);
             await analysis.AnalyzeUrl(url, port, internalLogger, token).ConfigureAwait(false);
             return analysis;
         };
@@ -93,7 +91,7 @@ public sealed partial class CertificateInventoryCapture {
         return monitor.Results.ToList();
     }
 
-    internal static void ConfigureHttpsAnalysis(CertificateAnalysis analysis, CertificateInventoryCaptureOptions options) {
+    internal static void ConfigureHttpsAnalysis(CertificateAnalysis analysis, CertificateInventoryCaptureOptions options, string? target = null) {
         if (analysis == null) {
             throw new ArgumentNullException(nameof(analysis));
         }
@@ -101,10 +99,17 @@ public sealed partial class CertificateInventoryCapture {
             throw new ArgumentNullException(nameof(options));
         }
 
-        analysis.SkipRevocation = options.SkipRevocation;
+        bool captureExtendedMetadata = options.CaptureExtendedHttpsMetadata;
+        bool captureCtMetadata = captureExtendedMetadata || ShouldCaptureTargetedCtMetadata(options, target);
+
+        analysis.CaptureTlsDetails = captureExtendedMetadata;
+        analysis.CaptureExtendedMetadata = captureExtendedMetadata;
+        analysis.CaptureCtMetadata = captureCtMetadata;
+        analysis.PreferTlsHandshakeOnlyProbe = options.PreferTlsHandshakeOnlyProbe;
+        analysis.SkipRevocation = options.SkipRevocation || !captureExtendedMetadata;
         analysis.Timeout = options.HttpsTimeout;
 
-        if (options.CtProfile == CertificateCtEnrichmentProfile.Disabled) {
+        if (!captureCtMetadata || options.CtProfile == CertificateCtEnrichmentProfile.Disabled) {
             analysis.CtLogApiTemplates.Clear();
             analysis.EnableCensysCtSource = false;
             analysis.CensysApiId = null;
@@ -116,7 +121,9 @@ public sealed partial class CertificateInventoryCapture {
             return;
         }
 
-        var allowDefaultPassiveCtTemplate = options.EnablePassiveCtFallback && options.IncludeDefaultCtTemplate;
+        var allowDefaultPassiveCtTemplate =
+            (options.EnablePassiveCtFallback || options.EnablePassiveCtMetadataFallback) &&
+            options.IncludeDefaultCtTemplate;
         if (options.CtProfile == CertificateCtEnrichmentProfile.Public || !allowDefaultPassiveCtTemplate) {
             analysis.CtLogApiTemplates.Clear();
         }
@@ -144,6 +151,36 @@ public sealed partial class CertificateInventoryCapture {
         if (!string.IsNullOrWhiteSpace(options.ShodanCtApiUrlTemplate)) {
             analysis.ShodanCtApiUrlTemplate = options.ShodanCtApiUrlTemplate!;
         }
+    }
+
+    private static bool ShouldCaptureTargetedCtMetadata(CertificateInventoryCaptureOptions options, string? target) {
+        if (options == null || options.CtMetadataTargetHosts.Count == 0) {
+            return false;
+        }
+
+        string? normalizedHost = TryNormalizeTargetHost(target);
+        if (string.IsNullOrWhiteSpace(normalizedHost)) {
+            return false;
+        }
+
+        return options.CtMetadataTargetHosts
+            .Where(static host => !string.IsNullOrWhiteSpace(host))
+            .Select(static host => host!.Trim().TrimEnd('.'))
+            .Contains(normalizedHost, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string? TryNormalizeTargetHost(string? target) {
+        if (string.IsNullOrWhiteSpace(target)) {
+            return null;
+        }
+
+        if (Uri.TryCreate(target, UriKind.Absolute, out Uri? uri)) {
+            return string.IsNullOrWhiteSpace(uri.Host)
+                ? null
+                : uri.Host.Trim().TrimEnd('.');
+        }
+
+        return target!.Trim().TrimEnd('.');
     }
 
     private static void AddCtTemplateIfMissing(ICollection<string> templates, string? template) {

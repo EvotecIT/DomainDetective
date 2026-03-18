@@ -53,6 +53,18 @@ public sealed class CertificateInventoryCaptureOptions {
     /// </summary>
     public List<string> ExactHostSeedCtMetadataSuppressedHosts { get; } = new();
 
+    /// <summary>
+    /// Optional normalized hosts that should still perform CT fingerprint lookups even when the
+    /// broader HTTPS metadata profile is running in lightweight mode.
+    /// </summary>
+    public List<string> CtMetadataTargetHosts { get; } = new();
+
+    /// <summary>
+    /// Optional normalized hosts that should remain eligible for exact passive CT metadata rescue.
+    /// When empty, the broader <see cref="CtMetadataTargetHosts"/> list is reused.
+    /// </summary>
+    public List<string> ExactPassiveCtMetadataTargetHosts { get; } = new();
+
     /// <summary>When true, uses native RFC6962 CT log polling for subdomain discovery.</summary>
     public bool EnableNativeCtLogSubdomainSource { get; set; }
 
@@ -217,6 +229,15 @@ public sealed class CertificateInventoryCaptureOptions {
 
     /// <summary>Timeout applied to HTTPS certificate probes.</summary>
     public TimeSpan HttpsTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>When true, HTTPS probes also collect extended revocation, protocol, stapling, grade, and CT metadata.</summary>
+    public bool CaptureExtendedHttpsMetadata { get; set; } = true;
+
+    /// <summary>
+    /// When true, HTTPS probes may use a certificate-only TLS handshake instead of a full HTTP request.
+    /// This is intended for high-throughput monitoring lanes that only need certificate evidence.
+    /// </summary>
+    public bool PreferTlsHandshakeOnlyProbe { get; set; }
 
     /// <summary>Maximum total probe targets (HTTPS + mail) kept after discovery; 0 means unlimited.</summary>
     public int MaxTargets { get; set; }

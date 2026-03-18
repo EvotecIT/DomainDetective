@@ -133,6 +133,12 @@ namespace DomainDetective {
         public int DhKeyBits { get; private set; }
         /// <summary>Enable gathering TLS protocol and cipher information.</summary>
         public bool CaptureTlsDetails { get; set; }
+        /// <summary>Enable slower extended HTTPS metadata collection such as revocation, stapling, protocol probes, grade, and CT queries.</summary>
+        public bool CaptureExtendedMetadata { get; set; } = true;
+        /// <summary>Enable CT lookup even when the rest of extended HTTPS metadata is disabled.</summary>
+        public bool CaptureCtMetadata { get; set; }
+        /// <summary>Prefer a certificate-only TLS handshake instead of a full HTTP request when the caller only needs certificate evidence.</summary>
+        public bool PreferTlsHandshakeOnlyProbe { get; set; }
         /// <summary>Skip certificate revocation checks.</summary>
         public bool SkipRevocation { get; set; }
         /// <summary>Gets a value indicating whether the certificate is present in public CT logs.</summary>
@@ -242,6 +248,21 @@ namespace DomainDetective {
             ResetChainSourceTracking();
             bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
+            if (ShouldUseTlsHandshakeOnlyProbe()) {
+                try {
+                    await AnalyzeWithTlsHandshakeOnlyAsync(url, port, cancellationToken).ConfigureAwait(false);
+                    if (Certificate != null) {
+                        await FinalizeCapturedCertificateAsync(url, port, logger, cancellationToken).ConfigureAwait(false);
+                    }
+                } catch (Exception ex) {
+                    IsReachable = false;
+                    FailureReason = BuildFailureReason(ex);
+                    logger.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, BuildFailureLogMessage(ex));
+                }
+
+                return;
+            }
+
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
                     if (certificate == null) {
@@ -317,31 +338,85 @@ namespace DomainDetective {
                             }
                         }
                         if (Certificate != null) {
-                            EnsureChainBuilt(Certificate);
-                            PopulateKeyInfo();
-                            if (CaptureTlsDetails) {
-                                await PopulateTlsInfo(new Uri(url), port, cancellationToken);
-                            }
-                            DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
-                            DaysValid = (int)(Certificate.NotAfter - Certificate.NotBefore).TotalDays;
-                            IsExpired = Certificate.NotAfter < DateTime.Now;
-                            if (!SkipRevocation) {
-                                await QueryRevocationEndpoints(cancellationToken);
-                            }
-                            PopulateSubjectAlternativeNames();
-                            PopulateSctAndTlsFeature(logger);
-                            await ProbeProtocolSupport(new Uri(url), port, logger, cancellationToken);
-                            await ProbeOcspStaplingWithOpenSsl(new Uri(url), port, logger, cancellationToken);
-                            await QueryCtLogs(cancellationToken);
-                            // Compute grade once we have basic data (and optional TLS details)
-                            ComputeGrade(logger);
+                            await FinalizeCapturedCertificateAsync(url, port, logger, cancellationToken).ConfigureAwait(false);
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
                         FailureReason = BuildFailureReason(ex);
-                        logger.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, ex.ToString());
+                        logger.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, BuildFailureLogMessage(ex));
                     }
                 }
+            }
+        }
+
+        internal bool ShouldUseTlsHandshakeOnlyProbe()
+        {
+            return PreferTlsHandshakeOnlyProbe && !CaptureExtendedMetadata && !CaptureTlsDetails;
+        }
+
+        private async Task AnalyzeWithTlsHandshakeOnlyAsync(string url, int port, CancellationToken cancellationToken)
+        {
+            var uri = new Uri(url);
+            using var tcp = new TcpClient();
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(Timeout);
+            await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token).ConfigureAwait(false);
+            using var ssl = new SslStream(
+                tcp.GetStream(),
+                false,
+                (sender, certificate, chain, errors) =>
+                {
+                    HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                    IsValid = errors == SslPolicyErrors.None;
+                    return true;
+                });
+            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation)
+                .WaitWithCancellation(timeoutCts.Token)
+                .ConfigureAwait(false);
+
+            IsReachable = true;
+            if (ssl.RemoteCertificate == null)
+            {
+                return;
+            }
+
+            Certificate = CertificateLoaderCompat.LoadCertificate(ssl.RemoteCertificate.Export(X509ContentType.Cert));
+            using var chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
+            chain.Build(Certificate);
+            Chain.Clear();
+            foreach (X509ChainElement element in chain.ChainElements)
+            {
+                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
+            }
+
+            RecordChainSource(ChainSourceSslStreamBuild);
+            IsSelfSigned = IsSelfSignedCertificate(Certificate);
+        }
+
+        private async Task FinalizeCapturedCertificateAsync(string url, int port, InternalLogger logger, CancellationToken cancellationToken)
+        {
+            EnsureChainBuilt(Certificate!);
+            PopulateKeyInfo();
+            if (CaptureTlsDetails) {
+                await PopulateTlsInfo(new Uri(url), port, cancellationToken).ConfigureAwait(false);
+            }
+            DaysToExpire = (int)(Certificate!.NotAfter - DateTime.Now).TotalDays;
+            DaysValid = (int)(Certificate!.NotAfter - Certificate!.NotBefore).TotalDays;
+            IsExpired = Certificate!.NotAfter < DateTime.Now;
+            if (CaptureExtendedMetadata && !SkipRevocation) {
+                await QueryRevocationEndpoints(cancellationToken).ConfigureAwait(false);
+            }
+            PopulateSubjectAlternativeNames();
+            if (CaptureExtendedMetadata) {
+                PopulateSctAndTlsFeature(logger);
+                await ProbeProtocolSupport(new Uri(url), port, logger, cancellationToken).ConfigureAwait(false);
+                await ProbeOcspStaplingWithOpenSsl(new Uri(url), port, logger, cancellationToken).ConfigureAwait(false);
+                // Compute grade once we have basic data (and optional TLS details)
+                ComputeGrade(logger);
+            }
+            if (CaptureExtendedMetadata || CaptureCtMetadata) {
+                await QueryCtLogs(cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -415,6 +490,48 @@ namespace DomainDetective {
             }
 
             return parts.Count == 0 ? exception.GetType().Name : string.Join(" | ", parts);
+        }
+
+        internal static bool ShouldLogConnectivityFailureAsSummary(Exception? exception)
+        {
+            Exception? current = exception;
+            while (current != null)
+            {
+                if (current is SocketException ||
+                    current is TimeoutException ||
+                    current is TaskCanceledException ||
+                    current is OperationCanceledException ||
+                    current is AuthenticationException)
+                {
+                    return true;
+                }
+
+#if NET8_0_OR_GREATER
+                if (current is HttpRequestException)
+                {
+                    return true;
+                }
+#endif
+
+                current = current.InnerException;
+            }
+
+            return false;
+        }
+
+        internal static string BuildFailureLogMessage(Exception? exception)
+        {
+            if (exception == null)
+            {
+                return string.Empty;
+            }
+
+            if (ShouldLogConnectivityFailureAsSummary(exception))
+            {
+                return BuildFailureReason(exception) ?? exception.Message ?? exception.GetType().Name;
+            }
+
+            return exception.ToString();
         }
 
         private async Task QueryRevocationEndpoints(CancellationToken cancellationToken) {
@@ -622,11 +739,13 @@ namespace DomainDetective {
             DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
             DaysValid = (int)(certificate.NotAfter - certificate.NotBefore).TotalDays;
             IsExpired = certificate.NotAfter < DateTime.Now;
-            if (!SkipRevocation) {
+            if (CaptureExtendedMetadata && !SkipRevocation) {
                 await QueryRevocationEndpoints(cancellationToken);
             }
             PopulateSubjectAlternativeNames();
-            await QueryCtLogs(cancellationToken);
+            if (CaptureExtendedMetadata || CaptureCtMetadata) {
+                await QueryCtLogs(cancellationToken);
+            }
         }
 
         private void EnsureChainBuilt(X509Certificate2 certificate) {

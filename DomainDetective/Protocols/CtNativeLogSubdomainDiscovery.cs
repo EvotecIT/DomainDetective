@@ -27,6 +27,7 @@ internal sealed class NativeCtLogSubdomainDiscoveryOptions {
     public IReadOnlyList<string> PreferredLogUrlPrefixes { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> ExcludedLogUrlPrefixes { get; set; } = Array.Empty<string>();
     public int MaxLogsToProcess { get; set; } = 12;
+    public int MaxConcurrentLogs { get; set; } = 1;
     public int MaxEntriesPerLog { get; set; } = 2000;
     public int EntryBatchSize { get; set; } = 256;
     public int InitialBackfillEntriesPerLog { get; set; } = 2000;
@@ -110,6 +111,18 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         public DateTimeOffset? TemporalEndUtc { get; init; }
         public bool IsRetired { get; init; }
         public int SourceOrder { get; init; }
+    }
+
+    private sealed class SharedLogProcessingWorkItem {
+        public required ResolvedCtLogDescriptor Descriptor { get; init; }
+        public required NativeCtLogIngestionStatus Status { get; init; }
+        public required string CursorKey { get; init; }
+        public required string LogHealthKey { get; init; }
+    }
+
+    private sealed class SharedBatchProcessingState {
+        public object Sync { get; } = new();
+        public bool StoppedAfterMatchedObservationTarget { get; set; }
     }
 
     private const int X509EntryType = 0;
@@ -345,14 +358,16 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
         var cursor = NativeCtCursorState.Load(options.CursorStatePath);
         logDescriptors = PrioritizeLogDescriptorsByHealth(logDescriptors, cursor, options, DateTimeOffset.UtcNow);
-        var stoppedAfterMatchedObservationTarget = false;
+        var state = new SharedBatchProcessingState();
         var consumedLogBudget = 0;
+        var processingItems = new List<SharedLogProcessingWorkItem>();
         foreach (var logDescriptor in logDescriptors) {
             var logUrl = logDescriptor.Url;
             cancellationToken.ThrowIfCancellationRequested();
             if (HasConsumedLogBudget(options.MaxLogsToProcess, consumedLogBudget)) {
                 break;
             }
+
             result.LogsAttempted++;
             var key = NativeCtCursorState.BuildSharedKey(logUrl, normalizedDomains);
             var logHealthKey = NativeCtCursorState.BuildLogHealthKey(logUrl);
@@ -364,150 +379,238 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             };
             result.LogStatuses.Add(status);
 
-            try {
-                if (cursor.IsCircuitOpen(logHealthKey, DateTimeOffset.UtcNow, out var openUntilUtc)) {
-                    result.Warnings.Add($"Native CT shared log skipped (circuit open) for {logUrl} until {openUntilUtc:O}");
-                    status.SkippedByCircuitBreaker = true;
-                    status.CircuitOpenUntilUtc = openUntilUtc;
-                    continue;
-                }
-
-                consumedLogBudget++;
-                var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
-                status.TreeSize = sth.TreeSize;
-                result.LogsSucceeded++;
-                var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
-                status.StartIndex = start;
-                status.EstimatedLagBefore = start >= sth.TreeSize ? 0 : (sth.TreeSize - start);
-                if (start >= sth.TreeSize) {
-                    cursor.SetLastProcessedIndex(key, sth.TreeSize - 1);
-                    cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
-                    status.EndIndex = sth.TreeSize - 1;
-                    status.LastProcessedIndex = sth.TreeSize - 1;
-                    status.EstimatedLagAfter = 0;
-                    status.Succeeded = true;
-                    continue;
-                }
-
-                var lag = Math.Max(0, sth.TreeSize - start);
-                long end = sth.TreeSize - 1;
-                var maxEntriesPerLog = ComputeEffectiveMaxEntriesPerLog(options, lag);
-                status.EffectiveMaxEntriesPerLog = maxEntriesPerLog;
-                if (maxEntriesPerLog > 0) {
-                    var maxEnd = start + Math.Max(0, maxEntriesPerLog - 1);
-                    if (maxEnd < end) {
-                        end = maxEnd;
-                    }
-                }
-                status.EndIndex = end;
-
-                var batchSize = ComputeEffectiveBatchSize(options, lag);
-                status.EffectiveBatchSize = batchSize;
-
-                var lastProcessed = start - 1;
-                for (long batchStart = start; batchStart <= end; ) {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    var batchEnd = batchStart + batchSize - 1;
-                    if (batchEnd > end) {
-                        batchEnd = end;
-                    }
-
-                    var entries = await GetEntriesAsync(logUrl, batchStart, batchEnd, options, cancellationToken).ConfigureAwait(false);
-                    if (entries.Count == 0) {
-                        break;
-                    }
-
-                    for (int i = 0; i < entries.Count; i++) {
-                        cancellationToken.ThrowIfCancellationRequested();
-
-                        if (options.MaxCtRowsToProcess > 0 && result.CertificateObservationCount >= options.MaxCtRowsToProcess) {
-                            result.ResultsCapped = true;
-                            break;
-                        }
-
-                        if (TryProcessEntryForDomains(entries[i], domainSet, exactMatchDomainSet, options.MaxSubdomains, result, logger, out var matchedObservationCount)) {
-                            if (matchedObservationCount > 0) {
-                                result.CertificateObservationCount += matchedObservationCount;
-                                if (options.StopAfterMatchedObservations > 0 &&
-                                    result.CertificateObservationCount >= options.StopAfterMatchedObservations) {
-                                    stoppedAfterMatchedObservationTarget = true;
-                                }
-                            }
-                            lastProcessed = batchStart + i;
-                        } else {
-                            result.ResultsCapped = true;
-                            lastProcessed = batchStart + i;
-                            break;
-                        }
-                    }
-
-                    if (lastProcessed >= start) {
-                        cursor.SetLastProcessedIndex(key, lastProcessed);
-                    }
-
-                    if (result.ResultsCapped) {
-                        break;
-                    }
-                    if (stoppedAfterMatchedObservationTarget) {
-                        break;
-                    }
-
-                    batchStart = batchEnd + 1;
-                }
-
-                logger?.WriteVerbose(
-                    "Native CT shared processed log {0}: observations={1}",
-                    logUrl,
-                    result.CertificateObservationCount);
-                cursor.RecordSuccess(key, DateTimeOffset.UtcNow);
-                cursor.RecordSuccess(logHealthKey, DateTimeOffset.UtcNow);
-                status.LastProcessedIndex = cursor.GetLastProcessedIndex(key);
-                status.EstimatedLagAfter = status.TreeSize.HasValue
-                    ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
-                    : null;
-                status.Succeeded = true;
-
-                if (result.ResultsCapped) {
-                    break;
-                }
-                if (stoppedAfterMatchedObservationTarget) {
-                    break;
-                }
-            } catch (Exception ex) {
-                (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex, options, logDescriptor);
-                cursor.RecordFailure(
-                    key,
-                    DateTimeOffset.UtcNow,
-                    ex.Message,
-                    failureThreshold,
-                    circuitDuration);
-                cursor.RecordFailure(
-                    logHealthKey,
-                    DateTimeOffset.UtcNow,
-                    ex.Message,
-                    failureThreshold,
-                    circuitDuration);
-                result.Warnings.Add($"Native CT shared log failed for {logUrl}: {ex.Message}");
-                logger?.WriteVerbose("Native CT shared log failed for {0}: {1}", logUrl, ex.Message);
-                status.Failure = ex.Message;
-                status.LastProcessedIndex = cursor.GetLastProcessedIndex(key);
-                status.EstimatedLagAfter = status.TreeSize.HasValue
-                    ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
-                    : null;
-                if (cursor.IsCircuitOpen(logHealthKey, DateTimeOffset.UtcNow, out var openUntilUtc)) {
-                    status.CircuitOpenUntilUtc = openUntilUtc;
-                }
+            if (cursor.IsCircuitOpen(logHealthKey, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                result.Warnings.Add($"Native CT shared log skipped (circuit open) for {logUrl} until {openUntilUtc:O}");
+                status.SkippedByCircuitBreaker = true;
+                status.CircuitOpenUntilUtc = openUntilUtc;
+                continue;
             }
+
+            consumedLogBudget++;
+            processingItems.Add(new SharedLogProcessingWorkItem {
+                Descriptor = logDescriptor,
+                Status = status,
+                CursorKey = key,
+                LogHealthKey = logHealthKey
+            });
         }
 
-        if (stoppedAfterMatchedObservationTarget) {
+        int maxConcurrentLogs = Math.Min(
+            processingItems.Count,
+            Math.Max(1, options.MaxConcurrentLogs > 0 ? options.MaxConcurrentLogs : 1));
+        if (maxConcurrentLogs <= 1 || processingItems.Count <= 1) {
+            foreach (SharedLogProcessingWorkItem workItem in processingItems) {
+                await ProcessSharedLogAsync(
+                        workItem,
+                        domainSet,
+                        exactMatchDomainSet,
+                        options,
+                        cursor,
+                        result,
+                        state,
+                        logger,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        } else {
+            using var gate = new SemaphoreSlim(maxConcurrentLogs, maxConcurrentLogs);
+            var tasks = new List<Task>(processingItems.Count);
+            foreach (SharedLogProcessingWorkItem workItem in processingItems) {
+                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                tasks.Add(Task.Run(async () => {
+                    try {
+                        await ProcessSharedLogAsync(
+                                workItem,
+                                domainSet,
+                                exactMatchDomainSet,
+                                options,
+                                cursor,
+                                result,
+                                state,
+                                logger,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    } finally {
+                        gate.Release();
+                    }
+                }, cancellationToken));
+            }
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+
+        if (state.StoppedAfterMatchedObservationTarget) {
             result.Warnings.Add(
                 "Native CT exact-host lookup stopped after reaching the configured matched-observation target.");
         }
 
         cursor.Save(options.CursorStatePath);
         return result;
+    }
+
+    private async Task ProcessSharedLogAsync(
+        SharedLogProcessingWorkItem workItem,
+        HashSet<string> domainSet,
+        HashSet<string> exactMatchDomainSet,
+        NativeCtLogSubdomainDiscoveryOptions options,
+        NativeCtCursorState cursor,
+        NativeCtLogSubdomainDiscoveryBatchResult result,
+        SharedBatchProcessingState state,
+        InternalLogger? logger,
+        CancellationToken cancellationToken) {
+        NativeCtLogIngestionStatus status = workItem.Status;
+        string logUrl = workItem.Descriptor.Url;
+
+        try {
+            var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
+            status.TreeSize = sth.TreeSize;
+            lock (state.Sync) {
+                result.LogsSucceeded++;
+            }
+
+            var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(workItem.CursorKey), options.InitialBackfillEntriesPerLog);
+            status.StartIndex = start;
+            status.EstimatedLagBefore = start >= sth.TreeSize ? 0 : (sth.TreeSize - start);
+            if (start >= sth.TreeSize) {
+                cursor.SetLastProcessedIndex(workItem.CursorKey, sth.TreeSize - 1);
+                cursor.RecordSuccess(workItem.CursorKey, DateTimeOffset.UtcNow);
+                cursor.RecordSuccess(workItem.LogHealthKey, DateTimeOffset.UtcNow);
+                status.EndIndex = sth.TreeSize - 1;
+                status.LastProcessedIndex = sth.TreeSize - 1;
+                status.EstimatedLagAfter = 0;
+                status.Succeeded = true;
+                return;
+            }
+
+            var lag = Math.Max(0, sth.TreeSize - start);
+            long end = sth.TreeSize - 1;
+            int maxEntriesPerLog = ComputeEffectiveMaxEntriesPerLog(options, lag);
+            status.EffectiveMaxEntriesPerLog = maxEntriesPerLog;
+            if (maxEntriesPerLog > 0) {
+                var maxEnd = start + Math.Max(0, maxEntriesPerLog - 1);
+                if (maxEnd < end) {
+                    end = maxEnd;
+                }
+            }
+            status.EndIndex = end;
+
+            int batchSize = ComputeEffectiveBatchSize(options, lag);
+            status.EffectiveBatchSize = batchSize;
+
+            var lastProcessed = start - 1;
+            for (long batchStart = start; batchStart <= end; ) {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                lock (state.Sync) {
+                    if (result.ResultsCapped || state.StoppedAfterMatchedObservationTarget) {
+                        break;
+                    }
+                }
+
+                var batchEnd = batchStart + batchSize - 1;
+                if (batchEnd > end) {
+                    batchEnd = end;
+                }
+
+                var entries = await GetEntriesAsync(logUrl, batchStart, batchEnd, options, cancellationToken).ConfigureAwait(false);
+                if (entries.Count == 0) {
+                    break;
+                }
+
+                var shouldStop = false;
+                for (int i = 0; i < entries.Count; i++) {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    lock (state.Sync) {
+                        if (result.ResultsCapped || state.StoppedAfterMatchedObservationTarget) {
+                            shouldStop = true;
+                        } else if (options.MaxCtRowsToProcess > 0 &&
+                                   result.CertificateObservationCount >= options.MaxCtRowsToProcess) {
+                            result.ResultsCapped = true;
+                            shouldStop = true;
+                        } else if (TryProcessEntryForDomains(
+                                       entries[i],
+                                       domainSet,
+                                       exactMatchDomainSet,
+                                       options.MaxSubdomains,
+                                       result,
+                                       logger,
+                                       out int matchedObservationCount)) {
+                            lastProcessed = batchStart + i;
+                            if (matchedObservationCount > 0) {
+                                result.CertificateObservationCount += matchedObservationCount;
+                                if (options.StopAfterMatchedObservations > 0 &&
+                                    result.CertificateObservationCount >= options.StopAfterMatchedObservations) {
+                                    state.StoppedAfterMatchedObservationTarget = true;
+                                    shouldStop = true;
+                                }
+                            }
+                        } else {
+                            result.ResultsCapped = true;
+                            lastProcessed = batchStart + i;
+                            shouldStop = true;
+                        }
+                    }
+
+                    if (shouldStop) {
+                        break;
+                    }
+                }
+
+                if (lastProcessed >= start) {
+                    cursor.SetLastProcessedIndex(workItem.CursorKey, lastProcessed);
+                }
+
+                if (shouldStop) {
+                    break;
+                }
+
+                batchStart = batchEnd + 1;
+            }
+
+            int observationCountSnapshot;
+            lock (state.Sync) {
+                observationCountSnapshot = result.CertificateObservationCount;
+            }
+
+            logger?.WriteVerbose(
+                "Native CT shared processed log {0}: observations={1}",
+                logUrl,
+                observationCountSnapshot);
+            cursor.RecordSuccess(workItem.CursorKey, DateTimeOffset.UtcNow);
+            cursor.RecordSuccess(workItem.LogHealthKey, DateTimeOffset.UtcNow);
+            status.LastProcessedIndex = cursor.GetLastProcessedIndex(workItem.CursorKey);
+            status.EstimatedLagAfter = status.TreeSize.HasValue
+                ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
+                : null;
+            status.Succeeded = true;
+        } catch (Exception ex) {
+            (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex, options, workItem.Descriptor);
+            cursor.RecordFailure(
+                workItem.CursorKey,
+                DateTimeOffset.UtcNow,
+                ex.Message,
+                failureThreshold,
+                circuitDuration);
+            cursor.RecordFailure(
+                workItem.LogHealthKey,
+                DateTimeOffset.UtcNow,
+                ex.Message,
+                failureThreshold,
+                circuitDuration);
+            lock (state.Sync) {
+                result.Warnings.Add($"Native CT shared log failed for {logUrl}: {ex.Message}");
+            }
+            logger?.WriteVerbose("Native CT shared log failed for {0}: {1}", logUrl, ex.Message);
+            status.Failure = ex.Message;
+            status.LastProcessedIndex = cursor.GetLastProcessedIndex(workItem.CursorKey);
+            status.EstimatedLagAfter = status.TreeSize.HasValue
+                ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
+                : null;
+            if (cursor.IsCircuitOpen(workItem.LogHealthKey, DateTimeOffset.UtcNow, out var openUntilUtc)) {
+                status.CircuitOpenUntilUtc = openUntilUtc;
+            }
+        }
     }
 
     private async Task<IReadOnlyList<ResolvedCtLogDescriptor>> ResolveLogUrlsAsync(
