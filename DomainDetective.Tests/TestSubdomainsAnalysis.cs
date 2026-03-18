@@ -228,7 +228,7 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
-    public async Task PassiveCtInvalidPayloadTriggersCooldownForSharedSourceState()
+    public async Task PassiveCtInvalidPayloadDoesNotEnterSharedCooldownState()
     {
         var requestCount = 0;
         var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
@@ -302,9 +302,11 @@ public class TestSubdomainsAnalysis
 
             Assert.True(first.RetrySuggested);
             Assert.True(second.RetrySuggested);
-            Assert.Contains(first.Warnings, warning => warning.Contains("Next retry after", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(second.Warnings, warning => warning.Contains("cooling down", StringComparison.OrdinalIgnoreCase));
-            Assert.Equal(1, requestCount);
+            Assert.DoesNotContain(first.Warnings, warning => warning.Contains("Next retry after", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(second.Warnings, warning => warning.Contains("cooling down", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(first.Diagnostics, diagnostic => diagnostic.CooldownUntilUtc.HasValue);
+            Assert.DoesNotContain(second.Diagnostics, diagnostic => string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(2, requestCount);
         }
         finally
         {
@@ -382,6 +384,140 @@ public class TestSubdomainsAnalysis
         {
             await server.DisposeAsync();
         }
+    }
+
+    [Fact]
+    public async Task PassiveCtClient_DoesNotRetryOrCooldownSourceAfterHttp404()
+    {
+        var requestCount = 0;
+        var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
+        {
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask)
+                    {
+                        break;
+                    }
+
+                    using var client = await clientTask;
+                    Interlocked.Increment(ref requestCount);
+                    using NetworkStream stream = client.GetStream();
+                    using var reader = new StreamReader(stream);
+                    using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                    string? line;
+                    do
+                    {
+                        line = await reader.ReadLineAsync();
+                    } while (!string.IsNullOrEmpty(line));
+
+                    await writer.WriteLineAsync("HTTP/1.1 404 Not Found");
+                    await writer.WriteLineAsync("Content-Length: 0");
+                    await writer.WriteLineAsync();
+                }
+            }
+            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            {
+            }
+            catch (SocketException) when (token.IsCancellationRequested)
+            {
+            }
+        }, token));
+        await server.InitializeAsync();
+
+        try
+        {
+            var client = new PassiveCtSourceClient();
+            var requests = new[]
+            {
+                new PassiveCtSourceClient.SourceRequest
+                {
+                    SourceName = "crt.sh",
+                    Url = $"http://127.0.0.1:{server.Port}/"
+                }
+            };
+
+            PassiveCtSourceClient.QueryResult first = await client.QueryAsync(
+                requests,
+                new PassiveCtSourceClient.QueryOptions
+                {
+                    RetryCount = 2,
+                    SourceCooldown = TimeSpan.FromSeconds(30)
+                },
+                null,
+                new InternalLogger(),
+                CancellationToken.None);
+            PassiveCtSourceClient.QueryResult second = await client.QueryAsync(
+                requests,
+                new PassiveCtSourceClient.QueryOptions
+                {
+                    RetryCount = 2,
+                    SourceCooldown = TimeSpan.FromSeconds(30)
+                },
+                null,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.False(first.RetrySuggested);
+            Assert.False(second.RetrySuggested);
+            Assert.Contains(first.Warnings, warning => warning.Contains("failed", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(first.Diagnostics, diagnostic => string.Equals(diagnostic.State, "Failed", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(first.Diagnostics, diagnostic => diagnostic.CooldownUntilUtc.HasValue);
+            Assert.DoesNotContain(second.Diagnostics, diagnostic => string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(2, requestCount);
+        }
+        finally
+        {
+            await server.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task PassiveCtClient_PreservesDeclaredSourceOrderByDefault()
+    {
+        var requestedUrls = new List<string>();
+        var client = new PassiveCtSourceClient();
+        var requests = new[]
+        {
+            new PassiveCtSourceClient.SourceRequest
+            {
+                SourceName = "crt.sh",
+                Url = "https://crt.sh/?q=%25.example.com&output=json"
+            },
+            new PassiveCtSourceClient.SourceRequest
+            {
+                SourceName = "certspotter",
+                Url = "https://api.certspotter.com/v1/issuances?domain=example.com&include_subdomains=true&expand=dns_names"
+            }
+        };
+
+        PassiveCtSourceClient.QueryResult result = await client.QueryAsync(
+            requests,
+            new PassiveCtSourceClient.QueryOptions
+            {
+                RetryCount = 0
+            },
+            (url, _) =>
+            {
+                requestedUrls.Add(url);
+                if (url.Contains("crt.sh", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(@"[{ ""name_value"": ""api.example.com"" }]");
+                }
+
+                throw new InvalidOperationException("certspotter should not be queried when the first source succeeds.");
+            },
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.False(result.RetrySuggested);
+        Assert.Single(requestedUrls);
+        Assert.Contains("crt.sh", requestedUrls[0], StringComparison.OrdinalIgnoreCase);
+        var payload = Assert.Single(result.Payloads);
+        Assert.Equal("crt.sh", payload.SourceName);
     }
 
     [Fact]

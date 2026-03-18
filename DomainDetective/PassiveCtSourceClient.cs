@@ -46,6 +46,7 @@ internal sealed class PassiveCtSourceClient
         public TimeSpan RetryMaxDelay { get; init; } = TimeSpan.FromSeconds(15);
         public TimeSpan SourceCooldown { get; init; } = TimeSpan.FromSeconds(60);
         public bool QueryAllSources { get; init; }
+        public bool PreserveRequestOrder { get; init; } = true;
         public Func<string, string?>? PayloadValidator { get; init; }
     }
 
@@ -74,7 +75,9 @@ internal sealed class PassiveCtSourceClient
         }
 
         QueryOptions effectiveOptions = NormalizeOptions(options);
-        IReadOnlyList<SourceRequest> rotated = RotateRequests(requests);
+        IReadOnlyList<SourceRequest> rotated = effectiveOptions.PreserveRequestOrder
+            ? requests
+            : RotateRequests(requests);
         bool useSharedSourceState = queryOverride == null;
         foreach (SourceRequest request in rotated)
         {
@@ -119,26 +122,17 @@ internal sealed class PassiveCtSourceClient
                         request.SourceName +
                         "' returned an invalid payload: " +
                         payloadValidationFailure;
-                    if (useSharedSourceState)
-                    {
-                        DateTimeOffset retryUtc = MarkTransientFailure(request.SourceName, effectiveOptions.SourceCooldown);
-                        warning += ". Next retry after " + retryUtc.ToString("u") + ".";
-                    }
-                    else
-                    {
-                        warning += ".";
-                    }
+                    warning += ".";
 
                     result.Warnings.Add(warning);
-                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
-                {
-                    SourceName = request.SourceName,
-                    RequestUrl = request.Url,
-                    State = "InvalidPayload",
-                    RetrySuggested = true,
-                    CooldownUntilUtc = useSharedSourceState ? TryGetSourceCooldownUtc(request.SourceName) : null,
-                    Failure = SanitizeFailureText(payloadValidationFailure)
-                });
+                    result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = request.SourceName,
+                        RequestUrl = request.Url,
+                        State = "InvalidPayload",
+                        RetrySuggested = true,
+                        Failure = SanitizeFailureText(payloadValidationFailure)
+                    });
                     logger?.WriteVerbose("{0}", warning);
                     continue;
                 }
@@ -273,6 +267,7 @@ internal sealed class PassiveCtSourceClient
             RetryMaxDelay = retryMaxDelay,
             SourceCooldown = sourceCooldown,
             QueryAllSources = options?.QueryAllSources ?? false,
+            PreserveRequestOrder = options?.PreserveRequestOrder ?? true,
             PayloadValidator = options?.PayloadValidator
         };
     }
@@ -434,6 +429,43 @@ internal sealed class PassiveCtSourceClient
         }
     }
 
+    internal static IReadOnlyList<PassiveCtDiagnosticEntry> ExportSharedCooldownDiagnostics(IEnumerable<string>? sourceNames)
+    {
+        List<string> normalizedSourceNames = sourceNames == null
+            ? SharedSourceStates.Keys
+                .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+                .ToList()
+            : sourceNames
+                .Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Select(static value => value.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        if (normalizedSourceNames.Count == 0)
+        {
+            return Array.Empty<PassiveCtDiagnosticEntry>();
+        }
+
+        var diagnostics = new List<PassiveCtDiagnosticEntry>(normalizedSourceNames.Count);
+        foreach (string sourceName in normalizedSourceNames)
+        {
+            if (!TryGetCooldown(sourceName, out DateTimeOffset cooldownUntilUtc))
+            {
+                continue;
+            }
+
+            diagnostics.Add(new PassiveCtDiagnosticEntry
+            {
+                SourceName = sourceName,
+                State = "CoolingDown",
+                RetrySuggested = true,
+                CooldownUntilUtc = cooldownUntilUtc
+            });
+        }
+
+        return diagnostics;
+    }
+
     private static async Task<FetchOutcome> FetchSourceAsync(
         SourceRequest request,
         QueryOptions options,
@@ -581,7 +613,8 @@ internal sealed class PassiveCtSourceClient
     private static bool ShouldRetryStatusCode(HttpStatusCode statusCode)
     {
         int code = (int)statusCode;
-        return statusCode == HttpStatusCode.RequestTimeout ||
+        return statusCode == HttpStatusCode.Gone ||
+               statusCode == HttpStatusCode.RequestTimeout ||
                statusCode == HttpStatusCode.BadGateway ||
                statusCode == HttpStatusCode.ServiceUnavailable ||
                statusCode == HttpStatusCode.GatewayTimeout ||

@@ -217,6 +217,457 @@ public class TestNativeCtLogSubdomainDiscovery {
     }
 
     [Fact]
+    public async Task DiscoverAsync_CappedRunDoesNotSpendLogBudgetOnCircuitOpenLog() {
+        string cursorPath = CreateTemporaryCursorStatePath();
+
+        try {
+            File.WriteAllText(
+                cursorPath,
+                """
+                {
+                  "Version": 2,
+                  "UpdatedAtUtc": "2026-03-16T23:00:00Z",
+                  "Entries": [
+                    {
+                      "Key": "health|https://ct.test.example/dead/",
+                      "LastProcessedIndex": null,
+                      "ConsecutiveFailureCount": 3,
+                      "CircuitOpenUntilUtc": "2026-03-17T23:00:00Z",
+                      "LastAttemptUtc": "2026-03-16T22:59:00Z",
+                      "LastSuccessUtc": null,
+                      "LastError": "No such host is known. (ct.test.example:443)"
+                    }
+                  ]
+                }
+                """);
+
+            using var cert = CreateSelfSigned("portal.example.com");
+            var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
+            var getSthCalls = 0;
+
+            var source = new NativeCtLogSubdomainDiscovery {
+                QueryOverride = (url, _) => {
+                    if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/dead/"" }, { ""url"": ""ct.test.example/healthy/"" } ] } ] }");
+                    }
+                    if (url.Contains("ct.test.example/healthy/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        getSthCalls++;
+                        return Task.FromResult(@"{ ""tree_size"": 1 }");
+                    }
+                    if (url.Contains("ct.test.example/healthy/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(entriesJson);
+                    }
+                    if (url.Contains("ct.test.example/dead/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        throw new InvalidOperationException("Circuit-open log should not be queried.");
+                    }
+
+                    throw new InvalidOperationException("Unexpected URL: " + url);
+                }
+            };
+
+            var options = new NativeCtLogSubdomainDiscoveryOptions {
+                BaseDomain = "example.com",
+                LogListUrl = "https://ct-log-list.example/logs.json",
+                CursorStatePath = cursorPath,
+                MaxCtRowsToProcess = 100,
+                MaxSubdomains = 100,
+                MaxLogsToProcess = 1,
+                MaxEntriesPerLog = 100,
+                EntryBatchSize = 100,
+                InitialBackfillEntriesPerLog = 100,
+                IncludeRetiredLogs = false
+            };
+
+            var result = await source.DiscoverAsync(
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.True(result.SourceSucceeded);
+            Assert.Equal(1, result.LogsSucceeded);
+            Assert.Equal(1, getSthCalls);
+            Assert.Single(result.LogStatuses);
+            Assert.True(result.LogStatuses[0].Succeeded);
+            Assert.Contains("portal.example.com", result.Subdomains.Keys);
+        } finally {
+            try {
+                if (File.Exists(cursorPath)) {
+                    File.Delete(cursorPath);
+                }
+            } catch {
+            }
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_CappedRunDoesNotSpendLogBudgetOnCircuitOpenLog() {
+        string cursorPath = CreateTemporaryCursorStatePath();
+
+        try {
+            File.WriteAllText(
+                cursorPath,
+                """
+                {
+                  "Version": 2,
+                  "UpdatedAtUtc": "2026-03-16T23:00:00Z",
+                  "Entries": [
+                    {
+                      "Key": "health|https://ct.test.example/dead/",
+                      "LastProcessedIndex": null,
+                      "ConsecutiveFailureCount": 3,
+                      "CircuitOpenUntilUtc": "2026-03-17T23:00:00Z",
+                      "LastAttemptUtc": "2026-03-16T22:59:00Z",
+                      "LastSuccessUtc": null,
+                      "LastError": "No such host is known. (ct.test.example:443)"
+                    }
+                  ]
+                }
+                """);
+
+            using var cert = CreateSelfSigned("portal.example.com");
+            var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
+            var getSthCalls = 0;
+
+            var source = new NativeCtLogSubdomainDiscovery {
+                QueryOverride = (url, _) => {
+                    if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/dead/"" }, { ""url"": ""ct.test.example/healthy/"" } ] } ] }");
+                    }
+                    if (url.Contains("ct.test.example/healthy/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        getSthCalls++;
+                        return Task.FromResult(@"{ ""tree_size"": 1 }");
+                    }
+                    if (url.Contains("ct.test.example/healthy/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(entriesJson);
+                    }
+                    if (url.Contains("ct.test.example/dead/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        throw new InvalidOperationException("Circuit-open log should not be queried.");
+                    }
+
+                    throw new InvalidOperationException("Unexpected URL: " + url);
+                }
+            };
+
+            var options = new NativeCtLogSubdomainDiscoveryOptions {
+                BaseDomain = "example.com",
+                LogListUrl = "https://ct-log-list.example/logs.json",
+                CursorStatePath = cursorPath,
+                MaxCtRowsToProcess = 100,
+                MaxSubdomains = 100,
+                MaxLogsToProcess = 1,
+                MaxEntriesPerLog = 100,
+                EntryBatchSize = 100,
+                InitialBackfillEntriesPerLog = 100,
+                IncludeRetiredLogs = false
+            };
+
+            var result = await source.DiscoverForDomainsAsync(
+                new[] { "example.com" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.True(result.SourceSucceeded);
+            Assert.Equal(1, result.LogsSucceeded);
+            Assert.Equal(1, getSthCalls);
+            Assert.Single(result.LogStatuses);
+            Assert.True(result.LogStatuses[0].Succeeded);
+            Assert.Contains("portal.example.com", result.SubdomainsByDomain["example.com"].Keys);
+        } finally {
+            try {
+                if (File.Exists(cursorPath)) {
+                    File.Delete(cursorPath);
+                }
+            } catch {
+            }
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_CappedRunDeprioritizesKnownPermanentFailureLogs() {
+        string cursorPath = CreateTemporaryCursorStatePath();
+
+        try {
+            File.WriteAllText(
+                cursorPath,
+                """
+                {
+                  "Version": 2,
+                  "UpdatedAtUtc": "2026-03-16T23:00:00Z",
+                  "Entries": [
+                    {
+                      "Key": "health|https://ct.test.example/dead/",
+                      "LastProcessedIndex": null,
+                      "ConsecutiveFailureCount": 1,
+                      "CircuitOpenUntilUtc": null,
+                      "LastAttemptUtc": "2026-03-16T22:59:00Z",
+                      "LastSuccessUtc": null,
+                      "LastError": "No such host is known. (ct.test.example:443)"
+                    }
+                  ]
+                }
+                """);
+
+            using var cert = CreateSelfSigned("portal.example.com");
+            var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
+            var getSthCalls = 0;
+
+            var source = new NativeCtLogSubdomainDiscovery {
+                QueryOverride = (url, _) => {
+                    if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/dead/"" }, { ""url"": ""ct.test.example/healthy/"" } ] } ] }");
+                    }
+                    if (url.Contains("ct.test.example/dead/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        throw new InvalidOperationException("Known-dead log should have been deprioritized out of the capped budget.");
+                    }
+                    if (url.Contains("ct.test.example/healthy/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        getSthCalls++;
+                        return Task.FromResult(@"{ ""tree_size"": 1 }");
+                    }
+                    if (url.Contains("ct.test.example/healthy/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(entriesJson);
+                    }
+
+                    throw new InvalidOperationException("Unexpected URL: " + url);
+                }
+            };
+
+            var options = new NativeCtLogSubdomainDiscoveryOptions {
+                BaseDomain = "example.com",
+                LogListUrl = "https://ct-log-list.example/logs.json",
+                CursorStatePath = cursorPath,
+                MaxCtRowsToProcess = 100,
+                MaxSubdomains = 100,
+                MaxLogsToProcess = 1,
+                MaxEntriesPerLog = 100,
+                EntryBatchSize = 100,
+                InitialBackfillEntriesPerLog = 100,
+                IncludeRetiredLogs = false
+            };
+
+            var result = await source.DiscoverAsync(
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.True(result.SourceSucceeded);
+            Assert.Equal(1, getSthCalls);
+            Assert.Single(result.LogStatuses, static status => status.Succeeded);
+            Assert.Contains("portal.example.com", result.Subdomains.Keys);
+        } finally {
+            try {
+                if (File.Exists(cursorPath)) {
+                    File.Delete(cursorPath);
+                }
+            } catch {
+            }
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_CappedRunDeprioritizesKnownPermanentFailureLogs() {
+        string cursorPath = CreateTemporaryCursorStatePath();
+
+        try {
+            File.WriteAllText(
+                cursorPath,
+                """
+                {
+                  "Version": 2,
+                  "UpdatedAtUtc": "2026-03-16T23:00:00Z",
+                  "Entries": [
+                    {
+                      "Key": "health|https://ct.test.example/dead/",
+                      "LastProcessedIndex": null,
+                      "ConsecutiveFailureCount": 1,
+                      "CircuitOpenUntilUtc": null,
+                      "LastAttemptUtc": "2026-03-16T22:59:00Z",
+                      "LastSuccessUtc": null,
+                      "LastError": "No such host is known. (ct.test.example:443)"
+                    }
+                  ]
+                }
+                """);
+
+            using var cert = CreateSelfSigned("portal.example.com");
+            var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
+            var getSthCalls = 0;
+
+            var source = new NativeCtLogSubdomainDiscovery {
+                QueryOverride = (url, _) => {
+                    if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/dead/"" }, { ""url"": ""ct.test.example/healthy/"" } ] } ] }");
+                    }
+                    if (url.Contains("ct.test.example/dead/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        throw new InvalidOperationException("Known-dead log should have been deprioritized out of the capped budget.");
+                    }
+                    if (url.Contains("ct.test.example/healthy/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                        getSthCalls++;
+                        return Task.FromResult(@"{ ""tree_size"": 1 }");
+                    }
+                    if (url.Contains("ct.test.example/healthy/", StringComparison.OrdinalIgnoreCase) &&
+                        url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(entriesJson);
+                    }
+
+                    throw new InvalidOperationException("Unexpected URL: " + url);
+                }
+            };
+
+            var options = new NativeCtLogSubdomainDiscoveryOptions {
+                BaseDomain = "example.com",
+                LogListUrl = "https://ct-log-list.example/logs.json",
+                CursorStatePath = cursorPath,
+                MaxCtRowsToProcess = 100,
+                MaxSubdomains = 100,
+                MaxLogsToProcess = 1,
+                MaxEntriesPerLog = 100,
+                EntryBatchSize = 100,
+                InitialBackfillEntriesPerLog = 100,
+                IncludeRetiredLogs = false
+            };
+
+            var result = await source.DiscoverForDomainsAsync(
+                new[] { "example.com" },
+                options,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.True(result.SourceSucceeded);
+            Assert.Equal(1, getSthCalls);
+            Assert.Single(result.LogStatuses, static status => status.Succeeded);
+            Assert.Contains("portal.example.com", result.SubdomainsByDomain["example.com"].Keys);
+        } finally {
+            try {
+                if (File.Exists(cursorPath)) {
+                    File.Delete(cursorPath);
+                }
+            } catch {
+            }
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_CappedRunPrefersConfiguredPreferredLogsWhenHealthIsCold() {
+        using var cert = CreateSelfSigned("portal.example.com");
+        var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
+        var getSthCalls = new List<string>();
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.test.example/default/"" }, { ""url"": ""ct.good.example/preferred/"" } ] } ] }");
+                }
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    getSthCalls.Add(url);
+                    if (url.Contains("ct.good.example/preferred/", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(@"{ ""tree_size"": 1 }");
+                    }
+
+                    throw new InvalidOperationException("Non-preferred log should not have been selected into the capped budget.");
+                }
+                if (url.Contains("ct.good.example/preferred/", StringComparison.OrdinalIgnoreCase) &&
+                    url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "example.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            PreferredLogUrlPrefixes = new[] { "https://ct.good.example/" },
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 1,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false
+        };
+
+        var result = await source.DiscoverAsync(
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Single(getSthCalls);
+        Assert.Contains("ct.good.example/preferred/", getSthCalls[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Single(result.LogStatuses, static status => status.Succeeded);
+        Assert.Contains("portal.example.com", result.Subdomains.Keys);
+    }
+
+    [Fact]
+    public async Task DiscoverForDomainsAsync_ExcludedLogPrefixesAreSkippedBeforeBudgeting() {
+        using var cert = CreateSelfSigned("portal.example.com");
+        var entriesJson = BuildCtEntriesResponse((cert, new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero)));
+        var getSthCalls = new List<string>();
+
+        var source = new NativeCtLogSubdomainDiscovery {
+            QueryOverride = (url, _) => {
+                if (url.Contains("logs.json", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(@"{ ""operators"": [ { ""name"": ""Test"", ""logs"": [ { ""url"": ""ct.bad.example/excluded/"" }, { ""url"": ""ct.good.example/allowed/"" } ] } ] }");
+                }
+                if (url.Contains("ct.bad.example/excluded/", StringComparison.OrdinalIgnoreCase) &&
+                    url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    throw new InvalidOperationException("Excluded log should not have been queried.");
+                }
+                if (url.Contains("ct.good.example/allowed/", StringComparison.OrdinalIgnoreCase) &&
+                    url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    getSthCalls.Add(url);
+                    return Task.FromResult(@"{ ""tree_size"": 1 }");
+                }
+                if (url.Contains("ct.good.example/allowed/", StringComparison.OrdinalIgnoreCase) &&
+                    url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    return Task.FromResult(entriesJson);
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        var options = new NativeCtLogSubdomainDiscoveryOptions {
+            BaseDomain = "example.com",
+            LogListUrl = "https://ct-log-list.example/logs.json",
+            ExcludedLogUrlPrefixes = new[] { "https://ct.bad.example/" },
+            MaxCtRowsToProcess = 100,
+            MaxSubdomains = 100,
+            MaxLogsToProcess = 1,
+            MaxEntriesPerLog = 100,
+            EntryBatchSize = 100,
+            InitialBackfillEntriesPerLog = 100,
+            IncludeRetiredLogs = false
+        };
+
+        var result = await source.DiscoverForDomainsAsync(
+            new[] { "example.com" },
+            options,
+            new InternalLogger(),
+            CancellationToken.None);
+
+        Assert.True(result.SourceSucceeded);
+        Assert.Single(getSthCalls);
+        Assert.Contains("ct.good.example/allowed/", getSthCalls[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Single(result.LogStatuses, static status => status.Succeeded);
+        Assert.DoesNotContain(result.LogStatuses, static status => status.LogUrl.Contains("ct.bad.example", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("portal.example.com", result.SubdomainsByDomain["example.com"].Keys);
+    }
+
+    [Fact]
     public async Task DiscoverForDomainsAsync_NameResolutionFailureTripsGlobalCircuitImmediately() {
         string cursorPath = CreateTemporaryCursorStatePath();
         var getSthCalls = 0;

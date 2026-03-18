@@ -79,6 +79,7 @@ public sealed partial class CertificateInventoryCapture {
                         new[] { domain },
                         options,
                         warnings,
+                        passiveCtDiagnosticEntries,
                         logger,
                         cancellationToken,
                         dnsEndpointOverride: null,
@@ -119,7 +120,25 @@ public sealed partial class CertificateInventoryCapture {
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (allowPassiveMetadataFallback && remainingMissingNames.Count > 0) {
+        HashSet<string> suppressedHosts = options.ExactHostSeedCtMetadataSuppressedHosts
+            .Where(static host => !string.IsNullOrWhiteSpace(host))
+            .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (remainingMissingNames.Count > 0 && suppressedHosts.Count > 0) {
+            int originalCount = remainingMissingNames.Count;
+            remainingMissingNames = remainingMissingNames
+                .Where(name => !suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()))
+                .ToList();
+            int suppressedCount = originalCount - remainingMissingNames.Count;
+            if (suppressedCount > 0) {
+                logger.WriteVerbose(
+                    "CT metadata backfill: skipping exact passive CT metadata for {0} remaining host(s) because the caller already supplied suppression state.",
+                    suppressedCount);
+            }
+        }
+        if (allowPassiveMetadataFallback &&
+            remainingMissingNames.Count > 0 &&
+            !TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out _)) {
             logger.WriteVerbose(
                 "CT metadata backfill: querying exact passive CT metadata for {0} remaining host(s).",
                 remainingMissingNames.Count);
@@ -171,9 +190,15 @@ public sealed partial class CertificateInventoryCapture {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
+        HashSet<string> suppressedHosts = options.ExactHostSeedCtMetadataSuppressedHosts
+            .Where(static host => !string.IsNullOrWhiteSpace(host))
+            .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var exactHostSeeds = seeds
             .Where(static seed => seed != null && seed.IsExactHostSeed && !string.IsNullOrWhiteSpace(seed.Name))
             .Select(static seed => seed.Name.Trim())
+            .Where(host => !suppressedHosts.Contains(host.Trim().TrimEnd('.').ToLowerInvariant()))
             .Where(name => !HasCtCertificateMetadata(existingEntries, name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
@@ -182,9 +207,11 @@ public sealed partial class CertificateInventoryCapture {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
-        logger.WriteVerbose(
-            "CT metadata backfill: querying exact passive CT metadata for {0} exact host seed(s).",
-            exactHostSeeds.Count);
+        if (!TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out _)) {
+            logger.WriteVerbose(
+                "CT metadata backfill: querying exact passive CT metadata for {0} exact host seed(s).",
+                exactHostSeeds.Count);
+        }
 
         return await BackfillMissingCtCertificateMetadataExactAsync(
             exactHostSeeds,
@@ -293,40 +320,112 @@ public sealed partial class CertificateInventoryCapture {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
+        if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string suppressionReason)) {
+            string warning =
+                "Passive CT exact metadata backfill skipped for " +
+                hostNames.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " host(s) because shared sources are cooling down: " +
+                suppressionReason;
+            warnings?.Add(warning);
+            logger.WriteVerbose("{0}", warning);
+            return Array.Empty<SubdomainDiscoveryEntry>();
+        }
+
         var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         bool usePassiveNetworkQueries = CtPassiveMetadataBackfillOverride == null;
-        int maxParallelism = usePassiveNetworkQueries
-            ? 1
-            : Math.Max(1, options.DiscoveryParallelism);
-        PassiveCtSourceClient? sharedClient = usePassiveNetworkQueries
-            ? new PassiveCtSourceClient()
-            : null;
-        using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
-        var tasks = new List<Task>(hostNames.Count);
-        foreach (var hostName in hostNames) {
-            if (string.IsNullOrWhiteSpace(hostName)) {
-                continue;
+        List<string> normalizedHostNames = hostNames
+            .Where(static hostName => !string.IsNullOrWhiteSpace(hostName))
+            .Select(static hostName => hostName.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (normalizedHostNames.Count == 0) {
+            return Array.Empty<SubdomainDiscoveryEntry>();
+        }
+
+        if (usePassiveNetworkQueries) {
+            var sharedClient = new PassiveCtSourceClient();
+            for (int index = 0; index < normalizedHostNames.Count; index++) {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                string hostName = normalizedHostNames[index];
+                try {
+                    SubdomainDiscoveryEntry? exactEntry = await QueryPassiveCtMetadataExactAsync(
+                            hostName,
+                            options,
+                            warnings,
+                            passiveCtDiagnosticEntries,
+                            logger,
+                            sharedClient,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+
+                    if (exactEntry == null || string.IsNullOrWhiteSpace(exactEntry.Name)) {
+                        if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string remainingSuppressionReason)) {
+                            int skippedHosts = normalizedHostNames.Count - index - 1;
+                            if (skippedHosts > 0) {
+                                string warning =
+                                    "Passive CT exact metadata backfill skipped " +
+                                    skippedHosts.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                                    " remaining host(s) after shared source cooldown was detected: " +
+                                    remainingSuppressionReason;
+                                warnings?.Add(warning);
+                                logger.WriteVerbose("{0}", warning);
+                            }
+
+                            break;
+                        }
+
+                        continue;
+                    }
+
+                    lock (results) {
+                        MergeCtSubdomainEntry(results, exactEntry);
+                    }
+                } catch (Exception ex) {
+                    logger.WriteVerbose(
+                        "CT metadata backfill exact lookup failed for {0}: {1}",
+                        hostName,
+                        ex.Message);
+                }
+
+                if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string remainingSuppressionReasonAfterSuccess)) {
+                    int skippedHosts = normalizedHostNames.Count - index - 1;
+                    if (skippedHosts > 0) {
+                        string warning =
+                            "Passive CT exact metadata backfill skipped " +
+                            skippedHosts.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                            " remaining host(s) after shared source cooldown was detected: " +
+                            remainingSuppressionReasonAfterSuccess;
+                        warnings?.Add(warning);
+                        logger.WriteVerbose("{0}", warning);
+                    }
+
+                    break;
+                }
             }
 
+            return results.Values
+                .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        int maxParallelism = Math.Max(1, options.DiscoveryParallelism);
+        using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
+        var tasks = new List<Task>(normalizedHostNames.Count);
+        foreach (string hostName in normalizedHostNames) {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             tasks.Add(Task.Run(async () => {
                 try {
-                    SubdomainDiscoveryEntry? exactEntry;
-                    if (CtPassiveMetadataBackfillOverride != null) {
-                        IReadOnlyList<SubdomainDiscoveryEntry> overridden = await CtPassiveMetadataBackfillOverride(
-                            new[] { hostName },
-                            options,
-                            logger,
-                            cancellationToken).ConfigureAwait(false);
-                        exactEntry = overridden
-                            .FirstOrDefault(entry =>
-                                entry != null &&
-                                !string.IsNullOrWhiteSpace(entry.Name) &&
-                                hostName.Equals(entry.Name.Trim(), StringComparison.OrdinalIgnoreCase));
-                    } else {
-                        exactEntry = await QueryPassiveCtMetadataExactAsync(hostName, options, warnings, passiveCtDiagnosticEntries, logger, sharedClient!, cancellationToken)
-                            .ConfigureAwait(false);
-                    }
+                    IReadOnlyList<SubdomainDiscoveryEntry> overridden = await CtPassiveMetadataBackfillOverride!(
+                        new[] { hostName },
+                        options,
+                        logger,
+                        cancellationToken).ConfigureAwait(false);
+                    SubdomainDiscoveryEntry? exactEntry = overridden
+                        .FirstOrDefault(entry =>
+                            entry != null &&
+                            !string.IsNullOrWhiteSpace(entry.Name) &&
+                            hostName.Equals(entry.Name.Trim(), StringComparison.OrdinalIgnoreCase));
 
                     if (exactEntry == null || string.IsNullOrWhiteSpace(exactEntry.Name)) {
                         return;

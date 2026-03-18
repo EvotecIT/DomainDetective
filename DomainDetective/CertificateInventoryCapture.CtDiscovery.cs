@@ -60,10 +60,11 @@ public sealed partial class CertificateInventoryCapture {
                 logger.WriteVerbose(
                     "Shared native CT ingestion returned 0 subdomains for {0} domain(s). Falling back to passive CT APIs.",
                     domains.Count);
-                    IReadOnlyList<SubdomainDiscoveryEntry> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
+                IReadOnlyList<SubdomainDiscoveryEntry> passiveDiscovered = await DiscoverCtSubdomainsPassiveAsync(
                     domains,
                     options,
                     warnings,
+                    passiveCtDiagnosticEntries,
                     logger,
                     cancellationToken).ConfigureAwait(false);
                 if (passiveDiscovered.Count > 0) {
@@ -144,6 +145,20 @@ public sealed partial class CertificateInventoryCapture {
                         foreach (var logUrl in options.NativeCtLogUrls) {
                             if (!string.IsNullOrWhiteSpace(logUrl)) {
                                 analysis.NativeCtLogUrls.Add(logUrl.Trim());
+                            }
+                        }
+                    }
+                    if (options.NativeCtPreferredLogUrlPrefixes != null && options.NativeCtPreferredLogUrlPrefixes.Count > 0) {
+                        foreach (var prefix in options.NativeCtPreferredLogUrlPrefixes) {
+                            if (!string.IsNullOrWhiteSpace(prefix)) {
+                                analysis.NativeCtPreferredLogUrlPrefixes.Add(prefix.Trim());
+                            }
+                        }
+                    }
+                    if (options.NativeCtExcludedLogUrlPrefixes != null && options.NativeCtExcludedLogUrlPrefixes.Count > 0) {
+                        foreach (var prefix in options.NativeCtExcludedLogUrlPrefixes) {
+                            if (!string.IsNullOrWhiteSpace(prefix)) {
+                                analysis.NativeCtExcludedLogUrlPrefixes.Add(prefix.Trim());
                             }
                         }
                     }
@@ -248,6 +263,7 @@ public sealed partial class CertificateInventoryCapture {
                     fallbackDomains,
                     options,
                     warnings,
+                    passiveCtDiagnosticEntries,
                     logger,
                     cancellationToken).ConfigureAwait(false);
                 foreach (var subdomain in passiveDiscovered) {
@@ -290,6 +306,8 @@ public sealed partial class CertificateInventoryCapture {
             MaxSubdomains = effectiveMaxSubdomains,
             LogListUrl = options.NativeCtLogListUrl,
             ExplicitLogUrls = options.NativeCtLogUrls.ToList(),
+            PreferredLogUrlPrefixes = options.NativeCtPreferredLogUrlPrefixes.ToList(),
+            ExcludedLogUrlPrefixes = options.NativeCtExcludedLogUrlPrefixes.ToList(),
             MaxLogsToProcess = options.NativeCtMaxLogs,
             MaxEntriesPerLog = options.NativeCtMaxEntriesPerLog,
             EntryBatchSize = options.NativeCtEntryBatchSize,
@@ -409,21 +427,37 @@ public sealed partial class CertificateInventoryCapture {
         IReadOnlyList<string> domains,
         CertificateInventoryCaptureOptions options,
         List<string> warnings,
+        List<PassiveCtDiagnosticEntry> passiveCtDiagnosticEntries,
         InternalLogger logger,
         CancellationToken cancellationToken,
         DnsEndpoint? dnsEndpointOverride = null,
         bool allowSystemDnsRetry = true) {
         var discovered = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         var warningLock = new object();
+        var passiveDiagnosticEntriesLock = new object();
         var discoveredLock = new object();
+        var latestPassiveDiagnosticsBySource = new ConcurrentDictionary<string, PassiveCtDiagnosticEntry>(StringComparer.OrdinalIgnoreCase);
+        var passiveSuspensionReason = string.Empty;
+        var passiveSuppressionWarningsLogged = 0;
+        var analyzedDomains = 0;
+        var suspendRemainingPassiveQueries = 0;
         var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
         var effectiveDnsEndpoint = dnsEndpointOverride ?? options.DnsEndpoint;
         using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
         var tasks = new List<Task>(domains.Count);
         foreach (var domain in domains) {
+            if (Volatile.Read(ref suspendRemainingPassiveQueries) != 0) {
+                break;
+            }
+
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            Interlocked.Increment(ref analyzedDomains);
             tasks.Add(Task.Run(async () => {
                 try {
+                    if (Volatile.Read(ref suspendRemainingPassiveQueries) != 0) {
+                        return;
+                    }
+
                     var analysis = new SubdomainsAnalysis {
                         DnsConfiguration = new DnsConfiguration {
                             DnsEndpoint = effectiveDnsEndpoint
@@ -453,6 +487,38 @@ public sealed partial class CertificateInventoryCapture {
                         lock (warningLock) {
                             foreach (string warning in analysis.PassiveCtWarnings) {
                                 warnings.Add($"Passive CT fallback for {domain}: {warning}");
+                            }
+                        }
+                    }
+                    if (analysis.PassiveCtDiagnosticEntries != null && analysis.PassiveCtDiagnosticEntries.Count > 0) {
+                        foreach (PassiveCtDiagnosticEntry diagnosticEntry in analysis.PassiveCtDiagnosticEntries) {
+                            if (diagnosticEntry == null || string.IsNullOrWhiteSpace(diagnosticEntry.SourceName)) {
+                                continue;
+                            }
+
+                            PassiveCtDiagnosticEntry cloned = ClonePassiveCtDiagnosticEntry(diagnosticEntry);
+                            lock (passiveDiagnosticEntriesLock) {
+                                passiveCtDiagnosticEntries.Add(cloned);
+                            }
+
+                            latestPassiveDiagnosticsBySource.AddOrUpdate(
+                                cloned.SourceName,
+                                cloned,
+                                (_, existing) => PreferPassiveCtDiagnosticForRun(existing, cloned));
+                        }
+
+                        if (TryBuildPassiveCtRunSuppressionReason(latestPassiveDiagnosticsBySource.Values, out string suspensionReason) &&
+                            Interlocked.Exchange(ref suspendRemainingPassiveQueries, 1) == 0) {
+                            passiveSuspensionReason = suspensionReason;
+                            if (Interlocked.Exchange(ref passiveSuppressionWarningsLogged, 1) == 0) {
+                                string warning =
+                                    "Passive CT fallback sources are cooling down for the remainder of this run; " +
+                                    suspensionReason;
+                                lock (warningLock) {
+                                    warnings.Add(warning);
+                                }
+
+                                logger.WriteVerbose("{0}", warning);
                             }
                         }
                     }
@@ -491,6 +557,20 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
+        int skippedDomains = Math.Max(0, domains.Count - Volatile.Read(ref analyzedDomains));
+        if (skippedDomains > 0 && Volatile.Read(ref suspendRemainingPassiveQueries) != 0) {
+            string warning =
+                "Passive CT fallback skipped " +
+                skippedDomains.ToString(CultureInfo.InvariantCulture) +
+                " remaining domain(s) after shared source cooldown was detected" +
+                (string.IsNullOrWhiteSpace(passiveSuspensionReason) ? "." : ": " + passiveSuspensionReason);
+            lock (warningLock) {
+                warnings.Add(warning);
+            }
+
+            logger.WriteVerbose("{0}", warning);
+        }
+
         if (allowSystemDnsRetry &&
             discovered.Count == 0 &&
             options.VerifyCtDiscoveredSubdomains &&
@@ -507,6 +587,7 @@ public sealed partial class CertificateInventoryCapture {
                 domains,
                 options,
                 warnings,
+                passiveCtDiagnosticEntries,
                 logger,
                 cancellationToken,
                 DnsEndpoint.System,
@@ -539,6 +620,107 @@ public sealed partial class CertificateInventoryCapture {
             CertificateObservationCount = Math.Max(0, observation?.CertificateObservationCount ?? 0),
             ResolutionStatus = SubdomainResolutionStatus.Unknown
         };
+    }
+
+    private static PassiveCtDiagnosticEntry PreferPassiveCtDiagnosticForRun(
+        PassiveCtDiagnosticEntry existing,
+        PassiveCtDiagnosticEntry candidate) {
+        if (existing == null) {
+            return candidate;
+        }
+
+        if (candidate == null) {
+            return existing;
+        }
+
+        DateTimeOffset existingCooldownUntilUtc = existing.CooldownUntilUtc ?? DateTimeOffset.MinValue;
+        DateTimeOffset candidateCooldownUntilUtc = candidate.CooldownUntilUtc ?? DateTimeOffset.MinValue;
+        if (candidateCooldownUntilUtc > existingCooldownUntilUtc) {
+            return candidate;
+        }
+
+        if (candidateCooldownUntilUtc < existingCooldownUntilUtc) {
+            return existing;
+        }
+
+        bool existingBlocksRun = IsPassiveCtSourceRunBlocked(existing);
+        bool candidateBlocksRun = IsPassiveCtSourceRunBlocked(candidate);
+        if (candidateBlocksRun && !existingBlocksRun) {
+            return candidate;
+        }
+
+        return existing;
+    }
+
+    private static bool TryBuildPassiveCtRunSuppressionReason(
+        IEnumerable<PassiveCtDiagnosticEntry> diagnostics,
+        out string reason) {
+        reason = string.Empty;
+        var suppressionDiagnostics = new List<PassiveCtDiagnosticEntry>();
+        if (diagnostics != null) {
+            suppressionDiagnostics.AddRange(
+                diagnostics.Where(static diagnostic =>
+                    diagnostic != null &&
+                    !string.IsNullOrWhiteSpace(diagnostic.SourceName)));
+        }
+
+        suppressionDiagnostics.AddRange(
+            PassiveCtSourceClient.ExportSharedCooldownDiagnostics(new[] { "crt.sh", "certspotter" }));
+        if (suppressionDiagnostics.Count == 0) {
+            return false;
+        }
+
+        var latestBySource = suppressionDiagnostics
+            .GroupBy(static diagnostic => diagnostic.SourceName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                static group => group.Key,
+                static group => group.Aggregate(PreferPassiveCtDiagnosticForRun),
+                StringComparer.OrdinalIgnoreCase);
+
+        if (!latestBySource.TryGetValue("crt.sh", out PassiveCtDiagnosticEntry? crtSh) ||
+            !IsPassiveCtSourceRunBlocked(crtSh)) {
+            return false;
+        }
+
+        if (!latestBySource.TryGetValue("certspotter", out PassiveCtDiagnosticEntry? certSpotter) ||
+            !IsPassiveCtSourceRunBlocked(certSpotter)) {
+            return false;
+        }
+
+        reason =
+            "crt.sh " + DescribePassiveCtDiagnostic(crtSh) +
+            "; certspotter " + DescribePassiveCtDiagnostic(certSpotter);
+        return true;
+    }
+
+    private static bool IsPassiveCtSourceRunBlocked(PassiveCtDiagnosticEntry diagnostic) {
+        if (diagnostic == null || !diagnostic.RetrySuggested) {
+            return false;
+        }
+
+        if (diagnostic.CooldownUntilUtc.HasValue && diagnostic.CooldownUntilUtc.Value > DateTimeOffset.UtcNow) {
+            return true;
+        }
+
+        return string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(diagnostic.State, "RateLimited", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(diagnostic.State, "TemporarilyUnavailable", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string DescribePassiveCtDiagnostic(PassiveCtDiagnosticEntry diagnostic) {
+        if (diagnostic == null) {
+            return "is unavailable";
+        }
+
+        string state = string.IsNullOrWhiteSpace(diagnostic.State) ? "unavailable" : diagnostic.State;
+        if (diagnostic.CooldownUntilUtc.HasValue) {
+            return "is " +
+                   state +
+                   " until " +
+                   diagnostic.CooldownUntilUtc.Value.ToString("u", CultureInfo.InvariantCulture).Trim();
+        }
+
+        return "is " + state;
     }
 
     private static void MergeCtSubdomainEntry(
