@@ -1891,6 +1891,54 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public void PassiveCtRunSuppressionReason_DoesNotTriggerForInvalidPayloadDiagnostics()
+    {
+        var diagnostics = new[]
+        {
+            new PassiveCtDiagnosticEntry
+            {
+                SourceName = "crt.sh",
+                State = "InvalidPayload",
+                RetrySuggested = true
+            },
+            new PassiveCtDiagnosticEntry
+            {
+                SourceName = "certspotter",
+                State = "InvalidPayload",
+                RetrySuggested = true
+            }
+        };
+
+        object?[] arguments = { diagnostics, null };
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "TryBuildPassiveCtRunSuppressionReason",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        bool result = (bool)method!.Invoke(null, arguments)!;
+
+        Assert.False(result);
+        Assert.True(string.IsNullOrEmpty(arguments[1] as string));
+    }
+
+    [Theory]
+    [InlineData("ww.example.com", true)]
+    [InlineData("www.example.com", false)]
+    [InlineData("wwww.example.com", true)]
+    [InlineData("wwwww.example.com", false)]
+    public void LooksLikeLowConfidenceCtOnlyProbeVariant_MatchesExpectedNoiseLabels(string host, bool expected)
+    {
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "LooksLikeLowConfidenceCtOnlyProbeVariant",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        bool result = (bool)method!.Invoke(null, new object?[] { host })!;
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
     public async Task CaptureAsync_UsesCtDiscoveryScopeOverrideButStillProbesExactHostSeeds()
     {
         IReadOnlyList<string>? ctDiscoveryDomains = null;

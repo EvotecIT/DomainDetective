@@ -1038,14 +1038,16 @@ public sealed partial class CertificateInventoryCapture {
             return false;
         }
 
-        string normalizedCandidate = candidate!;
-        string normalized = normalizedCandidate.Trim().TrimEnd('.');
+        string normalized = candidate!.Trim().TrimEnd('.');
         int separatorIndex = normalized.IndexOf('.');
         if (separatorIndex <= 0) {
             return false;
         }
 
         string firstLabel = normalized.Substring(0, separatorIndex);
+        // CT noise commonly shows up as ww/w/wwww-prefixed variants. Keep those out of
+        // opportunistic HTTPS probing when resolution is still unknown, but do not
+        // suppress longer labels such as "wwwww" that may be intentionally named hosts.
         if (firstLabel.Length == 3 || firstLabel.Length > 4) {
             return false;
         }

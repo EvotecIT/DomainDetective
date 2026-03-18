@@ -649,7 +649,7 @@ public sealed partial class CertificateInventoryCapture {
             return candidate;
         }
 
-        return candidate;
+        return existing;
     }
 
     private static bool TryBuildPassiveCtRunSuppressionReason(
@@ -704,8 +704,7 @@ public sealed partial class CertificateInventoryCapture {
 
         return string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(diagnostic.State, "RateLimited", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(diagnostic.State, "TemporarilyUnavailable", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(diagnostic.State, "InvalidPayload", StringComparison.OrdinalIgnoreCase);
+               string.Equals(diagnostic.State, "TemporarilyUnavailable", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string DescribePassiveCtDiagnostic(PassiveCtDiagnosticEntry diagnostic) {

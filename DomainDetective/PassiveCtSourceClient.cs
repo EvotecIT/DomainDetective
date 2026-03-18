@@ -122,26 +122,17 @@ internal sealed class PassiveCtSourceClient
                         request.SourceName +
                         "' returned an invalid payload: " +
                         payloadValidationFailure;
-                    if (useSharedSourceState)
-                    {
-                        DateTimeOffset retryUtc = MarkTransientFailure(request.SourceName, effectiveOptions.SourceCooldown);
-                        warning += ". Next retry after " + retryUtc.ToString("u") + ".";
-                    }
-                    else
-                    {
-                        warning += ".";
-                    }
+                    warning += ".";
 
                     result.Warnings.Add(warning);
-                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
-                {
-                    SourceName = request.SourceName,
-                    RequestUrl = request.Url,
-                    State = "InvalidPayload",
-                    RetrySuggested = true,
-                    CooldownUntilUtc = useSharedSourceState ? TryGetSourceCooldownUtc(request.SourceName) : null,
-                    Failure = SanitizeFailureText(payloadValidationFailure)
-                });
+                    result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = request.SourceName,
+                        RequestUrl = request.Url,
+                        State = "InvalidPayload",
+                        RetrySuggested = true,
+                        Failure = SanitizeFailureText(payloadValidationFailure)
+                    });
                     logger?.WriteVerbose("{0}", warning);
                     continue;
                 }
@@ -622,8 +613,7 @@ internal sealed class PassiveCtSourceClient
     private static bool ShouldRetryStatusCode(HttpStatusCode statusCode)
     {
         int code = (int)statusCode;
-        return statusCode == HttpStatusCode.NotFound ||
-               statusCode == HttpStatusCode.Gone ||
+        return statusCode == HttpStatusCode.Gone ||
                statusCode == HttpStatusCode.RequestTimeout ||
                statusCode == HttpStatusCode.BadGateway ||
                statusCode == HttpStatusCode.ServiceUnavailable ||

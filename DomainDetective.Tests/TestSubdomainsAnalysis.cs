@@ -228,7 +228,7 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
-    public async Task PassiveCtInvalidPayloadTriggersCooldownForSharedSourceState()
+    public async Task PassiveCtInvalidPayloadDoesNotEnterSharedCooldownState()
     {
         var requestCount = 0;
         var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
@@ -302,9 +302,11 @@ public class TestSubdomainsAnalysis
 
             Assert.True(first.RetrySuggested);
             Assert.True(second.RetrySuggested);
-            Assert.Contains(first.Warnings, warning => warning.Contains("Next retry after", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(second.Warnings, warning => warning.Contains("cooling down", StringComparison.OrdinalIgnoreCase));
-            Assert.Equal(1, requestCount);
+            Assert.DoesNotContain(first.Warnings, warning => warning.Contains("Next retry after", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(second.Warnings, warning => warning.Contains("cooling down", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(first.Diagnostics, diagnostic => diagnostic.CooldownUntilUtc.HasValue);
+            Assert.DoesNotContain(second.Diagnostics, diagnostic => string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(2, requestCount);
         }
         finally
         {
@@ -385,7 +387,7 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
-    public async Task PassiveCtClient_CoolsDownSourceAfterHttp404()
+    public async Task PassiveCtClient_DoesNotRetryOrCooldownSourceAfterHttp404()
     {
         var requestCount = 0;
         var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
@@ -442,7 +444,7 @@ public class TestSubdomainsAnalysis
                 requests,
                 new PassiveCtSourceClient.QueryOptions
                 {
-                    RetryCount = 0,
+                    RetryCount = 2,
                     SourceCooldown = TimeSpan.FromSeconds(30)
                 },
                 null,
@@ -452,18 +454,20 @@ public class TestSubdomainsAnalysis
                 requests,
                 new PassiveCtSourceClient.QueryOptions
                 {
-                    RetryCount = 0,
+                    RetryCount = 2,
                     SourceCooldown = TimeSpan.FromSeconds(30)
                 },
                 null,
                 new InternalLogger(),
                 CancellationToken.None);
 
-            Assert.True(first.RetrySuggested);
-            Assert.True(second.RetrySuggested);
-            Assert.Contains(first.Warnings, warning => warning.Contains("temporarily unavailable", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(first.Diagnostics, diagnostic => diagnostic.CooldownUntilUtc.HasValue);
-            Assert.Contains(second.Diagnostics, diagnostic => string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase));
+            Assert.False(first.RetrySuggested);
+            Assert.False(second.RetrySuggested);
+            Assert.Contains(first.Warnings, warning => warning.Contains("failed", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(first.Diagnostics, diagnostic => string.Equals(diagnostic.State, "Failed", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(first.Diagnostics, diagnostic => diagnostic.CooldownUntilUtc.HasValue);
+            Assert.DoesNotContain(second.Diagnostics, diagnostic => string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(2, requestCount);
         }
         finally
         {

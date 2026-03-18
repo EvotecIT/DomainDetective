@@ -517,14 +517,13 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         var descriptors = new Dictionary<string, ResolvedCtLogDescriptor>(StringComparer.OrdinalIgnoreCase);
         var sourceOrder = 0;
         if (options.ExplicitLogUrls != null && options.ExplicitLogUrls.Count > 0) {
-            IReadOnlyList<ResolvedCtLogDescriptor> explicitDescriptors = descriptors.Values.ToList();
             foreach (var raw in options.ExplicitLogUrls) {
                 var normalized = NormalizeLogUrl(raw);
                 if (normalized != null) {
                     AddResolvedLogDescriptor(descriptors, normalized, null, null, isRetired: false, sourceOrder++);
                 }
             }
-            explicitDescriptors = ApplyLogSelectionPolicy(descriptors.Values.ToList(), options);
+            IReadOnlyList<ResolvedCtLogDescriptor> explicitDescriptors = ApplyLogSelectionPolicy(descriptors.Values.ToList(), options);
             return applyCap
                 ? ApplyLogCap(explicitDescriptors, options.MaxLogsToProcess, options.PrioritizeLatestExactMatch)
                 : BuildExtendedProcessingOrder(explicitDescriptors, options.MaxLogsToProcess, options.PrioritizeLatestExactMatch);
