@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -23,9 +24,9 @@ public class TestPortScanProgressCounts {
             await udpServer.SendAsync(r.Buffer, r.Buffer.Length, r.RemoteEndPoint);
         });
 
-        var events = new List<LogEventArgs>();
+        var events = new ConcurrentQueue<LogEventArgs>();
         var logger = new InternalLogger();
-        logger.OnProgressMessage += (_, e) => events.Add(e);
+        logger.OnProgressMessage += (_, e) => events.Enqueue(e);
 
         var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
         await analysis.Scan("127.0.0.1", new[] { tcpPort, udpPort }, logger);
@@ -36,6 +37,6 @@ public class TestPortScanProgressCounts {
 
         var portEvents = events.Where(e => e.ProgressActivity == "PortScan").ToList();
         Assert.Equal(2, portEvents.Count);
-        Assert.Equal(100, portEvents.Last().ProgressPercentage);
+        Assert.Equal(new int?[] { 50, 100 }, portEvents.Select(static e => e.ProgressPercentage).OrderBy(static e => e).ToArray());
     }
 }
