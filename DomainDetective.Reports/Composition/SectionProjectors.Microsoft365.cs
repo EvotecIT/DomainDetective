@@ -48,37 +48,26 @@ public static partial class SectionProjectors
         sec.Summary.Add(("DNS Apps", (info.DetectedDnsApplications?.Count ?? 0).ToString()));
         sec.Summary.Add(("Evidence Items", (info.EvidenceLedger?.Count ?? 0).ToString()));
 
-        foreach (var h in info.Highlights ?? Array.Empty<string>())
+        foreach (var h in (info.Highlights ?? Array.Empty<string>()).Where(static item => !string.IsNullOrWhiteSpace(item)))
         {
-            if (!string.IsNullOrWhiteSpace(h))
-            {
-                sec.Highlights.Add(h);
-            }
+            sec.Highlights.Add(h);
         }
 
-        foreach (var a in info.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+        foreach (var a in (info.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(static item => item != null && item.Severity != DomainDetective.AssessmentSeverity.Info))
         {
-            if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
-            {
-                sec.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
-            }
+            sec.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
         }
 
-        foreach (var p in info.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+        foreach (var title in (info.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+                     .Select(static item => item?.Title ?? item?.Code)
+                     .Where(static item => !string.IsNullOrWhiteSpace(item)))
         {
-            var title = p?.Title ?? p?.Code;
-            if (!string.IsNullOrWhiteSpace(title))
-            {
-                sec.Positives.Add(title!);
-            }
+            sec.Positives.Add(title!);
         }
 
-        foreach (var r in info.References ?? Array.Empty<string>())
+        foreach (var r in (info.References ?? Array.Empty<string>()).Where(static item => !string.IsNullOrWhiteSpace(item)))
         {
-            if (!string.IsNullOrWhiteSpace(r))
-            {
-                sec.References.Add(r);
-            }
+            sec.References.Add(r);
         }
 
         foreach (var service in info.Services ?? Array.Empty<DomainDetective.Microsoft365ServiceDetection>())

@@ -138,14 +138,26 @@ public static partial class MarkdownCompositionReport
 
             void RenderMicrosoft365()
             {
-                if (b.Microsoft365 == null) return;
-                var sec = SectionProjectors.BuildMicrosoft365(b.Microsoft365);
-                if (sec == null) return;
+                if (b.Microsoft365 == null)
+                {
+                    return;
+                }
+
+                if (SectionProjectors.BuildMicrosoft365(b.Microsoft365) is not { } sec)
+                {
+                    return;
+                }
 
                 md.H2("Microsoft 365");
                 md.Table(t => { t.Headers("Key", "Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0, 1); });
-                if (sec.Highlights.Count > 0) md.H3("Highlights").Ul(sec.Highlights.ToArray());
-                if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
+                if (sec.Highlights.Count > 0)
+                {
+                    md.H3("Highlights").Ul(sec.Highlights.ToArray());
+                }
+                if (sec.Positives.Count > 0)
+                {
+                    md.H3("Positives").Ul(sec.Positives.ToArray());
+                }
                 if (sec.Findings.Count > 0)
                 {
                     var findingRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();

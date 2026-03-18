@@ -360,8 +360,10 @@ public static partial class WordCompositionReport {
             // Aggregate any extra checks present in the input items and not covered by the columns above
             // using a reflection-based adapter over view types.
             var coveredChecks = new HashSet<HealthCheckType>();
-            foreach (var h in new[] { hasMx ? (HealthCheckType?)HealthCheckType.MX : null, hasSpf ? HealthCheckType.SPF : null, hasDkim ? HealthCheckType.DKIM : null, hasDmarc ? HealthCheckType.DMARC : null, hasMtasts ? HealthCheckType.MTASTS : null, hasTlsRpt ? HealthCheckType.TLSRPT : null, hasDnsbl ? HealthCheckType.DNSBL : null, hasClass ? HealthCheckType.MAILCLASSIFICATION : null, hasDnssec ? HealthCheckType.DNSSEC : null, hasDane ? HealthCheckType.DANE : null, hasNs ? HealthCheckType.NS : null, hasSoa ? HealthCheckType.SOA : null, hasZone ? HealthCheckType.ZONETRANSFER : null, hasWildcard ? HealthCheckType.WILDCARDDNS : null, hasCaa ? HealthCheckType.CAA : null, hasRpki ? HealthCheckType.RPKI : null, hasMicrosoft365 ? HealthCheckType.MICROSOFT365 : null })
-                if (h.HasValue) coveredChecks.Add(h.Value);
+            foreach (var h in new[] { hasMx ? (HealthCheckType?)HealthCheckType.MX : null, hasSpf ? HealthCheckType.SPF : null, hasDkim ? HealthCheckType.DKIM : null, hasDmarc ? HealthCheckType.DMARC : null, hasMtasts ? HealthCheckType.MTASTS : null, hasTlsRpt ? HealthCheckType.TLSRPT : null, hasDnsbl ? HealthCheckType.DNSBL : null, hasClass ? HealthCheckType.MAILCLASSIFICATION : null, hasDnssec ? HealthCheckType.DNSSEC : null, hasDane ? HealthCheckType.DANE : null, hasNs ? HealthCheckType.NS : null, hasSoa ? HealthCheckType.SOA : null, hasZone ? HealthCheckType.ZONETRANSFER : null, hasWildcard ? HealthCheckType.WILDCARDDNS : null, hasCaa ? HealthCheckType.CAA : null, hasRpki ? HealthCheckType.RPKI : null, hasMicrosoft365 ? HealthCheckType.MICROSOFT365 : null }.Where(static item => item.HasValue).Select(static item => item!.Value))
+            {
+                coveredChecks.Add(h);
+            }
             if (hasMailTls) { coveredChecks.Add(HealthCheckType.SMTPTLS); coveredChecks.Add(HealthCheckType.IMAPTLS); coveredChecks.Add(HealthCheckType.POP3TLS); }
 
             var extras = AggregateExtras(items, coveredChecks);

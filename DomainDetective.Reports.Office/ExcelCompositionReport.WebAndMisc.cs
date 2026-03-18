@@ -24,15 +24,15 @@ public static partial class ExcelCompositionReport {
         }
 
         var info = bucket.Microsoft365;
-        var sec = DomainDetective.Reports.SectionProjectors.BuildMicrosoft365(info);
-        if (sec == null)
+        if (DomainDetective.Reports.SectionProjectors.BuildMicrosoft365(info) is not { } sec)
         {
             return null;
         }
 
         return column =>
         {
-            column.Section("Microsoft 365").KeyValues(sec.Summary.Select(kv => (kv.Key, (object?)kv.Value)).ToArray());
+            IEnumerable<(string Key, object? Value)> summaryRows = sec.Summary.Select(static kv => (kv.Key, (object?)kv.Value));
+            column.Section("Microsoft 365").KeyValues(summaryRows);
 
             if (sec.Highlights.Count > 0)
             {

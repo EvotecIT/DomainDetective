@@ -17,8 +17,7 @@ public static partial class HtmlCompositionReport
             return;
         }
 
-        var sec = SectionProjectors.BuildMicrosoft365(info);
-        if (sec == null)
+        if (SectionProjectors.BuildMicrosoft365(info) is not { } sec)
         {
             return;
         }

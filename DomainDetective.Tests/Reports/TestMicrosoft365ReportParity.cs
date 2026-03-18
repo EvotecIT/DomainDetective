@@ -152,10 +152,10 @@ public class TestMicrosoft365ReportParity
         };
 
         var items = new List<object> { view };
-        var tmpHtml = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".html");
-        var tmpMd = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".md");
-        var tmpDocx = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".docx");
-        var tmpXlsx = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".xlsx");
+        var tmpHtml = string.Concat(Path.GetTempPath(), Guid.NewGuid().ToString("N"), ".html");
+        var tmpMd = string.Concat(Path.GetTempPath(), Guid.NewGuid().ToString("N"), ".md");
+        var tmpDocx = string.Concat(Path.GetTempPath(), Guid.NewGuid().ToString("N"), ".docx");
+        var tmpXlsx = string.Concat(Path.GetTempPath(), Guid.NewGuid().ToString("N"), ".xlsx");
 
         HtmlCompositionReport.Generate(tmpHtml, items, ReportScope.Detailed);
         MarkdownCompositionReport.Generate(tmpMd, items, ReportScope.Detailed);
@@ -253,13 +253,8 @@ public class TestMicrosoft365ReportParity
     {
         var sb = new StringBuilder();
         using var archive = ZipFile.OpenRead(path);
-        foreach (var entry in archive.Entries)
+        foreach (var entry in archive.Entries.Where(static item => item.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
         {
-            if (!entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
             using var reader = new StreamReader(entry.Open());
             var xml = reader.ReadToEnd();
             var text = Regex.Replace(xml, "<[^>]+>", " ");
@@ -278,14 +273,10 @@ public class TestMicrosoft365ReportParity
         using var archive = ZipFile.OpenRead(path);
         var sharedStrings = ReadSharedStrings(archive);
         var rows = new List<string>();
-        foreach (var entry in archive.Entries)
+        foreach (var entry in archive.Entries.Where(static item =>
+                     item.FullName.StartsWith("xl/worksheets/sheet", StringComparison.OrdinalIgnoreCase) &&
+                     item.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
         {
-            if (!entry.FullName.StartsWith("xl/worksheets/sheet", StringComparison.OrdinalIgnoreCase) ||
-                !entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
             using var stream = entry.Open();
             var doc = XDocument.Load(stream);
             var ns = doc.Root?.Name.Namespace ?? XNamespace.None;

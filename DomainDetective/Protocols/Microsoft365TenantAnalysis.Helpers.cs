@@ -314,10 +314,12 @@ public sealed partial class Microsoft365TenantAnalysis {
         if (evidence.Count > 0) {
             var hasEnrollment = knownSubdomains.Any(static item => item.Role == KnownSubdomainRole.EnterpriseEnrollment);
             var hasRegistration = knownSubdomains.Any(static item => item.Role == KnownSubdomainRole.EnterpriseRegistration);
+            var hasCombinedEnrollmentSignals = hasEnrollment && hasRegistration;
+            var hasTenantBoostedEnrollmentSignals = hasStrongTenantEvidence && (hasEnrollment || hasRegistration);
             return new Microsoft365ServiceDetection {
                 Kind = Microsoft365ServiceKind.IntuneEndpoint,
                 Status = Microsoft365DetectionStatus.Detected,
-                Confidence = hasStrongTenantEvidence && (hasEnrollment || hasRegistration) || (hasEnrollment && hasRegistration)
+                Confidence = hasTenantBoostedEnrollmentSignals || hasCombinedEnrollmentSignals
                     ? Microsoft365DetectionConfidence.Strong
                     : Microsoft365DetectionConfidence.Moderate,
                 EvidenceSource = Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,

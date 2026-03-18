@@ -54,12 +54,9 @@ public static class Microsoft365WordSectionWriter
         {
             headings.AddItem("Highlights", baseLevel);
             var highlights = doc.AddList(WordListStyle.Bulleted);
-            foreach (var item in sec.Highlights)
+            foreach (var item in sec.Highlights.Where(static item => !string.IsNullOrWhiteSpace(item)))
             {
-                if (!string.IsNullOrWhiteSpace(item))
-                {
-                    highlights.AddItem(item);
-                }
+                highlights.AddItem(item);
             }
         }
 
@@ -195,12 +192,9 @@ public static class Microsoft365WordSectionWriter
         {
             headings.AddItem("References", baseLevel);
             var references = doc.AddList(WordListStyle.Bulleted);
-            foreach (var reference in sec.References)
+            foreach (var reference in sec.References.Where(static item => !string.IsNullOrWhiteSpace(item)))
             {
-                if (!string.IsNullOrWhiteSpace(reference))
-                {
-                    references.AddItem(reference);
-                }
+                references.AddItem(reference);
             }
         }
     }

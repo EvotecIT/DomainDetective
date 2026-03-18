@@ -209,11 +209,7 @@ public sealed partial class Microsoft365TenantAnalysis {
             return null;
         }
 
-        foreach (var domain in domains) {
-            if (domain == null || domain.Role != Microsoft365TenantDomainRole.MicrosoftManagedNamespace) {
-                continue;
-            }
-
+        foreach (var domain in domains.Where(static item => item != null && item.Role == Microsoft365TenantDomainRole.MicrosoftManagedNamespace)) {
             var normalized = NormalizeTenantDomain(domain.Domain);
             for (var suffixIndex = 0; suffixIndex < MicrosoftManagedNamespaceSuffixes.Length; suffixIndex++) {
                 var suffix = MicrosoftManagedNamespaceSuffixes[suffixIndex];

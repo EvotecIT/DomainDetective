@@ -192,49 +192,45 @@ public static partial class HtmlCompositionReport
             }));
         } catch { }
 
-        try
+        if (hasMicrosoft365Workloads)
         {
-            if (hasMicrosoft365Workloads)
+            page.Row(r => r.Column(TablerColumnNumber.Twelve, c =>
             {
-                page.Row(r => r.Column(TablerColumnNumber.Twelve, c =>
+                c.Card(card =>
                 {
-                    c.Card(card =>
+                    card.Header(h => h.Title("Microsoft 365 Workloads").Subtitle("Detected workload confidence across domains").Icon(TablerIconType.ChartBar));
+                    card.Body(b =>
                     {
-                        card.Header(h => h.Title("Microsoft 365 Workloads").Subtitle("Detected workload confidence across domains").Icon(TablerIconType.ChartBar));
-                        card.Body(b =>
+                        b.DataGrid(g =>
                         {
-                            b.DataGrid(g =>
+                            g.AsCompact();
+                            g.AddItem("Detected Workloads", m365WorkloadRollup.TotalDetected.ToString()).AsPanel(TablerColor.Azure, light: true);
+                            g.AddItem("Strong", m365WorkloadRollup.Strong.ToString()).AsPanel(m365WorkloadRollup.Strong > 0 ? TablerColor.Green : TablerColor.Blue, light: true);
+                            g.AddItem("Moderate", m365WorkloadRollup.Moderate.ToString()).AsPanel(m365WorkloadRollup.Moderate > 0 ? TablerColor.Orange : TablerColor.Blue, light: true);
+                            g.AddItem("Weak", m365WorkloadRollup.Weak.ToString()).AsPanel(m365WorkloadRollup.Weak > 0 ? TablerColor.Orange : TablerColor.Blue, light: true);
+                            if (m365WorkloadRollup.Boosted > 0)
                             {
-                                g.AsCompact();
-                                g.AddItem("Detected Workloads", m365WorkloadRollup.TotalDetected.ToString()).AsPanel(TablerColor.Azure, light: true);
-                                g.AddItem("Strong", m365WorkloadRollup.Strong.ToString()).AsPanel(m365WorkloadRollup.Strong > 0 ? TablerColor.Green : TablerColor.Blue, light: true);
-                                g.AddItem("Moderate", m365WorkloadRollup.Moderate.ToString()).AsPanel(m365WorkloadRollup.Moderate > 0 ? TablerColor.Orange : TablerColor.Blue, light: true);
-                                g.AddItem("Weak", m365WorkloadRollup.Weak.ToString()).AsPanel(m365WorkloadRollup.Weak > 0 ? TablerColor.Orange : TablerColor.Blue, light: true);
-                                if (m365WorkloadRollup.Boosted > 0)
-                                {
-                                    g.AddItem("Tenant-Boosted", m365WorkloadRollup.Boosted.ToString()).AsPanel(TablerColor.Indigo, light: true);
-                                }
-                            });
-
-                            if (m365WorkloadRollup.SourceCounts.Count > 0)
-                            {
-                                b.Text("Observed via").Style(TablerTextStyle.Muted);
-                                var sourceTable = (TablerTable)b.Table(m365WorkloadRollup.SourceCounts, TableType.Tabler);
-                                sourceTable.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
-                            }
-
-                            if (m365WorkloadRollup.TopKinds.Count > 0)
-                            {
-                                b.Text("Top workloads").Style(TablerTextStyle.Muted);
-                                var t = (TablerTable)b.Table(m365WorkloadRollup.TopKinds, TableType.Tabler);
-                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                g.AddItem("Tenant-Boosted", m365WorkloadRollup.Boosted.ToString()).AsPanel(TablerColor.Indigo, light: true);
                             }
                         });
+
+                        if (m365WorkloadRollup.SourceCounts.Count > 0)
+                        {
+                            b.Text("Observed via").Style(TablerTextStyle.Muted);
+                            var sourceTable = (TablerTable)b.Table(m365WorkloadRollup.SourceCounts, TableType.Tabler);
+                            sourceTable.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                        }
+
+                        if (m365WorkloadRollup.TopKinds.Count > 0)
+                        {
+                            b.Text("Top workloads").Style(TablerTextStyle.Muted);
+                            var t = (TablerTable)b.Table(m365WorkloadRollup.TopKinds, TableType.Tabler);
+                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                        }
                     });
-                }));
-            }
+                });
+            }));
         }
-        catch { }
 
         // Top findings + control rollup
         try
