@@ -78,6 +78,9 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
     /// <summary>Short evidence strings explaining TXT signal inference.</summary>
     public IReadOnlyList<string> TxtSignalsEvidence { get; private set; } = Array.Empty<string>();
 
+    /// <summary>Typed applications and services inferred from DNS provider, mail provider, and TXT evidence.</summary>
+    public IReadOnlyList<DetectedDnsApplication> DetectedDnsApplications { get; private set; } = Array.Empty<DetectedDnsApplication>();
+
     /// <summary>Issuers inferred from CAA records (apex).</summary>
     public DnsCaaIssuers CaaIssuers { get; private set; } = DnsCaaIssuers.None;
 
@@ -175,6 +178,7 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
         TryDetectMailProvider(list);
         TryDetectCnameTarget(list);
         TryDetectTxtSignals(list);
+        DetectedDnsApplications = DetectedDnsApplicationCatalog.DetectFromInventory(this);
         TryDetectTxtSignalsExposure();
         TryDetectCaaIssuers(list);
         TryDetectApexAaaaMissing(list);
@@ -542,6 +546,7 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
         CnameTargetEvidence = Array.Empty<string>();
         TxtSignals = DnsTxtSignals.None;
         TxtSignalsEvidence = Array.Empty<string>();
+        DetectedDnsApplications = Array.Empty<DetectedDnsApplication>();
         CaaIssuers = DnsCaaIssuers.None;
         CaaIssuersEvidence = Array.Empty<string>();
         Queries = Array.Empty<DnsInventoryQuery>();

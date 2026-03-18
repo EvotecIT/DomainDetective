@@ -10,9 +10,10 @@ namespace DomainDetective
         /// </summary>
         public async Task VerifyIdpInfo(string domain, CancellationToken cancellationToken = default)
         {
-            IdpInfoAnalysis = new IdpInfoAnalysis();
+            IdpInfoAnalysis = new IdpInfoAnalysis {
+                HttpClientFactory = HttpClientFactory
+            };
             await IdpInfoAnalysis.AnalyzeAsync(domain, _logger, cancellationToken);
         }
     }
 }
-

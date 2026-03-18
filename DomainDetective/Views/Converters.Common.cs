@@ -64,6 +64,10 @@ public static partial class Converters
             case HealthCheckType.CTTIMELINE:
                 return AnalysisArea.Web;
 
+            case HealthCheckType.IDENTITYPROVIDER:
+            case HealthCheckType.MICROSOFT365:
+                return AnalysisArea.Identity;
+
             // Security/infra group
             case HealthCheckType.RDAP:
             case HealthCheckType.RPKI:

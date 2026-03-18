@@ -9,6 +9,6 @@ public enum AnalysisArea
     DNS,
     Mail,
     Web,
-    Security
+    Security,
+    Identity = 5
 }
-

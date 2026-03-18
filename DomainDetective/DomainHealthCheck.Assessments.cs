@@ -38,6 +38,7 @@ public partial class DomainHealthCheck
         static h => h.TLSRPTAnalysis,
         static h => h.BimiAnalysis,
         static h => h.IdpInfoAnalysis,
+        static h => h.Microsoft365TenantAnalysis,
         static h => h.AutodiscoverAnalysis,
         static h => h.AutodiscoverHttpAnalysis,
         static h => h.HttpAnalysis,
@@ -106,4 +107,3 @@ public partial class DomainHealthCheck
         }
     }
 }
-
