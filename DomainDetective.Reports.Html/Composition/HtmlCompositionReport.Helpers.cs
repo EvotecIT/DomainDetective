@@ -137,6 +137,7 @@ public static partial class HtmlCompositionReport {
         Add(ref warn, ref err, b.CtTimeline?.WarningCount ?? 0, b.CtTimeline?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Http?.WarningCount ?? 0, b.Http?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.IpEnrichment?.WarningCount ?? 0, b.IpEnrichment?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Microsoft365?.WarningCount ?? 0, b.Microsoft365?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Mtasts?.WarningCount ?? 0, b.Mtasts?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.TlsRpt?.WarningCount ?? 0, b.TlsRpt?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.TlsRptReports?.WarningCount ?? 0, b.TlsRptReports?.ErrorCount ?? 0);
@@ -231,6 +232,7 @@ public static partial class HtmlCompositionReport {
         foreach (var a in FromList(b.Rpki?.Assessments)) yield return a;
         foreach (var a in FromList(b.DnsAmplification?.Assessments)) yield return a;
         foreach (var a in FromList(b.DnsOverTls?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Microsoft365?.Assessments)) yield return a;
         foreach (var a in FromList(b.Classification?.Assessments)) yield return a;
         foreach (var a in FromList(b.Arc?.Assessments)) yield return a;
         foreach (var a in FromList(b.Bimi?.Assessments)) yield return a;
@@ -349,6 +351,7 @@ public static partial class HtmlCompositionReport {
             ["DMARC"] = (0, 0, 0, 0),
             ["MTA-STS"] = (0, 0, 0, 0),
             ["TLS-RPT"] = (0, 0, 0, 0),
+            ["Microsoft 365"] = (0, 0, 0, 0),
             ["DNSSEC"] = (0, 0, 0, 0),
             ["RPKI"] = (0, 0, 0, 0)
         };
@@ -368,6 +371,7 @@ public static partial class HtmlCompositionReport {
             v = controls["DMARC"]; Tally(ref v, r.Dmarc); controls["DMARC"] = v;
             v = controls["MTA-STS"]; Tally(ref v, r.Mtasts); controls["MTA-STS"] = v;
             v = controls["TLS-RPT"]; Tally(ref v, r.TlsRpt); controls["TLS-RPT"] = v;
+            v = controls["Microsoft 365"]; Tally(ref v, r.Microsoft365); controls["Microsoft 365"] = v;
             v = controls["DNSSEC"]; Tally(ref v, r.Dnssec); controls["DNSSEC"] = v;
             v = controls["RPKI"]; Tally(ref v, r.Rpki); controls["RPKI"] = v;
         }
@@ -448,6 +452,7 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
         public DomainDetective.Views.HttpInfo? Http { get; set; }
         public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+        public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
         public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
         public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
         public DomainDetective.Views.TtlInfo? Ttl { get; set; }
@@ -543,6 +548,7 @@ public static partial class HtmlCompositionReport {
             CtTimeline = s.CtTimeline,
             Http = s.Http,
             IpEnrichment = s.IpEnrichment,
+            Microsoft365 = s.Microsoft365,
             Ttl = s.Ttl
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);

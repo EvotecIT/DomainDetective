@@ -57,6 +57,7 @@ public static partial class ExcelCompositionReport {
                 ("SPF", b.Spf?.Status ?? "-"),
                 ("DKIM", DomainDetective.Reports.DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true)),
                 ("DMARC", b.Dmarc?.Status ?? "-"),
+                ("M365", b.Microsoft365?.Status ?? "-"),
                 ("MTA-STS", b.Mtasts?.Status ?? "-"),
                 ("TLS-RPT", b.TlsRpt?.Status ?? "-"),
                 ("DNSSEC", DomainDetective.Reports.DisplayFormatting.ComposeDnssecSummary(b.Dnssec)),
@@ -79,6 +80,7 @@ public static partial class ExcelCompositionReport {
                 ApplyBlock(auth, BuildDmarcBlock(b));
                 ApplyBlock(auth, BuildBimiBlock(b));
                 ApplyBlock(auth, BuildClassificationBlock(b));
+                ApplyBlock(auth, BuildMicrosoft365Block(b));
                 RenderProviderBlock(s, auth, b);
 
                 var transport = cols[1];
@@ -228,6 +230,7 @@ public static partial class ExcelCompositionReport {
                 AddRecs("MTA-STS", b.Mtasts?.Recommendations);
                 AddRecs("TLS-RPT", b.TlsRpt?.Recommendations);
                 AddRecs("DNSBL", b.Dnsbl?.Recommendations);
+                AddRecs("Microsoft 365", b.Microsoft365?.Recommendations);
                 AddRecs("NS", b.Ns?.Recommendations);
                 AddRecs("SOA", b.Soa?.Recommendations);
                 AddRecs("DNS Amplification", b.DnsAmplification?.Recommendations);

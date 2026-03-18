@@ -40,6 +40,7 @@ public static partial class ExcelCompositionReport
             CtTimeline = s.CtTimeline,
             Http = s.Http,
             IpEnrichment = s.IpEnrichment,
+            Microsoft365 = s.Microsoft365,
             DnsAmplification = s.DnsAmplification,
             DnsOverTls = s.DnsOverTls
         };
@@ -80,6 +81,7 @@ public static partial class ExcelCompositionReport
         public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
         public DomainDetective.Views.HttpInfo? Http { get; set; }
         public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+        public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
         public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
         public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
         public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();

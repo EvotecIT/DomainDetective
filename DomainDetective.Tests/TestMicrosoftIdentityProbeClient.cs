@@ -28,6 +28,8 @@ public class TestMicrosoftIdentityProbeClient
             return CreateJsonResponse(@"
 {
   ""NameSpaceType"": ""Managed"",
+  ""DomainName"": ""contoso.com"",
+  ""FederationBrandName"": ""Contoso"",
   ""AuthURL"": ""https://login.microsoftonline.com/"",
   ""CloudInstanceName"": ""microsoftonline.com""
 }");
@@ -44,6 +46,8 @@ public class TestMicrosoftIdentityProbeClient
 
         Assert.NotNull(realm);
         Assert.Equal("Managed", realm!.NameSpaceType);
+        Assert.Equal("contoso.com", realm.DomainName);
+        Assert.Equal("Contoso", realm.FederationBrandName);
         Assert.Equal("https://login.microsoftonline.com/", realm.AuthUrl);
     }
 

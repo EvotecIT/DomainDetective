@@ -90,9 +90,9 @@ public static partial class MarkdownCompositionReport
             .H2("Domains");
 
         md.Table(t => t
-            .Headers("Domain","MX","SPF","DKIM","DMARC","MTA-STS","TLS-RPT","DNSSEC","RPKI","Classification","Findings (W/E)")
-            .Rows(rows.Select(r => (IReadOnlyList<string>)new []{ r.Domain, r.Mx, r.Spf, r.Dkim, r.Dmarc, r.Mtasts, r.TlsRpt, r.Dnssec, r.Rpki, r.Classification, $"{r.Warnings} / {r.Errors}" }))
-            .AlignLeft(0).AlignCenter(1,2,3,4,5,6,7,8,9).AlignRight(10));
+            .Headers("Domain","MX","SPF","DKIM","DMARC","MTA-STS","TLS-RPT","DNSSEC","RPKI","M365","M365 Workloads","Classification","Findings (W/E)")
+            .Rows(rows.Select(r => (IReadOnlyList<string>)new []{ r.Domain, r.Mx, r.Spf, r.Dkim, r.Dmarc, r.Mtasts, r.TlsRpt, r.Dnssec, r.Rpki, r.Microsoft365, r.Microsoft365Workloads, r.Classification, $"{r.Warnings} / {r.Errors}" }))
+            .AlignLeft(0).AlignCenter(1,2,3,4,5,6,7,8,9,10).AlignLeft(11).AlignRight(12));
 
         // Provider chain + quick links (Word parity, condensed)
         md.H2("Mail Providers");
@@ -165,6 +165,7 @@ public static partial class MarkdownCompositionReport
                 Pull(b.ImapTls?.References);
                 Pull(b.PopTls?.References);
                 Pull(b.Classification?.References);
+                Pull(b.Microsoft365?.References);
             }
             var uniq = refs.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
             if (uniq.Count > 0)
@@ -203,7 +204,8 @@ public static partial class MarkdownCompositionReport
             ZoneTransfer = s.ZoneTransfer,
             Wildcard = s.Wildcard,
             Ttl = s.Ttl,
-            DesiredState = s.DesiredState
+            DesiredState = s.DesiredState,
+            Microsoft365 = s.Microsoft365
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
         return b;
@@ -211,8 +213,8 @@ public static partial class MarkdownCompositionReport
 
     private static string ComputeStatus(DomainBucket b)
     {
-        var err = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
-        var warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
+        var err = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
+        var warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
         return err > 0 ? "🔴 Error" : (warn > 0 ? "🟠 Warning" : "🟢 OK");
     }
 
@@ -240,5 +242,6 @@ public static partial class MarkdownCompositionReport
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
         public DomainDetective.Views.TtlInfo? Ttl { get; set; }
         public DomainDetective.Views.DesiredStateInfo? DesiredState { get; set; }
+        public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
     }
 }

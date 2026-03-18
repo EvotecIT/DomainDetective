@@ -41,7 +41,9 @@ public enum Microsoft365EvidenceCategory {
 public enum Microsoft365TenantDomainRole {
     Unknown = 0,
     Primary = 1,
-    MicrosoftManagedNamespace = 2
+    MicrosoftManagedNamespace = 2,
+    IdentityDomain = 3,
+    AcceptedCustomDomain = 4
 }
 
 /// <summary>
@@ -51,6 +53,15 @@ public enum Microsoft365AuthExposureStatus {
     Unknown = 0,
     NotExposed = 1,
     Exposed = 2
+}
+
+/// <summary>
+/// Best-effort throttling posture inferred from the public Microsoft auth probe.
+/// </summary>
+public enum Microsoft365AuthThrottlingStatus {
+    Unknown = 0,
+    NoThrottling = 1,
+    ThrottlingObserved = 2
 }
 
 /// <summary>
@@ -98,6 +109,7 @@ public sealed class Microsoft365AuthenticationSummary {
     /// so this remains <see cref="Microsoft365AuthExposureStatus.Unknown"/> unless a future probe adds a safe signal.
     /// </summary>
     public Microsoft365AuthExposureStatus SmartLockoutStatus { get; init; }
+    public Microsoft365AuthThrottlingStatus ThrottlingStatus { get; init; }
     public int? IfExistsResult { get; init; }
     public int? ThrottleStatus { get; init; }
     public int? DomainType { get; init; }
@@ -169,6 +181,17 @@ public enum Microsoft365ServiceKind {
 }
 
 /// <summary>
+/// Primary public evidence source used for a Microsoft 365 workload detection.
+/// </summary>
+public enum Microsoft365ServiceEvidenceSourceKind {
+    Unknown = 0,
+    IdentityProbe = 1,
+    MailProtocol = 2,
+    KnownSubdomain = 3,
+    DnsApplication = 4
+}
+
+/// <summary>
 /// Known Microsoft-related subdomain roles inferred from naming patterns.
 /// </summary>
 public enum KnownSubdomainRole {
@@ -197,7 +220,12 @@ public enum KnownSubdomainRole {
     Apps = 22,
     PowerBi = 23,
     Flow = 24,
-    Automate = 25
+    Automate = 25,
+    DefenderPortal = 26,
+    AdminPortal = 27,
+    MyApps = 28,
+    PasswordReset = 29,
+    CompliancePortal = 30
 }
 
 /// <summary>
@@ -239,6 +267,8 @@ public sealed class Microsoft365ServiceDetection {
     public Microsoft365ServiceKind Kind { get; init; }
     public Microsoft365DetectionStatus Status { get; init; }
     public Microsoft365DetectionConfidence Confidence { get; init; }
+    public Microsoft365ServiceEvidenceSourceKind EvidenceSource { get; init; }
+    public bool TenantContextBoosted { get; init; }
     public IReadOnlyList<string> Evidence { get; init; } = Array.Empty<string>();
 }
 

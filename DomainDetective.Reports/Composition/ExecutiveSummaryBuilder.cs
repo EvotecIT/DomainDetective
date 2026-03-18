@@ -22,13 +22,15 @@ public static class ExecutiveSummaryBuilder
         public string TlsRpt { get; }
         public string Dnssec { get; }
         public string Rpki { get; }
+        public string Microsoft365 { get; }
+        public string Microsoft365Workloads { get; }
         public string Classification { get; }
         public int Warnings { get; }
         public int Errors { get; }
 
-        public Row(string domain, string mx, string spf, string dkim, string dmarc, string mtasts, string tlsRpt, string dnssec, string rpki, string classification, int warnings, int errors)
+        public Row(string domain, string mx, string spf, string dkim, string dmarc, string mtasts, string tlsRpt, string dnssec, string rpki, string microsoft365, string microsoft365Workloads, string classification, int warnings, int errors)
         {
-            Domain = domain; Mx = mx; Spf = spf; Dkim = dkim; Dmarc = dmarc; Mtasts = mtasts; TlsRpt = tlsRpt; Dnssec = dnssec; Rpki = rpki; Classification = classification; Warnings = warnings; Errors = errors;
+            Domain = domain; Mx = mx; Spf = spf; Dkim = dkim; Dmarc = dmarc; Mtasts = mtasts; TlsRpt = tlsRpt; Dnssec = dnssec; Rpki = rpki; Microsoft365 = microsoft365; Microsoft365Workloads = microsoft365Workloads; Classification = classification; Warnings = warnings; Errors = errors;
         }
     }
 
@@ -68,6 +70,7 @@ public static class ExecutiveSummaryBuilder
             warn += b.Ttl?.WarningCount ?? 0; err += b.Ttl?.ErrorCount ?? 0;
             warn += b.DnsAmplification?.WarningCount ?? 0; err += b.DnsAmplification?.ErrorCount ?? 0;
             warn += b.DnsOverTls?.WarningCount ?? 0; err += b.DnsOverTls?.ErrorCount ?? 0;
+            warn += b.Microsoft365?.WarningCount ?? 0; err += b.Microsoft365?.ErrorCount ?? 0;
             // Mail TLS trio
             warn += (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0);
             err  += (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0);
@@ -76,6 +79,7 @@ public static class ExecutiveSummaryBuilder
 
             var dnssec = DisplayFormatting.ComposeDnssecSummary(b.Dnssec);
             var rpki = DisplayFormatting.ComposeRpkiSummary(b.Rpki);
+            var microsoft365Workloads = BuildMicrosoft365WorkloadSummary(b.Microsoft365);
 
             rows.Add(new Row(
                 d,
@@ -87,6 +91,8 @@ public static class ExecutiveSummaryBuilder
                 status(b.TlsRpt?.Status),
                 dnssec,
                 rpki,
+                status(b.Microsoft365?.Status),
+                microsoft365Workloads,
                 status(b.Classification?.Classification),
                 warn,
                 err
@@ -94,5 +100,110 @@ public static class ExecutiveSummaryBuilder
         }
 
         return rows;
+    }
+
+    private static string BuildMicrosoft365WorkloadSummary(DomainDetective.Views.Microsoft365TenantInfo? microsoft365)
+    {
+        if (microsoft365 == null)
+        {
+            return "-";
+        }
+
+        var summary = microsoft365.WorkloadSummary ?? new DomainDetective.Microsoft365WorkloadConfidenceSummary();
+        var segments = new List<string>();
+
+        if (summary.StrongCount > 0)
+        {
+            segments.Add("Strong " + summary.StrongCount);
+        }
+
+        if (summary.ModerateCount > 0)
+        {
+            segments.Add("Moderate " + summary.ModerateCount);
+        }
+
+        if (summary.WeakCount > 0)
+        {
+            segments.Add("Weak " + summary.WeakCount);
+        }
+
+        if (segments.Count > 0)
+        {
+            var sourceSummary = BuildMicrosoft365WorkloadEvidenceSummary(microsoft365.Services);
+            return string.IsNullOrWhiteSpace(sourceSummary)
+                ? string.Join(", ", segments)
+                : string.Join(", ", segments) + " [" + sourceSummary + "]";
+        }
+
+        var detectedCount = microsoft365.Services?.Count(static service => service.Status == DomainDetective.Microsoft365DetectionStatus.Detected) ?? 0;
+        return detectedCount > 0 ? "Detected " + detectedCount : "-";
+    }
+
+    private static string BuildMicrosoft365WorkloadEvidenceSummary(IReadOnlyList<DomainDetective.Microsoft365ServiceDetection>? services)
+    {
+        if (services == null || services.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var detected = services
+            .Where(static service => service.Status == DomainDetective.Microsoft365DetectionStatus.Detected)
+            .ToList();
+        if (detected.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var segments = detected
+            .Where(static service => service.EvidenceSource != DomainDetective.Microsoft365ServiceEvidenceSourceKind.Unknown)
+            .GroupBy(static service => service.EvidenceSource)
+            .OrderBy(static group => GetMicrosoft365WorkloadEvidenceSortOrder(group.Key))
+            .ThenBy(static group => group.Key.ToString(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => FormatMicrosoft365WorkloadEvidenceSource(group.Key) + " " + group.Count())
+            .ToList();
+
+        var boosted = detected.Count(static service => service.TenantContextBoosted);
+        if (boosted > 0)
+        {
+            segments.Add("Boosted " + boosted);
+        }
+
+        return segments.Count == 0 ? string.Empty : string.Join(", ", segments);
+    }
+
+    private static int GetMicrosoft365WorkloadEvidenceSortOrder(DomainDetective.Microsoft365ServiceEvidenceSourceKind source)
+    {
+        switch (source)
+        {
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.IdentityProbe:
+                return 0;
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.MailProtocol:
+                return 1;
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.KnownSubdomain:
+                return 2;
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.DnsApplication:
+                return 3;
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.Unknown:
+            default:
+                return int.MaxValue;
+        }
+    }
+
+    private static string FormatMicrosoft365WorkloadEvidenceSource(DomainDetective.Microsoft365ServiceEvidenceSourceKind source)
+    {
+        switch (source)
+        {
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.IdentityProbe:
+                return "Identity";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.MailProtocol:
+                return "Mail/Protocol";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.KnownSubdomain:
+                return "Subdomain";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.DnsApplication:
+                return "DNS App";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.Unknown:
+            default:
+                return "Unknown";
+        }
     }
 }

@@ -24,6 +24,7 @@ public sealed partial class Microsoft365TenantAnalysis {
         RemoveAuthenticationSummaryAssessments();
         UserEnumerationStatus = Microsoft365AuthExposureStatus.Unknown;
         SmartLockoutStatus = Microsoft365AuthExposureStatus.Unknown;
+        ThrottlingStatus = Microsoft365AuthThrottlingStatus.Unknown;
 
         // The public GetCredentialType endpoint behaves like an interactive browser flow and returns
         // the most useful tenant-routing information when the probe resembles a normal sign-in request.
@@ -41,6 +42,7 @@ public sealed partial class Microsoft365TenantAnalysis {
         AuthenticationProbe = probe;
         UserEnumerationStatus = MapUserEnumerationStatus(probe);
         SmartLockoutStatus = MapSmartLockoutStatus(probe);
+        ThrottlingStatus = MapThrottlingStatus(probe);
 
         if (!IsMicrosoft365Tenant && IsAuthenticationProbeMicrosoft365Signal(probe)) {
             IsMicrosoft365Tenant = true;
@@ -89,6 +91,7 @@ public sealed partial class Microsoft365TenantAnalysis {
             ProbeResponsive = probe != null,
             UserEnumerationStatus = UserEnumerationStatus,
             SmartLockoutStatus = SmartLockoutStatus,
+            ThrottlingStatus = ThrottlingStatus,
             IfExistsResult = probe?.IfExistsResult,
             ThrottleStatus = probe?.ThrottleStatus,
             DomainType = probe?.DomainType,
@@ -318,15 +321,7 @@ public sealed partial class Microsoft365TenantAnalysis {
             Evidence = BuildAuthenticationEvidence(probeAddress, probe)
         };
 
-        EvidenceLedger = new[] { item }
-            .Concat(EvidenceLedger ?? Array.Empty<Microsoft365EvidenceItem>())
-            .GroupBy(static entry => entry.Id, StringComparer.OrdinalIgnoreCase)
-            .Select(static group => group.First())
-            .OrderByDescending(static entry => entry.Confidence)
-            .ThenBy(static entry => entry.Category)
-            .ThenBy(static entry => entry.Label, StringComparer.OrdinalIgnoreCase)
-            .Take(EvidenceLedgerMaxItems)
-            .ToList();
+        EvidenceLedger = CompactEvidenceLedger(new[] { item }.Concat(EvidenceLedger ?? Array.Empty<Microsoft365EvidenceItem>()));
         EvidenceSummary = BuildEvidenceSummary(EvidenceLedger);
     }
 
@@ -348,6 +343,18 @@ public sealed partial class Microsoft365TenantAnalysis {
     // so stay conservative and avoid implying a posture we cannot infer from this probe alone.
     private static Microsoft365AuthExposureStatus MapSmartLockoutStatus(MicrosoftCredentialTypeProbe probe) {
         return Microsoft365AuthExposureStatus.Unknown;
+    }
+
+    private static Microsoft365AuthThrottlingStatus MapThrottlingStatus(MicrosoftCredentialTypeProbe probe) {
+        if (!probe.ThrottleStatus.HasValue) {
+            return Microsoft365AuthThrottlingStatus.Unknown;
+        }
+
+        if (probe.ThrottleStatus.Value == 0) {
+            return Microsoft365AuthThrottlingStatus.NoThrottling;
+        }
+
+        return Microsoft365AuthThrottlingStatus.ThrottlingObserved;
     }
 
     private static bool IsAuthenticationProbeMicrosoft365Signal(MicrosoftCredentialTypeProbe probe) {

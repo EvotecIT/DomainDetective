@@ -31,11 +31,13 @@ public static partial class ExcelCompositionReport
                 TLSRPT = r.TlsRpt,
                 DNSSEC = r.Dnssec,
                 RPKI = r.Rpki,
+                M365 = r.Microsoft365,
+                M365Workloads = r.Microsoft365Workloads,
                 Warnings = r.Warnings,
                 Errors = r.Errors
             });
         }
-        sumRows.Add(new { Domain = "TOTAL", MX = string.Empty, SPF = string.Empty, DKIM = string.Empty, DMARC = string.Empty, MTASTS = string.Empty, TLSRPT = string.Empty, DNSSEC = string.Empty, RPKI = string.Empty, Warnings = totalWarn, Errors = totalErr });
+        sumRows.Add(new { Domain = "TOTAL", MX = string.Empty, SPF = string.Empty, DKIM = string.Empty, DMARC = string.Empty, MTASTS = string.Empty, TLSRPT = string.Empty, DNSSEC = string.Empty, RPKI = string.Empty, M365 = string.Empty, M365Workloads = string.Empty, Warnings = totalWarn, Errors = totalErr });
 
         overview.KpiRow(new (string, object?)[] {
             ("Domains", domains.Count),
@@ -50,7 +52,7 @@ public static partial class ExcelCompositionReport
             v.DataBars["Warnings"] = SixLabors.ImageSharp.Color.ParseHex("#FFA500");
             v.DataBars["Errors"] = SixLabors.ImageSharp.Color.ParseHex("#DC3545");
             var ok = "#D1E7DD"; var warn = "#FFF4CE"; var err = "#F8D7DA"; var none = "#E9ECEF";
-            foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT", "DNSSEC", "RPKI" })
+            foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT", "DNSSEC", "RPKI", "M365" })
             {
                 v.TextBackgrounds[col] = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase) {
                     { "OK", ok }, { "Pass", ok }, { "Valid", ok }, { "Warning", warn }, { "Warn", warn }, { "Error", err }, { "Fail", err }, { "-", none }, { "None", none }, { "Missing", none }
@@ -64,7 +66,7 @@ public static partial class ExcelCompositionReport
             var coords = ParseRange(range ?? string.Empty);
             if (coords.startCol != 0)
             {
-                int errorsCol = coords.startCol + 11 - 1;
+                int errorsCol = coords.startCol + 13 - 1;
                 string colLetter = IndexToCol(errorsCol);
                 string errRange = $"{colLetter}{coords.startRow + 1}:{colLetter}{coords.endRow}";
                 overview.ConditionalIconSet(errRange, IconSetValues.ThreeTrafficLights1);

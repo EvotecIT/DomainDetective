@@ -55,6 +55,7 @@ public static class ReferencesCollector
             Pull(b.CtTimeline?.References);
             Pull(b.Http?.References);
             Pull(b.IpEnrichment?.References);
+            Pull(b.Microsoft365?.References);
             if (b.DnsPropagation != null) foreach (var d in b.DnsPropagation) Pull(d.References);
         }
 

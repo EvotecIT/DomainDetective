@@ -20,6 +20,8 @@ public class IdpInfoAnalysis : IHasAssessments
     public string? NameSpaceType { get; private set; }
     public string? FederatedAuthUrl { get; private set; }
     public string? IdentityProviderHost { get; private set; }
+    public string? DomainName { get; private set; }
+    public string? FederationBrandName { get; private set; }
     public string? CloudInstanceName { get; private set; }
     public string? TenantRegionScope { get; private set; }
     public string? TenantRegionSubScope { get; private set; }
@@ -38,6 +40,8 @@ public class IdpInfoAnalysis : IHasAssessments
         NameSpaceType = null;
         FederatedAuthUrl = null;
         IdentityProviderHost = null;
+        DomainName = null;
+        FederationBrandName = null;
         CloudInstanceName = null;
         TenantRegionScope = null;
         TenantRegionSubScope = null;
@@ -63,6 +67,8 @@ public class IdpInfoAnalysis : IHasAssessments
         if (realm != null)
         {
             NameSpaceType = realm.NameSpaceType;
+            DomainName = realm.DomainName;
+            FederationBrandName = realm.FederationBrandName;
             FederatedAuthUrl = realm.AuthUrl;
             if (string.IsNullOrWhiteSpace(IdentityProviderHost))
             {

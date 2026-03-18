@@ -11,6 +11,19 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
+    private sealed class M365WorkloadKindRow
+    {
+        public string Workload { get; set; } = string.Empty;
+        public int Domains { get; set; }
+        public string HighestConfidence { get; set; } = "-";
+    }
+
+    private sealed class M365WorkloadEvidenceRow
+    {
+        public string Source { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
     private static void RenderHeaderBanner(Element page, string title)
     {
         page.Row(r =>
@@ -35,6 +48,7 @@ public static partial class HtmlCompositionReport
     private static void RenderExecutiveSummary(Element page, List<KeyValuePair<string, DomainBucket>> ordered, System.Collections.Generic.List<DomainDetective.Reports.ExecutiveSummaryBuilder.Row> rows, string overviewLine)
     {
         var controlRollup = BuildControlRollup(rows);
+        var m365WorkloadRollup = BuildM365WorkloadRollup(ordered);
 
         // Aggregate stats used in the overview
         var grade = ComputeOverallGrade(rows);
@@ -49,6 +63,8 @@ public static partial class HtmlCompositionReport
         bool hasTlsRpt = rows.Any(r => !IsEmptyStatus(r.TlsRpt));
         bool hasDnssec = rows.Any(r => !IsEmptyStatus(r.Dnssec));
         bool hasRpki = rows.Any(r => !IsEmptyStatus(r.Rpki));
+        bool hasMicrosoft365 = rows.Any(r => !IsEmptyStatus(r.Microsoft365));
+        bool hasMicrosoft365Workloads = m365WorkloadRollup.TotalDetected > 0;
         bool hasClass = rows.Any(r => !IsEmptyStatus(r.Classification));
         bool IncludeControl(string key) => key switch
         {
@@ -58,6 +74,7 @@ public static partial class HtmlCompositionReport
             "DMARC" => hasDmarc,
             "MTA-STS" => hasMtasts,
             "TLS-RPT" => hasTlsRpt,
+            "Microsoft 365" => hasMicrosoft365,
             "DNSSEC" => hasDnssec,
             "RPKI" => hasRpki,
             _ => false
@@ -154,11 +171,12 @@ public static partial class HtmlCompositionReport
                             if (hasDmarc) { var s = ControlStatusLabel(controlRollup["DMARC"]); g.AddItem("DMARC", s).AsPanel(PanelColorForStatus(s), light: true); }
                             if (hasMtasts) { var s = ControlStatusLabel(controlRollup["MTA-STS"]); g.AddItem("MTA-STS", s).AsPanel(PanelColorForStatus(s), light: true); }
                             if (hasTlsRpt) { var s = ControlStatusLabel(controlRollup["TLS-RPT"]); g.AddItem("TLS-RPT", s).AsPanel(PanelColorForStatus(s), light: true); }
+                            if (hasMicrosoft365) { var s = ControlStatusLabel(controlRollup["Microsoft 365"]); g.AddItem("Microsoft 365", s).AsPanel(PanelColorForStatus(s), light: true); }
                             if (hasDnssec) { var s = ControlStatusLabel(controlRollup["DNSSEC"]); g.AddItem("DNSSEC", s).AsPanel(PanelColorForStatus(s), light: true); }
                             if (hasRpki) { var s = ControlStatusLabel(controlRollup["RPKI"]); g.AddItem("RPKI", s).AsPanel(PanelColorForStatus(s), light: true); }
                             g.AsTiles("13rem");
                         });
-                        if (!(hasMx || hasSpf || hasDkim || hasDmarc || hasMtasts || hasTlsRpt || hasDnssec || hasRpki))
+                        if (!(hasMx || hasSpf || hasDkim || hasDmarc || hasMtasts || hasTlsRpt || hasMicrosoft365 || hasDnssec || hasRpki))
                         {
                             b.Text("No control data available.").Style(TablerTextStyle.Muted);
                         }
@@ -173,6 +191,50 @@ public static partial class HtmlCompositionReport
                 c.Card(card => card.Body(b => b.Text(overviewLine)));
             }));
         } catch { }
+
+        try
+        {
+            if (hasMicrosoft365Workloads)
+            {
+                page.Row(r => r.Column(TablerColumnNumber.Twelve, c =>
+                {
+                    c.Card(card =>
+                    {
+                        card.Header(h => h.Title("Microsoft 365 Workloads").Subtitle("Detected workload confidence across domains").Icon(TablerIconType.ChartBar));
+                        card.Body(b =>
+                        {
+                            b.DataGrid(g =>
+                            {
+                                g.AsCompact();
+                                g.AddItem("Detected Workloads", m365WorkloadRollup.TotalDetected.ToString()).AsPanel(TablerColor.Azure, light: true);
+                                g.AddItem("Strong", m365WorkloadRollup.Strong.ToString()).AsPanel(m365WorkloadRollup.Strong > 0 ? TablerColor.Green : TablerColor.Blue, light: true);
+                                g.AddItem("Moderate", m365WorkloadRollup.Moderate.ToString()).AsPanel(m365WorkloadRollup.Moderate > 0 ? TablerColor.Orange : TablerColor.Blue, light: true);
+                                g.AddItem("Weak", m365WorkloadRollup.Weak.ToString()).AsPanel(m365WorkloadRollup.Weak > 0 ? TablerColor.Orange : TablerColor.Blue, light: true);
+                                if (m365WorkloadRollup.Boosted > 0)
+                                {
+                                    g.AddItem("Tenant-Boosted", m365WorkloadRollup.Boosted.ToString()).AsPanel(TablerColor.Indigo, light: true);
+                                }
+                            });
+
+                            if (m365WorkloadRollup.SourceCounts.Count > 0)
+                            {
+                                b.Text("Observed via").Style(TablerTextStyle.Muted);
+                                var sourceTable = (TablerTable)b.Table(m365WorkloadRollup.SourceCounts, TableType.Tabler);
+                                sourceTable.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            }
+
+                            if (m365WorkloadRollup.TopKinds.Count > 0)
+                            {
+                                b.Text("Top workloads").Style(TablerTextStyle.Muted);
+                                var t = (TablerTable)b.Table(m365WorkloadRollup.TopKinds, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            }
+                        });
+                    });
+                }));
+            }
+        }
+        catch { }
 
         // Top findings + control rollup
         try
@@ -338,5 +400,129 @@ public static partial class HtmlCompositionReport
         } catch { }
 
         // Domain table intentionally removed from Summary; it lives in the Domains tab.
+    }
+
+    private static (int TotalDetected, int Strong, int Moderate, int Weak, int Boosted, List<M365WorkloadKindRow> TopKinds, List<M365WorkloadEvidenceRow> SourceCounts) BuildM365WorkloadRollup(IEnumerable<KeyValuePair<string, DomainBucket>> ordered)
+    {
+        var detected = ordered
+            .SelectMany(static kv => kv.Value.Microsoft365?.Services ?? Array.Empty<DomainDetective.Microsoft365ServiceDetection>())
+            .Where(static service => service.Status == DomainDetective.Microsoft365DetectionStatus.Detected)
+            .ToList();
+
+        var topKinds = detected
+            .GroupBy(static service => service.Kind)
+            .Select(g => new M365WorkloadKindRow
+            {
+                Workload = FormatM365WorkloadKind(g.Key),
+                Domains = g.Count(),
+                HighestConfidence = FormatM365WorkloadConfidence(g.Max(static service => service.Confidence))
+            })
+            .OrderByDescending(static row => row.Domains)
+            .ThenBy(static row => GetM365WorkloadConfidenceSortOrder(row.HighestConfidence))
+            .ThenBy(static row => row.Workload, StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToList();
+
+        var sourceCounts = detected
+            .Where(static service => service.EvidenceSource != DomainDetective.Microsoft365ServiceEvidenceSourceKind.Unknown)
+            .GroupBy(static service => service.EvidenceSource)
+            .Select(g => new M365WorkloadEvidenceRow
+            {
+                Source = FormatExecutiveM365WorkloadEvidenceSource(g.Key),
+                Count = g.Count()
+            })
+            .OrderByDescending(static row => row.Count)
+            .ThenBy(static row => GetExecutiveM365WorkloadEvidenceSortOrder(row.Source))
+            .ThenBy(static row => row.Source, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return (
+            detected.Count,
+            detected.Count(static service => service.Confidence == DomainDetective.Microsoft365DetectionConfidence.Strong),
+            detected.Count(static service => service.Confidence == DomainDetective.Microsoft365DetectionConfidence.Moderate),
+            detected.Count(static service => service.Confidence == DomainDetective.Microsoft365DetectionConfidence.Weak),
+            detected.Count(static service => service.TenantContextBoosted),
+            topKinds,
+            sourceCounts
+        );
+    }
+
+    private static string FormatM365WorkloadKind(DomainDetective.Microsoft365ServiceKind kind)
+    {
+        var text = kind.ToString();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "-";
+        }
+
+        return System.Text.RegularExpressions.Regex.Replace(text, "([a-z0-9])([A-Z])", "$1 $2");
+    }
+
+    private static string FormatM365WorkloadConfidence(DomainDetective.Microsoft365DetectionConfidence confidence)
+    {
+        switch (confidence)
+        {
+            case DomainDetective.Microsoft365DetectionConfidence.Strong:
+                return "Strong";
+            case DomainDetective.Microsoft365DetectionConfidence.Moderate:
+                return "Moderate";
+            case DomainDetective.Microsoft365DetectionConfidence.Weak:
+                return "Weak";
+            case DomainDetective.Microsoft365DetectionConfidence.Unknown:
+            default:
+                return "Unknown";
+        }
+    }
+
+    private static int GetM365WorkloadConfidenceSortOrder(string confidence)
+    {
+        switch (confidence)
+        {
+            case "Strong":
+                return 0;
+            case "Moderate":
+                return 1;
+            case "Weak":
+                return 2;
+            case "Unknown":
+            default:
+                return int.MaxValue;
+        }
+    }
+
+    private static string FormatExecutiveM365WorkloadEvidenceSource(DomainDetective.Microsoft365ServiceEvidenceSourceKind source)
+    {
+        switch (source)
+        {
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.IdentityProbe:
+                return "Identity";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.MailProtocol:
+                return "Mail/Protocol";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.KnownSubdomain:
+                return "Subdomain";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.DnsApplication:
+                return "DNS App";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.Unknown:
+            default:
+                return "Unknown";
+        }
+    }
+
+    private static int GetExecutiveM365WorkloadEvidenceSortOrder(string source)
+    {
+        switch (source)
+        {
+            case "Identity":
+                return 0;
+            case "Mail/Protocol":
+                return 1;
+            case "Subdomain":
+                return 2;
+            case "DNS App":
+                return 3;
+            case "Unknown":
+            default:
+                return int.MaxValue;
+        }
     }
 }

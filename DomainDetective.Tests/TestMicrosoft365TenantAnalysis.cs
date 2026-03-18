@@ -20,6 +20,8 @@ public class TestMicrosoft365TenantAnalysis
         SetBackingField(idp, nameof(IdpInfoAnalysis.DiscoveryUrl), "https://login.microsoftonline.com/contoso.com/.well-known/openid-configuration");
         SetBackingField(idp, nameof(IdpInfoAnalysis.TenantId), "11111111-2222-3333-4444-555555555555");
         SetBackingField(idp, nameof(IdpInfoAnalysis.NameSpaceType), "Managed");
+        SetBackingField(idp, nameof(IdpInfoAnalysis.DomainName), "contoso.com");
+        SetBackingField(idp, nameof(IdpInfoAnalysis.FederationBrandName), "Contoso");
         SetBackingField(idp, nameof(IdpInfoAnalysis.IdentityProviderHost), "login.microsoftonline.com");
         SetBackingField(idp, nameof(IdpInfoAnalysis.CloudInstanceName), "microsoftonline.com");
         SetBackingField(idp, nameof(IdpInfoAnalysis.TenantRegionScope), "NA");
@@ -111,16 +113,21 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Equal(TenantCloudInstanceKind.Global, analysis.CloudInstance);
         Assert.Equal(TenantRegionKind.NorthAmerica, analysis.Region);
         Assert.Equal("11111111-2222-3333-4444-555555555555", analysis.TenantId);
+        Assert.Equal("Contoso", analysis.CompanyName);
+        Assert.Equal("contosotenant", analysis.TenantName);
+        Assert.Equal("contosotenant.onmicrosoft.com", analysis.TenantNamespaceDomain);
         Assert.Contains("authorization_code", analysis.SupportedGrantTypes);
         Assert.Contains("code id_token", analysis.SupportedResponseTypes);
         Assert.True(analysis.AuthenticationProbeSucceeded);
         Assert.Equal(Microsoft365AuthExposureStatus.Exposed, analysis.UserEnumerationStatus);
+        Assert.Equal(Microsoft365AuthThrottlingStatus.ThrottlingObserved, analysis.ThrottlingStatus);
         Assert.Equal(1, analysis.AuthenticationProbe?.IfExistsResult);
         Assert.Equal(3, analysis.AuthenticationProbe?.DomainType);
         Assert.True(analysis.AuthenticationSummary.ProbeResponsive);
         Assert.Equal(Microsoft365DetectionConfidence.Strong, analysis.AuthenticationSummary.Confidence);
         Assert.Equal(Microsoft365AuthExposureStatus.Exposed, analysis.AuthenticationSummary.UserEnumerationStatus);
         Assert.Equal(Microsoft365AuthExposureStatus.Unknown, analysis.AuthenticationSummary.SmartLockoutStatus);
+        Assert.Equal(Microsoft365AuthThrottlingStatus.ThrottlingObserved, analysis.AuthenticationSummary.ThrottlingStatus);
         Assert.Equal(1, analysis.AuthenticationSummary.IfExistsResult);
         Assert.Equal(1, analysis.AuthenticationSummary.ThrottleStatus);
         Assert.Equal(3, analysis.AuthenticationSummary.DomainType);
@@ -134,26 +141,62 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Contains(analysis.AuthenticationSummary.Evidence, item => item == "PreferredCredential=4");
         Assert.Contains(analysis.TenantDomains, domain => domain.Domain == "contoso.com" && domain.Role == Microsoft365TenantDomainRole.Primary);
         Assert.Contains(analysis.TenantDomains, domain => domain.Domain == "contosotenant.onmicrosoft.com" && domain.Role == Microsoft365TenantDomainRole.MicrosoftManagedNamespace);
+        Assert.Contains(analysis.TenantDomains.Single(domain => domain.Domain == "contoso.com" && domain.Role == Microsoft365TenantDomainRole.Primary).Evidence, item => item == "GetUserRealm domain: contoso.com");
 
-        Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.ExchangeOnline).Status);
-        Assert.Equal(Microsoft365DetectionConfidence.Strong, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.ExchangeOnline).Confidence);
-        Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.SharePointOnline).Status);
-        Assert.Equal(Microsoft365DetectionConfidence.Moderate, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.SharePointOnline).Confidence);
-        Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.Teams).Status);
-        Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.IntuneEndpoint).Status);
+        var exchangeDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.ExchangeOnline);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, exchangeDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Strong, exchangeDetection.Confidence);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.MailProtocol, exchangeDetection.EvidenceSource);
+        Assert.False(exchangeDetection.TenantContextBoosted);
+        var sharePointDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.SharePointOnline);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, sharePointDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Strong, sharePointDetection.Confidence);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.KnownSubdomain, sharePointDetection.EvidenceSource);
+        Assert.True(sharePointDetection.TenantContextBoosted);
+        var teamsDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.Teams);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, teamsDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Strong, teamsDetection.Confidence);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.KnownSubdomain, teamsDetection.EvidenceSource);
+        Assert.True(teamsDetection.TenantContextBoosted);
+        var intuneDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.IntuneEndpoint);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, intuneDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Strong, intuneDetection.Confidence);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.KnownSubdomain, intuneDetection.EvidenceSource);
+        Assert.True(intuneDetection.TenantContextBoosted);
+        var defenderDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.Defender);
+        Assert.Equal(Microsoft365DetectionStatus.NotDetected, defenderDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Weak, defenderDetection.Confidence);
+        Assert.True(defenderDetection.TenantContextBoosted);
         var entraDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.EntraId);
         Assert.Equal(Microsoft365DetectionStatus.Detected, entraDetection.Status);
         Assert.Equal(Microsoft365DetectionConfidence.Strong, entraDetection.Confidence);
-        Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerApps).Status);
-        Assert.Equal(Microsoft365DetectionConfidence.Moderate, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerApps).Confidence);
-        Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerAutomate).Status);
-        Assert.Equal(Microsoft365DetectionStatus.Detected, analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerBi).Status);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.IdentityProbe, entraDetection.EvidenceSource);
+        Assert.False(entraDetection.TenantContextBoosted);
+        var powerAppsDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerApps);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, powerAppsDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Moderate, powerAppsDetection.Confidence);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.KnownSubdomain, powerAppsDetection.EvidenceSource);
+        Assert.True(powerAppsDetection.TenantContextBoosted);
+        var powerAutomateDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerAutomate);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, powerAutomateDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Moderate, powerAutomateDetection.Confidence);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.KnownSubdomain, powerAutomateDetection.EvidenceSource);
+        Assert.True(powerAutomateDetection.TenantContextBoosted);
+        var powerBiDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.PowerBi);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, powerBiDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Strong, powerBiDetection.Confidence);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.KnownSubdomain, powerBiDetection.EvidenceSource);
+        Assert.True(powerBiDetection.TenantContextBoosted);
         Assert.Equal(8, analysis.WorkloadSummary.DetectedCount);
-        Assert.Equal(2, analysis.WorkloadSummary.StrongCount);
-        Assert.Equal(6, analysis.WorkloadSummary.ModerateCount);
+        Assert.Equal(6, analysis.WorkloadSummary.StrongCount);
+        Assert.Equal(2, analysis.WorkloadSummary.ModerateCount);
         Assert.Equal(0, analysis.WorkloadSummary.WeakCount);
         Assert.Contains(Microsoft365ServiceKind.ExchangeOnline, analysis.WorkloadSummary.StrongServices);
+        Assert.Contains(Microsoft365ServiceKind.SharePointOnline, analysis.WorkloadSummary.StrongServices);
+        Assert.Contains(Microsoft365ServiceKind.Teams, analysis.WorkloadSummary.StrongServices);
+        Assert.Contains(Microsoft365ServiceKind.IntuneEndpoint, analysis.WorkloadSummary.StrongServices);
         Assert.Contains(Microsoft365ServiceKind.EntraId, analysis.WorkloadSummary.StrongServices);
+        Assert.Contains(Microsoft365ServiceKind.PowerBi, analysis.WorkloadSummary.StrongServices);
         Assert.Equal(analysis.DetectedDnsApplications.Count, analysis.DnsApplicationSummary.TotalCount);
         Assert.Equal(7, analysis.DnsApplicationSummary.CategoryCount);
         Assert.Equal(DetectedDnsAppCategory.Productivity, analysis.DnsApplicationSummary.DominantCategory);
@@ -206,21 +249,27 @@ public class TestMicrosoft365TenantAnalysis
 
         var view = DomainDetective.Views.Converters.Convert(analysis);
         Assert.True(view.AuthenticationSummary.ProbeResponsive);
+        Assert.Equal("Contoso", view.CompanyName);
+        Assert.Equal("contosotenant", view.TenantName);
+        Assert.Equal("contosotenant.onmicrosoft.com", view.TenantNamespaceDomain);
+        Assert.Equal(Microsoft365AuthThrottlingStatus.ThrottlingObserved, view.ThrottlingStatus);
         Assert.Equal(Microsoft365AuthExposureStatus.Exposed, view.AuthenticationSummary.UserEnumerationStatus);
         Assert.Equal(3, view.AuthenticationSummary.DomainType);
         Assert.Equal(Microsoft365AuthDomainPostureKind.ManagedTenant, view.AuthenticationSummary.DomainPosture);
         Assert.Equal(Microsoft365AuthCredentialFlowKind.Redirect, view.AuthenticationSummary.CredentialFlow);
         Assert.Equal(Microsoft365AuthPathKind.ManagedRedirect, view.AuthenticationPath);
         Assert.Contains("auth-path managed-redirect;", view.Summary);
-        Assert.Contains("workloads S2/M6/W0;", view.Summary);
+        Assert.Contains("workloads S6/M2/W0;", view.Summary);
         Assert.Contains("app-cats 7 (top Productivity ", view.Summary);
         Assert.Contains("(strong)", view.Summary);
         Assert.Contains("evidence-groups ", view.Summary);
-        Assert.Contains("auth Exposed / Unknown (managed, redirect; DomainType 3; PrefCredential 4)", view.Summary);
+        Assert.Contains("domain-evidence 2 (top Primary 1 (strong), Namespace-derived 1 (strong))", view.Summary);
+        Assert.Contains("auth Exposed / Unknown / throttling-observed (managed, redirect; DomainType 3; PrefCredential 4)", view.Summary);
         Assert.Equal("Auth path: managed-redirect", view.Highlights.First());
-        Assert.Equal("Strong workloads: ExchangeOnline, EntraId", view.Highlights[1]);
+        Assert.Equal("Strong workloads: ExchangeOnline, SharePointOnline, Teams, IntuneEndpoint, EntraId, PowerBi", view.Highlights[1]);
         Assert.Contains(view.Highlights, item => item.StartsWith("App footprint: Productivity ", StringComparison.Ordinal) && item.Contains("(strong)", StringComparison.Ordinal));
         Assert.Contains(view.Highlights, item => item.StartsWith("Evidence groups: ", StringComparison.Ordinal) && item.Contains("(strong)", StringComparison.Ordinal) && (item.Contains("Services ", StringComparison.Ordinal) || item.Contains("Apps ", StringComparison.Ordinal) || item.Contains("Identity ", StringComparison.Ordinal)));
+        Assert.Contains("Domain evidence: Primary 1 (strong), Namespace-derived 1 (strong)", view.Highlights);
         Assert.Contains("User enumeration: exposed", view.Highlights);
         Assert.Contains(view.Recommendations, advice => advice.Code == "m365-auth-user-enumeration-exposed");
         Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-managed-posture-detected");
@@ -243,13 +292,14 @@ public class TestMicrosoft365TenantAnalysis
   ""Username"": ""dd-authprobe@contoso.com"",
   ""Display"": ""dd-authprobe@contoso.com"",
   ""IfExistsResult"": 5,
-  ""ThrottleStatus"": 1,
+  ""ThrottleStatus"": 0,
   ""Credentials"": { ""PrefCredential"": 4 },
   ""EstsProperties"": { ""DomainType"": 3 }
 }")), new InternalLogger(), CancellationToken.None);
 
         Assert.True(analysis.AuthenticationProbeSucceeded);
         Assert.Equal(Microsoft365AuthExposureStatus.Unknown, analysis.UserEnumerationStatus);
+        Assert.Equal(Microsoft365AuthThrottlingStatus.NoThrottling, analysis.ThrottlingStatus);
         Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == "m365-auth-user-enumeration-exposed");
     }
 
@@ -272,6 +322,46 @@ public class TestMicrosoft365TenantAnalysis
         analysis.Analyze("contoso.com", null, null, null, subdomains, null, new InternalLogger());
 
         Assert.Empty(analysis.KnownSubdomains);
+    }
+
+    [Fact]
+    public void DetectsEntraAndDefenderFromAdminAndSecuritySubdomains() {
+        var subdomains = new SubdomainsAnalysis();
+        SetBackingField(subdomains, nameof(SubdomainsAnalysis.Subject), "contoso.com");
+        SetBackingField(subdomains, nameof(SubdomainsAnalysis.QuerySucceeded), true);
+        SetBackingField(
+            subdomains,
+            nameof(SubdomainsAnalysis.Subdomains),
+            new List<SubdomainDiscoveryEntry> {
+                new() { Name = "admin.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves },
+                new() { Name = "myapps.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves },
+                new() { Name = "passwordreset.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves },
+                new() { Name = "defender.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves },
+                new() { Name = "compliance.contoso.com", ResolutionStatus = SubdomainResolutionStatus.Resolves }
+            });
+
+        var analysis = new Microsoft365TenantAnalysis();
+        analysis.Analyze("contoso.com", null, null, null, subdomains, null, new InternalLogger());
+
+        Assert.True(analysis.IsMicrosoft365Tenant);
+        Assert.Equal(Microsoft365DetectionConfidence.Moderate, analysis.DetectionConfidence);
+        Assert.Contains(analysis.KnownSubdomains, item => item.Role == KnownSubdomainRole.AdminPortal);
+        Assert.Contains(analysis.KnownSubdomains, item => item.Role == KnownSubdomainRole.MyApps);
+        Assert.Contains(analysis.KnownSubdomains, item => item.Role == KnownSubdomainRole.PasswordReset);
+        Assert.Contains(analysis.KnownSubdomains, item => item.Role == KnownSubdomainRole.DefenderPortal);
+        Assert.Contains(analysis.KnownSubdomains, item => item.Role == KnownSubdomainRole.CompliancePortal);
+        var entraDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.EntraId);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, entraDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Moderate, entraDetection.Confidence);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.KnownSubdomain, entraDetection.EvidenceSource);
+        Assert.False(entraDetection.TenantContextBoosted);
+        var defenderDetection = analysis.Services.Single(s => s.Kind == Microsoft365ServiceKind.Defender);
+        Assert.Equal(Microsoft365DetectionStatus.Detected, defenderDetection.Status);
+        Assert.Equal(Microsoft365DetectionConfidence.Moderate, defenderDetection.Confidence);
+        Assert.Equal(Microsoft365ServiceEvidenceSourceKind.DnsApplication, defenderDetection.EvidenceSource);
+        Assert.False(defenderDetection.TenantContextBoosted);
+        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "microsoft-identity-surface" && app.Category == DetectedDnsAppCategory.Identity);
+        Assert.Contains(analysis.DetectedDnsApplications, app => app.Id == "microsoft-security-surface" && app.Category == DetectedDnsAppCategory.Security);
     }
 
     [Fact]
@@ -320,6 +410,32 @@ public class TestMicrosoft365TenantAnalysis
         Assert.Equal("Auth path: federated-redirect", view.Highlights.First());
         Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-federated-posture-detected");
         Assert.Contains(view.Positives, advice => advice.Code == "m365-auth-federated-redirect-path-detected");
+    }
+
+    [Fact]
+    public void AddsAcceptedCustomDomainFromDkimSigningDomainEvidence()
+    {
+        var dkim = new DkimAnalysis {
+            Subject = "contoso.com"
+        };
+        dkim.AnalysisResults["selector1"] = new DkimRecordAnalysis {
+            Name = "selector1._domainkey.groups.contoso.com",
+            CnameTarget = "selector1-groups-contoso-com._domainkey.contosotenant.onmicrosoft.com",
+            DkimRecordExists = true,
+            StartsCorrectly = true,
+            PublicKeyExists = true,
+            ValidPublicKey = true
+        };
+
+        var analysis = new Microsoft365TenantAnalysis();
+        analysis.Analyze("contoso.com", null, null, dkim, null, null, new InternalLogger());
+
+        Assert.Contains(analysis.TenantDomains, domain => domain.Domain == "contoso.com" && domain.Role == Microsoft365TenantDomainRole.Primary);
+        Assert.Contains(analysis.TenantDomains, domain => domain.Domain == "groups.contoso.com" && domain.Role == Microsoft365TenantDomainRole.AcceptedCustomDomain);
+        Assert.Contains(analysis.TenantDomains, domain => domain.Domain == "contosotenant.onmicrosoft.com" && domain.Role == Microsoft365TenantDomainRole.MicrosoftManagedNamespace);
+        Assert.Contains(
+            analysis.TenantDomains.Single(domain => domain.Domain == "groups.contoso.com").Evidence,
+            item => item == "DKIM signing domain: selector1._domainkey.groups.contoso.com");
     }
 
     [Fact]

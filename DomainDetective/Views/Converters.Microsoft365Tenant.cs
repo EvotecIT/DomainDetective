@@ -31,7 +31,8 @@ public static partial class Converters
         var highlights = BuildHighlights(analysis, authPath, detectedServices, workloadSummary, dnsApplicationSummary, evidenceSummary);
         var dnsCategorySummary = DescribeDnsApplicationCategories(dnsApplicationSummary, 1);
         var evidenceCategorySummary = DescribeEvidenceCategories(evidenceSummary, 1);
-        var summary = $"{(analysis.IsMicrosoft365Tenant ? "M365" : "No M365")} tenant; confidence {analysis.DetectionConfidence}; auth-path {authPath}; auth {authSummary}; workloads S{workloadSummary.StrongCount}/M{workloadSummary.ModerateCount}/W{workloadSummary.WeakCount}; app-cats {dnsApplicationSummary.CategoryCount}{(string.IsNullOrWhiteSpace(dnsCategorySummary) ? string.Empty : $" (top {dnsCategorySummary})")}; evidence-groups {evidenceSummary.CategoryCount}{(string.IsNullOrWhiteSpace(evidenceCategorySummary) ? string.Empty : $" (top {evidenceCategorySummary})")}; services {detectedServices.Length}; domains {analysis.TenantDomains?.Count ?? 0}; apps {analysis.DetectedDnsApplications?.Count ?? 0}; evidence {analysis.EvidenceLedger?.Count ?? 0}; subdomains {analysis.KnownSubdomains?.Count ?? 0}";
+        var domainEvidenceSummary = DescribeDomainEvidence(analysis.TenantDomains, 3);
+        var summary = $"{(analysis.IsMicrosoft365Tenant ? "M365" : "No M365")} tenant; confidence {analysis.DetectionConfidence}; auth-path {authPath}; auth {authSummary}; workloads S{workloadSummary.StrongCount}/M{workloadSummary.ModerateCount}/W{workloadSummary.WeakCount}; app-cats {dnsApplicationSummary.CategoryCount}{(string.IsNullOrWhiteSpace(dnsCategorySummary) ? string.Empty : $" (top {dnsCategorySummary})")}; evidence-groups {evidenceSummary.CategoryCount}{(string.IsNullOrWhiteSpace(evidenceCategorySummary) ? string.Empty : $" (top {evidenceCategorySummary})")}; domain-evidence {(analysis.TenantDomains?.Count ?? 0)}{(string.IsNullOrWhiteSpace(domainEvidenceSummary) ? string.Empty : $" (top {domainEvidenceSummary})")}; services {detectedServices.Length}; apps {analysis.DetectedDnsApplications?.Count ?? 0}; evidence {analysis.EvidenceLedger?.Count ?? 0}; subdomains {analysis.KnownSubdomains?.Count ?? 0}";
 
         return new Microsoft365TenantInfo
         {
@@ -43,6 +44,9 @@ public static partial class Converters
             IsMicrosoft365Tenant = analysis.IsMicrosoft365Tenant,
             DetectionConfidence = analysis.DetectionConfidence,
             TenantId = analysis.TenantId,
+            TenantName = analysis.TenantName,
+            CompanyName = analysis.CompanyName,
+            TenantNamespaceDomain = analysis.TenantNamespaceDomain,
             NameSpaceType = analysis.NameSpaceType,
             IdentityProviderKind = analysis.IdentityProviderKind,
             IdentityProvider = analysis.IdentityProvider,
@@ -52,6 +56,7 @@ public static partial class Converters
             ConsumerDomain = analysis.ConsumerDomain,
             UserEnumerationStatus = analysis.UserEnumerationStatus,
             SmartLockoutStatus = analysis.SmartLockoutStatus,
+            ThrottlingStatus = analysis.ThrottlingStatus,
             AuthenticationProbeSucceeded = analysis.AuthenticationProbeSucceeded,
             AuthenticationProbeAddress = analysis.AuthenticationProbeAddress,
             AuthenticationProbe = analysis.AuthenticationProbe,
@@ -89,7 +94,7 @@ public static partial class Converters
 
         var domainType = summary.DomainType.HasValue ? summary.DomainType.Value.ToString() : "-";
         var preferredCredential = summary.PreferredCredential.HasValue ? summary.PreferredCredential.Value.ToString() : "-";
-        return $"{summary.UserEnumerationStatus} / {summary.SmartLockoutStatus} ({FormatAuthenticationDomainPosture(summary.DomainPosture)}, {FormatAuthenticationCredentialFlow(summary.CredentialFlow)}; DomainType {domainType}; PrefCredential {preferredCredential})";
+        return $"{summary.UserEnumerationStatus} / {summary.SmartLockoutStatus} / {FormatAuthenticationThrottlingStatus(summary.ThrottlingStatus)} ({FormatAuthenticationDomainPosture(summary.DomainPosture)}, {FormatAuthenticationCredentialFlow(summary.CredentialFlow)}; DomainType {domainType}; PrefCredential {preferredCredential})";
     }
 
     private static string FormatAuthenticationPath(Microsoft365AuthPathKind path)
@@ -165,6 +170,27 @@ public static partial class Converters
             highlights.Add("Tenant ID: " + analysis.TenantId);
         }
 
+        if (!string.IsNullOrWhiteSpace(analysis.CompanyName))
+        {
+            highlights.Add("Company: " + analysis.CompanyName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(analysis.TenantName))
+        {
+            highlights.Add("Tenant namespace: " + analysis.TenantName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(analysis.TenantNamespaceDomain))
+        {
+            highlights.Add("Tenant namespace domain: " + analysis.TenantNamespaceDomain);
+        }
+
+        var domainEvidenceSummary = DescribeDomainEvidence(analysis.TenantDomains, 3);
+        if (!string.IsNullOrWhiteSpace(domainEvidenceSummary))
+        {
+            highlights.Add("Domain evidence: " + domainEvidenceSummary);
+        }
+
         if (detectedServices.Count > 0)
         {
             highlights.Add("Detected services: " + string.Join(", ", detectedServices.Take(4)));
@@ -199,6 +225,61 @@ public static partial class Converters
             summary.Categories
                 .Take(take)
                 .Select(item => $"{FormatEvidenceCategory(item.Category)} {item.Count} ({FormatDetectionConfidence(item.HighestConfidence)})"));
+    }
+
+    private static string DescribeDomainEvidence(IReadOnlyList<Microsoft365TenantDomain>? domains, int take)
+    {
+        if (domains == null || domains.Count == 0 || take <= 0)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(
+            ", ",
+            domains
+                .Where(static domain => domain.Role != Microsoft365TenantDomainRole.Unknown)
+                .GroupBy(static domain => domain.Role)
+                .OrderBy(static group => GetDomainEvidenceSortOrder(group.Key))
+                .ThenByDescending(static group => group.Max(item => item.Confidence))
+                .ThenBy(static group => group.Key.ToString(), StringComparer.OrdinalIgnoreCase)
+                .Take(take)
+                .Select(group => $"{FormatDomainEvidenceRole(group.Key)} {group.Count()} ({FormatDetectionConfidence(group.Max(static item => item.Confidence))})"));
+    }
+
+    private static int GetDomainEvidenceSortOrder(Microsoft365TenantDomainRole role)
+    {
+        switch (role)
+        {
+            case Microsoft365TenantDomainRole.Primary:
+                return 0;
+            case Microsoft365TenantDomainRole.IdentityDomain:
+                return 1;
+            case Microsoft365TenantDomainRole.AcceptedCustomDomain:
+                return 2;
+            case Microsoft365TenantDomainRole.MicrosoftManagedNamespace:
+                return 3;
+            case Microsoft365TenantDomainRole.Unknown:
+            default:
+                return int.MaxValue;
+        }
+    }
+
+    private static string FormatDomainEvidenceRole(Microsoft365TenantDomainRole role)
+    {
+        switch (role)
+        {
+            case Microsoft365TenantDomainRole.Primary:
+                return "Primary";
+            case Microsoft365TenantDomainRole.IdentityDomain:
+                return "Identity-derived";
+            case Microsoft365TenantDomainRole.AcceptedCustomDomain:
+                return "DKIM-derived";
+            case Microsoft365TenantDomainRole.MicrosoftManagedNamespace:
+                return "Namespace-derived";
+            case Microsoft365TenantDomainRole.Unknown:
+            default:
+                return "Unknown";
+        }
     }
 
     private static string FormatDetectedDnsAppCategory(DetectedDnsAppCategory category)
@@ -304,6 +385,20 @@ public static partial class Converters
                 return "unknown-flow";
         }
     }
+
+    private static string FormatAuthenticationThrottlingStatus(Microsoft365AuthThrottlingStatus throttlingStatus)
+    {
+        switch (throttlingStatus)
+        {
+            case Microsoft365AuthThrottlingStatus.NoThrottling:
+                return "no-throttling";
+            case Microsoft365AuthThrottlingStatus.ThrottlingObserved:
+                return "throttling-observed";
+            case Microsoft365AuthThrottlingStatus.Unknown:
+            default:
+                return "unknown-throttling";
+        }
+    }
 }
 
 public sealed class Microsoft365TenantInfo
@@ -316,6 +411,9 @@ public sealed class Microsoft365TenantInfo
     public bool IsMicrosoft365Tenant { get; set; }
     public Microsoft365DetectionConfidence DetectionConfidence { get; set; }
     public string? TenantId { get; set; }
+    public string? TenantName { get; set; }
+    public string? CompanyName { get; set; }
+    public string? TenantNamespaceDomain { get; set; }
     public string? NameSpaceType { get; set; }
     public TenantIdentityProviderKind IdentityProviderKind { get; set; }
     public string? IdentityProvider { get; set; }
@@ -325,6 +423,7 @@ public sealed class Microsoft365TenantInfo
     public bool ConsumerDomain { get; set; }
     public Microsoft365AuthExposureStatus UserEnumerationStatus { get; set; }
     public Microsoft365AuthExposureStatus SmartLockoutStatus { get; set; }
+    public Microsoft365AuthThrottlingStatus ThrottlingStatus { get; set; }
     public bool AuthenticationProbeSucceeded { get; set; }
     public string? AuthenticationProbeAddress { get; set; }
     public MicrosoftCredentialTypeProbe? AuthenticationProbe { get; set; }

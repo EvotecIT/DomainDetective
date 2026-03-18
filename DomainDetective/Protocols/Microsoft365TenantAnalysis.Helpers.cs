@@ -118,18 +118,21 @@ public sealed partial class Microsoft365TenantAnalysis {
         IdpInfoAnalysis? idp,
         DnsInventoryAnalysis? dnsInventory,
         AutodiscoverAnalysis? autodiscover,
-        IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains) {
+        IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains,
+        IReadOnlyList<DetectedDnsApplication> apps) {
+        var hasStrongTenantEvidence = HasStrongTenantEvidence(idp, dnsInventory, autodiscover, apps);
+
         return new List<Microsoft365ServiceDetection> {
             BuildExchangeDetection(dnsInventory, autodiscover, knownSubdomains),
-            BuildRoleBasedDetection(Microsoft365ServiceKind.SharePointOnline, KnownSubdomainRole.SharePoint, knownSubdomains),
-            BuildRoleBasedDetection(Microsoft365ServiceKind.OneDrive, KnownSubdomainRole.OneDrive, knownSubdomains),
-            BuildTeamsDetection(knownSubdomains),
-            BuildIntuneDetection(knownSubdomains),
-            BuildUnknownDetection(Microsoft365ServiceKind.Defender),
+            BuildRoleBasedDetection(Microsoft365ServiceKind.SharePointOnline, KnownSubdomainRole.SharePoint, knownSubdomains, hasStrongTenantEvidence),
+            BuildRoleBasedDetection(Microsoft365ServiceKind.OneDrive, KnownSubdomainRole.OneDrive, knownSubdomains, hasStrongTenantEvidence),
+            BuildTeamsDetection(knownSubdomains, hasStrongTenantEvidence),
+            BuildIntuneDetection(knownSubdomains, hasStrongTenantEvidence),
+            BuildDefenderDetection(knownSubdomains, apps, hasStrongTenantEvidence),
             BuildEntraDetection(idp, knownSubdomains),
-            BuildPowerAppsDetection(knownSubdomains),
-            BuildPowerAutomateDetection(knownSubdomains),
-            BuildPowerBiDetection(knownSubdomains)
+            BuildPowerAppsDetection(knownSubdomains, hasStrongTenantEvidence),
+            BuildPowerAutomateDetection(knownSubdomains, hasStrongTenantEvidence),
+            BuildPowerBiDetection(knownSubdomains, hasStrongTenantEvidence)
         };
     }
 
@@ -251,10 +254,17 @@ public sealed partial class Microsoft365TenantAnalysis {
                 .Take(4));
 
         if (evidence.Count > 0) {
+            var hasMailProtocolEvidence =
+                dnsInventory?.MailProvider == MailProviderKind.Microsoft365 ||
+                (!string.IsNullOrWhiteSpace(autodiscoverTarget) && IsMicrosoftHost(autodiscoverTarget)) ||
+                (!string.IsNullOrWhiteSpace(srvTarget) && IsMicrosoftHost(srvTarget));
             return new Microsoft365ServiceDetection {
                 Kind = Microsoft365ServiceKind.ExchangeOnline,
                 Status = Microsoft365DetectionStatus.Detected,
                 Confidence = BuildExchangeConfidence(dnsInventory, autodiscover, knownSubdomains),
+                EvidenceSource = hasMailProtocolEvidence
+                    ? Microsoft365ServiceEvidenceSourceKind.MailProtocol
+                    : Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,
                 Evidence = evidence
             };
         }
@@ -264,6 +274,7 @@ public sealed partial class Microsoft365TenantAnalysis {
                 Kind = Microsoft365ServiceKind.ExchangeOnline,
                 Status = Microsoft365DetectionStatus.NotDetected,
                 Confidence = Microsoft365DetectionConfidence.Strong,
+                EvidenceSource = Microsoft365ServiceEvidenceSourceKind.MailProtocol,
                 Evidence = dnsInventory.MailProviderEvidence ?? Array.Empty<string>()
             };
         }
@@ -271,17 +282,22 @@ public sealed partial class Microsoft365TenantAnalysis {
         return BuildUnknownDetection(Microsoft365ServiceKind.ExchangeOnline);
     }
 
-    private static Microsoft365ServiceDetection BuildTeamsDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains) {
+    private static Microsoft365ServiceDetection BuildTeamsDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains, bool hasStrongTenantEvidence) {
         var evidence = knownSubdomains
             .Where(item => item.Role == KnownSubdomainRole.Teams || item.Role == KnownSubdomainRole.LyncDiscover || item.Role == KnownSubdomainRole.Sip)
             .Select(item => $"{item.Name} ({item.Role})")
             .ToList();
 
         if (evidence.Count > 0) {
+            var hasExplicitTeamsRole = knownSubdomains.Any(static item => item.Role == KnownSubdomainRole.Teams);
             return new Microsoft365ServiceDetection {
                 Kind = Microsoft365ServiceKind.Teams,
                 Status = Microsoft365DetectionStatus.Detected,
-                Confidence = Microsoft365DetectionConfidence.Moderate,
+                Confidence = hasStrongTenantEvidence && (hasExplicitTeamsRole || evidence.Count >= 2)
+                    ? Microsoft365DetectionConfidence.Strong
+                    : Microsoft365DetectionConfidence.Moderate,
+                EvidenceSource = Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,
+                TenantContextBoosted = hasStrongTenantEvidence,
                 Evidence = evidence
             };
         }
@@ -289,17 +305,23 @@ public sealed partial class Microsoft365TenantAnalysis {
         return BuildUnknownDetection(Microsoft365ServiceKind.Teams);
     }
 
-    private static Microsoft365ServiceDetection BuildIntuneDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains) {
+    private static Microsoft365ServiceDetection BuildIntuneDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains, bool hasStrongTenantEvidence) {
         var evidence = knownSubdomains
             .Where(item => item.Role == KnownSubdomainRole.EnterpriseEnrollment || item.Role == KnownSubdomainRole.EnterpriseRegistration)
             .Select(item => $"{item.Name} ({item.Role})")
             .ToList();
 
         if (evidence.Count > 0) {
+            var hasEnrollment = knownSubdomains.Any(static item => item.Role == KnownSubdomainRole.EnterpriseEnrollment);
+            var hasRegistration = knownSubdomains.Any(static item => item.Role == KnownSubdomainRole.EnterpriseRegistration);
             return new Microsoft365ServiceDetection {
                 Kind = Microsoft365ServiceKind.IntuneEndpoint,
                 Status = Microsoft365DetectionStatus.Detected,
-                Confidence = Microsoft365DetectionConfidence.Moderate,
+                Confidence = hasStrongTenantEvidence && (hasEnrollment || hasRegistration) || (hasEnrollment && hasRegistration)
+                    ? Microsoft365DetectionConfidence.Strong
+                    : Microsoft365DetectionConfidence.Moderate,
+                EvidenceSource = Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,
+                TenantContextBoosted = hasStrongTenantEvidence,
                 Evidence = evidence
             };
         }
@@ -307,19 +329,77 @@ public sealed partial class Microsoft365TenantAnalysis {
         return BuildUnknownDetection(Microsoft365ServiceKind.IntuneEndpoint);
     }
 
-    private static Microsoft365ServiceDetection BuildPowerAppsDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains) {
+    private static Microsoft365ServiceDetection BuildDefenderDetection(
+        IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains,
+        IReadOnlyList<DetectedDnsApplication> apps,
+        bool hasStrongTenantEvidence) {
+        var evidence = knownSubdomains
+            .Where(item =>
+                item.Role == KnownSubdomainRole.DefenderPortal ||
+                item.Role == KnownSubdomainRole.CompliancePortal)
+            .Select(item => $"{item.Name} ({item.Role})")
+            .Concat(apps
+                .Where(static app =>
+                    string.Equals(app.Id, "microsoft-security-surface", StringComparison.OrdinalIgnoreCase) ||
+                    (app.Category == DetectedDnsAppCategory.Security &&
+                     (app.Id.StartsWith("microsoft-", StringComparison.OrdinalIgnoreCase) ||
+                      app.Name.StartsWith("Microsoft", StringComparison.OrdinalIgnoreCase))))
+                .Select(static app => $"{app.Name} ({app.EvidenceKind})"))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (evidence.Count > 0) {
+            var hasDnsAppEvidence = apps.Any(static app =>
+                string.Equals(app.Id, "microsoft-security-surface", StringComparison.OrdinalIgnoreCase) ||
+                (app.Category == DetectedDnsAppCategory.Security &&
+                 (app.Id.StartsWith("microsoft-", StringComparison.OrdinalIgnoreCase) ||
+                  app.Name.StartsWith("Microsoft", StringComparison.OrdinalIgnoreCase))));
+            return new Microsoft365ServiceDetection {
+                Kind = Microsoft365ServiceKind.Defender,
+                Status = Microsoft365DetectionStatus.Detected,
+                Confidence = hasStrongTenantEvidence
+                    ? Microsoft365DetectionConfidence.Strong
+                    : Microsoft365DetectionConfidence.Moderate,
+                EvidenceSource = hasDnsAppEvidence
+                    ? Microsoft365ServiceEvidenceSourceKind.DnsApplication
+                    : Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,
+                TenantContextBoosted = hasStrongTenantEvidence,
+                Evidence = evidence
+            };
+        }
+
+        if (hasStrongTenantEvidence) {
+            return new Microsoft365ServiceDetection {
+                Kind = Microsoft365ServiceKind.Defender,
+                Status = Microsoft365DetectionStatus.NotDetected,
+                Confidence = Microsoft365DetectionConfidence.Weak,
+                TenantContextBoosted = true,
+                Evidence = new[] { "No public Microsoft Defender-specific DNS or subdomain signal detected." }
+            };
+        }
+
+        return BuildUnknownDetection(Microsoft365ServiceKind.Defender);
+    }
+
+    private static Microsoft365ServiceDetection BuildPowerAppsDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains, bool hasStrongTenantEvidence) {
         var evidence = knownSubdomains
             .Where(item => item.Role == KnownSubdomainRole.Apps || item.Role == KnownSubdomainRole.Portal)
             .Select(item => $"{item.Name} ({item.Role})")
             .ToList();
 
         if (evidence.Count > 0) {
+            var hasAppsRole = knownSubdomains.Any(static item => item.Role == KnownSubdomainRole.Apps);
+            var hasPortalRole = knownSubdomains.Any(static item => item.Role == KnownSubdomainRole.Portal);
             return new Microsoft365ServiceDetection {
                 Kind = Microsoft365ServiceKind.PowerApps,
                 Status = Microsoft365DetectionStatus.Detected,
-                Confidence = evidence.Any(static item => item.IndexOf("(Apps)", StringComparison.OrdinalIgnoreCase) >= 0)
-                    ? Microsoft365DetectionConfidence.Moderate
-                    : Microsoft365DetectionConfidence.Weak,
+                Confidence = hasStrongTenantEvidence && hasAppsRole && hasPortalRole
+                    ? Microsoft365DetectionConfidence.Strong
+                    : evidence.Any(static item => item.IndexOf("(Apps)", StringComparison.OrdinalIgnoreCase) >= 0)
+                        ? Microsoft365DetectionConfidence.Moderate
+                        : Microsoft365DetectionConfidence.Weak,
+                EvidenceSource = Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,
+                TenantContextBoosted = hasStrongTenantEvidence,
                 Evidence = evidence
             };
         }
@@ -327,17 +407,23 @@ public sealed partial class Microsoft365TenantAnalysis {
         return BuildUnknownDetection(Microsoft365ServiceKind.PowerApps);
     }
 
-    private static Microsoft365ServiceDetection BuildPowerAutomateDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains) {
+    private static Microsoft365ServiceDetection BuildPowerAutomateDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains, bool hasStrongTenantEvidence) {
         var evidence = knownSubdomains
             .Where(item => item.Role == KnownSubdomainRole.Flow || item.Role == KnownSubdomainRole.Automate)
             .Select(item => $"{item.Name} ({item.Role})")
             .ToList();
 
         if (evidence.Count > 0) {
+            var hasFlowRole = knownSubdomains.Any(static item => item.Role == KnownSubdomainRole.Flow);
+            var hasAutomateRole = knownSubdomains.Any(static item => item.Role == KnownSubdomainRole.Automate);
             return new Microsoft365ServiceDetection {
                 Kind = Microsoft365ServiceKind.PowerAutomate,
                 Status = Microsoft365DetectionStatus.Detected,
-                Confidence = Microsoft365DetectionConfidence.Moderate,
+                Confidence = hasStrongTenantEvidence && hasFlowRole && hasAutomateRole
+                    ? Microsoft365DetectionConfidence.Strong
+                    : Microsoft365DetectionConfidence.Moderate,
+                EvidenceSource = Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,
+                TenantContextBoosted = hasStrongTenantEvidence,
                 Evidence = evidence
             };
         }
@@ -345,7 +431,7 @@ public sealed partial class Microsoft365TenantAnalysis {
         return BuildUnknownDetection(Microsoft365ServiceKind.PowerAutomate);
     }
 
-    private static Microsoft365ServiceDetection BuildPowerBiDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains) {
+    private static Microsoft365ServiceDetection BuildPowerBiDetection(IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains, bool hasStrongTenantEvidence) {
         var evidence = knownSubdomains
             .Where(item => item.Role == KnownSubdomainRole.PowerBi)
             .Select(item => $"{item.Name} ({item.Role})")
@@ -355,7 +441,11 @@ public sealed partial class Microsoft365TenantAnalysis {
             return new Microsoft365ServiceDetection {
                 Kind = Microsoft365ServiceKind.PowerBi,
                 Status = Microsoft365DetectionStatus.Detected,
-                Confidence = Microsoft365DetectionConfidence.Moderate,
+                Confidence = hasStrongTenantEvidence
+                    ? Microsoft365DetectionConfidence.Strong
+                    : Microsoft365DetectionConfidence.Moderate,
+                EvidenceSource = Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,
+                TenantContextBoosted = hasStrongTenantEvidence,
                 Evidence = evidence
             };
         }
@@ -366,7 +456,8 @@ public sealed partial class Microsoft365TenantAnalysis {
     private static Microsoft365ServiceDetection BuildRoleBasedDetection(
         Microsoft365ServiceKind kind,
         KnownSubdomainRole expectedRole,
-        IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains) {
+        IReadOnlyList<KnownMicrosoft365Subdomain> knownSubdomains,
+        bool hasStrongTenantEvidence) {
         var evidence = knownSubdomains
             .Where(item => item.Role == expectedRole)
             .Select(item => item.Name)
@@ -376,10 +467,41 @@ public sealed partial class Microsoft365TenantAnalysis {
             ? new Microsoft365ServiceDetection {
                 Kind = kind,
                 Status = Microsoft365DetectionStatus.Detected,
-                Confidence = Microsoft365DetectionConfidence.Moderate,
+                Confidence = hasStrongTenantEvidence
+                    ? Microsoft365DetectionConfidence.Strong
+                    : Microsoft365DetectionConfidence.Moderate,
+                EvidenceSource = Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,
+                TenantContextBoosted = hasStrongTenantEvidence,
                 Evidence = evidence
             }
             : BuildUnknownDetection(kind);
+    }
+
+    private static bool HasStrongTenantEvidence(
+        IdpInfoAnalysis? idp,
+        DnsInventoryAnalysis? dnsInventory,
+        AutodiscoverAnalysis? autodiscover,
+        IReadOnlyList<DetectedDnsApplication> apps) {
+        if (idp?.DiscoverySucceeded == true || idp?.GetUserRealmSucceeded == true) {
+            return true;
+        }
+
+        if (dnsInventory?.MailProvider == MailProviderKind.Microsoft365) {
+            return true;
+        }
+
+        if (dnsInventory != null && dnsInventory.TxtSignals.HasFlag(DnsTxtSignals.MicrosoftDomainVerification)) {
+            return true;
+        }
+
+        var autodiscoverTarget = autodiscover?.AutodiscoverTarget;
+        if (!string.IsNullOrWhiteSpace(autodiscoverTarget) && IsMicrosoftHost(autodiscoverTarget)) {
+            return true;
+        }
+
+        return apps.Any(static app =>
+            string.Equals(app.Id, "microsoft-365", StringComparison.OrdinalIgnoreCase) &&
+            app.Confidence == Microsoft365DetectionConfidence.Strong);
     }
 
     private static Microsoft365ServiceDetection BuildEntraDetection(
@@ -398,6 +520,9 @@ public sealed partial class Microsoft365TenantAnalysis {
                     item.Role == KnownSubdomainRole.FederationService ||
                     item.Role == KnownSubdomainRole.Login ||
                     item.Role == KnownSubdomainRole.MsoId ||
+                    item.Role == KnownSubdomainRole.AdminPortal ||
+                    item.Role == KnownSubdomainRole.MyApps ||
+                    item.Role == KnownSubdomainRole.PasswordReset ||
                     item.Role == KnownSubdomainRole.EnterpriseEnrollment ||
                     item.Role == KnownSubdomainRole.EnterpriseRegistration)
                 .Select(item => item.Name + " (" + item.Role + ")")
@@ -410,6 +535,9 @@ public sealed partial class Microsoft365TenantAnalysis {
                 Confidence = (idp?.DiscoverySucceeded == true || idp?.GetUserRealmSucceeded == true)
                     ? Microsoft365DetectionConfidence.Strong
                     : Microsoft365DetectionConfidence.Moderate,
+                EvidenceSource = (idp?.DiscoverySucceeded == true || idp?.GetUserRealmSucceeded == true)
+                    ? Microsoft365ServiceEvidenceSourceKind.IdentityProbe
+                    : Microsoft365ServiceEvidenceSourceKind.KnownSubdomain,
                 Evidence = evidence
             }
             : BuildUnknownDetection(Microsoft365ServiceKind.EntraId);
@@ -457,6 +585,9 @@ public sealed partial class Microsoft365TenantAnalysis {
             case KnownSubdomainRole.FederationService:
             case KnownSubdomainRole.Login:
             case KnownSubdomainRole.MsoId:
+            case KnownSubdomainRole.AdminPortal:
+            case KnownSubdomainRole.MyApps:
+            case KnownSubdomainRole.PasswordReset:
             case KnownSubdomainRole.EnterpriseEnrollment:
             case KnownSubdomainRole.EnterpriseRegistration:
                 return Microsoft365DetectionConfidence.Moderate;
@@ -473,6 +604,8 @@ public sealed partial class Microsoft365TenantAnalysis {
             case KnownSubdomainRole.Flow:
             case KnownSubdomainRole.Automate:
             case KnownSubdomainRole.PowerBi:
+            case KnownSubdomainRole.DefenderPortal:
+            case KnownSubdomainRole.CompliancePortal:
                 return Microsoft365DetectionConfidence.Moderate;
             case KnownSubdomainRole.Portal:
             case KnownSubdomainRole.Cdn:
@@ -502,6 +635,11 @@ public sealed partial class Microsoft365TenantAnalysis {
             item.Role == KnownSubdomainRole.EnterpriseEnrollment ||
             item.Role == KnownSubdomainRole.EnterpriseRegistration ||
             item.Role == KnownSubdomainRole.MsoId ||
+            item.Role == KnownSubdomainRole.AdminPortal ||
+            item.Role == KnownSubdomainRole.MyApps ||
+            item.Role == KnownSubdomainRole.PasswordReset ||
+            item.Role == KnownSubdomainRole.DefenderPortal ||
+            item.Role == KnownSubdomainRole.CompliancePortal ||
             item.Role == KnownSubdomainRole.SharePoint ||
             item.Role == KnownSubdomainRole.OneDrive ||
             item.Role == KnownSubdomainRole.Teams)) return true;
@@ -524,14 +662,89 @@ public sealed partial class Microsoft365TenantAnalysis {
         AddDnsApplicationEvidence(items, apps);
         AddTenantDomainEvidence(items, tenantDomains);
 
-        return items
+        return CompactEvidenceLedger(items);
+    }
+
+    private static IReadOnlyList<Microsoft365EvidenceItem> CompactEvidenceLedger(IEnumerable<Microsoft365EvidenceItem> items) {
+        var orderedItems = items
             .GroupBy(static item => item.Id, StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.First())
             .OrderByDescending(static item => item.Confidence)
             .ThenBy(static item => item.Category)
             .ThenBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
-            .Take(EvidenceLedgerMaxItems)
             .ToList();
+
+        if (orderedItems.Count <= EvidenceLedgerMaxItems) {
+            return orderedItems;
+        }
+
+        var selectedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var selectedItems = new List<Microsoft365EvidenceItem>();
+
+        // Keep the compact ledger representative by preserving the best item from each category first.
+        foreach (var item in orderedItems
+                     .Where(static item => item.Category != Microsoft365EvidenceCategory.Unknown)
+                     .GroupBy(static item => item.Category)
+                     .Select(static group => group
+                         .OrderByDescending(static item => item.Confidence)
+                         .ThenBy(static item => GetEvidenceRepresentativePriority(item))
+                         .ThenBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
+                         .First())
+                     .OrderByDescending(static item => item.Confidence)
+                     .ThenBy(static item => GetEvidenceCategorySortOrder(item.Category))
+                     .ThenBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)) {
+            if (selectedItems.Count >= EvidenceLedgerMaxItems) {
+                break;
+            }
+
+            if (selectedIds.Add(item.Id)) {
+                selectedItems.Add(item);
+            }
+        }
+
+        foreach (var item in orderedItems) {
+            if (selectedItems.Count >= EvidenceLedgerMaxItems) {
+                break;
+            }
+
+            if (selectedIds.Add(item.Id)) {
+                selectedItems.Add(item);
+            }
+        }
+
+        return selectedItems
+            .OrderByDescending(static item => item.Confidence)
+            .ThenBy(static item => item.Category)
+            .ThenBy(static item => item.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static int GetEvidenceRepresentativePriority(Microsoft365EvidenceItem item) {
+        if (item.Category == Microsoft365EvidenceCategory.Domain) {
+            if (item.Id.StartsWith("domain-microsoftmanagednamespace-", StringComparison.OrdinalIgnoreCase)) {
+                return 0;
+            }
+
+            if (item.Id.StartsWith("domain-identitydomain-", StringComparison.OrdinalIgnoreCase)) {
+                return 1;
+            }
+
+            if (item.Id.StartsWith("domain-primary-", StringComparison.OrdinalIgnoreCase)) {
+                return 2;
+            }
+        }
+
+        if (item.Category == Microsoft365EvidenceCategory.DnsApplication) {
+            if (string.Equals(item.Id, "app-microsoft-365", StringComparison.OrdinalIgnoreCase)) {
+                return 0;
+            }
+
+            if (item.Id.StartsWith("app-microsoft-", StringComparison.OrdinalIgnoreCase)) {
+                return 1;
+            }
+        }
+
+        return 10;
     }
 
     private static Microsoft365EvidenceSummary BuildEvidenceSummary(IReadOnlyList<Microsoft365EvidenceItem> evidenceLedger) {
@@ -698,7 +911,9 @@ public sealed partial class Microsoft365TenantAnalysis {
 
             var label = tenantDomain.Role == Microsoft365TenantDomainRole.MicrosoftManagedNamespace
                 ? "Tenant namespace"
-                : "Analyzed domain";
+                : tenantDomain.Role == Microsoft365TenantDomainRole.IdentityDomain
+                    ? "Identity domain"
+                    : "Analyzed domain";
 
             items.Add(new Microsoft365EvidenceItem {
                 Id = "domain-" + tenantDomain.Role.ToString().ToLowerInvariant() + "-" + tenantDomain.Domain,
@@ -761,6 +976,9 @@ public sealed partial class Microsoft365TenantAnalysis {
             case KnownSubdomainRole.FederationService:
             case KnownSubdomainRole.Login:
             case KnownSubdomainRole.MsoId:
+            case KnownSubdomainRole.AdminPortal:
+            case KnownSubdomainRole.MyApps:
+            case KnownSubdomainRole.PasswordReset:
             case KnownSubdomainRole.EnterpriseEnrollment:
             case KnownSubdomainRole.EnterpriseRegistration:
                 id = "microsoft-identity-surface";
@@ -796,6 +1014,12 @@ public sealed partial class Microsoft365TenantAnalysis {
                 id = "microsoft-analytics-surface";
                 name = "Microsoft Analytics Surface";
                 category = DetectedDnsAppCategory.Analytics;
+                return true;
+            case KnownSubdomainRole.DefenderPortal:
+            case KnownSubdomainRole.CompliancePortal:
+                id = "microsoft-security-surface";
+                name = "Microsoft Security Surface";
+                category = DetectedDnsAppCategory.Security;
                 return true;
             case KnownSubdomainRole.Cdn:
             case KnownSubdomainRole.StaticAssets:
@@ -863,6 +1087,11 @@ public sealed partial class Microsoft365TenantAnalysis {
         if (string.Equals(first, "powerbi", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.PowerBi;
         if (string.Equals(first, "flow", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Flow;
         if (string.Equals(first, "automate", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.Automate;
+        if (string.Equals(first, "defender", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.DefenderPortal;
+        if (string.Equals(first, "admin", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.AdminPortal;
+        if (string.Equals(first, "myapps", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.MyApps;
+        if (string.Equals(first, "passwordreset", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.PasswordReset;
+        if (string.Equals(first, "compliance", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.CompliancePortal;
         if (string.Equals(first, "static", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(first, "assets", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(first, "media", StringComparison.OrdinalIgnoreCase)) return KnownSubdomainRole.StaticAssets;
