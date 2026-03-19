@@ -18,6 +18,9 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
     public bool IsMicrosoft365Tenant { get; private set; }
     public Microsoft365DetectionConfidence DetectionConfidence { get; private set; }
     public string? TenantId { get; private set; }
+    public string? TenantName { get; private set; }
+    public string? CompanyName { get; private set; }
+    public string? TenantNamespaceDomain { get; private set; }
     public string? NameSpaceType { get; private set; }
     public TenantIdentityProviderKind IdentityProviderKind { get; private set; }
     public string? IdentityProvider { get; private set; }
@@ -27,6 +30,7 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
     public bool ConsumerDomain { get; private set; }
     public Microsoft365AuthExposureStatus UserEnumerationStatus { get; private set; }
     public Microsoft365AuthExposureStatus SmartLockoutStatus { get; private set; }
+    public Microsoft365AuthThrottlingStatus ThrottlingStatus { get; private set; }
     public bool AuthenticationProbeSucceeded { get; private set; }
     public string? AuthenticationProbeAddress { get; private set; }
     public MicrosoftCredentialTypeProbe? AuthenticationProbe { get; private set; }
@@ -94,12 +98,14 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
 
         KnownSubdomains = BuildKnownSubdomains(subdomains, Subject);
         DetectedDnsApplications = BuildDetectedApplications(dnsInventory, KnownSubdomains);
-        Services = BuildServiceDetections(idp, dnsInventory, autodiscover, KnownSubdomains);
+        Services = BuildServiceDetections(idp, dnsInventory, autodiscover, KnownSubdomains, DetectedDnsApplications);
         WorkloadSummary = BuildWorkloadSummary(Services);
         DnsApplicationSummary = BuildDnsApplicationSummary(DetectedDnsApplications);
         IsMicrosoft365Tenant = DetermineMicrosoft365Presence(idp, dnsInventory, autodiscover, KnownSubdomains, DetectedDnsApplications, Services);
         DetectionConfidence = BuildTenantDetectionConfidence(idp, dnsInventory, autodiscover, KnownSubdomains, Services, DetectedDnsApplications);
-        TenantDomains = BuildTenantDomains(Subject, dkim, DetectionConfidence);
+        TenantDomains = BuildTenantDomains(Subject, idp, dkim, DetectionConfidence);
+        TenantName = InferTenantName(TenantDomains);
+        TenantNamespaceDomain = FindTenantNamespaceDomain(TenantDomains);
         EvidenceLedger = BuildEvidenceLedger(idp, dnsInventory, autodiscover, Services, DetectedDnsApplications, TenantDomains);
         EvidenceSummary = BuildEvidenceSummary(EvidenceLedger);
 
@@ -169,6 +175,7 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
 
     private void MergeIdentity(IdpInfoAnalysis idp) {
         TenantId = idp.TenantId;
+        CompanyName = idp.FederationBrandName;
         NameSpaceType = idp.NameSpaceType;
         IdentityProvider = !string.IsNullOrWhiteSpace(idp.IdentityProviderHost)
             ? idp.IdentityProviderHost
@@ -189,6 +196,9 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
         IsMicrosoft365Tenant = false;
         DetectionConfidence = Microsoft365DetectionConfidence.Unknown;
         TenantId = null;
+        TenantName = null;
+        CompanyName = null;
+        TenantNamespaceDomain = null;
         NameSpaceType = null;
         IdentityProviderKind = TenantIdentityProviderKind.Unknown;
         IdentityProvider = null;
@@ -198,6 +208,7 @@ public sealed partial class Microsoft365TenantAnalysis : IHasAssessments {
         ConsumerDomain = false;
         UserEnumerationStatus = Microsoft365AuthExposureStatus.Unknown;
         SmartLockoutStatus = Microsoft365AuthExposureStatus.Unknown;
+        ThrottlingStatus = Microsoft365AuthThrottlingStatus.Unknown;
         AuthenticationProbeSucceeded = false;
         AuthenticationProbeAddress = null;
         AuthenticationProbe = null;

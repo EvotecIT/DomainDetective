@@ -29,6 +29,7 @@ public static partial class HtmlCompositionReport
 	        if (b.Dmarc != null) list.Add("DMARC");
 	        if (b.DmarcAggregate != null) list.Add("DMARC Aggregate");
 	        if (b.Registration != null) list.Add("Registration");
+	        if (b.Microsoft365 != null) list.Add("Microsoft 365");
 	        if (b.Http != null) list.Add("HTTP");
 	        if (b.CtTimeline != null) list.Add("CT Timeline");
         if (b.Subdomains != null) list.Add("Subdomains");
@@ -116,6 +117,9 @@ public static partial class HtmlCompositionReport
 	                case "Registration":
 	                    RenderRegistrationSection(acc, b);
 	                    break;
+                case "Microsoft 365":
+                    RenderMicrosoft365Section(acc, b);
+                    break;
 	                case "HTTP":
 	                    RenderHttpSection(acc, b);
 	                    break;

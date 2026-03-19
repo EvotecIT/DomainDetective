@@ -140,6 +140,7 @@ public static partial class WordCompositionReport {
         bool hasDane = grouped.Values.Any(b => b.Dane != null);
         bool hasDnsAmplification = grouped.Values.Any(b => b.DnsAmplification != null);
         bool hasDnsOverTls = grouped.Values.Any(b => b.DnsOverTls != null);
+        bool hasMicrosoft365 = grouped.Values.Any(b => b.Microsoft365 != null);
 
         var presentLabels = new List<string>();
         if (hasMx) presentLabels.Add("MX");
@@ -163,6 +164,7 @@ public static partial class WordCompositionReport {
         if (hasCaa) presentLabels.Add("CAA");
         if (hasDnsAmplification) presentLabels.Add("DNS Amplification");
         if (hasDnsOverTls) presentLabels.Add("DNS over TLS");
+        if (hasMicrosoft365) presentLabels.Add("Microsoft 365");
 
         // Executive Summary intro text — single source of truth for wording
         string overviewLine = OverviewWording.ComposeFromItems(items);
@@ -200,6 +202,7 @@ public static partial class WordCompositionReport {
             // CAA tile added below with static mapping
             if (hasDnssec) candidates.Add(("DNSSEC", (cell, b) => cell.AddParagraph(ComposeDnssecStatus(b)), b => b.Dnssec?.WarningCount ?? 0, b => b.Dnssec?.ErrorCount ?? 0, 6));
             if (hasMailTls) candidates.Add(("MAILTLS", (cell, b) => cell.AddParagraph(ComposeMailTlsStatus(b, showMailTlsProtocolHintInSummary)), b => (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0), b => (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0), 6));
+            if (hasMicrosoft365) candidates.Add(("M365", (cell, b) => cell.AddParagraph(b.Microsoft365?.Status ?? "-"), b => b.Microsoft365?.WarningCount ?? 0, b => b.Microsoft365?.ErrorCount ?? 0, 6));
             if (hasMtasts) candidates.Add(("MTA-STS", (cell, b) => cell.AddParagraph(b.Mtasts?.Status ?? "-"), b => b.Mtasts?.WarningCount ?? 0, b => b.Mtasts?.ErrorCount ?? 0, 5));
             if (hasTlsRpt) candidates.Add(("TLS-RPT", (cell, b) => cell.AddParagraph(b.TlsRpt?.Status ?? "-"), b => b.TlsRpt?.WarningCount ?? 0, b => b.TlsRpt?.ErrorCount ?? 0, 4));
             if (hasDane) candidates.Add(("DANE", (cell, b) => cell.AddParagraph(b.Dane?.Status ?? "-"), b => b.Dane?.WarningCount ?? 0, b => b.Dane?.ErrorCount ?? 0, 4));
@@ -242,6 +245,9 @@ public static partial class WordCompositionReport {
                         break;
                     case "CLASSIFICATION":
                         writer = (cell, b) => { if (execMap.TryGetValue(b.Subject ?? string.Empty, out var r)) cell.AddParagraph(r.Classification); else s.WriteCell(cell, b); };
+                        break;
+                    case "M365":
+                        writer = (cell, b) => { if (execMap.TryGetValue(b.Subject ?? string.Empty, out var r)) cell.AddParagraph(r.Microsoft365); else s.WriteCell(cell, b); };
                         break;
                     // DKIM: keep Word extras (selector count), so keep original writer
                 }
@@ -354,8 +360,10 @@ public static partial class WordCompositionReport {
             // Aggregate any extra checks present in the input items and not covered by the columns above
             // using a reflection-based adapter over view types.
             var coveredChecks = new HashSet<HealthCheckType>();
-            foreach (var h in new[] { hasMx ? (HealthCheckType?)HealthCheckType.MX : null, hasSpf ? HealthCheckType.SPF : null, hasDkim ? HealthCheckType.DKIM : null, hasDmarc ? HealthCheckType.DMARC : null, hasMtasts ? HealthCheckType.MTASTS : null, hasTlsRpt ? HealthCheckType.TLSRPT : null, hasDnsbl ? HealthCheckType.DNSBL : null, hasClass ? HealthCheckType.MAILCLASSIFICATION : null, hasDnssec ? HealthCheckType.DNSSEC : null, hasDane ? HealthCheckType.DANE : null, hasNs ? HealthCheckType.NS : null, hasSoa ? HealthCheckType.SOA : null, hasZone ? HealthCheckType.ZONETRANSFER : null, hasWildcard ? HealthCheckType.WILDCARDDNS : null, hasCaa ? HealthCheckType.CAA : null, hasRpki ? HealthCheckType.RPKI : null })
-                if (h.HasValue) coveredChecks.Add(h.Value);
+            foreach (var h in new[] { hasMx ? (HealthCheckType?)HealthCheckType.MX : null, hasSpf ? HealthCheckType.SPF : null, hasDkim ? HealthCheckType.DKIM : null, hasDmarc ? HealthCheckType.DMARC : null, hasMtasts ? HealthCheckType.MTASTS : null, hasTlsRpt ? HealthCheckType.TLSRPT : null, hasDnsbl ? HealthCheckType.DNSBL : null, hasClass ? HealthCheckType.MAILCLASSIFICATION : null, hasDnssec ? HealthCheckType.DNSSEC : null, hasDane ? HealthCheckType.DANE : null, hasNs ? HealthCheckType.NS : null, hasSoa ? HealthCheckType.SOA : null, hasZone ? HealthCheckType.ZONETRANSFER : null, hasWildcard ? HealthCheckType.WILDCARDDNS : null, hasCaa ? HealthCheckType.CAA : null, hasRpki ? HealthCheckType.RPKI : null, hasMicrosoft365 ? HealthCheckType.MICROSOFT365 : null }.Where(static item => item.HasValue).Select(static item => item!.Value))
+            {
+                coveredChecks.Add(h);
+            }
             if (hasMailTls) { coveredChecks.Add(HealthCheckType.SMTPTLS); coveredChecks.Add(HealthCheckType.IMAPTLS); coveredChecks.Add(HealthCheckType.POP3TLS); }
 
             var extras = AggregateExtras(items, coveredChecks);
@@ -460,6 +468,13 @@ public static partial class WordCompositionReport {
                 headings.AddItem("Registration", 1);
                 RegistrationWordSectionWriter.Write(doc, headings, 2, bucket.Registration!, domain, scope, showInfoFindings, includeNarrativePerDomain);
             }, bucket.Registration != null);
+            add("Microsoft 365", () =>
+            {
+                headings.AddItem("Microsoft 365", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildMicrosoft365(bucket.Microsoft365!);
+                if (dto != null) Microsoft365WordSectionWriter.Write(doc, headings, 2, dto, bucket.Microsoft365, domain, scope, showInfoFindings);
+                else Microsoft365WordSectionWriter.Write(doc, headings, 2, bucket.Microsoft365!, domain, scope, showInfoFindings);
+            }, bucket.Microsoft365 != null);
             add("HTTP", () =>
             {
                 headings.AddItem("HTTP", 1);
@@ -588,6 +603,7 @@ public static partial class WordCompositionReport {
                 PullAssessments(b.DnsAmplification?.Assessments);
                 PullAssessments(b.DnsOverTls?.Assessments);
                 PullAssessments(b.IpEnrichment?.Assessments);
+                PullAssessments(b.Microsoft365?.Assessments);
             }
             string NormalizeRec(string? text) {
                 if (string.IsNullOrWhiteSpace(text)) return string.Empty;

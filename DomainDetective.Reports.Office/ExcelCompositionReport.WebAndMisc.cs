@@ -16,6 +16,68 @@ namespace DomainDetective.Reports.Office;
 /// Implemented using OfficeIMO.Excel.
 /// </summary>
 public static partial class ExcelCompositionReport {
+    private static Action<SheetComposer.ColumnComposer>? BuildMicrosoft365Block(DomainBucket bucket)
+    {
+        if (bucket.Microsoft365 == null)
+        {
+            return null;
+        }
+
+        var info = bucket.Microsoft365;
+        if (DomainDetective.Reports.SectionProjectors.BuildMicrosoft365(info) is not { } sec)
+        {
+            return null;
+        }
+
+        return column =>
+        {
+            IEnumerable<(string Key, object? Value)> summaryRows = sec.Summary.Select(static kv => (kv.Key, (object?)kv.Value));
+            column.Section("Microsoft 365").KeyValues(summaryRows);
+
+            if (sec.Highlights.Count > 0)
+            {
+                column.Section("Highlights");
+                column.BulletedList(sec.Highlights);
+            }
+
+            if (sec.Services.Count > 0)
+            {
+                var rows = sec.Services.Select(x => new { x.Service, x.Status, x.Confidence, x.Evidence }).ToList();
+                column.TableFrom(rows, title: "Services", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (sec.Domains.Count > 0)
+            {
+                var rows = sec.Domains.Select(x => new { x.Domain, x.Role, x.Confidence, x.Evidence }).ToList();
+                column.TableFrom(rows, title: "Tenant Domains", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (sec.Subdomains.Count > 0)
+            {
+                var rows = sec.Subdomains.Select(x => new { x.Name, x.Role, x.Resolution }).ToList();
+                column.TableFrom(rows, title: "Known Subdomains", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (sec.Applications.Count > 0)
+            {
+                var rows = sec.Applications.Select(x => new { x.Name, x.Category, x.EvidenceKind, x.Confidence, x.Evidence }).ToList();
+                column.TableFrom(rows, title: "Detected DNS Applications", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (sec.Evidence.Count > 0)
+            {
+                var rows = sec.Evidence.Select(x => new { x.Label, x.Category, x.Confidence, x.Evidence }).ToList();
+                column.TableFrom(rows, title: "Evidence Ledger", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (sec.Findings.Count > 0)
+            {
+                var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                column.TableFrom(rows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+        };
+    }
+
     private static Action<SheetComposer.ColumnComposer>? BuildHttpBlock(DomainBucket bucket)
     {
         if (bucket.Http == null)

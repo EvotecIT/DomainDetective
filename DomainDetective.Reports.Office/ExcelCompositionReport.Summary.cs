@@ -14,7 +14,7 @@ public static partial class ExcelCompositionReport
         {
             var sum = new SheetComposer(doc, "Summary");
             sum.Title("Control Summary");
-            var controls = new[]{"MX","SPF","DKIM","DMARC","MTA-STS","TLS-RPT"};
+            var controls = new[]{"MX","SPF","DKIM","DMARC","MTA-STS","TLS-RPT","Microsoft 365"};
             var rows = new List<object>();
             foreach (var c in controls)
             {
@@ -27,7 +27,8 @@ public static partial class ExcelCompositionReport
                         "DKIM" => (kv.Value.Dkim.Count>0 ? (kv.Value.Dkim.Max(x=>x.Status) ?? "-") : "-"),
                         "DMARC" => kv.Value.Dmarc?.Status,
                         "MTA-STS" => kv.Value.Mtasts?.Status,
-                        _ => kv.Value.TlsRpt?.Status
+                        "TLS-RPT" => kv.Value.TlsRpt?.Status,
+                        _ => kv.Value.Microsoft365?.Status
                     } ?? "-";
                     var s = status.Trim().ToLowerInvariant();
                     if (s.Contains("error") || s.Contains("fail")) err++;

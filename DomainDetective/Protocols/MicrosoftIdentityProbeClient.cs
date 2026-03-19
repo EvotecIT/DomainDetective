@@ -95,6 +95,8 @@ public static class MicrosoftIdentityProbeClient {
             return new MicrosoftUserRealmProbe {
                 QueryUrl = url,
                 NameSpaceType = root.TryGetProperty("NameSpaceType", out var ns) ? ns.GetString() : null,
+                DomainName = root.TryGetProperty("DomainName", out var domainName) ? domainName.GetString() : null,
+                FederationBrandName = root.TryGetProperty("FederationBrandName", out var federationBrandName) ? federationBrandName.GetString() : null,
                 AuthUrl = root.TryGetProperty("AuthURL", out var auth) ? auth.GetString() : null,
                 CloudInstanceName = root.TryGetProperty("CloudInstanceName", out var cloud) ? cloud.GetString() : null
             };
@@ -211,6 +213,8 @@ public sealed class MicrosoftOpenIdConfigurationProbe {
 public sealed class MicrosoftUserRealmProbe {
     public string QueryUrl { get; init; } = string.Empty;
     public string? NameSpaceType { get; init; }
+    public string? DomainName { get; init; }
+    public string? FederationBrandName { get; init; }
     public string? AuthUrl { get; init; }
     public string? CloudInstanceName { get; init; }
 }

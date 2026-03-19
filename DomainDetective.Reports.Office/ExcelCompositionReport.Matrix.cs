@@ -27,6 +27,7 @@ public static partial class ExcelCompositionReport
                     DMARC = b.Dmarc?.Status ?? "-",
                     MTASTS = b.Mtasts?.Status ?? "-",
                     TLSRPT = b.TlsRpt?.Status ?? "-",
+                    M365 = b.Microsoft365?.Status ?? "-",
                     DNSBL = b.Dnsbl?.Status ?? "-",
                     NS = b.Ns?.Status ?? "-",
                     SOA = b.Soa?.Status ?? "-",
@@ -36,7 +37,7 @@ public static partial class ExcelCompositionReport
             }
             mx.TableFrom(matrix, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => {
                 var ok = "#D1E7DD"; var warn = "#FFF4CE"; var err = "#F8D7DA"; var none = "#E9ECEF";
-                foreach (var col in new[]{"MX","SPF","DKIM","DMARC","MTASTS","TLSRPT","DNSBL","NS","SOA","CAA","RPKI"})
+                foreach (var col in new[]{"MX","SPF","DKIM","DMARC","MTASTS","TLSRPT","M365","DNSBL","NS","SOA","CAA","RPKI"})
                 {
                     v.TextBackgrounds[col] = new System.Collections.Generic.Dictionary<string,string>(System.StringComparer.OrdinalIgnoreCase) {
                         {"OK", ok},{"Pass", ok},{"Valid", ok},{"Warning", warn},{"Warn", warn},{"Error", err},{"Fail", err},{"-", none},{"None", none},{"Missing", none}

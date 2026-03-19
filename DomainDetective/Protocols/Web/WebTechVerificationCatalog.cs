@@ -14,7 +14,7 @@ internal static class WebTechVerificationCatalog
     public static void ApplyDnsTxt(string txt, ISet<string> outTech, IList<TechDetectionDetail> details)
     {
         if (string.IsNullOrWhiteSpace(txt)) return;
-        void add(string tech)
+        void add(string tech, string evidence)
         {
             outTech.Add(tech);
             details.Add(new TechDetectionDetail
@@ -22,19 +22,20 @@ internal static class WebTechVerificationCatalog
                 Name = tech,
                 SourceKind = TechEvidenceKind.Dns,
                 Category = TechSignatureCatalog.GetCategory(tech),
-                Evidence = txt.Length > 200 ? txt.Substring(0, 200) + "..." : txt,
+                Evidence = evidence.Length > 200 ? evidence.Substring(0, 200) + "..." : evidence,
                 Confidence = 100
             });
         }
-        var t = txt;
-        if (t.IndexOf("status-page-domain-verification=", System.StringComparison.OrdinalIgnoreCase) >= 0) add("Atlassian Statuspage");
-        if (t.IndexOf("google-site-verification=", System.StringComparison.OrdinalIgnoreCase) >= 0) add("Google Site Verification");
-        if (t.IndexOf("facebook-domain-verification=", System.StringComparison.OrdinalIgnoreCase) >= 0) add("Facebook Domain Verification");
-        if (t.IndexOf("apple-domain-verification=", System.StringComparison.OrdinalIgnoreCase) >= 0) add("Apple Domain Verification");
-        if (t.IndexOf("msvalidate.01=", System.StringComparison.OrdinalIgnoreCase) >= 0) add("Bing Site Verification");
-        if (t.IndexOf("yandex-verification=", System.StringComparison.OrdinalIgnoreCase) >= 0) add("Yandex Site Verification");
-        if (t.IndexOf("pinterest-site-verification=", System.StringComparison.OrdinalIgnoreCase) >= 0) add("Pinterest Site Verification");
-        if (t.IndexOf("ahrefs-site-verification=", System.StringComparison.OrdinalIgnoreCase) >= 0) add("Ahrefs Site Verification");
+
+        var matches = DnsTxtDetectionCatalog.FindMatches(txt);
+        for (var i = 0; i < matches.Count; i++) {
+            var tech = matches[i].Definition.TechName;
+            if (string.IsNullOrWhiteSpace(tech)) {
+                continue;
+            }
+
+            add(tech!, matches[i].NormalizedValue);
+        }
     }
 }
 

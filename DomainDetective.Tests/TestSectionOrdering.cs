@@ -15,6 +15,8 @@ public class TestSectionOrdering {
     [InlineData("smtpTls", "MAILTLS")]
     [InlineData("imapTls", "MAILTLS")]
     [InlineData("pop3tls", "MAILTLS")]
+    [InlineData("m365", "Microsoft 365")]
+    [InlineData("microsoft365", "Microsoft 365")]
     public void NormalizeSection_MapsSynonyms(string input, string expected) {
         Assert.Equal(expected, SectionOrdering.NormalizeSection(input));
     }
@@ -41,6 +43,7 @@ public class TestSectionOrdering {
     [InlineData(HealthCheckType.SMTPTLS, "MAILTLS")]
     [InlineData(HealthCheckType.IMAPTLS, "MAILTLS")]
     [InlineData(HealthCheckType.POP3TLS, "MAILTLS")]
+    [InlineData(HealthCheckType.MICROSOFT365, "Microsoft 365")]
     public void SectionKeyFor_MapsHealthCheckType(HealthCheckType check, string expected) {
         Assert.Equal(expected, SectionOrdering.SectionKeyFor(check));
     }

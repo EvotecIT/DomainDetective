@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective;
 
 namespace DomainDetective.Providers.Dns;
 
@@ -16,7 +17,8 @@ public static class DnsTxtSignalDetector
     {
         var values = (txtValues ?? Array.Empty<string>())
             .Where(v => !string.IsNullOrWhiteSpace(v))
-            .Select(v => v.Trim())
+            .Select(DnsTxtDetectionCatalog.NormalizeTxt)
+            .Where(static value => value.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -30,12 +32,6 @@ public static class DnsTxtSignalDetector
 
         foreach (var raw in values)
         {
-            var v = NormalizeTxt(raw);
-            if (v.Length == 0)
-            {
-                continue;
-            }
-
             void Add(DnsTxtSignals s, string why)
             {
                 if (signals.HasFlag(s))
@@ -50,58 +46,23 @@ public static class DnsTxtSignalDetector
                 }
             }
 
-            if (v.StartsWith("v=spf1", StringComparison.OrdinalIgnoreCase))
+            if (raw.StartsWith("v=spf1", StringComparison.OrdinalIgnoreCase))
             {
                 Add(DnsTxtSignals.Spf, "TXT: SPF record present (v=spf1)");
             }
-            if (v.IndexOf("google-site-verification=", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                Add(DnsTxtSignals.GoogleSiteVerification, "TXT: Google site verification token present");
-            }
-            if (v.StartsWith("ms=", StringComparison.OrdinalIgnoreCase))
-            {
-                Add(DnsTxtSignals.MicrosoftDomainVerification, "TXT: Microsoft domain verification token present (MS=)");
-            }
-            if (v.StartsWith("msvalidate.1=", StringComparison.OrdinalIgnoreCase))
-            {
-                Add(DnsTxtSignals.BingWebmasterVerification, "TXT: Microsoft/Bing site verification token present (msvalidate.1=)");
-            }
-            if (v.IndexOf("facebook-domain-verification=", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                Add(DnsTxtSignals.FacebookDomainVerification, "TXT: Facebook domain verification token present");
-            }
-            if (v.IndexOf("apple-domain-verification=", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                Add(DnsTxtSignals.AppleDomainVerification, "TXT: Apple domain verification token present");
-            }
-            if (v.IndexOf("atlassian-domain-verification=", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                Add(DnsTxtSignals.AtlassianDomainVerification, "TXT: Atlassian domain verification token present");
-            }
-            if (v.IndexOf("stripe-verification=", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                Add(DnsTxtSignals.StripeVerification, "TXT: Stripe domain verification token present");
+
+            var matches = DnsTxtDetectionCatalog.FindMatches(raw);
+            for (var i = 0; i < matches.Count; i++) {
+                var definition = matches[i].Definition;
+                if (definition.Signals == DnsTxtSignals.None || string.IsNullOrWhiteSpace(definition.SignalEvidence)) {
+                    continue;
+                }
+
+                Add(definition.Signals, definition.SignalEvidence!);
             }
         }
 
         return new Match { Signals = signals, Evidence = evidence };
-    }
-
-    private static string NormalizeTxt(string value)
-    {
-        var v = (value ?? string.Empty).Trim();
-        if (v.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        // Handle single quoted-string TXT values.
-        if (v.Length >= 2 && v[0] == '"' && v[v.Length - 1] == '"')
-        {
-            v = v.Substring(1, v.Length - 2);
-        }
-
-        return v.Trim();
     }
 }
 

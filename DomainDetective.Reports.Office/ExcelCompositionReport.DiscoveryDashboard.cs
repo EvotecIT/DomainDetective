@@ -19,6 +19,12 @@ public static partial class ExcelCompositionReport
         public int CtIssued30d { get; init; }
         public string DnsProvider { get; init; } = "-";
         public string MailProvider { get; init; } = "-";
+        public string Microsoft365 { get; init; } = "-";
+        public string M365Confidence { get; init; } = "-";
+        public int M365Services { get; init; }
+        public string M365WorkloadEvidence { get; init; } = "-";
+        public int M365AcceptedDomains { get; init; }
+        public string M365DomainEvidence { get; init; } = "-";
         public int UniqueIps { get; init; }
         public int Asns { get; init; }
         public int Countries { get; init; }
@@ -68,6 +74,9 @@ public static partial class ExcelCompositionReport
         var totalCt7d = domains.Sum(kv => kv.Value.CtTimeline?.IssuedLast7Days ?? 0);
         var totalCt30d = domains.Sum(kv => kv.Value.CtTimeline?.IssuedLast30Days ?? 0);
         var totalUniqueIps = domains.Sum(kv => kv.Value.IpEnrichment?.UniqueIpCount ?? 0);
+        var totalM365Domains = domains.Count(kv => kv.Value.Microsoft365?.IsMicrosoft365Tenant == true);
+        var totalM365Services = domains.Sum(kv => kv.Value.Microsoft365?.Services?.Count(s => s.Status == DomainDetective.Microsoft365DetectionStatus.Detected) ?? 0);
+        var totalM365AcceptedDomains = domains.Sum(kv => CountAcceptedCustomDomains(kv.Value.Microsoft365?.TenantDomains));
         var domainsWithIp = domains.Count(kv => kv.Value.IpEnrichment?.QuerySucceeded == true && (kv.Value.IpEnrichment?.UniqueIpCount ?? 0) > 0);
         var domainsWithHttp = domains.Count(kv => kv.Value.Http != null);
         var domainsHttpReachable = domains.Count(kv => kv.Value.Http?.IsReachable == true);
@@ -101,6 +110,9 @@ public static partial class ExcelCompositionReport
             ("Total Subdomains", totalSubdomains),
             ("CT Issued (7d)", totalCt7d),
             ("CT Issued (30d)", totalCt30d),
+            ("M365 Domains", totalM365Domains),
+            ("M365 Services", totalM365Services),
+            ("M365 Accepted Domains", totalM365AcceptedDomains),
             ("Unique ASNs", uniqueAsns.Count),
             ("Total Unique IPs", totalUniqueIps),
             ("Domains (IP Data)", domainsWithIp),
@@ -118,6 +130,12 @@ public static partial class ExcelCompositionReport
             CtIssued30d = kv.Value.CtTimeline?.IssuedLast30Days ?? 0,
             DnsProvider = kv.Value.DnsInventory != null ? kv.Value.DnsInventory.Provider.ToString() : "-",
             MailProvider = kv.Value.DnsInventory != null ? kv.Value.DnsInventory.MailProvider.ToString() : "-",
+            Microsoft365 = kv.Value.Microsoft365?.Status ?? "-",
+            M365Confidence = kv.Value.Microsoft365?.DetectionConfidence.ToString() ?? "-",
+            M365Services = kv.Value.Microsoft365?.Services?.Count(s => s.Status == DomainDetective.Microsoft365DetectionStatus.Detected) ?? 0,
+            M365WorkloadEvidence = DescribeM365WorkloadEvidence(kv.Value.Microsoft365?.Services),
+            M365AcceptedDomains = CountAcceptedCustomDomains(kv.Value.Microsoft365?.TenantDomains),
+            M365DomainEvidence = DescribeM365DomainEvidence(kv.Value.Microsoft365?.TenantDomains),
             UniqueIps = kv.Value.IpEnrichment?.UniqueIpCount ?? 0,
             Asns = kv.Value.IpEnrichment?.DistinctAsnCount ?? 0,
             Countries = kv.Value.IpEnrichment?.DistinctCountryCount ?? 0,
@@ -168,6 +186,59 @@ public static partial class ExcelCompositionReport
         if (mailProviderRows.Count > 0)
         {
             sheet.TableFrom(mailProviderRows, title: "Mail Providers (Domains)", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v =>
+            {
+                v.NumericColumnFormats["Count"] = "0";
+                v.FreezeHeaderRow = true;
+            });
+        }
+
+        var m365ConfidenceRows = domains
+            .Where(kv => kv.Value.Microsoft365?.IsMicrosoft365Tenant == true)
+            .GroupBy(kv => kv.Value.Microsoft365!.DetectionConfidence)
+            .Select(g => new NameCountRow { Name = g.Key.ToString(), Count = g.Count() })
+            .OrderByDescending(r => r.Count)
+            .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (m365ConfidenceRows.Count > 0)
+        {
+            sheet.TableFrom(m365ConfidenceRows, title: "Microsoft 365 Footprint", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v =>
+            {
+                v.NumericColumnFormats["Count"] = "0";
+                v.FreezeHeaderRow = true;
+            });
+        }
+
+        var m365DomainEvidenceRows = domains
+            .SelectMany(kv => kv.Value.Microsoft365?.TenantDomains ?? Array.Empty<DomainDetective.Microsoft365TenantDomain>())
+            .Where(static domain => domain.Role != DomainDetective.Microsoft365TenantDomainRole.Unknown)
+            .GroupBy(static domain => domain.Role)
+            .Select(g => new NameCountRow { Name = FormatM365DomainRole(g.Key), Count = g.Count() })
+            .OrderByDescending(r => r.Count)
+            .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (m365DomainEvidenceRows.Count > 0)
+        {
+            sheet.TableFrom(m365DomainEvidenceRows, title: "M365 Domain Evidence", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v =>
+            {
+                v.NumericColumnFormats["Count"] = "0";
+                v.FreezeHeaderRow = true;
+            });
+        }
+
+        var m365WorkloadEvidenceRows = domains
+            .SelectMany(kv => kv.Value.Microsoft365?.Services ?? Array.Empty<DomainDetective.Microsoft365ServiceDetection>())
+            .Where(static service =>
+                service.Status == DomainDetective.Microsoft365DetectionStatus.Detected &&
+                service.EvidenceSource != DomainDetective.Microsoft365ServiceEvidenceSourceKind.Unknown)
+            .GroupBy(static service => service.EvidenceSource)
+            .Select(g => new NameCountRow { Name = FormatM365WorkloadEvidenceSource(g.Key), Count = g.Count() })
+            .OrderByDescending(r => r.Count)
+            .ThenBy(r => GetM365WorkloadEvidenceSortOrder(r.Name))
+            .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (m365WorkloadEvidenceRows.Count > 0)
+        {
+            sheet.TableFrom(m365WorkloadEvidenceRows, title: "M365 Workload Evidence", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v =>
             {
                 v.NumericColumnFormats["Count"] = "0";
                 v.FreezeHeaderRow = true;
@@ -381,5 +452,139 @@ public static partial class ExcelCompositionReport
         }
 
         sheet.Finish(autoFitColumns: true);
+    }
+
+    private static int CountAcceptedCustomDomains(IReadOnlyList<DomainDetective.Microsoft365TenantDomain>? domains)
+    {
+        if (domains == null || domains.Count == 0)
+        {
+            return 0;
+        }
+
+        return domains.Count(static domain => domain.Role == DomainDetective.Microsoft365TenantDomainRole.AcceptedCustomDomain);
+    }
+
+    private static string DescribeM365DomainEvidence(IReadOnlyList<DomainDetective.Microsoft365TenantDomain>? domains)
+    {
+        if (domains == null || domains.Count == 0)
+        {
+            return "-";
+        }
+
+        var values = domains
+            .Where(static domain => domain.Role != DomainDetective.Microsoft365TenantDomainRole.Unknown)
+            .GroupBy(static domain => domain.Role)
+            .OrderBy(static group => GetM365DomainRoleSortOrder(group.Key))
+            .ThenBy(static group => group.Key.ToString(), StringComparer.OrdinalIgnoreCase)
+            .Take(4)
+            .Select(group => $"{FormatM365DomainRole(group.Key)} {group.Count()}")
+            .ToList();
+
+        return values.Count == 0 ? "-" : string.Join(", ", values);
+    }
+
+    private static string DescribeM365WorkloadEvidence(IReadOnlyList<DomainDetective.Microsoft365ServiceDetection>? services)
+    {
+        if (services == null || services.Count == 0)
+        {
+            return "-";
+        }
+
+        var detected = services
+            .Where(static service => service.Status == DomainDetective.Microsoft365DetectionStatus.Detected)
+            .ToList();
+        if (detected.Count == 0)
+        {
+            return "-";
+        }
+
+        var values = detected
+            .Where(static service => service.EvidenceSource != DomainDetective.Microsoft365ServiceEvidenceSourceKind.Unknown)
+            .GroupBy(static service => service.EvidenceSource)
+            .OrderBy(static group => GetM365WorkloadEvidenceSortOrder(FormatM365WorkloadEvidenceSource(group.Key)))
+            .ThenBy(static group => group.Key.ToString(), StringComparer.OrdinalIgnoreCase)
+            .Take(4)
+            .Select(group => $"{FormatM365WorkloadEvidenceSource(group.Key)} {group.Count()}")
+            .ToList();
+
+        var boosted = detected.Count(static service => service.TenantContextBoosted);
+        if (boosted > 0)
+        {
+            values.Add($"Boosted {boosted}");
+        }
+
+        return values.Count == 0 ? "-" : string.Join(", ", values);
+    }
+
+    private static int GetM365DomainRoleSortOrder(DomainDetective.Microsoft365TenantDomainRole role)
+    {
+        switch (role)
+        {
+            case DomainDetective.Microsoft365TenantDomainRole.Primary:
+                return 0;
+            case DomainDetective.Microsoft365TenantDomainRole.IdentityDomain:
+                return 1;
+            case DomainDetective.Microsoft365TenantDomainRole.AcceptedCustomDomain:
+                return 2;
+            case DomainDetective.Microsoft365TenantDomainRole.MicrosoftManagedNamespace:
+                return 3;
+            case DomainDetective.Microsoft365TenantDomainRole.Unknown:
+            default:
+                return int.MaxValue;
+        }
+    }
+
+    private static string FormatM365DomainRole(DomainDetective.Microsoft365TenantDomainRole role)
+    {
+        switch (role)
+        {
+            case DomainDetective.Microsoft365TenantDomainRole.Primary:
+                return "Primary";
+            case DomainDetective.Microsoft365TenantDomainRole.IdentityDomain:
+                return "Identity-derived";
+            case DomainDetective.Microsoft365TenantDomainRole.AcceptedCustomDomain:
+                return "DKIM-derived";
+            case DomainDetective.Microsoft365TenantDomainRole.MicrosoftManagedNamespace:
+                return "Namespace-derived";
+            case DomainDetective.Microsoft365TenantDomainRole.Unknown:
+            default:
+                return "Unknown";
+        }
+    }
+
+    private static string FormatM365WorkloadEvidenceSource(DomainDetective.Microsoft365ServiceEvidenceSourceKind source)
+    {
+        switch (source)
+        {
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.IdentityProbe:
+                return "Identity";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.MailProtocol:
+                return "Mail/Protocol";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.KnownSubdomain:
+                return "Subdomain";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.DnsApplication:
+                return "DNS App";
+            case DomainDetective.Microsoft365ServiceEvidenceSourceKind.Unknown:
+            default:
+                return "Unknown";
+        }
+    }
+
+    private static int GetM365WorkloadEvidenceSortOrder(string source)
+    {
+        switch (source)
+        {
+            case "Identity":
+                return 0;
+            case "Mail/Protocol":
+                return 1;
+            case "Subdomain":
+                return 2;
+            case "DNS App":
+                return 3;
+            case "Unknown":
+            default:
+                return int.MaxValue;
+        }
     }
 }

@@ -161,6 +161,7 @@ public static partial class WordCompositionReport {
 	        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
 	        public DomainDetective.Views.HttpInfo? Http { get; set; }
 	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+            public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
             public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
             public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
             public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
@@ -264,6 +265,8 @@ public static partial class WordCompositionReport {
                         Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
                     case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject):
                         Ensure(mc.Subject); map[mc.Subject].Classification = mc; break;
+                    case DomainDetective.Views.Microsoft365TenantInfo m365 when !string.IsNullOrWhiteSpace(m365.Subject):
+                        Ensure(m365.Subject!); map[m365.Subject!].Microsoft365 = m365; break;
                     case DomainDetective.Views.DesiredStateInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
                     {
                         var subject = ds.Subject!;

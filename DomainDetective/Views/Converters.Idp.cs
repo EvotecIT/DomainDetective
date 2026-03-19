@@ -14,6 +14,8 @@ public static partial class Converters
             DiscoveryUrl = analysis.DiscoveryUrl,
             TenantId = analysis.TenantId,
             NameSpaceType = analysis.NameSpaceType,
+            DomainName = analysis.DomainName,
+            FederationBrandName = analysis.FederationBrandName,
             FederatedAuthUrl = analysis.FederatedAuthUrl,
             IdentityProviderHost = analysis.IdentityProviderHost,
             CloudInstanceName = analysis.CloudInstanceName,
@@ -46,6 +48,10 @@ public sealed class IdpInfoView
     public string? TenantId { get; set; }
     /// <summary>Tenant namespace type returned by GetUserRealm (e.g., Managed/Federated).</summary>
     public string? NameSpaceType { get; set; }
+    /// <summary>Domain name echoed back by GetUserRealm.</summary>
+    public string? DomainName { get; set; }
+    /// <summary>Brand or company name exposed by GetUserRealm when available.</summary>
+    public string? FederationBrandName { get; set; }
     /// <summary>Federated authentication URL returned by GetUserRealm.</summary>
     public string? FederatedAuthUrl { get; set; }
     /// <summary>Identity provider host inferred from OIDC issuer or federation URL.</summary>

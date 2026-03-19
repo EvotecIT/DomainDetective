@@ -23,8 +23,8 @@ public static partial class MarkdownCompositionReport
                 .Row("Classification", b.Classification?.Classification ?? "-")
                 .Row("Confidence", b.Classification?.Confidence ?? "-")
                 .Row("Status", ComputeStatus(b))
-                .Row("Warnings", ((b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount)).ToString())
-                .Row("Errors", ((b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount)).ToString())
+                .Row("Warnings", ((b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount)).ToString())
+                .Row("Errors", ((b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount)).ToString())
                 .AlignLeft(0,1));
 
             void RenderClassification()
@@ -134,6 +134,61 @@ public static partial class MarkdownCompositionReport
                 if (cls.Positives?.Count > 0)
                     md.H3("Positives").Ul(cls.Positives.Select(r => r.Title ?? r.Code).ToArray());
                 RenderReferences(md, MergeReferences(cls.References, narrative?.References));
+            }
+
+            void RenderMicrosoft365()
+            {
+                if (b.Microsoft365 == null)
+                {
+                    return;
+                }
+
+                if (SectionProjectors.BuildMicrosoft365(b.Microsoft365) is not { } sec)
+                {
+                    return;
+                }
+
+                md.H2("Microsoft 365");
+                md.Table(t => { t.Headers("Key", "Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0, 1); });
+                if (sec.Highlights.Count > 0)
+                {
+                    md.H3("Highlights").Ul(sec.Highlights.ToArray());
+                }
+                if (sec.Positives.Count > 0)
+                {
+                    md.H3("Positives").Ul(sec.Positives.ToArray());
+                }
+                if (sec.Findings.Count > 0)
+                {
+                    var findingRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(findingRows).AlignLeft(0, 1, 2, 3));
+                }
+                if (sec.Services.Count > 0)
+                {
+                    var rows = sec.Services.Select(x => (IReadOnlyList<string>)new[] { x.Service, x.Status, x.Confidence, x.Evidence }).ToList();
+                    md.H3("Services").Table(t => t.Headers("Service", "Status", "Confidence", "Evidence").Rows(rows).AlignLeft(0, 1, 2, 3));
+                }
+                if (sec.Domains.Count > 0)
+                {
+                    var rows = sec.Domains.Select(x => (IReadOnlyList<string>)new[] { x.Domain, x.Role, x.Confidence, x.Evidence }).ToList();
+                    md.H3("Tenant Domains").Table(t => t.Headers("Domain", "Role", "Confidence", "Evidence").Rows(rows).AlignLeft(0, 1, 2, 3));
+                }
+                if (sec.Subdomains.Count > 0)
+                {
+                    var rows = sec.Subdomains.Select(x => (IReadOnlyList<string>)new[] { x.Name, x.Role, x.Resolution }).ToList();
+                    md.H3("Known Subdomains").Table(t => t.Headers("Name", "Role", "Resolution").Rows(rows).AlignLeft(0, 1, 2));
+                }
+                if (sec.Applications.Count > 0)
+                {
+                    var rows = sec.Applications.Select(x => (IReadOnlyList<string>)new[] { x.Name, x.Category, x.EvidenceKind, x.Confidence, x.Evidence }).ToList();
+                    md.H3("Detected DNS Applications").Table(t => t.Headers("Name", "Category", "Evidence Kind", "Confidence", "Evidence").Rows(rows).AlignLeft(0, 1, 2, 3, 4));
+                }
+                if (sec.Evidence.Count > 0)
+                {
+                    var rows = sec.Evidence.Select(x => (IReadOnlyList<string>)new[] { x.Label, x.Category, x.Confidence, x.Evidence }).ToList();
+                    md.H3("Evidence Ledger").Table(t => t.Headers("Label", "Category", "Confidence", "Evidence").Rows(rows).AlignLeft(0, 1, 2, 3));
+                }
+                RenderReferences(md, sec.References);
             }
 
             void RenderDesiredState()
@@ -776,6 +831,9 @@ public static partial class MarkdownCompositionReport
                     case "Desired State":
                         RenderDesiredState();
                         break;
+                    case "Microsoft 365":
+                        RenderMicrosoft365();
+                        break;
                     case "SPF":
                         RenderSpf();
                         break;
@@ -825,6 +883,7 @@ public static partial class MarkdownCompositionReport
         var list = new List<string>();
         if (b.Classification != null) list.Add("Classification");
         if (b.DesiredState != null) list.Add("Desired State");
+        if (b.Microsoft365 != null) list.Add("Microsoft 365");
         if (b.Spf != null) list.Add("SPF");
         if (b.Dmarc != null) list.Add("DMARC");
         if (b.Dkim.Count > 0) list.Add("DKIM");

@@ -257,6 +257,7 @@ namespace DomainDetective.Tests {
                 var data = System.Text.Encoding.ASCII.GetBytes("SSH-2.0-Test\r\n");
                 await stream.WriteAsync(data, 0, data.Length);
                 await stream.FlushAsync();
+                await Task.Delay(250);
             });
 
             try {
