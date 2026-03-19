@@ -309,6 +309,11 @@ public sealed partial class CertificateInventoryCapture {
             PreferredLogUrlPrefixes = options.NativeCtPreferredLogUrlPrefixes.ToList(),
             ExcludedLogUrlPrefixes = options.NativeCtExcludedLogUrlPrefixes.ToList(),
             MaxLogsToProcess = options.NativeCtMaxLogs,
+            MaxConcurrentLogs = options.DiscoveryParallelism <= 0
+                ? 1
+                : (options.NativeCtMaxLogs > 0
+                    ? Math.Min(options.DiscoveryParallelism, options.NativeCtMaxLogs)
+                    : options.DiscoveryParallelism),
             MaxEntriesPerLog = options.NativeCtMaxEntriesPerLog,
             EntryBatchSize = options.NativeCtEntryBatchSize,
             InitialBackfillEntriesPerLog = options.NativeCtInitialBackfillEntriesPerLog,

@@ -18,12 +18,15 @@ namespace DomainDetective;
 internal sealed class NativeCtCursorState {
     private const string KnownBogusCtLogUrlPrefix = "https://ct.example.com/bogus/";
     private readonly Dictionary<string, NativeCtCursorEntryState> _entries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _sync = new();
 
     public long? GetLastProcessedIndex(string key) {
         if (string.IsNullOrWhiteSpace(key)) {
             return null;
         }
-        return _entries.TryGetValue(key, out var entry) ? entry.LastProcessedIndex : null;
+        lock (_sync) {
+            return _entries.TryGetValue(key, out var entry) ? entry.LastProcessedIndex : null;
+        }
     }
 
     public void SetLastProcessedIndex(string key, long value) {
@@ -33,8 +36,10 @@ internal sealed class NativeCtCursorState {
         if (value < 0) {
             return;
         }
-        var entry = GetOrCreateEntry(key);
-        entry.LastProcessedIndex = value;
+        lock (_sync) {
+            var entry = GetOrCreateEntry(key);
+            entry.LastProcessedIndex = value;
+        }
     }
 
     public bool IsCircuitOpen(string key, DateTimeOffset nowUtc, out DateTimeOffset openUntilUtc) {
@@ -42,18 +47,20 @@ internal sealed class NativeCtCursorState {
         if (string.IsNullOrWhiteSpace(key)) {
             return false;
         }
-        if (!_entries.TryGetValue(key, out var entry)) {
-            return false;
-        }
-        if (!entry.CircuitOpenUntilUtc.HasValue) {
-            return false;
-        }
-        if (entry.CircuitOpenUntilUtc.Value <= nowUtc) {
-            return false;
-        }
+        lock (_sync) {
+            if (!_entries.TryGetValue(key, out var entry)) {
+                return false;
+            }
+            if (!entry.CircuitOpenUntilUtc.HasValue) {
+                return false;
+            }
+            if (entry.CircuitOpenUntilUtc.Value <= nowUtc) {
+                return false;
+            }
 
-        openUntilUtc = entry.CircuitOpenUntilUtc.Value;
-        return true;
+            openUntilUtc = entry.CircuitOpenUntilUtc.Value;
+            return true;
+        }
     }
 
     public void RecordFailure(
@@ -69,15 +76,17 @@ internal sealed class NativeCtCursorState {
         var normalizedThreshold = threshold < 1 ? 1 : threshold;
         var normalizedDuration = duration <= TimeSpan.Zero ? TimeSpan.FromMinutes(1) : duration;
 
-        var entry = GetOrCreateEntry(key);
-        entry.LastAttemptUtc = nowUtc;
-        entry.LastError = NormalizeError(errorMessage);
-        entry.ConsecutiveFailureCount++;
-        if (entry.ConsecutiveFailureCount >= normalizedThreshold) {
-            var level = entry.ConsecutiveFailureCount - normalizedThreshold;
-            var factor = Math.Pow(2, Math.Min(3, level));
-            var openFor = TimeSpan.FromMilliseconds(normalizedDuration.TotalMilliseconds * factor);
-            entry.CircuitOpenUntilUtc = nowUtc.Add(openFor);
+        lock (_sync) {
+            var entry = GetOrCreateEntry(key);
+            entry.LastAttemptUtc = nowUtc;
+            entry.LastError = NormalizeError(errorMessage);
+            entry.ConsecutiveFailureCount++;
+            if (entry.ConsecutiveFailureCount >= normalizedThreshold) {
+                var level = entry.ConsecutiveFailureCount - normalizedThreshold;
+                var factor = Math.Pow(2, Math.Min(3, level));
+                var openFor = TimeSpan.FromMilliseconds(normalizedDuration.TotalMilliseconds * factor);
+                entry.CircuitOpenUntilUtc = nowUtc.Add(openFor);
+            }
         }
     }
 
@@ -86,12 +95,14 @@ internal sealed class NativeCtCursorState {
             return;
         }
 
-        var entry = GetOrCreateEntry(key);
-        entry.LastAttemptUtc = nowUtc;
-        entry.LastSuccessUtc = nowUtc;
-        entry.ConsecutiveFailureCount = 0;
-        entry.CircuitOpenUntilUtc = null;
-        entry.LastError = null;
+        lock (_sync) {
+            var entry = GetOrCreateEntry(key);
+            entry.LastAttemptUtc = nowUtc;
+            entry.LastSuccessUtc = nowUtc;
+            entry.ConsecutiveFailureCount = 0;
+            entry.CircuitOpenUntilUtc = null;
+            entry.LastError = null;
+        }
     }
 
     public static string BuildKey(string baseDomain, string logUrl) {
@@ -121,18 +132,20 @@ internal sealed class NativeCtCursorState {
             return false;
         }
 
-        if (!_entries.TryGetValue(key, out var entry)) {
-            return false;
-        }
+        lock (_sync) {
+            if (!_entries.TryGetValue(key, out var entry)) {
+                return false;
+            }
 
-        snapshot = new NativeCtCursorEntrySnapshot(
-            entry.LastProcessedIndex,
-            entry.ConsecutiveFailureCount,
-            entry.CircuitOpenUntilUtc,
-            entry.LastAttemptUtc,
-            entry.LastSuccessUtc,
-            entry.LastError);
-        return true;
+            snapshot = new NativeCtCursorEntrySnapshot(
+                entry.LastProcessedIndex,
+                entry.ConsecutiveFailureCount,
+                entry.CircuitOpenUntilUtc,
+                entry.LastAttemptUtc,
+                entry.LastSuccessUtc,
+                entry.LastError);
+            return true;
+        }
     }
 
     private static string BuildSharedScopeFingerprint(IReadOnlyCollection<string> domains) {
@@ -225,23 +238,26 @@ internal sealed class NativeCtCursorState {
                 Directory.CreateDirectory(directory);
             }
 
-            var payload = new NativeCtCursorStateDocument {
-                Version = 2,
-                UpdatedAtUtc = DateTimeOffset.UtcNow,
-                Entries = _entries
-                    .Where(static kvp => !ContainsIgnoredLogUrl(kvp.Key))
-                    .OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
-                    .Select(kvp => new NativeCtCursorStateEntry {
-                        Key = kvp.Key,
-                        LastProcessedIndex = kvp.Value.LastProcessedIndex,
-                        ConsecutiveFailureCount = kvp.Value.ConsecutiveFailureCount,
-                        CircuitOpenUntilUtc = kvp.Value.CircuitOpenUntilUtc,
-                        LastAttemptUtc = kvp.Value.LastAttemptUtc,
-                        LastSuccessUtc = kvp.Value.LastSuccessUtc,
-                        LastError = kvp.Value.LastError
-                    })
-                    .ToList()
-            };
+            NativeCtCursorStateDocument payload;
+            lock (_sync) {
+                payload = new NativeCtCursorStateDocument {
+                    Version = 2,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow,
+                    Entries = _entries
+                        .Where(static kvp => !ContainsIgnoredLogUrl(kvp.Key))
+                        .OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(kvp => new NativeCtCursorStateEntry {
+                            Key = kvp.Key,
+                            LastProcessedIndex = kvp.Value.LastProcessedIndex,
+                            ConsecutiveFailureCount = kvp.Value.ConsecutiveFailureCount,
+                            CircuitOpenUntilUtc = kvp.Value.CircuitOpenUntilUtc,
+                            LastAttemptUtc = kvp.Value.LastAttemptUtc,
+                            LastSuccessUtc = kvp.Value.LastSuccessUtc,
+                            LastError = kvp.Value.LastError
+                        })
+                        .ToList()
+                };
+            }
 
             var json = JsonSerializer.Serialize(payload, JsonOptions.Default);
             File.WriteAllText(fullPath, json);
