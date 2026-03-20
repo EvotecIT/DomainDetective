@@ -16,6 +16,12 @@ public class TestGetAnalysisMap
         {
             Assert.True(map.TryGetValue(type, out var actual));
             var expected = GetExpectedAnalysis(healthCheck, type);
+            if (type == HealthCheckType.WEBSITE)
+            {
+                Assert.IsType<DomainDetective.Views.WebsiteInfo>(actual);
+                continue;
+            }
+
             Assert.Same(expected, actual);
         }
     }
@@ -139,6 +145,8 @@ public class TestGetAnalysisMap
                 return healthCheck.WhoisAnalysis;
             case HealthCheckType.APEXADDRESS:
                 return healthCheck.ApexAddressAnalysis;
+            case HealthCheckType.SPFFLATTENED:
+                return healthCheck.SpfAnalysis.FlattenedIpAnalysis;
             case HealthCheckType.SUBDOMAINS:
                 return healthCheck.SubdomainsAnalysis;
             case HealthCheckType.DNSINVENTORY:
@@ -156,7 +164,6 @@ public class TestGetAnalysisMap
             case HealthCheckType.MICROSOFT365:
                 return healthCheck.Microsoft365TenantAnalysis;
             case HealthCheckType.WEBSITE:
-            case HealthCheckType.SPFFLATTENED:
             case HealthCheckType.MAILCLASSIFICATION:
             default:
                 return null;

@@ -38,7 +38,6 @@ internal static class Program {
             config.SetApplicationName("DomainDetective");
             config.AddExample(new[] { "wizard", "--domain", "example.com" });
             config.AddExample(new[] { "check", "example.com" });
-            config.AddExample(new[] { "wizard", "--domain", "example.com" });
             config.AddCommand<WizardScanCommand>("WizardScan")
                 .WithDescription("Run the Hacker Wizard (parallel, animated)")
                 .WithExample(new[] { "WizardScan", "--domain", "example.com", "--full", "--matrix" })

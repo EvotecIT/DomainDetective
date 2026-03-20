@@ -148,6 +148,10 @@ public partial class DomainHealthCheck
                 return WhoisAnalysis;
             case HealthCheckType.APEXADDRESS:
                 return ApexAddressAnalysis;
+            case HealthCheckType.SPFFLATTENED:
+                return SpfAnalysis?.FlattenedIpAnalysis;
+            case HealthCheckType.MAILCLASSIFICATION:
+                return MailDomainClassification;
             case HealthCheckType.SUBDOMAINS:
                 return SubdomainsAnalysis;
             case HealthCheckType.DNSINVENTORY:
@@ -165,8 +169,9 @@ public partial class DomainHealthCheck
             case HealthCheckType.MICROSOFT365:
                 return Microsoft365TenantAnalysis;
             case HealthCheckType.WEBSITE:
-            case HealthCheckType.SPFFLATTENED:
-            case HealthCheckType.MAILCLASSIFICATION:
+                return DomainDetective.Views.Converters.CombineWebsite(
+                    DomainDetective.Views.Converters.Convert(CertificateAnalysis),
+                    DomainDetective.Views.Converters.Convert(HttpAnalysis));
             default:
                 return null;
         }

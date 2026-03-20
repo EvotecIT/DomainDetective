@@ -42,15 +42,19 @@ namespace DomainDetective
                     "SPF1",
                     includeAliasesInFilter: true);
                 var txt = answers?.FirstOrDefault(a => a.Type == DnsRecordType.TXT);
-                return txt?.Data;
+                return txt?.Data ?? txt?.DataRaw;
             }
 
             async Task<(bool matched, string verdict, string token, string type, string? source, List<string> chain)> EvalDomainAsync(string d, List<string> chain)
             {
                 if (!visited.Add(d)) return (false, "neutral", string.Empty, string.Empty, null, chain);
-                string? record = SpfRecordExists && string.Equals(d, Subject, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(SpfRecord)
-                    ? SpfRecord
-                    : await GetRecordAsync(d);
+                var useAnalyzedRecord =
+                    SpfRecordExists &&
+                    !string.IsNullOrWhiteSpace(SpfRecord) &&
+                    ((string.IsNullOrWhiteSpace(Subject) && string.Equals(d, domain, StringComparison.OrdinalIgnoreCase))
+                     || string.Equals(d, Subject, StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(d, domain, StringComparison.OrdinalIgnoreCase));
+                string? record = useAnalyzedRecord ? SpfRecord : await GetRecordAsync(d);
                 if (record == null || string.IsNullOrWhiteSpace(record)) return (false, "neutral", string.Empty, string.Empty, null, chain);
                 var parts = TokenizeSpfRecord(record).ToArray();
                 foreach (var p in parts)
@@ -72,7 +76,7 @@ namespace DomainDetective
                         if (lookups > MaxDnsLookups) { eval.LookupsExceeded = true; return (false, "permerror", tok, "a", d, chain); }
                         var a = await DnsConfiguration.QueryDNS(host, DnsRecordType.A);
                         var aaaa = await DnsConfiguration.QueryDNS(host, DnsRecordType.AAAA);
-                        if (a.Concat(aaaa).Any(ans => ans.Data == ip.ToString())) return (true, verdictForQualifier(q), tok, "a", d, chain);
+                        if (a.Concat(aaaa).Any(ans => string.Equals(ans.Data ?? ans.DataRaw, ip.ToString(), StringComparison.OrdinalIgnoreCase))) return (true, verdictForQualifier(q), tok, "a", d, chain);
                     }
                     else if (trimmed.Equals("mx", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("mx:", StringComparison.OrdinalIgnoreCase))
                     {
@@ -82,11 +86,12 @@ namespace DomainDetective
                         var mx = await DnsConfiguration.QueryDNS(host, DnsRecordType.MX);
                         foreach (var mxr in mx)
                         {
-                            var partsMx = mxr.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                            var h = partsMx.Length == 2 ? partsMx[1].TrimEnd('.') : mxr.Data.TrimEnd('.');
+                            var mxValue = mxr.Data ?? mxr.DataRaw ?? string.Empty;
+                            var partsMx = mxValue.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            var h = partsMx.Length == 2 ? partsMx[1].TrimEnd('.') : mxValue.TrimEnd('.');
                             var a = await DnsConfiguration.QueryDNS(h, DnsRecordType.A);
                             var aaaa = await DnsConfiguration.QueryDNS(h, DnsRecordType.AAAA);
-                            if (a.Concat(aaaa).Any(ans => ans.Data == ip.ToString())) return (true, verdictForQualifier(q), tok, "mx", d, chain);
+                            if (a.Concat(aaaa).Any(ans => string.Equals(ans.Data ?? ans.DataRaw, ip.ToString(), StringComparison.OrdinalIgnoreCase))) return (true, verdictForQualifier(q), tok, "mx", d, chain);
                         }
                     }
                     else if (trimmed.StartsWith("exists:", StringComparison.OrdinalIgnoreCase))
@@ -164,4 +169,3 @@ namespace DomainDetective
         }
     }
 }
-

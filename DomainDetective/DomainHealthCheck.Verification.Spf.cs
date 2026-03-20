@@ -88,6 +88,7 @@ namespace DomainDetective {
         /// <param name="spfRecord">SPF record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckSPF(string spfRecord, CancellationToken cancellationToken = default) {
+            SpfAnalysis.Subject ??= string.Empty;
             await SpfAnalysis.AnalyzeSpfRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = spfRecord,
