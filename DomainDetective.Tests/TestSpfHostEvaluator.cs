@@ -7,7 +7,7 @@ namespace DomainDetective.Tests
 {
     public class TestSpfHostEvaluator
     {
-        [Fact(Skip="Pending fine-tuning; skip in CI for now")]
+        [Fact]
         public async Task EvaluateHost_Ip4_Pass()
         {
             var hc = new DomainDetective.DomainHealthCheck();
@@ -18,7 +18,7 @@ namespace DomainDetective.Tests
             Assert.Contains("ip4:192.0.2.0/24", eval.MatchedToken);
         }
 
-        [Fact(Skip="Pending fine-tuning; skip in CI for now")]
+        [Fact]
         public async Task EvaluateHost_All_Softfail()
         {
             var hc = new DomainDetective.DomainHealthCheck();
@@ -28,7 +28,7 @@ namespace DomainDetective.Tests
             Assert.Equal("all", eval.MatchedType);
         }
 
-        [Fact(Skip="Pending fine-tuning; skip in CI for now")]
+        [Fact]
         public async Task EvaluateHost_Include_Chain_Pass()
         {
             var hc = new DomainDetective.DomainHealthCheck();
@@ -52,7 +52,7 @@ namespace DomainDetective.Tests
             Assert.Contains("_spf.inc.test", eval.Chain);
         }
 
-        [Fact(Skip="Pending fine-tuning; skip in CI for now")]
+        [Fact]
         public async Task EvaluateHost_LookupsExceeded_PermError()        
         {
             var hc = new DomainDetective.DomainHealthCheck();

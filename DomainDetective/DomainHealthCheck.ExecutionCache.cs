@@ -26,6 +26,7 @@ public partial class DomainHealthCheck {
             _daneTask = null;
             _daneKey = null;
             _cacheDomain = null;
+            MailDomainClassification = null;
         }
     }
 

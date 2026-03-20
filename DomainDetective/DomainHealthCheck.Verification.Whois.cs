@@ -9,7 +9,10 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckWHOIS(string domain, CancellationToken cancellationToken = default) {
             var timeout = WhoisAnalysis.Timeout;
-            WhoisAnalysis = new WhoisAnalysis { Timeout = timeout };
+            WhoisAnalysis = new WhoisAnalysis {
+                Timeout = timeout,
+                DnsConfiguration = DnsConfiguration
+            };
             domain = NormalizeDomain(domain);
             UpdateIsPublicSuffix(domain);
             await WhoisAnalysis.QueryWhoisServer(domain, cancellationToken);

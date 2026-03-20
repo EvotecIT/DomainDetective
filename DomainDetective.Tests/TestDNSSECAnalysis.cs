@@ -3,7 +3,7 @@ using DomainDetective.Protocols;
 
 namespace DomainDetective.Tests {
     public class TestDnssecAnalysis {
-        [Fact(Skip = "Requires DNSSEC-capable resolver; skip in CI/offline environments.")]
+        [Fact]
         public async Task ValidateDnssecForDomain() {
             var healthCheck = new DomainHealthCheck { Verbose = false };
             await healthCheck.Verify("cloudflare.com", [HealthCheckType.DNSSEC]);

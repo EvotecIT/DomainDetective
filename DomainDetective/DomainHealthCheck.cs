@@ -398,6 +398,10 @@ namespace DomainDetective {
         /// <value>Multi-resolver DNS visibility summaries (per record type).</value>
         public DnsPropagationSetAnalysis DnsPropagationSet { get; private set; } = new DnsPropagationSetAnalysis();
 
+        /// <summary>Gets the cached mail domain classification result.</summary>
+        /// <value>Best-effort classification of the domain's mail posture.</value>
+        public MailDomainClassificationResult? MailDomainClassification { get; private set; }
+
         // Settings properties moved to DomainHealthCheck.Settings.cs
 
         /// <summary>

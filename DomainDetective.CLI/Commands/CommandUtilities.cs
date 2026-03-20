@@ -17,7 +17,54 @@ namespace DomainDetective.CLI;
 /// </summary>
 internal static class CommandUtilities {
     internal static readonly string[] CheckNames = Enum.GetNames<HealthCheckType>();
+    internal static readonly string[] DomainCheckNames = Enum
+        .GetValues<HealthCheckType>()
+        .Where(DomainHealthCheck.SupportsDomainVerification)
+        .Select(static check => check.ToString())
+        .ToArray();
     internal static readonly string[] PortProfileNames = Enum.GetNames<PortScanProfile>();
+
+    internal static HealthCheckType[] ParseDomainChecks(
+        IEnumerable<string> rawChecks,
+        out IReadOnlyList<string> invalidChecks,
+        out IReadOnlyList<HealthCheckType> unsupportedChecks)
+    {
+        var selected = new List<HealthCheckType>();
+        var invalid = new List<string>();
+
+        foreach (var rawCheck in rawChecks ?? Array.Empty<string>())
+        {
+            if (string.IsNullOrWhiteSpace(rawCheck))
+            {
+                continue;
+            }
+
+            foreach (var token in rawCheck.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (Enum.TryParse<HealthCheckType>(token, true, out var type))
+                {
+                    selected.Add(type);
+                }
+                else
+                {
+                    invalid.Add(token);
+                }
+            }
+        }
+
+        invalidChecks = invalid
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        unsupportedChecks = selected
+            .Where(type => !DomainHealthCheck.SupportsDomainVerification(type))
+            .Distinct()
+            .ToArray();
+
+        return selected
+            .Where(DomainHealthCheck.SupportsDomainVerification)
+            .Distinct()
+            .ToArray();
+    }
 
     internal static DnsEndpoint[]? ParseDnsEndpoints(string[]? raw, out List<string> invalid)
     {
@@ -153,7 +200,7 @@ internal static class CommandUtilities {
             .Title("Select checks to run")
             .NotRequired()
             .InstructionsText("[grey](Press [blue]space[/] to toggle, [green]enter[/] to accept)[/]")
-            .AddChoices(CheckNames);
+            .AddChoices(DomainCheckNames);
 
         var selected = AnsiConsole.Prompt(checkPrompt);
         var checks = selected.Count > 0
@@ -265,40 +312,10 @@ internal static class CommandUtilities {
                 continue;
             }
 
-            var activeChecks = checks ?? Enum.GetValues<HealthCheckType>();
+            var activeChecks = checks ?? DomainHealthCheck.DefaultChecks;
+            var analysisMap = hc.GetAnalysisMap();
             foreach (var check in activeChecks) {
-                object? data = check switch {
-                    HealthCheckType.DMARC => hc.DmarcAnalysis,
-                    HealthCheckType.SPF => hc.SpfAnalysis,
-                    HealthCheckType.DKIM => hc.DKIMAnalysis,
-                    HealthCheckType.MX => hc.MXAnalysis,
-                    HealthCheckType.REVERSEDNS => hc.ReverseDnsAnalysis,
-                    HealthCheckType.FCRDNS => hc.FcrDnsAnalysis,
-                    HealthCheckType.CAA => hc.CAAAnalysis,
-                    HealthCheckType.NS => hc.NSAnalysis,
-                    HealthCheckType.DELEGATION => hc.NSAnalysis,
-                    HealthCheckType.ZONETRANSFER => hc.ZoneTransferAnalysis,
-                    HealthCheckType.DANE => hc.DaneAnalysis,
-                    HealthCheckType.DNSBL => hc.DNSBLAnalysis,
-                    HealthCheckType.DNSSEC => hc.DnsSecAnalysis,
-                    HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
-                    HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
-                    HealthCheckType.ARC => hc.ArcAnalysis,
-                    HealthCheckType.DANGLINGCNAME => hc.DanglingCnameAnalysis,
-                    HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis,
-                    HealthCheckType.IMAPTLS => hc.ImapTlsAnalysis,
-                    HealthCheckType.POP3TLS => hc.Pop3TlsAnalysis,
-                    HealthCheckType.PORTAVAILABILITY => hc.PortAvailabilityAnalysis,
-                    HealthCheckType.PORTSCAN => hc.PortScanAnalysis,
-                    HealthCheckType.IPNEIGHBOR => hc.IPNeighborAnalysis,
-                    HealthCheckType.DNSTUNNELING => hc.DnsTunnelingAnalysis,
-                    HealthCheckType.WILDCARDDNS => hc.WildcardDnsAnalysis,
-                    HealthCheckType.EDNSSUPPORT => hc.EdnsSupportAnalysis,
-                    HealthCheckType.DNSHEALTH => hc.DnsHealthAnalysis,
-                    HealthCheckType.DNSAMPLIFICATION => hc.DnsAmplificationAnalysis,
-                    HealthCheckType.DNSOVERTLS => hc.DnsOverTlsAnalysis,
-                    _ => null
-                };
+                analysisMap.TryGetValue(check, out var data);
                 if (data != null) {
                     var desc = DomainHealthCheck.GetCheckDescription(check);
                     var header = desc != null ? $"{check} for {domain} - {desc.Summary}" : $"{check} for {domain}";

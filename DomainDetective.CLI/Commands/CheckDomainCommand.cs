@@ -108,11 +108,17 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             .Select(CliHelpers.ToAscii)
             .ToArray();
 
-        var selected = new List<HealthCheckType>();
-        foreach (var check in settings.Checks.SelectMany(c => c.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))) {
-            if (Enum.TryParse<HealthCheckType>(check, true, out var type)) {
-                selected.Add(type);
-            }
+        var selected = CommandUtilities.ParseDomainChecks(settings.Checks, out var invalidChecks, out var unsupportedChecks);
+        if (invalidChecks.Count > 0)
+        {
+            var joined = string.Join(", ", invalidChecks);
+            AnsiConsole.MarkupLine($"[yellow]Ignoring invalid --checks value(s):[/] {joined}");
+        }
+        if (unsupportedChecks.Count > 0)
+        {
+            var joined = string.Join(", ", unsupportedChecks);
+            throw new InvalidOperationException(
+                $"The following checks require specialized input and cannot be used with 'check': {joined}.");
         }
 
         int[]? danePorts = null;
@@ -134,7 +140,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
 
         await CommandUtilities.RunChecks(
             settings.Domains,
-            selected.Count > 0 ? selected.ToArray() : null,
+            selected.Length > 0 ? selected : null,
             settings.CheckHttp,
             settings.CheckWeb,
             settings.CheckTakeover,

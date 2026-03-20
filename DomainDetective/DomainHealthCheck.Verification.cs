@@ -43,6 +43,35 @@ public partial class DomainHealthCheck {
             return $"_{port}._tcp.{domain}";
         }
 
+        /// <summary>
+        /// Determines whether a health check can run from a domain or host input alone.
+        /// </summary>
+        /// <param name="healthCheckType">Health check to evaluate.</param>
+        /// <returns><c>true</c> when <see cref="Verify"/> can execute the check directly.</returns>
+        public static bool SupportsDomainVerification(HealthCheckType healthCheckType) {
+            switch (healthCheckType) {
+                case HealthCheckType.ARC:
+                case HealthCheckType.SMIMEA:
+                    return false;
+                default:
+                    return true;
+            }
+        }
+
+        private static void ValidateDomainVerificationTypes(IEnumerable<HealthCheckType> healthCheckTypes) {
+            var unsupported = healthCheckTypes
+                .Where(type => !SupportsDomainVerification(type))
+                .Distinct()
+                .ToArray();
+            if (unsupported.Length == 0) {
+                return;
+            }
+
+            throw new ArgumentException(
+                $"The following health checks require specialized input and cannot be executed via Verify(domain): {string.Join(", ", unsupported)}.",
+                nameof(healthCheckTypes));
+        }
+
         private static void ValidateServiceQueryProtocol(string query) {
             bool hasTcp = query.IndexOf("._tcp.", StringComparison.OrdinalIgnoreCase) >= 0;
             bool hasUdp = query.IndexOf("._udp.", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -113,6 +142,7 @@ public partial class DomainHealthCheck {
             }
 
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();
+            ValidateDomainVerificationTypes(healthCheckTypes);
 
             var totalChecks = healthCheckTypes.Length;
             var processedChecks = 0;
@@ -129,6 +159,8 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.DELEGATION] = () => VerifyDelegation(domainName, cancellationToken),
                 [HealthCheckType.ZONETRANSFER] = () => VerifyZoneTransfer(domainName, cancellationToken),
                 [HealthCheckType.DANE] = () => VerifyDaneAsync(domainName, daneServiceType, danePorts, cancellationToken),
+                [HealthCheckType.WEBSITE] = () => VerifyWebsiteAsync(domainName, cancellationToken),
+                [HealthCheckType.SPFFLATTENED] = () => VerifySpfFlattenedAsync(domainName, cancellationToken),
                 [HealthCheckType.DNSSEC] = () => VerifyDNSSEC(domainName, cancellationToken),
                 [HealthCheckType.DNSBL] = () => VerifyDNSBL(domainName, cancellationToken),
                 [HealthCheckType.MTASTS] = () => VerifyMTASTS(domainName, cancellationToken),
@@ -158,10 +190,12 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.PORTAVAILABILITY] = () => CheckPortAvailability(domainName, null, cancellationToken),
                 [HealthCheckType.PORTSCAN] = () => ScanPorts(domainName, null, portScanProfiles, cancellationToken),
                 [HealthCheckType.SNMP] = () => CheckSnmpHost(domainName, 161, cancellationToken),
+                [HealthCheckType.NTP] = () => TestNtpServer(domainName, cancellationToken: cancellationToken),
                 [HealthCheckType.IPNEIGHBOR] = () => CheckIPNeighbors(domainName, cancellationToken),
                 [HealthCheckType.IPENRICHMENT] = () => VerifyIpEnrichmentAsync(domainName, cancellationToken),
                 [HealthCheckType.RPKI] = () => VerifyRPKI(domainName, cancellationToken),
                 [HealthCheckType.RDAP] = () => QueryRDAP(domainName, cancellationToken),
+                [HealthCheckType.WHOIS] = () => CheckWHOIS(domainName, cancellationToken),
                 [HealthCheckType.DNSTUNNELING] = () => CheckDnsTunnelingAsync(domainName, cancellationToken),
                 [HealthCheckType.TYPOSQUATTING] = () => VerifyTyposquatting(domainName, cancellationToken),
                 [HealthCheckType.WILDCARDDNS] = () => VerifyWildcardDns(domainName),
@@ -171,6 +205,7 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.DNSOVERTLS] = () => VerifyDnsOverTls(domainName, cancellationToken),
                 [HealthCheckType.FLATTENINGSERVICE] = () => VerifyFlatteningServiceAsync(domainName, cancellationToken),
                 [HealthCheckType.APEXADDRESS] = () => VerifyApexAddresses(domainName, cancellationToken),
+                [HealthCheckType.MAILCLASSIFICATION] = () => VerifyMailClassificationAsync(domainName, cancellationToken),
                 [HealthCheckType.THREATINTEL] = () => VerifyThreatIntel(domainName, cancellationToken),
                 [HealthCheckType.THREATFEED] = () => VerifyThreatFeed(domainName, cancellationToken),
 	                [HealthCheckType.DIRECTORYEXPOSURE] = () => VerifyDirectoryExposure(domainName, cancellationToken),
@@ -259,6 +294,19 @@ public partial class DomainHealthCheck {
             try { ComputeEmailProviderMatch(); } catch { /* non-fatal */ }
     }
 
+        private async Task VerifyWebsiteAsync(string domainName, CancellationToken cancellationToken) {
+            await VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await VerifyWebsiteHttps(domainName, cancellationToken).ConfigureAwait(false);
+        }
+
+        private Task VerifySpfFlattenedAsync(string domainName, CancellationToken cancellationToken)
+            => VerifySPF(domainName, cancellationToken);
+
+        private async Task VerifyMailClassificationAsync(string domainName, CancellationToken cancellationToken) {
+            var classifier = new MailDomainClassifier(this, _logger);
+            MailDomainClassification = await classifier.ClassifyAsync(domainName, cancellationToken).ConfigureAwait(false);
+        }
+
         private void ApplyExecutionOptions(HealthCheckExecutionOptions options) {
             var effectiveMax = options.GetEffectiveMaxParallelism();
             var effectiveDns = options.GetEffectiveDnsParallelism();
@@ -300,16 +348,29 @@ public partial class DomainHealthCheck {
         /// <summary>Creates a high level summary of key analyses.</summary>
         /// <returns>A populated <see cref="DomainSummary"/>.</returns>
         public DomainSummary BuildSummary() {
-            var spfValid = SpfAnalysis.SpfRecordExists && SpfAnalysis.StartsCorrectly &&
-                            !SpfAnalysis.ExceedsDnsLookups && !SpfAnalysis.MultipleSpfRecords;
+            var spf = SpfAnalysis;
+            var dmarc = DmarcAnalysis;
+            var dkim = DKIMAnalysis;
+            var whois = WhoisAnalysis;
 
-            var dmarcValid = DmarcAnalysis.DmarcRecordExists && DmarcAnalysis.StartsCorrectly &&
-                             DmarcAnalysis.HasMandatoryTags && DmarcAnalysis.IsPolicyValid &&
-                             DmarcAnalysis.IsPctValid && !DmarcAnalysis.MultipleRecords &&
-                             !DmarcAnalysis.ExceedsCharacterLimit && DmarcAnalysis.ValidDkimAlignment &&
-                             DmarcAnalysis.ValidSpfAlignment;
+            var spfValid = spf != null &&
+                           spf.SpfRecordExists &&
+                           spf.StartsCorrectly &&
+                           !spf.ExceedsDnsLookups &&
+                           !spf.MultipleSpfRecords;
 
-            var dkimValid = DKIMAnalysis.AnalysisResults.Values.Any(a =>
+            var dmarcValid = dmarc != null &&
+                             dmarc.DmarcRecordExists &&
+                             dmarc.StartsCorrectly &&
+                             dmarc.HasMandatoryTags &&
+                             dmarc.IsPolicyValid &&
+                             dmarc.IsPctValid &&
+                             !dmarc.MultipleRecords &&
+                             !dmarc.ExceedsCharacterLimit &&
+                             dmarc.ValidDkimAlignment &&
+                             dmarc.ValidSpfAlignment;
+
+            var dkimValid = dkim != null && dkim.AnalysisResults.Values.Any(a =>
                 a.DkimRecordExists && a.StartsCorrectly && a.PublicKeyExists &&
                 a.ValidPublicKey && a.KeyTypeExists && a.ValidKeyType && a.ValidFlags);
 
@@ -337,28 +398,28 @@ public partial class DomainHealthCheck {
             if (!(DnsSecAnalysis?.ChainValid ?? false)) {
                 AddHint(hints, HealthCheckType.DNSSEC);
             }
-            if (WhoisAnalysis.IsExpired || WhoisAnalysis.ExpiresSoon) {
+            if (whois?.IsExpired == true || whois?.ExpiresSoon == true) {
                 hints.Add("Renew the domain registration.");
             }
 
             return new DomainSummary {
-                HasSpfRecord = SpfAnalysis.SpfRecordExists,
+                HasSpfRecord = spf?.SpfRecordExists ?? false,
                 SpfValid = spfValid,
-                HasDmarcRecord = DmarcAnalysis.DmarcRecordExists,
-                DmarcPolicy = DmarcAnalysis.Policy,
+                HasDmarcRecord = dmarc?.DmarcRecordExists ?? false,
+                DmarcPolicy = dmarc?.Policy ?? string.Empty,
                 DmarcValid = dmarcValid,
-                HasDkimRecord = DKIMAnalysis.AnalysisResults.Values.Any(a => a.DkimRecordExists),
+                HasDkimRecord = dkim?.AnalysisResults.Values.Any(a => a.DkimRecordExists) ?? false,
                 DkimValid = dkimValid,
                 HasMxRecord = MXAnalysis?.MxRecordExists ?? false,
                 DnsSecValid = DnsSecAnalysis?.ChainValid ?? false,
                 DnsSecKeyExpiresSoon = DnsSecAnalysis?.KeyExpiresSoon ?? false,
                 IsPublicSuffix = IsPublicSuffix,
-                ExpiryDate = WhoisAnalysis.ExpiryDate ?? string.Empty,
-                DaysUntilExpiration = WhoisAnalysis.DaysUntilExpiration,
-                ExpiresSoon = WhoisAnalysis.ExpiresSoon,
-                IsExpired = WhoisAnalysis.IsExpired,
-                RegistrarLocked = WhoisAnalysis.RegistrarLocked,
-                PrivacyProtected = WhoisAnalysis.PrivacyProtected,
+                ExpiryDate = whois?.ExpiryDate ?? string.Empty,
+                DaysUntilExpiration = whois?.DaysUntilExpiration ?? 0,
+                ExpiresSoon = whois?.ExpiresSoon ?? false,
+                IsExpired = whois?.IsExpired ?? false,
+                RegistrarLocked = whois?.RegistrarLocked ?? false,
+                PrivacyProtected = whois?.PrivacyProtected ?? false,
                 Hints = hints.ToArray()
             };
         }
@@ -477,7 +538,10 @@ public partial class DomainHealthCheck {
             };
 
             filtered.DmarcAnalysis = active.Contains(HealthCheckType.DMARC) ? CloneAnalysis(DmarcAnalysis) : null!;
-            filtered.SpfAnalysis = active.Contains(HealthCheckType.SPF) ? CloneAnalysis(SpfAnalysis) : null!;
+            filtered.SpfAnalysis =
+                active.Contains(HealthCheckType.SPF) || active.Contains(HealthCheckType.SPFFLATTENED)
+                    ? CloneAnalysis(SpfAnalysis)
+                    : null!;
             filtered.DKIMAnalysis = active.Contains(HealthCheckType.DKIM) ? CloneAnalysis(DKIMAnalysis) : null!;
             filtered.MXAnalysis = active.Contains(HealthCheckType.MX) ? CloneAnalysis(MXAnalysis) : null!;
             filtered.ReverseDnsAnalysis = active.Contains(HealthCheckType.REVERSEDNS) ? CloneAnalysis(ReverseDnsAnalysis) : null!;
@@ -489,6 +553,7 @@ public partial class DomainHealthCheck {
                     : null!;
             filtered.ZoneTransferAnalysis = active.Contains(HealthCheckType.ZONETRANSFER) ? CloneAnalysis(ZoneTransferAnalysis) : null!;
             filtered.DaneAnalysis = active.Contains(HealthCheckType.DANE) ? CloneAnalysis(DaneAnalysis) : null!;
+            filtered.SmimeaAnalysis = active.Contains(HealthCheckType.SMIMEA) ? CloneAnalysis(SmimeaAnalysis) : null!;
             filtered.DNSBLAnalysis = active.Contains(HealthCheckType.DNSBL) ? CloneAnalysis(DNSBLAnalysis) : null!;
             filtered.DnsSecAnalysis = active.Contains(HealthCheckType.DNSSEC) ? CloneAnalysis(DnsSecAnalysis) : null!;
             filtered.MTASTSAnalysis = active.Contains(HealthCheckType.MTASTS) ? CloneAnalysis(MTASTSAnalysis) : null!;
@@ -498,9 +563,15 @@ public partial class DomainHealthCheck {
             filtered.Microsoft365TenantAnalysis = active.Contains(HealthCheckType.MICROSOFT365) ? CloneAnalysis(Microsoft365TenantAnalysis) : null!;
             filtered.AutodiscoverAnalysis = active.Contains(HealthCheckType.AUTODISCOVER) ? CloneAnalysis(AutodiscoverAnalysis) : null!;
             filtered.AutodiscoverHttpAnalysis = active.Contains(HealthCheckType.AUTODISCOVER) ? CloneAnalysis(AutodiscoverHttpAnalysis) : null!;
-            filtered.CertificateAnalysis = active.Contains(HealthCheckType.CERT) ? CloneAnalysis(CertificateAnalysis) : null!;
+            filtered.CertificateAnalysis =
+                active.Contains(HealthCheckType.CERT) || active.Contains(HealthCheckType.WEBSITE)
+                    ? CloneAnalysis(CertificateAnalysis)
+                    : null!;
             filtered.SecurityTXTAnalysis = active.Contains(HealthCheckType.SECURITYTXT) ? CloneAnalysis(SecurityTXTAnalysis) : null!;
+            filtered.RobotsTxtAnalysis = active.Contains(HealthCheckType.ROBOTS) ? CloneAnalysis(RobotsTxtAnalysis) : null!;
             filtered.SOAAnalysis = active.Contains(HealthCheckType.SOA) ? CloneAnalysis(SOAAnalysis) : null!;
+            filtered.WhoisAnalysis = active.Contains(HealthCheckType.WHOIS) ? CloneAnalysis(WhoisAnalysis) : null!;
+            filtered.RdapAnalysis = active.Contains(HealthCheckType.RDAP) ? CloneAnalysis(RdapAnalysis) : null!;
             filtered.OpenRelayAnalysis = active.Contains(HealthCheckType.OPENRELAY) ? CloneAnalysis(OpenRelayAnalysis) : null!;
             filtered.OpenResolverAnalysis = active.Contains(HealthCheckType.OPENRESOLVER) ? CloneAnalysis(OpenResolverAnalysis) : null!;
             filtered.StartTlsAnalysis = active.Contains(HealthCheckType.STARTTLS) ? CloneAnalysis(StartTlsAnalysis) : null!;
@@ -510,7 +581,10 @@ public partial class DomainHealthCheck {
             filtered.SmtpBannerAnalysis = active.Contains(HealthCheckType.SMTPBANNER) ? CloneAnalysis(SmtpBannerAnalysis) : null!;
             filtered.SmtpAuthAnalysis = active.Contains(HealthCheckType.SMTPAUTH) ? CloneAnalysis(SmtpAuthAnalysis) : null!;
             filtered.MailLatencyAnalysis = active.Contains(HealthCheckType.MAILLATENCY) ? CloneAnalysis(MailLatencyAnalysis) : null!;
-            filtered.HttpAnalysis = active.Contains(HealthCheckType.HTTP) ? CloneAnalysis(HttpAnalysis) : null!;
+            filtered.HttpAnalysis =
+                active.Contains(HealthCheckType.HTTP) || active.Contains(HealthCheckType.WEBSITE)
+                    ? CloneAnalysis(HttpAnalysis)
+                    : null!;
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null!;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null!;
             filtered.MessageHeaderAnalysis = active.Contains(HealthCheckType.MESSAGEHEADER) ? CloneAnalysis(MessageHeaderAnalysis) : null!;
@@ -521,17 +595,30 @@ public partial class DomainHealthCheck {
             filtered.PortScanAnalysis = active.Contains(HealthCheckType.PORTSCAN) ? CloneAnalysis(PortScanAnalysis) : null!;
             filtered.SnmpAnalysis = active.Contains(HealthCheckType.SNMP) ? CloneAnalysis(SnmpAnalysis) : null!;
             filtered.IPNeighborAnalysis = active.Contains(HealthCheckType.IPNEIGHBOR) ? CloneAnalysis(IPNeighborAnalysis) : null!;
+            filtered.IpEnrichmentAnalysis = active.Contains(HealthCheckType.IPENRICHMENT) ? CloneAnalysis(IpEnrichmentAnalysis) : null!;
             filtered.DnsTunnelingAnalysis = active.Contains(HealthCheckType.DNSTUNNELING) ? CloneAnalysis(DnsTunnelingAnalysis) : null!;
             filtered.TyposquattingAnalysis = active.Contains(HealthCheckType.TYPOSQUATTING) ? CloneAnalysis(TyposquattingAnalysis) : null!;
             filtered.ThreatIntelAnalysis = active.Contains(HealthCheckType.THREATINTEL) ? CloneAnalysis(ThreatIntelAnalysis) : null!;
             filtered.ThreatFeedAnalysis = active.Contains(HealthCheckType.THREATFEED) ? CloneAnalysis(ThreatFeedAnalysis) : null!;
             filtered.WildcardDnsAnalysis = active.Contains(HealthCheckType.WILDCARDDNS) ? CloneAnalysis(WildcardDnsAnalysis) : null!;
             filtered.EdnsSupportAnalysis = active.Contains(HealthCheckType.EDNSSUPPORT) ? CloneAnalysis(EdnsSupportAnalysis) : null!;
+            filtered.DnsHealthAnalysis = active.Contains(HealthCheckType.DNSHEALTH) ? CloneAnalysis(DnsHealthAnalysis) : null!;
             filtered.DnsAmplificationAnalysis = active.Contains(HealthCheckType.DNSAMPLIFICATION) ? CloneAnalysis(DnsAmplificationAnalysis) : null!;
             filtered.DnsOverTlsAnalysis = active.Contains(HealthCheckType.DNSOVERTLS) ? CloneAnalysis(DnsOverTlsAnalysis) : null!;
             filtered.FlatteningServiceAnalysis = active.Contains(HealthCheckType.FLATTENINGSERVICE) ? CloneAnalysis(FlatteningServiceAnalysis) : null!;
             filtered.DirectoryExposureAnalysis = active.Contains(HealthCheckType.DIRECTORYEXPOSURE) ? CloneAnalysis(DirectoryExposureAnalysis) : null!;
             filtered.NtpAnalysis = active.Contains(HealthCheckType.NTP) ? CloneAnalysis(NtpAnalysis) : null!;
+            filtered.ApexAddressAnalysis = active.Contains(HealthCheckType.APEXADDRESS) ? CloneAnalysis(ApexAddressAnalysis) : null!;
+            var mailDomainClassification = MailDomainClassification;
+            filtered.MailDomainClassification =
+                active.Contains(HealthCheckType.MAILCLASSIFICATION) && mailDomainClassification != null
+                    ? CloneAnalysis(mailDomainClassification)
+                    : null;
+            filtered.SubdomainsAnalysis = active.Contains(HealthCheckType.SUBDOMAINS) ? CloneAnalysis(SubdomainsAnalysis) : null!;
+            filtered.DnsInventoryAnalysis = active.Contains(HealthCheckType.DNSINVENTORY) ? CloneAnalysis(DnsInventoryAnalysis) : null!;
+            filtered.DnsTraceAnalysis = active.Contains(HealthCheckType.DNSTRACE) ? CloneAnalysis(DnsTraceAnalysis) : null!;
+            filtered.CtTimelineAnalysis = active.Contains(HealthCheckType.CTTIMELINE) ? CloneAnalysis(CtTimelineAnalysis) : null!;
+            filtered.DnsPropagationSet = active.Contains(HealthCheckType.DNSPROPAGATION) ? CloneAnalysis(DnsPropagationSet) : null!;
 
             return filtered;
         }

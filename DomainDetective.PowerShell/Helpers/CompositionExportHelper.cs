@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using DomainDetective.Reports;
 using DomainDetective.Reports.Html;
+using DomainDetective.Reports.Markdown;
 using DomainDetective.Reports.Office;
 
 namespace DomainDetective.PowerShell;
@@ -75,6 +76,37 @@ internal static class CompositionExportHelper
                     titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? defaultTitle : ExportDefaults.NarrativeTitle,
                     authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
                     descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+
+                generatedPaths.Add(outputPath);
+                continue;
+            }
+
+            if (format == ReportFormat.Excel)
+            {
+                ExcelCompositionReport.Generate(outputPath, items, scope);
+                if (openInBrowser)
+                {
+                    openReport?.Invoke(outputPath);
+                }
+
+                generatedPaths.Add(outputPath);
+                continue;
+            }
+
+            if (format == ReportFormat.Markdown)
+            {
+                MarkdownCompositionReport.Generate(outputPath, items, scope);
+                generatedPaths.Add(outputPath);
+                continue;
+            }
+
+            if (format == ReportFormat.MarkdownHtml)
+            {
+                MarkdownCompositionReport.GenerateMarkdownHtml(outputPath, items, scope);
+                if (openInBrowser)
+                {
+                    openReport?.Invoke(outputPath);
+                }
 
                 generatedPaths.Add(outputPath);
                 continue;
