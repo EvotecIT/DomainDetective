@@ -149,7 +149,7 @@ public partial class DomainHealthCheck {
 
             var actions = new Dictionary<HealthCheckType, Func<Task>> {
                 [HealthCheckType.DMARC] = () => VerifyDMARC(domainName, cancellationToken),
-                [HealthCheckType.SPF] = () => VerifySPF(domainName, cancellationToken),
+                [HealthCheckType.SPF] = () => EnsureSpfAsync(domainName, cancellationToken),
                 [HealthCheckType.DKIM] = () => VerifyDKIM(domainName, dkimSelectors ?? Definitions.DKIMSelectors.GuessSelectors().ToArray(), exec.IncludeMissingDkimSelectors, cancellationToken),
                 [HealthCheckType.MX] = () => VerifyMX(domainName, cancellationToken),
                 [HealthCheckType.REVERSEDNS] = () => VerifyReverseDnsAsync(domainName, cancellationToken),
@@ -292,15 +292,16 @@ public partial class DomainHealthCheck {
 
             // Compute provider inference once core mail checks ran (best-effort; safe if some were skipped)
             try { ComputeEmailProviderMatch(); } catch { /* non-fatal */ }
-    }
+        }
 
         private async Task VerifyWebsiteAsync(string domainName, CancellationToken cancellationToken) {
-            await VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken).ConfigureAwait(false);
-            await VerifyWebsiteHttps(domainName, cancellationToken).ConfigureAwait(false);
+            await Task.WhenAll(
+                VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken),
+                VerifyWebsiteHttps(domainName, cancellationToken)).ConfigureAwait(false);
         }
 
         private Task VerifySpfFlattenedAsync(string domainName, CancellationToken cancellationToken)
-            => VerifySPF(domainName, cancellationToken);
+            => EnsureSpfAsync(domainName, cancellationToken);
 
         private async Task VerifyMailClassificationAsync(string domainName, CancellationToken cancellationToken) {
             var classifier = new MailDomainClassifier(this, _logger);

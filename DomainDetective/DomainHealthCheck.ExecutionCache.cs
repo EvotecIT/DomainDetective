@@ -9,6 +9,7 @@ namespace DomainDetective;
 
 public partial class DomainHealthCheck {
     private readonly object _executionLock = new object();
+    private Task? _spfTask;
     private Task<DnsAnswer[]>? _mxRecordsTask;
     private Task<string[]>? _mxHostsTask;
     private Dictionary<int, Task>? _smtpTlsTasks;
@@ -19,6 +20,7 @@ public partial class DomainHealthCheck {
 
     private void ResetExecutionState() {
         lock (_executionLock) {
+            _spfTask = null;
             _mxRecordsTask = null;
             _mxHostsTask = null;
             _smtpTlsTasks = null;
@@ -38,6 +40,7 @@ public partial class DomainHealthCheck {
 
     private void EnsureCacheDomainLocked(string domainName) {
         if (!string.Equals(_cacheDomain, domainName, StringComparison.OrdinalIgnoreCase)) {
+            _spfTask = null;
             _mxRecordsTask = null;
             _mxHostsTask = null;
             _smtpTlsTasks = null;
@@ -134,4 +137,14 @@ public partial class DomainHealthCheck {
 
     internal Task<DnsAnswer[]> GetMxRecordsAsyncForTest(string domainName, CancellationToken cancellationToken)
         => GetMxRecordsAsync(domainName, cancellationToken);
+
+    private Task EnsureSpfAsync(string domainName, CancellationToken cancellationToken) {
+        lock (_executionLock) {
+            EnsureCacheDomainLocked(domainName);
+            if (_spfTask == null) {
+                _spfTask = VerifySPF(domainName, cancellationToken);
+            }
+            return _spfTask;
+        }
+    }
 }
