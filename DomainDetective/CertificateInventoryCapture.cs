@@ -35,6 +35,13 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>When true, CT-discovered subdomains are DNS-verified before inclusion.</summary>
     public bool VerifyCtDiscoveredSubdomains { get; set; }
 
+    /// <summary>
+    /// When true, CT-discovered subdomains are promoted into HTTPS probe targets for the current capture.
+    /// Disable this for discovery-only lanes that should persist names now and let a later capture decide
+    /// which discovered hosts are worth probing.
+    /// </summary>
+    public bool PromoteCtDiscoveredSubdomainsToHttpsProbes { get; set; } = true;
+
     /// <summary>Maximum CT rows processed per domain while discovering CT subdomains (0 means no explicit cap override).</summary>
     public int MaxCtRowsPerDomain { get; set; } = 10_000;
 
@@ -107,6 +114,13 @@ public sealed class CertificateInventoryCaptureOptions {
 
     /// <summary>Cooldown applied to passive/public CT sources after transient failures or rate limits.</summary>
     public TimeSpan PassiveCtSourceCooldown { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Maximum number of concurrent passive/public CT network queries issued at once.
+    /// This is intentionally separate from <see cref="DiscoveryParallelism"/> so DNS/native CT work
+    /// can remain wide while rate-limited passive CT providers are queried more gently.
+    /// </summary>
+    public int PassiveCtParallelism { get; set; } = 4;
 
     /// <summary>Native CT log list URL used to resolve trusted CT logs.</summary>
     public string NativeCtLogListUrl { get; set; } = "https://www.gstatic.com/ct/log_list/v3/log_list.json";
@@ -552,6 +566,9 @@ public sealed partial class CertificateInventoryCapture {
         if (options.PassiveCtSourceCooldown < TimeSpan.Zero) {
             throw new ArgumentOutOfRangeException(nameof(options.PassiveCtSourceCooldown), "PassiveCtSourceCooldown must be non-negative.");
         }
+        if (options.PassiveCtParallelism < 1) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtParallelism), "PassiveCtParallelism must be at least 1.");
+        }
         if (options.NativeCtCircuitBreakerFailureThreshold < 1) {
             throw new ArgumentOutOfRangeException(nameof(options.NativeCtCircuitBreakerFailureThreshold), "NativeCtCircuitBreakerFailureThreshold must be 1 or greater.");
         }
@@ -601,7 +618,13 @@ public sealed partial class CertificateInventoryCapture {
                 normalizedCtDiscoveryDomains.Count,
                 normalizedDomains.Count);
         }
-        logger.WriteVerbose("Capture settings: MaxParallelism={0}, DiscoveryParallelism={1}, MaxTargets={2}, MaxProbeStartsPerSecond={3}.", options.MaxParallelism, options.DiscoveryParallelism, options.MaxTargets, options.MaxProbeStartsPerSecond);
+        logger.WriteVerbose(
+            "Capture settings: MaxParallelism={0}, DiscoveryParallelism={1}, PassiveCtParallelism={2}, MaxTargets={3}, MaxProbeStartsPerSecond={4}.",
+            options.MaxParallelism,
+            options.DiscoveryParallelism,
+            options.PassiveCtParallelism,
+            options.MaxTargets,
+            options.MaxProbeStartsPerSecond);
         AdvanceStage("Domain normalization");
 
         var mxHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1036,6 +1059,10 @@ public sealed partial class CertificateInventoryCapture {
         SubdomainDiscoveryEntry subdomain,
         CertificateInventoryCaptureOptions options) {
         if (subdomain == null) {
+            return false;
+        }
+
+        if (!options.PromoteCtDiscoveredSubdomainsToHttpsProbes) {
             return false;
         }
 

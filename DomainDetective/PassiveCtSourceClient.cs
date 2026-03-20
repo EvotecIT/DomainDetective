@@ -16,6 +16,7 @@ internal sealed class PassiveCtSourceClient
         public DateTimeOffset CooldownUntilUtc { get; set; }
         public int ConsecutiveFailures { get; set; }
         public DateTimeOffset LastSuccessUtc { get; set; }
+        public DateTimeOffset LastCooldownAnnouncementUtc { get; set; }
     }
 
     internal readonly record struct SourceHealthSnapshot(
@@ -65,6 +66,7 @@ internal sealed class PassiveCtSourceClient
     }
 
     private static readonly ConcurrentDictionary<string, SourceState> SharedSourceStates = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> SharedSourceGates = new(StringComparer.OrdinalIgnoreCase);
     private static int _rotationCursor = -1;
 
     public async Task<QueryResult> QueryAsync(
@@ -89,137 +91,157 @@ internal sealed class PassiveCtSourceClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (useSharedSourceState &&
-                TryGetCooldown(request.SourceName, out DateTimeOffset cooldownUntilUtc))
+            SemaphoreSlim? sourceGate = null;
+            if (useSharedSourceState)
             {
-                result.RetrySuggested = true;
-                string cooldownMessage =
-                    "Passive CT source '" +
-                    request.SourceName +
-                    "' is cooling down until " +
-                    cooldownUntilUtc.ToString("u") +
-                    "; check later or let the next run retry.";
-                result.Warnings.Add(cooldownMessage);
-                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
-                {
-                    SourceName = request.SourceName,
-                    RequestUrl = request.Url,
-                    State = "CoolingDown",
-                    RetrySuggested = true,
-                    CooldownUntilUtc = cooldownUntilUtc
-                });
-                logger?.WriteVerbose("{0}", cooldownMessage);
-                continue;
+                sourceGate = SharedSourceGates.GetOrAdd(
+                    request.SourceName,
+                    static _ => new SemaphoreSlim(1, 1));
+                await sourceGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            FetchOutcome outcome = await FetchSourceAsync(
-                request,
-                effectiveOptions,
-                queryOverride,
-                cancellationToken).ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(outcome.Payload))
+            try
             {
-                string? payloadValidationFailure = ValidatePayload(outcome.Payload!, effectiveOptions.PayloadValidator);
-                if (!string.IsNullOrWhiteSpace(payloadValidationFailure))
+                if (useSharedSourceState &&
+                    TryGetCooldown(request.SourceName, out DateTimeOffset cooldownUntilUtc))
                 {
+                    result.RetrySuggested = true;
+                    string cooldownMessage =
+                        "Passive CT source '" +
+                        request.SourceName +
+                        "' is cooling down until " +
+                        cooldownUntilUtc.ToString("u") +
+                        "; check later or let the next run retry.";
+                    result.Warnings.Add(cooldownMessage);
+                    result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = request.SourceName,
+                        RequestUrl = request.Url,
+                        State = "CoolingDown",
+                        RetrySuggested = true,
+                        CooldownUntilUtc = cooldownUntilUtc
+                    });
+                    if (!useSharedSourceState ||
+                        ShouldLogSharedCooldownMessage(request.SourceName, cooldownUntilUtc))
+                    {
+                        logger?.WriteVerbose("{0}", cooldownMessage);
+                    }
+                    continue;
+                }
+
+                FetchOutcome outcome = await FetchSourceAsync(
+                    request,
+                    effectiveOptions,
+                    queryOverride,
+                    cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(outcome.Payload))
+                {
+                    string? payloadValidationFailure = ValidatePayload(outcome.Payload!, effectiveOptions.PayloadValidator);
+                    if (!string.IsNullOrWhiteSpace(payloadValidationFailure))
+                    {
+                        result.RetrySuggested = true;
+                        string warning =
+                            "Passive CT source '" +
+                            request.SourceName +
+                            "' returned an invalid payload: " +
+                            payloadValidationFailure;
+                        warning += ".";
+
+                        result.Warnings.Add(warning);
+                        result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                        {
+                            SourceName = request.SourceName,
+                            RequestUrl = request.Url,
+                            State = "InvalidPayload",
+                            RetrySuggested = true,
+                            Failure = SanitizeFailureText(payloadValidationFailure)
+                        });
+                        logger?.WriteVerbose("{0}", warning);
+                        continue;
+                    }
+
+                    ResetState(request.SourceName);
+
+                    result.Payloads.Add(new SourcePayload
+                    {
+                        SourceName = request.SourceName,
+                        Url = request.Url,
+                        Payload = outcome.Payload!
+                    });
+                    result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = request.SourceName,
+                        RequestUrl = request.Url,
+                        State = "Succeeded"
+                    });
+                    if (!effectiveOptions.QueryAllSources)
+                    {
+                        break;
+                    }
+
+                    continue;
+                }
+
+                if (outcome.RetrySuggested)
+                {
+                    TimeSpan cooldown = outcome.RetryAfter.GetValueOrDefault(effectiveOptions.SourceCooldown);
+                    if (cooldown <= TimeSpan.Zero)
+                    {
+                        cooldown = effectiveOptions.SourceCooldown;
+                    }
+
                     result.RetrySuggested = true;
                     string warning =
                         "Passive CT source '" +
                         request.SourceName +
-                        "' returned an invalid payload: " +
-                        payloadValidationFailure;
-                    warning += ".";
+                        "' is temporarily unavailable";
+                    if (!string.IsNullOrWhiteSpace(outcome.Failure))
+                    {
+                        warning += ": " + outcome.Failure;
+                    }
+
+                    if (useSharedSourceState)
+                    {
+                        DateTimeOffset retryUtc = MarkTransientFailure(request.SourceName, cooldown);
+                        warning += ". Next retry after " + retryUtc.ToString("u") + ".";
+                    }
+                    else
+                    {
+                        warning += ".";
+                    }
 
                     result.Warnings.Add(warning);
                     result.Diagnostics.Add(new PassiveCtDiagnosticEntry
                     {
                         SourceName = request.SourceName,
                         RequestUrl = request.Url,
-                        State = "InvalidPayload",
+                        State = IsRateLimitedFailure(outcome.Failure, outcome.RetryAfter) ? "RateLimited" : "TemporarilyUnavailable",
                         RetrySuggested = true,
-                        Failure = SanitizeFailureText(payloadValidationFailure)
+                        CooldownUntilUtc = useSharedSourceState ? TryGetSourceCooldownUtc(request.SourceName) : null,
+                        RetryAfterSeconds = outcome.RetryAfter.HasValue
+                            ? (int?)Math.Ceiling(outcome.RetryAfter.Value.TotalSeconds)
+                            : null,
+                        Failure = SanitizeFailureText(outcome.Failure)
                     });
                     logger?.WriteVerbose("{0}", warning);
-                    continue;
                 }
-
-                ResetState(request.SourceName);
-
-                result.Payloads.Add(new SourcePayload
+                else if (!string.IsNullOrWhiteSpace(outcome.Failure))
                 {
-                    SourceName = request.SourceName,
-                    Url = request.Url,
-                    Payload = outcome.Payload!
-                });
-                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
-                {
-                    SourceName = request.SourceName,
-                    RequestUrl = request.Url,
-                    State = "Succeeded"
-                });
-                if (!effectiveOptions.QueryAllSources)
-                {
-                    break;
+                    string warning = "Passive CT source '" + request.SourceName + "' failed: " + outcome.Failure;
+                    result.Warnings.Add(warning);
+                    result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = request.SourceName,
+                        RequestUrl = request.Url,
+                        State = "Failed",
+                        Failure = SanitizeFailureText(outcome.Failure)
+                    });
+                    logger?.WriteVerbose("{0}", warning);
                 }
-
-                continue;
             }
-
-            if (outcome.RetrySuggested)
+            finally
             {
-                TimeSpan cooldown = outcome.RetryAfter.GetValueOrDefault(effectiveOptions.SourceCooldown);
-                if (cooldown <= TimeSpan.Zero)
-                {
-                    cooldown = effectiveOptions.SourceCooldown;
-                }
-
-                result.RetrySuggested = true;
-                string warning =
-                    "Passive CT source '" +
-                    request.SourceName +
-                    "' is temporarily unavailable";
-                if (!string.IsNullOrWhiteSpace(outcome.Failure))
-                {
-                    warning += ": " + outcome.Failure;
-                }
-
-                if (useSharedSourceState)
-                {
-                    DateTimeOffset retryUtc = MarkTransientFailure(request.SourceName, cooldown);
-                    warning += ". Next retry after " + retryUtc.ToString("u") + ".";
-                }
-                else
-                {
-                    warning += ".";
-                }
-
-                result.Warnings.Add(warning);
-                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
-                {
-                    SourceName = request.SourceName,
-                    RequestUrl = request.Url,
-                    State = IsRateLimitedFailure(outcome.Failure, outcome.RetryAfter) ? "RateLimited" : "TemporarilyUnavailable",
-                    RetrySuggested = true,
-                    CooldownUntilUtc = useSharedSourceState ? TryGetSourceCooldownUtc(request.SourceName) : null,
-                    RetryAfterSeconds = outcome.RetryAfter.HasValue
-                        ? (int?)Math.Ceiling(outcome.RetryAfter.Value.TotalSeconds)
-                        : null,
-                    Failure = SanitizeFailureText(outcome.Failure)
-                });
-                logger?.WriteVerbose("{0}", warning);
-            }
-            else if (!string.IsNullOrWhiteSpace(outcome.Failure))
-            {
-                string warning = "Passive CT source '" + request.SourceName + "' failed: " + outcome.Failure;
-                result.Warnings.Add(warning);
-                result.Diagnostics.Add(new PassiveCtDiagnosticEntry
-                {
-                    SourceName = request.SourceName,
-                    RequestUrl = request.Url,
-                    State = "Failed",
-                    Failure = SanitizeFailureText(outcome.Failure)
-                });
-                logger?.WriteVerbose("{0}", warning);
+                sourceGate?.Release();
             }
         }
 
@@ -320,6 +342,7 @@ internal sealed class PassiveCtSourceClient
             if (state.CooldownUntilUtc <= DateTimeOffset.UtcNow)
             {
                 state.CooldownUntilUtc = DateTimeOffset.MinValue;
+                state.LastCooldownAnnouncementUtc = DateTimeOffset.MinValue;
                 return false;
             }
 
@@ -387,12 +410,33 @@ internal sealed class PassiveCtSourceClient
             state.ConsecutiveFailures = 0;
             state.CooldownUntilUtc = DateTimeOffset.MinValue;
             state.LastSuccessUtc = DateTimeOffset.UtcNow;
+            state.LastCooldownAnnouncementUtc = DateTimeOffset.MinValue;
+        }
+    }
+
+    internal static bool ShouldLogSharedCooldownMessage(string sourceName, DateTimeOffset cooldownUntilUtc)
+    {
+        SourceState state = SharedSourceStates.GetOrAdd(sourceName, static _ => new SourceState());
+        lock (state)
+        {
+            if (cooldownUntilUtc <= state.LastCooldownAnnouncementUtc)
+            {
+                return false;
+            }
+
+            state.LastCooldownAnnouncementUtc = cooldownUntilUtc;
+            return true;
         }
     }
 
     internal static void ResetSharedStateForTesting()
     {
         SharedSourceStates.Clear();
+        foreach (SemaphoreSlim gate in SharedSourceGates.Values)
+        {
+            gate.Dispose();
+        }
+        SharedSourceGates.Clear();
         Interlocked.Exchange(ref _rotationCursor, -1);
     }
 

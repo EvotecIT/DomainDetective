@@ -206,41 +206,91 @@ public sealed partial class CertificateInventoryCapture {
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
-        var exactHostSeeds = seeds
+        List<string> exactHostSeeds = seeds
             .Where(static seed => seed != null && seed.IsExactHostSeed && !string.IsNullOrWhiteSpace(seed.Name))
             .Select(static seed => seed.Name.Trim())
-            .Where(host => !suppressedHosts.Contains(host.Trim().TrimEnd('.').ToLowerInvariant()))
-            .Where(host =>
-                targetedExactCtMetadataHosts.Count == 0 ||
-                targetedExactCtMetadataHosts.Contains(host.Trim().TrimEnd('.').ToLowerInvariant()))
-            .Where(name => !HasCtCertificateMetadata(existingEntries, name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (exactHostSeeds.Count == 0) {
+        IReadOnlyList<string> exactPassiveCtMetadataHosts = BuildExactPassiveCtMetadataCandidateHosts(
+            exactHostSeeds,
+            targetedExactCtMetadataHosts,
+            suppressedHosts,
+            existingEntries);
+        if (exactPassiveCtMetadataHosts.Count == 0) {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
         if (targetedExactCtMetadataHosts.Count > 0) {
             logger.WriteVerbose(
-                "CT metadata backfill: targeted exact passive CT metadata to {0} exact host seed(s) from {1} caller-supplied target host(s).",
-                exactHostSeeds.Count,
+                "CT metadata backfill: targeted exact passive CT metadata to {0} host(s) from {1} caller-supplied target host(s).",
+                exactPassiveCtMetadataHosts.Count,
                 targetedExactCtMetadataHosts.Count);
         }
 
         if (!TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out _)) {
             logger.WriteVerbose(
-                "CT metadata backfill: querying exact passive CT metadata for {0} exact host seed(s).",
-                exactHostSeeds.Count);
+                "CT metadata backfill: querying exact passive CT metadata for {0} host(s).",
+                exactPassiveCtMetadataHosts.Count);
         }
 
         return await BackfillMissingCtCertificateMetadataExactAsync(
-            exactHostSeeds,
+            exactPassiveCtMetadataHosts,
             options,
             warnings,
             passiveCtDiagnosticEntries,
             logger,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static IReadOnlyList<string> BuildExactPassiveCtMetadataCandidateHosts(
+        IEnumerable<string>? exactHostSeeds,
+        IEnumerable<string>? targetedExactCtMetadataHosts,
+        ISet<string>? suppressedHosts,
+        IReadOnlyDictionary<string, SubdomainDiscoveryEntry>? existingEntries) {
+        var candidateHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> targetedHosts = targetedExactCtMetadataHosts == null
+            ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            : targetedExactCtMetadataHosts
+                .Where(static host => !string.IsNullOrWhiteSpace(host))
+                .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        void TryAddCandidate(string? host) {
+            if (string.IsNullOrWhiteSpace(host)) {
+                return;
+            }
+
+            string normalizedHost = host.Trim().TrimEnd('.');
+            string canonicalHost = normalizedHost.ToLowerInvariant();
+            if (suppressedHosts != null && suppressedHosts.Contains(canonicalHost)) {
+                return;
+            }
+
+            if (targetedHosts.Count > 0 && !targetedHosts.Contains(canonicalHost)) {
+                return;
+            }
+
+            if (HasCtCertificateMetadata(existingEntries, normalizedHost)) {
+                return;
+            }
+
+            candidateHosts.Add(normalizedHost);
+        }
+
+        if (exactHostSeeds != null) {
+            foreach (string host in exactHostSeeds) {
+                TryAddCandidate(host);
+            }
+        }
+
+        if (targetedHosts.Count > 0) {
+            foreach (string host in targetedHosts) {
+                TryAddCandidate(host);
+            }
+        }
+
+        return candidateHosts
+            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static Dictionary<string, HashSet<string>> BuildMissingMetadataDomainMap(
@@ -367,6 +417,7 @@ public sealed partial class CertificateInventoryCapture {
             var sharedClient = new PassiveCtSourceClient();
             int exactNetworkParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
                 options.DiscoveryParallelism,
+                options.PassiveCtParallelism,
                 normalizedHostNames.Count,
                 usePassiveNetworkQueries: true);
             int scheduledHosts = 0;
@@ -477,11 +528,13 @@ public sealed partial class CertificateInventoryCapture {
 
     internal static int ResolveExactPassiveCtMetadataBackfillParallelism(
         int configuredDiscoveryParallelism,
+        int configuredPassiveCtParallelism,
         int hostCount,
         bool usePassiveNetworkQueries) {
         int configuredParallelism = Math.Max(1, configuredDiscoveryParallelism);
+        configuredParallelism = Math.Min(configuredParallelism, Math.Max(1, configuredPassiveCtParallelism));
         int effectiveParallelism = usePassiveNetworkQueries
-            ? Math.Min(configuredParallelism, 8)
+            ? Math.Min(configuredParallelism, 4)
             : configuredParallelism;
         return Math.Min(Math.Max(1, hostCount), effectiveParallelism);
     }

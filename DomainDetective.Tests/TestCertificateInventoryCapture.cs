@@ -1,3 +1,4 @@
+using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -2084,22 +2085,144 @@ public class TestCertificateInventoryCapture {
     }
 
     [Theory]
-    [InlineData(16, 40, true, 8)]
-    [InlineData(3, 40, true, 3)]
-    [InlineData(16, 5, true, 5)]
-    [InlineData(16, 40, false, 16)]
+    [InlineData(16, 4, 40, true, 4)]
+    [InlineData(3, 8, 40, true, 3)]
+    [InlineData(16, 4, 5, true, 4)]
+    [InlineData(16, 4, 3, true, 3)]
+    [InlineData(16, 4, 40, false, 4)]
     public void ResolveExactPassiveCtMetadataBackfillParallelism_UsesBoundedConcurrency(
         int configuredDiscoveryParallelism,
+        int configuredPassiveCtParallelism,
         int hostCount,
         bool usePassiveNetworkQueries,
         int expected)
     {
         int result = CertificateInventoryCapture.ResolveExactPassiveCtMetadataBackfillParallelism(
             configuredDiscoveryParallelism,
+            configuredPassiveCtParallelism,
             hostCount,
             usePassiveNetworkQueries);
 
         Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(16, 4, 40, 4)]
+    [InlineData(3, 8, 40, 3)]
+    [InlineData(16, 4, 3, 3)]
+    public void ResolvePassiveCtNetworkParallelism_UsesPassiveSpecificCap(
+        int configuredDiscoveryParallelism,
+        int configuredPassiveCtParallelism,
+        int workItemCount,
+        int expected)
+    {
+        int result = CertificateInventoryCapture.ResolvePassiveCtNetworkParallelism(
+            configuredDiscoveryParallelism,
+            configuredPassiveCtParallelism,
+            workItemCount);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void BuildExactPassiveCtMetadataCandidateHosts_AdmitsTargetedNonSeedHostsAndSkipsHydratedOrSuppressedEntries()
+    {
+        var existingEntries = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["hydrated.example.com"] = new()
+            {
+                Name = "hydrated.example.com",
+                LatestCertificateSubject = "CN=hydrated.example.com"
+            }
+        };
+        var suppressedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "suppressed.example.com"
+        };
+
+        IReadOnlyList<string> result = CertificateInventoryCapture.BuildExactPassiveCtMetadataCandidateHosts(
+            new[] { "seed.example.com", "hydrated.example.com" },
+            new[] { "api.example.com", "suppressed.example.com", "seed.example.com" },
+            suppressedHosts,
+            existingEntries);
+
+        Assert.Equal(
+            new[]
+            {
+                "api.example.com",
+                "seed.example.com"
+            },
+            result);
+    }
+
+    [Theory]
+    [InlineData(true, true, DnsEndpoint.Quad9, 0, false, true)]
+    [InlineData(true, true, DnsEndpoint.Quad9, 0, true, false)]
+    [InlineData(true, true, DnsEndpoint.System, 0, false, false)]
+    [InlineData(true, false, DnsEndpoint.Quad9, 0, false, false)]
+    [InlineData(true, true, DnsEndpoint.Quad9, 3, false, false)]
+    [InlineData(false, true, DnsEndpoint.Quad9, 0, false, false)]
+    public void ShouldRetryPassiveCtVerificationOnSystemDns_OnlyRetriesWhenDnsIsTheLikelyProblem(
+        bool allowSystemDnsRetry,
+        bool verifyCtDiscoveredSubdomains,
+        DnsEndpoint effectiveDnsEndpoint,
+        int discoveredCount,
+        bool passiveRunSuppressed,
+        bool expected)
+    {
+        bool result = CertificateInventoryCapture.ShouldRetryPassiveCtVerificationOnSystemDns(
+            allowSystemDnsRetry,
+            verifyCtDiscoveredSubdomains,
+            effectiveDnsEndpoint,
+            discoveredCount,
+            passiveRunSuppressed);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("Passive CT source 'crt.sh' is cooling down until 2026-03-20 09:39:41Z; check later or let the next run retry.", true, "source:crt.sh:cooldown")]
+    [InlineData("Passive CT source 'certspotter' is temporarily unavailable: HTTP 429 Too Many Requests (Retry-After 578s). Next retry after 2026-03-20 09:48:50Z.", true, "source:certspotter:unavailable")]
+    [InlineData("Passive CT sources were temporarily unavailable or rate-limited; check later or let the next monitoring cycle retry.", true, "sources:shared-unavailable")]
+    [InlineData("CT subdomain discovery failed for example.com: timeout", false, "")]
+    public void TryNormalizePassiveCtRunLevelWarning_ClassifiesSharedProviderWarnings(
+        string warning,
+        bool expected,
+        string expectedKey)
+    {
+        bool result = CertificateInventoryCapture.TryNormalizePassiveCtRunLevelWarning(
+            warning,
+            out string normalizedKey);
+
+        Assert.Equal(expected, result);
+        Assert.Equal(expectedKey, normalizedKey);
+    }
+
+    [Fact]
+    public void FormatPassiveCtWarningForCaptureRun_DeduplicatesRunLevelWarningsButKeepsDomainContext()
+    {
+        var emittedRunLevelWarnings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        const string runLevelWarning = "Passive CT source 'crt.sh' is cooling down until 2026-03-20 09:39:41Z; check later or let the next run retry.";
+        const string domainSpecificWarning = "Results were capped for this domain.";
+
+        string? firstRunLevelWarning = CertificateInventoryCapture.FormatPassiveCtWarningForCaptureRun(
+            "api.example.com",
+            runLevelWarning,
+            emittedRunLevelWarnings);
+        string? duplicateRunLevelWarning = CertificateInventoryCapture.FormatPassiveCtWarningForCaptureRun(
+            "www.example.com",
+            runLevelWarning,
+            emittedRunLevelWarnings);
+        string? domainScopedWarning = CertificateInventoryCapture.FormatPassiveCtWarningForCaptureRun(
+            "portal.example.com",
+            domainSpecificWarning,
+            emittedRunLevelWarnings);
+
+        Assert.Equal(runLevelWarning, firstRunLevelWarning);
+        Assert.Null(duplicateRunLevelWarning);
+        Assert.Equal(
+            "Passive CT fallback for portal.example.com: Results were capped for this domain.",
+            domainScopedWarning);
     }
 
     [Fact]
