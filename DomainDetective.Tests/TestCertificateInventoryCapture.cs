@@ -2089,7 +2089,7 @@ public class TestCertificateInventoryCapture {
     [InlineData(3, 8, 40, true, 3)]
     [InlineData(16, 4, 5, true, 4)]
     [InlineData(16, 4, 3, true, 3)]
-    [InlineData(16, 4, 40, false, 4)]
+    [InlineData(16, 4, 40, false, 16)]
     public void ResolveExactPassiveCtMetadataBackfillParallelism_UsesBoundedConcurrency(
         int configuredDiscoveryParallelism,
         int configuredPassiveCtParallelism,

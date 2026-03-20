@@ -94,9 +94,13 @@ internal sealed class PassiveCtSourceClient
             SemaphoreSlim? sourceGate = null;
             if (useSharedSourceState)
             {
-                sourceGate = SharedSourceGates.GetOrAdd(
-                    request.SourceName,
-                    static _ => new SemaphoreSlim(1, 1));
+                SemaphoreSlim createdGate = new SemaphoreSlim(1, 1);
+                sourceGate = SharedSourceGates.GetOrAdd(request.SourceName, createdGate);
+                if (!ReferenceEquals(sourceGate, createdGate))
+                {
+                    createdGate.Dispose();
+                }
+
                 await sourceGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
 

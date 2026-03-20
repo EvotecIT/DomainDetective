@@ -259,7 +259,7 @@ public sealed partial class CertificateInventoryCapture {
                 return;
             }
 
-            string normalizedHost = host.Trim().TrimEnd('.');
+            string normalizedHost = host!.Trim().TrimEnd('.');
             string canonicalHost = normalizedHost.ToLowerInvariant();
             if (suppressedHosts != null && suppressedHosts.Contains(canonicalHost)) {
                 return;
@@ -532,9 +532,10 @@ public sealed partial class CertificateInventoryCapture {
         int hostCount,
         bool usePassiveNetworkQueries) {
         int configuredParallelism = Math.Max(1, configuredDiscoveryParallelism);
-        configuredParallelism = Math.Min(configuredParallelism, Math.Max(1, configuredPassiveCtParallelism));
         int effectiveParallelism = usePassiveNetworkQueries
-            ? Math.Min(configuredParallelism, 4)
+            ? Math.Min(
+                Math.Min(configuredParallelism, Math.Max(1, configuredPassiveCtParallelism)),
+                4)
             : configuredParallelism;
         return Math.Min(Math.Max(1, hostCount), effectiveParallelism);
     }

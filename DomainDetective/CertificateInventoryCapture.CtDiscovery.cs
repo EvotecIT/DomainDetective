@@ -182,7 +182,7 @@ public sealed partial class CertificateInventoryCapture {
                                     domain,
                                     warning,
                                     passiveRunWarningKeys);
-                                if (!string.IsNullOrWhiteSpace(formattedWarning)) {
+                                if (formattedWarning is { Length: > 0 }) {
                                     warnings.Add(formattedWarning);
                                 }
                             }
@@ -506,7 +506,7 @@ public sealed partial class CertificateInventoryCapture {
                                     domain,
                                     warning,
                                     passiveRunWarningKeys);
-                                if (!string.IsNullOrWhiteSpace(formattedWarning)) {
+                                if (formattedWarning is { Length: > 0 }) {
                                     warnings.Add(formattedWarning);
                                 }
                             }
@@ -658,10 +658,9 @@ public sealed partial class CertificateInventoryCapture {
             return null;
         }
 
-        string trimmedWarning = warning.Trim();
+        string trimmedWarning = warning!.Trim();
         if (TryNormalizePassiveCtRunLevelWarning(trimmedWarning, out string normalizedKey)) {
-            if (emittedRunLevelWarningKeys != null &&
-                !emittedRunLevelWarningKeys.Add(normalizedKey)) {
+            if (!emittedRunLevelWarningKeys.Add(normalizedKey)) {
                 return null;
             }
 
@@ -679,7 +678,7 @@ public sealed partial class CertificateInventoryCapture {
             return false;
         }
 
-        string trimmedWarning = warning.Trim();
+        string trimmedWarning = warning!.Trim();
         if (trimmedWarning.Equals(
                 "Passive CT sources were temporarily unavailable or rate-limited; check later or let the next monitoring cycle retry.",
                 StringComparison.OrdinalIgnoreCase)) {
