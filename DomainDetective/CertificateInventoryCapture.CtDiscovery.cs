@@ -90,8 +90,12 @@ public sealed partial class CertificateInventoryCapture {
         var diagnosticEntriesLock = new object();
         var passiveDiagnosticsLock = new object();
         var discoveredLock = new object();
+        var passiveRunWarningKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var discoveredByDomain = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var maxParallelism = Math.Max(1, options.DiscoveryParallelism);
+        var maxParallelism = ResolvePassiveCtNetworkParallelism(
+            options.DiscoveryParallelism,
+            options.PassiveCtParallelism,
+            domains.Count);
         var nativeCtCursorStatePath = options.NativeCtCursorStatePath;
         if (string.IsNullOrWhiteSpace(nativeCtCursorStatePath) && options.EnableNativeCtLogSubdomainSource) {
             nativeCtCursorStatePath = System.IO.Path.Combine(options.CacheDirectory, "inventory", "ct-native-cursor.json");
@@ -174,7 +178,13 @@ public sealed partial class CertificateInventoryCapture {
                     if (analysis.PassiveCtWarnings != null && analysis.PassiveCtWarnings.Count > 0) {
                         lock (warningLock) {
                             foreach (string warning in analysis.PassiveCtWarnings) {
-                                warnings.Add($"Passive CT fallback for {domain}: {warning}");
+                                string? formattedWarning = FormatPassiveCtWarningForCaptureRun(
+                                    domain,
+                                    warning,
+                                    passiveRunWarningKeys);
+                                if (formattedWarning is { Length: > 0 }) {
+                                    warnings.Add(formattedWarning);
+                                }
                             }
                         }
                     }
@@ -441,6 +451,7 @@ public sealed partial class CertificateInventoryCapture {
         var warningLock = new object();
         var passiveDiagnosticEntriesLock = new object();
         var discoveredLock = new object();
+        var passiveRunWarningKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var latestPassiveDiagnosticsBySource = new ConcurrentDictionary<string, PassiveCtDiagnosticEntry>(StringComparer.OrdinalIgnoreCase);
         var passiveSuspensionReason = string.Empty;
         var passiveSuppressionWarningsLogged = 0;
@@ -491,7 +502,13 @@ public sealed partial class CertificateInventoryCapture {
                     if (analysis.PassiveCtWarnings != null && analysis.PassiveCtWarnings.Count > 0) {
                         lock (warningLock) {
                             foreach (string warning in analysis.PassiveCtWarnings) {
-                                warnings.Add($"Passive CT fallback for {domain}: {warning}");
+                                string? formattedWarning = FormatPassiveCtWarningForCaptureRun(
+                                    domain,
+                                    warning,
+                                    passiveRunWarningKeys);
+                                if (formattedWarning is { Length: > 0 }) {
+                                    warnings.Add(formattedWarning);
+                                }
                             }
                         }
                     }
@@ -576,10 +593,13 @@ public sealed partial class CertificateInventoryCapture {
             logger.WriteVerbose("{0}", warning);
         }
 
-        if (allowSystemDnsRetry &&
-            discovered.Count == 0 &&
-            options.VerifyCtDiscoveredSubdomains &&
-            effectiveDnsEndpoint != DnsEndpoint.System) {
+        bool passiveRunSuppressed = Volatile.Read(ref suspendRemainingPassiveQueries) != 0;
+        if (ShouldRetryPassiveCtVerificationOnSystemDns(
+                allowSystemDnsRetry,
+                options.VerifyCtDiscoveredSubdomains,
+                effectiveDnsEndpoint,
+                discovered.Count,
+                passiveRunSuppressed)) {
             warnings.Add(
                 "Passive CT fallback returned no resolvable subdomains on DNS endpoint '" +
                 effectiveDnsEndpoint +
@@ -601,11 +621,94 @@ public sealed partial class CertificateInventoryCapture {
             foreach (var entry in systemResolved) {
                 MergeCtSubdomainEntry(discovered, entry);
             }
+        } else if (allowSystemDnsRetry &&
+                   discovered.Count == 0 &&
+                   options.VerifyCtDiscoveredSubdomains &&
+                   effectiveDnsEndpoint != DnsEndpoint.System &&
+                   passiveRunSuppressed) {
+            warnings.Add(
+                "Passive CT fallback DNS retry on 'System' was skipped because shared source cooldown already suppressed the run.");
+            logger.WriteVerbose(
+                "Passive CT fallback DNS retry on 'System' skipped because shared source cooldown already suppressed the run.");
         }
 
         return discovered.Values
             .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    internal static bool ShouldRetryPassiveCtVerificationOnSystemDns(
+        bool allowSystemDnsRetry,
+        bool verifyCtDiscoveredSubdomains,
+        DnsEndpoint effectiveDnsEndpoint,
+        int discoveredCount,
+        bool passiveRunSuppressed) {
+        return allowSystemDnsRetry &&
+               discoveredCount == 0 &&
+               verifyCtDiscoveredSubdomains &&
+               effectiveDnsEndpoint != DnsEndpoint.System &&
+               !passiveRunSuppressed;
+    }
+
+    internal static string? FormatPassiveCtWarningForCaptureRun(
+        string domain,
+        string? warning,
+        ISet<string> emittedRunLevelWarningKeys) {
+        if (string.IsNullOrWhiteSpace(warning)) {
+            return null;
+        }
+
+        string trimmedWarning = warning!.Trim();
+        if (TryNormalizePassiveCtRunLevelWarning(trimmedWarning, out string normalizedKey)) {
+            if (!emittedRunLevelWarningKeys.Add(normalizedKey)) {
+                return null;
+            }
+
+            return trimmedWarning;
+        }
+
+        return $"Passive CT fallback for {domain}: {trimmedWarning}";
+    }
+
+    internal static bool TryNormalizePassiveCtRunLevelWarning(
+        string? warning,
+        out string normalizedKey) {
+        normalizedKey = string.Empty;
+        if (string.IsNullOrWhiteSpace(warning)) {
+            return false;
+        }
+
+        string trimmedWarning = warning!.Trim();
+        if (trimmedWarning.Equals(
+                "Passive CT sources were temporarily unavailable or rate-limited; check later or let the next monitoring cycle retry.",
+                StringComparison.OrdinalIgnoreCase)) {
+            normalizedKey = "sources:shared-unavailable";
+            return true;
+        }
+
+        if (!trimmedWarning.StartsWith("Passive CT source '", StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+
+        const string prefix = "Passive CT source '";
+        int sourceNameStart = prefix.Length;
+        int sourceNameEnd = trimmedWarning.IndexOf('\'', sourceNameStart);
+        if (sourceNameEnd <= sourceNameStart) {
+            return false;
+        }
+
+        string sourceName = trimmedWarning.Substring(sourceNameStart, sourceNameEnd - sourceNameStart);
+        if (trimmedWarning.IndexOf(" is cooling down until ", StringComparison.OrdinalIgnoreCase) >= 0) {
+            normalizedKey = "source:" + sourceName + ":cooldown";
+            return true;
+        }
+
+        if (trimmedWarning.IndexOf(" is temporarily unavailable", StringComparison.OrdinalIgnoreCase) >= 0) {
+            normalizedKey = "source:" + sourceName + ":unavailable";
+            return true;
+        }
+
+        return false;
     }
 
     private static SubdomainDiscoveryEntry CreateNativeCtDiscoveredEntry(
@@ -655,6 +758,16 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         return existing;
+    }
+
+    internal static int ResolvePassiveCtNetworkParallelism(
+        int configuredDiscoveryParallelism,
+        int configuredPassiveCtParallelism,
+        int workItemCount) {
+        int discoveryParallelism = Math.Max(1, configuredDiscoveryParallelism);
+        int passiveParallelism = Math.Max(1, configuredPassiveCtParallelism);
+        int boundedParallelism = Math.Min(discoveryParallelism, passiveParallelism);
+        return Math.Min(Math.Max(1, workItemCount), boundedParallelism);
     }
 
     private static bool TryBuildPassiveCtRunSuppressionReason(

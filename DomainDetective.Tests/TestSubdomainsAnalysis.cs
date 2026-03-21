@@ -612,6 +612,26 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
+    public void PassiveCtClient_LogsSharedCooldownOnlyOncePerCooldownWindow()
+    {
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+        try
+        {
+            DateTimeOffset firstCooldownUntilUtc = DateTimeOffset.UtcNow.AddMinutes(2);
+            DateTimeOffset extendedCooldownUntilUtc = firstCooldownUntilUtc.AddMinutes(1);
+
+            Assert.True(PassiveCtSourceClient.ShouldLogSharedCooldownMessage("crt.sh", firstCooldownUntilUtc));
+            Assert.False(PassiveCtSourceClient.ShouldLogSharedCooldownMessage("crt.sh", firstCooldownUntilUtc));
+            Assert.True(PassiveCtSourceClient.ShouldLogSharedCooldownMessage("crt.sh", extendedCooldownUntilUtc));
+            Assert.True(PassiveCtSourceClient.ShouldLogSharedCooldownMessage("certspotter", firstCooldownUntilUtc));
+        }
+        finally
+        {
+            PassiveCtSourceClient.ResetSharedStateForTesting();
+        }
+    }
+
+    [Fact]
     public async Task NativeCtLogOnlyDiscoversSubdomains()
     {
         using var cert = CreateSelfSigned("api.example.com");
