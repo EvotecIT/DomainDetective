@@ -44,6 +44,7 @@ When you run repeated captures against large portfolios, you can reuse recent en
 
 - Enable with `-ReuseRecentResults`.
 - Reuse window is controlled by `-RecentResultTtlHours` (default `24`).
+- Optional stable-failure reuse is controlled by `-ReuseRecentFailureResults` with `-RecentFailureResultTtlHours` (default `1`).
 - Near-expiry certificates are always refreshed based on `-ReprobeExpiringWithinDays` (default `14`).
 - Reuse is endpoint-based (`host + port + service`).
 
@@ -53,6 +54,12 @@ Reuse only applies when a cached endpoint result is considered safe:
 - certificate thumbprint exists
 - certificate is not expired
 - certificate is not inside the re-probe expiry window
+
+Stable-failure reuse is narrower and intended for hot verification lanes:
+
+- endpoint had no captured certificate
+- failure was a stable connectivity outcome (for example timeout, DNS resolution failure, connection refused/reset, or TLS handshake failure)
+- failure entry is still inside the shorter failure TTL window
 
 This keeps recurring runs fast while still refreshing risky/soon-expiring endpoints.
 
@@ -79,6 +86,7 @@ Notes:
 - Endpoint probe errors are expected on large CT-expanded scans (historical/internal hosts). Use `-MaxProbeErrorWarnings` to limit warning noise.
 - Use `-MaxTargets` for quick/safe test runs and `-MaxProbeStartsPerSecond` as an anti-hammer throttle.
 - Use `-ReuseRecentResults` with `-RecentResultTtlHours` to skip re-probing endpoints already captured recently.
+- Use `-ReuseRecentFailureResults` with `-RecentFailureResultTtlHours` when repeated verification runs are wasting time on endpoints that are consistently dead or timing out.
 - `-ReprobeExpiringWithinDays` keeps near-expiry certificates fresh even when cache reuse is enabled.
 - Native CT log polling supports per-domain/per-log cursor persistence (`NativeCtCursorStatePath`) to avoid reprocessing the same CT ranges.
 - With multiple domains and native CT enabled, DomainDetective reuses one shared CT ingestion pass by default (`EnableNativeCtSharedIngestion = true`) and correlates discovered names to all monitored suffixes.
@@ -94,6 +102,8 @@ Notes:
 | `-MaxProbeErrorWarnings` | `25` | Limit verbose endpoint error warning noise |
 | `-ReuseRecentResults` | Off | Reuse recent persisted endpoint results to skip redundant probes |
 | `-RecentResultTtlHours` | `24` | How long cached endpoint results are eligible for reuse |
+| `-ReuseRecentFailureResults` | Off | Reuse recent stable failures to avoid immediately re-probing consistently dead endpoints |
+| `-RecentFailureResultTtlHours` | `1` | How long stable failure entries are eligible for reuse |
 | `-ReprobeExpiringWithinDays` | `14` | Always recheck endpoints whose certs expire soon |
 | `-DisableNativeCtSharedIngestion` | Off | Disable shared native CT pass and fall back to per-domain native CT ingestion |
 | `-NativeCtRetryCount` | `3` | Retry transient native CT HTTP failures |
@@ -145,6 +155,8 @@ $capture = Invoke-DDCertificateInventory `
     -CacheDirectory .\cert-monitor `
     -ReuseRecentResults `
     -RecentResultTtlHours 24 `
+    -ReuseRecentFailureResults `
+    -RecentFailureResultTtlHours 1 `
     -ReprobeExpiringWithinDays 14 `
     -CtProfile Extended `
     -IncludeCtSubdomains `
@@ -172,6 +184,8 @@ Invoke-DDCertificateInventory `
     -IncludeCtSubdomains `
     -ReuseRecentResults `
     -RecentResultTtlHours 24 `
+    -ReuseRecentFailureResults `
+    -RecentFailureResultTtlHours 1 `
     -MaxTargets 150 `
     -MaxProbeStartsPerSecond 20 `
     -MaxProbeErrorWarnings 10 `
@@ -211,6 +225,8 @@ DomainDetective.CLI CertificateInventoryCapture eurofins.com \
   --verify-ct-subdomains \
   --reuse-recent-results \
   --recent-result-ttl-hours 24 \
+  --reuse-recent-failures \
+  --recent-failure-result-ttl-hours 1 \
   --reprobe-expiring-within-days 14 \
   --max-targets 150 \
   --max-probe-starts-per-second 20 \
@@ -313,6 +329,8 @@ var options = new CertificateInventoryCaptureOptions {
     DnsEndpoint = DnsEndpoint.System,
     ReuseRecentSnapshotEntries = true,
     RecentSnapshotTtl = TimeSpan.FromHours(24),
+    ReuseRecentFailureSnapshotEntries = true,
+    RecentFailureSnapshotTtl = TimeSpan.FromHours(1),
     ReprobeExpiringWithinDays = 14,
     CtProfile = CertificateCtEnrichmentProfile.Extended,
     EnableShodanCtSource = true,

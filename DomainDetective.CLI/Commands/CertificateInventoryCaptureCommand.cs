@@ -267,6 +267,15 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [DefaultValue(24)]
     public int RecentResultTtlHours { get; set; } = 24;
 
+    [Description("Reuse recent persisted stable failures to avoid immediately re-probing dead or timeout-heavy endpoints.")]
+    [CommandOption("--reuse-recent-failures")]
+    public bool ReuseRecentFailures { get; set; }
+
+    [Description("Maximum age in hours of persisted stable failures used for reuse.")]
+    [CommandOption("--recent-failure-result-ttl-hours <N>")]
+    [DefaultValue(1)]
+    public int RecentFailureResultTtlHours { get; set; } = 1;
+
     [Description("Always re-probe endpoints with certificates expiring within this many days.")]
     [CommandOption("--reprobe-expiring-within-days <N>")]
     [DefaultValue(14)]
@@ -383,8 +392,12 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--max-probe-starts-per-second must be 0 or greater.[/]");
             return 1;
         }
-        if (settings.RecentResultTtlHours < 1) {
-            AnsiConsole.MarkupLine("[red]--recent-result-ttl-hours must be 1 or greater.[/]");
+        if (settings.RecentResultTtlHours < 0) {
+            AnsiConsole.MarkupLine("[red]--recent-result-ttl-hours must be 0 or greater.[/]");
+            return 1;
+        }
+        if (settings.RecentFailureResultTtlHours < 0) {
+            AnsiConsole.MarkupLine("[red]--recent-failure-result-ttl-hours must be 0 or greater.[/]");
             return 1;
         }
         if (settings.ReprobeExpiringWithinDays < 0) {
@@ -558,6 +571,8 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             MaxProbeStartsPerSecond = settings.MaxProbeStartsPerSecond,
             ReuseRecentSnapshotEntries = settings.ReuseRecentResults,
             RecentSnapshotTtl = TimeSpan.FromHours(settings.RecentResultTtlHours),
+            ReuseRecentFailureSnapshotEntries = settings.ReuseRecentFailures,
+            RecentFailureSnapshotTtl = TimeSpan.FromHours(settings.RecentFailureResultTtlHours),
             ReprobeExpiringWithinDays = settings.ReprobeExpiringWithinDays,
             SkipRevocation = settings.SkipRevocation,
             CtProfile = settings.CtProfile,

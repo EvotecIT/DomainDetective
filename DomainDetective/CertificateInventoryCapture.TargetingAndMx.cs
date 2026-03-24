@@ -13,6 +13,12 @@ using DomainDetective.Helpers;
 namespace DomainDetective;
 
 public sealed partial class CertificateInventoryCapture {
+    private sealed class RecentInventoryEndpointEntry {
+        public required CertificateInventoryEntry Entry { get; init; }
+
+        public required DateTimeOffset CapturedAtUtc { get; init; }
+    }
+
     private static string BuildMailTargetLabel(MailEndpointTarget target) {
         return $"{target.Scheme}://{target.Host}:{target.Port}";
     }
@@ -37,7 +43,7 @@ public sealed partial class CertificateInventoryCapture {
         return true;
     }
 
-    private static bool ShouldReuseCachedEntry(CertificateInventoryEntry entry, DateTimeOffset now, int reprobeExpiringWithinDays) {
+    private static bool ShouldReuseCachedSuccessEntry(CertificateInventoryEntry entry, DateTimeOffset now, int reprobeExpiringWithinDays) {
         if (entry == null) {
             return false;
         }
@@ -60,9 +66,118 @@ public sealed partial class CertificateInventoryCapture {
         return true;
     }
 
-    private static IReadOnlyDictionary<string, CertificateInventoryEntry> LoadRecentSnapshotEntries(CertificateInventoryCaptureOptions options, DateTimeOffset now) {
-        if (options == null || !options.ReuseRecentSnapshotEntries || options.RecentSnapshotTtl <= TimeSpan.Zero) {
-            return new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+    private static bool ShouldReuseCachedFailureEntry(CertificateInventoryEntry entry) {
+        if (entry == null) {
+            return false;
+        }
+        if (entry.IsReachable) {
+            return false;
+        }
+        if (!string.IsNullOrWhiteSpace(entry.CertificateThumbprint)) {
+            return false;
+        }
+
+        var failureReason = entry.FailureReason?.Trim();
+        if (string.IsNullOrWhiteSpace(failureReason)) {
+            return false;
+        }
+
+        return failureReason.Contains("FailureKind:Cancelled", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("FailureKind:Timeout", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("FailureKind:TlsHandshake", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("HttpRequestError:NameResolutionError", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("HttpRequestError:ConnectionError", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("HttpRequestError:SecureConnectionError", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("TLS Handshake Failure", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:HostNotFound", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:NoData", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:TryAgain", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:TimedOut", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:ConnectionRefused", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:ConnectionReset", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:ConnectionAborted", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:HostUnreachable", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:NetworkUnreachable", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("SocketError:NetworkDown", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("No such host is known", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("actively refused", StringComparison.OrdinalIgnoreCase) ||
+               failureReason.Contains("forcibly closed by the remote host", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldLoadRecentSnapshotEntries(CertificateInventoryCaptureOptions options) {
+        if (options == null) {
+            return false;
+        }
+
+        return ResolveEffectiveRecentSnapshotReuseTtl(options) > TimeSpan.Zero;
+    }
+
+    private static TimeSpan ResolveEffectiveRecentSnapshotReuseTtl(CertificateInventoryCaptureOptions options) {
+        if (options == null) {
+            return TimeSpan.Zero;
+        }
+
+        TimeSpan successfulReuseTtl =
+            options.ReuseRecentSnapshotEntries && options.RecentSnapshotTtl > TimeSpan.Zero
+                ? options.RecentSnapshotTtl
+                : TimeSpan.Zero;
+        TimeSpan stableFailureReuseTtl =
+            options.ReuseRecentFailureSnapshotEntries && options.RecentFailureSnapshotTtl > TimeSpan.Zero
+                ? options.RecentFailureSnapshotTtl
+                : TimeSpan.Zero;
+        return successfulReuseTtl >= stableFailureReuseTtl ? successfulReuseTtl : stableFailureReuseTtl;
+    }
+
+    private static bool TryReuseCachedEntry(
+        RecentInventoryEndpointEntry cachedEntry,
+        DateTimeOffset now,
+        CertificateInventoryCaptureOptions options,
+        out bool reusedStableFailure) {
+        reusedStableFailure = false;
+        if (cachedEntry == null || cachedEntry.Entry == null || options == null) {
+            return false;
+        }
+
+        if (options.ReuseRecentSnapshotEntries &&
+            options.RecentSnapshotTtl > TimeSpan.Zero &&
+            cachedEntry.CapturedAtUtc >= now - options.RecentSnapshotTtl &&
+            ShouldReuseCachedSuccessEntry(cachedEntry.Entry, now, options.ReprobeExpiringWithinDays)) {
+            return true;
+        }
+
+        if (options.ReuseRecentFailureSnapshotEntries &&
+            options.RecentFailureSnapshotTtl > TimeSpan.Zero &&
+            cachedEntry.CapturedAtUtc >= now - options.RecentFailureSnapshotTtl &&
+            ShouldReuseCachedFailureEntry(cachedEntry.Entry)) {
+            reusedStableFailure = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyDictionary<string, RecentInventoryEndpointEntry> WrapRecentSnapshotEntries(
+        IReadOnlyDictionary<string, CertificateInventoryEntry> entries,
+        DateTimeOffset capturedAtUtc) {
+        if (entries == null || entries.Count == 0) {
+            return new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return entries
+            .Where(static pair => pair.Value != null)
+            .ToDictionary(
+                static pair => pair.Key,
+                pair => new RecentInventoryEndpointEntry {
+                    Entry = pair.Value,
+                    CapturedAtUtc = capturedAtUtc
+                },
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyDictionary<string, RecentInventoryEndpointEntry> LoadRecentSnapshotEntries(CertificateInventoryCaptureOptions options, DateTimeOffset now) {
+        TimeSpan effectiveTtl = ResolveEffectiveRecentSnapshotReuseTtl(options);
+        if (options == null || effectiveTtl <= TimeSpan.Zero) {
+            return new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
         }
 
         using var monitor = new CertificateMonitor {
@@ -70,14 +185,14 @@ public sealed partial class CertificateInventoryCapture {
             PersistInventorySnapshots = false
         };
 
-        var since = now - options.RecentSnapshotTtl;
+        var since = now - effectiveTtl;
         var snapshots = monitor.LoadInventorySnapshots(sinceUtc: since, latestOnly: false);
         if (snapshots.Count == 0) {
-            return new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+            return new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
         }
 
         var ordered = snapshots.OrderBy(snapshot => snapshot.CapturedAtUtc).ToList();
-        var byEndpoint = new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+        var byEndpoint = new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var snapshot in ordered) {
             if (snapshot.Entries == null || snapshot.Entries.Count == 0) {
                 continue;
@@ -91,7 +206,10 @@ public sealed partial class CertificateInventoryCapture {
                     continue;
                 }
                 var key = BuildEndpointKey(host, entry.Port, entry.Service);
-                byEndpoint[key] = entry;
+                byEndpoint[key] = new RecentInventoryEndpointEntry {
+                    Entry = entry,
+                    CapturedAtUtc = snapshot.CapturedAtUtc
+                };
             }
         }
 
@@ -103,7 +221,7 @@ public sealed partial class CertificateInventoryCapture {
         HashSet<string> httpsTargets,
         Dictionary<string, MailEndpointTarget> mailTargets,
         List<string> warnings,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
         int reprobeExpiringWithinDays) {
         if (options.MaxTargets <= 0) {
             return;
@@ -159,12 +277,12 @@ public sealed partial class CertificateInventoryCapture {
 
     private static int ComputeHttpsTargetPriority(
         string target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
         int reprobeExpiringWithinDays) {
         if (recentByEndpoint != null &&
             TryBuildHttpsEndpointKey(target, out var endpointKey) &&
             recentByEndpoint.TryGetValue(endpointKey, out var cachedEntry)) {
-            return ComputeCachedEntryPriority(cachedEntry, reprobeExpiringWithinDays);
+            return ComputeCachedEntryPriority(cachedEntry.Entry, reprobeExpiringWithinDays);
         }
 
         return 1000;
@@ -172,14 +290,14 @@ public sealed partial class CertificateInventoryCapture {
 
     private static int ComputeMailTargetPriority(
         MailEndpointTarget target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
         int reprobeExpiringWithinDays) {
         if (target == null) {
             return 0;
         }
 
         if (TryGetCachedMailEntry(target, recentByEndpoint, out var cachedEntry)) {
-            return ComputeCachedEntryPriority(cachedEntry!, reprobeExpiringWithinDays);
+            return ComputeCachedEntryPriority(cachedEntry!.Entry, reprobeExpiringWithinDays);
         }
 
         return 1000;
@@ -187,11 +305,11 @@ public sealed partial class CertificateInventoryCapture {
 
     private static int ResolvePrioritySortDays(
         string target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint) {
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint) {
         if (recentByEndpoint != null &&
             TryBuildHttpsEndpointKey(target, out var endpointKey) &&
             recentByEndpoint.TryGetValue(endpointKey, out var cachedEntry)) {
-            return ParseSortDays(cachedEntry);
+            return ParseSortDays(cachedEntry.Entry);
         }
 
         return int.MinValue;
@@ -199,9 +317,9 @@ public sealed partial class CertificateInventoryCapture {
 
     private static int ResolvePrioritySortDays(
         MailEndpointTarget target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint) {
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint) {
         if (TryGetCachedMailEntry(target, recentByEndpoint, out var cachedEntry)) {
-            return ParseSortDays(cachedEntry!);
+            return ParseSortDays(cachedEntry!.Entry);
         }
 
         return int.MinValue;
@@ -209,8 +327,8 @@ public sealed partial class CertificateInventoryCapture {
 
     private static bool TryGetCachedMailEntry(
         MailEndpointTarget target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
-        out CertificateInventoryEntry? cachedEntry) {
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
+        out RecentInventoryEndpointEntry? cachedEntry) {
         cachedEntry = null;
         if (target == null || recentByEndpoint == null) {
             return false;

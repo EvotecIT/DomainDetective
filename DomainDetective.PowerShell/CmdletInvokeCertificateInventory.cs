@@ -38,6 +38,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Reuse recent captured endpoints to reduce repeated probing</summary>
 ///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14</code>
 /// </example>
+/// <example>
+///   <summary>Reuse recent stable failures for short-lived verification lanes</summary>
+///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -ReuseRecentFailureResults -RecentFailureResultTtlHours 1 -HttpsTimeoutSeconds 20</code>
+/// </example>
 [Cmdlet(VerbsLifecycle.Invoke, "DDCertificateInventory")]
 [OutputType(typeof(CertificateInventoryCaptureResult))]
 public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
@@ -238,6 +242,11 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [ValidateRange(1, 300)]
     public int MailTimeoutSeconds { get; set; } = 15;
 
+    /// <summary>HTTPS certificate probe timeout in seconds.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 300)]
+    public int HttpsTimeoutSeconds { get; set; } = 30;
+
     /// <summary>Maximum number of detailed endpoint probe error warnings to emit (0 emits only a summary warning).</summary>
     [Parameter(Mandatory = false)]
     [ValidateRange(0, 10000)]
@@ -260,8 +269,17 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
 
     /// <summary>How old persisted snapshot entries can be to qualify for reuse.</summary>
     [Parameter(Mandatory = false)]
-    [ValidateRange(1, 24 * 365)]
+    [ValidateRange(0, 24 * 365)]
     public int RecentResultTtlHours { get; set; } = 24;
+
+    /// <summary>Reuse recent persisted stable failures to avoid immediately re-probing dead or timeout-heavy endpoints.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ReuseRecentFailureResults { get; set; }
+
+    /// <summary>How old persisted stable failure entries can be to qualify for reuse.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, 24 * 365)]
+    public int RecentFailureResultTtlHours { get; set; } = 1;
 
     /// <summary>Always re-probe endpoints with certificates expiring within this many days.</summary>
     [Parameter(Mandatory = false)]
@@ -410,10 +428,13 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             MaxParallelism = MaxParallelism,
             DiscoveryParallelism = DiscoveryParallelism,
             MailTimeout = TimeSpan.FromSeconds(MailTimeoutSeconds),
+            HttpsTimeout = TimeSpan.FromSeconds(HttpsTimeoutSeconds),
             MaxTargets = MaxTargets,
             MaxProbeStartsPerSecond = MaxProbeStartsPerSecond,
             ReuseRecentSnapshotEntries = ReuseRecentResults.IsPresent,
             RecentSnapshotTtl = TimeSpan.FromHours(RecentResultTtlHours),
+            ReuseRecentFailureSnapshotEntries = ReuseRecentFailureResults.IsPresent,
+            RecentFailureSnapshotTtl = TimeSpan.FromHours(RecentFailureResultTtlHours),
             ReprobeExpiringWithinDays = ReprobeExpiringWithinDays,
             SkipRevocation = SkipRevocation.IsPresent,
             CtProfile = CtProfile,

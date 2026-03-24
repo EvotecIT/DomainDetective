@@ -476,6 +476,15 @@ namespace DomainDetective {
                     }
                 }
 
+                if (current is AuthenticationException)
+                {
+                    const string tlsHandshakeMarker = "FailureKind:TlsHandshake";
+                    if (!parts.Any(existing => string.Equals(existing, tlsHandshakeMarker, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        parts.Add(tlsHandshakeMarker);
+                    }
+                }
+
                 if (current is TaskCanceledException ||
                     current is OperationCanceledException)
                 {
