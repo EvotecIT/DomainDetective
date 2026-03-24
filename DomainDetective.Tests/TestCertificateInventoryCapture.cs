@@ -109,6 +109,42 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_TracksMxSourceDomainsByHost() {
+        var capture = new CertificateInventoryCapture {
+            MxLookupOverride = (domain, dnsConfiguration, maxMxHostsPerDomain, cancellationToken) => {
+                IReadOnlyList<string> hosts = domain.Equals("example.com", StringComparison.OrdinalIgnoreCase)
+                    ? new[] { "mx.shared.example.", " MX.SHARED.EXAMPLE ", "not a valid host" }
+                    : new[] { "mx.shared.example", "mx.contoso.example." };
+                return Task.FromResult(hosts);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) =>
+                Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>())
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = true,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com", "contoso.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.Equal(2, result.MxHostCount);
+        Assert.Equal(1, result.MxInvalidArtifactCount);
+        Assert.Equal(2, result.MxSourceDomainsByHost.Count);
+        Assert.True(result.MxSourceDomainsByHost.TryGetValue("mx.shared.example", out IReadOnlyList<string>? sharedSources));
+        Assert.Equal(new[] { "contoso.com", "example.com" }, sharedSources);
+        Assert.True(result.MxSourceDomainsByHost.TryGetValue("mx.contoso.example", out IReadOnlyList<string>? contosoSources));
+        Assert.Equal(new[] { "contoso.com" }, contosoSources);
+    }
+
+    [Fact]
     public async Task CaptureAsync_DeduplicatesEntriesByEndpointAndKeepsMostUsefulRecord() {
         using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
         var capture = new CertificateInventoryCapture {
@@ -569,7 +605,7 @@ public class TestCertificateInventoryCapture {
                 IsReachable = false,
                 Valid = false,
                 Expired = false,
-                FailureReason = "A task was canceled. | FailureKind:Cancelled"
+                FailureReason = "The operation timed out. | SocketError:TimedOut | FailureKind:Timeout"
             });
 
             using (var monitor = new CertificateMonitor {

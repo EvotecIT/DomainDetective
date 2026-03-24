@@ -305,7 +305,7 @@ public sealed partial class CertificateInventoryCapture {
         string? reason,
         string? currentSeverity) {
         if (!string.IsNullOrWhiteSpace(currentSeverity)) {
-            return currentSeverity.Trim();
+            return currentSeverity!.Trim();
         }
 
         string normalizedStage = (stage ?? string.Empty).Trim();
@@ -331,7 +331,7 @@ public sealed partial class CertificateInventoryCapture {
         string? reason,
         string? currentRecommendedAction) {
         if (!string.IsNullOrWhiteSpace(currentRecommendedAction)) {
-            return currentRecommendedAction.Trim();
+            return currentRecommendedAction!.Trim();
         }
 
         string normalizedStage = (stage ?? string.Empty).Trim();

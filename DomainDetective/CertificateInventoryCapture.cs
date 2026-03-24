@@ -563,7 +563,7 @@ public sealed partial class CertificateInventoryCapture {
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<string>>>? CtSubdomainDiscoveryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtPassiveMetadataBackfillOverride { get; set; }
     internal Func<CertificateInventorySnapshot, string, InternalLogger?, string>? PersistSnapshotOverride { get; set; }
-    public Func<CertificateInventoryCaptureOptions, DateTimeOffset, InternalLogger?, IReadOnlyDictionary<string, CertificateInventoryEntry>>? RecentSnapshotLookupOverride { get; set; }
+    internal Func<CertificateInventoryCaptureOptions, DateTimeOffset, InternalLogger?, IReadOnlyDictionary<string, CertificateInventoryEntry>>? RecentSnapshotLookupOverride { get; set; }
 
     /// <summary>
     /// Captures one certificate inventory snapshot from the provided domains and discovery options.
@@ -1363,6 +1363,12 @@ public sealed partial class CertificateInventoryCapture {
         CertificateInventoryCaptureOptions options,
         Dictionary<string, MailEndpointTarget> targets,
         params string[] targetOrigins) {
+        List<string> normalizedTargetOrigins = targetOrigins
+            .Where(static origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(static origin => origin.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         if (options.IncludeSmtpStartTls) {
             AddMailTarget(targets, new MailEndpointTarget {
                 Host = host,
@@ -1371,11 +1377,7 @@ public sealed partial class CertificateInventoryCapture {
                 Service = "SMTP-STARTTLS",
                 Scheme = "smtp",
                 ChainSource = "mailtls-starttls",
-                TargetOrigins = targetOrigins
-                    .Where(static origin => !string.IsNullOrWhiteSpace(origin))
-                    .Select(static origin => origin.Trim())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList()
+                TargetOrigins = normalizedTargetOrigins
             });
         }
         if (options.IncludeSubmissionStartTls) {
@@ -1386,11 +1388,7 @@ public sealed partial class CertificateInventoryCapture {
                 Service = "SMTP-SUBMISSION-STARTTLS",
                 Scheme = "submission",
                 ChainSource = "mailtls-starttls",
-                TargetOrigins = targetOrigins
-                    .Where(static origin => !string.IsNullOrWhiteSpace(origin))
-                    .Select(static origin => origin.Trim())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList()
+                TargetOrigins = normalizedTargetOrigins
             });
         }
         if (options.IncludeImapTls) {
@@ -1401,11 +1399,7 @@ public sealed partial class CertificateInventoryCapture {
                 Service = "IMAPS",
                 Scheme = "imaps",
                 ChainSource = "mailtls-directtls",
-                TargetOrigins = targetOrigins
-                    .Where(static origin => !string.IsNullOrWhiteSpace(origin))
-                    .Select(static origin => origin.Trim())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList()
+                TargetOrigins = normalizedTargetOrigins
             });
         }
         if (options.IncludePop3Tls) {
@@ -1416,11 +1410,7 @@ public sealed partial class CertificateInventoryCapture {
                 Service = "POP3S",
                 Scheme = "pop3s",
                 ChainSource = "mailtls-directtls",
-                TargetOrigins = targetOrigins
-                    .Where(static origin => !string.IsNullOrWhiteSpace(origin))
-                    .Select(static origin => origin.Trim())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList()
+                TargetOrigins = normalizedTargetOrigins
             });
         }
     }

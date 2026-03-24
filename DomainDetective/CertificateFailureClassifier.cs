@@ -121,8 +121,7 @@ internal static class CertificateFailureClassifier {
     }
 
     public static bool IsStableForSnapshotReuse(CertificateFailureKind failureKind) {
-        return failureKind == CertificateFailureKind.Cancelled ||
-               failureKind == CertificateFailureKind.Timeout ||
+        return failureKind == CertificateFailureKind.Timeout ||
                failureKind == CertificateFailureKind.TlsHandshake ||
                failureKind == CertificateFailureKind.NameResolution ||
                failureKind == CertificateFailureKind.ConnectionRefused ||
