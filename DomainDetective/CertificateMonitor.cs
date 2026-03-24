@@ -381,6 +381,12 @@ namespace DomainDetective {
                 : (certificate != null ? new List<X509Certificate2> { certificate } : new List<X509Certificate2>());
             var root = chain.Count > 0 ? chain[chain.Count - 1] : null;
             var rootIdentity = CertificateIssuerClassifier.Classify(root);
+            var failureReason = hasLiveCertificateEvidence ? null : analysis.FailureReason;
+            var failureKind = hasLiveCertificateEvidence
+                ? CertificateFailureKind.None
+                : (analysis.FailureKind != CertificateFailureKind.None
+                    ? analysis.FailureKind
+                    : CertificateFailureClassifier.ClassifyFailureReason(analysis.FailureReason));
             var snapshotEntry = new CertificateInventoryEntry {
                 Host = entry.Host,
                 ResolvedHost = entry.ResolvedHost,
@@ -413,7 +419,8 @@ namespace DomainDetective {
                 Expired = entry.Expired,
                 ChainComplete = entry.ChainComplete,
                 IsReachable = analysis.IsReachable || hasLiveCertificateEvidence,
-                FailureReason = hasLiveCertificateEvidence ? null : analysis.FailureReason,
+                FailureReason = failureReason,
+                FailureKind = failureKind,
                 IsSelfSigned = analysis.IsSelfSigned,
                 HostnameMatch = analysis.HostnameMatch,
                 PresentInCtLogs = analysis.PresentInCtLogs,

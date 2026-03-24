@@ -87,6 +87,7 @@ namespace DomainDetective.Tests {
 
             Assert.NotNull(reason);
             Assert.Contains("HttpRequestError:NameResolutionError", reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("FailureKind:NameResolution", reason, StringComparison.OrdinalIgnoreCase);
         }
 #endif
 

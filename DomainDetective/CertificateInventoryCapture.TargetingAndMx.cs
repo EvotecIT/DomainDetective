@@ -77,31 +77,10 @@ public sealed partial class CertificateInventoryCapture {
             return false;
         }
 
-        var failureReason = entry.FailureReason?.Trim();
-        if (string.IsNullOrWhiteSpace(failureReason)) {
-            return false;
-        }
-
-        return failureReason.Contains("FailureKind:Cancelled", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("FailureKind:Timeout", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("FailureKind:TlsHandshake", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("HttpRequestError:NameResolutionError", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("HttpRequestError:ConnectionError", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("HttpRequestError:SecureConnectionError", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("TLS Handshake Failure", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:HostNotFound", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:NoData", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:TryAgain", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:TimedOut", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:ConnectionRefused", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:ConnectionReset", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:ConnectionAborted", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:HostUnreachable", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:NetworkUnreachable", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("SocketError:NetworkDown", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("No such host is known", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("actively refused", StringComparison.OrdinalIgnoreCase) ||
-               failureReason.Contains("forcibly closed by the remote host", StringComparison.OrdinalIgnoreCase);
+        var failureKind = entry.FailureKind != CertificateFailureKind.None
+            ? entry.FailureKind
+            : CertificateFailureClassifier.ClassifyFailureReason(entry.FailureReason);
+        return CertificateFailureClassifier.IsStableForSnapshotReuse(failureKind);
     }
 
     private static bool ShouldLoadRecentSnapshotEntries(CertificateInventoryCaptureOptions options) {
@@ -219,10 +198,12 @@ public sealed partial class CertificateInventoryCapture {
     private static void ApplyTargetLimit(
         CertificateInventoryCaptureOptions options,
         HashSet<string> httpsTargets,
+        Dictionary<string, HashSet<string>> httpsTargetOriginsByEndpointKey,
         Dictionary<string, MailEndpointTarget> mailTargets,
         List<string> warnings,
         IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
-        int reprobeExpiringWithinDays) {
+        int reprobeExpiringWithinDays,
+        List<TargetDecisionDiagnosticEntry> targetDecisionDiagnostics) {
         if (options.MaxTargets <= 0) {
             return;
         }
@@ -243,14 +224,37 @@ public sealed partial class CertificateInventoryCapture {
             out var allowedMail);
 
         if (originalMail > allowedMail) {
-            var keptMail = mailTargets.Values
-                .OrderByDescending(target => ComputeMailTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays))
-                .ThenBy(target => ResolvePrioritySortDays(target, recentByEndpoint))
-                .ThenBy(target => target.Host, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(target => target.Port)
-                .ThenBy(target => target.Service, StringComparer.OrdinalIgnoreCase)
+            var rankedMail = mailTargets.Values
+                .Select(target => new {
+                    Target = target,
+                    Priority = ComputeMailTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays)
+                })
+                .OrderByDescending(item => item.Priority)
+                .ThenBy(item => ResolvePrioritySortDays(item.Target, recentByEndpoint))
+                .ThenBy(item => item.Target.Host, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.Target.Port)
+                .ThenBy(item => item.Target.Service, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var keptMail = rankedMail
+                .Select(static item => item.Target)
                 .Take(allowedMail)
                 .ToList();
+            var droppedMail = rankedMail
+                .Skip(allowedMail)
+                .ToList();
+
+            foreach (var item in droppedMail) {
+                targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                    Stage = "target-limit",
+                    Action = "pruned",
+                    Reason = "max-targets",
+                    Target = BuildMailTargetLabel(item.Target),
+                    Service = item.Target.Service,
+                    PriorityScore = item.Priority,
+                    Message = $"Pruned by MaxTargets={options.MaxTargets}.",
+                    TargetOrigins = item.Target.TargetOrigins
+                });
+            }
 
             mailTargets.Clear();
             foreach (var target in keptMail) {
@@ -259,17 +263,45 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         if (originalHttps > allowedHttps) {
-            var keptHttps = httpsTargets
-                .OrderByDescending(target => ComputeHttpsTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays))
-                .ThenBy(target => ResolvePrioritySortDays(target, recentByEndpoint))
-                .ThenBy(target => target, StringComparer.OrdinalIgnoreCase)
+            var rankedHttps = httpsTargets
+                .Select(target => new {
+                    Target = target,
+                    Priority = ComputeHttpsTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays)
+                })
+                .OrderByDescending(item => item.Priority)
+                .ThenBy(item => ResolvePrioritySortDays(item.Target, recentByEndpoint))
+                .ThenBy(item => item.Target, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var keptHttps = rankedHttps
+                .Select(static item => item.Target)
                 .Take(allowedHttps)
                 .ToList();
+            var droppedHttps = rankedHttps
+                .Skip(allowedHttps)
+                .ToList();
+
+            foreach (var item in droppedHttps) {
+                string endpointKey = TryBuildHttpsEndpointKey(item.Target, out string key)
+                    ? key
+                    : item.Target;
+                targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                    Stage = "target-limit",
+                    Action = "pruned",
+                    Reason = "max-targets",
+                    Target = item.Target,
+                    Service = "HTTPS",
+                    PriorityScore = item.Priority,
+                    Message = $"Pruned by MaxTargets={options.MaxTargets}.",
+                    TargetOrigins = GetTrackedOrigins(httpsTargetOriginsByEndpointKey, endpointKey)
+                });
+            }
 
             httpsTargets.Clear();
             foreach (var target in keptHttps) {
                 httpsTargets.Add(target);
             }
+
+            PruneTrackedHttpsOrigins(httpsTargetOriginsByEndpointKey, keptHttps);
         }
 
         warnings.Add($"Probe target list capped from {totalTargets} to {options.MaxTargets} by MaxTargets (HTTPS: {originalHttps}->{httpsTargets.Count}, Mail: {originalMail}->{mailTargets.Count}).");
@@ -467,8 +499,10 @@ public sealed partial class CertificateInventoryCapture {
     private static void ApplyAdditionalEndpoints(
         CertificateInventoryCaptureOptions options,
         HashSet<string> httpsTargets,
+        Dictionary<string, HashSet<string>> httpsTargetOriginsByEndpointKey,
         Dictionary<string, MailEndpointTarget> mailTargets,
-        List<string> warnings) {
+        List<string> warnings,
+        List<TargetDecisionDiagnosticEntry> targetDecisionDiagnostics) {
         foreach (var raw in options.AdditionalEndpoints) {
             if (string.IsNullOrWhiteSpace(raw)) {
                 continue;
@@ -477,6 +511,13 @@ public sealed partial class CertificateInventoryCapture {
             if (value.IndexOf("://", StringComparison.Ordinal) >= 0) {
                 if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Host)) {
                     warnings.Add($"Skipping invalid endpoint '{value}'.");
+                    targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                        Stage = "additional-endpoints",
+                        Action = "rejected",
+                        Reason = "invalid-endpoint",
+                        Target = value,
+                        Message = "The additional endpoint could not be parsed into a supported absolute URI."
+                    });
                     continue;
                 }
 
@@ -486,27 +527,49 @@ public sealed partial class CertificateInventoryCapture {
                         Scheme = Uri.UriSchemeHttps,
                         Port = uri.IsDefaultPort ? options.HttpsPort : uri.Port
                     };
-                    httpsTargets.Add(builder.Uri.ToString());
+                    AddHttpsTarget(
+                        httpsTargets,
+                        httpsTargetOriginsByEndpointKey,
+                        builder.Uri.ToString(),
+                        TargetOriginAdditionalEndpoint);
                     continue;
                 }
 
                 if (TryCreateMailTargetFromScheme(uri, options, out var target)) {
+                    target!.TargetOrigins.Add(TargetOriginAdditionalEndpoint);
                     AddMailTarget(mailTargets, target!);
                     continue;
                 }
 
                 warnings.Add($"Skipping unsupported endpoint scheme in '{value}'.");
+                targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                    Stage = "additional-endpoints",
+                    Action = "rejected",
+                    Reason = "unsupported-scheme",
+                    Target = value,
+                    Service = scheme,
+                    Message = $"Scheme '{scheme}' is not supported for certificate inventory capture."
+                });
                 continue;
             }
 
             if (TryParseHostAndPort(value, out var hostWithPort, out var parsedPort)) {
                 if (TryCreateMailTargetFromPort(hostWithPort, parsedPort, out var targetByPort)) {
+                    targetByPort!.TargetOrigins.Add(TargetOriginAdditionalEndpoint);
                     AddMailTarget(mailTargets, targetByPort!);
                 } else {
-                    httpsTargets.Add(BuildHttpsUrl($"{hostWithPort}:{parsedPort}", options.HttpsPort));
+                    AddHttpsTarget(
+                        httpsTargets,
+                        httpsTargetOriginsByEndpointKey,
+                        BuildHttpsUrl($"{hostWithPort}:{parsedPort}", options.HttpsPort),
+                        TargetOriginAdditionalEndpoint);
                 }
             } else {
-                httpsTargets.Add(BuildHttpsUrl(value, options.HttpsPort));
+                AddHttpsTarget(
+                    httpsTargets,
+                    httpsTargetOriginsByEndpointKey,
+                    BuildHttpsUrl(value, options.HttpsPort),
+                    TargetOriginAdditionalEndpoint);
             }
         }
     }

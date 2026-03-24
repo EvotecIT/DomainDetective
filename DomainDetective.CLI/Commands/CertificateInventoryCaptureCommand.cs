@@ -352,6 +352,10 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [Description("Optional NDJSON output path for captured entries.")]
     [CommandOption("--ndjson-path <PATH>")]
     public string? NdjsonPath { get; set; }
+
+    [Description("Return a nonzero exit code when warning-level target-decision buckets are present.")]
+    [CommandOption("--fail-on-warning-target-decisions")]
+    public bool FailOnWarningTargetDecisions { get; set; }
 }
 
 /// <summary>
@@ -612,7 +616,9 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         if (!string.IsNullOrWhiteSpace(settings.CsvPath)) {
             try {
                 WriteCsv(result, settings.CsvPath!);
+                string targetDecisionSummaryCsvPath = WriteTargetDecisionSummaryCsv(result, settings.CsvPath!);
                 AnsiConsole.MarkupLine($"[grey]CSV written:[/] {settings.CsvPath}");
+                AnsiConsole.MarkupLine($"[grey]Target-decision summary CSV written:[/] {targetDecisionSummaryCsvPath}");
             } catch (Exception ex) {
                 AnsiConsole.MarkupLine($"[red]Failed to write CSV:[/] {ex.Message}");
                 return 1;
@@ -621,7 +627,9 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         if (!string.IsNullOrWhiteSpace(settings.NdjsonPath)) {
             try {
                 WriteNdjson(result, settings.NdjsonPath!);
+                string targetDecisionSummaryNdjsonPath = WriteTargetDecisionSummaryNdjson(result, settings.NdjsonPath!);
                 AnsiConsole.MarkupLine($"[grey]NDJSON written:[/] {settings.NdjsonPath}");
+                AnsiConsole.MarkupLine($"[grey]Target-decision summary NDJSON written:[/] {targetDecisionSummaryNdjsonPath}");
             } catch (Exception ex) {
                 AnsiConsole.MarkupLine($"[red]Failed to write NDJSON:[/] {ex.Message}");
                 return 1;
@@ -630,8 +638,13 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(result, JsonOptions.Default));
-            return 0;
+            return settings.FailOnWarningTargetDecisions && HasWarningTargetDecisionBuckets(result.TargetDecisionSummary)
+                ? 2
+                : 0;
         }
+
+        IReadOnlyList<TargetDecisionSummaryEntry> warningTargetDecisionBuckets = GetWarningTargetDecisionBuckets(result.TargetDecisionSummary);
+        int warningTargetDecisionEventCount = warningTargetDecisionBuckets.Sum(static summary => summary.Count);
 
         var summary = new Table().Border(TableBorder.Rounded).Title("Certificate Inventory Capture");
         summary.AddColumn("Metric");
@@ -641,15 +654,41 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         summary.AddRow("MX Hosts", result.MxHostCount.ToString());
         summary.AddRow("HTTPS Endpoints", result.HttpsEndpointCount.ToString());
         summary.AddRow("CT Subdomains", result.CtDiscoveredSubdomainCount.ToString());
+        summary.AddRow("CT -> HTTPS", result.CtPromotedHttpsCount.ToString());
+        summary.AddRow("CT Skipped HTTPS", result.CtSkippedHttpsPromotionCount.ToString());
+        summary.AddRow("CT Skipped Unresolved", result.CtSkippedUnresolvedHttpsPromotionCount.ToString());
+        summary.AddRow("CT Skipped Low-Confidence", result.CtSkippedLowConfidenceHttpsPromotionCount.ToString());
+        summary.AddRow("CT Duplicate HTTPS", result.CtSkippedDuplicateHttpsPromotionCount.ToString());
+        summary.AddRow("MX -> HTTPS", result.MxPromotedHttpsCount.ToString());
+        summary.AddRow("MX -> Mail", result.MxPromotedMailCount.ToString());
+        summary.AddRow("MX Invalid Artifacts", result.MxInvalidArtifactCount.ToString());
+        summary.AddRow("MX Duplicate Hosts", result.MxDuplicateHostCount.ToString());
+        summary.AddRow("MX Duplicate HTTPS", result.MxSkippedDuplicateHttpsPromotionCount.ToString());
         summary.AddRow("Native CT Log Diagnostics", result.NativeCtLogDiagnostics.Count.ToString());
         summary.AddRow("Mail Endpoints", result.MailEndpointCount.ToString());
+        summary.AddRow("HTTPS Before Limit", result.HttpsTargetCountBeforeLimit.ToString());
+        summary.AddRow("Mail Before Limit", result.MailTargetCountBeforeLimit.ToString());
+        summary.AddRow("HTTPS Dropped By Limit", result.HttpsTargetCountDroppedByLimit.ToString());
+        summary.AddRow("Mail Dropped By Limit", result.MailTargetCountDroppedByLimit.ToString());
+        summary.AddRow("Target Decision Diagnostics", result.TargetDecisionDiagnostics.Count.ToString());
+        summary.AddRow("Target Decision Summary Buckets", result.TargetDecisionSummary.Count.ToString());
+        summary.AddRow("Warning Decision Buckets", warningTargetDecisionBuckets.Count.ToString());
+        summary.AddRow("Warning Decision Events", warningTargetDecisionEventCount.ToString());
         summary.AddRow("Snapshot Entries", result.EntryCount.ToString());
+        summary.AddRow("Reused Recent", result.ReusedRecentEntryCount.ToString());
+        summary.AddRow("Reused Recent HTTPS", result.ReusedRecentHttpsCount.ToString());
+        summary.AddRow("Reused Recent Mail", result.ReusedRecentMailCount.ToString());
+        summary.AddRow("Reused Stable Failures", result.ReusedRecentFailureEntryCount.ToString());
+        summary.AddRow("Probed HTTPS", result.ProbedHttpsCount.ToString());
+        summary.AddRow("Probed Mail", result.ProbedMailCount.ToString());
         summary.AddRow("Unique Endpoints", result.UniqueEndpointCount.ToString());
         summary.AddRow("Valid", result.ValidCount.ToString());
         summary.AddRow("Expired", result.ExpiredCount.ToString());
         summary.AddRow("Failed (no cert)", result.FailedCount.ToString());
         summary.AddRow("Snapshot Path", string.IsNullOrWhiteSpace(result.SnapshotPath) ? "-" : result.SnapshotPath);
         AnsiConsole.Write(summary);
+
+        RenderTargetDecisionSummary(result);
 
         if (result.Warnings.Count > 0) {
             var warningTable = new Table().Border(TableBorder.Rounded);
@@ -678,6 +717,12 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.Write(endpointTable);
         }
 
+        if (settings.FailOnWarningTargetDecisions && warningTargetDecisionBuckets.Count > 0) {
+            AnsiConsole.MarkupLine(
+                $"[yellow]Strict target-decision mode failed:[/] {warningTargetDecisionBuckets.Count} warning bucket(s) covering {warningTargetDecisionEventCount} event(s).");
+            return 2;
+        }
+
         return 0;
     }
 
@@ -689,7 +734,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("CapturedAtUtc,Host,ResolvedHost,Service,Scheme,Port,CertificateThumbprint,CertificateSerialNumber,CertificateSubject,CertificateIssuer,CertificateRootIssuer,NotAfterUtc,DaysToExpire,Valid,Expired,IsReachable,HostnameMatch,ChainComplete,AuthenticationProfile,AllowsServerAuthentication,AllowsClientAuthentication,AllowsSecureEmail,PresentInCtLogs,CtDiscoverySources,CtTemplateFormatErrors,CertificateChainSource");
+        sb.AppendLine("CapturedAtUtc,Host,ResolvedHost,Service,Scheme,Port,CertificateThumbprint,CertificateSerialNumber,CertificateSubject,CertificateIssuer,CertificateRootIssuer,NotAfterUtc,DaysToExpire,Valid,Expired,IsReachable,FailureKind,FailureReason,HostnameMatch,ChainComplete,AuthenticationProfile,AllowsServerAuthentication,AllowsClientAuthentication,AllowsSecureEmail,PresentInCtLogs,CtDiscoverySources,CtTemplateFormatErrors,CertificateChainSource,TargetOrigins,CaptureDisposition");
         foreach (var entry in result.Snapshot.Entries) {
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(result.CapturedAtUtc.UtcDateTime.ToString("O")));
             sb.Append(',');
@@ -723,6 +768,10 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             sb.Append(',');
             sb.Append(entry.IsReachable);
             sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.FailureKind.ToString()));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.FailureReason));
+            sb.Append(',');
             sb.Append(entry.HostnameMatch);
             sb.Append(',');
             sb.Append(entry.ChainComplete);
@@ -742,10 +791,50 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.CtTemplateFormatErrors ?? Array.Empty<string>())));
             sb.Append(',');
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateChainSource));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.TargetOrigins ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CaptureDisposition));
             sb.AppendLine();
         }
 
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+    }
+
+    private static string WriteTargetDecisionSummaryCsv(CertificateInventoryCaptureResult result, string path) {
+        var fullPath = GetCompanionExportPath(path, "target-decision-summary");
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("CapturedAtUtc,Stage,Action,Reason,Severity,RecommendedAction,Count,ExampleTargets,ExampleServices,TargetOrigins");
+        foreach (var summary in result.TargetDecisionSummary) {
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(result.CapturedAtUtc.UtcDateTime.ToString("O")));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(summary.Stage));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(summary.Action));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(summary.Reason));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(summary.Severity));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(summary.RecommendedAction));
+            sb.Append(',');
+            sb.Append(summary.Count);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", summary.ExampleTargets ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", summary.ExampleServices ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", summary.TargetOrigins ?? Array.Empty<string>())));
+            sb.AppendLine();
+        }
+
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+        return fullPath;
     }
 
     private static void WriteNdjson(CertificateInventoryCaptureResult result, string path) {
@@ -763,6 +852,106 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             }));
         }
         CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+    }
+
+    private static string WriteTargetDecisionSummaryNdjson(CertificateInventoryCaptureResult result, string path) {
+        var fullPath = GetCompanionExportPath(path, "target-decision-summary");
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory)) {
+            Directory.CreateDirectory(directory);
+        }
+
+        var sb = new StringBuilder();
+        foreach (var summary in result.TargetDecisionSummary) {
+            sb.AppendLine(CertificateInventoryCommandHelpers.SerializeJsonLine(new {
+                result.CapturedAtUtc,
+                RecordType = "TargetDecisionSummary",
+                Summary = summary
+            }));
+        }
+        CertificateInventoryCommandHelpers.WriteUtf8Text(fullPath, sb.ToString());
+        return fullPath;
+    }
+
+    private static string GetCompanionExportPath(string path, string suffix) {
+        var fullPath = Path.GetFullPath(path);
+        string directory = Path.GetDirectoryName(fullPath) ?? string.Empty;
+        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fullPath);
+        string extension = Path.GetExtension(fullPath);
+        string companionFileName = string.IsNullOrWhiteSpace(extension)
+            ? $"{fileNameWithoutExtension}.{suffix}"
+            : $"{fileNameWithoutExtension}.{suffix}{extension}";
+        return string.IsNullOrWhiteSpace(directory)
+            ? companionFileName
+            : Path.Combine(directory, companionFileName);
+    }
+
+    private static void RenderTargetDecisionSummary(CertificateInventoryCaptureResult result) {
+        if (result.TargetDecisionSummary == null || result.TargetDecisionSummary.Count == 0) {
+            return;
+        }
+
+        var table = new Table().Border(TableBorder.Rounded);
+        table.Title = new TableTitle("Target Decisions");
+        table.AddColumn("Severity");
+        table.AddColumn("Stage");
+        table.AddColumn("Reason");
+        table.AddColumn("Count");
+        table.AddColumn("Recommended Action");
+        table.AddColumn("Examples");
+
+        IReadOnlyList<TargetDecisionSummaryEntry> ordered = result.TargetDecisionSummary
+            .OrderBy(static summary => GetTargetDecisionSeveritySortOrder(summary.Severity))
+            .ThenByDescending(static summary => summary.Count)
+            .ThenBy(static summary => summary.Stage, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static summary => summary.Reason, StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToList();
+
+        foreach (TargetDecisionSummaryEntry summary in ordered) {
+            string severity = string.IsNullOrWhiteSpace(summary.Severity) ? "informational" : summary.Severity;
+            string examples = summary.ExampleTargets == null || summary.ExampleTargets.Count == 0
+                ? "-"
+                : string.Join(", ", summary.ExampleTargets.Take(3));
+            table.AddRow(
+                Markup.Escape(severity),
+                Markup.Escape(summary.Stage),
+                Markup.Escape(summary.Reason),
+                summary.Count.ToString(),
+                Markup.Escape(summary.RecommendedAction ?? string.Empty),
+                Markup.Escape(examples));
+        }
+
+        if (result.TargetDecisionSummary.Count > ordered.Count) {
+            table.AddRow("...", "...", "...", (result.TargetDecisionSummary.Count - ordered.Count).ToString(), "...", "...");
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    private static int GetTargetDecisionSeveritySortOrder(string? severity) {
+        if (string.Equals(severity, "warning", StringComparison.OrdinalIgnoreCase)) {
+            return 0;
+        }
+        if (string.Equals(severity, "informational", StringComparison.OrdinalIgnoreCase)) {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    private static bool HasWarningTargetDecisionBuckets(IReadOnlyList<TargetDecisionSummaryEntry>? summaries) {
+        return GetWarningTargetDecisionBuckets(summaries).Count > 0;
+    }
+
+    private static IReadOnlyList<TargetDecisionSummaryEntry> GetWarningTargetDecisionBuckets(IReadOnlyList<TargetDecisionSummaryEntry>? summaries) {
+        if (summaries == null || summaries.Count == 0) {
+            return Array.Empty<TargetDecisionSummaryEntry>();
+        }
+
+        return summaries
+            .Where(static summary => string.Equals(summary.Severity, "warning", StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 
     private static string? ResolveSecret(string? directValue, string? envVariableName) {

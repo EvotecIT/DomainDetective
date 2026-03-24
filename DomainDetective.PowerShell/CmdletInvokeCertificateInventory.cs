@@ -42,6 +42,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Reuse recent stable failures for short-lived verification lanes</summary>
 ///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -ReuseRecentFailureResults -RecentFailureResultTtlHours 1 -HttpsTimeoutSeconds 20</code>
 /// </example>
+/// <example>
+///   <summary>Fail automation when warning-level target decisions are detected</summary>
+///   <code>Invoke-DDCertificateInventory -DomainName example.com -Endpoint ftp://example.com -FailOnWarningTargetDecisions</code>
+/// </example>
 [Cmdlet(VerbsLifecycle.Invoke, "DDCertificateInventory")]
 [OutputType(typeof(CertificateInventoryCaptureResult))]
 public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
@@ -342,6 +346,10 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter NoPersist { get; set; }
 
+    /// <summary>When set, throw a terminating error when warning-level target-decision buckets are present.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter FailOnWarningTargetDecisions { get; set; }
+
     /// <summary>Collects pipeline domain inputs for later capture execution.</summary>
     protected override void ProcessRecord() {
         if (DomainName == null || DomainName.Length == 0) {
@@ -511,6 +519,21 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue, false);
             var result = task.GetAwaiter().GetResult();
             FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue, true);
+
+            IReadOnlyList<TargetDecisionSummaryEntry> warningTargetDecisionBuckets = GetWarningTargetDecisionBuckets(result.TargetDecisionSummary);
+            foreach (var summary in warningTargetDecisionBuckets) {
+                WriteWarning(FormatWarningTargetDecisionBucket(summary));
+            }
+
+            if (FailOnWarningTargetDecisions.IsPresent && warningTargetDecisionBuckets.Count > 0) {
+                ThrowTerminatingError(new ErrorRecord(
+                    new InvalidOperationException($"Warning-level target decisions detected ({warningTargetDecisionBuckets.Count} bucket(s))."),
+                    "CertificateInventoryTargetDecisionWarningsDetected",
+                    ErrorCategory.InvalidResult,
+                    result));
+                return;
+            }
+
             WriteObject(result);
         } catch (Exception ex) {
             ThrowTerminatingError(new ErrorRecord(
@@ -587,6 +610,41 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             normalized = normalized.Substring(0, 320).TrimEnd() + "...";
         }
         return normalized;
+    }
+
+    internal static IReadOnlyList<TargetDecisionSummaryEntry> GetWarningTargetDecisionBuckets(IReadOnlyList<TargetDecisionSummaryEntry>? summaries) {
+        if (summaries == null || summaries.Count == 0) {
+            return Array.Empty<TargetDecisionSummaryEntry>();
+        }
+
+        var warnings = new List<TargetDecisionSummaryEntry>();
+        foreach (var summary in summaries) {
+            if (summary == null) {
+                continue;
+            }
+            if (!string.Equals(summary.Severity, "warning", StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            }
+
+            warnings.Add(summary);
+        }
+
+        return warnings;
+    }
+
+    internal static string FormatWarningTargetDecisionBucket(TargetDecisionSummaryEntry? summary) {
+        if (summary == null) {
+            return "Target decision warning detected.";
+        }
+
+        string stage = string.IsNullOrWhiteSpace(summary.Stage) ? "unknown-stage" : summary.Stage.Trim();
+        string action = string.IsNullOrWhiteSpace(summary.Action) ? "unknown-action" : summary.Action.Trim();
+        string reason = string.IsNullOrWhiteSpace(summary.Reason) ? "unknown-reason" : summary.Reason.Trim();
+        string recommendedAction = string.IsNullOrWhiteSpace(summary.RecommendedAction)
+            ? "Review target-decision diagnostics for details."
+            : summary.RecommendedAction.Trim();
+
+        return $"Target decision warning: {stage}/{action}/{reason} affected {summary.Count} item(s). Recommended action: {recommendedAction}";
     }
 
     private static string? ResolveSecret(string? directValue, string? envVariableName) {

@@ -13,6 +13,8 @@ namespace DomainDetective {
         public List<NativeCtLogDiagnosticEntry> NativeCtLogDiagnostics { get; set; } = new();
         public List<string> NativeCtLogDiagnosticsRaw { get; set; } = new();
         public List<PassiveCtDiagnosticEntry> PassiveCtDiagnostics { get; set; } = new();
+        public List<TargetDecisionDiagnosticEntry> TargetDecisionDiagnostics { get; set; } = new();
+        public List<TargetDecisionSummaryEntry> TargetDecisionSummary { get; set; } = new();
     }
 
     /// <summary>
@@ -45,6 +47,37 @@ namespace DomainDetective {
         public DateTimeOffset? CooldownUntilUtc { get; set; }
         public int? RetryAfterSeconds { get; set; }
         public string? Failure { get; set; }
+    }
+
+    /// <summary>
+    /// Structured target-selection diagnostic captured alongside inventory snapshots.
+    /// </summary>
+    public sealed class TargetDecisionDiagnosticEntry {
+        public string Stage { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public string RecommendedAction { get; set; } = string.Empty;
+        public string Target { get; set; } = string.Empty;
+        public string? Service { get; set; }
+        public int? PriorityScore { get; set; }
+        public string? Message { get; set; }
+        public IReadOnlyList<string> TargetOrigins { get; set; } = Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// Grouped summary bucket for target-selection diagnostics.
+    /// </summary>
+    public sealed class TargetDecisionSummaryEntry {
+        public string Stage { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public string RecommendedAction { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public IReadOnlyList<string> ExampleTargets { get; set; } = Array.Empty<string>();
+        public IReadOnlyList<string> ExampleServices { get; set; } = Array.Empty<string>();
+        public IReadOnlyList<string> TargetOrigins { get; set; } = Array.Empty<string>();
     }
 
     /// <summary>
@@ -84,6 +117,8 @@ namespace DomainDetective {
         public bool IsReachable { get; set; }
         /// <summary>Best-effort reason captured when the live probe failed to complete successfully.</summary>
         public string? FailureReason { get; set; }
+        /// <summary>Normalized failure kind captured for stable reuse and analytics.</summary>
+        public CertificateFailureKind FailureKind { get; set; }
         public bool IsSelfSigned { get; set; }
         public bool HostnameMatch { get; set; }
         public bool PresentInCtLogs { get; set; }
@@ -134,6 +169,10 @@ namespace DomainDetective {
         public string AuthenticationProfile { get; set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
         public string? CertificateChainSource { get; set; }
         public List<string> CertificateChainSources { get; set; } = new();
+        /// <summary>Origin tags explaining why this endpoint was targeted in the current capture run.</summary>
+        public IReadOnlyList<string> TargetOrigins { get; set; } = Array.Empty<string>();
+        /// <summary>How this endpoint entered the current capture result (live probe or recent snapshot reuse).</summary>
+        public string CaptureDisposition { get; set; } = string.Empty;
         public List<string> ExtendedKeyUsageOids { get; set; } = new();
         public List<string> SubjectAlternativeNames { get; set; } = new();
         public List<string> CertificateChainSubjects { get; set; } = new();

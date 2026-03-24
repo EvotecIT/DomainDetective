@@ -63,6 +63,8 @@ public class MailTlsAnalysis : IHasAssessments {
         public GradeLevel GradeLevel { get; set; } = GradeLevel.Unknown;
         public bool LegacyEnabled { get; set; }
         public bool? OcspStaplingPresent { get; set; }
+        public string? FailureReason { get; set; }
+        public CertificateFailureKind FailureKind { get; set; }
     }
 
     /// <summary>Stores results for each server.</summary>
@@ -208,11 +210,14 @@ public class MailTlsAnalysis : IHasAssessments {
                         logger.WriteInformationCode(MailTlsCodes.CertificateValid, "Valid certificate on {0}:{1}", host, port);
                     }
                 } catch (AuthenticationException ex) {
+                    SetFailure(result, ex);
                     logger.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
                 } catch (ObjectDisposedException odex) {
+                    SetFailure(result, odex);
                     // Some servers tear down the stream aggressively; report as verbose and continue.
                     logger.WriteVerbose($"TLS stream disposed during operation on {host}:{port} - {odex.Message}");
                 } catch (IOException ioex) {
+                    SetFailure(result, ioex);
                     logger.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
                 } finally {
                     try { result.Protocol = ssl.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
@@ -419,10 +424,13 @@ public class MailTlsAnalysis : IHasAssessments {
                     logger?.WriteInformationCode(MailTlsCodes.CertificateValid, "Valid certificate on {0}:{1}", host, port);
                 }
             } catch (AuthenticationException ex) {
+                SetFailure(result, ex);
                 logger?.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
             } catch (ObjectDisposedException odex) {
+                SetFailure(result, odex);
                 logger?.WriteVerbose($"TLS stream disposed during operation on {host}:{port} - {odex.Message}");
             } catch (IOException ioex) {
+                SetFailure(result, ioex);
                 logger?.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
             } finally {
                 try { result.Protocol = sslStream.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
@@ -443,10 +451,20 @@ public class MailTlsAnalysis : IHasAssessments {
                 await ProbeOcspStaplingWithOpenSsl(host, port, result, logger, cancellationToken);
             }
         } catch (Exception ex) {
+            SetFailure(result, ex);
             logger?.WriteErrorCode(MailTlsCodes.TlsCheckFailed, "TLS check failed for {0}:{1} - {2}", host, port, ex.Message);
         }
 
         return result;
+    }
+
+    private static void SetFailure(TlsResult result, Exception exception) {
+        if (result == null || exception == null) {
+            return;
+        }
+
+        result.FailureReason = CertificateAnalysis.BuildFailureReason(exception);
+        result.FailureKind = CertificateFailureClassifier.Classify(exception);
     }
 
     private static async Task ProbeProtocolSupport(string host, int port, TlsResult result, CancellationToken token) {

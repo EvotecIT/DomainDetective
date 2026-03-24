@@ -175,6 +175,60 @@ $capture = Invoke-DDCertificateInventory `
 $capture | Format-List CapturedAtUtc,SnapshotPath,DomainCount,MxHostCount,EntryCount,ValidCount,ExpiredCount,FailedCount
 ```
 
+Useful run telemetry now returned directly on the capture result:
+
+- `ReusedRecentEntryCount`, `ReusedRecentHttpsCount`, `ReusedRecentMailCount`
+- `ReusedRecentFailureEntryCount`, `ReusedRecentFailureHttpsCount`, `ReusedRecentFailureMailCount`
+- `ProbedHttpsCount`, `ProbedMailCount`
+- `CtPromotedHttpsCount`, `CtSkippedHttpsPromotionCount`
+- `CtSkippedUnresolvedHttpsPromotionCount`, `CtSkippedLowConfidenceHttpsPromotionCount`, `CtSkippedDuplicateHttpsPromotionCount`
+- `MxPromotedHttpsCount`, `MxPromotedMailCount`
+- `MxInvalidArtifactCount`, `MxDuplicateHostCount`, `MxSkippedDuplicateHttpsPromotionCount`
+- `HttpsTargetCountBeforeLimit`, `MailTargetCountBeforeLimit`
+- `HttpsTargetCountDroppedByLimit`, `MailTargetCountDroppedByLimit`
+- `TargetOriginCounts`, `CaptureDispositionCounts`
+- `TargetDecisionDiagnostics`
+- `TargetDecisionSummary`
+
+Each snapshot entry now also carries per-endpoint provenance:
+
+- `TargetOrigins`: why the endpoint was targeted in this run (`seed-apex`, `seed-exact-host`, `seed-www`, `ct-discovery`, `mx-https`, `mx-mail`, `additional-endpoint`)
+- `CaptureDisposition`: how the endpoint entered the result for this run (`live-probe`, `reused-recent-success`, `reused-recent-stable-failure`)
+
+The capture result and persisted snapshot also include structured `TargetDecisionDiagnostics`
+for targets that were rejected or pruned, including:
+
+- invalid additional endpoints
+- unsupported additional-endpoint schemes
+- specific HTTPS/mail targets pruned by `MaxTargets`
+
+`TargetDecisionSummary` groups those raw events by `Stage` + `Action` + `Reason` and includes:
+
+- `Severity`
+- `RecommendedAction`
+- `Count`
+- `ExampleTargets`
+- `ExampleServices`
+- merged `TargetOrigins`
+
+When the CLI writes `--csv-path` or `--ndjson-path`, it also emits a companion
+target-decision summary export beside the main file:
+
+- `capture.csv` -> `capture.target-decision-summary.csv`
+- `capture.ndjson` -> `capture.target-decision-summary.ndjson`
+
+Those companion exports keep the entry-level output unchanged while projecting the
+grouped target-decision buckets with severity and recommended action hints. The CLI
+table output also shows warning-level decision buckets first, and
+`--fail-on-warning-target-decisions` returns exit code `2` when warning-level target
+decisions are present so automation can treat configuration-quality issues as
+actionable failures.
+
+The PowerShell cmdlet supports the same strict-mode behavior via
+`-FailOnWarningTargetDecisions`, which emits warning records for each warning-level
+target-decision bucket and then throws a terminating error when strict mode is
+requested.
+
 For large domains where you want CT-seen hostnames added to scan scope:
 
 ```powershell

@@ -39,6 +39,8 @@ namespace DomainDetective {
         public bool IsReachable { get; set; }
         /// <summary>Gets the best-effort failure reason when the endpoint probe does not complete successfully.</summary>
         public string? FailureReason { get; private set; }
+        /// <summary>Gets the normalized failure kind when the endpoint probe does not complete successfully.</summary>
+        public CertificateFailureKind FailureKind { get; private set; }
         /// <summary>Gets whether the certificate matches the requested host.</summary>
         public bool HostnameMatch { get; private set; }
         /// <summary>Gets or sets the number of days until expiry.</summary>
@@ -245,6 +247,7 @@ namespace DomainDetective {
             Url = url;
             IsSelfSigned = false;
             FailureReason = null;
+            FailureKind = CertificateFailureKind.None;
             ResetChainSourceTracking();
             bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
@@ -257,6 +260,7 @@ namespace DomainDetective {
                 } catch (Exception ex) {
                     IsReachable = false;
                     FailureReason = BuildFailureReason(ex);
+                    FailureKind = CertificateFailureClassifier.Classify(ex);
                     logger.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, BuildFailureLogMessage(ex));
                 }
 
@@ -343,6 +347,7 @@ namespace DomainDetective {
                     } catch (Exception ex) {
                         IsReachable = false;
                         FailureReason = BuildFailureReason(ex);
+                        FailureKind = CertificateFailureClassifier.Classify(ex);
                         logger.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, BuildFailureLogMessage(ex));
                     }
                 }
@@ -496,6 +501,17 @@ namespace DomainDetective {
                 }
 
                 current = current.InnerException;
+            }
+
+            CertificateFailureKind failureKind = CertificateFailureClassifier.Classify(exception);
+            if (failureKind != CertificateFailureKind.None &&
+                failureKind != CertificateFailureKind.Unknown)
+            {
+                string marker = CertificateFailureClassifier.ToMarker(failureKind);
+                if (!parts.Any(existing => string.Equals(existing, marker, StringComparison.OrdinalIgnoreCase)))
+                {
+                    parts.Add(marker);
+                }
             }
 
             return parts.Count == 0 ? exception.GetType().Name : string.Join(" | ", parts);

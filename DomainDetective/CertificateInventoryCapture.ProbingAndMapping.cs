@@ -355,6 +355,9 @@ public sealed partial class CertificateInventoryCapture {
         var isReachable = result.StartTlsAdvertised || certificate != null;
         var valid = certificate != null && result.CertificateValid && !result.IsExpired;
         var chainComplete = certificate != null && result.ChainValid && chain.Count > 1;
+        var failureKind = result.FailureKind != CertificateFailureKind.None
+            ? result.FailureKind
+            : CertificateFailureClassifier.ClassifyFailureReason(result.FailureReason);
 
         var entry = new CertificateInventoryEntry {
             Host = target.Host,
@@ -388,6 +391,8 @@ public sealed partial class CertificateInventoryCapture {
             Expired = result.IsExpired,
             ChainComplete = chainComplete,
             IsReachable = isReachable,
+            FailureReason = result.FailureReason,
+            FailureKind = failureKind,
             IsSelfSigned = IsSelfSigned(certificate),
             HostnameMatch = certificate != null && result.HostnameMatch,
             PresentInCtLogs = false,
@@ -408,6 +413,7 @@ public sealed partial class CertificateInventoryCapture {
             CertificateChainSource = target.ChainSource
         };
         entry.CertificateChainSources.Add(target.ChainSource);
+        ApplyEntryProvenance(entry, target.TargetOrigins, CaptureDispositionLiveProbe);
         if (eku.Oids.Count > 0) {
             entry.ExtendedKeyUsageOids.AddRange(eku.Oids);
         }
