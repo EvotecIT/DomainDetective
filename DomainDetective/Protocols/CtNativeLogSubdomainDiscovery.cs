@@ -76,11 +76,20 @@ internal sealed class NativeCtSubdomainObservation {
     public DateTimeOffset? FirstSeenUtc { get; set; }
     public DateTimeOffset? LastSeenUtc { get; set; }
     public DateTimeOffset? LatestCertificateCtEntryTimestampUtc { get; set; }
+    public string? LatestCertificateThumbprint { get; set; }
     public string? LatestCertificateSubject { get; set; }
     public string? LatestCertificateIssuer { get; set; }
     public string? LatestCertificateSerialNumber { get; set; }
     public DateTimeOffset? LatestCertificateNotBeforeUtc { get; set; }
     public DateTimeOffset? LatestCertificateNotAfterUtc { get; set; }
+    public IReadOnlyList<string> LatestCertificateSubjectAlternativeNames { get; set; } = Array.Empty<string>();
+    public bool? LatestCertificateIsSelfSigned { get; set; }
+    public bool? LatestCertificateWeakKey { get; set; }
+    public bool? LatestCertificateSha1Signature { get; set; }
+    public bool? LatestCertificateHasServerAuthentication { get; set; }
+    public bool? LatestCertificateHasClientAuthentication { get; set; }
+    public bool? LatestCertificateHasSecureEmail { get; set; }
+    public string? LatestCertificateAuthenticationProfile { get; set; }
     public int CertificateObservationCount { get; set; }
 }
 

@@ -99,7 +99,14 @@ public static class TlsProbe
         }
         var ct = timeoutCts?.Token ?? token;
 
-        await connectAsync(client, ct).ConfigureAwait(false);
+        try
+        {
+            await connectAsync(client, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            throw NormalizeProbeException(ex, token, timeoutCts);
+        }
 
         using var ssl = new SslStream(client.GetStream(), false, (_, certificate, chain, errors) =>
         {
@@ -113,6 +120,10 @@ public static class TlsProbe
             var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
             result.CipherSuite = tlsInfo.CipherSuite;
             result.KeyExchangeAlgorithm = tlsInfo.KeyExchangeAlgorithm;
+        }
+        catch (Exception ex)
+        {
+            throw NormalizeProbeException(ex, token, timeoutCts);
         }
         finally
         {
@@ -130,6 +141,39 @@ public static class TlsProbe
     private static async Task ConnectAsync(TcpClient client, IPAddress address, int port, CancellationToken cancellationToken)
     {
         await client.ConnectAsync(address, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static Exception NormalizeProbeException(
+        Exception exception,
+        CancellationToken callerCancellationToken,
+        CancellationTokenSource? probeTimeoutSource = null)
+    {
+        if (exception == null)
+        {
+            throw new ArgumentNullException(nameof(exception));
+        }
+
+        if (callerCancellationToken.IsCancellationRequested)
+        {
+            return exception;
+        }
+
+        bool timeoutTriggered = probeTimeoutSource?.IsCancellationRequested == true;
+        if (!timeoutTriggered &&
+            exception is not TaskCanceledException &&
+            exception is not OperationCanceledException)
+        {
+            return exception;
+        }
+
+        if (timeoutTriggered ||
+            exception is TaskCanceledException ||
+            exception is OperationCanceledException)
+        {
+            return new TimeoutException("The request timed out.", exception);
+        }
+
+        return exception;
     }
 
     private static void PopulateFromValidation(Result result, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors)

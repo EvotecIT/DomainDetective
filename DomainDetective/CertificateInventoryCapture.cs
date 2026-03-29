@@ -100,6 +100,26 @@ public sealed class CertificateInventoryCaptureOptions {
     /// </summary>
     public bool EnablePassiveCtMetadataFallback { get; set; }
 
+    /// <summary>
+    /// When true, exact-host CT metadata rescue may query the public crt.sh PostgreSQL replica
+    /// directly before falling back to passive/public CT web APIs. This is intended for
+    /// thumbprint- and metadata-rescue lanes that need stronger exact-host CT coverage than the
+    /// rate-limited web endpoints provide.
+    /// </summary>
+    public bool EnableCrtShPostgreSqlMetadataFallback { get; set; }
+
+    /// <summary>
+    /// Optional connection string used for direct crt.sh PostgreSQL metadata rescue.
+    /// When empty and <see cref="EnableCrtShPostgreSqlMetadataFallback"/> is enabled, the capture
+    /// uses the public guest endpoint (`crt.sh:5432/certwatch`) with TLS enabled.
+    /// </summary>
+    public string? CrtShPostgreSqlConnectionString { get; set; }
+
+    /// <summary>
+    /// Command timeout in seconds for direct crt.sh PostgreSQL metadata rescue.
+    /// </summary>
+    public int CrtShPostgreSqlCommandTimeoutSeconds { get; set; } = 15;
+
     /// <summary>Per-request timeout for passive/public CT HTTP calls.</summary>
     public TimeSpan PassiveCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
@@ -562,6 +582,8 @@ public sealed partial class CertificateInventoryCapture {
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtSubdomainEntryDiscoveryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<string>>>? CtSubdomainDiscoveryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtPassiveMetadataBackfillOverride { get; set; }
+    internal Func<string, CancellationToken, Task<byte[]?>>? CtPassiveCertificateDownloadOverride { get; set; }
+    internal Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? CtExactMetadataPostgreSqlOverride { get; set; }
     internal Func<CertificateInventorySnapshot, string, InternalLogger?, string>? PersistSnapshotOverride { get; set; }
     internal Func<CertificateInventoryCaptureOptions, DateTimeOffset, InternalLogger?, IReadOnlyDictionary<string, CertificateInventoryEntry>>? RecentSnapshotLookupOverride { get; set; }
 

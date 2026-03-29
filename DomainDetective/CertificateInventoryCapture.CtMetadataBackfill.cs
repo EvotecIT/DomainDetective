@@ -1,13 +1,36 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
+using Npgsql;
 
 namespace DomainDetective;
 
 public sealed partial class CertificateInventoryCapture {
+    internal sealed class CrtShPostgreSqlExactMetadataRow
+    {
+        public byte[]? CertificateDer { get; init; }
+
+        public DateTimeOffset? EntryTimestampUtc { get; init; }
+
+        public string? CommonName { get; init; }
+
+        public string? IssuerName { get; init; }
+
+        public string? SerialNumber { get; init; }
+
+        public DateTimeOffset? NotBeforeUtc { get; init; }
+
+        public DateTimeOffset? NotAfterUtc { get; init; }
+
+        public IReadOnlyList<string> CandidateNames { get; init; } = Array.Empty<string>();
+    }
+
     private async Task<IReadOnlyList<SubdomainDiscoveryEntry>> BackfillMissingCtCertificateMetadataAsync(
         IReadOnlyList<string> domains,
         IReadOnlyList<SubdomainDiscoveryEntry> discoveredEntries,
@@ -391,17 +414,6 @@ public sealed partial class CertificateInventoryCapture {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
-        if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string suppressionReason)) {
-            string warning =
-                "Passive CT exact metadata backfill skipped for " +
-                hostNames.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) +
-                " host(s) because shared sources are cooling down: " +
-                suppressionReason;
-            warnings?.Add(warning);
-            logger.WriteVerbose("{0}", warning);
-            return Array.Empty<SubdomainDiscoveryEntry>();
-        }
-
         var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         bool usePassiveNetworkQueries = CtPassiveMetadataBackfillOverride == null;
         List<string> normalizedHostNames = hostNames
@@ -413,27 +425,69 @@ public sealed partial class CertificateInventoryCapture {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
+        IReadOnlyList<string> remainingHostNames = normalizedHostNames;
+        if (ShouldUseCrtShPostgreSqlMetadataFallback(options)) {
+            Dictionary<string, SubdomainDiscoveryEntry> directResults = await QueryCrtShPostgreSqlExactMetadataAsync(
+                normalizedHostNames,
+                options,
+                logger,
+                cancellationToken).ConfigureAwait(false);
+            foreach (KeyValuePair<string, SubdomainDiscoveryEntry> pair in directResults) {
+                lock (results) {
+                    MergeCtSubdomainEntry(results, pair.Value);
+                }
+            }
+
+            if (directResults.Count == normalizedHostNames.Count) {
+                return results.Values
+                    .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            remainingHostNames = normalizedHostNames
+                .Where(hostName => !directResults.ContainsKey(hostName))
+                .ToList();
+            if (remainingHostNames.Count == 0) {
+                return results.Values
+                    .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
+
+        if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string suppressionReason)) {
+            string warning =
+                "Passive CT exact metadata backfill skipped for " +
+                remainingHostNames.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " host(s) because shared sources are cooling down: " +
+                suppressionReason;
+            warnings?.Add(warning);
+            logger.WriteVerbose("{0}", warning);
+            return results.Values
+                .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         if (usePassiveNetworkQueries) {
             var sharedClient = new PassiveCtSourceClient();
             int exactNetworkParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
                 options.DiscoveryParallelism,
                 options.PassiveCtParallelism,
-                normalizedHostNames.Count,
+                remainingHostNames.Count,
                 usePassiveNetworkQueries: true);
             int scheduledHosts = 0;
-            while (scheduledHosts < normalizedHostNames.Count) {
+            while (scheduledHosts < remainingHostNames.Count) {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string preBatchSuppressionReason)) {
                     LogExactPassiveCtMetadataSuppression(
                         warnings,
                         logger,
-                        normalizedHostNames.Count - scheduledHosts,
+                        remainingHostNames.Count - scheduledHosts,
                         preBatchSuppressionReason);
                     break;
                 }
 
-                List<string> batch = normalizedHostNames
+                List<string> batch = remainingHostNames
                     .Skip(scheduledHosts)
                     .Take(exactNetworkParallelism)
                     .ToList();
@@ -448,6 +502,7 @@ public sealed partial class CertificateInventoryCapture {
                                     passiveCtDiagnosticEntries,
                                     logger,
                                     sharedClient,
+                                    CtPassiveCertificateDownloadOverride,
                                     cancellationToken)
                                 .ConfigureAwait(false);
                             if (exactEntry == null || string.IsNullOrWhiteSpace(exactEntry.Name)) {
@@ -473,7 +528,7 @@ public sealed partial class CertificateInventoryCapture {
                     LogExactPassiveCtMetadataSuppression(
                         warnings,
                         logger,
-                        normalizedHostNames.Count - scheduledHosts,
+                        remainingHostNames.Count - scheduledHosts,
                         postBatchSuppressionReason);
                     break;
                 }
@@ -486,8 +541,8 @@ public sealed partial class CertificateInventoryCapture {
 
         int overrideParallelism = Math.Max(1, options.DiscoveryParallelism);
         using var gate = new SemaphoreSlim(overrideParallelism, overrideParallelism);
-        var overrideTasks = new List<Task>(normalizedHostNames.Count);
-        foreach (string hostName in normalizedHostNames) {
+        var overrideTasks = new List<Task>(remainingHostNames.Count);
+        foreach (string hostName in remainingHostNames) {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             overrideTasks.Add(Task.Run(async () => {
                 try {
@@ -524,6 +579,243 @@ public sealed partial class CertificateInventoryCapture {
         return results.Values
             .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private bool ShouldUseCrtShPostgreSqlMetadataFallback(CertificateInventoryCaptureOptions options) {
+        return options != null &&
+               (options.EnableCrtShPostgreSqlMetadataFallback || CtExactMetadataPostgreSqlOverride != null);
+    }
+
+    private async Task<Dictionary<string, SubdomainDiscoveryEntry>> QueryCrtShPostgreSqlExactMetadataAsync(
+        IReadOnlyList<string> hostNames,
+        CertificateInventoryCaptureOptions options,
+        InternalLogger logger,
+        CancellationToken cancellationToken) {
+        var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
+        if (hostNames == null || hostNames.Count == 0) {
+            return results;
+        }
+
+        int exactParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
+            options.DiscoveryParallelism,
+            options.PassiveCtParallelism,
+            hostNames.Count,
+            usePassiveNetworkQueries: false);
+        using var gate = new SemaphoreSlim(exactParallelism, exactParallelism);
+        var tasks = new List<Task>(hostNames.Count);
+        foreach (string hostName in hostNames) {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            tasks.Add(Task.Run(async () => {
+                try {
+                    SubdomainDiscoveryEntry? entry = CtExactMetadataPostgreSqlOverride != null
+                        ? await CtExactMetadataPostgreSqlOverride(hostName, options, logger, cancellationToken).ConfigureAwait(false)
+                        : await QueryCrtShPostgreSqlMetadataExactAsync(hostName, options, logger, cancellationToken).ConfigureAwait(false);
+                    if (entry == null || string.IsNullOrWhiteSpace(entry.Name)) {
+                        return;
+                    }
+
+                    lock (results) {
+                        MergeCtSubdomainEntry(results, entry);
+                    }
+                } catch (Exception ex) {
+                    logger.WriteVerbose(
+                        "CT metadata backfill exact PostgreSQL lookup failed for {0}: {1}",
+                        hostName,
+                        ex.Message);
+                } finally {
+                    gate.Release();
+                }
+            }, cancellationToken));
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        return results;
+    }
+
+    private static async Task<SubdomainDiscoveryEntry?> QueryCrtShPostgreSqlMetadataExactAsync(
+        string hostName,
+        CertificateInventoryCaptureOptions options,
+        InternalLogger? logger,
+        CancellationToken cancellationToken) {
+        if (string.IsNullOrWhiteSpace(hostName) || options == null) {
+            return null;
+        }
+
+        string normalizedHost = hostName.Trim().TrimEnd('.').ToLowerInvariant();
+        string connectionString = BuildCrtShPostgreSqlConnectionString(options);
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        using var command = connection.CreateCommand();
+        command.CommandTimeout = Math.Max(1, options.CrtShPostgreSqlCommandTimeoutSeconds);
+        command.CommandText = BuildCrtShPostgreSqlExactMetadataQuery();
+        command.Parameters.AddWithValue("host", normalizedHost);
+        command.Parameters.AddWithValue("wildcardHost", BuildWildcardCandidateHost(normalizedHost));
+
+        var rows = new List<CrtShPostgreSqlExactMetadataRow>();
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) {
+            rows.Add(new CrtShPostgreSqlExactMetadataRow {
+                CertificateDer = reader.IsDBNull(0) ? null : (byte[])reader.GetValue(0),
+                EntryTimestampUtc = reader.IsDBNull(1) ? null : ReadDateTimeOffset(reader.GetValue(1)),
+                CommonName = reader.IsDBNull(2) ? null : reader.GetString(2),
+                IssuerName = reader.IsDBNull(3) ? null : reader.GetString(3),
+                SerialNumber = reader.IsDBNull(4) ? null : reader.GetString(4),
+                NotBeforeUtc = reader.IsDBNull(5) ? null : ReadDateTimeOffset(reader.GetValue(5)),
+                NotAfterUtc = reader.IsDBNull(6) ? null : ReadDateTimeOffset(reader.GetValue(6)),
+                CandidateNames = reader.IsDBNull(7)
+                    ? Array.Empty<string>()
+                    : ((string[])reader.GetValue(7))
+                        .Select(static name => NormalizeCtMetadataCandidate(name, preserveWildcard: true))
+                        .Where(static name => !string.IsNullOrWhiteSpace(name))
+                        .Select(static name => name!)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+            });
+        }
+
+        SubdomainDiscoveryEntry? entry = TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(normalizedHost, rows);
+        if (entry != null) {
+            logger?.WriteVerbose(
+                "CT metadata backfill exact PostgreSQL lookup matched {0} row(s) for {1}.",
+                rows.Count,
+                normalizedHost);
+        }
+
+        return entry;
+    }
+
+    internal static string BuildCrtShPostgreSqlExactMetadataQuery() {
+        return
+            """
+            SELECT
+                c.certificate,
+                COALESCE(
+                    (
+                        SELECT MAX(ctle.entry_timestamp)
+                        FROM ct_log_entry ctle
+                        WHERE ctle.certificate_id = c.id
+                    ),
+                    NULL
+                ) AS entry_timestamp,
+                x509_commonName(c.certificate) AS common_name,
+                x509_issuerName(c.certificate) AS issuer_name,
+                encode(x509_serialNumber(c.certificate), 'hex') AS serial_number,
+                x509_notBefore(c.certificate) AS not_before,
+                x509_notAfter(c.certificate) AS not_after,
+                ARRAY(
+                    SELECT candidate_name
+                    FROM (
+                        SELECT x509_commonName(c.certificate) AS candidate_name
+                        UNION
+                        SELECT alt_name
+                        FROM x509_altnames(c.certificate) AS alt_name
+                    ) AS candidate_names
+                    WHERE candidate_name IS NOT NULL
+                    ORDER BY lower(candidate_name)
+                ) AS dns_names
+            FROM certificate c
+            WHERE (
+                    identities(c.certificate) @@ plainto_tsquery('simple', @host)
+                 OR identities(c.certificate) @@ plainto_tsquery('simple', @wildcardHost)
+                  )
+              AND (
+                    lower(COALESCE(x509_commonName(c.certificate), '')) = lower(@host)
+                 OR lower(COALESCE(x509_commonName(c.certificate), '')) = lower(@wildcardHost)
+                 OR EXISTS (
+                        SELECT 1
+                        FROM x509_altnames(c.certificate) AS alt_name
+                        WHERE lower(alt_name) = lower(@host)
+                           OR lower(alt_name) = lower(@wildcardHost)
+                    )
+                  )
+            ORDER BY entry_timestamp DESC NULLS LAST,
+                     x509_notBefore(c.certificate) DESC NULLS LAST
+            LIMIT 16;
+            """;
+    }
+
+    internal static SubdomainDiscoveryEntry? TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(
+        string normalizedHost,
+        IReadOnlyList<CrtShPostgreSqlExactMetadataRow>? rows) {
+        if (string.IsNullOrWhiteSpace(normalizedHost) || rows == null || rows.Count == 0) {
+            return null;
+        }
+
+        CrtShPostgreSqlExactMetadataRow? selectedRow = rows
+            .Where(row => row != null &&
+                          row.CandidateNames.Any(candidate => CtMetadataCandidateMatchesHost(normalizedHost, candidate)))
+            .OrderByDescending(static row => row.EntryTimestampUtc ?? DateTimeOffset.MinValue)
+            .ThenByDescending(static row => row.NotBeforeUtc ?? DateTimeOffset.MinValue)
+            .FirstOrDefault();
+        if (selectedRow == null) {
+            return null;
+        }
+
+        string? thumbprint = null;
+        if (selectedRow.CertificateDer != null && selectedRow.CertificateDer.Length > 0) {
+            using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(selectedRow.CertificateDer);
+            thumbprint = NormalizeCtMetadataThumbprint(certificate.Thumbprint);
+        }
+
+        return new SubdomainDiscoveryEntry {
+            Name = normalizedHost,
+            FirstSeenUtc = selectedRow.EntryTimestampUtc,
+            LastSeenUtc = selectedRow.EntryTimestampUtc,
+            LatestCertificateCtEntryTimestampUtc = selectedRow.EntryTimestampUtc,
+            LatestCertificateThumbprint = thumbprint,
+            LatestCertificateSubject = string.IsNullOrWhiteSpace(selectedRow.CommonName) ? normalizedHost : selectedRow.CommonName,
+            LatestCertificateIssuer = selectedRow.IssuerName,
+            LatestCertificateSerialNumber = selectedRow.SerialNumber,
+            LatestCertificateNotBeforeUtc = selectedRow.NotBeforeUtc,
+            LatestCertificateNotAfterUtc = selectedRow.NotAfterUtc,
+            LatestCertificateSubjectAlternativeNames = selectedRow.CandidateNames,
+            CtSources = new[] { "crt.sh-db" },
+            CertificateObservationCount = rows.Count,
+            ResolutionStatus = SubdomainResolutionStatus.Unknown
+        };
+    }
+
+    private static string BuildCrtShPostgreSqlConnectionString(CertificateInventoryCaptureOptions options) {
+        if (!string.IsNullOrWhiteSpace(options?.CrtShPostgreSqlConnectionString)) {
+            return options!.CrtShPostgreSqlConnectionString!;
+        }
+
+        var builder = new NpgsqlConnectionStringBuilder {
+            Host = "crt.sh",
+            Port = 5432,
+            Database = "certwatch",
+            Username = "guest",
+            SslMode = SslMode.Require,
+            Timeout = Math.Max(1, options?.CrtShPostgreSqlCommandTimeoutSeconds ?? 15),
+            CommandTimeout = Math.Max(1, options?.CrtShPostgreSqlCommandTimeoutSeconds ?? 15)
+        };
+        return builder.ConnectionString;
+    }
+
+    private static string BuildWildcardCandidateHost(string normalizedHost) {
+        if (string.IsNullOrWhiteSpace(normalizedHost)) {
+            return normalizedHost ?? string.Empty;
+        }
+
+        int firstDotIndex = normalizedHost.IndexOf('.');
+        return firstDotIndex <= 0 || firstDotIndex >= normalizedHost.Length - 1
+            ? normalizedHost
+            : "*." + normalizedHost.Substring(firstDotIndex + 1);
+    }
+
+    private static DateTimeOffset? ReadDateTimeOffset(object? value) {
+        return value switch {
+            null => null,
+            DateTimeOffset dateTimeOffset => dateTimeOffset.ToUniversalTime(),
+            DateTime dateTime => new DateTimeOffset(DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)),
+            _ => DateTimeOffset.TryParse(
+                value.ToString(),
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+                out DateTimeOffset parsed)
+                ? parsed
+                : (DateTimeOffset?)null
+        };
     }
 
     internal static int ResolveExactPassiveCtMetadataBackfillParallelism(
@@ -569,6 +861,7 @@ public sealed partial class CertificateInventoryCapture {
         List<PassiveCtDiagnosticEntry>? passiveCtDiagnosticEntries,
         InternalLogger logger,
         PassiveCtSourceClient client,
+        Func<string, CancellationToken, Task<byte[]?>>? certificateDownloadOverride,
         CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(hostName)) {
             return null;
@@ -618,6 +911,13 @@ public sealed partial class CertificateInventoryCapture {
             evaluatedSources.Add(request.SourceName);
             SubdomainDiscoveryEntry? exactEntry = TryBuildExactCtMetadataEntry(normalizedHost, queryResult.Payloads);
             if (exactEntry != null) {
+                exactEntry = await TryHydrateExactCtMetadataThumbprintFromCrtShCertificateAsync(
+                    exactEntry,
+                    queryResult.Payloads,
+                    certificateDownloadOverride,
+                    options.PassiveCtRequestTimeout,
+                    logger,
+                    cancellationToken).ConfigureAwait(false);
                 return exactEntry;
             }
         }
@@ -635,6 +935,71 @@ public sealed partial class CertificateInventoryCapture {
             normalizedHost,
             string.Join(", ", evaluatedSources));
         return null;
+    }
+
+    internal static async Task<SubdomainDiscoveryEntry> TryHydrateExactCtMetadataThumbprintFromCrtShCertificateAsync(
+        SubdomainDiscoveryEntry entry,
+        IReadOnlyList<PassiveCtSourceClient.SourcePayload>? payloads,
+        Func<string, CancellationToken, Task<byte[]?>>? certificateDownloadOverride,
+        TimeSpan requestTimeout,
+        InternalLogger? logger,
+        CancellationToken cancellationToken) {
+        if (string.IsNullOrWhiteSpace(entry.Name) ||
+            !string.IsNullOrWhiteSpace(entry.LatestCertificateThumbprint) ||
+            payloads == null ||
+            payloads.Count == 0) {
+            return entry;
+        }
+
+        string? selectedCertificateDownloadId = SelectBestCrtShCertificateDownloadId(entry, payloads);
+        if (string.IsNullOrWhiteSpace(selectedCertificateDownloadId)) {
+            return entry;
+        }
+        string certificateDownloadId = selectedCertificateDownloadId!;
+
+        byte[]? certificateBytes = certificateDownloadOverride != null
+            ? await certificateDownloadOverride(certificateDownloadId, cancellationToken).ConfigureAwait(false)
+            : await DownloadCrtShCertificateDerAsync(certificateDownloadId, requestTimeout, logger, cancellationToken).ConfigureAwait(false);
+        if (certificateBytes == null || certificateBytes.Length == 0) {
+            return entry;
+        }
+
+        using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(certificateBytes);
+        string? thumbprint = NormalizeCtMetadataThumbprint(certificate.Thumbprint);
+        if (string.IsNullOrWhiteSpace(thumbprint)) {
+            return entry;
+        }
+
+        SubdomainDiscoveryEntry hydratedEntry = CloneSubdomainEntry(entry);
+        hydratedEntry = new SubdomainDiscoveryEntry {
+            Name = hydratedEntry.Name,
+            FirstSeenUtc = hydratedEntry.FirstSeenUtc,
+            LastSeenUtc = hydratedEntry.LastSeenUtc,
+            LatestCertificateCtEntryTimestampUtc = hydratedEntry.LatestCertificateCtEntryTimestampUtc,
+            LatestCertificateThumbprint = thumbprint,
+            LatestCertificateSubject = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateSubject) ? certificate.Subject : hydratedEntry.LatestCertificateSubject,
+            LatestCertificateIssuer = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateIssuer) ? certificate.Issuer : hydratedEntry.LatestCertificateIssuer,
+            LatestCertificateSerialNumber = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateSerialNumber) ? certificate.SerialNumber : hydratedEntry.LatestCertificateSerialNumber,
+            LatestCertificateNotBeforeUtc = hydratedEntry.LatestCertificateNotBeforeUtc ?? new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
+            LatestCertificateNotAfterUtc = hydratedEntry.LatestCertificateNotAfterUtc ?? new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
+            LatestCertificateSubjectAlternativeNames = hydratedEntry.LatestCertificateSubjectAlternativeNames == null ? Array.Empty<string>() : hydratedEntry.LatestCertificateSubjectAlternativeNames.ToList(),
+            LatestCertificateIsSelfSigned = hydratedEntry.LatestCertificateIsSelfSigned,
+            LatestCertificateWeakKey = hydratedEntry.LatestCertificateWeakKey,
+            LatestCertificateSha1Signature = hydratedEntry.LatestCertificateSha1Signature,
+            LatestCertificateHasServerAuthentication = hydratedEntry.LatestCertificateHasServerAuthentication,
+            LatestCertificateHasClientAuthentication = hydratedEntry.LatestCertificateHasClientAuthentication,
+            LatestCertificateHasSecureEmail = hydratedEntry.LatestCertificateHasSecureEmail,
+            LatestCertificateAuthenticationProfile = hydratedEntry.LatestCertificateAuthenticationProfile,
+            CtSources = hydratedEntry.CtSources == null ? Array.Empty<string>() : hydratedEntry.CtSources.ToList(),
+            CertificateObservationCount = hydratedEntry.CertificateObservationCount,
+            ResolutionStatus = hydratedEntry.ResolutionStatus,
+            ARecords = hydratedEntry.ARecords == null ? Array.Empty<string>() : hydratedEntry.ARecords.ToList(),
+            AaaaRecords = hydratedEntry.AaaaRecords == null ? Array.Empty<string>() : hydratedEntry.AaaaRecords.ToList(),
+            SensitiveRisk = hydratedEntry.SensitiveRisk,
+            SensitiveSignals = hydratedEntry.SensitiveSignals == null ? Array.Empty<string>() : hydratedEntry.SensitiveSignals.ToList(),
+            AiSignals = hydratedEntry.AiSignals == null ? Array.Empty<string>() : hydratedEntry.AiSignals.ToList()
+        };
+        return hydratedEntry;
     }
 
     internal static bool CanPersistPassiveCtExactNoRowsDiagnostic(
@@ -741,11 +1106,13 @@ public sealed partial class CertificateInventoryCapture {
         DateTimeOffset? firstSeenUtc = null;
         DateTimeOffset? lastSeenUtc = null;
         DateTimeOffset? latestCertificateEntryTimestampUtc = null;
+        string? latestCertificateThumbprint = null;
         string? latestCertificateSubject = null;
         string? latestCertificateIssuer = null;
         string? latestCertificateSerialNumber = null;
         DateTimeOffset? latestCertificateNotBeforeUtc = null;
         DateTimeOffset? latestCertificateNotAfterUtc = null;
+        IReadOnlyList<string> latestCertificateSubjectAlternativeNames = Array.Empty<string>();
         var ctSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var observationCount = 0;
 
@@ -762,7 +1129,7 @@ public sealed partial class CertificateInventoryCapture {
             foreach (JsonElement item in document.RootElement.EnumerateArray()) {
                 IReadOnlyList<string> candidateNames = GetCtMetadataCandidateNames(item);
                 if (!candidateNames.Any(candidate =>
-                        string.Equals(candidate, normalizedHost, StringComparison.OrdinalIgnoreCase))) {
+                        CtMetadataCandidateMatchesHost(normalizedHost, candidate))) {
                     continue;
                 }
 
@@ -793,11 +1160,14 @@ public sealed partial class CertificateInventoryCapture {
                 }
 
                 latestCertificateEntryTimestampUtc = entryTimestampUtc;
+                latestCertificateThumbprint = GetCtMetadataString(item, "sha1_fingerprint") ??
+                                             GetCtMetadataString(item, "thumbprint");
                 latestCertificateSubject = GetCtMetadataCommonName(item) ?? normalizedHost;
                 latestCertificateIssuer = GetCtMetadataIssuerName(item);
                 latestCertificateSerialNumber = GetCtMetadataString(item, "serial_number");
                 latestCertificateNotBeforeUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_before"));
                 latestCertificateNotAfterUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_after"));
+                latestCertificateSubjectAlternativeNames = candidateNames;
             }
         }
 
@@ -810,15 +1180,118 @@ public sealed partial class CertificateInventoryCapture {
             FirstSeenUtc = firstSeenUtc,
             LastSeenUtc = lastSeenUtc,
             LatestCertificateCtEntryTimestampUtc = latestCertificateEntryTimestampUtc,
+            LatestCertificateThumbprint = NormalizeCtMetadataThumbprint(latestCertificateThumbprint),
             LatestCertificateSubject = latestCertificateSubject,
             LatestCertificateIssuer = latestCertificateIssuer,
             LatestCertificateSerialNumber = latestCertificateSerialNumber,
             LatestCertificateNotBeforeUtc = latestCertificateNotBeforeUtc,
             LatestCertificateNotAfterUtc = latestCertificateNotAfterUtc,
+            LatestCertificateSubjectAlternativeNames = latestCertificateSubjectAlternativeNames,
             CtSources = ctSources.OrderBy(source => source, StringComparer.OrdinalIgnoreCase).ToList(),
             CertificateObservationCount = observationCount,
             ResolutionStatus = SubdomainResolutionStatus.Unknown
         };
+    }
+
+    private static string? SelectBestCrtShCertificateDownloadId(
+        SubdomainDiscoveryEntry entry,
+        IReadOnlyList<PassiveCtSourceClient.SourcePayload> payloads) {
+        if (entry == null ||
+            string.IsNullOrWhiteSpace(entry.Name) ||
+            payloads == null ||
+            payloads.Count == 0) {
+            return null;
+        }
+
+        string normalizedHost = entry.Name.Trim().TrimEnd('.').ToLowerInvariant();
+        string? normalizedSerial = NormalizeCtMetadataStringToken(entry.LatestCertificateSerialNumber);
+        DateTimeOffset? latestEntryTimestampUtc = entry.LatestCertificateCtEntryTimestampUtc;
+        string? selectedId = null;
+        DateTimeOffset? selectedTimestampUtc = null;
+        var selectedScore = int.MinValue;
+
+        foreach (PassiveCtSourceClient.SourcePayload sourcePayload in payloads) {
+            if (!string.Equals(sourcePayload.SourceName, "crt.sh", StringComparison.OrdinalIgnoreCase) ||
+                string.IsNullOrWhiteSpace(sourcePayload.Payload)) {
+                continue;
+            }
+
+            using JsonDocument document = JsonDocument.Parse(sourcePayload.Payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Array) {
+                continue;
+            }
+
+            foreach (JsonElement item in document.RootElement.EnumerateArray()) {
+                IReadOnlyList<string> candidateNames = GetCtMetadataCandidateNames(item);
+                if (!candidateNames.Any(candidate =>
+                        CtMetadataCandidateMatchesHost(normalizedHost, candidate))) {
+                    continue;
+                }
+
+                string? downloadId = GetCtMetadataString(item, "id");
+                if (string.IsNullOrWhiteSpace(downloadId)) {
+                    continue;
+                }
+
+                DateTimeOffset? entryTimestampUtc = ParseCtMetadataTimestamp(
+                    GetCtMetadataString(item, "entry_timestamp") ?? GetCtMetadataString(item, "not_before"));
+                string? candidateSerial = NormalizeCtMetadataStringToken(GetCtMetadataString(item, "serial_number"));
+
+                var score = 0;
+                if (entryTimestampUtc.HasValue && latestEntryTimestampUtc.HasValue && entryTimestampUtc.Value == latestEntryTimestampUtc.Value) {
+                    score += 100;
+                }
+
+                if (!string.IsNullOrWhiteSpace(normalizedSerial) &&
+                    string.Equals(candidateSerial, normalizedSerial, StringComparison.OrdinalIgnoreCase)) {
+                    score += 10;
+                }
+
+                if (score > selectedScore ||
+                    (score == selectedScore &&
+                     entryTimestampUtc.HasValue &&
+                     (!selectedTimestampUtc.HasValue || entryTimestampUtc.Value > selectedTimestampUtc.Value))) {
+                    selectedScore = score;
+                    selectedTimestampUtc = entryTimestampUtc;
+                    selectedId = downloadId;
+                }
+            }
+        }
+
+        return selectedId;
+    }
+
+    private static async Task<byte[]?> DownloadCrtShCertificateDerAsync(
+        string certificateDownloadId,
+        TimeSpan requestTimeout,
+        InternalLogger? logger,
+        CancellationToken cancellationToken) {
+        if (string.IsNullOrWhiteSpace(certificateDownloadId)) {
+            return null;
+        }
+
+        using var client = new HttpClient {
+            Timeout = requestTimeout > TimeSpan.Zero ? requestTimeout : TimeSpan.FromSeconds(15)
+        };
+
+        using HttpResponseMessage response = await client.GetAsync(
+            "https://crt.sh/?d=" + Uri.EscapeDataString(certificateDownloadId),
+            cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode) {
+            logger?.WriteVerbose(
+                "CT metadata backfill exact certificate download failed for crt.sh id {0}: HTTP {1}.",
+                certificateDownloadId,
+                (int)response.StatusCode);
+            return null;
+        }
+
+        return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+    }
+
+    private static string? NormalizeCtMetadataStringToken(string? value) {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value!.Trim();
     }
 
     private static IReadOnlyList<PassiveCtSourceClient.SourceRequest> BuildPassiveCtMetadataSourceRequests(string normalizedHost) {
@@ -885,7 +1358,7 @@ public sealed partial class CertificateInventoryCapture {
                     continue;
                 }
 
-                string? value = NormalizeCtMetadataCandidate(dnsName.GetString());
+                string? value = NormalizeCtMetadataCandidate(dnsName.GetString(), preserveWildcard: true);
                 if (!string.IsNullOrWhiteSpace(value)) {
                     return value;
                 }
@@ -902,7 +1375,7 @@ public sealed partial class CertificateInventoryCapture {
         if (!string.IsNullOrWhiteSpace(nameValue)) {
             string normalizedNameValue = nameValue!;
             foreach (string value in normalizedNameValue.Split('\n')) {
-                string? normalized = NormalizeCtMetadataCandidate(value);
+                string? normalized = NormalizeCtMetadataCandidate(value, preserveWildcard: true);
                 if (!string.IsNullOrWhiteSpace(normalized)) {
                     names.Add(normalized!);
                 }
@@ -917,7 +1390,7 @@ public sealed partial class CertificateInventoryCapture {
                     continue;
                 }
 
-                string? normalized = NormalizeCtMetadataCandidate(dnsName.GetString());
+                string? normalized = NormalizeCtMetadataCandidate(dnsName.GetString(), preserveWildcard: true);
                 if (!string.IsNullOrWhiteSpace(normalized)) {
                     names.Add(normalized!);
                 }
@@ -929,13 +1402,38 @@ public sealed partial class CertificateInventoryCapture {
             : names.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    private static string? NormalizeCtMetadataCandidate(string? value) {
+    private static bool CtMetadataCandidateMatchesHost(string normalizedHost, string? candidateName) {
+        if (string.IsNullOrWhiteSpace(normalizedHost) || string.IsNullOrWhiteSpace(candidateName)) {
+            return false;
+        }
+
+        string normalizedCandidate = candidateName!.Trim().TrimEnd('.').ToLowerInvariant();
+        if (string.Equals(normalizedCandidate, normalizedHost, StringComparison.OrdinalIgnoreCase)) {
+            return true;
+        }
+
+        if (!normalizedCandidate.StartsWith("*.", StringComparison.Ordinal)) {
+            return false;
+        }
+
+        string suffix = normalizedCandidate.Substring(2);
+        if (string.IsNullOrWhiteSpace(suffix) ||
+            normalizedHost.Length <= suffix.Length + 1 ||
+            !normalizedHost.EndsWith("." + suffix, StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+
+        string wildcardLabel = normalizedHost.Substring(0, normalizedHost.Length - suffix.Length - 1);
+        return wildcardLabel.Length > 0 && wildcardLabel.IndexOf('.') < 0;
+    }
+
+    private static string? NormalizeCtMetadataCandidate(string? value, bool preserveWildcard = false) {
         if (string.IsNullOrWhiteSpace(value)) {
             return null;
         }
 
         string normalized = value!.Trim().TrimEnd('.').ToLowerInvariant();
-        while (normalized.StartsWith("*.", StringComparison.Ordinal)) {
+        while (!preserveWildcard && normalized.StartsWith("*.", StringComparison.Ordinal)) {
             normalized = normalized.Substring(2);
         }
 
@@ -954,6 +1452,14 @@ public sealed partial class CertificateInventoryCapture {
             out DateTimeOffset parsed)
             ? parsed
             : (DateTimeOffset?)null;
+    }
+
+    private static string? NormalizeCtMetadataThumbprint(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return null;
+        }
+
+        return value!.Trim().Replace(":", string.Empty).ToUpperInvariant();
     }
 
     private static string? ValidatePassiveCtMetadataArrayPayload(string payload) {

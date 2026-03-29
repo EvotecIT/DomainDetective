@@ -454,11 +454,20 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 FirstSeenUtc = kv.Value.FirstSeenUtc,
                 LastSeenUtc = kv.Value.LastSeenUtc,
                 LatestCertificateCtEntryTimestampUtc = kv.Value.LatestCertificateCtEntryTimestampUtc,
+                LatestCertificateThumbprint = kv.Value.LatestCertificateThumbprint,
                 LatestCertificateSubject = kv.Value.LatestCertificateSubject,
                 LatestCertificateIssuer = kv.Value.LatestCertificateIssuer,
                 LatestCertificateSerialNumber = kv.Value.LatestCertificateSerialNumber,
                 LatestCertificateNotBeforeUtc = kv.Value.LatestCertificateNotBeforeUtc,
                 LatestCertificateNotAfterUtc = kv.Value.LatestCertificateNotAfterUtc,
+                LatestCertificateSubjectAlternativeNames = kv.Value.LatestCertificateSubjectAlternativeNames,
+                LatestCertificateIsSelfSigned = kv.Value.LatestCertificateIsSelfSigned,
+                LatestCertificateWeakKey = kv.Value.LatestCertificateWeakKey,
+                LatestCertificateSha1Signature = kv.Value.LatestCertificateSha1Signature,
+                LatestCertificateHasServerAuthentication = kv.Value.LatestCertificateHasServerAuthentication,
+                LatestCertificateHasClientAuthentication = kv.Value.LatestCertificateHasClientAuthentication,
+                LatestCertificateHasSecureEmail = kv.Value.LatestCertificateHasSecureEmail,
+                LatestCertificateAuthenticationProfile = kv.Value.LatestCertificateAuthenticationProfile,
                 CtSources = kv.Value.CtSources
                     .OrderBy(source => source, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
@@ -834,11 +843,20 @@ public sealed class SubdomainDiscoveryEntry
     public DateTimeOffset? FirstSeenUtc { get; init; }
     public DateTimeOffset? LastSeenUtc { get; init; }
     public DateTimeOffset? LatestCertificateCtEntryTimestampUtc { get; init; }
+    public string? LatestCertificateThumbprint { get; init; }
     public string? LatestCertificateSubject { get; init; }
     public string? LatestCertificateIssuer { get; init; }
     public string? LatestCertificateSerialNumber { get; init; }
     public DateTimeOffset? LatestCertificateNotBeforeUtc { get; init; }
     public DateTimeOffset? LatestCertificateNotAfterUtc { get; init; }
+    public IReadOnlyList<string> LatestCertificateSubjectAlternativeNames { get; init; } = Array.Empty<string>();
+    public bool? LatestCertificateIsSelfSigned { get; init; }
+    public bool? LatestCertificateWeakKey { get; init; }
+    public bool? LatestCertificateSha1Signature { get; init; }
+    public bool? LatestCertificateHasServerAuthentication { get; init; }
+    public bool? LatestCertificateHasClientAuthentication { get; init; }
+    public bool? LatestCertificateHasSecureEmail { get; init; }
+    public string? LatestCertificateAuthenticationProfile { get; init; }
     public IReadOnlyList<string> CtSources { get; init; } = Array.Empty<string>();
     public int CertificateObservationCount { get; init; }
     public SubdomainResolutionStatus ResolutionStatus { get; internal set; }
@@ -854,11 +872,20 @@ internal sealed class CtSubdomainAggregate
     public DateTimeOffset? FirstSeenUtc { get; set; }
     public DateTimeOffset? LastSeenUtc { get; set; }
     public DateTimeOffset? LatestCertificateCtEntryTimestampUtc { get; set; }
+    public string? LatestCertificateThumbprint { get; set; }
     public string? LatestCertificateSubject { get; set; }
     public string? LatestCertificateIssuer { get; set; }
     public string? LatestCertificateSerialNumber { get; set; }
     public DateTimeOffset? LatestCertificateNotBeforeUtc { get; set; }
     public DateTimeOffset? LatestCertificateNotAfterUtc { get; set; }
+    public IReadOnlyList<string> LatestCertificateSubjectAlternativeNames { get; set; } = Array.Empty<string>();
+    public bool? LatestCertificateIsSelfSigned { get; set; }
+    public bool? LatestCertificateWeakKey { get; set; }
+    public bool? LatestCertificateSha1Signature { get; set; }
+    public bool? LatestCertificateHasServerAuthentication { get; set; }
+    public bool? LatestCertificateHasClientAuthentication { get; set; }
+    public bool? LatestCertificateHasSecureEmail { get; set; }
+    public string? LatestCertificateAuthenticationProfile { get; set; }
     public int CertificateObservationCount { get; set; }
     public HashSet<string> CtSources { get; } = new(StringComparer.OrdinalIgnoreCase);
 }
