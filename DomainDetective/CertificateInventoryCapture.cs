@@ -100,6 +100,26 @@ public sealed class CertificateInventoryCaptureOptions {
     /// </summary>
     public bool EnablePassiveCtMetadataFallback { get; set; }
 
+    /// <summary>
+    /// When true, exact-host CT metadata rescue may query the public crt.sh PostgreSQL replica
+    /// directly before falling back to passive/public CT web APIs. This is intended for
+    /// thumbprint- and metadata-rescue lanes that need stronger exact-host CT coverage than the
+    /// rate-limited web endpoints provide.
+    /// </summary>
+    public bool EnableCrtShPostgreSqlMetadataFallback { get; set; }
+
+    /// <summary>
+    /// Optional connection string used for direct crt.sh PostgreSQL metadata rescue.
+    /// When empty and <see cref="EnableCrtShPostgreSqlMetadataFallback"/> is enabled, the capture
+    /// uses the public guest endpoint (`crt.sh:5432/certwatch`) with TLS enabled.
+    /// </summary>
+    public string? CrtShPostgreSqlConnectionString { get; set; }
+
+    /// <summary>
+    /// Command timeout in seconds for direct crt.sh PostgreSQL metadata rescue.
+    /// </summary>
+    public int CrtShPostgreSqlCommandTimeoutSeconds { get; set; } = 15;
+
     /// <summary>Per-request timeout for passive/public CT HTTP calls.</summary>
     public TimeSpan PassiveCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
@@ -562,6 +582,8 @@ public sealed partial class CertificateInventoryCapture {
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtSubdomainEntryDiscoveryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<string>>>? CtSubdomainDiscoveryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtPassiveMetadataBackfillOverride { get; set; }
+    internal Func<string, CancellationToken, Task<byte[]?>>? CtPassiveCertificateDownloadOverride { get; set; }
+    internal Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? CtExactMetadataPostgreSqlOverride { get; set; }
     internal Func<CertificateInventorySnapshot, string, InternalLogger?, string>? PersistSnapshotOverride { get; set; }
     internal Func<CertificateInventoryCaptureOptions, DateTimeOffset, InternalLogger?, IReadOnlyDictionary<string, CertificateInventoryEntry>>? RecentSnapshotLookupOverride { get; set; }
 
@@ -957,14 +979,6 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
-        var httpsTargetCountBeforeLimit = httpsTargets.Count;
-        var mailTargetCountBeforeLimit = mailTargets.Count;
-        ApplyTargetLimit(options, httpsTargets, httpsTargetOriginsByEndpointKey, mailTargets, warnings, recentByEndpoint, options.ReprobeExpiringWithinDays, targetDecisionDiagnostics);
-        var httpsTargetCountDroppedByLimit = Math.Max(0, httpsTargetCountBeforeLimit - httpsTargets.Count);
-        var mailTargetCountDroppedByLimit = Math.Max(0, mailTargetCountBeforeLimit - mailTargets.Count);
-        AdvanceStage("Endpoint expansion");
-        logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
-
         var cachedEntries = new List<CertificateInventoryEntry>();
         var httpsTargetsToProbe = httpsTargets.ToList();
         var mailTargetsToProbe = mailTargets.Values.ToList();
@@ -984,7 +998,8 @@ public sealed partial class CertificateInventoryCapture {
                         ApplyEntryProvenance(
                             cached.Entry,
                             GetTrackedOrigins(httpsTargetOriginsByEndpointKey, key),
-                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess);
+                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess,
+                            replaceTargetOrigins: true);
                         cachedEntries.Add(cached.Entry);
                         reusedHttps++;
                         if (reusedStableFailure) {
@@ -1004,7 +1019,8 @@ public sealed partial class CertificateInventoryCapture {
                         ApplyEntryProvenance(
                             cached.Entry,
                             target.TargetOrigins,
-                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess);
+                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess,
+                            replaceTargetOrigins: true);
                         cachedEntries.Add(cached.Entry);
                         reusedMail++;
                         if (reusedStableFailure) {
@@ -1025,6 +1041,28 @@ public sealed partial class CertificateInventoryCapture {
                     reusedStableFailureMail);
             }
         }
+
+        httpsTargets.Clear();
+        foreach (var target in httpsTargetsToProbe) {
+            httpsTargets.Add(target);
+        }
+        PruneTrackedHttpsOrigins(httpsTargetOriginsByEndpointKey, httpsTargetsToProbe);
+
+        mailTargets.Clear();
+        foreach (var target in mailTargetsToProbe) {
+            AddMailTarget(mailTargets, target);
+        }
+
+        var httpsTargetCountBeforeLimit = httpsTargets.Count;
+        var mailTargetCountBeforeLimit = mailTargets.Count;
+        ApplyTargetLimit(options, httpsTargets, httpsTargetOriginsByEndpointKey, mailTargets, warnings, recentByEndpoint, options.ReprobeExpiringWithinDays, targetDecisionDiagnostics);
+        var httpsTargetCountDroppedByLimit = Math.Max(0, httpsTargetCountBeforeLimit - httpsTargets.Count);
+        var mailTargetCountDroppedByLimit = Math.Max(0, mailTargetCountBeforeLimit - mailTargets.Count);
+        httpsTargetsToProbe = httpsTargets.ToList();
+        mailTargetsToProbe = mailTargets.Values.ToList();
+
+        AdvanceStage("Endpoint expansion");
+        logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
         AdvanceStage("Recent snapshot cache");
 
         IReadOnlyList<CertificateMonitor.Entry> httpsEntries;

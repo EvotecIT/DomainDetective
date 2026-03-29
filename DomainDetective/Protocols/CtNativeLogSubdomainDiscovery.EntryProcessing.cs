@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -276,12 +277,32 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         if (shouldUpdateLatestMetadata) {
+            var eku = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
+            string? signatureOid = certificate.SignatureAlgorithm?.Value;
+            int keySize = GetPublicKeySize(certificate);
+            IReadOnlyList<string> subjectAlternativeNames = ExtractCandidateNames(certificate)
+                .Where(static name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             observation.LatestCertificateCtEntryTimestampUtc = timestampUtc;
+            observation.LatestCertificateThumbprint = NormalizeThumbprint(certificate.Thumbprint);
             observation.LatestCertificateSubject = certificate.Subject;
             observation.LatestCertificateIssuer = certificate.Issuer;
             observation.LatestCertificateSerialNumber = certificate.SerialNumber;
             observation.LatestCertificateNotBeforeUtc = new DateTimeOffset(certificate.NotBefore.ToUniversalTime());
             observation.LatestCertificateNotAfterUtc = new DateTimeOffset(certificate.NotAfter.ToUniversalTime());
+            observation.LatestCertificateSubjectAlternativeNames = subjectAlternativeNames;
+            observation.LatestCertificateIsSelfSigned = IsSelfSigned(certificate);
+            observation.LatestCertificateWeakKey = keySize > 0 && keySize < 2048;
+            observation.LatestCertificateSha1Signature = IsSha1Signature(signatureOid);
+            observation.LatestCertificateHasServerAuthentication = eku.AllowsServerAuthentication;
+            observation.LatestCertificateHasClientAuthentication = eku.AllowsClientAuthentication;
+            observation.LatestCertificateHasSecureEmail = eku.AllowsSecureEmail;
+            observation.LatestCertificateAuthenticationProfile = string.IsNullOrWhiteSpace(eku.AuthenticationProfile)
+                ? CertificateAuthenticationProfileClassifier.Classify(eku)
+                : eku.AuthenticationProfile;
         }
 
         return true;
@@ -488,6 +509,60 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         return null;
+    }
+
+    private static string? NormalizeThumbprint(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return null;
+        }
+
+        return value!.Trim().ToUpperInvariant();
+    }
+
+    private static bool IsSelfSigned(X509Certificate2? certificate) {
+        if (certificate == null) {
+            return false;
+        }
+
+        return string.Equals(certificate.Subject, certificate.Issuer, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSha1Signature(string? oid) {
+        return oid == "1.2.840.113549.1.1.5" ||
+               oid == "1.2.840.10040.4.3" ||
+               oid == "1.3.14.3.2.29";
+    }
+
+    private static int GetPublicKeySize(X509Certificate2 certificate) {
+        if (certificate == null) {
+            return 0;
+        }
+
+        try {
+            using RSA? rsa = certificate.GetRSAPublicKey();
+            if (rsa != null) {
+                return rsa.KeySize;
+            }
+        } catch {
+        }
+
+        try {
+            using ECDsa? ecdsa = certificate.GetECDsaPublicKey();
+            if (ecdsa != null) {
+                return ecdsa.KeySize;
+            }
+        } catch {
+        }
+
+        try {
+            using DSA? dsa = certificate.GetDSAPublicKey();
+            if (dsa != null) {
+                return dsa.KeySize;
+            }
+        } catch {
+        }
+
+        return 0;
     }
 
     private static IEnumerable<string> ParseDnsNamesFromSanText(string? formattedSan) {

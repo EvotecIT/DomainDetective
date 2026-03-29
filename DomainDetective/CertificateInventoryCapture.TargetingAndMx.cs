@@ -70,9 +70,6 @@ public sealed partial class CertificateInventoryCapture {
         if (entry == null) {
             return false;
         }
-        if (entry.IsReachable) {
-            return false;
-        }
         if (!string.IsNullOrWhiteSpace(entry.CertificateThumbprint)) {
             return false;
         }

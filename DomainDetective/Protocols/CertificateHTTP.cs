@@ -258,6 +258,7 @@ namespace DomainDetective {
                         await FinalizeCapturedCertificateAsync(url, port, logger, cancellationToken).ConfigureAwait(false);
                     }
                 } catch (Exception ex) {
+                    ex = NormalizeProbeException(ex, cancellationToken);
                     IsReachable = false;
                     FailureReason = BuildFailureReason(ex);
                     FailureKind = CertificateFailureClassifier.Classify(ex);
@@ -314,11 +315,12 @@ namespace DomainDetective {
                         Http2Supported = response.Version.Major >= 2;
                         Http3Supported = false;
 #endif
-                        if (Certificate == null && Http3Supported) {      
+                        if (Certificate == null && Http3Supported) {
+                            CancellationTokenSource? timeoutCts = null;
                             try {
                                 var uri = new Uri(url);
                                 using var tcp = new TcpClient();
-                                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                                timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                                 timeoutCts.CancelAfter(Timeout);
                                 await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
                                 using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
@@ -338,13 +340,17 @@ namespace DomainDetective {
                                     IsSelfSigned = IsSelfSignedCertificate(Certificate);
                                 }
                             } catch (Exception ex) {
+                                ex = NormalizeProbeException(ex, cancellationToken, timeoutCts);
                                 logger.WriteErrorCode(CertificateHttpCodes.FetchFailed, "Error retrieving certificate for {0}: {1}", url, ex.ToString());
+                            } finally {
+                                timeoutCts?.Dispose();
                             }
                         }
                         if (Certificate != null) {
                             await FinalizeCapturedCertificateAsync(url, port, logger, cancellationToken).ConfigureAwait(false);
                         }
                     } catch (Exception ex) {
+                        ex = NormalizeProbeException(ex, cancellationToken);
                         IsReachable = false;
                         FailureReason = BuildFailureReason(ex);
                         FailureKind = CertificateFailureClassifier.Classify(ex);
@@ -399,6 +405,35 @@ namespace DomainDetective {
             IsSelfSigned = IsSelfSignedCertificate(Certificate);
         }
 
+        internal static Exception NormalizeProbeException(
+            Exception exception,
+            CancellationToken callerCancellationToken,
+            CancellationTokenSource? probeTimeoutSource = null)
+        {
+            if (exception == null) {
+                throw new ArgumentNullException(nameof(exception));
+            }
+
+            if (callerCancellationToken.IsCancellationRequested) {
+                return exception;
+            }
+
+            bool timeoutTriggered = probeTimeoutSource?.IsCancellationRequested == true;
+            if (!timeoutTriggered &&
+                exception is not TaskCanceledException &&
+                exception is not OperationCanceledException) {
+                return exception;
+            }
+
+            if (timeoutTriggered ||
+                exception is TaskCanceledException ||
+                exception is OperationCanceledException) {
+                return new TimeoutException("The request timed out.", exception);
+            }
+
+            return exception;
+        }
+
         private async Task FinalizeCapturedCertificateAsync(string url, int port, InternalLogger logger, CancellationToken cancellationToken)
         {
             EnsureChainBuilt(Certificate!);
@@ -433,11 +468,17 @@ namespace DomainDetective {
             }
 
             var parts = new List<string>();
+            bool timeoutMarkerPresent = false;
             Exception? current = exception;
             while (current != null)
             {
                 string message = current.Message?.Trim() ?? string.Empty;
-                if (!string.IsNullOrWhiteSpace(message) &&
+                bool suppressGenericCancellationMessage =
+                    timeoutMarkerPresent &&
+                    (current is TaskCanceledException || current is OperationCanceledException) &&
+                    IsGenericCancellationMessage(message);
+                if (!suppressGenericCancellationMessage &&
+                    !string.IsNullOrWhiteSpace(message) &&
                     !parts.Any(existing => string.Equals(existing, message, StringComparison.OrdinalIgnoreCase)))
                 {
                     parts.Add(message);
@@ -479,10 +520,13 @@ namespace DomainDetective {
                     {
                         parts.Add(timeoutMarker);
                     }
+
+                    timeoutMarkerPresent = true;
                 }
 
-                if (current is TaskCanceledException ||
-                    current is OperationCanceledException)
+                if (!timeoutMarkerPresent &&
+                    (current is TaskCanceledException ||
+                     current is OperationCanceledException))
                 {
                     const string cancelledMarker = "FailureKind:Cancelled";
                     if (!parts.Any(existing => string.Equals(existing, cancelledMarker, StringComparison.OrdinalIgnoreCase)))
@@ -506,6 +550,19 @@ namespace DomainDetective {
             }
 
             return parts.Count == 0 ? exception.GetType().Name : string.Join(" | ", parts);
+        }
+
+        private static bool IsGenericCancellationMessage(string? message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return false;
+            }
+
+            string normalized = message?.Trim() ?? string.Empty;
+            return string.Equals(normalized, "A task was canceled.", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(normalized, "The operation was canceled.", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(normalized, "Operation canceled.", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static bool ShouldLogConnectivityFailureAsSummary(Exception? exception)

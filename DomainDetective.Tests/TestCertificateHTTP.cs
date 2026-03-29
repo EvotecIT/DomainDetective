@@ -11,6 +11,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using DnsClientX;
 using DomainDetective.Tests.Fixtures;
 
@@ -62,6 +63,77 @@ namespace DomainDetective.Tests {
             Assert.NotNull(reason);
             Assert.Contains("FailureKind:Cancelled", reason, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("FailureKind:Timeout", reason, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void BuildFailureReason_PrefersTimeoutMarkerOverInnerCancelledMarker() {
+            var cancelled = new TaskCanceledException("A task was canceled.");
+            var timeout = new TimeoutException("The request timed out.", cancelled);
+            var http = new HttpRequestException("Request aborted.", timeout);
+
+            string? reason = CertificateAnalysis.BuildFailureReason(http);
+
+            Assert.NotNull(reason);
+            Assert.Contains("The request timed out.", reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("FailureKind:Timeout", reason, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("FailureKind:Cancelled", reason, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("A task was canceled.", reason, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void NormalizeProbeException_ConvertsProbeTimeoutCancellationToTimeoutException() {
+            using var timeoutCts = new CancellationTokenSource();
+            timeoutCts.Cancel();
+            var cancelled = new TaskCanceledException("Request was cancelled.");
+
+            Exception normalized = CertificateAnalysis.NormalizeProbeException(
+                cancelled,
+                CancellationToken.None,
+                timeoutCts);
+
+            Assert.IsType<TimeoutException>(normalized);
+            Assert.IsType<TaskCanceledException>(normalized.InnerException);
+        }
+
+        [Fact]
+        public void NormalizeProbeException_PreservesCallerCancellation() {
+            using var callerCts = new CancellationTokenSource();
+            callerCts.Cancel();
+            var cancelled = new OperationCanceledException(callerCts.Token);
+
+            Exception normalized = CertificateAnalysis.NormalizeProbeException(
+                cancelled,
+                callerCts.Token);
+
+            Assert.Same(cancelled, normalized);
+        }
+
+        [Fact]
+        public void TlsProbe_NormalizeProbeException_ConvertsProbeTimeoutCancellationToTimeoutException() {
+            using var timeoutCts = new CancellationTokenSource();
+            timeoutCts.Cancel();
+            var cancelled = new TaskCanceledException("TLS probe timed out.");
+
+            Exception normalized = TlsProbe.NormalizeProbeException(
+                cancelled,
+                CancellationToken.None,
+                timeoutCts);
+
+            Assert.IsType<TimeoutException>(normalized);
+            Assert.IsType<TaskCanceledException>(normalized.InnerException);
+        }
+
+        [Fact]
+        public void TlsProbe_NormalizeProbeException_PreservesCallerCancellation() {
+            using var callerCts = new CancellationTokenSource();
+            callerCts.Cancel();
+            var cancelled = new OperationCanceledException(callerCts.Token);
+
+            Exception normalized = TlsProbe.NormalizeProbeException(
+                cancelled,
+                callerCts.Token);
+
+            Assert.Same(cancelled, normalized);
         }
 
         [Fact]

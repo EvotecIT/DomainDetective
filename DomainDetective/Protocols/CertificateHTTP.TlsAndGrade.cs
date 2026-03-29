@@ -137,11 +137,18 @@ namespace DomainDetective {
 #pragma warning restore CA2000
 
         private async Task PopulateTlsInfo(Uri uri, int port, CancellationToken token) {
-            using var tcp = await ConnectWithProxy(uri.Host, port, token);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeoutCts.CancelAfter(Timeout);
+            using var tcp = await ConnectWithProxy(uri.Host, port, timeoutCts.Token);
             using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
-            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
+            try
+            {
+                await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
+            }
+            catch (Exception ex)
+            {
+                throw NormalizeProbeException(ex, token, timeoutCts);
+            }
             TlsProtocol = ssl.SslProtocol;
             Tls13Used = (int)ssl.SslProtocol == 12288;
             var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
@@ -267,9 +274,9 @@ namespace DomainDetective {
             SupportsTls10 = false; SupportsTls11 = false; SupportsTls12 = false; SupportsTls13 = false;
             async Task<bool> TryHandshake(System.Security.Authentication.SslProtocols proto)
             {
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                timeoutCts.CancelAfter(Timeout);
                 try {
-                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                    timeoutCts.CancelAfter(Timeout);
                     using var tcp = await ConnectWithProxy(uri.Host, port, timeoutCts.Token);
                     using var ssl = new System.Net.Security.SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
 #if NET8_0_OR_GREATER
@@ -279,6 +286,8 @@ namespace DomainDetective {
                     await ssl.AuthenticateAsClientAsync(uri.Host, null, proto, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
 #endif
                     return ssl.SslProtocol == proto;
+                } catch (Exception ex) when (NormalizeProbeException(ex, token, timeoutCts) is TimeoutException) {
+                    return false;
                 } catch { return false; }
             }
 #if NET8_0_OR_GREATER

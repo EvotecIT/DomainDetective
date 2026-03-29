@@ -242,11 +242,20 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                     FirstSeenUtc = kv.Value.FirstSeenUtc,
                     LastSeenUtc = kv.Value.LastSeenUtc,
                     LatestCertificateCtEntryTimestampUtc = kv.Value.LatestCertificateCtEntryTimestampUtc,
+                    LatestCertificateThumbprint = kv.Value.LatestCertificateThumbprint,
                     LatestCertificateSubject = kv.Value.LatestCertificateSubject,
                     LatestCertificateIssuer = kv.Value.LatestCertificateIssuer,
                     LatestCertificateSerialNumber = kv.Value.LatestCertificateSerialNumber,
                     LatestCertificateNotBeforeUtc = kv.Value.LatestCertificateNotBeforeUtc,
                     LatestCertificateNotAfterUtc = kv.Value.LatestCertificateNotAfterUtc,
+                    LatestCertificateSubjectAlternativeNames = kv.Value.LatestCertificateSubjectAlternativeNames,
+                    LatestCertificateIsSelfSigned = kv.Value.LatestCertificateIsSelfSigned,
+                    LatestCertificateWeakKey = kv.Value.LatestCertificateWeakKey,
+                    LatestCertificateSha1Signature = kv.Value.LatestCertificateSha1Signature,
+                    LatestCertificateHasServerAuthentication = kv.Value.LatestCertificateHasServerAuthentication,
+                    LatestCertificateHasClientAuthentication = kv.Value.LatestCertificateHasClientAuthentication,
+                    LatestCertificateHasSecureEmail = kv.Value.LatestCertificateHasSecureEmail,
+                    LatestCertificateAuthenticationProfile = kv.Value.LatestCertificateAuthenticationProfile,
                     CertificateObservationCount = kv.Value.CertificateObservationCount
                 };
                 subdomainMap[kv.Key].CtSources.Add("native-ct");
@@ -272,6 +281,10 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                  kv.Value.LatestCertificateCtEntryTimestampUtc.Value >= existing.LatestCertificateCtEntryTimestampUtc.Value))
             {
                 existing.LatestCertificateCtEntryTimestampUtc = kv.Value.LatestCertificateCtEntryTimestampUtc;
+                if (!string.IsNullOrWhiteSpace(kv.Value.LatestCertificateThumbprint))
+                {
+                    existing.LatestCertificateThumbprint = kv.Value.LatestCertificateThumbprint;
+                }
                 if (!string.IsNullOrWhiteSpace(kv.Value.LatestCertificateSubject))
                 {
                     existing.LatestCertificateSubject = kv.Value.LatestCertificateSubject;
@@ -291,6 +304,20 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 if (kv.Value.LatestCertificateNotAfterUtc.HasValue)
                 {
                     existing.LatestCertificateNotAfterUtc = kv.Value.LatestCertificateNotAfterUtc;
+                }
+                if (kv.Value.LatestCertificateSubjectAlternativeNames.Count > 0)
+                {
+                    existing.LatestCertificateSubjectAlternativeNames = kv.Value.LatestCertificateSubjectAlternativeNames;
+                }
+                existing.LatestCertificateIsSelfSigned = kv.Value.LatestCertificateIsSelfSigned;
+                existing.LatestCertificateWeakKey = kv.Value.LatestCertificateWeakKey;
+                existing.LatestCertificateSha1Signature = kv.Value.LatestCertificateSha1Signature;
+                existing.LatestCertificateHasServerAuthentication = kv.Value.LatestCertificateHasServerAuthentication;
+                existing.LatestCertificateHasClientAuthentication = kv.Value.LatestCertificateHasClientAuthentication;
+                existing.LatestCertificateHasSecureEmail = kv.Value.LatestCertificateHasSecureEmail;
+                if (!string.IsNullOrWhiteSpace(kv.Value.LatestCertificateAuthenticationProfile))
+                {
+                    existing.LatestCertificateAuthenticationProfile = kv.Value.LatestCertificateAuthenticationProfile;
                 }
             }
             existing.CtSources.Add("native-ct");
@@ -419,6 +446,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
             }
 
             string? serialNumber = GetString(item, "serial_number");
+            string? thumbprint = NormalizeCtMetadataThumbprint(GetString(item, "sha1_fingerprint") ?? GetString(item, "thumbprint"));
             string? commonName = GetCommonName(item);
             DateTimeOffset? notBeforeUtc = ParseTimestamp(GetString(item, "not_before"));
             DateTimeOffset? notAfterUtc = ParseTimestamp(GetString(item, "not_after"));
@@ -508,6 +536,7 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 if (shouldUpdateLatest)
                 {
                     agg.LatestCertificateCtEntryTimestampUtc = entryTimestampUtc;
+                    agg.LatestCertificateThumbprint = thumbprint;
                     agg.LatestCertificateSubject = string.IsNullOrWhiteSpace(commonName)
                         ? normalized
                         : commonName;
@@ -515,6 +544,12 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                     agg.LatestCertificateSerialNumber = serialNumber;
                     agg.LatestCertificateNotBeforeUtc = notBeforeUtc;
                     agg.LatestCertificateNotAfterUtc = notAfterUtc;
+                    agg.LatestCertificateSubjectAlternativeNames = candidateNames
+                        .Select(static name => name.Trim())
+                        .Where(static name => !string.IsNullOrWhiteSpace(name))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
                 }
             }
 
@@ -530,6 +565,16 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
         }
 
         return true;
+    }
+
+    private static string? NormalizeCtMetadataThumbprint(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value!.Trim().Replace(":", string.Empty).ToUpperInvariant();
     }
 
     private async Task VerifyResolutionAsync(List<SubdomainDiscoveryEntry> entries, CancellationToken cancellationToken)

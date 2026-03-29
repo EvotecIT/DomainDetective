@@ -136,6 +136,8 @@ namespace DomainDetective {
         public string? CtLatestCertificateSubject { get; set; }
         /// <summary>Latest certificate issuer observed in CT logs for this host/subdomain.</summary>
         public string? CtLatestCertificateIssuer { get; set; }
+        /// <summary>Latest certificate thumbprint observed in CT logs for this host/subdomain.</summary>
+        public string? CtLatestCertificateThumbprint { get; set; }
         /// <summary>Latest certificate serial number observed in CT logs for this host/subdomain.</summary>
         public string? CtLatestCertificateSerialNumber { get; set; }
         /// <summary>Latest certificate not-before timestamp observed in CT logs for this host/subdomain.</summary>

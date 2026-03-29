@@ -78,6 +78,7 @@ public sealed partial class CertificateInventoryCapture {
         CertificateInventoryEntry entry,
         SubdomainDiscoveryEntry discoveredEntry) {
         entry.CtLatestCertificateEntryTimestampUtc = discoveredEntry.LatestCertificateCtEntryTimestampUtc;
+        entry.CtLatestCertificateThumbprint = discoveredEntry.LatestCertificateThumbprint;
         entry.CtLatestCertificateSubject = discoveredEntry.LatestCertificateSubject;
         entry.CtLatestCertificateIssuer = discoveredEntry.LatestCertificateIssuer;
         entry.CtLatestCertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
@@ -91,6 +92,9 @@ public sealed partial class CertificateInventoryCapture {
         entry.CtLatestCertificateEntryTimestampUtc = MaxTimestamp(
             entry.CtLatestCertificateEntryTimestampUtc,
             discoveredEntry.LatestCertificateCtEntryTimestampUtc);
+        if (string.IsNullOrWhiteSpace(entry.CtLatestCertificateThumbprint)) {
+            entry.CtLatestCertificateThumbprint = discoveredEntry.LatestCertificateThumbprint;
+        }
         if (string.IsNullOrWhiteSpace(entry.CtLatestCertificateSubject)) {
             entry.CtLatestCertificateSubject = discoveredEntry.LatestCertificateSubject;
         }
@@ -112,17 +116,44 @@ public sealed partial class CertificateInventoryCapture {
         CertificateInventoryEntry entry,
         SubdomainDiscoveryEntry discoveredEntry,
         bool replaceExisting) {
+        bool hadNoPrimaryCertificateEvidence = string.IsNullOrWhiteSpace(entry.CertificateThumbprint) &&
+                                              string.IsNullOrWhiteSpace(entry.CertificateSerialNumber) &&
+                                              string.IsNullOrWhiteSpace(entry.CertificateSubject) &&
+                                              string.IsNullOrWhiteSpace(entry.CertificateIssuer) &&
+                                              !entry.NotBeforeUtc.HasValue &&
+                                              !entry.NotAfterUtc.HasValue;
         if (replaceExisting) {
+            entry.CertificateThumbprint = discoveredEntry.LatestCertificateThumbprint;
             entry.CertificateSubject = discoveredEntry.LatestCertificateSubject;
             entry.CertificateIssuer = discoveredEntry.LatestCertificateIssuer;
             entry.CertificateSerialNumber = discoveredEntry.LatestCertificateSerialNumber;
             entry.NotBeforeUtc = discoveredEntry.LatestCertificateNotBeforeUtc;
             entry.NotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
+            entry.IsSelfSigned = discoveredEntry.LatestCertificateIsSelfSigned ?? false;
+            entry.WeakKey = discoveredEntry.LatestCertificateWeakKey ?? false;
+            entry.Sha1Signature = discoveredEntry.LatestCertificateSha1Signature ?? false;
+            entry.AllowsServerAuthentication = discoveredEntry.LatestCertificateHasServerAuthentication ?? false;
+            entry.AllowsClientAuthentication = discoveredEntry.LatestCertificateHasClientAuthentication ?? false;
+            entry.AllowsSecureEmail = discoveredEntry.LatestCertificateHasSecureEmail ?? false;
+            entry.AuthenticationProfile = discoveredEntry.LatestCertificateAuthenticationProfile ?? entry.AuthenticationProfile;
+            if (discoveredEntry.LatestCertificateSubjectAlternativeNames.Count > 0) {
+                entry.SubjectAlternativeNames ??= new List<string>();
+                entry.SubjectAlternativeNames.Clear();
+                entry.SubjectAlternativeNames.AddRange(
+                    discoveredEntry.LatestCertificateSubjectAlternativeNames
+                        .Where(static name => !string.IsNullOrWhiteSpace(name))
+                        .Distinct(StringComparer.OrdinalIgnoreCase));
+            }
             return true;
         }
 
         bool updated = false;
 
+        if (string.IsNullOrWhiteSpace(entry.CertificateThumbprint) &&
+            !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateThumbprint)) {
+            entry.CertificateThumbprint = discoveredEntry.LatestCertificateThumbprint;
+            updated = true;
+        }
         if (string.IsNullOrWhiteSpace(entry.CertificateSubject) &&
             !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateSubject)) {
             entry.CertificateSubject = discoveredEntry.LatestCertificateSubject;
@@ -147,6 +178,29 @@ public sealed partial class CertificateInventoryCapture {
             discoveredEntry.LatestCertificateNotAfterUtc.HasValue) {
             entry.NotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
             updated = true;
+        }
+        if (string.IsNullOrWhiteSpace(entry.AuthenticationProfile) &&
+            !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateAuthenticationProfile)) {
+            entry.AuthenticationProfile = discoveredEntry.LatestCertificateAuthenticationProfile!;
+            updated = true;
+        }
+        if ((entry.SubjectAlternativeNames == null || entry.SubjectAlternativeNames.Count == 0) &&
+            discoveredEntry.LatestCertificateSubjectAlternativeNames.Count > 0) {
+            entry.SubjectAlternativeNames ??= new List<string>();
+            entry.SubjectAlternativeNames.AddRange(
+                discoveredEntry.LatestCertificateSubjectAlternativeNames
+                    .Where(static name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase));
+            updated = true;
+        }
+
+        if (hadNoPrimaryCertificateEvidence) {
+            entry.IsSelfSigned = discoveredEntry.LatestCertificateIsSelfSigned ?? entry.IsSelfSigned;
+            entry.WeakKey = discoveredEntry.LatestCertificateWeakKey ?? entry.WeakKey;
+            entry.Sha1Signature = discoveredEntry.LatestCertificateSha1Signature ?? entry.Sha1Signature;
+            entry.AllowsServerAuthentication = discoveredEntry.LatestCertificateHasServerAuthentication ?? entry.AllowsServerAuthentication;
+            entry.AllowsClientAuthentication = discoveredEntry.LatestCertificateHasClientAuthentication ?? entry.AllowsClientAuthentication;
+            entry.AllowsSecureEmail = discoveredEntry.LatestCertificateHasSecureEmail ?? entry.AllowsSecureEmail;
         }
 
         return updated;

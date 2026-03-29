@@ -719,11 +719,20 @@ public sealed partial class CertificateInventoryCapture {
             FirstSeenUtc = observation?.FirstSeenUtc,
             LastSeenUtc = observation?.LastSeenUtc,
             LatestCertificateCtEntryTimestampUtc = observation?.LatestCertificateCtEntryTimestampUtc,
+            LatestCertificateThumbprint = observation?.LatestCertificateThumbprint,
             LatestCertificateSubject = observation?.LatestCertificateSubject,
             LatestCertificateIssuer = observation?.LatestCertificateIssuer,
             LatestCertificateSerialNumber = observation?.LatestCertificateSerialNumber,
             LatestCertificateNotBeforeUtc = observation?.LatestCertificateNotBeforeUtc,
             LatestCertificateNotAfterUtc = observation?.LatestCertificateNotAfterUtc,
+            LatestCertificateSubjectAlternativeNames = observation?.LatestCertificateSubjectAlternativeNames ?? Array.Empty<string>(),
+            LatestCertificateIsSelfSigned = observation?.LatestCertificateIsSelfSigned,
+            LatestCertificateWeakKey = observation?.LatestCertificateWeakKey,
+            LatestCertificateSha1Signature = observation?.LatestCertificateSha1Signature,
+            LatestCertificateHasServerAuthentication = observation?.LatestCertificateHasServerAuthentication,
+            LatestCertificateHasClientAuthentication = observation?.LatestCertificateHasClientAuthentication,
+            LatestCertificateHasSecureEmail = observation?.LatestCertificateHasSecureEmail,
+            LatestCertificateAuthenticationProfile = observation?.LatestCertificateAuthenticationProfile,
             CtSources = new[] { "native-ct" },
             CertificateObservationCount = Math.Max(0, observation?.CertificateObservationCount ?? 0),
             ResolutionStatus = SubdomainResolutionStatus.Unknown
@@ -901,6 +910,9 @@ public sealed partial class CertificateInventoryCapture {
             FirstSeenUtc = mergedFirstSeenUtc,
             LastSeenUtc = mergedLastSeenUtc,
             LatestCertificateCtEntryTimestampUtc = mergedLatestTs,
+            LatestCertificateThumbprint = preferCandidateCert
+                ? FirstNonEmpty(candidate.LatestCertificateThumbprint, existing.LatestCertificateThumbprint)
+                : FirstNonEmpty(existing.LatestCertificateThumbprint, candidate.LatestCertificateThumbprint),
             LatestCertificateSubject = preferCandidateCert
                 ? FirstNonEmpty(candidate.LatestCertificateSubject, existing.LatestCertificateSubject)
                 : FirstNonEmpty(existing.LatestCertificateSubject, candidate.LatestCertificateSubject),
@@ -916,6 +928,34 @@ public sealed partial class CertificateInventoryCapture {
             LatestCertificateNotAfterUtc = preferCandidateCert
                 ? FirstTimestamp(candidate.LatestCertificateNotAfterUtc, existing.LatestCertificateNotAfterUtc)
                 : FirstTimestamp(existing.LatestCertificateNotAfterUtc, candidate.LatestCertificateNotAfterUtc),
+            LatestCertificateSubjectAlternativeNames = preferCandidateCert
+                ? (candidate.LatestCertificateSubjectAlternativeNames?.Count > 0
+                    ? candidate.LatestCertificateSubjectAlternativeNames
+                    : existing.LatestCertificateSubjectAlternativeNames)
+                : (existing.LatestCertificateSubjectAlternativeNames?.Count > 0
+                    ? existing.LatestCertificateSubjectAlternativeNames
+                    : candidate.LatestCertificateSubjectAlternativeNames),
+            LatestCertificateIsSelfSigned = preferCandidateCert
+                ? candidate.LatestCertificateIsSelfSigned ?? existing.LatestCertificateIsSelfSigned
+                : existing.LatestCertificateIsSelfSigned ?? candidate.LatestCertificateIsSelfSigned,
+            LatestCertificateWeakKey = preferCandidateCert
+                ? candidate.LatestCertificateWeakKey ?? existing.LatestCertificateWeakKey
+                : existing.LatestCertificateWeakKey ?? candidate.LatestCertificateWeakKey,
+            LatestCertificateSha1Signature = preferCandidateCert
+                ? candidate.LatestCertificateSha1Signature ?? existing.LatestCertificateSha1Signature
+                : existing.LatestCertificateSha1Signature ?? candidate.LatestCertificateSha1Signature,
+            LatestCertificateHasServerAuthentication = preferCandidateCert
+                ? candidate.LatestCertificateHasServerAuthentication ?? existing.LatestCertificateHasServerAuthentication
+                : existing.LatestCertificateHasServerAuthentication ?? candidate.LatestCertificateHasServerAuthentication,
+            LatestCertificateHasClientAuthentication = preferCandidateCert
+                ? candidate.LatestCertificateHasClientAuthentication ?? existing.LatestCertificateHasClientAuthentication
+                : existing.LatestCertificateHasClientAuthentication ?? candidate.LatestCertificateHasClientAuthentication,
+            LatestCertificateHasSecureEmail = preferCandidateCert
+                ? candidate.LatestCertificateHasSecureEmail ?? existing.LatestCertificateHasSecureEmail
+                : existing.LatestCertificateHasSecureEmail ?? candidate.LatestCertificateHasSecureEmail,
+            LatestCertificateAuthenticationProfile = preferCandidateCert
+                ? FirstNonEmpty(candidate.LatestCertificateAuthenticationProfile, existing.LatestCertificateAuthenticationProfile)
+                : FirstNonEmpty(existing.LatestCertificateAuthenticationProfile, candidate.LatestCertificateAuthenticationProfile),
             CtSources = mergedSources,
             CertificateObservationCount = existing.CertificateObservationCount + candidate.CertificateObservationCount,
             ResolutionStatus = mergedResolution,
@@ -937,11 +977,20 @@ public sealed partial class CertificateInventoryCapture {
             FirstSeenUtc = entry.FirstSeenUtc,
             LastSeenUtc = entry.LastSeenUtc,
             LatestCertificateCtEntryTimestampUtc = entry.LatestCertificateCtEntryTimestampUtc,
+            LatestCertificateThumbprint = entry.LatestCertificateThumbprint,
             LatestCertificateSubject = entry.LatestCertificateSubject,
             LatestCertificateIssuer = entry.LatestCertificateIssuer,
             LatestCertificateSerialNumber = entry.LatestCertificateSerialNumber,
             LatestCertificateNotBeforeUtc = entry.LatestCertificateNotBeforeUtc,
             LatestCertificateNotAfterUtc = entry.LatestCertificateNotAfterUtc,
+            LatestCertificateSubjectAlternativeNames = entry.LatestCertificateSubjectAlternativeNames == null ? Array.Empty<string>() : entry.LatestCertificateSubjectAlternativeNames.ToList(),
+            LatestCertificateIsSelfSigned = entry.LatestCertificateIsSelfSigned,
+            LatestCertificateWeakKey = entry.LatestCertificateWeakKey,
+            LatestCertificateSha1Signature = entry.LatestCertificateSha1Signature,
+            LatestCertificateHasServerAuthentication = entry.LatestCertificateHasServerAuthentication,
+            LatestCertificateHasClientAuthentication = entry.LatestCertificateHasClientAuthentication,
+            LatestCertificateHasSecureEmail = entry.LatestCertificateHasSecureEmail,
+            LatestCertificateAuthenticationProfile = entry.LatestCertificateAuthenticationProfile,
             CtSources = entry.CtSources == null ? Array.Empty<string>() : entry.CtSources.ToList(),
             CertificateObservationCount = entry.CertificateObservationCount,
             ResolutionStatus = entry.ResolutionStatus,
