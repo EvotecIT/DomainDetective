@@ -234,11 +234,10 @@ namespace DomainDetective.Tests {
 
             static IpEnrichmentAnalysis BuildIpEnrichmentWithAsn(int asn) {
                 var analysis = new IpEnrichmentAnalysis();
-                SetAutoProperty(analysis, "UniqueIpCount", 1);
-                SetAutoProperty(analysis, "AsnCounts", (System.Collections.Generic.IReadOnlyDictionary<int, int>)new System.Collections.Generic.Dictionary<int, int> {
+                IReadOnlyDictionary<int, int> asnCounts = new Dictionary<int, int> {
                     [asn] = 1
-                });
-                SetAutoProperty(analysis, "Rows", (System.Collections.Generic.IReadOnlyList<IpEnrichmentRow>)new[]
+                };
+                IReadOnlyList<IpEnrichmentRow> rows = new[]
                 {
                     new IpEnrichmentRow
                     {
@@ -248,7 +247,10 @@ namespace DomainDetective.Tests {
                         Country = asn == 64500 ? "US" : "NL",
                         Region = asn == 64500 ? "Virginia" : "Amsterdam"
                     }
-                });
+                };
+                SetAutoProperty(analysis, "UniqueIpCount", 1);
+                SetAutoProperty(analysis, "AsnCounts", asnCounts);
+                SetAutoProperty(analysis, "Rows", rows);
                 return analysis;
             }
 
@@ -336,11 +338,10 @@ namespace DomainDetective.Tests {
 
             static IpEnrichmentAnalysis BuildIpEnrichmentWithAsn(int asn) {
                 var analysis = new IpEnrichmentAnalysis();
-                SetAutoProperty(analysis, "UniqueIpCount", 1);
-                SetAutoProperty(analysis, "AsnCounts", (System.Collections.Generic.IReadOnlyDictionary<int, int>)new System.Collections.Generic.Dictionary<int, int> {
+                IReadOnlyDictionary<int, int> asnCounts = new Dictionary<int, int> {
                     [asn] = 1
-                });
-                SetAutoProperty(analysis, "Rows", (System.Collections.Generic.IReadOnlyList<IpEnrichmentRow>)new[]
+                };
+                IReadOnlyList<IpEnrichmentRow> rows = new[]
                 {
                     new IpEnrichmentRow
                     {
@@ -350,7 +351,10 @@ namespace DomainDetective.Tests {
                         Country = asn == 64500 ? "US" : "NL",
                         Region = asn == 64500 ? "Virginia" : "Amsterdam"
                     }
-                });
+                };
+                SetAutoProperty(analysis, "UniqueIpCount", 1);
+                SetAutoProperty(analysis, "AsnCounts", asnCounts);
+                SetAutoProperty(analysis, "Rows", rows);
                 return analysis;
             }
 

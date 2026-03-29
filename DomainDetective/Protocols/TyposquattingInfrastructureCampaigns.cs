@@ -613,7 +613,7 @@ public static class TyposquattingInfrastructureCampaignAnalyzer
             parts.Add("limited direct takedown pivots");
         }
 
-        return actionability.ToString() + " priority: " + string.Join(", ", parts);
+        return $"{actionability} priority: {string.Join(", ", parts)}";
     }
 
     private static string BuildRecommendedAction(

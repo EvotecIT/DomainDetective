@@ -198,119 +198,125 @@ public static partial class MarkdownCompositionReport
                     return;
                 }
 
-                var sec = SectionProjectors.BuildTyposquatting(b.Typosquatting);
+                var sec = SectionProjectors.BuildTyposquatting(b.Typosquatting)!;
                 var narrative = b.Typosquatting.Raw != null ? TyposquattingNarrative.Build(b.Typosquatting.Raw) : null;
                 md.H2("Typosquatting");
-                if (sec != null)
+                md.Table(t =>
                 {
-                    md.Table(t => { t.Headers("Key", "Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0, 1); });
-                    if (sec.TopResponsePack != null)
+                    t.Headers("Key", "Value");
+                    foreach (var kv2 in sec.Summary)
                     {
-                        md.H3("Top Response Pack").Table(t =>
-                        {
-                            t.Headers("Key", "Value");
-                            t.Row("Campaign", string.IsNullOrWhiteSpace(sec.TopResponsePack.Label) ? "-" : sec.TopResponsePack.Label);
-                            t.Row("Case", string.IsNullOrWhiteSpace(sec.TopResponsePack.CaseId) ? "-" : sec.TopResponsePack.CaseId);
-                            t.Row("Severity", string.IsNullOrWhiteSpace(sec.TopResponsePack.Severity) ? "-" : sec.TopResponsePack.Severity);
-                            t.Row("Top Domain", string.IsNullOrWhiteSpace(sec.TopResponsePack.TopDomain) ? "-" : sec.TopResponsePack.TopDomain);
-                            t.Row("Primary Contact", string.IsNullOrWhiteSpace(sec.TopResponsePack.PrimaryContact) ? "-" : sec.TopResponsePack.PrimaryContact);
-                            t.Row("Tracking", string.IsNullOrWhiteSpace(sec.TopResponsePack.TrackingSummary) ? "-" : sec.TopResponsePack.TrackingSummary);
-                            t.Row("Escalation", string.IsNullOrWhiteSpace(sec.TopResponsePack.EscalationSummary) ? "-" : sec.TopResponsePack.EscalationSummary);
-                            t.Row("Actionability", string.IsNullOrWhiteSpace(sec.TopResponsePack.ActionabilitySummary) ? "-" : sec.TopResponsePack.ActionabilitySummary);
-                            t.Row("Next Step", string.IsNullOrWhiteSpace(sec.TopResponsePack.RecommendedAction) ? "-" : sec.TopResponsePack.RecommendedAction);
-                            t.Row("Draft", string.IsNullOrWhiteSpace(sec.TopResponsePack.DraftPreview) ? "-" : sec.TopResponsePack.DraftPreview);
-                            t.AlignLeft(0, 1);
-                        });
+                        t.Row(kv2.Key, kv2.Value);
                     }
-                    if (sec.Positives.Count > 0)
+
+                    t.AlignLeft(0, 1);
+                });
+                if (sec.TopResponsePack != null)
+                {
+                    md.H3("Top Response Pack").Table(t =>
                     {
-                        md.H3("Positives").Ul(sec.Positives.ToArray());
-                    }
-                    if (sec.Findings.Count > 0)
-                    {
-                        var findingRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
-                        md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(findingRows).AlignLeft(0, 1, 2, 3));
-                    }
-                    if (b.Typosquatting.KindCounts.Count > 0)
-                    {
-                        var kindRows = b.Typosquatting.KindCounts
-                            .Select(x => (IReadOnlyList<string>)new[] { x.Kind, x.Count.ToString() })
-                            .ToList();
-                        md.H3("Variant Families").Table(t => t.Headers("Kind", "Count").Rows(kindRows).AlignLeft(0, 1));
-                    }
-                    if (sec.Campaigns.Count > 0)
-                    {
-                        var campaignRows = sec.Campaigns
-                            .Take(100)
-                            .Select(x => (IReadOnlyList<string>)new[]
-                            {
-                                x.Label,
-                                string.IsNullOrWhiteSpace(x.Severity) ? "-" : x.Severity,
-                                x.CampaignScore.ToString(),
-                                x.CandidateCount.ToString(),
-                                x.ActiveCount.ToString(),
-                                x.ReachableWebCount.ToString(),
-                                x.ThreatListedCount.ToString(),
-                                x.LikelyMaliciousCount.ToString(),
-                                x.LikelyImpersonationCount.ToString(),
-                                x.LikelyImpersonatingCount.ToString(),
-                                x.LikelyVisualCloneCount.ToString(),
-                                string.IsNullOrWhiteSpace(x.TopCandidateDomain) ? "-" : x.TopCandidateDomain,
-                                string.IsNullOrWhiteSpace(x.TopCandidateDisposition) ? "-" : x.TopCandidateDisposition,
-                                string.IsNullOrWhiteSpace(x.Actionability) ? "-" : $"{x.Actionability} ({x.ActionabilityScore})",
-                                string.IsNullOrWhiteSpace(x.PrimaryRegistrar) ? "-" : $"{x.PrimaryRegistrar} ({x.RegistrarConcentrationPercent}%)",
-                                string.IsNullOrWhiteSpace(x.PrimaryHostingProvider) ? "-" : $"{x.PrimaryHostingProvider} ({x.HostingConcentrationPercent}%)",
-                                string.IsNullOrWhiteSpace(x.PrimaryCountry) ? "-" : $"{x.PrimaryCountry} ({x.CountryConcentrationPercent}%)",
-                                string.IsNullOrWhiteSpace(x.PrimaryAbuseContact) ? "-" : x.PrimaryAbuseContact,
-                                string.IsNullOrWhiteSpace(x.PivotSummary) ? "-" : x.PivotSummary,
-                                string.IsNullOrWhiteSpace(x.ActionabilitySummary) ? "-" : x.ActionabilitySummary,
-                                string.IsNullOrWhiteSpace(x.RecommendedAction) ? "-" : x.RecommendedAction,
-                                string.IsNullOrWhiteSpace(x.EscalationCaseId) ? "-" : x.EscalationCaseId,
-                                string.IsNullOrWhiteSpace(x.EscalationTrackingSummary) ? "-" : x.EscalationTrackingSummary,
-                                string.IsNullOrWhiteSpace(x.EscalationDraftPreview) ? "-" : x.EscalationDraftPreview,
-                                string.IsNullOrWhiteSpace(x.EscalationSummary) ? "-" : x.EscalationSummary,
-                                string.IsNullOrWhiteSpace(x.Summary) ? "-" : x.Summary
-                            })
-                            .ToList();
-                        md.H3("Campaigns").Table(t => t.Headers("Label", "Severity", "Score", "Domains", "Active", "Reachable", "Threat", "Malicious", "Impersonation", "Content", "Visual", "Top Domain", "Disposition", "Actionability", "Registrar", "Hosting", "Country", "Abuse", "Pivots", "Actionability Summary", "Action", "Case", "Tracking", "Draft", "Escalation", "Summary").Rows(campaignRows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25));
-                    }
-                    if (sec.Rows.Count > 0)
-                    {
-                        var rows = sec.Rows
-                            .Take(200)
-                            .Select(x => (IReadOnlyList<string>)new[]
-                            {
-                                x.Domain,
-                                x.RiskScore.ToString(),
-                                string.IsNullOrWhiteSpace(x.RiskLevel) ? "-" : x.RiskLevel,
-                                string.IsNullOrWhiteSpace(x.Disposition) ? "-" : x.Disposition,
-                                string.IsNullOrWhiteSpace(x.InfrastructureClusterLabel) ? "-" : $"{x.InfrastructureClusterLabel} ({x.InfrastructureClusterSize})",
-                                x.Kind,
-                                x.EditDistance.ToString(),
-                                x.Resolves ? "Yes" : "No",
-                                x.AppearsRegistered ? "Yes" : "No",
-                                x.ACount.ToString(),
-                                x.AaaaCount.ToString(),
-                                x.NsCount.ToString(),
-                                x.MxCount.ToString(),
-                                x.LikelyOwned ? $"Likely ({x.OwnershipConfidence})" : "-",
-                                string.IsNullOrWhiteSpace(x.OwnershipSummary) ? "-" : x.OwnershipSummary,
-                                x.LikelyExternal ? $"Likely ({x.ExternalConfidence})" : "-",
-                                string.IsNullOrWhiteSpace(x.ExternalSummary) ? "-" : x.ExternalSummary,
-                                x.LikelyImpersonating ? $"Likely ({x.ContentSimilarityScore})" : (x.ContentSimilarityScore > 0 ? x.ContentSimilarityScore.ToString() : "-"),
-                                string.IsNullOrWhiteSpace(x.ContentSimilaritySummary) ? "-" : x.ContentSimilaritySummary,
-                                x.LikelyVisualClone ? $"Likely ({x.VisualSimilarityScore})" : (x.VisualSimilarityScore > 0 ? x.VisualSimilarityScore.ToString() : "-"),
-                                string.IsNullOrWhiteSpace(x.VisualMatchType) ? "-" : x.VisualMatchType,
-                                x.VisualSimilarityDistance?.ToString() ?? "-",
-                                string.IsNullOrWhiteSpace(x.VisualSimilaritySummary) ? "-" : x.VisualSimilaritySummary,
-                                string.IsNullOrWhiteSpace(x.EnrichmentSummary) ? "-" : x.EnrichmentSummary
-                            })
-                            .ToList();
-                        md.H3("Candidates").Table(t => t.Headers("Domain", "Score", "Risk", "Disposition", "Cluster", "Kind", "Distance", "Resolves", "Registered", "A", "AAAA", "NS", "MX", "Owned", "Ownership", "External", "Distinct", "Content", "Similarity", "Visual", "Visual Type", "Visual Diff", "Visual Summary", "Enrichment").Rows(rows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23));
-                    }
-                    RenderNarrative(md, narrative);
-                    RenderReferences(md, MergeReferences(sec.References, narrative?.References));
+                        t.Headers("Key", "Value");
+                        t.Row("Campaign", string.IsNullOrWhiteSpace(sec.TopResponsePack.Label) ? "-" : sec.TopResponsePack.Label);
+                        t.Row("Case", string.IsNullOrWhiteSpace(sec.TopResponsePack.CaseId) ? "-" : sec.TopResponsePack.CaseId);
+                        t.Row("Severity", string.IsNullOrWhiteSpace(sec.TopResponsePack.Severity) ? "-" : sec.TopResponsePack.Severity);
+                        t.Row("Top Domain", string.IsNullOrWhiteSpace(sec.TopResponsePack.TopDomain) ? "-" : sec.TopResponsePack.TopDomain);
+                        t.Row("Primary Contact", string.IsNullOrWhiteSpace(sec.TopResponsePack.PrimaryContact) ? "-" : sec.TopResponsePack.PrimaryContact);
+                        t.Row("Tracking", string.IsNullOrWhiteSpace(sec.TopResponsePack.TrackingSummary) ? "-" : sec.TopResponsePack.TrackingSummary);
+                        t.Row("Escalation", string.IsNullOrWhiteSpace(sec.TopResponsePack.EscalationSummary) ? "-" : sec.TopResponsePack.EscalationSummary);
+                        t.Row("Actionability", string.IsNullOrWhiteSpace(sec.TopResponsePack.ActionabilitySummary) ? "-" : sec.TopResponsePack.ActionabilitySummary);
+                        t.Row("Next Step", string.IsNullOrWhiteSpace(sec.TopResponsePack.RecommendedAction) ? "-" : sec.TopResponsePack.RecommendedAction);
+                        t.Row("Draft", string.IsNullOrWhiteSpace(sec.TopResponsePack.DraftPreview) ? "-" : sec.TopResponsePack.DraftPreview);
+                        t.AlignLeft(0, 1);
+                    });
                 }
+                if (sec.Positives.Count > 0)
+                {
+                    md.H3("Positives").Ul(sec.Positives.ToArray());
+                }
+                if (sec.Findings.Count > 0)
+                {
+                    var findingRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(findingRows).AlignLeft(0, 1, 2, 3));
+                }
+                if (b.Typosquatting.KindCounts.Count > 0)
+                {
+                    var kindRows = b.Typosquatting.KindCounts
+                        .Select(x => (IReadOnlyList<string>)new[] { x.Kind, x.Count.ToString() })
+                        .ToList();
+                    md.H3("Variant Families").Table(t => t.Headers("Kind", "Count").Rows(kindRows).AlignLeft(0, 1));
+                }
+                if (sec.Campaigns.Count > 0)
+                {
+                    var campaignRows = sec.Campaigns
+                        .Take(100)
+                        .Select(x => (IReadOnlyList<string>)new[]
+                        {
+                            x.Label,
+                            string.IsNullOrWhiteSpace(x.Severity) ? "-" : x.Severity,
+                            x.CampaignScore.ToString(),
+                            x.CandidateCount.ToString(),
+                            x.ActiveCount.ToString(),
+                            x.ReachableWebCount.ToString(),
+                            x.ThreatListedCount.ToString(),
+                            x.LikelyMaliciousCount.ToString(),
+                            x.LikelyImpersonationCount.ToString(),
+                            x.LikelyImpersonatingCount.ToString(),
+                            x.LikelyVisualCloneCount.ToString(),
+                            string.IsNullOrWhiteSpace(x.TopCandidateDomain) ? "-" : x.TopCandidateDomain,
+                            string.IsNullOrWhiteSpace(x.TopCandidateDisposition) ? "-" : x.TopCandidateDisposition,
+                            string.IsNullOrWhiteSpace(x.Actionability) ? "-" : $"{x.Actionability} ({x.ActionabilityScore})",
+                            string.IsNullOrWhiteSpace(x.PrimaryRegistrar) ? "-" : $"{x.PrimaryRegistrar} ({x.RegistrarConcentrationPercent}%)",
+                            string.IsNullOrWhiteSpace(x.PrimaryHostingProvider) ? "-" : $"{x.PrimaryHostingProvider} ({x.HostingConcentrationPercent}%)",
+                            string.IsNullOrWhiteSpace(x.PrimaryCountry) ? "-" : $"{x.PrimaryCountry} ({x.CountryConcentrationPercent}%)",
+                            string.IsNullOrWhiteSpace(x.PrimaryAbuseContact) ? "-" : x.PrimaryAbuseContact,
+                            string.IsNullOrWhiteSpace(x.PivotSummary) ? "-" : x.PivotSummary,
+                            string.IsNullOrWhiteSpace(x.ActionabilitySummary) ? "-" : x.ActionabilitySummary,
+                            string.IsNullOrWhiteSpace(x.RecommendedAction) ? "-" : x.RecommendedAction,
+                            string.IsNullOrWhiteSpace(x.EscalationCaseId) ? "-" : x.EscalationCaseId,
+                            string.IsNullOrWhiteSpace(x.EscalationTrackingSummary) ? "-" : x.EscalationTrackingSummary,
+                            string.IsNullOrWhiteSpace(x.EscalationDraftPreview) ? "-" : x.EscalationDraftPreview,
+                            string.IsNullOrWhiteSpace(x.EscalationSummary) ? "-" : x.EscalationSummary,
+                            string.IsNullOrWhiteSpace(x.Summary) ? "-" : x.Summary
+                        })
+                        .ToList();
+                    md.H3("Campaigns").Table(t => t.Headers("Label", "Severity", "Score", "Domains", "Active", "Reachable", "Threat", "Malicious", "Impersonation", "Content", "Visual", "Top Domain", "Disposition", "Actionability", "Registrar", "Hosting", "Country", "Abuse", "Pivots", "Actionability Summary", "Action", "Case", "Tracking", "Draft", "Escalation", "Summary").Rows(campaignRows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25));
+                }
+                if (sec.Rows.Count > 0)
+                {
+                    var rows = sec.Rows
+                        .Take(200)
+                        .Select(x => (IReadOnlyList<string>)new[]
+                        {
+                            x.Domain,
+                            x.RiskScore.ToString(),
+                            string.IsNullOrWhiteSpace(x.RiskLevel) ? "-" : x.RiskLevel,
+                            string.IsNullOrWhiteSpace(x.Disposition) ? "-" : x.Disposition,
+                            string.IsNullOrWhiteSpace(x.InfrastructureClusterLabel) ? "-" : $"{x.InfrastructureClusterLabel} ({x.InfrastructureClusterSize})",
+                            x.Kind,
+                            x.EditDistance.ToString(),
+                            x.Resolves ? "Yes" : "No",
+                            x.AppearsRegistered ? "Yes" : "No",
+                            x.ACount.ToString(),
+                            x.AaaaCount.ToString(),
+                            x.NsCount.ToString(),
+                            x.MxCount.ToString(),
+                            x.LikelyOwned ? $"Likely ({x.OwnershipConfidence})" : "-",
+                            string.IsNullOrWhiteSpace(x.OwnershipSummary) ? "-" : x.OwnershipSummary,
+                            x.LikelyExternal ? $"Likely ({x.ExternalConfidence})" : "-",
+                            string.IsNullOrWhiteSpace(x.ExternalSummary) ? "-" : x.ExternalSummary,
+                            x.LikelyImpersonating ? $"Likely ({x.ContentSimilarityScore})" : (x.ContentSimilarityScore > 0 ? x.ContentSimilarityScore.ToString() : "-"),
+                            string.IsNullOrWhiteSpace(x.ContentSimilaritySummary) ? "-" : x.ContentSimilaritySummary,
+                            x.LikelyVisualClone ? $"Likely ({x.VisualSimilarityScore})" : (x.VisualSimilarityScore > 0 ? x.VisualSimilarityScore.ToString() : "-"),
+                            string.IsNullOrWhiteSpace(x.VisualMatchType) ? "-" : x.VisualMatchType,
+                            x.VisualSimilarityDistance?.ToString() ?? "-",
+                            string.IsNullOrWhiteSpace(x.VisualSimilaritySummary) ? "-" : x.VisualSimilaritySummary,
+                            string.IsNullOrWhiteSpace(x.EnrichmentSummary) ? "-" : x.EnrichmentSummary
+                        })
+                        .ToList();
+                    md.H3("Candidates").Table(t => t.Headers("Domain", "Score", "Risk", "Disposition", "Cluster", "Kind", "Distance", "Resolves", "Registered", "A", "AAAA", "NS", "MX", "Owned", "Ownership", "External", "Distinct", "Content", "Similarity", "Visual", "Visual Type", "Visual Diff", "Visual Summary", "Enrichment").Rows(rows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23));
+                }
+                RenderNarrative(md, narrative);
+                RenderReferences(md, MergeReferences(sec.References, narrative?.References));
             }
 
             void RenderDesiredState()
