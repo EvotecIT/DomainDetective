@@ -298,6 +298,16 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
             return baseUri.Scheme + ":" + trimmedValue;
         }
 
+        if (trimmedValue.StartsWith("/", StringComparison.Ordinal)
+            || trimmedValue.StartsWith("./", StringComparison.Ordinal)
+            || trimmedValue.StartsWith("../", StringComparison.Ordinal))
+        {
+            if (Uri.TryCreate(baseUri, trimmedValue, out var relativeToBaseUri))
+            {
+                return relativeToBaseUri.ToString();
+            }
+        }
+
         if (Uri.TryCreate(trimmedValue, UriKind.Absolute, out var absoluteUri))
         {
             return absoluteUri.ToString();
