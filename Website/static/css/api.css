@@ -267,20 +267,20 @@ body.pf-api-docs .pf-combobox-option.active {
     color: var(--pf-accent);
 }
 
-.namespace-group-header {
+body.pf-api-docs .namespace-group-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
 }
 
-.namespace-group-actions {
+body.pf-api-docs .namespace-group-actions {
     display: flex;
     justify-content: flex-start;
     margin-top: 0.85rem;
 }
 
-.overview-group-toggle {
+body.pf-api-docs .overview-group-toggle {
     appearance: none;
     border: 1px solid var(--pf-border);
     background: rgba(0, 217, 255, 0.05);
@@ -293,19 +293,19 @@ body.pf-api-docs .pf-combobox-option.active {
     transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 
-.overview-group-toggle:hover {
+body.pf-api-docs .overview-group-toggle:hover {
     border-color: rgba(0, 217, 255, 0.35);
     background: rgba(0, 217, 255, 0.1);
     transform: translateY(-1px);
 }
 
-.type-chips {
+body.pf-api-docs .type-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
 }
 
-.type-chip {
+body.pf-api-docs .type-chip {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -316,15 +316,15 @@ body.pf-api-docs .pf-combobox-option.active {
     font-size: 0.85rem;
 }
 
-.chip-icon {
+body.pf-api-docs .chip-icon {
     display: inline-flex;
 }
 
-.example-origin {
+body.pf-api-docs .example-origin {
     margin-top: 0.6rem;
 }
 
-.example-origin-badge {
+body.pf-api-docs .example-origin-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -339,20 +339,20 @@ body.pf-api-docs .pf-combobox-option.active {
     letter-spacing: 0.04em;
 }
 
-.example-origin-badge.example-origin-authored,
-.example-origin-badge.example-origin-imported,
-.example-origin-badge.example-origin-generated,
-.example-origin-badge.example-origin-other {
+body.pf-api-docs .example-origin-badge.example-origin-authored,
+body.pf-api-docs .example-origin-badge.example-origin-imported,
+body.pf-api-docs .example-origin-badge.example-origin-generated,
+body.pf-api-docs .example-origin-badge.example-origin-other {
     color: var(--pf-ink-strong);
 }
 
-.example-media-meta {
+body.pf-api-docs .example-media-meta {
     margin-top: 0.45rem;
     color: var(--pf-dim);
     font-size: 0.78rem;
 }
 
-.member-toggle input {
+body.pf-api-docs .member-toggle input {
     accent-color: var(--pf-accent);
 }
 

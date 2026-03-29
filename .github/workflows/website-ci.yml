@@ -5,7 +5,6 @@ on:
     paths:
       - 'Website/**'
       - '.github/workflows/website-ci.yml'
-      - '.github/workflows/website-maintenance.yml'
   workflow_dispatch:
 
 concurrency:
@@ -24,5 +23,3 @@ jobs:
       runner_labels_json: ${{ github.event.repository.private && '["self-hosted","linux"]' || '["ubuntu-latest"]' }}
       powerforge_web_tag: PowerForgeWeb-v1.0.0-preview-20260328151156
       report_artifact_name: powerforge-website-reports
-    secrets:
-      indexnow_key: ${{ secrets.INDEXNOW_KEY }}
