@@ -1038,7 +1038,7 @@ public sealed partial class CertificateInventoryCapture {
                     reusedHttps,
                     reusedMail,
                     reusedStableFailureHttps,
-                        reusedStableFailureMail);
+                    reusedStableFailureMail);
             }
         }
 

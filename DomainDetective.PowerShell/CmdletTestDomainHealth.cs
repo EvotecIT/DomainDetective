@@ -152,6 +152,9 @@ namespace DomainDetective.PowerShell {
                                 case DomainDetective.HealthCheckType.DMARC:
                                     items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis));
                                     break;
+                                case DomainDetective.HealthCheckType.TYPOSQUATTING:
+                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.TyposquattingAnalysis));
+                                    break;
                                 case DomainDetective.HealthCheckType.MX:
                                     items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
                                     break;

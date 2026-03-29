@@ -194,6 +194,137 @@ public static partial class SectionProjectors
         public List<string> References { get; } = new();
     }
 
+    public sealed class TyposquattingSection
+    {
+        public sealed class ResponsePack
+        {
+            public string Label { get; set; } = string.Empty;
+            public string Severity { get; set; } = string.Empty;
+            public string CaseId { get; set; } = string.Empty;
+            public string TopDomain { get; set; } = string.Empty;
+            public string PrimaryContact { get; set; } = string.Empty;
+            public string TrackingSummary { get; set; } = string.Empty;
+            public string EscalationSummary { get; set; } = string.Empty;
+            public string ActionabilitySummary { get; set; } = string.Empty;
+            public string RecommendedAction { get; set; } = string.Empty;
+            public string DraftPreview { get; set; } = string.Empty;
+        }
+
+        public sealed class CampaignRow
+        {
+            public string Label { get; set; } = string.Empty;
+            public string Severity { get; set; } = string.Empty;
+            public int CampaignScore { get; set; }
+            public int CandidateCount { get; set; }
+            public int ActiveCount { get; set; }
+            public int ReachableWebCount { get; set; }
+            public int ThreatListedCount { get; set; }
+            public int LikelyMaliciousCount { get; set; }
+            public int LikelyImpersonationCount { get; set; }
+            public int LikelyImpersonatingCount { get; set; }
+            public int LikelyVisualCloneCount { get; set; }
+            public int HighestRiskScore { get; set; }
+            public string TopCandidateDomain { get; set; } = string.Empty;
+            public string TopCandidateDisposition { get; set; } = string.Empty;
+            public string Summary { get; set; } = string.Empty;
+            public string PivotSummary { get; set; } = string.Empty;
+            public string PrimaryRegistrar { get; set; } = string.Empty;
+            public int RegistrarConcentrationPercent { get; set; }
+            public string PrimaryHostingProvider { get; set; } = string.Empty;
+            public int HostingConcentrationPercent { get; set; }
+            public string PrimaryCountry { get; set; } = string.Empty;
+            public int CountryConcentrationPercent { get; set; }
+            public string PrimaryAbuseContact { get; set; } = string.Empty;
+            public int ActionabilityScore { get; set; }
+            public string Actionability { get; set; } = string.Empty;
+            public string ActionabilitySummary { get; set; } = string.Empty;
+            public string RecommendedAction { get; set; } = string.Empty;
+            public string EscalationCaseId { get; set; } = string.Empty;
+            public string EscalationTrackingSummary { get; set; } = string.Empty;
+            public string EscalationDraftPreview { get; set; } = string.Empty;
+            public string EscalationSummary { get; set; } = string.Empty;
+        }
+
+        public sealed class Row
+        {
+            public string Domain { get; set; } = string.Empty;
+            public string Kind { get; set; } = string.Empty;
+            public int EditDistance { get; set; }
+            public bool Resolves { get; set; }
+            public bool AppearsRegistered { get; set; }
+            public int RiskScore { get; set; }
+            public string RiskLevel { get; set; } = string.Empty;
+            public string RiskSummary { get; set; } = string.Empty;
+            public string Disposition { get; set; } = string.Empty;
+            public string DispositionSummary { get; set; } = string.Empty;
+            public string InfrastructureClusterLabel { get; set; } = string.Empty;
+            public int InfrastructureClusterSize { get; set; }
+            public string InfrastructureClusterSummary { get; set; } = string.Empty;
+            public int ACount { get; set; }
+            public int AaaaCount { get; set; }
+            public int NsCount { get; set; }
+            public int MxCount { get; set; }
+            public string Registrar { get; set; } = string.Empty;
+            public int? HttpStatusCode { get; set; }
+            public bool ThreatListed { get; set; }
+            public int TechnologyCount { get; set; }
+            public int EnrichedIpCount { get; set; }
+            public bool LikelyOwned { get; set; }
+            public int OwnershipConfidence { get; set; }
+            public string OwnershipSummary { get; set; } = string.Empty;
+            public bool LikelyExternal { get; set; }
+            public int ExternalConfidence { get; set; }
+            public string ExternalSummary { get; set; } = string.Empty;
+            public int ContentSimilarityScore { get; set; }
+            public bool LikelyImpersonating { get; set; }
+            public string ContentSimilaritySummary { get; set; } = string.Empty;
+            public int VisualSimilarityScore { get; set; }
+            public bool LikelyVisualClone { get; set; }
+            public int? VisualSimilarityDistance { get; set; }
+            public string VisualMatchKind { get; set; } = string.Empty;
+            public string VisualMatchType { get; set; } = string.Empty;
+            public string VisualMatchedSourceUrl { get; set; } = string.Empty;
+            public string VisualCandidateArtifactUrl { get; set; } = string.Empty;
+            public string VisualSimilaritySummary { get; set; } = string.Empty;
+            public string EnrichmentSummary { get; set; } = string.Empty;
+        }
+
+        public string Status { get; set; } = "-";
+        public int CandidateCount { get; set; }
+        public int ActiveCount { get; set; }
+        public int RegisteredCount { get; set; }
+        public int EnrichedCount { get; set; }
+        public int ReachableWebCount { get; set; }
+        public int ThreatListedCount { get; set; }
+        public int HighRiskCount { get; set; }
+        public int LikelyOwnedCount { get; set; }
+        public int LikelyExternalCount { get; set; }
+        public bool OwnershipProfileBuilt { get; set; }
+        public int LikelyImpersonatingCount { get; set; }
+        public bool ContentProfileBuilt { get; set; }
+        public int LikelyVisualCloneCount { get; set; }
+        public bool VisualProfileBuilt { get; set; }
+        public int ClusteredCandidateCount { get; set; }
+        public int InfrastructureClusterCount { get; set; }
+        public int MultiCandidateInfrastructureClusterCount { get; set; }
+        public int LargestInfrastructureClusterSize { get; set; }
+        public int HighPriorityCampaignCount { get; set; }
+        public int CriticalCampaignCount { get; set; }
+        public int AvailableCount { get; set; }
+        public int DefensiveOwnedDispositionCount { get; set; }
+        public int MonitorCount { get; set; }
+        public int LikelyImpersonationDispositionCount { get; set; }
+        public int LikelyMaliciousCount { get; set; }
+        public bool ContainsHomoglyphs { get; set; }
+        public ResponsePack? TopResponsePack { get; set; }
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<CampaignRow> Campaigns { get; } = new();
+        public List<Row> Rows { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+    }
+
     // Discovery: DNS Inventory (common record types)
     public sealed class DnsInventorySection
     {

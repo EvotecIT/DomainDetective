@@ -41,6 +41,7 @@ public static partial class ExcelCompositionReport
             Http = s.Http,
             IpEnrichment = s.IpEnrichment,
             Microsoft365 = s.Microsoft365,
+            Typosquatting = s.Typosquatting,
             DnsAmplification = s.DnsAmplification,
             DnsOverTls = s.DnsOverTls
         };
@@ -82,6 +83,7 @@ public static partial class ExcelCompositionReport
         public DomainDetective.Views.HttpInfo? Http { get; set; }
         public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
         public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
+        public DomainDetective.Views.TyposquattingInfo? Typosquatting { get; set; }
         public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
         public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
         public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
