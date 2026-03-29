@@ -56,6 +56,7 @@ public static class ReferencesCollector
             Pull(b.Http?.References);
             Pull(b.IpEnrichment?.References);
             Pull(b.Microsoft365?.References);
+            Pull(b.Typosquatting?.References);
             if (b.DnsPropagation != null) foreach (var d in b.DnsPropagation) Pull(d.References);
         }
 

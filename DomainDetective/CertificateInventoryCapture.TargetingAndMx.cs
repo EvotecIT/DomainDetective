@@ -13,6 +13,12 @@ using DomainDetective.Helpers;
 namespace DomainDetective;
 
 public sealed partial class CertificateInventoryCapture {
+    private sealed class RecentInventoryEndpointEntry {
+        public required CertificateInventoryEntry Entry { get; init; }
+
+        public required DateTimeOffset CapturedAtUtc { get; init; }
+    }
+
     private static string BuildMailTargetLabel(MailEndpointTarget target) {
         return $"{target.Scheme}://{target.Host}:{target.Port}";
     }
@@ -37,7 +43,7 @@ public sealed partial class CertificateInventoryCapture {
         return true;
     }
 
-    private static bool ShouldReuseCachedEntry(CertificateInventoryEntry entry, DateTimeOffset now, int reprobeExpiringWithinDays) {
+    private static bool ShouldReuseCachedSuccessEntry(CertificateInventoryEntry entry, DateTimeOffset now, int reprobeExpiringWithinDays) {
         if (entry == null) {
             return false;
         }
@@ -60,9 +66,97 @@ public sealed partial class CertificateInventoryCapture {
         return true;
     }
 
-    private static IReadOnlyDictionary<string, CertificateInventoryEntry> LoadRecentSnapshotEntries(CertificateInventoryCaptureOptions options, DateTimeOffset now) {
-        if (options == null || !options.ReuseRecentSnapshotEntries || options.RecentSnapshotTtl <= TimeSpan.Zero) {
-            return new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+    private static bool ShouldReuseCachedFailureEntry(CertificateInventoryEntry entry) {
+        if (entry == null) {
+            return false;
+        }
+        if (entry.IsReachable) {
+            return false;
+        }
+        if (!string.IsNullOrWhiteSpace(entry.CertificateThumbprint)) {
+            return false;
+        }
+
+        var failureKind = entry.FailureKind != CertificateFailureKind.None
+            ? entry.FailureKind
+            : CertificateFailureClassifier.ClassifyFailureReason(entry.FailureReason);
+        return CertificateFailureClassifier.IsStableForSnapshotReuse(failureKind);
+    }
+
+    private static bool ShouldLoadRecentSnapshotEntries(CertificateInventoryCaptureOptions options) {
+        if (options == null) {
+            return false;
+        }
+
+        return ResolveEffectiveRecentSnapshotReuseTtl(options) > TimeSpan.Zero;
+    }
+
+    private static TimeSpan ResolveEffectiveRecentSnapshotReuseTtl(CertificateInventoryCaptureOptions options) {
+        if (options == null) {
+            return TimeSpan.Zero;
+        }
+
+        TimeSpan successfulReuseTtl =
+            options.ReuseRecentSnapshotEntries && options.RecentSnapshotTtl > TimeSpan.Zero
+                ? options.RecentSnapshotTtl
+                : TimeSpan.Zero;
+        TimeSpan stableFailureReuseTtl =
+            options.ReuseRecentFailureSnapshotEntries && options.RecentFailureSnapshotTtl > TimeSpan.Zero
+                ? options.RecentFailureSnapshotTtl
+                : TimeSpan.Zero;
+        return successfulReuseTtl >= stableFailureReuseTtl ? successfulReuseTtl : stableFailureReuseTtl;
+    }
+
+    private static bool TryReuseCachedEntry(
+        RecentInventoryEndpointEntry cachedEntry,
+        DateTimeOffset now,
+        CertificateInventoryCaptureOptions options,
+        out bool reusedStableFailure) {
+        reusedStableFailure = false;
+        if (cachedEntry == null || cachedEntry.Entry == null || options == null) {
+            return false;
+        }
+
+        if (options.ReuseRecentSnapshotEntries &&
+            options.RecentSnapshotTtl > TimeSpan.Zero &&
+            cachedEntry.CapturedAtUtc >= now - options.RecentSnapshotTtl &&
+            ShouldReuseCachedSuccessEntry(cachedEntry.Entry, now, options.ReprobeExpiringWithinDays)) {
+            return true;
+        }
+
+        if (options.ReuseRecentFailureSnapshotEntries &&
+            options.RecentFailureSnapshotTtl > TimeSpan.Zero &&
+            cachedEntry.CapturedAtUtc >= now - options.RecentFailureSnapshotTtl &&
+            ShouldReuseCachedFailureEntry(cachedEntry.Entry)) {
+            reusedStableFailure = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyDictionary<string, RecentInventoryEndpointEntry> WrapRecentSnapshotEntries(
+        IReadOnlyDictionary<string, CertificateInventoryEntry> entries,
+        DateTimeOffset capturedAtUtc) {
+        if (entries == null || entries.Count == 0) {
+            return new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return entries
+            .Where(static pair => pair.Value != null)
+            .ToDictionary(
+                static pair => pair.Key,
+                pair => new RecentInventoryEndpointEntry {
+                    Entry = pair.Value,
+                    CapturedAtUtc = capturedAtUtc
+                },
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyDictionary<string, RecentInventoryEndpointEntry> LoadRecentSnapshotEntries(CertificateInventoryCaptureOptions options, DateTimeOffset now) {
+        TimeSpan effectiveTtl = ResolveEffectiveRecentSnapshotReuseTtl(options);
+        if (options == null || effectiveTtl <= TimeSpan.Zero) {
+            return new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
         }
 
         using var monitor = new CertificateMonitor {
@@ -70,14 +164,14 @@ public sealed partial class CertificateInventoryCapture {
             PersistInventorySnapshots = false
         };
 
-        var since = now - options.RecentSnapshotTtl;
+        var since = now - effectiveTtl;
         var snapshots = monitor.LoadInventorySnapshots(sinceUtc: since, latestOnly: false);
         if (snapshots.Count == 0) {
-            return new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+            return new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
         }
 
         var ordered = snapshots.OrderBy(snapshot => snapshot.CapturedAtUtc).ToList();
-        var byEndpoint = new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+        var byEndpoint = new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var snapshot in ordered) {
             if (snapshot.Entries == null || snapshot.Entries.Count == 0) {
                 continue;
@@ -91,7 +185,10 @@ public sealed partial class CertificateInventoryCapture {
                     continue;
                 }
                 var key = BuildEndpointKey(host, entry.Port, entry.Service);
-                byEndpoint[key] = entry;
+                byEndpoint[key] = new RecentInventoryEndpointEntry {
+                    Entry = entry,
+                    CapturedAtUtc = snapshot.CapturedAtUtc
+                };
             }
         }
 
@@ -101,10 +198,12 @@ public sealed partial class CertificateInventoryCapture {
     private static void ApplyTargetLimit(
         CertificateInventoryCaptureOptions options,
         HashSet<string> httpsTargets,
+        Dictionary<string, HashSet<string>> httpsTargetOriginsByEndpointKey,
         Dictionary<string, MailEndpointTarget> mailTargets,
         List<string> warnings,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
-        int reprobeExpiringWithinDays) {
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
+        int reprobeExpiringWithinDays,
+        List<TargetDecisionDiagnosticEntry> targetDecisionDiagnostics) {
         if (options.MaxTargets <= 0) {
             return;
         }
@@ -125,14 +224,37 @@ public sealed partial class CertificateInventoryCapture {
             out var allowedMail);
 
         if (originalMail > allowedMail) {
-            var keptMail = mailTargets.Values
-                .OrderByDescending(target => ComputeMailTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays))
-                .ThenBy(target => ResolvePrioritySortDays(target, recentByEndpoint))
-                .ThenBy(target => target.Host, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(target => target.Port)
-                .ThenBy(target => target.Service, StringComparer.OrdinalIgnoreCase)
+            var rankedMail = mailTargets.Values
+                .Select(target => new {
+                    Target = target,
+                    Priority = ComputeMailTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays)
+                })
+                .OrderByDescending(item => item.Priority)
+                .ThenBy(item => ResolvePrioritySortDays(item.Target, recentByEndpoint))
+                .ThenBy(item => item.Target.Host, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.Target.Port)
+                .ThenBy(item => item.Target.Service, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var keptMail = rankedMail
+                .Select(static item => item.Target)
                 .Take(allowedMail)
                 .ToList();
+            var droppedMail = rankedMail
+                .Skip(allowedMail)
+                .ToList();
+
+            foreach (var item in droppedMail) {
+                targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                    Stage = "target-limit",
+                    Action = "pruned",
+                    Reason = "max-targets",
+                    Target = BuildMailTargetLabel(item.Target),
+                    Service = item.Target.Service,
+                    PriorityScore = item.Priority,
+                    Message = $"Pruned by MaxTargets={options.MaxTargets}.",
+                    TargetOrigins = item.Target.TargetOrigins
+                });
+            }
 
             mailTargets.Clear();
             foreach (var target in keptMail) {
@@ -141,17 +263,45 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         if (originalHttps > allowedHttps) {
-            var keptHttps = httpsTargets
-                .OrderByDescending(target => ComputeHttpsTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays))
-                .ThenBy(target => ResolvePrioritySortDays(target, recentByEndpoint))
-                .ThenBy(target => target, StringComparer.OrdinalIgnoreCase)
+            var rankedHttps = httpsTargets
+                .Select(target => new {
+                    Target = target,
+                    Priority = ComputeHttpsTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays)
+                })
+                .OrderByDescending(item => item.Priority)
+                .ThenBy(item => ResolvePrioritySortDays(item.Target, recentByEndpoint))
+                .ThenBy(item => item.Target, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var keptHttps = rankedHttps
+                .Select(static item => item.Target)
                 .Take(allowedHttps)
                 .ToList();
+            var droppedHttps = rankedHttps
+                .Skip(allowedHttps)
+                .ToList();
+
+            foreach (var item in droppedHttps) {
+                string endpointKey = TryBuildHttpsEndpointKey(item.Target, out string key)
+                    ? key
+                    : item.Target;
+                targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                    Stage = "target-limit",
+                    Action = "pruned",
+                    Reason = "max-targets",
+                    Target = item.Target,
+                    Service = "HTTPS",
+                    PriorityScore = item.Priority,
+                    Message = $"Pruned by MaxTargets={options.MaxTargets}.",
+                    TargetOrigins = GetTrackedOrigins(httpsTargetOriginsByEndpointKey, endpointKey)
+                });
+            }
 
             httpsTargets.Clear();
             foreach (var target in keptHttps) {
                 httpsTargets.Add(target);
             }
+
+            PruneTrackedHttpsOrigins(httpsTargetOriginsByEndpointKey, keptHttps);
         }
 
         warnings.Add($"Probe target list capped from {totalTargets} to {options.MaxTargets} by MaxTargets (HTTPS: {originalHttps}->{httpsTargets.Count}, Mail: {originalMail}->{mailTargets.Count}).");
@@ -159,12 +309,12 @@ public sealed partial class CertificateInventoryCapture {
 
     private static int ComputeHttpsTargetPriority(
         string target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
         int reprobeExpiringWithinDays) {
         if (recentByEndpoint != null &&
             TryBuildHttpsEndpointKey(target, out var endpointKey) &&
             recentByEndpoint.TryGetValue(endpointKey, out var cachedEntry)) {
-            return ComputeCachedEntryPriority(cachedEntry, reprobeExpiringWithinDays);
+            return ComputeCachedEntryPriority(cachedEntry.Entry, reprobeExpiringWithinDays);
         }
 
         return 1000;
@@ -172,14 +322,14 @@ public sealed partial class CertificateInventoryCapture {
 
     private static int ComputeMailTargetPriority(
         MailEndpointTarget target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
         int reprobeExpiringWithinDays) {
         if (target == null) {
             return 0;
         }
 
         if (TryGetCachedMailEntry(target, recentByEndpoint, out var cachedEntry)) {
-            return ComputeCachedEntryPriority(cachedEntry!, reprobeExpiringWithinDays);
+            return ComputeCachedEntryPriority(cachedEntry!.Entry, reprobeExpiringWithinDays);
         }
 
         return 1000;
@@ -187,11 +337,11 @@ public sealed partial class CertificateInventoryCapture {
 
     private static int ResolvePrioritySortDays(
         string target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint) {
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint) {
         if (recentByEndpoint != null &&
             TryBuildHttpsEndpointKey(target, out var endpointKey) &&
             recentByEndpoint.TryGetValue(endpointKey, out var cachedEntry)) {
-            return ParseSortDays(cachedEntry);
+            return ParseSortDays(cachedEntry.Entry);
         }
 
         return int.MinValue;
@@ -199,9 +349,9 @@ public sealed partial class CertificateInventoryCapture {
 
     private static int ResolvePrioritySortDays(
         MailEndpointTarget target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint) {
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint) {
         if (TryGetCachedMailEntry(target, recentByEndpoint, out var cachedEntry)) {
-            return ParseSortDays(cachedEntry!);
+            return ParseSortDays(cachedEntry!.Entry);
         }
 
         return int.MinValue;
@@ -209,8 +359,8 @@ public sealed partial class CertificateInventoryCapture {
 
     private static bool TryGetCachedMailEntry(
         MailEndpointTarget target,
-        IReadOnlyDictionary<string, CertificateInventoryEntry>? recentByEndpoint,
-        out CertificateInventoryEntry? cachedEntry) {
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
+        out RecentInventoryEndpointEntry? cachedEntry) {
         cachedEntry = null;
         if (target == null || recentByEndpoint == null) {
             return false;
@@ -349,8 +499,10 @@ public sealed partial class CertificateInventoryCapture {
     private static void ApplyAdditionalEndpoints(
         CertificateInventoryCaptureOptions options,
         HashSet<string> httpsTargets,
+        Dictionary<string, HashSet<string>> httpsTargetOriginsByEndpointKey,
         Dictionary<string, MailEndpointTarget> mailTargets,
-        List<string> warnings) {
+        List<string> warnings,
+        List<TargetDecisionDiagnosticEntry> targetDecisionDiagnostics) {
         foreach (var raw in options.AdditionalEndpoints) {
             if (string.IsNullOrWhiteSpace(raw)) {
                 continue;
@@ -359,6 +511,13 @@ public sealed partial class CertificateInventoryCapture {
             if (value.IndexOf("://", StringComparison.Ordinal) >= 0) {
                 if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Host)) {
                     warnings.Add($"Skipping invalid endpoint '{value}'.");
+                    targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                        Stage = "additional-endpoints",
+                        Action = "rejected",
+                        Reason = "invalid-endpoint",
+                        Target = value,
+                        Message = "The additional endpoint could not be parsed into a supported absolute URI."
+                    });
                     continue;
                 }
 
@@ -368,27 +527,49 @@ public sealed partial class CertificateInventoryCapture {
                         Scheme = Uri.UriSchemeHttps,
                         Port = uri.IsDefaultPort ? options.HttpsPort : uri.Port
                     };
-                    httpsTargets.Add(builder.Uri.ToString());
+                    AddHttpsTarget(
+                        httpsTargets,
+                        httpsTargetOriginsByEndpointKey,
+                        builder.Uri.ToString(),
+                        TargetOriginAdditionalEndpoint);
                     continue;
                 }
 
                 if (TryCreateMailTargetFromScheme(uri, options, out var target)) {
+                    target!.TargetOrigins.Add(TargetOriginAdditionalEndpoint);
                     AddMailTarget(mailTargets, target!);
                     continue;
                 }
 
                 warnings.Add($"Skipping unsupported endpoint scheme in '{value}'.");
+                targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                    Stage = "additional-endpoints",
+                    Action = "rejected",
+                    Reason = "unsupported-scheme",
+                    Target = value,
+                    Service = scheme,
+                    Message = $"Scheme '{scheme}' is not supported for certificate inventory capture."
+                });
                 continue;
             }
 
             if (TryParseHostAndPort(value, out var hostWithPort, out var parsedPort)) {
                 if (TryCreateMailTargetFromPort(hostWithPort, parsedPort, out var targetByPort)) {
+                    targetByPort!.TargetOrigins.Add(TargetOriginAdditionalEndpoint);
                     AddMailTarget(mailTargets, targetByPort!);
                 } else {
-                    httpsTargets.Add(BuildHttpsUrl($"{hostWithPort}:{parsedPort}", options.HttpsPort));
+                    AddHttpsTarget(
+                        httpsTargets,
+                        httpsTargetOriginsByEndpointKey,
+                        BuildHttpsUrl($"{hostWithPort}:{parsedPort}", options.HttpsPort),
+                        TargetOriginAdditionalEndpoint);
                 }
             } else {
-                httpsTargets.Add(BuildHttpsUrl(value, options.HttpsPort));
+                AddHttpsTarget(
+                    httpsTargets,
+                    httpsTargetOriginsByEndpointKey,
+                    BuildHttpsUrl(value, options.HttpsPort),
+                    TargetOriginAdditionalEndpoint);
             }
         }
     }

@@ -64,6 +64,16 @@ namespace DomainDetective.Tests {
             Assert.DoesNotContain("FailureKind:Timeout", reason, StringComparison.OrdinalIgnoreCase);
         }
 
+        [Fact]
+        public void BuildFailureReason_AppendsTlsHandshakeMarkerForAuthenticationFailure() {
+            var handshake = new AuthenticationException("TLS handshake failed.");
+
+            string? reason = CertificateAnalysis.BuildFailureReason(handshake);
+
+            Assert.NotNull(reason);
+            Assert.Contains("FailureKind:TlsHandshake", reason, StringComparison.OrdinalIgnoreCase);
+        }
+
 #if NET8_0_OR_GREATER
         [Fact]
         public void BuildFailureReason_AppendsHttpRequestErrorMarker() {
@@ -77,6 +87,7 @@ namespace DomainDetective.Tests {
 
             Assert.NotNull(reason);
             Assert.Contains("HttpRequestError:NameResolutionError", reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("FailureKind:NameResolution", reason, StringComparison.OrdinalIgnoreCase);
         }
 #endif
 

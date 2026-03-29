@@ -103,6 +103,7 @@ public static partial class ExcelCompositionReport {
                 ApplyBlock(infra, BuildDnsOverTlsBlock(b));
                 ApplyBlock(infra, BuildCtTimelineBlock(b));
                 ApplyBlock(infra, BuildHttpBlock(b));
+                ApplyBlock(infra, BuildTyposquattingBlock(b));
                 ApplyBlock(infra, BuildIpEnrichmentBlock(b));
                 ApplyBlock(infra, BuildCaaBlock(b));
                 ApplyBlock(infra, BuildRpkiBlock(b));

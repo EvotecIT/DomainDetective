@@ -265,6 +265,16 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Maximum age of persisted snapshots considered for endpoint reuse.</summary>
     public TimeSpan RecentSnapshotTtl { get; set; } = TimeSpan.FromHours(24);
 
+    /// <summary>
+    /// When true, reuses recent persisted snapshot entries for stable failure outcomes
+    /// so hot verification lanes do not immediately re-probe the same dead or timeout-heavy
+    /// endpoint on every pass.
+    /// </summary>
+    public bool ReuseRecentFailureSnapshotEntries { get; set; }
+
+    /// <summary>Maximum age of persisted failure snapshots considered for stable-failure reuse.</summary>
+    public TimeSpan RecentFailureSnapshotTtl { get; set; } = TimeSpan.FromHours(1);
+
     /// <summary>Do not reuse cached endpoint results when certificate expires within this many days.</summary>
     public int ReprobeExpiringWithinDays { get; set; } = 14;
 
@@ -342,8 +352,82 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>Total snapshot entry count.</summary>
     public int EntryCount { get; set; }
 
+    /// <summary>Total endpoints reused from recent snapshots.</summary>
+    public int ReusedRecentEntryCount { get; set; }
+
+    /// <summary>HTTPS endpoints reused from recent snapshots.</summary>
+    public int ReusedRecentHttpsCount { get; set; }
+
+    /// <summary>Mail endpoints reused from recent snapshots.</summary>
+    public int ReusedRecentMailCount { get; set; }
+
+    /// <summary>Total endpoints reused specifically because of stable recent failures.</summary>
+    public int ReusedRecentFailureEntryCount { get; set; }
+
+    /// <summary>HTTPS endpoints reused specifically because of stable recent failures.</summary>
+    public int ReusedRecentFailureHttpsCount { get; set; }
+
+    /// <summary>Mail endpoints reused specifically because of stable recent failures.</summary>
+    public int ReusedRecentFailureMailCount { get; set; }
+
+    /// <summary>HTTPS endpoints that required live probing in this run.</summary>
+    public int ProbedHttpsCount { get; set; }
+
+    /// <summary>Mail endpoints that required live probing in this run.</summary>
+    public int ProbedMailCount { get; set; }
+
     /// <summary>CT-discovered subdomain count included for HTTPS probing.</summary>
     public int CtDiscoveredSubdomainCount { get; set; }
+
+    /// <summary>CT-discovered subdomains promoted into HTTPS targets.</summary>
+    public int CtPromotedHttpsCount { get; set; }
+
+    /// <summary>CT-discovered subdomains retained for metadata/reporting but not promoted into HTTPS targets.</summary>
+    public int CtSkippedHttpsPromotionCount { get; set; }
+
+    /// <summary>CT-discovered subdomains skipped for HTTPS because DNS resolution was not confirmed or failed.</summary>
+    public int CtSkippedUnresolvedHttpsPromotionCount { get; set; }
+
+    /// <summary>CT-discovered subdomains skipped for HTTPS because they matched low-confidence historical-only variants.</summary>
+    public int CtSkippedLowConfidenceHttpsPromotionCount { get; set; }
+
+    /// <summary>CT-discovered subdomains that qualified for HTTPS but collapsed into an already-added target.</summary>
+    public int CtSkippedDuplicateHttpsPromotionCount { get; set; }
+
+    /// <summary>MX hosts promoted into HTTPS targets.</summary>
+    public int MxPromotedHttpsCount { get; set; }
+
+    /// <summary>Mail targets added from discovered MX hosts.</summary>
+    public int MxPromotedMailCount { get; set; }
+
+    /// <summary>MX lookup artifacts rejected during host normalization.</summary>
+    public int MxInvalidArtifactCount { get; set; }
+
+    /// <summary>Duplicate MX hosts collapsed during normalization.</summary>
+    public int MxDuplicateHostCount { get; set; }
+
+    /// <summary>MX hosts that qualified for HTTPS but collapsed into an already-added target.</summary>
+    public int MxSkippedDuplicateHttpsPromotionCount { get; set; }
+
+    /// <summary>HTTPS target count before applying MaxTargets capping.</summary>
+    public int HttpsTargetCountBeforeLimit { get; set; }
+
+    /// <summary>Mail target count before applying MaxTargets capping.</summary>
+    public int MailTargetCountBeforeLimit { get; set; }
+
+    /// <summary>HTTPS targets dropped by MaxTargets capping.</summary>
+    public int HttpsTargetCountDroppedByLimit { get; set; }
+
+    /// <summary>Mail targets dropped by MaxTargets capping.</summary>
+    public int MailTargetCountDroppedByLimit { get; set; }
+
+    /// <summary>Counts of final entries by target-origin tag. Entries with multiple origins contribute to each matching tag.</summary>
+    public IReadOnlyDictionary<string, int> TargetOriginCounts { get; set; } =
+        new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Counts of final entries by capture disposition.</summary>
+    public IReadOnlyDictionary<string, int> CaptureDispositionCounts { get; set; } =
+        new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Unique endpoint count (host+port).</summary>
     public int UniqueEndpointCount { get; set; }
@@ -362,6 +446,14 @@ public sealed class CertificateInventoryCaptureResult {
 
     /// <summary>Discovered MX hosts.</summary>
     public IReadOnlyList<string> MxHosts { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Owning source domains for each discovered MX host.
+    /// This preserves which input domains resolved to third-party/provider MX hosts so downstream
+    /// consumers can retain accurate current-state ownership for external mail endpoints.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> MxSourceDomainsByHost { get; set; } =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>HTTPS endpoints probed in this run.</summary>
     public IReadOnlyList<string> HttpsEndpoints { get; set; } = Array.Empty<string>();
@@ -386,6 +478,12 @@ public sealed class CertificateInventoryCaptureResult {
 
     /// <summary>Structured passive/public CT diagnostics observed during CT discovery and metadata backfill.</summary>
     public IReadOnlyList<PassiveCtDiagnosticEntry> PassiveCtDiagnosticEntries { get; set; } = Array.Empty<PassiveCtDiagnosticEntry>();
+
+    /// <summary>Structured target-selection diagnostics for rejected and pruned targets.</summary>
+    public IReadOnlyList<TargetDecisionDiagnosticEntry> TargetDecisionDiagnostics { get; set; } = Array.Empty<TargetDecisionDiagnosticEntry>();
+
+    /// <summary>Grouped summary buckets for target-selection diagnostics.</summary>
+    public IReadOnlyList<TargetDecisionSummaryEntry> TargetDecisionSummary { get; set; } = Array.Empty<TargetDecisionSummaryEntry>();
 
     /// <summary>Captured snapshot object.</summary>
     public CertificateInventorySnapshot Snapshot { get; set; } = new();
@@ -420,6 +518,7 @@ public sealed partial class CertificateInventoryCapture {
         public string Service { get; set; } = string.Empty;
         public string Scheme { get; set; } = string.Empty;
         public string ChainSource { get; set; } = string.Empty;
+        public List<string> TargetOrigins { get; set; } = new();
     }
 
     private sealed class ProbeStartRateLimiter {
@@ -515,6 +614,9 @@ public sealed partial class CertificateInventoryCapture {
         if (options.RecentSnapshotTtl < TimeSpan.Zero) {
             throw new ArgumentOutOfRangeException(nameof(options.RecentSnapshotTtl), "RecentSnapshotTtl must be non-negative.");
         }
+        if (options.RecentFailureSnapshotTtl < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.RecentFailureSnapshotTtl), "RecentFailureSnapshotTtl must be non-negative.");
+        }
         if (options.ReprobeExpiringWithinDays < 0) {
             throw new ArgumentOutOfRangeException(nameof(options.ReprobeExpiringWithinDays), "ReprobeExpiringWithinDays must be 0 or greater.");
         }
@@ -591,6 +693,7 @@ public sealed partial class CertificateInventoryCapture {
         var nativeCtLogDiagnostics = new List<string>();
         var nativeCtLogDiagnosticEntries = new List<NativeCtLogDiagnosticEntry>();
         var passiveCtDiagnosticEntries = new List<PassiveCtDiagnosticEntry>();
+        var targetDecisionDiagnostics = new List<TargetDecisionDiagnosticEntry>();
         var ctDiscoveredSubdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var ctDiscoveredSubdomainEntries = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
         const int totalStages = 9;
@@ -628,16 +731,42 @@ public sealed partial class CertificateInventoryCapture {
         AdvanceStage("Domain normalization");
 
         var mxHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var mxByDomain = new ConcurrentDictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         var httpsTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var httpsTargetOriginsByEndpointKey = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var mailTargets = new Dictionary<string, MailEndpointTarget>(StringComparer.OrdinalIgnoreCase);
+        var ctPromotedHttpsCount = 0;
+        var ctSkippedHttpsPromotionCount = 0;
+        var ctSkippedUnresolvedHttpsPromotionCount = 0;
+        var ctSkippedLowConfidenceHttpsPromotionCount = 0;
+        var ctSkippedDuplicateHttpsPromotionCount = 0;
+        var mxPromotedHttpsCount = 0;
+        var mxPromotedMailCount = 0;
+        var mxInvalidArtifactCount = 0;
+        var mxDuplicateHostCount = 0;
+        var mxSkippedDuplicateHttpsPromotionCount = 0;
 
         foreach (var seed in seeds) {
             cancellationToken.ThrowIfCancellationRequested();
-            if (seed.IsExactHostSeed || options.IncludeApexHttps) {
-                httpsTargets.Add(BuildHttpsUrl(seed.Name, options.HttpsPort));
+            if (seed.IsExactHostSeed) {
+                AddHttpsTarget(
+                    httpsTargets,
+                    httpsTargetOriginsByEndpointKey,
+                    BuildHttpsUrl(seed.Name, options.HttpsPort),
+                    TargetOriginSeedExactHost);
+            } else if (options.IncludeApexHttps) {
+                AddHttpsTarget(
+                    httpsTargets,
+                    httpsTargetOriginsByEndpointKey,
+                    BuildHttpsUrl(seed.Name, options.HttpsPort),
+                    TargetOriginSeedApex);
             }
             if (!seed.IsExactHostSeed && options.IncludeWwwHttps) {
-                httpsTargets.Add(BuildHttpsUrl($"www.{seed.Name}", options.HttpsPort));
+                AddHttpsTarget(
+                    httpsTargets,
+                    httpsTargetOriginsByEndpointKey,
+                    BuildHttpsUrl($"www.{seed.Name}", options.HttpsPort),
+                    TargetOriginSeedWww);
             }
         }
 
@@ -685,11 +814,27 @@ public sealed partial class CertificateInventoryCapture {
                 ctDiscoveredSubdomains.Add(normalizedSubdomain);
                 MergeCtSubdomainEntry(ctDiscoveredSubdomainEntries, subdomain);
                 if (ShouldPromoteCtDiscoveredSubdomainToHttpsProbe(normalizedSubdomain, subdomain, options)) {
-                    httpsTargets.Add(BuildHttpsUrl(normalizedSubdomain, options.HttpsPort));
+                    if (AddHttpsTarget(
+                            httpsTargets,
+                            httpsTargetOriginsByEndpointKey,
+                            BuildHttpsUrl(normalizedSubdomain, options.HttpsPort),
+                            TargetOriginCtDiscovery)) {
+                        ctPromotedHttpsCount++;
+                    } else {
+                        ctSkippedHttpsPromotionCount++;
+                        ctSkippedDuplicateHttpsPromotionCount++;
+                    }
                 } else if (!options.VerifyCtDiscoveredSubdomains &&
                            subdomain.ResolutionStatus == SubdomainResolutionStatus.Unknown &&
                            LooksLikeLowConfidenceCtOnlyProbeVariant(normalizedSubdomain)) {
                     skippedLowConfidenceCtProbeTargets++;
+                    ctSkippedHttpsPromotionCount++;
+                    ctSkippedLowConfidenceHttpsPromotionCount++;
+                } else {
+                    ctSkippedHttpsPromotionCount++;
+                    if (subdomain.ResolutionStatus != SubdomainResolutionStatus.Resolves) {
+                        ctSkippedUnresolvedHttpsPromotionCount++;
+                    }
                 }
             }
 
@@ -734,7 +879,6 @@ public sealed partial class CertificateInventoryCapture {
             var completedLookups = 0;
             using var gate = new SemaphoreSlim(maxLookupParallelism, maxLookupParallelism);
             var tasks = new List<Task>(mxLookupSeeds.Count);
-            var mxByDomain = new ConcurrentDictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var domain in mxLookupSeeds) {
                 await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 tasks.Add(Task.Run(async () => {
@@ -769,7 +913,11 @@ public sealed partial class CertificateInventoryCapture {
             foreach (var kv in mxByDomain) {
                 foreach (var host in kv.Value) {
                     if (TryNormalizeMxHostCandidate(host, out var normalizedHost)) {
-                        mxHosts.Add(normalizedHost);
+                        if (!mxHosts.Add(normalizedHost)) {
+                            mxDuplicateHostCount++;
+                        }
+                    } else {
+                        mxInvalidArtifactCount++;
                     }
                 }
             }
@@ -779,47 +927,69 @@ public sealed partial class CertificateInventoryCapture {
 
         if (options.IncludeMxHttps) {
             foreach (var mxHost in mxHosts) {
-                httpsTargets.Add(BuildHttpsUrl(mxHost, options.HttpsPort));
+                if (AddHttpsTarget(
+                        httpsTargets,
+                        httpsTargetOriginsByEndpointKey,
+                        BuildHttpsUrl(mxHost, options.HttpsPort),
+                        TargetOriginMxHttps)) {
+                    mxPromotedHttpsCount++;
+                } else {
+                    mxSkippedDuplicateHttpsPromotionCount++;
+                }
             }
         }
 
         foreach (var mxHost in mxHosts) {
-            AddMailTargetsForHost(mxHost, options, mailTargets);
+            var mailCountBefore = mailTargets.Count;
+            AddMailTargetsForHost(mxHost, options, mailTargets, TargetOriginMxMail);
+            mxPromotedMailCount += mailTargets.Count - mailCountBefore;
         }
 
-        ApplyAdditionalEndpoints(options, httpsTargets, mailTargets, warnings);
-        IReadOnlyDictionary<string, CertificateInventoryEntry> recentByEndpoint =
-            new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
-        if (options.ReuseRecentSnapshotEntries && options.RecentSnapshotTtl > TimeSpan.Zero) {
+        ApplyAdditionalEndpoints(options, httpsTargets, httpsTargetOriginsByEndpointKey, mailTargets, warnings, targetDecisionDiagnostics);
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry> recentByEndpoint =
+            new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
+        if (ShouldLoadRecentSnapshotEntries(options)) {
             var now = DateTimeOffset.UtcNow;
             if (RecentSnapshotLookupOverride != null) {
-                recentByEndpoint = RecentSnapshotLookupOverride(options, now, logger);
+                recentByEndpoint = WrapRecentSnapshotEntries(RecentSnapshotLookupOverride(options, now, logger), now);
             } else {
                 recentByEndpoint = LoadRecentSnapshotEntries(options, now);
             }
         }
 
-        ApplyTargetLimit(options, httpsTargets, mailTargets, warnings, recentByEndpoint, options.ReprobeExpiringWithinDays);
+        var httpsTargetCountBeforeLimit = httpsTargets.Count;
+        var mailTargetCountBeforeLimit = mailTargets.Count;
+        ApplyTargetLimit(options, httpsTargets, httpsTargetOriginsByEndpointKey, mailTargets, warnings, recentByEndpoint, options.ReprobeExpiringWithinDays, targetDecisionDiagnostics);
+        var httpsTargetCountDroppedByLimit = Math.Max(0, httpsTargetCountBeforeLimit - httpsTargets.Count);
+        var mailTargetCountDroppedByLimit = Math.Max(0, mailTargetCountBeforeLimit - mailTargets.Count);
         AdvanceStage("Endpoint expansion");
         logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
 
         var cachedEntries = new List<CertificateInventoryEntry>();
         var httpsTargetsToProbe = httpsTargets.ToList();
         var mailTargetsToProbe = mailTargets.Values.ToList();
-        if (options.ReuseRecentSnapshotEntries && options.RecentSnapshotTtl > TimeSpan.Zero) {
+        var reusedHttps = 0;
+        var reusedMail = 0;
+        var reusedStableFailureHttps = 0;
+        var reusedStableFailureMail = 0;
+        if (ShouldLoadRecentSnapshotEntries(options)) {
             var now = DateTimeOffset.UtcNow;
 
             if (recentByEndpoint.Count > 0) {
-                var reusedHttps = 0;
-                var reusedMail = 0;
-
                 var filteredHttps = new List<string>(httpsTargetsToProbe.Count);
                 foreach (var target in httpsTargetsToProbe) {
                     if (TryBuildHttpsEndpointKey(target, out var key) &&
                         recentByEndpoint.TryGetValue(key, out var cached) &&
-                        ShouldReuseCachedEntry(cached, now, options.ReprobeExpiringWithinDays)) {
-                        cachedEntries.Add(cached);
+                        TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure)) {
+                        ApplyEntryProvenance(
+                            cached.Entry,
+                            GetTrackedOrigins(httpsTargetOriginsByEndpointKey, key),
+                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess);
+                        cachedEntries.Add(cached.Entry);
                         reusedHttps++;
+                        if (reusedStableFailure) {
+                            reusedStableFailureHttps++;
+                        }
                     } else {
                         filteredHttps.Add(target);
                     }
@@ -830,16 +1000,29 @@ public sealed partial class CertificateInventoryCapture {
                 foreach (var target in mailTargetsToProbe) {
                     var key = BuildEndpointKey(target.Host, target.Port, target.Service);
                     if (recentByEndpoint.TryGetValue(key, out var cached) &&
-                        ShouldReuseCachedEntry(cached, now, options.ReprobeExpiringWithinDays)) {
-                        cachedEntries.Add(cached);
+                        TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure)) {
+                        ApplyEntryProvenance(
+                            cached.Entry,
+                            target.TargetOrigins,
+                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess);
+                        cachedEntries.Add(cached.Entry);
                         reusedMail++;
+                        if (reusedStableFailure) {
+                            reusedStableFailureMail++;
+                        }
                     } else {
                         filteredMail.Add(target);
                     }
                 }
                 mailTargetsToProbe = filteredMail;
 
-                logger.WriteVerbose("Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}).", reusedHttps + reusedMail, reusedHttps, reusedMail);
+                logger.WriteVerbose(
+                    "Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}, StableFailureHTTPS: {3}, StableFailureMail: {4}).",
+                    reusedHttps + reusedMail,
+                    reusedHttps,
+                    reusedMail,
+                    reusedStableFailureHttps,
+                    reusedStableFailureMail);
             }
         }
         AdvanceStage("Recent snapshot cache");
@@ -860,7 +1043,12 @@ public sealed partial class CertificateInventoryCapture {
         var allEntries = new List<CertificateInventoryEntry>(cachedEntries.Count + httpsEntries.Count + mailEntries.Count);
         allEntries.AddRange(cachedEntries);
         foreach (var httpsEntry in httpsEntries) {
-            allEntries.Add(CertificateMonitor.ToInventoryEntry(httpsEntry));
+            var inventoryEntry = CertificateMonitor.ToInventoryEntry(httpsEntry);
+            ApplyEntryProvenance(
+                inventoryEntry,
+                GetTrackedOrigins(httpsTargetOriginsByEndpointKey, inventoryEntry),
+                CaptureDispositionLiveProbe);
+            allEntries.Add(inventoryEntry);
         }
         allEntries.AddRange(mailEntries);
 
@@ -873,13 +1061,16 @@ public sealed partial class CertificateInventoryCapture {
             .Distinct()
             .OrderBy(port => port)
             .ToList();
+        var targetDecisionSummary = BuildTargetDecisionSummary(targetDecisionDiagnostics);
         var snapshot = new CertificateInventorySnapshot {
             CapturedAtUtc = capturedAtUtc,
             Port = distinctPorts.Count == 1 ? distinctPorts[0] : 0,
             Entries = deduped,
             NativeCtLogDiagnostics = nativeCtLogDiagnosticEntries.Select(CloneNativeCtLogDiagnosticEntry).ToList(),
             NativeCtLogDiagnosticsRaw = nativeCtLogDiagnostics.ToList(),
-            PassiveCtDiagnostics = passiveCtDiagnosticEntries.Select(ClonePassiveCtDiagnosticEntry).ToList()
+            PassiveCtDiagnostics = passiveCtDiagnosticEntries.Select(ClonePassiveCtDiagnosticEntry).ToList(),
+            TargetDecisionDiagnostics = targetDecisionDiagnostics.Select(CloneTargetDecisionDiagnosticEntry).ToList(),
+            TargetDecisionSummary = targetDecisionSummary.Select(CloneTargetDecisionSummaryEntry).ToList()
         };
         AdvanceStage("Snapshot synthesis");
 
@@ -915,6 +1106,8 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
+        var mxSourceDomainsByHost = BuildMxSourceDomainsByHost(mxByDomain);
+
         return new CertificateInventoryCaptureResult {
             CapturedAtUtc = capturedAtUtc,
             SnapshotPath = snapshotPath,
@@ -923,13 +1116,38 @@ public sealed partial class CertificateInventoryCapture {
             HttpsEndpointCount = httpsTargets.Count,
             MailEndpointCount = mailTargets.Count,
             EntryCount = deduped.Count,
+            ReusedRecentEntryCount = reusedHttps + reusedMail,
+            ReusedRecentHttpsCount = reusedHttps,
+            ReusedRecentMailCount = reusedMail,
+            ReusedRecentFailureEntryCount = reusedStableFailureHttps + reusedStableFailureMail,
+            ReusedRecentFailureHttpsCount = reusedStableFailureHttps,
+            ReusedRecentFailureMailCount = reusedStableFailureMail,
+            ProbedHttpsCount = httpsTargetsToProbe.Count,
+            ProbedMailCount = mailTargetsToProbe.Count,
             CtDiscoveredSubdomainCount = ctDiscoveredSubdomains.Count,
+            CtPromotedHttpsCount = ctPromotedHttpsCount,
+            CtSkippedHttpsPromotionCount = ctSkippedHttpsPromotionCount,
+            CtSkippedUnresolvedHttpsPromotionCount = ctSkippedUnresolvedHttpsPromotionCount,
+            CtSkippedLowConfidenceHttpsPromotionCount = ctSkippedLowConfidenceHttpsPromotionCount,
+            CtSkippedDuplicateHttpsPromotionCount = ctSkippedDuplicateHttpsPromotionCount,
+            MxPromotedHttpsCount = mxPromotedHttpsCount,
+            MxPromotedMailCount = mxPromotedMailCount,
+            MxInvalidArtifactCount = mxInvalidArtifactCount,
+            MxDuplicateHostCount = mxDuplicateHostCount,
+            MxSkippedDuplicateHttpsPromotionCount = mxSkippedDuplicateHttpsPromotionCount,
+            HttpsTargetCountBeforeLimit = httpsTargetCountBeforeLimit,
+            MailTargetCountBeforeLimit = mailTargetCountBeforeLimit,
+            HttpsTargetCountDroppedByLimit = httpsTargetCountDroppedByLimit,
+            MailTargetCountDroppedByLimit = mailTargetCountDroppedByLimit,
+            TargetOriginCounts = BuildTargetOriginCounts(deduped),
+            CaptureDispositionCounts = BuildCaptureDispositionCounts(deduped),
             UniqueEndpointCount = uniqueEndpoints.Count,
             ValidCount = validCount,
             ExpiredCount = expiredCount,
             FailedCount = failedCount,
             Domains = normalizedDomains,
             MxHosts = mxHosts.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            MxSourceDomainsByHost = mxSourceDomainsByHost,
             HttpsEndpoints = httpsTargets.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
             CtDiscoveredSubdomains = ctDiscoveredSubdomains.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
             CtDiscoveredSubdomainEntries = ctDiscoveredSubdomainEntries.Values
@@ -945,8 +1163,45 @@ public sealed partial class CertificateInventoryCapture {
             NativeCtLogDiagnostics = nativeCtLogDiagnostics,
             NativeCtLogDiagnosticEntries = nativeCtLogDiagnosticEntries,
             PassiveCtDiagnosticEntries = passiveCtDiagnosticEntries,
+            TargetDecisionDiagnostics = targetDecisionDiagnostics.Select(CloneTargetDecisionDiagnosticEntry).ToList(),
+            TargetDecisionSummary = targetDecisionSummary.Select(CloneTargetDecisionSummaryEntry).ToList(),
             Snapshot = snapshot
         };
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<string>> BuildMxSourceDomainsByHost(
+        IReadOnlyDictionary<string, IReadOnlyList<string>> mxByDomain) {
+        if (mxByDomain == null || mxByDomain.Count == 0) {
+            return new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var sourceDomainsByHost = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in mxByDomain) {
+            var domain = (kv.Key ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(domain)) {
+                continue;
+            }
+
+            foreach (var host in kv.Value ?? Array.Empty<string>()) {
+                if (!TryNormalizeMxHostCandidate(host, out var normalizedHost)) {
+                    continue;
+                }
+
+                if (!sourceDomainsByHost.TryGetValue(normalizedHost, out var sourceDomains)) {
+                    sourceDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    sourceDomainsByHost[normalizedHost] = sourceDomains;
+                }
+
+                sourceDomains.Add(domain);
+            }
+        }
+
+        return sourceDomainsByHost.ToDictionary(
+            static kv => kv.Key,
+            static kv => (IReadOnlyList<string>)kv.Value
+                .OrderBy(static domain => domain, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private static List<string> NormalizeDomains(IEnumerable<string> domains, List<string> warnings) {
@@ -1103,7 +1358,17 @@ public sealed partial class CertificateInventoryCapture {
         return firstLabel.All(static character => character == 'w' || character == 'W');
     }
 
-    private static void AddMailTargetsForHost(string host, CertificateInventoryCaptureOptions options, Dictionary<string, MailEndpointTarget> targets) {
+    private static void AddMailTargetsForHost(
+        string host,
+        CertificateInventoryCaptureOptions options,
+        Dictionary<string, MailEndpointTarget> targets,
+        params string[] targetOrigins) {
+        List<string> normalizedTargetOrigins = targetOrigins
+            .Where(static origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(static origin => origin.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         if (options.IncludeSmtpStartTls) {
             AddMailTarget(targets, new MailEndpointTarget {
                 Host = host,
@@ -1111,7 +1376,8 @@ public sealed partial class CertificateInventoryCapture {
                 Protocol = MailTlsAnalysis.MailProtocol.Smtp,
                 Service = "SMTP-STARTTLS",
                 Scheme = "smtp",
-                ChainSource = "mailtls-starttls"
+                ChainSource = "mailtls-starttls",
+                TargetOrigins = normalizedTargetOrigins
             });
         }
         if (options.IncludeSubmissionStartTls) {
@@ -1121,7 +1387,8 @@ public sealed partial class CertificateInventoryCapture {
                 Protocol = MailTlsAnalysis.MailProtocol.Smtp,
                 Service = "SMTP-SUBMISSION-STARTTLS",
                 Scheme = "submission",
-                ChainSource = "mailtls-starttls"
+                ChainSource = "mailtls-starttls",
+                TargetOrigins = normalizedTargetOrigins
             });
         }
         if (options.IncludeImapTls) {
@@ -1131,7 +1398,8 @@ public sealed partial class CertificateInventoryCapture {
                 Protocol = MailTlsAnalysis.MailProtocol.Imap,
                 Service = "IMAPS",
                 Scheme = "imaps",
-                ChainSource = "mailtls-directtls"
+                ChainSource = "mailtls-directtls",
+                TargetOrigins = normalizedTargetOrigins
             });
         }
         if (options.IncludePop3Tls) {
@@ -1141,14 +1409,20 @@ public sealed partial class CertificateInventoryCapture {
                 Protocol = MailTlsAnalysis.MailProtocol.Pop3,
                 Service = "POP3S",
                 Scheme = "pop3s",
-                ChainSource = "mailtls-directtls"
+                ChainSource = "mailtls-directtls",
+                TargetOrigins = normalizedTargetOrigins
             });
         }
     }
 
     private static void AddMailTarget(Dictionary<string, MailEndpointTarget> targets, MailEndpointTarget target) {
         var key = BuildMailTargetKey(target.Host, target.Port, target.Service);
-        targets[key] = target;
+        if (!targets.TryGetValue(key, out MailEndpointTarget? existing)) {
+            targets[key] = target;
+            return;
+        }
+
+        existing.TargetOrigins = MergeDistinctStrings(existing.TargetOrigins, target.TargetOrigins).ToList();
     }
 
     private static string BuildMailTargetKey(string host, int port, string service) {

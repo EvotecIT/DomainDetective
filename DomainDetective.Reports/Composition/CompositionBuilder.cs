@@ -46,7 +46,8 @@ public static class CompositionBuilder
 	        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
 	        public DomainDetective.Views.HttpInfo? Http { get; set; }
 	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
-	        public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
+        public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
+        public DomainDetective.Views.TyposquattingInfo? Typosquatting { get; set; }
 	        public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
 	        public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
 	        public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
@@ -243,6 +244,12 @@ public static class CompositionBuilder
 	                {
 	                    Ensure(m365.Subject!);
 	                    map[m365.Subject!].Microsoft365 = m365;
+	                    break;
+	                }
+	                case DomainDetective.Views.TyposquattingInfo typo when !string.IsNullOrWhiteSpace(typo.Subject):
+	                {
+	                    Ensure(typo.Subject!);
+	                    map[typo.Subject!].Typosquatting = typo;
 	                    break;
 	                }
 	                case DomainDetective.Views.DnsPropagationInfo dp when !string.IsNullOrWhiteSpace(dp.Subject):

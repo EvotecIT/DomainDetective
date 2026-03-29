@@ -141,6 +141,7 @@ public static partial class WordCompositionReport {
         bool hasDnsAmplification = grouped.Values.Any(b => b.DnsAmplification != null);
         bool hasDnsOverTls = grouped.Values.Any(b => b.DnsOverTls != null);
         bool hasMicrosoft365 = grouped.Values.Any(b => b.Microsoft365 != null);
+        bool hasTyposquatting = grouped.Values.Any(b => b.Typosquatting != null);
 
         var presentLabels = new List<string>();
         if (hasMx) presentLabels.Add("MX");
@@ -165,6 +166,7 @@ public static partial class WordCompositionReport {
         if (hasDnsAmplification) presentLabels.Add("DNS Amplification");
         if (hasDnsOverTls) presentLabels.Add("DNS over TLS");
         if (hasMicrosoft365) presentLabels.Add("Microsoft 365");
+        if (hasTyposquatting) presentLabels.Add("Typosquatting");
 
         // Executive Summary intro text — single source of truth for wording
         string overviewLine = OverviewWording.ComposeFromItems(items);
@@ -482,6 +484,15 @@ public static partial class WordCompositionReport {
                 if (dto != null) HttpWordSectionWriter.Write(doc, headings, 2, dto, bucket.Http, domain, scope, showInfoFindings);
                 else HttpWordSectionWriter.Write(doc, headings, 2, bucket.Http!, domain, scope, showInfoFindings);
             }, bucket.Http != null);
+            add("Typosquatting", () =>
+            {
+                headings.AddItem("Typosquatting", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildTyposquatting(bucket.Typosquatting!);
+                if (dto != null)
+                {
+                    TyposquattingWordSectionWriter.Write(doc, headings, 2, dto, bucket.Typosquatting!, domain, scope, showInfoFindings);
+                }
+            }, bucket.Typosquatting != null);
             add("CT Timeline", () =>
             {
                 headings.AddItem("CT Timeline", 1);
@@ -581,6 +592,7 @@ public static partial class WordCompositionReport {
                 PullAssessments(b.DmarcAggregate?.Assessments);
                 PullAssessments(b.Registration?.Assessments);
                 PullAssessments(b.Http?.Assessments);
+                PullAssessments(b.Typosquatting?.Assessments);
                 PullAssessments(b.CtTimeline?.Assessments);
                 PullAssessments(b.Mx?.Assessments);
                 PullAssessments(b.Mtasts?.Assessments);

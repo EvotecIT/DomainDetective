@@ -167,6 +167,40 @@ namespace DomainDetective.Tests {
 
             Assert.True(snapshotEntry.IsReachable);
             Assert.Null(snapshotEntry.FailureReason);
+            Assert.Equal(CertificateFailureKind.None, snapshotEntry.FailureKind);
+        }
+
+        [Fact]
+        public void ToInventoryEntry_PersistsStructuredFailureKind() {
+            var analysis = new CertificateAnalysis {
+                Url = "https://missing.example.test/"
+            };
+            analysis.IsReachable = false;
+            typeof(CertificateAnalysis)
+                .GetProperty("FailureReason", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)!
+                .SetValue(analysis, "Custom transport failure");
+            typeof(CertificateAnalysis)
+                .GetProperty("FailureKind", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)!
+                .SetValue(analysis, CertificateFailureKind.NameResolution);
+
+            var entry = new CertificateMonitor.Entry {
+                Host = "missing.example.test",
+                Url = "https://missing.example.test/",
+                ResolvedHost = "missing.example.test",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                Valid = false,
+                Expired = false,
+                ChainComplete = false,
+                Analysis = analysis
+            };
+
+            var snapshotEntry = CertificateMonitor.ToInventoryEntry(entry);
+
+            Assert.False(snapshotEntry.IsReachable);
+            Assert.Equal("Custom transport failure", snapshotEntry.FailureReason);
+            Assert.Equal(CertificateFailureKind.NameResolution, snapshotEntry.FailureKind);
         }
 
         [Fact]

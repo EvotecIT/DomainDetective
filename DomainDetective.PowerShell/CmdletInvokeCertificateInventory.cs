@@ -38,6 +38,14 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Reuse recent captured endpoints to reduce repeated probing</summary>
 ///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14</code>
 /// </example>
+/// <example>
+///   <summary>Reuse recent stable failures for short-lived verification lanes</summary>
+///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -ReuseRecentFailureResults -RecentFailureResultTtlHours 1 -HttpsTimeoutSeconds 20</code>
+/// </example>
+/// <example>
+///   <summary>Fail automation when warning-level target decisions are detected</summary>
+///   <code>Invoke-DDCertificateInventory -DomainName example.com -Endpoint ftp://example.com -FailOnWarningTargetDecisions</code>
+/// </example>
 [Cmdlet(VerbsLifecycle.Invoke, "DDCertificateInventory")]
 [OutputType(typeof(CertificateInventoryCaptureResult))]
 public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
@@ -238,6 +246,11 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [ValidateRange(1, 300)]
     public int MailTimeoutSeconds { get; set; } = 15;
 
+    /// <summary>HTTPS certificate probe timeout in seconds.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 300)]
+    public int HttpsTimeoutSeconds { get; set; } = 30;
+
     /// <summary>Maximum number of detailed endpoint probe error warnings to emit (0 emits only a summary warning).</summary>
     [Parameter(Mandatory = false)]
     [ValidateRange(0, 10000)]
@@ -260,8 +273,17 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
 
     /// <summary>How old persisted snapshot entries can be to qualify for reuse.</summary>
     [Parameter(Mandatory = false)]
-    [ValidateRange(1, 24 * 365)]
+    [ValidateRange(0, 24 * 365)]
     public int RecentResultTtlHours { get; set; } = 24;
+
+    /// <summary>Reuse recent persisted stable failures to avoid immediately re-probing dead or timeout-heavy endpoints.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ReuseRecentFailureResults { get; set; }
+
+    /// <summary>How old persisted stable failure entries can be to qualify for reuse.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, 24 * 365)]
+    public int RecentFailureResultTtlHours { get; set; } = 1;
 
     /// <summary>Always re-probe endpoints with certificates expiring within this many days.</summary>
     [Parameter(Mandatory = false)]
@@ -323,6 +345,10 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     /// <summary>Do not persist snapshot file; only return in-memory result.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter NoPersist { get; set; }
+
+    /// <summary>When set, throw a terminating error when warning-level target-decision buckets are present.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter FailOnWarningTargetDecisions { get; set; }
 
     /// <summary>Collects pipeline domain inputs for later capture execution.</summary>
     protected override void ProcessRecord() {
@@ -410,10 +436,13 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             MaxParallelism = MaxParallelism,
             DiscoveryParallelism = DiscoveryParallelism,
             MailTimeout = TimeSpan.FromSeconds(MailTimeoutSeconds),
+            HttpsTimeout = TimeSpan.FromSeconds(HttpsTimeoutSeconds),
             MaxTargets = MaxTargets,
             MaxProbeStartsPerSecond = MaxProbeStartsPerSecond,
             ReuseRecentSnapshotEntries = ReuseRecentResults.IsPresent,
             RecentSnapshotTtl = TimeSpan.FromHours(RecentResultTtlHours),
+            ReuseRecentFailureSnapshotEntries = ReuseRecentFailureResults.IsPresent,
+            RecentFailureSnapshotTtl = TimeSpan.FromHours(RecentFailureResultTtlHours),
             ReprobeExpiringWithinDays = ReprobeExpiringWithinDays,
             SkipRevocation = SkipRevocation.IsPresent,
             CtProfile = CtProfile,
@@ -490,6 +519,21 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue, false);
             var result = task.GetAwaiter().GetResult();
             FlushQueues(verboseQueue, warningQueue, errorQueue, progressQueue, true);
+
+            IReadOnlyList<TargetDecisionSummaryEntry> warningTargetDecisionBuckets = GetWarningTargetDecisionBuckets(result.TargetDecisionSummary);
+            foreach (var summary in warningTargetDecisionBuckets) {
+                WriteWarning(FormatWarningTargetDecisionBucket(summary));
+            }
+
+            if (FailOnWarningTargetDecisions.IsPresent && warningTargetDecisionBuckets.Count > 0) {
+                ThrowTerminatingError(new ErrorRecord(
+                    new InvalidOperationException($"Warning-level target decisions detected ({warningTargetDecisionBuckets.Count} bucket(s))."),
+                    "CertificateInventoryTargetDecisionWarningsDetected",
+                    ErrorCategory.InvalidResult,
+                    result));
+                return;
+            }
+
             WriteObject(result);
         } catch (Exception ex) {
             ThrowTerminatingError(new ErrorRecord(
@@ -566,6 +610,41 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             normalized = normalized.Substring(0, 320).TrimEnd() + "...";
         }
         return normalized;
+    }
+
+    internal static IReadOnlyList<TargetDecisionSummaryEntry> GetWarningTargetDecisionBuckets(IReadOnlyList<TargetDecisionSummaryEntry>? summaries) {
+        if (summaries == null || summaries.Count == 0) {
+            return Array.Empty<TargetDecisionSummaryEntry>();
+        }
+
+        var warnings = new List<TargetDecisionSummaryEntry>();
+        foreach (var summary in summaries) {
+            if (summary == null) {
+                continue;
+            }
+            if (!string.Equals(summary.Severity, "warning", StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            }
+
+            warnings.Add(summary);
+        }
+
+        return warnings;
+    }
+
+    internal static string FormatWarningTargetDecisionBucket(TargetDecisionSummaryEntry? summary) {
+        if (summary == null) {
+            return "Target decision warning detected.";
+        }
+
+        string stage = string.IsNullOrWhiteSpace(summary.Stage) ? "unknown-stage" : summary.Stage.Trim();
+        string action = string.IsNullOrWhiteSpace(summary.Action) ? "unknown-action" : summary.Action.Trim();
+        string reason = string.IsNullOrWhiteSpace(summary.Reason) ? "unknown-reason" : summary.Reason.Trim();
+        string recommendedAction = string.IsNullOrWhiteSpace(summary.RecommendedAction)
+            ? "Review target-decision diagnostics for details."
+            : summary.RecommendedAction.Trim();
+
+        return $"Target decision warning: {stage}/{action}/{reason} affected {summary.Count} item(s). Recommended action: {recommendedAction}";
     }
 
     private static string? ResolveSecret(string? directValue, string? envVariableName) {

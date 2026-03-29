@@ -62,6 +62,10 @@ public class TestCertificateInventoryCapture {
 
         Assert.Equal(2, result.DomainCount);
         Assert.Equal(3, result.MxHostCount);
+        Assert.Equal(0, result.MxInvalidArtifactCount);
+        Assert.Equal(1, result.MxDuplicateHostCount);
+        Assert.Equal(3, result.MxPromotedHttpsCount);
+        Assert.Equal(0, result.MxSkippedDuplicateHttpsPromotionCount);
         Assert.Equal(8, result.HttpsEndpointCount);
         Assert.Equal(0, result.MailEndpointCount);
         Assert.Equal(8, result.EntryCount);
@@ -72,8 +76,72 @@ public class TestCertificateInventoryCapture {
         Assert.Equal("mock://snapshot.json", result.SnapshotPath);
         Assert.NotNull(persistedSnapshot);
         Assert.Equal(options.CacheDirectory, persistedCacheDirectory);
+        Assert.Equal(8, result.CaptureDispositionCounts["live-probe"]);
+        Assert.Equal(2, result.TargetOriginCounts["seed-apex"]);
+        Assert.Equal(2, result.TargetOriginCounts["seed-www"]);
+        Assert.Equal(3, result.TargetOriginCounts["mx-https"]);
+        Assert.Equal(1, result.TargetOriginCounts["additional-endpoint"]);
+        Assert.Contains(result.Snapshot.Entries, entry =>
+            entry.Host.Equals("api.example.com", StringComparison.OrdinalIgnoreCase) &&
+            entry.TargetOrigins.Contains("additional-endpoint", StringComparer.OrdinalIgnoreCase) &&
+            entry.CaptureDisposition == "live-probe");
+        Assert.Contains(result.Snapshot.Entries, entry =>
+            entry.Host.Equals("mx1.example.com", StringComparison.OrdinalIgnoreCase) &&
+            entry.TargetOrigins.Contains("mx-https", StringComparer.OrdinalIgnoreCase) &&
+            entry.CaptureDisposition == "live-probe");
+        var unsupportedScheme = Assert.Single(result.TargetDecisionDiagnostics);
+        Assert.Equal("additional-endpoints", unsupportedScheme.Stage);
+        Assert.Equal("rejected", unsupportedScheme.Action);
+        Assert.Equal("unsupported-scheme", unsupportedScheme.Reason);
+        Assert.Equal("warning", unsupportedScheme.Severity);
+        Assert.Equal("Use a supported HTTPS or mail endpoint scheme.", unsupportedScheme.RecommendedAction);
+        Assert.Equal("ftp://unsupported.example.com", unsupportedScheme.Target);
+        var unsupportedSummary = Assert.Single(result.TargetDecisionSummary);
+        Assert.Equal("additional-endpoints", unsupportedSummary.Stage);
+        Assert.Equal("rejected", unsupportedSummary.Action);
+        Assert.Equal("unsupported-scheme", unsupportedSummary.Reason);
+        Assert.Equal("warning", unsupportedSummary.Severity);
+        Assert.Equal("Use a supported HTTPS or mail endpoint scheme.", unsupportedSummary.RecommendedAction);
+        Assert.Equal(1, unsupportedSummary.Count);
+        Assert.Contains("ftp://unsupported.example.com", unsupportedSummary.ExampleTargets, StringComparer.OrdinalIgnoreCase);
         Assert.Contains(result.Warnings, warning => warning.Contains("Skipping invalid domain", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Warnings, warning => warning.Contains("unsupported endpoint scheme", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task CaptureAsync_TracksMxSourceDomainsByHost() {
+        var capture = new CertificateInventoryCapture {
+            MxLookupOverride = (domain, dnsConfiguration, maxMxHostsPerDomain, cancellationToken) => {
+                IReadOnlyList<string> hosts = domain.Equals("example.com", StringComparison.OrdinalIgnoreCase)
+                    ? new[] { "mx.shared.example.", " MX.SHARED.EXAMPLE ", "not a valid host" }
+                    : new[] { "mx.shared.example", "mx.contoso.example." };
+                return Task.FromResult(hosts);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) =>
+                Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>())
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = true,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com", "contoso.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.Equal(2, result.MxHostCount);
+        Assert.Equal(1, result.MxInvalidArtifactCount);
+        Assert.Equal(2, result.MxSourceDomainsByHost.Count);
+        Assert.True(result.MxSourceDomainsByHost.TryGetValue("mx.shared.example", out IReadOnlyList<string>? sharedSources));
+        Assert.Equal(new[] { "contoso.com", "example.com" }, sharedSources);
+        Assert.True(result.MxSourceDomainsByHost.TryGetValue("mx.contoso.example", out IReadOnlyList<string>? contosoSources));
+        Assert.Equal(new[] { "contoso.com" }, contosoSources);
     }
 
     [Fact]
@@ -125,6 +193,8 @@ public class TestCertificateInventoryCapture {
         Assert.Equal(0, result.FailedCount);
         Assert.Single(result.Snapshot.Entries);
         Assert.False(string.IsNullOrWhiteSpace(result.Snapshot.Entries[0].CertificateThumbprint));
+        Assert.Contains("additional-endpoint", result.Snapshot.Entries[0].TargetOrigins, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal("live-probe", result.Snapshot.Entries[0].CaptureDisposition);
     }
 
     [Fact]
@@ -238,10 +308,18 @@ public class TestCertificateInventoryCapture {
         var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
 
         Assert.Equal(2, result.CtDiscoveredSubdomainCount);
+        Assert.Equal(2, result.CtPromotedHttpsCount);
+        Assert.Equal(0, result.CtSkippedHttpsPromotionCount);
         Assert.Equal(2, result.HttpsEndpointCount);
         Assert.Equal(2, result.EntryCount);
+        Assert.Equal(2, result.TargetOriginCounts["ct-discovery"]);
+        Assert.Equal(2, result.CaptureDispositionCounts["live-probe"]);
         Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("portal.example.com", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("api.example.com", StringComparison.OrdinalIgnoreCase));
+        Assert.All(result.Snapshot.Entries, entry => {
+            Assert.Contains("ct-discovery", entry.TargetOrigins, StringComparer.OrdinalIgnoreCase);
+            Assert.Equal("live-probe", entry.CaptureDisposition);
+        });
     }
 
     [Fact]
@@ -277,6 +355,32 @@ public class TestCertificateInventoryCapture {
         Assert.Equal(2, result.HttpsEndpointCount);
         Assert.Equal(0, result.MailEndpointCount);
         Assert.Equal(2, result.EntryCount);
+        Assert.Equal(4, result.HttpsTargetCountBeforeLimit);
+        Assert.Equal(0, result.MailTargetCountBeforeLimit);
+        Assert.Equal(2, result.HttpsTargetCountDroppedByLimit);
+        Assert.Equal(0, result.MailTargetCountDroppedByLimit);
+        Assert.Equal(2, result.TargetDecisionDiagnostics.Count);
+        Assert.All(result.TargetDecisionDiagnostics, diagnostic => {
+            Assert.Equal("target-limit", diagnostic.Stage);
+            Assert.Equal("pruned", diagnostic.Action);
+            Assert.Equal("max-targets", diagnostic.Reason);
+            Assert.Equal("informational", diagnostic.Severity);
+            Assert.Equal("Increase MaxTargets or narrow discovery scope if the omitted targets should be probed.", diagnostic.RecommendedAction);
+            Assert.Equal("HTTPS", diagnostic.Service);
+            Assert.NotNull(diagnostic.PriorityScore);
+        });
+        Assert.All(result.TargetDecisionDiagnostics, diagnostic =>
+            Assert.DoesNotContain(result.HttpsEndpoints, endpoint => string.Equals(endpoint, diagnostic.Target, StringComparison.OrdinalIgnoreCase)));
+        var maxTargetSummary = Assert.Single(result.TargetDecisionSummary);
+        Assert.Equal("target-limit", maxTargetSummary.Stage);
+        Assert.Equal("pruned", maxTargetSummary.Action);
+        Assert.Equal("max-targets", maxTargetSummary.Reason);
+        Assert.Equal("informational", maxTargetSummary.Severity);
+        Assert.Equal("Increase MaxTargets or narrow discovery scope if the omitted targets should be probed.", maxTargetSummary.RecommendedAction);
+        Assert.Equal(2, maxTargetSummary.Count);
+        Assert.Contains("HTTPS", maxTargetSummary.ExampleServices, StringComparer.OrdinalIgnoreCase);
+        Assert.All(maxTargetSummary.ExampleTargets, target =>
+            Assert.DoesNotContain(result.HttpsEndpoints, endpoint => string.Equals(endpoint, target, StringComparison.OrdinalIgnoreCase)));
         Assert.Contains(result.Warnings, warning => warning.Contains("capped", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -462,7 +566,394 @@ public class TestCertificateInventoryCapture {
             Assert.Equal(0, observedHttpsTargets);
             Assert.Equal(1, result.EntryCount);
             Assert.Equal(1, result.ValidCount);
-            Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("api.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(1, result.ReusedRecentEntryCount);
+            Assert.Equal(1, result.ReusedRecentHttpsCount);
+            Assert.Equal(0, result.ReusedRecentMailCount);
+            Assert.Equal(0, result.ReusedRecentFailureEntryCount);
+            Assert.Equal(0, result.ProbedHttpsCount);
+            Assert.Equal(0, result.ProbedMailCount);
+            Assert.Contains(result.Snapshot.Entries, entry =>
+                entry.Host.Equals("api.example.com", StringComparison.OrdinalIgnoreCase) &&
+                entry.TargetOrigins.Contains("additional-endpoint", StringComparer.OrdinalIgnoreCase) &&
+                entry.CaptureDisposition == "reused-recent-success");
+        } finally {
+            try {
+                Directory.Delete(cacheDirectory, true);
+            } catch {
+                // no-op
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ReusesRecentStableFailureSnapshotEntries_WhenEnabled() {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                Port = 443
+            };
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "api.example.com",
+                ResolvedHost = "api.example.com",
+                Url = "https://api.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = null,
+                IsReachable = false,
+                Valid = false,
+                Expired = false,
+                FailureReason = "The operation timed out. | SocketError:TimedOut | FailureKind:Timeout"
+            });
+
+            using (var monitor = new CertificateMonitor {
+                CacheDirectory = cacheDirectory,
+                PersistInventorySnapshots = false
+            }) {
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            var observedHttpsTargets = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                    observedHttpsTargets = httpsTargets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                ReuseRecentSnapshotEntries = false,
+                ReuseRecentFailureSnapshotEntries = true,
+                RecentFailureSnapshotTtl = TimeSpan.FromHours(1),
+                PersistSnapshot = false
+            };
+            options.AdditionalEndpoints.Add("https://api.example.com");
+
+            var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+            Assert.Equal(0, observedHttpsTargets);
+            Assert.Equal(1, result.EntryCount);
+            Assert.Equal(1, result.FailedCount);
+            Assert.Equal(1, result.ReusedRecentEntryCount);
+            Assert.Equal(1, result.ReusedRecentHttpsCount);
+            Assert.Equal(0, result.ReusedRecentMailCount);
+            Assert.Equal(1, result.ReusedRecentFailureEntryCount);
+            Assert.Equal(1, result.ReusedRecentFailureHttpsCount);
+            Assert.Equal(0, result.ReusedRecentFailureMailCount);
+            Assert.Equal(0, result.ProbedHttpsCount);
+            Assert.Equal(0, result.ProbedMailCount);
+            Assert.Contains(result.Snapshot.Entries, entry =>
+                entry.Host.Equals("api.example.com", StringComparison.OrdinalIgnoreCase) &&
+                entry.TargetOrigins.Contains("additional-endpoint", StringComparer.OrdinalIgnoreCase) &&
+                entry.CaptureDisposition == "reused-recent-stable-failure");
+        } finally {
+            try {
+                Directory.Delete(cacheDirectory, true);
+            } catch {
+                // no-op
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ReusesRecentTlsHandshakeFailureSnapshotEntries_WhenEnabled() {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                Port = 443
+            };
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "handshake.example.com",
+                ResolvedHost = "handshake.example.com",
+                Url = "https://handshake.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = null,
+                IsReachable = false,
+                Valid = false,
+                Expired = false,
+                FailureReason = "TLS Handshake Failure"
+            });
+
+            using (var monitor = new CertificateMonitor {
+                CacheDirectory = cacheDirectory,
+                PersistInventorySnapshots = false
+            }) {
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            var observedHttpsTargets = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                    observedHttpsTargets = httpsTargets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                ReuseRecentSnapshotEntries = false,
+                ReuseRecentFailureSnapshotEntries = true,
+                RecentFailureSnapshotTtl = TimeSpan.FromHours(1),
+                PersistSnapshot = false
+            };
+            options.AdditionalEndpoints.Add("https://handshake.example.com");
+
+            var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+            Assert.Equal(0, observedHttpsTargets);
+            Assert.Equal(1, result.EntryCount);
+            Assert.Equal(1, result.FailedCount);
+            Assert.Equal(1, result.ReusedRecentEntryCount);
+            Assert.Equal(1, result.ReusedRecentHttpsCount);
+            Assert.Equal(1, result.ReusedRecentFailureEntryCount);
+            Assert.Equal(1, result.ReusedRecentFailureHttpsCount);
+            Assert.Equal(0, result.ProbedHttpsCount);
+            Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("handshake.example.com", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            try {
+                Directory.Delete(cacheDirectory, true);
+            } catch {
+                // no-op
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ReusesRecentHttpRequestNameResolutionSnapshotEntries_WhenEnabled() {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                Port = 443
+            };
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "missing.example.com",
+                ResolvedHost = "missing.example.com",
+                Url = "https://missing.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = null,
+                IsReachable = false,
+                Valid = false,
+                Expired = false,
+                FailureReason = "Name resolution failed. | HttpRequestError:NameResolutionError"
+            });
+
+            using (var monitor = new CertificateMonitor {
+                CacheDirectory = cacheDirectory,
+                PersistInventorySnapshots = false
+            }) {
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            var observedHttpsTargets = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                    observedHttpsTargets = httpsTargets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                ReuseRecentSnapshotEntries = false,
+                ReuseRecentFailureSnapshotEntries = true,
+                RecentFailureSnapshotTtl = TimeSpan.FromHours(1),
+                PersistSnapshot = false
+            };
+            options.AdditionalEndpoints.Add("https://missing.example.com");
+
+            var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+            Assert.Equal(0, observedHttpsTargets);
+            Assert.Equal(1, result.EntryCount);
+            Assert.Equal(1, result.FailedCount);
+            Assert.Equal(1, result.ReusedRecentEntryCount);
+            Assert.Equal(1, result.ReusedRecentHttpsCount);
+            Assert.Equal(1, result.ReusedRecentFailureEntryCount);
+            Assert.Equal(1, result.ReusedRecentFailureHttpsCount);
+            Assert.Equal(0, result.ProbedHttpsCount);
+            Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("missing.example.com", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            try {
+                Directory.Delete(cacheDirectory, true);
+            } catch {
+                // no-op
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ReusesRecentStructuredFailureSnapshotEntries_WhenReasonIsNonStandard() {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                Port = 443
+            };
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "structured.example.com",
+                ResolvedHost = "structured.example.com",
+                Url = "https://structured.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = null,
+                IsReachable = false,
+                Valid = false,
+                Expired = false,
+                FailureReason = "Transient edge transport issue",
+                FailureKind = CertificateFailureKind.NameResolution
+            });
+
+            using (var monitor = new CertificateMonitor {
+                CacheDirectory = cacheDirectory,
+                PersistInventorySnapshots = false
+            }) {
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            var observedHttpsTargets = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                    observedHttpsTargets = httpsTargets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                ReuseRecentSnapshotEntries = false,
+                ReuseRecentFailureSnapshotEntries = true,
+                RecentFailureSnapshotTtl = TimeSpan.FromHours(1),
+                PersistSnapshot = false
+            };
+            options.AdditionalEndpoints.Add("https://structured.example.com");
+
+            var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+            Assert.Equal(0, observedHttpsTargets);
+            Assert.Equal(1, result.EntryCount);
+            Assert.Equal(1, result.FailedCount);
+            Assert.Equal(1, result.ReusedRecentEntryCount);
+            Assert.Equal(1, result.ReusedRecentHttpsCount);
+            Assert.Equal(1, result.ReusedRecentFailureEntryCount);
+            Assert.Equal(1, result.ReusedRecentFailureHttpsCount);
+            Assert.Equal(0, result.ProbedHttpsCount);
+            Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("structured.example.com", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            try {
+                Directory.Delete(cacheDirectory, true);
+            } catch {
+                // no-op
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotReuseRecentStableFailureSnapshotEntries_WhenBeyondFailureTtl() {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow.AddHours(-2),
+                Port = 443
+            };
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "api.example.com",
+                ResolvedHost = "api.example.com",
+                Url = "https://api.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = null,
+                IsReachable = false,
+                Valid = false,
+                Expired = false,
+                FailureReason = "No such host is known. | SocketError:HostNotFound"
+            });
+
+            using (var monitor = new CertificateMonitor {
+                CacheDirectory = cacheDirectory,
+                PersistInventorySnapshots = false
+            }) {
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            var observedHttpsTargets = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                    observedHttpsTargets = httpsTargets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                ReuseRecentSnapshotEntries = false,
+                ReuseRecentFailureSnapshotEntries = true,
+                RecentFailureSnapshotTtl = TimeSpan.FromMinutes(30),
+                PersistSnapshot = false
+            };
+            options.AdditionalEndpoints.Add("https://api.example.com");
+
+            var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+            Assert.Equal(0, result.ReusedRecentEntryCount);
+            Assert.Equal(0, result.ReusedRecentFailureEntryCount);
+            Assert.Equal(1, result.ProbedHttpsCount);
+            Assert.Equal(0, result.ProbedMailCount);
+            Assert.Equal(1, observedHttpsTargets);
         } finally {
             try {
                 Directory.Delete(cacheDirectory, true);
@@ -524,10 +1015,53 @@ public class TestCertificateInventoryCapture {
         var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
 
         Assert.Equal(2, result.MxHostCount);
+        Assert.Equal(4, result.MxInvalidArtifactCount);
+        Assert.Equal(0, result.MxDuplicateHostCount);
+        Assert.Equal(2, result.MxPromotedHttpsCount);
+        Assert.Equal(0, result.MxPromotedMailCount);
+        Assert.Equal(0, result.MxSkippedDuplicateHttpsPromotionCount);
         Assert.Equal(2, result.HttpsEndpointCount);
         Assert.DoesNotContain(result.MxHosts, host => host.Equals("0", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.MxHosts, host => host.Equals("mx1.example.com", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.MxHosts, host => host.Equals("mx2.example.com", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task CaptureAsync_CountsMxHostsThatCollapseIntoExistingHttpsTargets() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        var capture = new CertificateInventoryCapture {
+            MxLookupOverride = (domain, dnsConfiguration, maxMxHostsPerDomain, cancellationToken) => {
+                IReadOnlyList<string> hosts = new[] { "mx1.example.com" };
+                return Task.FromResult(hosts);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    entries.Add(CreateHttpsEntry(target, certificate));
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = true,
+            IncludeMxHttps = true,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com", "mx1.example.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.Equal(1, result.MxHostCount);
+        Assert.Equal(0, result.MxPromotedHttpsCount);
+        Assert.Equal(1, result.MxSkippedDuplicateHttpsPromotionCount);
+        Assert.Equal(1, result.HttpsEndpointCount);
+        Assert.Contains(result.HttpsEndpoints, endpoint => endpoint.Contains("mx1.example.com", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -785,6 +1319,11 @@ public class TestCertificateInventoryCapture {
         Assert.DoesNotContain("unresolved.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
         Assert.DoesNotContain("unverified-overflow.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
         Assert.Equal(3, result.CtDiscoveredSubdomainCount);
+        Assert.Equal(1, result.CtPromotedHttpsCount);
+        Assert.Equal(2, result.CtSkippedHttpsPromotionCount);
+        Assert.Equal(2, result.CtSkippedUnresolvedHttpsPromotionCount);
+        Assert.Equal(0, result.CtSkippedLowConfidenceHttpsPromotionCount);
+        Assert.Equal(0, result.CtSkippedDuplicateHttpsPromotionCount);
     }
 
     [Fact]
@@ -856,6 +1395,11 @@ public class TestCertificateInventoryCapture {
         var result = await capture.CaptureAsync(new[] { "example.com" }, options, logger, CancellationToken.None);
 
         Assert.Equal(5, result.CtDiscoveredSubdomainCount);
+        Assert.Equal(2, result.CtPromotedHttpsCount);
+        Assert.Equal(3, result.CtSkippedHttpsPromotionCount);
+        Assert.Equal(0, result.CtSkippedUnresolvedHttpsPromotionCount);
+        Assert.Equal(3, result.CtSkippedLowConfidenceHttpsPromotionCount);
+        Assert.Equal(0, result.CtSkippedDuplicateHttpsPromotionCount);
         Assert.Contains("www.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("api.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
         Assert.DoesNotContain("w.example.com", probedHosts, StringComparer.OrdinalIgnoreCase);
@@ -1859,7 +2403,15 @@ public class TestCertificateInventoryCapture {
 
         Assert.Equal(new[] { "airtoxics.eurofins.com" }, passiveQueries);
         Assert.Equal(1, result.CtDiscoveredSubdomainCount);
+        Assert.Equal(0, result.CtPromotedHttpsCount);
+        Assert.Equal(1, result.CtSkippedHttpsPromotionCount);
+        Assert.Equal(0, result.CtSkippedUnresolvedHttpsPromotionCount);
+        Assert.Equal(0, result.CtSkippedLowConfidenceHttpsPromotionCount);
+        Assert.Equal(1, result.CtSkippedDuplicateHttpsPromotionCount);
         var endpoint = Assert.Single(result.Snapshot.Entries, entry => entry.Host.Equals("airtoxics.eurofins.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("ct-discovery", endpoint.TargetOrigins, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("seed-exact-host", endpoint.TargetOrigins, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal("live-probe", endpoint.CaptureDisposition);
         Assert.Equal("CN=airtoxics.eurofins.com", endpoint.CertificateSubject);
         Assert.Equal(passiveCtEntryTimestamp, endpoint.CtLatestCertificateEntryTimestampUtc);
     }
