@@ -196,6 +196,20 @@ public static partial class SectionProjectors
 
     public sealed class TyposquattingSection
     {
+        public sealed class ResponsePack
+        {
+            public string Label { get; set; } = string.Empty;
+            public string Severity { get; set; } = string.Empty;
+            public string CaseId { get; set; } = string.Empty;
+            public string TopDomain { get; set; } = string.Empty;
+            public string PrimaryContact { get; set; } = string.Empty;
+            public string TrackingSummary { get; set; } = string.Empty;
+            public string EscalationSummary { get; set; } = string.Empty;
+            public string ActionabilitySummary { get; set; } = string.Empty;
+            public string RecommendedAction { get; set; } = string.Empty;
+            public string DraftPreview { get; set; } = string.Empty;
+        }
+
         public sealed class CampaignRow
         {
             public string Label { get; set; } = string.Empty;
@@ -225,6 +239,10 @@ public static partial class SectionProjectors
             public string Actionability { get; set; } = string.Empty;
             public string ActionabilitySummary { get; set; } = string.Empty;
             public string RecommendedAction { get; set; } = string.Empty;
+            public string EscalationCaseId { get; set; } = string.Empty;
+            public string EscalationTrackingSummary { get; set; } = string.Empty;
+            public string EscalationDraftPreview { get; set; } = string.Empty;
+            public string EscalationSummary { get; set; } = string.Empty;
         }
 
         public sealed class Row
@@ -298,6 +316,7 @@ public static partial class SectionProjectors
         public int LikelyImpersonationDispositionCount { get; set; }
         public int LikelyMaliciousCount { get; set; }
         public bool ContainsHomoglyphs { get; set; }
+        public ResponsePack? TopResponsePack { get; set; }
         public List<(string Key, string Value)> Summary { get; } = new();
         public List<CampaignRow> Campaigns { get; } = new();
         public List<Row> Rows { get; } = new();

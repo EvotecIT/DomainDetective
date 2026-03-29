@@ -7,6 +7,9 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+#if NET8_0_OR_GREATER
+using Microsoft.Playwright;
+#endif
 
 namespace DomainDetective;
 
@@ -41,9 +44,20 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
             return new[] { artifact };
         }
 
+        var artifacts = new List<TyposquattingVisualArtifact>();
+
+        if (options.EnableBrowserCapture)
+        {
+            var screenshotArtifact = await CaptureBrowserArtifactAsync(url, options, cancellationToken).ConfigureAwait(false);
+            if (screenshotArtifact != null)
+            {
+                artifacts.Add(screenshotArtifact);
+            }
+        }
+
         if (!options.EnableStaticAssetCapture)
         {
-            return Array.Empty<TyposquattingVisualArtifact>();
+            return artifacts;
         }
 
         var page = candidate?.Enrichment?.Http;
@@ -55,10 +69,9 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
         var assetCandidates = FindVisualAssetCandidates(url, page, options);
         if (assetCandidates.Count == 0)
         {
-            return Array.Empty<TyposquattingVisualArtifact>();
+            return artifacts;
         }
 
-        var artifacts = new List<TyposquattingVisualArtifact>(assetCandidates.Count);
         foreach (var assetCandidate in assetCandidates)
         {
             var artifact = await DownloadAssetAsync(assetCandidate, options, cancellationToken).ConfigureAwait(false);
@@ -69,6 +82,76 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
         }
 
         return artifacts;
+    }
+
+    private static async Task<TyposquattingVisualArtifact?> CaptureBrowserArtifactAsync(
+        string url,
+        TyposquattingVisualSimilarityOptions options,
+        CancellationToken cancellationToken)
+    {
+        if (options.BrowserCaptureOverride != null)
+        {
+            return await options.BrowserCaptureOverride(url, cancellationToken).ConfigureAwait(false);
+        }
+
+#if NET8_0_OR_GREATER
+        try
+        {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linkedCts.CancelAfter(options.BrowserCaptureTimeout);
+
+            using var playwright = await Playwright.CreateAsync().ConfigureAwait(false);
+            await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = true
+            }).ConfigureAwait(false);
+            var context = await browser.NewContextAsync(new BrowserNewContextOptions
+            {
+                ViewportSize = new ViewportSize
+                {
+                    Width = Math.Max(320, options.BrowserViewportWidth),
+                    Height = Math.Max(240, options.BrowserViewportHeight)
+                },
+                IgnoreHTTPSErrors = options.HttpRequestOptions.DisableTlsValidation
+            }).ConfigureAwait(false);
+            var page = await context.NewPageAsync().ConfigureAwait(false);
+            await page.GotoAsync(url, new PageGotoOptions
+            {
+                WaitUntil = WaitUntilState.NetworkIdle,
+                Timeout = (float)options.BrowserCaptureTimeout.TotalMilliseconds
+            }).ConfigureAwait(false);
+
+            if (options.BrowserPostLoadDelay > TimeSpan.Zero)
+            {
+                await page.WaitForTimeoutAsync((float)options.BrowserPostLoadDelay.TotalMilliseconds).ConfigureAwait(false);
+            }
+
+            var bytes = await page.ScreenshotAsync(new PageScreenshotOptions
+            {
+                FullPage = options.BrowserFullPageScreenshot,
+                Type = ScreenshotType.Png
+            }).ConfigureAwait(false);
+            if (bytes == null || bytes.Length == 0)
+            {
+                return null;
+            }
+
+            var pageUrl = page.Url ?? url;
+            return new TyposquattingVisualArtifact
+            {
+                ImageBytes = bytes,
+                MimeType = "image/png",
+                Kind = TyposquattingVisualArtifactKind.Screenshot,
+                SourceUrl = pageUrl
+            };
+        }
+        catch
+        {
+            return null;
+        }
+#else
+        return null;
+#endif
     }
 
     private static async Task<HttpAnalysis?> BuildPageHttpAsync(

@@ -18,6 +18,15 @@ public sealed class TyposquattingContentSimilarityOptions
     /// <summary>When true, optional static web scans are collected for richer title and technology comparison.</summary>
     public bool IncludeWebStaticScan { get; set; }
 
+    /// <summary>When true, normalized page-body fingerprints are used to detect near-clone pages that do not share an exact body hash.</summary>
+    public bool EnableFuzzyBodyFingerprint { get; set; } = true;
+
+    /// <summary>Minimum similarity required for a strong fuzzy body-fingerprint match.</summary>
+    public int StrongFuzzyBodyFingerprintThreshold { get; set; } = 82;
+
+    /// <summary>Minimum similarity required for a moderate fuzzy body-fingerprint match.</summary>
+    public int ModerateFuzzyBodyFingerprintThreshold { get; set; } = 70;
+
     /// <summary>Optional override for building the source-domain HTTP profile.</summary>
     public Func<string, CancellationToken, Task<HttpAnalysis?>>? HttpOverride { get; set; }
 
@@ -35,12 +44,14 @@ public sealed class TyposquattingSourceContentProfile
 {
     public string Domain { get; init; } = string.Empty;
     public string BodySha256 { get; init; } = string.Empty;
+    public TyposquattingPageContentFingerprint? BodyFingerprint { get; init; }
     public int? BodyLength { get; init; }
     public string PageTitle { get; init; } = string.Empty;
     public string FinalHost { get; init; } = string.Empty;
     public IReadOnlyList<string> TechDetections { get; init; } = Array.Empty<string>();
     public bool HasAnySignals =>
         !string.IsNullOrWhiteSpace(BodySha256)
+        || BodyFingerprint?.HasValue == true
         || BodyLength.HasValue
         || !string.IsNullOrWhiteSpace(PageTitle)
         || !string.IsNullOrWhiteSpace(FinalHost)
@@ -54,6 +65,8 @@ public sealed class TyposquattingContentSimilarityMatch
 {
     public int Score { get; init; }
     public bool LikelyImpersonating { get; init; }
+    public int? FuzzyFingerprintSimilarity { get; init; }
+    public int? FuzzyFingerprintDistance { get; init; }
     public string Summary { get; init; } = string.Empty;
     public IReadOnlyList<string> Signals { get; init; } = Array.Empty<string>();
 }
@@ -89,6 +102,7 @@ public static class TyposquattingContentSimilarityAnalyzer
         {
             Domain = domain,
             BodySha256 = http?.BodySha256 ?? string.Empty,
+            BodyFingerprint = options.EnableFuzzyBodyFingerprint ? TyposquattingContentFingerprinting.Build(http?.Body) : null,
             BodyLength = http?.BodyLength,
             PageTitle = FirstNonEmpty(webStaticScan?.PageTitle, ExtractPageTitle(http?.Body)),
             FinalHost = GetFinalHost(http),
@@ -96,20 +110,26 @@ public static class TyposquattingContentSimilarityAnalyzer
         };
     }
 
-    public static void CompareCandidates(IReadOnlyList<TyposquattingCandidate>? candidates, TyposquattingSourceContentProfile? profile)
+    public static void CompareCandidates(
+        IReadOnlyList<TyposquattingCandidate>? candidates,
+        TyposquattingSourceContentProfile? profile,
+        TyposquattingContentSimilarityOptions options)
     {
-        if (candidates == null || candidates.Count == 0 || profile == null || !profile.HasAnySignals)
+        if (candidates == null || candidates.Count == 0 || profile == null || !profile.HasAnySignals || options == null)
         {
             return;
         }
 
         foreach (var candidate in candidates)
         {
-            candidate.ContentSimilarity = CompareCandidate(candidate, profile);
+            candidate.ContentSimilarity = CompareCandidate(candidate, profile, options);
         }
     }
 
-    public static TyposquattingContentSimilarityMatch CompareCandidate(TyposquattingCandidate candidate, TyposquattingSourceContentProfile profile)
+    public static TyposquattingContentSimilarityMatch CompareCandidate(
+        TyposquattingCandidate candidate,
+        TyposquattingSourceContentProfile profile,
+        TyposquattingContentSimilarityOptions options)
     {
         if (candidate == null)
         {
@@ -121,18 +141,48 @@ public static class TyposquattingContentSimilarityAnalyzer
             throw new ArgumentNullException(nameof(profile));
         }
 
+        if (options == null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
         var signals = new List<string>();
         var score = 0;
         var http = candidate.Enrichment?.Http;
         var web = candidate.Enrichment?.WebStaticScan;
         var candidateBodySha256 = http?.BodySha256;
+        var matchedExactBodyHash = false;
+        int? fuzzySimilarity = null;
+        int? fuzzyDistance = null;
 
         if (!string.IsNullOrWhiteSpace(profile.BodySha256)
             && !string.IsNullOrWhiteSpace(candidateBodySha256)
             && string.Equals(candidateBodySha256, profile.BodySha256, StringComparison.OrdinalIgnoreCase))
         {
+            matchedExactBodyHash = true;
             score += 60;
             signals.Add("matches source page body hash");
+        }
+
+        if (!matchedExactBodyHash && options.EnableFuzzyBodyFingerprint)
+        {
+            var candidateFingerprint = TyposquattingContentFingerprinting.Build(http?.Body);
+            var similarity = TyposquattingContentFingerprinting.Compare(profile.BodyFingerprint, candidateFingerprint);
+            if (similarity.IsMeaningful)
+            {
+                fuzzySimilarity = similarity.SimilarityPercent;
+                fuzzyDistance = similarity.HammingDistance;
+                if (similarity.SimilarityPercent >= options.StrongFuzzyBodyFingerprintThreshold)
+                {
+                    score += 36;
+                    signals.Add("fuzzy page-text fingerprint strongly resembles the source");
+                }
+                else if (similarity.SimilarityPercent >= options.ModerateFuzzyBodyFingerprintThreshold)
+                {
+                    score += 18;
+                    signals.Add("fuzzy page-text fingerprint resembles the source");
+                }
+            }
         }
 
         if (profile.BodyLength.HasValue
@@ -190,6 +240,8 @@ public static class TyposquattingContentSimilarityAnalyzer
         {
             Score = score,
             LikelyImpersonating = score >= 35,
+            FuzzyFingerprintSimilarity = fuzzySimilarity,
+            FuzzyFingerprintDistance = fuzzyDistance,
             Signals = signals.ToArray(),
             Summary = signals.Count > 0 ? string.Join(", ", signals) : "no meaningful content similarity detected"
         };

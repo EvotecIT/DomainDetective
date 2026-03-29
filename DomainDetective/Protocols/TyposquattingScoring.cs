@@ -24,6 +24,8 @@ public sealed class TyposquattingScoringOptions
     public int WebTechnologyScore { get; set; } = 4;
     public int EnrichedIpScore { get; set; } = 3;
     public int RegistrarKnownScore { get; set; } = 2;
+    public int ResponsiveMailInfrastructureScore { get; set; } = 12;
+    public int MailInterceptionScore { get; set; } = 18;
     public int LikelyOwnedPenalty { get; set; } = 35;
     public int LikelyExternalBoost { get; set; } = 18;
     public int MultiCandidateClusterBoost { get; set; } = 8;
@@ -157,6 +159,18 @@ public static class TyposquattingCandidateScorer
         {
             score += options.RegistrarKnownScore;
             reasons.Add("registrar information available");
+        }
+
+        if (enrichment?.SmtpBanner?.ServerResults?.Any(static result => result.Value?.StartsWith220 == true) == true)
+        {
+            score += options.ResponsiveMailInfrastructureScore;
+            reasons.Add("mail exchanger responds over SMTP");
+        }
+
+        if (enrichment?.SmtpRecipientAcceptance?.ServerResults?.Any(static result => result.Value?.Accepted == true) == true)
+        {
+            score += options.MailInterceptionScore;
+            reasons.Add("mail exchanger accepts recipients at the lookalike domain");
         }
 
         if (candidate.Ownership?.LikelyOwned == true)

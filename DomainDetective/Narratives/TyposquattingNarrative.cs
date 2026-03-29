@@ -54,6 +54,18 @@ public static class TyposquattingNarrative
             .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
             .Select(candidate => candidate.Domain + " (" + DescribeVisualMatch(candidate.VisualSimilarity) + ")")
             .ToList();
+        var mailEnabled = analysis.Candidates
+            .Where(candidate => candidate.Enrichment?.SmtpBanner?.ServerResults?.Any(result => result.Value?.StartsWith220 == true) == true)
+            .OrderByDescending(candidate => candidate.RiskScore)
+            .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+            .Select(candidate => candidate.Domain)
+            .ToList();
+        var mailAccepting = analysis.Candidates
+            .Where(candidate => candidate.Enrichment?.SmtpRecipientAcceptance?.ServerResults?.Any(result => result.Value?.Accepted == true) == true)
+            .OrderByDescending(candidate => candidate.RiskScore)
+            .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+            .Select(candidate => candidate.Domain)
+            .ToList();
         var likelyMalicious = analysis.Candidates
             .Where(candidate => candidate.Disposition == TyposquattingDisposition.LikelyMalicious)
             .OrderByDescending(candidate => candidate.RiskScore)
@@ -89,6 +101,33 @@ public static class TyposquattingNarrative
             .Take(5)
             .Where(campaign => !string.IsNullOrWhiteSpace(campaign.RecommendedAction))
             .Select(campaign => campaign.Label + ": " + campaign.ActionabilitySummary + "; " + campaign.RecommendedAction)
+            .ToList();
+        var topCampaignEscalations = analysis.InfrastructureCampaigns
+            .OrderByDescending(campaign => campaign.ActionabilityScore)
+            .ThenByDescending(campaign => campaign.CampaignScore)
+            .ThenByDescending(campaign => campaign.CandidateCount)
+            .ThenBy(campaign => campaign.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .Where(campaign => !string.IsNullOrWhiteSpace(campaign.EscalationBundle.Summary))
+            .Select(campaign => campaign.Label + ": " + campaign.EscalationBundle.Summary)
+            .ToList();
+        var topCampaignDrafts = analysis.InfrastructureCampaigns
+            .OrderByDescending(campaign => campaign.ActionabilityScore)
+            .ThenByDescending(campaign => campaign.CampaignScore)
+            .ThenByDescending(campaign => campaign.CandidateCount)
+            .ThenBy(campaign => campaign.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .Where(campaign => !string.IsNullOrWhiteSpace(campaign.EscalationBundle.DraftPreview))
+            .Select(campaign => campaign.Label + ": " + campaign.EscalationBundle.DraftPreview)
+            .ToList();
+        var topCampaignTracking = analysis.InfrastructureCampaigns
+            .OrderByDescending(campaign => campaign.ActionabilityScore)
+            .ThenByDescending(campaign => campaign.CampaignScore)
+            .ThenByDescending(campaign => campaign.CandidateCount)
+            .ThenBy(campaign => campaign.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .Where(campaign => !string.IsNullOrWhiteSpace(campaign.EscalationBundle.TrackingSummary))
+            .Select(campaign => campaign.Label + ": " + campaign.EscalationBundle.TrackingSummary)
             .ToList();
         var highPriorityCampaigns = analysis.InfrastructureCampaigns
             .Count(campaign => campaign.RequiresUrgentReview);
@@ -144,6 +183,17 @@ public static class TyposquattingNarrative
             }
         }
 
+        hi.Add($"{mailEnabled.Count} variants expose responsive MX infrastructure over SMTP.");
+        if (mailEnabled.Count > 0)
+        {
+            det.Add("Mail-enabled typo domains: " + string.Join(", ", mailEnabled.Take(20)));
+        }
+        hi.Add($"{mailAccepting.Count} variants appear able to receive mail for the lookalike domain.");
+        if (mailAccepting.Count > 0)
+        {
+            det.Add("Mail-accepting typo domains: " + string.Join(", ", mailAccepting.Take(20)));
+        }
+
         hi.Add($"{analysis.InfrastructureClusters.Count} external infrastructure clusters were identified across the candidate set.");
         if (topClusters.Count > 0)
         {
@@ -158,6 +208,19 @@ public static class TyposquattingNarrative
         if (topCampaignActions.Count > 0)
         {
             det.Add("Campaign actions: " + string.Join(", ", topCampaignActions));
+        }
+
+        if (topCampaignEscalations.Count > 0)
+        {
+            det.Add("Escalation bundles ready: " + string.Join(", ", topCampaignEscalations));
+        }
+        if (topCampaignDrafts.Count > 0)
+        {
+            det.Add("Outreach drafts ready: " + string.Join(", ", topCampaignDrafts));
+        }
+        if (topCampaignTracking.Count > 0)
+        {
+            det.Add("Campaign case tracking: " + string.Join(", ", topCampaignTracking));
         }
 
         hi.Add($"{likelyMalicious.Count} variants look likely malicious based on combined external, impersonation, and activity signals.");

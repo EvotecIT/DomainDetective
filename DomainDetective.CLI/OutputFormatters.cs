@@ -154,6 +154,8 @@ internal static class OutputFormatters {
             var likelyExternalCount = typosquatting.Candidates.Count(candidate => candidate.Ownership?.LikelyExternal == true);
             var likelyImpersonatingCount = typosquatting.Candidates.Count(candidate => candidate.ContentSimilarity?.LikelyImpersonating == true);
             var likelyVisualCloneCount = typosquatting.Candidates.Count(candidate => candidate.VisualSimilarity?.LikelyClone == true);
+            var responsiveMailCount = typosquatting.Candidates.Count(candidate => candidate.Enrichment?.SmtpBanner?.ServerResults?.Any(result => result.Value?.StartsWith220 == true) == true);
+            var mailAcceptanceCount = typosquatting.Candidates.Count(candidate => candidate.Enrichment?.SmtpRecipientAcceptance?.ServerResults?.Any(result => result.Value?.Accepted == true) == true);
             var likelyMaliciousCount = typosquatting.Candidates.Count(candidate => candidate.Disposition == TyposquattingDisposition.LikelyMalicious);
             var likelyImpersonationDispositionCount = typosquatting.Candidates.Count(candidate => candidate.Disposition == TyposquattingDisposition.LikelyImpersonation);
             var clusterCount = typosquatting.InfrastructureClusters.Count;
@@ -168,7 +170,7 @@ internal static class OutputFormatters {
                     ? "⚠️  Warning"
                     : "✅ OK";
 
-            findings.Add($"• Candidates: {candidateCount}; Registered: {registeredCount}; Active: {activeCount}; Likely malicious: {likelyMaliciousCount}; Likely impersonation: {likelyImpersonationDispositionCount}; Campaigns: {campaignCount}; High-priority campaigns: {highPriorityCampaignCount}; Critical campaigns: {criticalCampaignCount}; Clusters: {clusterCount}; Shared clusters: {sharedClusterCount}; Content lookalike: {likelyImpersonatingCount}; Visual clone: {likelyVisualCloneCount}; Likely external: {likelyExternalCount}; Likely owned: {likelyOwnedCount}");
+            findings.Add($"• Candidates: {candidateCount}; Registered: {registeredCount}; Active: {activeCount}; Responsive MX: {responsiveMailCount}; MX accepts mail: {mailAcceptanceCount}; Likely malicious: {likelyMaliciousCount}; Likely impersonation: {likelyImpersonationDispositionCount}; Campaigns: {campaignCount}; High-priority campaigns: {highPriorityCampaignCount}; Critical campaigns: {criticalCampaignCount}; Clusters: {clusterCount}; Shared clusters: {sharedClusterCount}; Content lookalike: {likelyImpersonatingCount}; Visual clone: {likelyVisualCloneCount}; Likely external: {likelyExternalCount}; Likely owned: {likelyOwnedCount}");
 
             var topKinds = typosquatting.Candidates
                 .GroupBy(candidate => candidate.Kind)
@@ -219,6 +221,26 @@ internal static class OutputFormatters {
                 findings.Add($"• Top likely malicious: {topMaliciousCandidate.Domain} ({topMaliciousCandidate.RiskScore})");
             }
 
+            var topMailCandidate = typosquatting.Candidates
+                .Where(candidate => candidate.Enrichment?.SmtpBanner?.ServerResults?.Any(result => result.Value?.StartsWith220 == true) == true)
+                .OrderByDescending(candidate => candidate.RiskScore)
+                .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (topMailCandidate != null)
+            {
+                findings.Add($"• Top mail-enabled typo: {topMailCandidate.Domain} ({topMailCandidate.RiskScore})");
+            }
+
+            var topMailAcceptanceCandidate = typosquatting.Candidates
+                .Where(candidate => candidate.Enrichment?.SmtpRecipientAcceptance?.ServerResults?.Any(result => result.Value?.Accepted == true) == true)
+                .OrderByDescending(candidate => candidate.RiskScore)
+                .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (topMailAcceptanceCandidate != null)
+            {
+                findings.Add($"• Top mail-accepting typo: {topMailAcceptanceCandidate.Domain} ({topMailAcceptanceCandidate.RiskScore})");
+            }
+
             var topCluster = typosquatting.InfrastructureClusters
                 .OrderByDescending(cluster => cluster.Domains.Count)
                 .ThenByDescending(cluster => cluster.HighestRiskScore)
@@ -245,6 +267,18 @@ internal static class OutputFormatters {
                 if (!string.IsNullOrWhiteSpace(topCampaign.ActionabilitySummary))
                 {
                     findings.Add($"• Campaign actionability: {topCampaign.ActionabilitySummary}");
+                }
+                if (!string.IsNullOrWhiteSpace(topCampaign.EscalationBundle.Summary))
+                {
+                    findings.Add($"• Escalation bundle: {topCampaign.EscalationBundle.Summary}");
+                }
+                if (!string.IsNullOrWhiteSpace(topCampaign.EscalationBundle.CaseId))
+                {
+                    findings.Add($"• Campaign case: {topCampaign.EscalationBundle.TrackingSummary}");
+                }
+                if (!string.IsNullOrWhiteSpace(topCampaign.EscalationBundle.DraftPreview))
+                {
+                    findings.Add($"• Outreach draft: {topCampaign.EscalationBundle.DraftPreview}");
                 }
                 if (!string.IsNullOrWhiteSpace(topCampaign.RecommendedAction))
                 {

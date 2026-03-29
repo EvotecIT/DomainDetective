@@ -184,7 +184,7 @@ public partial class TyposquattingAnalysis : IHasAssessments
                 list.GetRegistrableDomain,
                 ContentSimilarityOptions,
                 ct).ConfigureAwait(false);
-            TyposquattingContentSimilarityAnalyzer.CompareCandidates(builtCandidates, SourceContentProfile);
+            TyposquattingContentSimilarityAnalyzer.CompareCandidates(builtCandidates, SourceContentProfile, ContentSimilarityOptions);
         }
 
         if (VisualSimilarityOptions.Enabled)

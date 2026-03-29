@@ -204,6 +204,24 @@ public static partial class MarkdownCompositionReport
                 if (sec != null)
                 {
                     md.Table(t => { t.Headers("Key", "Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0, 1); });
+                    if (sec.TopResponsePack != null)
+                    {
+                        md.H3("Top Response Pack").Table(t =>
+                        {
+                            t.Headers("Key", "Value");
+                            t.Row("Campaign", string.IsNullOrWhiteSpace(sec.TopResponsePack.Label) ? "-" : sec.TopResponsePack.Label);
+                            t.Row("Case", string.IsNullOrWhiteSpace(sec.TopResponsePack.CaseId) ? "-" : sec.TopResponsePack.CaseId);
+                            t.Row("Severity", string.IsNullOrWhiteSpace(sec.TopResponsePack.Severity) ? "-" : sec.TopResponsePack.Severity);
+                            t.Row("Top Domain", string.IsNullOrWhiteSpace(sec.TopResponsePack.TopDomain) ? "-" : sec.TopResponsePack.TopDomain);
+                            t.Row("Primary Contact", string.IsNullOrWhiteSpace(sec.TopResponsePack.PrimaryContact) ? "-" : sec.TopResponsePack.PrimaryContact);
+                            t.Row("Tracking", string.IsNullOrWhiteSpace(sec.TopResponsePack.TrackingSummary) ? "-" : sec.TopResponsePack.TrackingSummary);
+                            t.Row("Escalation", string.IsNullOrWhiteSpace(sec.TopResponsePack.EscalationSummary) ? "-" : sec.TopResponsePack.EscalationSummary);
+                            t.Row("Actionability", string.IsNullOrWhiteSpace(sec.TopResponsePack.ActionabilitySummary) ? "-" : sec.TopResponsePack.ActionabilitySummary);
+                            t.Row("Next Step", string.IsNullOrWhiteSpace(sec.TopResponsePack.RecommendedAction) ? "-" : sec.TopResponsePack.RecommendedAction);
+                            t.Row("Draft", string.IsNullOrWhiteSpace(sec.TopResponsePack.DraftPreview) ? "-" : sec.TopResponsePack.DraftPreview);
+                            t.AlignLeft(0, 1);
+                        });
+                    }
                     if (sec.Positives.Count > 0)
                     {
                         md.H3("Positives").Ul(sec.Positives.ToArray());
@@ -247,10 +265,14 @@ public static partial class MarkdownCompositionReport
                                 string.IsNullOrWhiteSpace(x.PivotSummary) ? "-" : x.PivotSummary,
                                 string.IsNullOrWhiteSpace(x.ActionabilitySummary) ? "-" : x.ActionabilitySummary,
                                 string.IsNullOrWhiteSpace(x.RecommendedAction) ? "-" : x.RecommendedAction,
+                                string.IsNullOrWhiteSpace(x.EscalationCaseId) ? "-" : x.EscalationCaseId,
+                                string.IsNullOrWhiteSpace(x.EscalationTrackingSummary) ? "-" : x.EscalationTrackingSummary,
+                                string.IsNullOrWhiteSpace(x.EscalationDraftPreview) ? "-" : x.EscalationDraftPreview,
+                                string.IsNullOrWhiteSpace(x.EscalationSummary) ? "-" : x.EscalationSummary,
                                 string.IsNullOrWhiteSpace(x.Summary) ? "-" : x.Summary
                             })
                             .ToList();
-                        md.H3("Campaigns").Table(t => t.Headers("Label", "Severity", "Score", "Domains", "Active", "Reachable", "Threat", "Malicious", "Impersonation", "Content", "Visual", "Top Domain", "Disposition", "Actionability", "Registrar", "Hosting", "Country", "Abuse", "Pivots", "Actionability Summary", "Action", "Summary").Rows(campaignRows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21));
+                        md.H3("Campaigns").Table(t => t.Headers("Label", "Severity", "Score", "Domains", "Active", "Reachable", "Threat", "Malicious", "Impersonation", "Content", "Visual", "Top Domain", "Disposition", "Actionability", "Registrar", "Hosting", "Country", "Abuse", "Pivots", "Actionability Summary", "Action", "Case", "Tracking", "Draft", "Escalation", "Summary").Rows(campaignRows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25));
                     }
                     if (sec.Rows.Count > 0)
                     {

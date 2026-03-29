@@ -59,6 +59,35 @@ public static partial class HtmlCompositionReport
                             tabs.AddTab("Summary", panel =>
                             {
                                 panel.Row(r => r.Column(TablerColumnNumber.Twelve, c => RenderSummaryGrid(c, section?.Summary)));
+                                panel.Row(r => r.Column(TablerColumnNumber.Twelve, c =>
+                                {
+                                    if (section?.TopResponsePack == null)
+                                    {
+                                        return;
+                                    }
+
+                                    var response = section.TopResponsePack;
+                                    c.Card(card =>
+                                    {
+                                        card.Header(h => h.Title("Top Response Pack").Icon(TablerIconType.Speakerphone));
+                                        card.Body(body =>
+                                        {
+                                            body.Table(new[]
+                                            {
+                                                new { Key = "Campaign", Value = string.IsNullOrWhiteSpace(response.Label) ? "-" : response.Label },
+                                                new { Key = "Case", Value = string.IsNullOrWhiteSpace(response.CaseId) ? "-" : response.CaseId },
+                                                new { Key = "Severity", Value = string.IsNullOrWhiteSpace(response.Severity) ? "-" : response.Severity },
+                                                new { Key = "Top Domain", Value = string.IsNullOrWhiteSpace(response.TopDomain) ? "-" : response.TopDomain },
+                                                new { Key = "Primary Contact", Value = string.IsNullOrWhiteSpace(response.PrimaryContact) ? "-" : response.PrimaryContact },
+                                                new { Key = "Tracking", Value = string.IsNullOrWhiteSpace(response.TrackingSummary) ? "-" : response.TrackingSummary },
+                                                new { Key = "Escalation", Value = string.IsNullOrWhiteSpace(response.EscalationSummary) ? "-" : response.EscalationSummary },
+                                                new { Key = "Actionability", Value = string.IsNullOrWhiteSpace(response.ActionabilitySummary) ? "-" : response.ActionabilitySummary },
+                                                new { Key = "Next Step", Value = string.IsNullOrWhiteSpace(response.RecommendedAction) ? "-" : response.RecommendedAction },
+                                                new { Key = "Draft", Value = string.IsNullOrWhiteSpace(response.DraftPreview) ? "-" : response.DraftPreview }
+                                            }, TableType.Tabler);
+                                        });
+                                    });
+                                }));
                                 panel.Row(r => r.Column(TablerColumnNumber.Twelve, c => RenderSignalsSummary(c, section?.Findings.Select(f => f.Message), section?.Positives)));
                             }).WithIcon(TablerIconType.Cards);
 
@@ -98,6 +127,10 @@ public static partial class HtmlCompositionReport
                                             Pivots = string.IsNullOrWhiteSpace(campaign.PivotSummary) ? "-" : campaign.PivotSummary,
                                             ActionabilitySummary = string.IsNullOrWhiteSpace(campaign.ActionabilitySummary) ? "-" : campaign.ActionabilitySummary,
                                             Action = string.IsNullOrWhiteSpace(campaign.RecommendedAction) ? "-" : campaign.RecommendedAction,
+                                            CaseId = string.IsNullOrWhiteSpace(campaign.EscalationCaseId) ? "-" : campaign.EscalationCaseId,
+                                            Tracking = string.IsNullOrWhiteSpace(campaign.EscalationTrackingSummary) ? "-" : campaign.EscalationTrackingSummary,
+                                            Draft = string.IsNullOrWhiteSpace(campaign.EscalationDraftPreview) ? "-" : campaign.EscalationDraftPreview,
+                                            Escalation = string.IsNullOrWhiteSpace(campaign.EscalationSummary) ? "-" : campaign.EscalationSummary,
                                             Summary = string.IsNullOrWhiteSpace(campaign.Summary) ? "-" : campaign.Summary
                                         })
                                         .ToList();

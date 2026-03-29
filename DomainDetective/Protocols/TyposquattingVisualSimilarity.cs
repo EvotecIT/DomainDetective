@@ -22,6 +22,9 @@ public sealed class TyposquattingVisualSimilarityOptions
     /// <summary>When true, favicon and social-image discovery can be used as the default visual capture path.</summary>
     public bool EnableStaticAssetCapture { get; set; } = true;
 
+    /// <summary>When true, a built-in browser capture provider can render a screenshot for comparison.</summary>
+    public bool EnableBrowserCapture { get; set; }
+
     /// <summary>Maximum number of candidates visually fingerprinted per analysis run.</summary>
     public int MaxCandidates { get; set; } = 5;
 
@@ -49,6 +52,9 @@ public sealed class TyposquattingVisualSimilarityOptions
     /// <summary>Optional capture override returning a screenshot or precomputed fingerprint for a URL.</summary>
     public Func<string, CancellationToken, Task<TyposquattingVisualArtifact?>>? CaptureOverride { get; set; }
 
+    /// <summary>Optional override for the built-in browser screenshot path.</summary>
+    public Func<string, CancellationToken, Task<TyposquattingVisualArtifact?>>? BrowserCaptureOverride { get; set; }
+
     /// <summary>Optional override for fetching page HTML before static visual asset discovery.</summary>
     public Func<string, CancellationToken, Task<HttpAnalysis?>>? PageHttpOverride { get; set; }
 
@@ -57,6 +63,21 @@ public sealed class TyposquattingVisualSimilarityOptions
 
     /// <summary>Custom request options used when default page and asset fetching is performed.</summary>
     public HttpRequestOptions HttpRequestOptions { get; } = new();
+
+    /// <summary>Viewport width used for built-in browser screenshots.</summary>
+    public int BrowserViewportWidth { get; set; } = 1366;
+
+    /// <summary>Viewport height used for built-in browser screenshots.</summary>
+    public int BrowserViewportHeight { get; set; } = 768;
+
+    /// <summary>Timeout used for built-in browser navigation and screenshot capture.</summary>
+    public TimeSpan BrowserCaptureTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Additional post-load wait before capturing a built-in browser screenshot.</summary>
+    public TimeSpan BrowserPostLoadDelay { get; set; } = TimeSpan.FromMilliseconds(1200);
+
+    /// <summary>When true, built-in browser capture uses a full-page screenshot.</summary>
+    public bool BrowserFullPageScreenshot { get; set; }
 }
 
 /// <summary>
@@ -173,7 +194,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
             || !profile.HasAnySignals
             || options == null
             || !options.Enabled
-            || (options.CaptureManyOverride == null && options.CaptureOverride == null && !options.EnableStaticAssetCapture))
+            || (options.CaptureManyOverride == null && options.CaptureOverride == null && options.BrowserCaptureOverride == null && !options.EnableStaticAssetCapture && !options.EnableBrowserCapture))
         {
             return;
         }

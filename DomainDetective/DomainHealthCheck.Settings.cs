@@ -157,6 +157,12 @@ namespace DomainDetective {
         /// <summary>When true, typosquatting enrichment includes IP enrichment.</summary>
         public bool TyposquattingEnrichIp { get; set; } = true;
 
+        /// <summary>When true, typosquatting enrichment includes SMTP banner checks on candidate MX hosts.</summary>
+        public bool TyposquattingEnrichSmtpBanner { get; set; }
+
+        /// <summary>When true, typosquatting enrichment checks whether candidate MX hosts accept mail for the lookalike domain.</summary>
+        public bool TyposquattingEnrichSmtpRecipientAcceptance { get; set; }
+
         /// <summary>When true, typosquatting enrichment includes static web discovery.</summary>
         public bool TyposquattingEnrichWebStaticScan { get; set; }
 
@@ -175,6 +181,9 @@ namespace DomainDetective {
         /// <summary>When true, the source-domain ownership profile includes IP enrichment and ASN data.</summary>
         public bool TyposquattingOwnershipIncludeIp { get; set; } = true;
 
+        /// <summary>When true, the source-domain ownership profile includes MX host overlap checks.</summary>
+        public bool TyposquattingOwnershipIncludeMx { get; set; } = true;
+
         /// <summary>When true, typosquatting candidates are compared with the source domain web content.</summary>
         public bool TyposquattingEnableContentSimilarity { get; set; } = true;
 
@@ -192,6 +201,9 @@ namespace DomainDetective {
 
         /// <summary>When true, visual similarity can fall back to static asset discovery such as favicons and OG images.</summary>
         public bool TyposquattingVisualUseStaticAssetCapture { get; set; } = true;
+
+        /// <summary>When true, visual similarity can try a built-in rendered browser screenshot provider.</summary>
+        public bool TyposquattingVisualUseBrowserCapture { get; set; }
 
         /// <summary>Maximum number of bytes downloaded for a single typosquatting visual asset.</summary>
         public int TyposquattingVisualMaxAssetBytes { get; set; } = 1024 * 1024;

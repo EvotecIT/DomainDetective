@@ -60,6 +60,8 @@ public static class TyposquattingDispositionAnalyzer
         var visualClone = candidate.VisualSimilarity?.LikelyClone == true;
         var external = candidate.Ownership?.LikelyExternal == true;
         var threatListed = candidate.Enrichment?.ThreatIntel?.Listings?.Any(listing => listing.IsListed) == true;
+        var mailReachable = candidate.Enrichment?.SmtpBanner?.ServerResults?.Any(static result => result.Value?.StartsWith220 == true) == true;
+        var mailAccepted = candidate.Enrichment?.SmtpRecipientAcceptance?.ServerResults?.Any(static result => result.Value?.Accepted == true) == true;
         var reachable = candidate.Enrichment?.Http?.IsReachable == true || candidate.Resolves;
         var healthyHttp = candidate.Enrichment?.Http?.StatusCode is >= 200 and < 400;
         var highRisk = candidate.RiskScore >= options.LikelyMaliciousRiskThreshold;
@@ -86,6 +88,22 @@ public static class TyposquattingDispositionAnalyzer
             reasons.Add("candidate is listed by threat intelligence");
         }
 
+        if (mailReachable)
+        {
+            reasons.Add("candidate exposes live mail infrastructure");
+        }
+
+        if (mailAccepted)
+        {
+            reasons.Add("candidate mail server accepts recipients for the lookalike domain");
+        }
+
+        if (mailAccepted && candidate.Ownership?.LikelyOwned != true)
+        {
+            SetDisposition(candidate, TyposquattingDisposition.LikelyMalicious, reasons);
+            return;
+        }
+
         if (healthyHttp)
         {
             reasons.Add("candidate serves a live web response");
@@ -95,13 +113,13 @@ public static class TyposquattingDispositionAnalyzer
             reasons.Add("candidate resolves or is reachable");
         }
 
-        if (impersonationSignals && external && (threatListed || (healthyHttp && highRisk)))
+        if ((impersonationSignals || mailAccepted) && external && (threatListed || mailReachable || mailAccepted || (healthyHttp && highRisk)))
         {
             SetDisposition(candidate, TyposquattingDisposition.LikelyMalicious, reasons);
             return;
         }
 
-        if (impersonationSignals && (external || reachable || mediumRisk))
+        if ((impersonationSignals || mailAccepted) && (external || reachable || mailReachable || mediumRisk))
         {
             SetDisposition(candidate, TyposquattingDisposition.LikelyImpersonation, reasons);
             return;

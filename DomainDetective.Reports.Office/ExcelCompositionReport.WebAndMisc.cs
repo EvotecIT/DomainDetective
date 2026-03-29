@@ -289,6 +289,23 @@ public static partial class ExcelCompositionReport {
                 ("Homoglyph Input", info.ContainsHomoglyphs ? "Yes" : "No")
             });
 
+            if (projection?.TopResponsePack != null)
+            {
+                column.Section("Top Response Pack").KeyValues(new (string, object?)[]
+                {
+                    ("Campaign", string.IsNullOrWhiteSpace(projection.TopResponsePack.Label) ? "-" : projection.TopResponsePack.Label),
+                    ("Case", string.IsNullOrWhiteSpace(projection.TopResponsePack.CaseId) ? "-" : projection.TopResponsePack.CaseId),
+                    ("Severity", string.IsNullOrWhiteSpace(projection.TopResponsePack.Severity) ? "-" : projection.TopResponsePack.Severity),
+                    ("Top Domain", string.IsNullOrWhiteSpace(projection.TopResponsePack.TopDomain) ? "-" : projection.TopResponsePack.TopDomain),
+                    ("Primary Contact", string.IsNullOrWhiteSpace(projection.TopResponsePack.PrimaryContact) ? "-" : projection.TopResponsePack.PrimaryContact),
+                    ("Tracking", string.IsNullOrWhiteSpace(projection.TopResponsePack.TrackingSummary) ? "-" : projection.TopResponsePack.TrackingSummary),
+                    ("Escalation", string.IsNullOrWhiteSpace(projection.TopResponsePack.EscalationSummary) ? "-" : projection.TopResponsePack.EscalationSummary),
+                    ("Actionability", string.IsNullOrWhiteSpace(projection.TopResponsePack.ActionabilitySummary) ? "-" : projection.TopResponsePack.ActionabilitySummary),
+                    ("Next Step", string.IsNullOrWhiteSpace(projection.TopResponsePack.RecommendedAction) ? "-" : projection.TopResponsePack.RecommendedAction),
+                    ("Draft", string.IsNullOrWhiteSpace(projection.TopResponsePack.DraftPreview) ? "-" : projection.TopResponsePack.DraftPreview)
+                });
+            }
+
             if (projection != null && projection.Campaigns.Count > 0)
             {
                 const int maxCampaignRows = 100;
@@ -317,6 +334,10 @@ public static partial class ExcelCompositionReport {
                         Pivots = string.IsNullOrWhiteSpace(campaign.PivotSummary) ? "-" : campaign.PivotSummary,
                         ActionabilitySummary = string.IsNullOrWhiteSpace(campaign.ActionabilitySummary) ? "-" : campaign.ActionabilitySummary,
                         Action = string.IsNullOrWhiteSpace(campaign.RecommendedAction) ? "-" : campaign.RecommendedAction,
+                        Case = string.IsNullOrWhiteSpace(campaign.EscalationCaseId) ? "-" : campaign.EscalationCaseId,
+                        Tracking = string.IsNullOrWhiteSpace(campaign.EscalationTrackingSummary) ? "-" : campaign.EscalationTrackingSummary,
+                        Draft = string.IsNullOrWhiteSpace(campaign.EscalationDraftPreview) ? "-" : campaign.EscalationDraftPreview,
+                        Escalation = string.IsNullOrWhiteSpace(campaign.EscalationSummary) ? "-" : campaign.EscalationSummary,
                         Summary = string.IsNullOrWhiteSpace(campaign.Summary) ? "-" : campaign.Summary
                     })
                     .ToList();

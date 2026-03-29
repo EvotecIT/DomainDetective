@@ -21,6 +21,9 @@ public sealed class TyposquattingOwnershipProfileOptions
     /// <summary>When true, IP enrichment is collected for the source domain.</summary>
     public bool IncludeIpEnrichment { get; set; } = true;
 
+    /// <summary>When true, source MX hosts are included in ownership comparison.</summary>
+    public bool IncludeMx { get; set; } = true;
+
     /// <summary>Optional override for WHOIS profile collection.</summary>
     public Func<string, CancellationToken, Task<WhoisAnalysis?>>? WhoisOverride { get; set; }
 
@@ -36,12 +39,14 @@ public sealed class TyposquattingOwnershipProfile
     public string Domain { get; init; } = string.Empty;
     public string Registrar { get; init; } = string.Empty;
     public IReadOnlyList<string> NameServers { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> MailExchangers { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> ARecords { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> AaaaRecords { get; init; } = Array.Empty<string>();
     public IReadOnlyList<int> Asns { get; init; } = Array.Empty<int>();
     public bool HasAnySignals =>
         !string.IsNullOrWhiteSpace(Registrar)
         || NameServers.Count > 0
+        || MailExchangers.Count > 0
         || ARecords.Count > 0
         || AaaaRecords.Count > 0
         || Asns.Count > 0;
@@ -83,6 +88,9 @@ public static class TyposquattingOwnershipAnalyzer
         var aRecords = NormalizeDnsAnswers(await queryDns(domain, DnsRecordType.A).ConfigureAwait(false));
         var aaaaRecords = NormalizeDnsAnswers(await queryDns(domain, DnsRecordType.AAAA).ConfigureAwait(false));
         var nameServers = NormalizeDnsAnswers(await queryDns(domain, DnsRecordType.NS).ConfigureAwait(false));
+        var mailExchangers = options.IncludeMx
+            ? TyposquattingMailInfrastructure.NormalizeMxHosts(NormalizeDnsAnswers(await queryDns(domain, DnsRecordType.MX).ConfigureAwait(false)))
+            : Array.Empty<string>();
 
         WhoisAnalysis? whois = null;
         if (options.IncludeWhois)
@@ -129,6 +137,7 @@ public static class TyposquattingOwnershipAnalyzer
             Domain = domain,
             Registrar = whois?.Registrar ?? string.Empty,
             NameServers = nameServers,
+            MailExchangers = mailExchangers,
             ARecords = aRecords,
             AaaaRecords = aaaaRecords,
             Asns = asns
@@ -202,6 +211,21 @@ public static class TyposquattingOwnershipAnalyzer
         {
             externalScore += 25;
             externalSignals.Add("uses different authoritative name servers");
+        }
+
+        var candidateMxHosts = TyposquattingMailInfrastructure.NormalizeMxHosts(candidate.MxRecords);
+        var mxOverlap = candidateMxHosts
+            .Intersect(profile.MailExchangers, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (mxOverlap.Length > 0)
+        {
+            ownershipScore += 20;
+            ownershipSignals.Add("shares mail exchangers");
+        }
+        else if (candidateMxHosts.Count > 0 && profile.MailExchangers.Count > 0)
+        {
+            externalScore += 20;
+            externalSignals.Add("uses different mail exchangers");
         }
 
         var candidateAddresses = candidate.ARecords

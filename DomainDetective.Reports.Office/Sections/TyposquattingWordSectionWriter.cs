@@ -32,11 +32,35 @@ public static class TyposquattingWordSectionWriter
             summaryTable.Rows[i].Cells[1].AddParagraph(summaryRows[i].Item2);
         }
 
+        if (section.TopResponsePack != null)
+        {
+            headings.AddItem("Top Response Pack", baseLevel);
+            var responseRows = new (string, string)[]
+            {
+                ("Campaign", string.IsNullOrWhiteSpace(section.TopResponsePack.Label) ? "-" : section.TopResponsePack.Label),
+                ("Case", string.IsNullOrWhiteSpace(section.TopResponsePack.CaseId) ? "-" : section.TopResponsePack.CaseId),
+                ("Severity", string.IsNullOrWhiteSpace(section.TopResponsePack.Severity) ? "-" : section.TopResponsePack.Severity),
+                ("Top Domain", string.IsNullOrWhiteSpace(section.TopResponsePack.TopDomain) ? "-" : section.TopResponsePack.TopDomain),
+                ("Primary Contact", string.IsNullOrWhiteSpace(section.TopResponsePack.PrimaryContact) ? "-" : section.TopResponsePack.PrimaryContact),
+                ("Tracking", string.IsNullOrWhiteSpace(section.TopResponsePack.TrackingSummary) ? "-" : section.TopResponsePack.TrackingSummary),
+                ("Escalation", string.IsNullOrWhiteSpace(section.TopResponsePack.EscalationSummary) ? "-" : section.TopResponsePack.EscalationSummary),
+                ("Actionability", string.IsNullOrWhiteSpace(section.TopResponsePack.ActionabilitySummary) ? "-" : section.TopResponsePack.ActionabilitySummary),
+                ("Next Step", string.IsNullOrWhiteSpace(section.TopResponsePack.RecommendedAction) ? "-" : section.TopResponsePack.RecommendedAction),
+                ("Draft", string.IsNullOrWhiteSpace(section.TopResponsePack.DraftPreview) ? "-" : section.TopResponsePack.DraftPreview)
+            };
+            var responseTable = doc.AddTable(responseRows.Length, 2, WordTableStyle.TableGrid);
+            for (int i = 0; i < responseRows.Length; i++)
+            {
+                responseTable.Rows[i].Cells[0].AddParagraph(responseRows[i].Item1);
+                responseTable.Rows[i].Cells[1].AddParagraph(responseRows[i].Item2);
+            }
+        }
+
         if (section.Campaigns.Count > 0)
         {
             headings.AddItem("Campaigns", baseLevel);
             int takeCampaigns = Math.Min(section.Campaigns.Count, 100);
-            var campaignTable = doc.AddTable(takeCampaigns + 1, 22, WordTableStyle.TableGrid);
+            var campaignTable = doc.AddTable(takeCampaigns + 1, 26, WordTableStyle.TableGrid);
             campaignTable.Rows[0].Cells[0].AddParagraph("Label");
             campaignTable.Rows[0].Cells[1].AddParagraph("Severity");
             campaignTable.Rows[0].Cells[2].AddParagraph("Score");
@@ -58,7 +82,11 @@ public static class TyposquattingWordSectionWriter
             campaignTable.Rows[0].Cells[18].AddParagraph("Pivots");
             campaignTable.Rows[0].Cells[19].AddParagraph("Actionability Summary");
             campaignTable.Rows[0].Cells[20].AddParagraph("Action");
-            campaignTable.Rows[0].Cells[21].AddParagraph("Summary");
+            campaignTable.Rows[0].Cells[21].AddParagraph("Case");
+            campaignTable.Rows[0].Cells[22].AddParagraph("Tracking");
+            campaignTable.Rows[0].Cells[23].AddParagraph("Draft");
+            campaignTable.Rows[0].Cells[24].AddParagraph("Escalation");
+            campaignTable.Rows[0].Cells[25].AddParagraph("Summary");
             for (int i = 0; i < takeCampaigns; i++)
             {
                 var row = section.Campaigns[i];
@@ -83,7 +111,11 @@ public static class TyposquattingWordSectionWriter
                 campaignTable.Rows[i + 1].Cells[18].AddParagraph(string.IsNullOrWhiteSpace(row.PivotSummary) ? "-" : row.PivotSummary);
                 campaignTable.Rows[i + 1].Cells[19].AddParagraph(string.IsNullOrWhiteSpace(row.ActionabilitySummary) ? "-" : row.ActionabilitySummary);
                 campaignTable.Rows[i + 1].Cells[20].AddParagraph(string.IsNullOrWhiteSpace(row.RecommendedAction) ? "-" : row.RecommendedAction);
-                campaignTable.Rows[i + 1].Cells[21].AddParagraph(string.IsNullOrWhiteSpace(row.Summary) ? "-" : row.Summary);
+                campaignTable.Rows[i + 1].Cells[21].AddParagraph(string.IsNullOrWhiteSpace(row.EscalationCaseId) ? "-" : row.EscalationCaseId);
+                campaignTable.Rows[i + 1].Cells[22].AddParagraph(string.IsNullOrWhiteSpace(row.EscalationTrackingSummary) ? "-" : row.EscalationTrackingSummary);
+                campaignTable.Rows[i + 1].Cells[23].AddParagraph(string.IsNullOrWhiteSpace(row.EscalationDraftPreview) ? "-" : row.EscalationDraftPreview);
+                campaignTable.Rows[i + 1].Cells[24].AddParagraph(string.IsNullOrWhiteSpace(row.EscalationSummary) ? "-" : row.EscalationSummary);
+                campaignTable.Rows[i + 1].Cells[25].AddParagraph(string.IsNullOrWhiteSpace(row.Summary) ? "-" : row.Summary);
             }
         }
 

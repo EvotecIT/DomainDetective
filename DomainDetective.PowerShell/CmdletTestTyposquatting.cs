@@ -46,6 +46,10 @@ public sealed class CmdletTestTyposquatting : ExportableAsyncPSCmdlet
     [Parameter(Mandatory = false)]
     public SwitchParameter EnableVisualSimilarity;
 
+    /// <summary>When specified, visual similarity can try a built-in rendered browser screenshot provider.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter EnableBrowserScreenshot;
+
     /// <summary>Maximum number of candidates included in visual similarity comparison.</summary>
     [Parameter(Mandatory = false)]
     [ValidateRange(1, 50)]
@@ -55,6 +59,14 @@ public sealed class CmdletTestTyposquatting : ExportableAsyncPSCmdlet
     [Parameter(Mandatory = false)]
     [ValidateRange(1, 10)]
     public int VisualMaxAssetsPerPage = 3;
+
+    /// <summary>When specified, candidate MX hosts are checked for responsive SMTP banners.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter EnableSmtpBanner;
+
+    /// <summary>When specified, candidate MX hosts are probed for recipient acceptance on the lookalike domain.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter EnableSmtpRecipientAcceptance;
 
     /// <summary>Executes the cmdlet operation.</summary>
     protected override async Task ProcessRecordAsync()
@@ -93,7 +105,10 @@ public sealed class CmdletTestTyposquatting : ExportableAsyncPSCmdlet
             }
 
             logger.WriteVerbose("Querying typosquatting candidates for domain: {0}", domain);
+            healthCheck.TyposquattingEnrichSmtpBanner = EnableSmtpBanner.IsPresent;
+            healthCheck.TyposquattingEnrichSmtpRecipientAcceptance = EnableSmtpRecipientAcceptance.IsPresent;
             healthCheck.TyposquattingEnableVisualSimilarity = EnableVisualSimilarity.IsPresent;
+            healthCheck.TyposquattingVisualUseBrowserCapture = EnableBrowserScreenshot.IsPresent;
             healthCheck.TyposquattingVisualMaxCandidates = VisualMaxCandidates;
             healthCheck.TyposquattingVisualMaxAssetsPerPage = VisualMaxAssetsPerPage;
             await healthCheck.VerifyTyposquatting(domain, CancelToken);

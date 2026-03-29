@@ -42,6 +42,11 @@ public static partial class Converters
                 ThreatSeverity = candidate.Enrichment?.ThreatIntel?.Severity,
                 TechnologyCount = candidate.Enrichment?.WebStaticScan?.TechDetections?.Count ?? 0,
                 EnrichedIpCount = candidate.Enrichment?.IpEnrichment?.UniqueIpCount ?? 0,
+                SmtpBannerReachable = candidate.Enrichment?.SmtpBanner?.ServerResults?.Any(result => result.Value?.StartsWith220 == true) == true,
+                SmtpRecipientAccepted = candidate.Enrichment?.SmtpRecipientAcceptance?.ServerResults?.Any(result => result.Value?.Accepted == true) == true,
+                PrimaryMxHost = TyposquattingMailInfrastructure.NormalizeMxHosts(candidate.MxRecords).FirstOrDefault() ?? string.Empty,
+                SmtpBannerSummary = BuildSmtpBannerSummary(candidate.Enrichment?.SmtpBanner),
+                SmtpRecipientAcceptanceSummary = BuildSmtpRecipientAcceptanceSummary(candidate.Enrichment?.SmtpRecipientAcceptance),
                 LikelyOwned = candidate.Ownership?.LikelyOwned == true,
                 OwnershipConfidence = candidate.Ownership?.ConfidenceScore ?? 0,
                 OwnershipSummary = candidate.Ownership?.Summary ?? string.Empty,
@@ -52,6 +57,8 @@ public static partial class Converters
                 ExternalSignals = candidate.Ownership?.ExternalSignals ?? System.Array.Empty<string>(),
                 ContentSimilarityScore = candidate.ContentSimilarity?.Score ?? 0,
                 LikelyImpersonating = candidate.ContentSimilarity?.LikelyImpersonating == true,
+                ContentFingerprintSimilarity = candidate.ContentSimilarity?.FuzzyFingerprintSimilarity,
+                ContentFingerprintDistance = candidate.ContentSimilarity?.FuzzyFingerprintDistance,
                 ContentSimilaritySummary = candidate.ContentSimilarity?.Summary ?? string.Empty,
                 ContentSimilaritySignals = candidate.ContentSimilarity?.Signals ?? System.Array.Empty<string>(),
                 VisualSimilarityScore = candidate.VisualSimilarity?.Score ?? 0,
@@ -71,6 +78,8 @@ public static partial class Converters
                         ThreatIntel = candidate.Enrichment.ThreatIntel == null ? null : Convert(candidate.Enrichment.ThreatIntel),
                         WebStaticScan = candidate.Enrichment.WebStaticScan == null ? null : Convert(candidate.Enrichment.WebStaticScan),
                         IpEnrichment = candidate.Enrichment.IpEnrichment == null ? null : Convert(candidate.Enrichment.IpEnrichment),
+                        SmtpBannerSummary = BuildSmtpBannerSummary(candidate.Enrichment.SmtpBanner),
+                        SmtpRecipientAcceptanceSummary = BuildSmtpRecipientAcceptanceSummary(candidate.Enrichment.SmtpRecipientAcceptance),
                         Summary = BuildEnrichmentSummary(candidate.Enrichment)
                     }
             })
@@ -113,6 +122,20 @@ public static partial class Converters
                 RegistrarContacts = campaign.RegistrarContacts,
                 HostingProviders = campaign.HostingProviders,
                 Countries = campaign.Countries,
+                EscalationSubject = campaign.EscalationBundle.Subject,
+                EscalationCaseId = campaign.EscalationBundle.CaseId,
+                EscalationCaseFingerprint = campaign.EscalationBundle.CaseFingerprint,
+                EscalationTrackingSummary = campaign.EscalationBundle.TrackingSummary,
+                EscalationSummary = campaign.EscalationBundle.Summary,
+                EscalationEvidenceSummary = campaign.EscalationBundle.EvidenceSummary,
+                EscalationDraftPreview = campaign.EscalationBundle.DraftPreview,
+                EscalationDraftBody = campaign.EscalationBundle.DraftBody,
+                EscalationPrimaryRoute = campaign.EscalationBundle.PrimaryRoute.ToString(),
+                EscalationPrimaryContact = campaign.EscalationBundle.PrimaryContact,
+                EscalationContacts = campaign.EscalationBundle.Contacts,
+                EscalationDomains = campaign.EscalationBundle.Domains,
+                EscalationEvidencePoints = campaign.EscalationBundle.EvidencePoints,
+                EscalationChecklist = campaign.EscalationBundle.ActionChecklist,
                 Summary = campaign.Summary,
                 PivotSummary = campaign.PivotSummary,
                 RecommendedAction = campaign.RecommendedAction,
@@ -120,6 +143,27 @@ public static partial class Converters
                 Domains = campaign.Domains
             })
             .ToArray();
+        var topResponsePack = campaigns
+            .OrderByDescending(static campaign => campaign.ActionabilityScore)
+            .ThenByDescending(static campaign => campaign.CampaignScore)
+            .ThenByDescending(static campaign => campaign.CandidateCount)
+            .ThenBy(static campaign => campaign.Label, System.StringComparer.OrdinalIgnoreCase)
+            .Select(static campaign => new TyposquattingResponsePackInfo
+            {
+                Campaign = campaign.Label,
+                Severity = campaign.Severity,
+                CaseId = campaign.EscalationCaseId,
+                CaseFingerprint = campaign.EscalationCaseFingerprint,
+                TopDomain = campaign.TopCandidateDomain,
+                PrimaryContact = campaign.EscalationPrimaryContact,
+                TrackingSummary = campaign.EscalationTrackingSummary,
+                EscalationSummary = campaign.EscalationSummary,
+                ActionabilitySummary = campaign.ActionabilitySummary,
+                RecommendedAction = campaign.RecommendedAction,
+                DraftPreview = campaign.EscalationDraftPreview,
+                DraftBody = campaign.EscalationDraftBody
+            })
+            .FirstOrDefault();
         candidates = candidates
             .OrderByDescending(candidate => candidate.RiskScore)
             .ThenByDescending(candidate => candidate.Resolves)
@@ -180,6 +224,7 @@ public static partial class Converters
             MultiCandidateInfrastructureClusterCount = multiCandidateClusterCount,
             LargestInfrastructureClusterSize = largestClusterSize,
             Campaigns = campaigns,
+            TopResponsePack = topResponsePack,
             HighPriorityCampaignCount = highPriorityCampaignCount,
             CriticalCampaignCount = criticalCampaignCount,
             AvailableCount = availableCount,
@@ -222,8 +267,54 @@ public static partial class Converters
         {
             parts.Add("IP");
         }
+        if (enrichment.SmtpBanner?.ServerResults?.Any(static result => result.Value?.StartsWith220 == true) == true)
+        {
+            parts.Add("SMTP");
+        }
+        if (enrichment.SmtpRecipientAcceptance?.ServerResults?.Any(static result => result.Value?.Accepted == true) == true)
+        {
+            parts.Add("SMTP-RCPT");
+        }
 
         return parts.Count > 0 ? string.Join(", ", parts) : "Enriched";
+    }
+
+    private static string BuildSmtpBannerSummary(SMTPBannerAnalysis? analysis)
+    {
+        if (analysis?.ServerResults == null || analysis.ServerResults.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var firstResponsive = analysis.ServerResults
+            .OrderBy(static result => result.Key, System.StringComparer.OrdinalIgnoreCase)
+            .Select(static result => result.Value)
+            .FirstOrDefault(static result => result?.StartsWith220 == true && !string.IsNullOrWhiteSpace(result.Host));
+        if (firstResponsive == null)
+        {
+            return string.Empty;
+        }
+
+        return firstResponsive.Host + (string.IsNullOrWhiteSpace(firstResponsive.Banner) ? string.Empty : ": " + firstResponsive.Banner);
+    }
+
+    private static string BuildSmtpRecipientAcceptanceSummary(SmtpRecipientAcceptanceAnalysis? analysis)
+    {
+        if (analysis?.ServerResults == null || analysis.ServerResults.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var accepted = analysis.ServerResults
+            .OrderBy(static result => result.Key, System.StringComparer.OrdinalIgnoreCase)
+            .Select(static result => result.Value)
+            .FirstOrDefault(static result => result?.Accepted == true && !string.IsNullOrWhiteSpace(result.Host));
+        if (accepted == null)
+        {
+            return string.Empty;
+        }
+
+        return accepted.Host + " accepted " + accepted.Recipient;
     }
 }
 
@@ -254,6 +345,7 @@ public sealed class TyposquattingInfo
     public int MultiCandidateInfrastructureClusterCount { get; set; }
     public int LargestInfrastructureClusterSize { get; set; }
     public IReadOnlyList<TyposquattingCampaignInfo> Campaigns { get; set; } = System.Array.Empty<TyposquattingCampaignInfo>();
+    public TyposquattingResponsePackInfo? TopResponsePack { get; set; }
     public int HighPriorityCampaignCount { get; set; }
     public int CriticalCampaignCount { get; set; }
     public int AvailableCount { get; set; }
@@ -276,6 +368,22 @@ public sealed class TyposquattingKindCount
 {
     public string Kind { get; set; } = string.Empty;
     public int Count { get; set; }
+}
+
+public sealed class TyposquattingResponsePackInfo
+{
+    public string Campaign { get; set; } = string.Empty;
+    public string Severity { get; set; } = string.Empty;
+    public string CaseId { get; set; } = string.Empty;
+    public string CaseFingerprint { get; set; } = string.Empty;
+    public string TopDomain { get; set; } = string.Empty;
+    public string PrimaryContact { get; set; } = string.Empty;
+    public string TrackingSummary { get; set; } = string.Empty;
+    public string EscalationSummary { get; set; } = string.Empty;
+    public string ActionabilitySummary { get; set; } = string.Empty;
+    public string RecommendedAction { get; set; } = string.Empty;
+    public string DraftPreview { get; set; } = string.Empty;
+    public string DraftBody { get; set; } = string.Empty;
 }
 
 public sealed class TyposquattingCampaignInfo
@@ -309,6 +417,20 @@ public sealed class TyposquattingCampaignInfo
     public IReadOnlyList<string> RegistrarContacts { get; set; } = System.Array.Empty<string>();
     public IReadOnlyList<string> HostingProviders { get; set; } = System.Array.Empty<string>();
     public IReadOnlyList<string> Countries { get; set; } = System.Array.Empty<string>();
+    public string EscalationSubject { get; set; } = string.Empty;
+    public string EscalationCaseId { get; set; } = string.Empty;
+    public string EscalationCaseFingerprint { get; set; } = string.Empty;
+    public string EscalationTrackingSummary { get; set; } = string.Empty;
+    public string EscalationSummary { get; set; } = string.Empty;
+    public string EscalationEvidenceSummary { get; set; } = string.Empty;
+    public string EscalationDraftPreview { get; set; } = string.Empty;
+    public string EscalationDraftBody { get; set; } = string.Empty;
+    public string EscalationPrimaryRoute { get; set; } = string.Empty;
+    public string EscalationPrimaryContact { get; set; } = string.Empty;
+    public IReadOnlyList<string> EscalationContacts { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> EscalationDomains { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> EscalationEvidencePoints { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> EscalationChecklist { get; set; } = System.Array.Empty<string>();
     public string Summary { get; set; } = string.Empty;
     public string PivotSummary { get; set; } = string.Empty;
     public string RecommendedAction { get; set; } = string.Empty;
@@ -345,6 +467,11 @@ public sealed class TyposquattingCandidateInfo
     public string? ThreatSeverity { get; set; }
     public int TechnologyCount { get; set; }
     public int EnrichedIpCount { get; set; }
+    public bool SmtpBannerReachable { get; set; }
+    public bool SmtpRecipientAccepted { get; set; }
+    public string PrimaryMxHost { get; set; } = string.Empty;
+    public string SmtpBannerSummary { get; set; } = string.Empty;
+    public string SmtpRecipientAcceptanceSummary { get; set; } = string.Empty;
     public bool LikelyOwned { get; set; }
     public int OwnershipConfidence { get; set; }
     public string OwnershipSummary { get; set; } = string.Empty;
@@ -355,6 +482,8 @@ public sealed class TyposquattingCandidateInfo
     public IReadOnlyList<string> ExternalSignals { get; set; } = System.Array.Empty<string>();
     public int ContentSimilarityScore { get; set; }
     public bool LikelyImpersonating { get; set; }
+    public int? ContentFingerprintSimilarity { get; set; }
+    public int? ContentFingerprintDistance { get; set; }
     public string ContentSimilaritySummary { get; set; } = string.Empty;
     public IReadOnlyList<string> ContentSimilaritySignals { get; set; } = System.Array.Empty<string>();
     public int VisualSimilarityScore { get; set; }
@@ -375,5 +504,7 @@ public sealed class TyposquattingCandidateEnrichmentInfo
     public ThreatIntelInfo? ThreatIntel { get; set; }
     public WebStaticScanInfo? WebStaticScan { get; set; }
     public IpEnrichmentInfo? IpEnrichment { get; set; }
+    public string SmtpBannerSummary { get; set; } = string.Empty;
+    public string SmtpRecipientAcceptanceSummary { get; set; } = string.Empty;
     public string Summary { get; set; } = string.Empty;
 }

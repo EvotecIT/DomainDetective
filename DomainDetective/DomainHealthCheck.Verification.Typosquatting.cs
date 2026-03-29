@@ -26,6 +26,8 @@ namespace DomainDetective {
             TyposquattingAnalysis.EnrichmentOptions.IncludeWhois = TyposquattingEnrichWhois;
             TyposquattingAnalysis.EnrichmentOptions.IncludeHttp = TyposquattingEnrichHttp || TyposquattingEnableContentSimilarity;
             TyposquattingAnalysis.EnrichmentOptions.IncludeIpEnrichment = TyposquattingEnrichIp;
+            TyposquattingAnalysis.EnrichmentOptions.IncludeSmtpBanner = TyposquattingEnrichSmtpBanner;
+            TyposquattingAnalysis.EnrichmentOptions.IncludeSmtpRecipientAcceptance = TyposquattingEnrichSmtpRecipientAcceptance;
             TyposquattingAnalysis.EnrichmentOptions.IncludeWebStaticScan = TyposquattingEnrichWebStaticScan || (TyposquattingEnableContentSimilarity && TyposquattingSimilarityIncludeWebStaticScan);
             TyposquattingAnalysis.EnrichmentOptions.IncludeThreatIntel = TyposquattingEnrichThreatIntel;
             TyposquattingAnalysis.EnrichmentOptions.CaptureHttpBody = TyposquattingCaptureHttpBody || TyposquattingEnableContentSimilarity;
@@ -35,12 +37,14 @@ namespace DomainDetective {
             TyposquattingAnalysis.OwnershipProfileOptions.Enabled = TyposquattingCompareOwnershipSignals;
             TyposquattingAnalysis.OwnershipProfileOptions.IncludeWhois = TyposquattingOwnershipIncludeWhois;
             TyposquattingAnalysis.OwnershipProfileOptions.IncludeIpEnrichment = TyposquattingOwnershipIncludeIp;
+            TyposquattingAnalysis.OwnershipProfileOptions.IncludeMx = TyposquattingOwnershipIncludeMx;
             TyposquattingAnalysis.ContentSimilarityOptions.Enabled = TyposquattingEnableContentSimilarity;
             TyposquattingAnalysis.ContentSimilarityOptions.IncludeWebStaticScan = TyposquattingSimilarityIncludeWebStaticScan;
             TyposquattingAnalysis.VisualSimilarityOptions.Enabled = TyposquattingEnableVisualSimilarity;
             TyposquattingAnalysis.VisualSimilarityOptions.MaxCandidates = TyposquattingVisualMaxCandidates;
             TyposquattingAnalysis.VisualSimilarityOptions.MaxParallelism = TyposquattingVisualMaxParallelism;
             TyposquattingAnalysis.VisualSimilarityOptions.EnableStaticAssetCapture = TyposquattingVisualUseStaticAssetCapture;
+            TyposquattingAnalysis.VisualSimilarityOptions.EnableBrowserCapture = TyposquattingVisualUseBrowserCapture;
             TyposquattingAnalysis.VisualSimilarityOptions.MaxAssetBytes = TyposquattingVisualMaxAssetBytes;
             TyposquattingAnalysis.VisualSimilarityOptions.MaxAssetsPerPage = TyposquattingVisualMaxAssetsPerPage;
             await TyposquattingAnalysis.Analyze(domainName, _logger, cancellationToken);

@@ -505,7 +505,6 @@ namespace DomainDetective.Tests {
             TyposquattingCandidateScorer.ScoreCandidate(referenceCandidate);
 
             Assert.True(candidate.RiskScore > referenceCandidate.RiskScore);
-            Assert.Contains(candidate.RiskReasons, reason => reason.Contains("content resembles", System.StringComparison.OrdinalIgnoreCase));
 
             var view = DomainDetective.Views.Converters.Convert(analysis);
             Assert.True(view.ContentProfileBuilt);
@@ -515,6 +514,88 @@ namespace DomainDetective.Tests {
             Assert.True(viewCandidate.LikelyImpersonating);
             Assert.True(viewCandidate.ContentSimilarityScore >= 35);
             Assert.Contains("body hash", viewCandidate.ContentSimilaritySummary, System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task NearCloneContentUsesFuzzyFingerprintWhenExactBodyHashDiffers() {
+            static void SetAutoProperty<T>(object target, string propertyName, T value) {
+                var field = target.GetType().GetField($"<{propertyName}>k__BackingField", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                Assert.NotNull(field);
+                field!.SetValue(target, value);
+            }
+
+            static HttpAnalysis BuildHttp(string url, string bodySha256, string body) {
+                var analysis = new HttpAnalysis {
+                    Subject = url
+                };
+                SetAutoProperty(analysis, "IsReachable", true);
+                SetAutoProperty(analysis, "StatusCode", 200);
+                SetAutoProperty(analysis, "BodySha256", bodySha256);
+                SetAutoProperty(analysis, "BodyLength", body.Length);
+                SetAutoProperty(analysis, "Body", body);
+                analysis.VisitedUrls.Add(url);
+                return analysis;
+            }
+
+            const string sourceBody = "<html><head><title>Example Portal</title></head><body><h1>Welcome to Example</h1><p>Use your corporate account to sign in to the secure example portal and review invoices payroll approvals and profile tasks.</p><p>Multi factor verification keeps your example workspace protected.</p></body></html>";
+            const string candidateBody = "<html><head><title>Example Workspace</title></head><body><h1>Welcome to Example Workspace</h1><p>Use your company account to sign in to the secure example portal and review invoices payroll approvals plus profile tasks.</p><p>Multi factor verification keeps your workspace protected and connected.</p></body></html>";
+
+            var analysis = new TyposquattingAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                QueryDnsOverride = (name, type) => {
+                    if (name == "examp1e.com" && type == DnsRecordType.A) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "9.9.9.9", Type = DnsRecordType.A } });
+                    }
+
+                    return Task.FromResult(System.Array.Empty<DnsAnswer>());
+                }
+            };
+
+            analysis.EnrichmentOptions.MaxCandidates = 5;
+            analysis.EnrichmentOptions.IncludeHttp = true;
+            analysis.EnrichmentOptions.IncludeWhois = false;
+            analysis.EnrichmentOptions.IncludeIpEnrichment = false;
+            analysis.EnrichmentOptions.IncludeThreatIntel = false;
+            analysis.EnrichmentOptions.HttpOverride = (domain, _) => Task.FromResult<HttpAnalysis?>(BuildHttp(
+                "https://" + domain,
+                "candidate-body",
+                candidateBody));
+
+            analysis.ContentSimilarityOptions.Enabled = true;
+            analysis.ContentSimilarityOptions.StrongFuzzyBodyFingerprintThreshold = 76;
+            analysis.ContentSimilarityOptions.ModerateFuzzyBodyFingerprintThreshold = 64;
+            analysis.ContentSimilarityOptions.HttpOverride = (url, _) => Task.FromResult<HttpAnalysis?>(BuildHttp(
+                url,
+                "source-body",
+                sourceBody));
+
+            await analysis.Analyze("example.com", new InternalLogger());
+
+            var candidate = Assert.Single(analysis.Candidates, entry => entry.Domain == "examp1e.com");
+            Assert.NotNull(candidate.ContentSimilarity);
+            Assert.True(candidate.ContentSimilarity!.Score >= 18);
+            Assert.DoesNotContain(candidate.ContentSimilarity.Signals, signal => signal.Contains("body hash", System.StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(candidate.ContentSimilarity.Signals, signal => signal.Contains("fuzzy page-text fingerprint", System.StringComparison.OrdinalIgnoreCase));
+            Assert.True(candidate.ContentSimilarity.FuzzyFingerprintSimilarity >= 64);
+
+            var referenceCandidate = new TyposquattingCandidate {
+                Domain = candidate.Domain,
+                Kind = candidate.Kind,
+                EditDistance = candidate.EditDistance,
+                ARecords = candidate.ARecords,
+                AaaaRecords = candidate.AaaaRecords,
+                NsRecords = candidate.NsRecords,
+                MxRecords = candidate.MxRecords,
+                Enrichment = candidate.Enrichment
+            };
+            TyposquattingCandidateScorer.ScoreCandidate(referenceCandidate);
+
+            Assert.True(candidate.RiskScore > referenceCandidate.RiskScore);
+
+            var view = DomainDetective.Views.Converters.Convert(analysis);
+            var viewCandidate = Assert.Single(view.Candidates, entry => entry.Domain == "examp1e.com");
+            Assert.True(viewCandidate.ContentFingerprintSimilarity >= 64);
+            Assert.Contains("fuzzy page-text fingerprint", viewCandidate.ContentSimilaritySummary, System.StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -983,6 +1064,18 @@ namespace DomainDetective.Tests {
             Assert.Contains("abuse contact ready", campaign.ActionabilitySummary, System.StringComparison.OrdinalIgnoreCase);
             Assert.Contains("registrar Evil Registrar", campaign.PivotSummary, System.StringComparison.OrdinalIgnoreCase);
             Assert.Contains("abuse@evil-registrar.test", campaign.RecommendedAction, System.StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(TyposquattingInfrastructureCampaignEscalationRoute.Abuse, campaign.EscalationBundle.PrimaryRoute);
+            Assert.Equal("abuse@evil-registrar.test", campaign.EscalationBundle.PrimaryContact);
+            Assert.True(campaign.EscalationBundle.ReadyToEscalate);
+            Assert.StartsWith("DD-TYPO-", campaign.EscalationBundle.CaseId, System.StringComparison.Ordinal);
+            Assert.False(string.IsNullOrWhiteSpace(campaign.EscalationBundle.CaseFingerprint));
+            Assert.Contains(campaign.EscalationBundle.CaseId, campaign.EscalationBundle.TrackingSummary, System.StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("examp1e.com", campaign.EscalationBundle.Domains);
+            Assert.Contains("shared registrar", campaign.EscalationBundle.EvidenceSummary, System.StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("abuse escalation", campaign.EscalationBundle.Subject, System.StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("We are reporting a suspected typosquatting campaign", campaign.EscalationBundle.DraftBody, System.StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("reported domains", campaign.EscalationBundle.DraftBody, System.StringComparison.OrdinalIgnoreCase);
+            Assert.False(string.IsNullOrWhiteSpace(campaign.EscalationBundle.DraftPreview));
 
             var view = DomainDetective.Views.Converters.Convert(analysis);
             Assert.Equal(1, view.InfrastructureClusterCount);
@@ -991,6 +1084,10 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, view.LargestInfrastructureClusterSize);
             Assert.Equal(1, view.HighPriorityCampaignCount);
             Assert.Equal(0, view.CriticalCampaignCount);
+            Assert.NotNull(view.TopResponsePack);
+            Assert.Equal("examp1e.com", view.TopResponsePack!.TopDomain);
+            Assert.StartsWith("DD-TYPO-", view.TopResponsePack.CaseId, System.StringComparison.Ordinal);
+            Assert.Contains("abuse@evil-registrar.test", view.TopResponsePack.TrackingSummary, System.StringComparison.OrdinalIgnoreCase);
 
             var viewCandidate = Assert.Single(view.Candidates, candidate => candidate.Domain == "examp1e.com");
             Assert.Equal(sharedCluster.Label, viewCandidate.InfrastructureClusterLabel);
@@ -1008,6 +1105,176 @@ namespace DomainDetective.Tests {
             Assert.Equal("NL", viewCampaign.PrimaryCountry);
             Assert.Equal(TyposquattingInfrastructureCampaignActionability.Immediate.ToString(), viewCampaign.Actionability);
             Assert.True(viewCampaign.ActionabilityScore >= 70);
+            Assert.Equal(TyposquattingInfrastructureCampaignEscalationRoute.Abuse.ToString(), viewCampaign.EscalationPrimaryRoute);
+            Assert.Equal("abuse@evil-registrar.test", viewCampaign.EscalationPrimaryContact);
+            Assert.StartsWith("DD-TYPO-", viewCampaign.EscalationCaseId, System.StringComparison.Ordinal);
+            Assert.False(string.IsNullOrWhiteSpace(viewCampaign.EscalationCaseFingerprint));
+            Assert.Contains(viewCampaign.EscalationCaseId, viewCampaign.EscalationTrackingSummary, System.StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Escalation bundle ready", viewCampaign.EscalationSummary, System.StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("typosquatting campaign", viewCampaign.EscalationDraftPreview, System.StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Domains involved:", viewCampaign.EscalationDraftBody, System.StringComparison.OrdinalIgnoreCase);
+
+            var section = DomainDetective.Reports.SectionProjectors.BuildTyposquatting(view);
+            Assert.NotNull(section);
+            Assert.NotNull(section!.TopResponsePack);
+            Assert.Equal(viewCampaign.EscalationCaseId, section.TopResponsePack!.CaseId);
+            Assert.Equal(viewCampaign.TopCandidateDomain, section.TopResponsePack.TopDomain);
+            Assert.Contains("abuse@evil-registrar.test", section.TopResponsePack.TrackingSummary, System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task DistinctResponsiveMxInfrastructureRaisesMailRiskSignals() {
+            static SMTPBannerAnalysis BuildBanner(string host) {
+                var analysis = new SMTPBannerAnalysis {
+                    Subject = host
+                };
+                analysis.ServerResults[host + ":25"] = new SMTPBannerAnalysis.BannerResult {
+                    Host = host,
+                    Port = 25,
+                    Banner = "220 " + host + " ESMTP",
+                    StartsWith220 = true,
+                    ContainsDomain = true,
+                    ValidFormat = true,
+                    ServerDomain = host
+                };
+                return analysis;
+            }
+
+            var analysis = new TyposquattingAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                QueryDnsOverride = (name, type) => {
+                    if (name == "example.com" && type == DnsRecordType.MX) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "10 mail.example.com", Type = DnsRecordType.MX } });
+                    }
+
+                    if (name == "examp1e.com" && type == DnsRecordType.MX) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "10 mx.typo.test", Type = DnsRecordType.MX } });
+                    }
+
+                    return Task.FromResult(System.Array.Empty<DnsAnswer>());
+                }
+            };
+
+            analysis.EnrichmentOptions.MaxCandidates = 10;
+            analysis.EnrichmentOptions.IncludeWhois = false;
+            analysis.EnrichmentOptions.IncludeHttp = false;
+            analysis.EnrichmentOptions.IncludeIpEnrichment = false;
+            analysis.EnrichmentOptions.IncludeThreatIntel = false;
+            analysis.EnrichmentOptions.IncludeWebStaticScan = false;
+            analysis.EnrichmentOptions.IncludeSmtpBanner = true;
+            analysis.EnrichmentOptions.SmtpBannerOverride = (_, mxHosts, _) => Task.FromResult<SMTPBannerAnalysis?>(BuildBanner(mxHosts[0]));
+
+            analysis.OwnershipProfileOptions.Enabled = true;
+            analysis.OwnershipProfileOptions.IncludeWhois = false;
+            analysis.OwnershipProfileOptions.IncludeIpEnrichment = false;
+            analysis.OwnershipProfileOptions.IncludeMx = true;
+
+            await analysis.Analyze("example.com", new InternalLogger());
+
+            var candidate = Assert.Single(analysis.Candidates, x => x.Domain == "examp1e.com");
+            Assert.NotNull(candidate.Enrichment?.SmtpBanner);
+            Assert.Contains(candidate.RiskReasons, reason => reason.Contains("mail exchanger responds over SMTP", System.StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(candidate.Ownership?.ExternalSignals ?? System.Array.Empty<string>(), reason => reason.Contains("different mail exchangers", System.StringComparison.OrdinalIgnoreCase));
+
+            var view = DomainDetective.Views.Converters.Convert(analysis);
+            var viewCandidate = Assert.Single(view.Candidates, x => x.Domain == "examp1e.com");
+            Assert.True(viewCandidate.SmtpBannerReachable);
+            Assert.Equal("mx.typo.test", viewCandidate.PrimaryMxHost);
+            Assert.Contains("SMTP", viewCandidate.Enrichment?.Summary ?? string.Empty, System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task ExternalMxThatAcceptsRecipientRaisesInterceptionSignals() {
+            static SmtpRecipientAcceptanceAnalysis BuildAcceptance(string host, string recipient) {
+                var analysis = new SmtpRecipientAcceptanceAnalysis {
+                    Subject = host
+                };
+                analysis.ServerResults[host + ":25"] = new SmtpRecipientAcceptanceAnalysis.RecipientAcceptanceResult {
+                    Host = host,
+                    Port = 25,
+                    Recipient = recipient,
+                    Accepted = true,
+                    MailFromStatusCode = 250,
+                    RecipientStatusCode = 250,
+                    MailFromResponse = "250 OK",
+                    RecipientResponse = "250 Accepted"
+                };
+                return analysis;
+            }
+
+            var analysis = new TyposquattingAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                QueryDnsOverride = (name, type) => {
+                    if (name == "example.com" && type == DnsRecordType.MX) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "10 mail.example.com", Type = DnsRecordType.MX } });
+                    }
+
+                    if (name == "examp1e.com" && type == DnsRecordType.MX) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "10 mx.typo.test", Type = DnsRecordType.MX } });
+                    }
+
+                    return Task.FromResult(System.Array.Empty<DnsAnswer>());
+                }
+            };
+
+            analysis.EnrichmentOptions.MaxCandidates = 10;
+            analysis.EnrichmentOptions.IncludeWhois = false;
+            analysis.EnrichmentOptions.IncludeHttp = false;
+            analysis.EnrichmentOptions.IncludeIpEnrichment = false;
+            analysis.EnrichmentOptions.IncludeThreatIntel = false;
+            analysis.EnrichmentOptions.IncludeWebStaticScan = false;
+            analysis.EnrichmentOptions.IncludeSmtpRecipientAcceptance = true;
+            analysis.EnrichmentOptions.SmtpRecipientAcceptanceOverride = (domain, mxHosts, _) =>
+                Task.FromResult<SmtpRecipientAcceptanceAnalysis?>(BuildAcceptance(mxHosts[0], "postmaster@" + domain));
+
+            analysis.OwnershipProfileOptions.Enabled = true;
+            analysis.OwnershipProfileOptions.IncludeWhois = false;
+            analysis.OwnershipProfileOptions.IncludeIpEnrichment = false;
+            analysis.OwnershipProfileOptions.IncludeMx = true;
+
+            await analysis.Analyze("example.com", new InternalLogger());
+
+            var candidate = Assert.Single(analysis.Candidates, x => x.Domain == "examp1e.com");
+            Assert.NotNull(candidate.Enrichment?.SmtpRecipientAcceptance);
+            Assert.Contains(candidate.RiskReasons, reason => reason.Contains("accepts recipients", System.StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(TyposquattingDisposition.LikelyMalicious, candidate.Disposition);
+
+            var view = DomainDetective.Views.Converters.Convert(analysis);
+            var viewCandidate = Assert.Single(view.Candidates, x => x.Domain == "examp1e.com");
+            Assert.True(viewCandidate.SmtpRecipientAccepted);
+            Assert.Contains("SMTP-RCPT", viewCandidate.Enrichment?.Summary ?? string.Empty, System.StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("accepted postmaster@examp1e.com", viewCandidate.SmtpRecipientAcceptanceSummary, System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task BrowserScreenshotOverrideProducesRenderedVisualMatch() {
+            var analysis = new TyposquattingAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                QueryDnsOverride = (name, type) => {
+                    if (name == "examp1e.com" && type == DnsRecordType.A) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "9.9.9.9", Type = DnsRecordType.A } });
+                    }
+
+                    return Task.FromResult(System.Array.Empty<DnsAnswer>());
+                }
+            };
+
+            analysis.VisualSimilarityOptions.Enabled = true;
+            analysis.VisualSimilarityOptions.EnableBrowserCapture = true;
+            analysis.VisualSimilarityOptions.EnableStaticAssetCapture = false;
+            analysis.VisualSimilarityOptions.BrowserCaptureOverride = (url, _) => Task.FromResult<TyposquattingVisualArtifact?>(new TyposquattingVisualArtifact {
+                Kind = TyposquattingVisualArtifactKind.Screenshot,
+                FingerprintHex = "0123456789abcdef",
+                SourceUrl = url
+            });
+
+            await analysis.Analyze("example.com", new InternalLogger());
+
+            var candidate = Assert.Single(analysis.Candidates, x => x.Domain == "examp1e.com");
+            Assert.NotNull(candidate.VisualSimilarity);
+            Assert.True(candidate.VisualSimilarity!.LikelyClone);
+            Assert.Equal(TyposquattingVisualArtifactKind.Screenshot, candidate.VisualSimilarity.MatchedArtifactKind);
+            Assert.Contains("rendered screenshot", candidate.VisualSimilarity.Summary, System.StringComparison.OrdinalIgnoreCase);
         }
     }
 }

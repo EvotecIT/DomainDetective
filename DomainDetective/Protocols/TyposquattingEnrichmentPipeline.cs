@@ -101,6 +101,16 @@ public sealed class TyposquattingEnrichmentPipeline
             enrichment.IpEnrichment = await BuildIpEnrichmentAsync(candidate.Domain, options, logger, cancellationToken).ConfigureAwait(false);
         }
 
+        if (options.IncludeSmtpBanner && candidate.MxRecords.Count > 0)
+        {
+            enrichment.SmtpBanner = await BuildSmtpBannerAsync(candidate.Domain, candidate.MxRecords, options, logger, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (options.IncludeSmtpRecipientAcceptance && candidate.MxRecords.Count > 0)
+        {
+            enrichment.SmtpRecipientAcceptance = await BuildSmtpRecipientAcceptanceAsync(candidate.Domain, candidate.MxRecords, options, logger, cancellationToken).ConfigureAwait(false);
+        }
+
         return enrichment;
     }
 
@@ -188,6 +198,67 @@ public sealed class TyposquattingEnrichmentPipeline
             DnsConfiguration = DnsConfiguration
         };
         await analysis.AnalyzeAsync(domain, additionalIpAddresses: null, logger: logger, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return analysis;
+    }
+
+    private static async Task<SMTPBannerAnalysis?> BuildSmtpBannerAsync(
+        string domain,
+        IReadOnlyList<string> mxRecords,
+        TyposquattingEnrichmentOptions options,
+        InternalLogger? logger,
+        CancellationToken cancellationToken)
+    {
+        var mxHosts = TyposquattingMailInfrastructure.NormalizeMxHosts(mxRecords)
+            .Take(Math.Max(1, options.MaxSmtpBannerHosts))
+            .ToArray();
+        if (mxHosts.Length == 0)
+        {
+            return null;
+        }
+
+        if (options.SmtpBannerOverride != null)
+        {
+            return await options.SmtpBannerOverride(domain, mxHosts, cancellationToken).ConfigureAwait(false);
+        }
+
+        var analysis = new SMTPBannerAnalysis
+        {
+            Subject = domain,
+            Timeout = options.SmtpBannerTimeout
+        };
+        await analysis.AnalyzeServers(mxHosts, options.SmtpBannerPort, logger ?? new InternalLogger(), cancellationToken).ConfigureAwait(false);
+        return analysis;
+    }
+
+    private static async Task<SmtpRecipientAcceptanceAnalysis?> BuildSmtpRecipientAcceptanceAsync(
+        string domain,
+        IReadOnlyList<string> mxRecords,
+        TyposquattingEnrichmentOptions options,
+        InternalLogger? logger,
+        CancellationToken cancellationToken)
+    {
+        var mxHosts = TyposquattingMailInfrastructure.NormalizeMxHosts(mxRecords)
+            .Take(Math.Max(1, options.MaxSmtpBannerHosts))
+            .ToArray();
+        if (mxHosts.Length == 0)
+        {
+            return null;
+        }
+
+        if (options.SmtpRecipientAcceptanceOverride != null)
+        {
+            return await options.SmtpRecipientAcceptanceOverride(domain, mxHosts, cancellationToken).ConfigureAwait(false);
+        }
+
+        var analysis = new SmtpRecipientAcceptanceAnalysis
+        {
+            Subject = domain,
+            Timeout = options.SmtpBannerTimeout,
+            SenderAddress = options.SmtpProbeSenderAddress,
+            HeloHost = options.SmtpProbeHeloHost
+        };
+        var recipientAddress = "postmaster@" + domain;
+        await analysis.AnalyzeServers(mxHosts, options.SmtpBannerPort, recipientAddress, logger ?? new InternalLogger(), cancellationToken).ConfigureAwait(false);
         return analysis;
     }
 }

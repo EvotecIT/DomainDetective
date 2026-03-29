@@ -177,8 +177,35 @@ public static partial class SectionProjectors
                 ActionabilityScore = campaign.ActionabilityScore,
                 Actionability = campaign.Actionability,
                 ActionabilitySummary = campaign.ActionabilitySummary,
-                RecommendedAction = campaign.RecommendedAction
+                RecommendedAction = campaign.RecommendedAction,
+                EscalationCaseId = campaign.EscalationCaseId,
+                EscalationTrackingSummary = campaign.EscalationTrackingSummary,
+                EscalationDraftPreview = campaign.EscalationDraftPreview,
+                EscalationSummary = campaign.EscalationSummary
             });
+        }
+
+        var topCampaign = section.Campaigns
+            .OrderByDescending(static campaign => campaign.ActionabilityScore)
+            .ThenByDescending(static campaign => campaign.CampaignScore)
+            .ThenByDescending(static campaign => campaign.CandidateCount)
+            .ThenBy(static campaign => campaign.Label, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        if (topCampaign != null)
+        {
+            section.TopResponsePack = new TyposquattingSection.ResponsePack
+            {
+                Label = topCampaign.Label,
+                Severity = topCampaign.Severity,
+                CaseId = topCampaign.EscalationCaseId,
+                TopDomain = topCampaign.TopCandidateDomain,
+                PrimaryContact = topCampaign.PrimaryAbuseContact,
+                TrackingSummary = topCampaign.EscalationTrackingSummary,
+                EscalationSummary = topCampaign.EscalationSummary,
+                ActionabilitySummary = topCampaign.ActionabilitySummary,
+                RecommendedAction = topCampaign.RecommendedAction,
+                DraftPreview = topCampaign.EscalationDraftPreview
+            };
         }
 
         return section;

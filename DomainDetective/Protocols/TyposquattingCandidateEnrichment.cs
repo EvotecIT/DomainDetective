@@ -1,5 +1,6 @@
 using DnsClientX;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -34,8 +35,29 @@ public sealed class TyposquattingEnrichmentOptions
     /// <summary>When true, IP enrichment is collected for resolving candidates.</summary>
     public bool IncludeIpEnrichment { get; set; } = true;
 
+    /// <summary>When true, SMTP banners are collected from candidate MX hosts.</summary>
+    public bool IncludeSmtpBanner { get; set; }
+
+    /// <summary>When true, candidate MX hosts are tested for recipient acceptance on the lookalike domain.</summary>
+    public bool IncludeSmtpRecipientAcceptance { get; set; }
+
     /// <summary>When true, HTTP enrichment captures the response body for downstream comparison.</summary>
     public bool CaptureHttpBody { get; set; }
+
+    /// <summary>Maximum number of MX hosts banner-checked per candidate.</summary>
+    public int MaxSmtpBannerHosts { get; set; } = 1;
+
+    /// <summary>SMTP port used for banner checks.</summary>
+    public int SmtpBannerPort { get; set; } = 25;
+
+    /// <summary>Timeout applied to SMTP banner checks.</summary>
+    public TimeSpan SmtpBannerTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Sender address used during SMTP recipient acceptance probes.</summary>
+    public string SmtpProbeSenderAddress { get; set; } = "probe@example.com";
+
+    /// <summary>EHLO hostname used during SMTP recipient acceptance probes.</summary>
+    public string SmtpProbeHeloHost { get; set; } = "example.com";
 
     /// <summary>Custom request options used for HTTP checks.</summary>
     public HttpRequestOptions HttpRequestOptions { get; } = new();
@@ -64,9 +86,15 @@ public sealed class TyposquattingEnrichmentOptions
     /// <summary>Optional factory override for IP enrichment.</summary>
     public Func<string, CancellationToken, Task<IpEnrichmentAnalysis?>>? IpEnrichmentOverride { get; set; }
 
+    /// <summary>Optional factory override for SMTP banner enrichment.</summary>
+    public Func<string, IReadOnlyList<string>, CancellationToken, Task<SMTPBannerAnalysis?>>? SmtpBannerOverride { get; set; }
+
+    /// <summary>Optional factory override for SMTP recipient acceptance enrichment.</summary>
+    public Func<string, IReadOnlyList<string>, CancellationToken, Task<SmtpRecipientAcceptanceAnalysis?>>? SmtpRecipientAcceptanceOverride { get; set; }
+
     internal bool HasAnyEnabledChecks =>
         MaxCandidates > 0
-        && (IncludeWhois || IncludeHttp || IncludeWebStaticScan || IncludeThreatIntel || IncludeIpEnrichment);
+        && (IncludeWhois || IncludeHttp || IncludeWebStaticScan || IncludeThreatIntel || IncludeIpEnrichment || IncludeSmtpBanner || IncludeSmtpRecipientAcceptance);
 }
 
 /// <summary>
@@ -95,11 +123,19 @@ public sealed class TyposquattingCandidateEnrichment
     /// <summary>IP enrichment analysis when requested.</summary>
     public IpEnrichmentAnalysis? IpEnrichment { get; internal set; }
 
+    /// <summary>SMTP banner analysis collected from candidate MX hosts when requested.</summary>
+    public SMTPBannerAnalysis? SmtpBanner { get; internal set; }
+
+    /// <summary>SMTP recipient acceptance analysis collected from candidate MX hosts when requested.</summary>
+    public SmtpRecipientAcceptanceAnalysis? SmtpRecipientAcceptance { get; internal set; }
+
     /// <summary>True when any enrichment artifact was collected.</summary>
     public bool HasAnyData =>
         Whois != null
         || Http != null
         || WebStaticScan != null
         || ThreatIntel != null
-        || IpEnrichment != null;
+        || IpEnrichment != null
+        || SmtpBanner != null
+        || SmtpRecipientAcceptance != null;
 }

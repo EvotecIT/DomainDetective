@@ -63,6 +63,7 @@ public sealed class TyposquattingInfrastructureCampaign
     public IReadOnlyList<string> RegistrarContacts { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> HostingProviders { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> Countries { get; init; } = Array.Empty<string>();
+    public TyposquattingInfrastructureCampaignEscalationBundle EscalationBundle { get; init; } = new();
     public string Summary { get; init; } = string.Empty;
     public string PivotSummary { get; init; } = string.Empty;
     public string RecommendedAction { get; init; } = string.Empty;
@@ -210,6 +211,19 @@ public static class TyposquattingInfrastructureCampaignAnalyzer
             primaryHostingProvider,
             registrarConcentrationPercent,
             hostingConcentrationPercent);
+        var escalationBundle = TyposquattingInfrastructureCampaignEscalationBuilder.Build(
+            cluster.Label,
+            members,
+            severity,
+            actionability,
+            abuseContacts,
+            registrarContacts,
+            hostingProviders,
+            primaryAbuseContact,
+            primaryRegistrar,
+            primaryHostingProvider,
+            primaryCountry,
+            cluster.SharedSignals);
 
         return new TyposquattingInfrastructureCampaign
         {
@@ -243,6 +257,7 @@ public static class TyposquattingInfrastructureCampaignAnalyzer
             RegistrarContacts = registrarContacts,
             HostingProviders = hostingProviders,
             Countries = countries,
+            EscalationBundle = escalationBundle,
             Summary = BuildSummary(
                 members.Count,
                 activeCount,
