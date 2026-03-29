@@ -979,14 +979,6 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
-        var httpsTargetCountBeforeLimit = httpsTargets.Count;
-        var mailTargetCountBeforeLimit = mailTargets.Count;
-        ApplyTargetLimit(options, httpsTargets, httpsTargetOriginsByEndpointKey, mailTargets, warnings, recentByEndpoint, options.ReprobeExpiringWithinDays, targetDecisionDiagnostics);
-        var httpsTargetCountDroppedByLimit = Math.Max(0, httpsTargetCountBeforeLimit - httpsTargets.Count);
-        var mailTargetCountDroppedByLimit = Math.Max(0, mailTargetCountBeforeLimit - mailTargets.Count);
-        AdvanceStage("Endpoint expansion");
-        logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
-
         var cachedEntries = new List<CertificateInventoryEntry>();
         var httpsTargetsToProbe = httpsTargets.ToList();
         var mailTargetsToProbe = mailTargets.Values.ToList();
@@ -1006,7 +998,8 @@ public sealed partial class CertificateInventoryCapture {
                         ApplyEntryProvenance(
                             cached.Entry,
                             GetTrackedOrigins(httpsTargetOriginsByEndpointKey, key),
-                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess);
+                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess,
+                            replaceTargetOrigins: true);
                         cachedEntries.Add(cached.Entry);
                         reusedHttps++;
                         if (reusedStableFailure) {
@@ -1026,7 +1019,8 @@ public sealed partial class CertificateInventoryCapture {
                         ApplyEntryProvenance(
                             cached.Entry,
                             target.TargetOrigins,
-                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess);
+                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess,
+                            replaceTargetOrigins: true);
                         cachedEntries.Add(cached.Entry);
                         reusedMail++;
                         if (reusedStableFailure) {
@@ -1044,9 +1038,31 @@ public sealed partial class CertificateInventoryCapture {
                     reusedHttps,
                     reusedMail,
                     reusedStableFailureHttps,
-                    reusedStableFailureMail);
+                        reusedStableFailureMail);
             }
         }
+
+        httpsTargets.Clear();
+        foreach (var target in httpsTargetsToProbe) {
+            httpsTargets.Add(target);
+        }
+        PruneTrackedHttpsOrigins(httpsTargetOriginsByEndpointKey, httpsTargetsToProbe);
+
+        mailTargets.Clear();
+        foreach (var target in mailTargetsToProbe) {
+            AddMailTarget(mailTargets, target);
+        }
+
+        var httpsTargetCountBeforeLimit = httpsTargets.Count;
+        var mailTargetCountBeforeLimit = mailTargets.Count;
+        ApplyTargetLimit(options, httpsTargets, httpsTargetOriginsByEndpointKey, mailTargets, warnings, recentByEndpoint, options.ReprobeExpiringWithinDays, targetDecisionDiagnostics);
+        var httpsTargetCountDroppedByLimit = Math.Max(0, httpsTargetCountBeforeLimit - httpsTargets.Count);
+        var mailTargetCountDroppedByLimit = Math.Max(0, mailTargetCountBeforeLimit - mailTargets.Count);
+        httpsTargetsToProbe = httpsTargets.ToList();
+        mailTargetsToProbe = mailTargets.Values.ToList();
+
+        AdvanceStage("Endpoint expansion");
+        logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
         AdvanceStage("Recent snapshot cache");
 
         IReadOnlyList<CertificateMonitor.Entry> httpsEntries;

@@ -65,12 +65,15 @@ public sealed partial class CertificateInventoryCapture {
     private static void ApplyEntryProvenance(
         CertificateInventoryEntry entry,
         IReadOnlyList<string> targetOrigins,
-        string captureDisposition) {
+        string captureDisposition,
+        bool replaceTargetOrigins = false) {
         if (entry == null) {
             return;
         }
 
-        entry.TargetOrigins = MergeDistinctStrings(entry.TargetOrigins, targetOrigins);
+        entry.TargetOrigins = replaceTargetOrigins
+            ? MergeDistinctStrings(Array.Empty<string>(), targetOrigins)
+            : MergeDistinctStrings(entry.TargetOrigins, targetOrigins);
         entry.CaptureDisposition = string.IsNullOrWhiteSpace(captureDisposition)
             ? string.Empty
             : captureDisposition.Trim();

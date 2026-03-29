@@ -507,6 +507,88 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_AppliesMaxTargetsLimit_AfterReusableStableFailuresAreFiltered() {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-limit-reuse-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                Port = 443
+            };
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "cached.example.com",
+                ResolvedHost = "cached.example.com",
+                Url = "https://cached.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = null,
+                IsReachable = false,
+                Valid = false,
+                Expired = false,
+                FailureReason = "TLS Handshake Failure",
+                TargetOrigins = new[] { "seed-apex" }
+            });
+
+            using (var monitor = new CertificateMonitor {
+                CacheDirectory = cacheDirectory,
+                PersistInventorySnapshots = false
+            }) {
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+            var observedHttpsTargets = new List<string>();
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                    observedHttpsTargets.AddRange(httpsTargets);
+                    var entries = new List<CertificateMonitor.Entry>();
+                    foreach (var target in httpsTargets) {
+                        entries.Add(CreateHttpsEntry(target, certificate));
+                    }
+
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+                }
+            };
+
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                ReuseRecentSnapshotEntries = false,
+                ReuseRecentFailureSnapshotEntries = true,
+                RecentFailureSnapshotTtl = TimeSpan.FromHours(1),
+                MaxTargets = 1,
+                PersistSnapshot = false
+            };
+            options.AdditionalEndpoints.Add("https://cached.example.com");
+            options.AdditionalEndpoints.Add("https://fresh.example.com");
+
+            var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+            Assert.Single(observedHttpsTargets);
+            Assert.Contains(observedHttpsTargets, target => target.Contains("fresh.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(observedHttpsTargets, target => target.Contains("cached.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(1, result.ReusedRecentFailureEntryCount);
+            Assert.Equal(1, result.ReusedRecentFailureHttpsCount);
+            Assert.Equal(1, result.ProbedHttpsCount);
+            Assert.Equal(2, result.EntryCount);
+        } finally {
+            try {
+                Directory.Delete(cacheDirectory, true);
+            } catch {
+                // no-op
+            }
+        }
+    }
+
+    [Fact]
     public async Task CaptureAsync_ReusesRecentSnapshotEntries_WhenEnabled() {
         var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(cacheDirectory);
@@ -526,7 +608,8 @@ public class TestCertificateInventoryCapture {
                 IsReachable = true,
                 Valid = true,
                 Expired = false,
-                NotAfterUtc = DateTimeOffset.UtcNow.AddDays(120)
+                NotAfterUtc = DateTimeOffset.UtcNow.AddDays(120),
+                TargetOrigins = new[] { "seed-apex" }
             });
 
             using (var monitor = new CertificateMonitor {
@@ -575,6 +658,7 @@ public class TestCertificateInventoryCapture {
             Assert.Contains(result.Snapshot.Entries, entry =>
                 entry.Host.Equals("api.example.com", StringComparison.OrdinalIgnoreCase) &&
                 entry.TargetOrigins.Contains("additional-endpoint", StringComparer.OrdinalIgnoreCase) &&
+                !entry.TargetOrigins.Contains("seed-apex", StringComparer.OrdinalIgnoreCase) &&
                 entry.CaptureDisposition == "reused-recent-success");
         } finally {
             try {
@@ -732,6 +816,78 @@ public class TestCertificateInventoryCapture {
             Assert.Equal(1, result.ReusedRecentFailureHttpsCount);
             Assert.Equal(0, result.ProbedHttpsCount);
             Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("handshake.example.com", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            try {
+                Directory.Delete(cacheDirectory, true);
+            } catch {
+                // no-op
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ReusesReachableTlsHandshakeFailureSnapshotEntries_WhenEnabled() {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            var snapshot = new CertificateInventorySnapshot {
+                CapturedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                Port = 443
+            };
+            snapshot.Entries.Add(new CertificateInventoryEntry {
+                Host = "reachable-handshake.example.com",
+                ResolvedHost = "reachable-handshake.example.com",
+                Url = "https://reachable-handshake.example.com/",
+                Scheme = "https",
+                Port = 443,
+                Service = "HTTPS",
+                CertificateThumbprint = null,
+                IsReachable = true,
+                Valid = false,
+                Expired = false,
+                FailureReason = "TLS Handshake Failure"
+            });
+
+            using (var monitor = new CertificateMonitor {
+                CacheDirectory = cacheDirectory,
+                PersistInventorySnapshots = false
+            }) {
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            var observedHttpsTargets = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                    observedHttpsTargets = httpsTargets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                IncludeMxHttps = false,
+                IncludeSmtpStartTls = false,
+                IncludeSubmissionStartTls = false,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                ReuseRecentSnapshotEntries = false,
+                ReuseRecentFailureSnapshotEntries = true,
+                RecentFailureSnapshotTtl = TimeSpan.FromHours(1),
+                PersistSnapshot = false
+            };
+            options.AdditionalEndpoints.Add("https://reachable-handshake.example.com");
+
+            var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+            Assert.Equal(0, observedHttpsTargets);
+            Assert.Equal(1, result.ReusedRecentEntryCount);
+            Assert.Equal(1, result.ReusedRecentFailureEntryCount);
+            Assert.Equal(1, result.ReusedRecentFailureHttpsCount);
+            Assert.Equal(0, result.ProbedHttpsCount);
+            Assert.Contains(result.Snapshot.Entries, entry => entry.Host.Equals("reachable-handshake.example.com", StringComparison.OrdinalIgnoreCase));
         } finally {
             try {
                 Directory.Delete(cacheDirectory, true);
