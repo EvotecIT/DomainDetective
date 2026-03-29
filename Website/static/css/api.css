@@ -141,6 +141,256 @@
     color: var(--pf-accent);
 }
 
+/* API docs contract selectors required by the shared docs templates. */
+body.pf-api-docs .namespace-select.pf-enhanced-native {
+    position: absolute !important;
+    left: -9999px !important;
+    width: 1px !important;
+    height: 1px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+body.pf-api-docs .pf-combobox {
+    position: relative;
+}
+
+body.pf-api-docs .pf-combobox-trigger {
+    position: relative;
+    width: 100%;
+    padding: 0.55rem 2.2rem 0.55rem 0.85rem;
+    border-radius: var(--pf-radius-sm);
+    border: 1px solid var(--pf-border);
+    background: var(--pf-panel);
+    color: var(--pf-ink-strong);
+    font-family: inherit;
+    font-size: 0.82rem;
+    line-height: 1.2;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+
+body.pf-api-docs .pf-combobox-trigger:hover,
+body.pf-api-docs .pf-combobox-trigger:focus-visible {
+    border-color: rgba(0, 217, 255, 0.35);
+    outline: none;
+}
+
+body.pf-api-docs .pf-combobox-trigger::after {
+    content: "";
+    position: absolute;
+    right: 0.85rem;
+    top: 50%;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    color: var(--pf-dim);
+    transform: translateY(-65%) rotate(45deg);
+    transition: transform 0.15s ease;
+}
+
+body.pf-api-docs .pf-combobox.open .pf-combobox-trigger::after {
+    transform: translateY(-40%) rotate(225deg);
+}
+
+body.pf-api-docs .pf-combobox-panel {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    left: 0;
+    right: 0;
+    z-index: 70;
+    padding: 0.3rem;
+    border-radius: var(--pf-radius-sm);
+    border: 1px solid var(--pf-border);
+    background: color-mix(in srgb, var(--pf-panel) 92%, transparent);
+    box-shadow: 0 18px 36px rgba(2, 6, 23, 0.35);
+    backdrop-filter: blur(10px);
+}
+
+body.pf-api-docs .pf-combobox-list {
+    display: grid;
+    gap: 0.15rem;
+    max-height: min(280px, 42vh);
+    overflow: auto;
+    padding-right: 0.15rem;
+    scrollbar-width: thin;
+}
+
+body.pf-api-docs .pf-combobox-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+body.pf-api-docs .pf-combobox-list::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.75);
+    border-radius: 999px;
+}
+
+body.pf-api-docs .pf-combobox-list::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+body.pf-api-docs .pf-combobox-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 217, 255, 0.35);
+}
+
+body.pf-api-docs .pf-combobox-option {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    border: 0;
+    border-radius: var(--pf-radius-sm);
+    background: transparent;
+    color: var(--pf-ink);
+    font-family: inherit;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    text-align: left;
+    cursor: pointer;
+}
+
+body.pf-api-docs .pf-combobox-option:hover,
+body.pf-api-docs .pf-combobox-option:focus-visible {
+    background: rgba(0, 217, 255, 0.1);
+    color: var(--pf-ink-strong);
+    outline: none;
+}
+
+body.pf-api-docs .pf-combobox-option.active {
+    background: rgba(0, 217, 255, 0.14);
+    color: var(--pf-accent);
+}
+
+.namespace-group-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.namespace-group-actions {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 0.85rem;
+}
+
+.overview-group-toggle {
+    appearance: none;
+    border: 1px solid var(--pf-border);
+    background: rgba(0, 217, 255, 0.05);
+    color: var(--pf-ink-strong);
+    border-radius: 999px;
+    padding: 0.45rem 0.85rem;
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.overview-group-toggle:hover {
+    border-color: rgba(0, 217, 255, 0.35);
+    background: rgba(0, 217, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.type-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.type-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(0, 217, 255, 0.06);
+    color: var(--pf-ink-strong);
+    font-size: 0.85rem;
+}
+
+.chip-icon {
+    display: inline-flex;
+}
+
+.example-origin {
+    margin-top: 0.6rem;
+}
+
+.example-origin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--pf-border);
+    background: rgba(0, 217, 255, 0.06);
+    color: var(--pf-ink);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.example-origin-badge.example-origin-authored,
+.example-origin-badge.example-origin-imported,
+.example-origin-badge.example-origin-generated,
+.example-origin-badge.example-origin-other {
+    color: var(--pf-ink-strong);
+}
+
+.example-media-meta {
+    margin-top: 0.45rem;
+    color: var(--pf-dim);
+    font-size: 0.78rem;
+}
+
+.member-toggle input {
+    accent-color: var(--pf-accent);
+}
+
+body.pf-api-docs .type-detail-shell {
+    display: grid;
+    gap: 1.5rem;
+}
+
+body.pf-api-docs .type-detail-rail {
+    display: grid;
+    gap: 1rem;
+}
+
+body.pf-api-docs .type-toc {
+    border: 1px solid var(--pf-border);
+    border-radius: var(--pf-radius-sm);
+    background: rgba(0, 217, 255, 0.04);
+    padding: 0.85rem 1rem;
+}
+
+body.pf-api-docs .type-toc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+body.pf-api-docs .type-toc-toggle {
+    appearance: none;
+    border: 1px solid var(--pf-border);
+    background: transparent;
+    color: var(--pf-ink);
+    border-radius: 999px;
+    padding: 0.25rem 0.6rem;
+    font: inherit;
+    cursor: pointer;
+}
+
 @media (max-width: 900px) {
     .api-layout { grid-template-columns: 1fr; }
     .api-sidebar {
