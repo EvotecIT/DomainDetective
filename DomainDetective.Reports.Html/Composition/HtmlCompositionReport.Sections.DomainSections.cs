@@ -31,6 +31,7 @@ public static partial class HtmlCompositionReport
 	        if (b.Registration != null) list.Add("Registration");
 	        if (b.Microsoft365 != null) list.Add("Microsoft 365");
 	        if (b.Http != null) list.Add("HTTP");
+        if (b.Typosquatting != null) list.Add("Typosquatting");
 	        if (b.CtTimeline != null) list.Add("CT Timeline");
         if (b.Subdomains != null) list.Add("Subdomains");
         if (b.DnsInventory != null) list.Add("DNS Inventory");
@@ -120,9 +121,12 @@ public static partial class HtmlCompositionReport
                 case "Microsoft 365":
                     RenderMicrosoft365Section(acc, b);
                     break;
-	                case "HTTP":
+                case "HTTP":
 	                    RenderHttpSection(acc, b);
 	                    break;
+                case "Typosquatting":
+                    RenderTyposquattingSection(acc, b);
+                    break;
 	                case "CT Timeline":
 	                    RenderCtTimelineSection(acc, b);
 	                    break;

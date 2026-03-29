@@ -158,18 +158,19 @@ public static partial class WordCompositionReport {
         public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
         public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
         public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
-	        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
-	        public DomainDetective.Views.HttpInfo? Http { get; set; }
-	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
-            public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
-            public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
-            public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
-            public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
-	        // Mail TLS (per protocol) for rollup column
-	        public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
-	        public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
-	        public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
-	    }
+        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
+        public DomainDetective.Views.HttpInfo? Http { get; set; }
+        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+        public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
+        public DomainDetective.Views.TyposquattingInfo? Typosquatting { get; set; }
+        public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
+        public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
+        public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
+        // Mail TLS (per protocol) for rollup column
+        public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
+    }
 
     private static string ComposeDkimStatus(List<DomainDetective.Views.DkimRecordInfo> dkim, bool showCount) {
         return DisplayFormatting.ComposeDkimSummary(dkim, showCount);
@@ -214,246 +215,55 @@ public static partial class WordCompositionReport {
     }
 
     private static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items) {
+        var comp = CompositionBuilder.GroupBySubject(items);
         var map = new Dictionary<string, DomainBucket>(StringComparer.OrdinalIgnoreCase);
-        void Ensure(string subject) {
-            if (!map.ContainsKey(subject)) map[subject] = new DomainBucket { Subject = subject };
-        }
-
-        // Flatten one level so arrays/lists piped in are handled correctly
-        foreach (var raw in items ?? Array.Empty<object>()) {
-            foreach (var it in EnumeratePossiblyNested(raw)) {
-                switch (it) {
-                    case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject):
-                        Ensure(mx.Subject); map[mx.Subject].Mx = mx; break;
-                    case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject):
-                        Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
-                    case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject):
-                        Ensure(dmarc.Subject); map[dmarc.Subject].Dmarc = dmarc; break;
-                    case DomainDetective.Views.DmarcAggregateTimeSeriesInfo da when !string.IsNullOrWhiteSpace(da.Subject):
-                        Ensure(da.Subject); map[da.Subject].DmarcAggregate = da; break;
-                    case DomainDetective.Views.RegistrationDriftInfo reg when !string.IsNullOrWhiteSpace(reg.Subject):
-                        Ensure(reg.Subject); map[reg.Subject].Registration = reg; break;
-                    case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject):
-                        Ensure(dkim.Subject); map[dkim.Subject].Dkim.Add(dkim); break;
-                    case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject):
-                        Ensure(arc.Subject); map[arc.Subject].Arc = arc; break;
-                    case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject):
-                        Ensure(bimi.Subject); map[bimi.Subject].Bimi = bimi; break;
-                    case DomainDetective.Views.DnsblInfo dnsbl when !string.IsNullOrWhiteSpace(dnsbl.Subject):
-                    {
-                        var subject = dnsbl.Subject!;
-                        Ensure(subject);
-                        map[subject].Dnsbl = dnsbl;
-                        break;
-                    }
-                    case DomainDetective.Views.RpkiInfo rpki when !string.IsNullOrWhiteSpace(rpki.Subject):
-                    {
-                        var subject = rpki.Subject!;
-                        Ensure(subject);
-                        map[subject].Rpki = rpki;
-                        break;
-                    }
-                    case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject):
-                        Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
-                    case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject):
-                        Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;
-                    case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject):
-                        Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;
-                    case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject):
-                        Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
-                    case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject):
-                        Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
-                    case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject):
-                        Ensure(mc.Subject); map[mc.Subject].Classification = mc; break;
-                    case DomainDetective.Views.Microsoft365TenantInfo m365 when !string.IsNullOrWhiteSpace(m365.Subject):
-                        Ensure(m365.Subject!); map[m365.Subject!].Microsoft365 = m365; break;
-                    case DomainDetective.Views.DesiredStateInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
-                    {
-                        var subject = ds.Subject!;
-                        Ensure(subject);
-                        map[subject].DesiredState = ds;
-                        break;
-                    }
-                    case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject):
-                        Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
-                    case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject):
-                    {
-                        var subject = tr.Subject!;
-                        Ensure(subject);
-                        map[subject].TlsRpt = tr;
-                        break;
-                    }
-                    case DomainDetective.Views.TlsRptReportsTimeSeriesInfo trr when !string.IsNullOrWhiteSpace(trr.Subject):
-                        Ensure(trr.Subject); map[trr.Subject].TlsRptReports = trr; break;
-                    case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
-                        Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
-                    case DomainDetective.Views.DaneRecordInfo dn when !string.IsNullOrWhiteSpace(dn.Subject):
-                        Ensure(dn.Subject); map[dn.Subject].Dane = dn; break;
-                    case DomainDetective.Views.TtlInfo ttl when !string.IsNullOrWhiteSpace(ttl.Subject):
-                    {
-                        var subject = ttl.Subject!;
-                        Ensure(subject);
-                        map[subject].Ttl = ttl;
-                        break;
-                    }
-	                    case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
-	                        Ensure(mt.Subject);
-	                        switch (mt.Check) {
-	                            case HealthCheckType.SMTPTLS: map[mt.Subject].SmtpTls = mt; break;
-	                            case HealthCheckType.IMAPTLS: map[mt.Subject].ImapTls = mt; break;
-	                            case HealthCheckType.POP3TLS: map[mt.Subject].PopTls = mt; break;
-	                            default: break;
-	                        }
-	                        break;
-	                    case DomainDetective.Views.CtTimelineInfo ct:
-	                    {
-	                        var subject = ct.Subject;
-	                        if (subject != null)
-	                        {
-	                            subject = subject.Trim();
-	                            if (subject.Length > 0)
-	                            {
-	                                Ensure(subject);
-	                                map[subject].CtTimeline = ct;
-	                            }
-	                        }
-	                        break;
-	                    }
-	                    case DomainDetective.Views.SubdomainsInfo sub:
-	                    {
-	                        var subject = sub.Subject;
-	                        if (subject != null)
-	                        {
-	                            subject = subject.Trim();
-	                            if (subject.Length > 0)
-	                            {
-	                                Ensure(subject);
-	                                map[subject].Subdomains = sub;
-	                            }
-	                        }
-	                        break;
-	                    }
-	                    case DomainDetective.Views.DnsInventoryInfo inv:
-	                    {
-	                        var subject = inv.Subject;
-	                        if (subject != null)
-	                        {
-	                            subject = subject.Trim();
-	                            if (subject.Length > 0)
-	                            {
-	                                Ensure(subject);
-	                                map[subject].DnsInventory = inv;
-	                            }
-	                        }
-	                        break;
-	                    }
-                    case DomainDetective.Views.DnsTraceInfo trc:
-                    {
-                        var subject = trc.Subject;
-                        if (subject != null)
-                        {
-                            subject = subject.Trim();
-                            if (subject.Length > 0)
-                            {
-                                Ensure(subject);
-                                map[subject].DnsTrace = trc;
-                            }
-                        }
-                        break;
-                    }
-                    case DomainDetective.Views.HttpInfo http when !string.IsNullOrWhiteSpace(http.Subject) || !string.IsNullOrWhiteSpace(http.Url):
-                    {
-                        var rawUrl = !string.IsNullOrWhiteSpace(http.Subject) ? http.Subject : http.Url;
-                        var subject = rawUrl ?? string.Empty;
-                        try
-                        {
-                            if (Uri.TryCreate(subject, UriKind.Absolute, out var uri))
-                            {
-                                subject = uri.Host;
-                            }
-                        }
-                        catch
-                        {
-                        }
-
-                        bool IsHttps(DomainDetective.Views.HttpInfo h)
-                            => (!string.IsNullOrWhiteSpace(h.Url) ? h.Url : h.Subject)?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true;
-
-                        bool prefer = map.ContainsKey(subject) && map[subject].Http != null
-                            ? ((IsHttps(http) && !IsHttps(map[subject].Http!)) || (http.IsReachable && !map[subject].Http!.IsReachable))
-                            : true;
-
-                        if (!string.IsNullOrWhiteSpace(subject))
-                        {
-                            Ensure(subject);
-                            if (prefer)
-                            {
-                                map[subject].Http = http;
-                            }
-                        }
-                        break;
-                    }
-                    case DomainDetective.Views.IpEnrichmentInfo ip:
-                    {
-                        var subject = ip.Subject;
-                        if (subject != null)
-                        {
-                            subject = subject.Trim();
-                            if (subject.Length > 0)
-                            {
-                                Ensure(subject);
-                                map[subject].IpEnrichment = ip;
-                            }
-                        }
-                        break;
-                    }
-                    case DomainDetective.Views.DnsPropagationInfo dp:
-                    {
-                        var subject = dp.Subject;
-                        if (subject != null)
-                        {
-                            subject = subject.Trim();
-                            if (subject.Length > 0)
-                            {
-                                Ensure(subject);
-                                map[subject].DnsPropagation.Add(dp);
-                            }
-                        }
-                        break;
-                    }
-                    case DomainDetective.Views.DnsAmplificationSummary amp:
-                    {
-                        var subject = amp.Subject;
-                        if (subject != null)
-                        {
-                            subject = subject.Trim();
-                            if (subject.Length > 0)
-                            {
-                                Ensure(subject);
-                                map[subject].DnsAmplification = amp;
-                            }
-                        }
-                        break;
-                    }
-                    case DomainDetective.Views.DnsOverTlsSummary dot:
-                    {
-                        var subject = dot.Subject;
-                        if (subject != null)
-                        {
-                            subject = subject.Trim();
-                            if (subject.Length > 0)
-                            {
-                                Ensure(subject);
-                                map[subject].DnsOverTls = dot;
-                            }
-                        }
-                        break;
-                    }
-                    default:
-                        break;
-                }
-            }
+        foreach (var kv in comp) {
+            map[kv.Key] = Map(kv.Value);
         }
         return map;
+    }
+
+    private static DomainBucket Map(CompositionBuilder.DomainBucket s) {
+        var b = new DomainBucket {
+            Subject = s.Subject,
+            Mx = s.Mx,
+            Spf = s.Spf,
+            Dmarc = s.Dmarc,
+            DmarcAggregate = s.DmarcAggregate,
+            Registration = s.Registration,
+            Ttl = s.Ttl,
+            Arc = s.Arc,
+            Bimi = s.Bimi,
+            Dnsbl = s.Dnsbl,
+            Caa = s.Caa,
+            Rpki = s.Rpki,
+            Ns = s.Ns,
+            Soa = s.Soa,
+            ZoneTransfer = s.ZoneTransfer,
+            Wildcard = s.Wildcard,
+            Classification = s.Classification,
+            DesiredState = s.DesiredState,
+            Mtasts = s.Mtasts,
+            TlsRpt = s.TlsRpt,
+            TlsRptReports = s.TlsRptReports,
+            Dnssec = s.Dnssec,
+            Dane = s.Dane,
+            CtTimeline = s.CtTimeline,
+            Subdomains = s.Subdomains,
+            DnsInventory = s.DnsInventory,
+            DnsTrace = s.DnsTrace,
+            Http = s.Http,
+            IpEnrichment = s.IpEnrichment,
+            Microsoft365 = s.Microsoft365,
+            Typosquatting = s.Typosquatting,
+            DnsAmplification = s.DnsAmplification,
+            DnsOverTls = s.DnsOverTls,
+            SmtpTls = s.SmtpTls,
+            ImapTls = s.ImapTls,
+            PopTls = s.PopTls
+        };
+        if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
+        if (s.DnsPropagation != null && s.DnsPropagation.Count > 0) b.DnsPropagation.AddRange(s.DnsPropagation);
+        return b;
     }
 }

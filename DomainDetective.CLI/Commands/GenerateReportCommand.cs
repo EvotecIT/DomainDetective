@@ -134,6 +134,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
 	                        HealthCheckType.SPF,
 	                        HealthCheckType.DKIM,
 	                        HealthCheckType.DMARC,
+	                        HealthCheckType.TYPOSQUATTING,
 	                        HealthCheckType.CAA,
 	                        HealthCheckType.DNSBL,
 	                        HealthCheckType.RPKI,
@@ -337,6 +338,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         TryAdd("SPF", () => DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis));
         TryAddRange("DKIM", () => DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis));
         TryAdd("DMARC", () => DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis));
+        TryAdd("TYPOSQUATTING", () => DomainDetective.Views.Converters.Convert(healthCheck.TyposquattingAnalysis));
         TryAdd("CAA", () => DomainDetective.Views.Converters.Convert(healthCheck.CAAAnalysis));
         TryAdd("DNSBL", () => DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis));
         TryAdd("RPKI", () => DomainDetective.Views.Converters.Convert(healthCheck.RpkiAnalysis));

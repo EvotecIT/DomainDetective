@@ -144,7 +144,144 @@ internal static class OutputFormatters {
         
         string status = "✅ OK";
         var findings = new List<string>();
-        
+
+        if (check == HealthCheckType.TYPOSQUATTING && data is TyposquattingAnalysis typosquatting)
+        {
+            var activeCount = typosquatting.ActiveDomains.Count;
+            var registeredCount = typosquatting.RegisteredDomains.Count;
+            var candidateCount = typosquatting.Candidates.Count;
+            var likelyOwnedCount = typosquatting.Candidates.Count(candidate => candidate.Ownership?.LikelyOwned == true);
+            var likelyExternalCount = typosquatting.Candidates.Count(candidate => candidate.Ownership?.LikelyExternal == true);
+            var likelyImpersonatingCount = typosquatting.Candidates.Count(candidate => candidate.ContentSimilarity?.LikelyImpersonating == true);
+            var likelyVisualCloneCount = typosquatting.Candidates.Count(candidate => candidate.VisualSimilarity?.LikelyClone == true);
+            var likelyMaliciousCount = typosquatting.Candidates.Count(candidate => candidate.Disposition == TyposquattingDisposition.LikelyMalicious);
+            var likelyImpersonationDispositionCount = typosquatting.Candidates.Count(candidate => candidate.Disposition == TyposquattingDisposition.LikelyImpersonation);
+            var clusterCount = typosquatting.InfrastructureClusters.Count;
+            var sharedClusterCount = typosquatting.InfrastructureClusters.Count(cluster => cluster.HasMultipleCandidates);
+            var campaignCount = typosquatting.InfrastructureCampaigns.Count;
+            var highPriorityCampaignCount = typosquatting.InfrastructureCampaigns.Count(campaign => campaign.RequiresUrgentReview);
+            var criticalCampaignCount = typosquatting.InfrastructureCampaigns.Count(campaign => campaign.Severity == TyposquattingInfrastructureCampaignSeverity.Critical);
+
+            status = activeCount > 0
+                ? "❌ Failed"
+                : registeredCount > 0
+                    ? "⚠️  Warning"
+                    : "✅ OK";
+
+            findings.Add($"• Candidates: {candidateCount}; Registered: {registeredCount}; Active: {activeCount}; Likely malicious: {likelyMaliciousCount}; Likely impersonation: {likelyImpersonationDispositionCount}; Campaigns: {campaignCount}; High-priority campaigns: {highPriorityCampaignCount}; Critical campaigns: {criticalCampaignCount}; Clusters: {clusterCount}; Shared clusters: {sharedClusterCount}; Content lookalike: {likelyImpersonatingCount}; Visual clone: {likelyVisualCloneCount}; Likely external: {likelyExternalCount}; Likely owned: {likelyOwnedCount}");
+
+            var topKinds = typosquatting.Candidates
+                .GroupBy(candidate => candidate.Kind)
+                .OrderByDescending(group => group.Count())
+                .ThenBy(group => group.Key.ToString(), StringComparer.OrdinalIgnoreCase)
+                .Take(3)
+                .Select(group => $"{group.Key}={group.Count()}")
+                .ToArray();
+            if (topKinds.Length > 0)
+            {
+                findings.Add("• Variant families: " + string.Join(", ", topKinds));
+            }
+
+            var suspicious = (activeCount > 0 ? typosquatting.ActiveDomains : typosquatting.RegisteredDomains)
+                .Take(3)
+                .ToArray();
+            if (suspicious.Length > 0)
+            {
+                findings.Add("• Samples: " + string.Join(", ", suspicious));
+            }
+
+            var topCandidate = typosquatting.Candidates
+                .OrderByDescending(candidate => candidate.RiskScore)
+                .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (topCandidate != null)
+            {
+                findings.Add($"• Top risk: {topCandidate.Domain} ({topCandidate.RiskScore}, {topCandidate.RiskLevel}, {topCandidate.Disposition})");
+            }
+
+            var topExternalCandidate = typosquatting.Candidates
+                .Where(candidate => candidate.Ownership?.LikelyOwned != true)
+                .OrderByDescending(candidate => candidate.RiskScore)
+                .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (topExternalCandidate != null)
+            {
+                findings.Add($"• Top external risk: {topExternalCandidate.Domain} ({topExternalCandidate.RiskScore}, {topExternalCandidate.RiskLevel})");
+            }
+
+            var topMaliciousCandidate = typosquatting.Candidates
+                .Where(candidate => candidate.Disposition == TyposquattingDisposition.LikelyMalicious)
+                .OrderByDescending(candidate => candidate.RiskScore)
+                .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (topMaliciousCandidate != null)
+            {
+                findings.Add($"• Top likely malicious: {topMaliciousCandidate.Domain} ({topMaliciousCandidate.RiskScore})");
+            }
+
+            var topCluster = typosquatting.InfrastructureClusters
+                .OrderByDescending(cluster => cluster.Domains.Count)
+                .ThenByDescending(cluster => cluster.HighestRiskScore)
+                .ThenBy(cluster => cluster.Label, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (topCluster != null)
+            {
+                findings.Add($"• Top cluster: {topCluster.Label} ({topCluster.Domains.Count} domains)");
+            }
+
+            var topCampaign = typosquatting.InfrastructureCampaigns
+                .OrderByDescending(campaign => campaign.ActionabilityScore)
+                .ThenByDescending(campaign => campaign.CampaignScore)
+                .ThenByDescending(campaign => campaign.CandidateCount)
+                .ThenBy(campaign => campaign.Label, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (topCampaign != null)
+            {
+                findings.Add($"• Top campaign: {topCampaign.Label} ({topCampaign.Severity}, {topCampaign.CampaignScore}, {topCampaign.Actionability} actionability {topCampaign.ActionabilityScore}, {topCampaign.CandidateCount} domains, top {topCampaign.TopCandidateDomain})");
+                if (!string.IsNullOrWhiteSpace(topCampaign.PivotSummary))
+                {
+                    findings.Add($"• Campaign pivots: {topCampaign.PivotSummary}");
+                }
+                if (!string.IsNullOrWhiteSpace(topCampaign.ActionabilitySummary))
+                {
+                    findings.Add($"• Campaign actionability: {topCampaign.ActionabilitySummary}");
+                }
+                if (!string.IsNullOrWhiteSpace(topCampaign.RecommendedAction))
+                {
+                    findings.Add($"• Recommended action: {topCampaign.RecommendedAction}");
+                }
+            }
+
+            var topImpersonatingCandidate = typosquatting.Candidates
+                .Where(candidate => candidate.ContentSimilarity?.LikelyImpersonating == true)
+                .OrderByDescending(candidate => candidate.ContentSimilarity?.Score ?? 0)
+                .ThenByDescending(candidate => candidate.RiskScore)
+                .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (topImpersonatingCandidate != null)
+            {
+                findings.Add($"• Top content lookalike: {topImpersonatingCandidate.Domain} ({topImpersonatingCandidate.ContentSimilarity!.Score})");
+            }
+
+            var topVisualCloneCandidate = typosquatting.Candidates
+                .Where(candidate => candidate.VisualSimilarity?.LikelyClone == true)
+                .OrderByDescending(candidate => candidate.VisualSimilarity?.Score ?? 0)
+                .ThenByDescending(candidate => candidate.RiskScore)
+                .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (topVisualCloneCandidate != null)
+            {
+                findings.Add($"• Top visual lookalike: {topVisualCloneCandidate.Domain} ({topVisualCloneCandidate.VisualSimilarity!.Score}, {DescribeVisualArtifact(topVisualCloneCandidate.VisualSimilarity.MatchedArtifactKind)})");
+            }
+
+            if (typosquatting.ContainsHomoglyphs)
+            {
+                findings.Add("• Input contains homoglyph characters");
+            }
+
+            return (status, string.Join("\n", findings));
+        }
+
         if (issues != null && issues.Count > 0) {
             status = issues.Count > 2 ? "❌ Failed" : "⚠️  Warning";
             foreach (var issue in issues) {
@@ -237,6 +374,7 @@ internal static class OutputFormatters {
             HealthCheckType.MX => "Mail servers configured",
             HealthCheckType.DNSSEC => "DNSSEC enabled",
             HealthCheckType.CAA => "CAA records present",
+            HealthCheckType.TYPOSQUATTING => "No active lookalike domains detected",
             _ => "Check passed"
         };
     }
@@ -247,6 +385,19 @@ internal static class OutputFormatters {
             var s when s.Contains("⚠") => "yellow",
             var s when s.Contains("❌") => "red",
             _ => "white"
+        };
+    }
+
+    private static string DescribeVisualArtifact(TyposquattingVisualArtifactKind kind)
+    {
+        return kind switch
+        {
+            TyposquattingVisualArtifactKind.Screenshot => "rendered page",
+            TyposquattingVisualArtifactKind.OpenGraphImage => "og:image",
+            TyposquattingVisualArtifactKind.TwitterImage => "twitter:image",
+            TyposquattingVisualArtifactKind.AppleTouchIcon => "apple-touch-icon",
+            TyposquattingVisualArtifactKind.Favicon => "favicon",
+            _ => "visual asset"
         };
     }
     
@@ -276,6 +427,7 @@ internal static class OutputFormatters {
             HealthCheckType.PORTSCAN => hc.PortScanAnalysis,
             HealthCheckType.IPNEIGHBOR => hc.IPNeighborAnalysis,
             HealthCheckType.DNSTUNNELING => hc.DnsTunnelingAnalysis,
+            HealthCheckType.TYPOSQUATTING => hc.TyposquattingAnalysis,
             HealthCheckType.WILDCARDDNS => hc.WildcardDnsAnalysis,
             HealthCheckType.EDNSSUPPORT => hc.EdnsSupportAnalysis,
             HealthCheckType.DNSAMPLIFICATION => hc.DnsAmplificationAnalysis,

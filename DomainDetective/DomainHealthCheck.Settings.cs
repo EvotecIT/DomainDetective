@@ -139,6 +139,66 @@ namespace DomainDetective {
         /// <summary>Protected brand keywords for typosquatting detection.</summary>
         public List<string> TyposquattingBrandKeywords { get; } = new();
 
+        /// <summary>When true, promising typosquatting candidates are enriched with additional DD analyses.</summary>
+        public bool TyposquattingEnableEnrichment { get; set; } = true;
+
+        /// <summary>Maximum number of typosquatting candidates enriched after DNS screening.</summary>
+        public int TyposquattingEnrichmentMaxCandidates { get; set; } = 10;
+
+        /// <summary>Maximum number of typosquatting enrichments performed in parallel.</summary>
+        public int TyposquattingEnrichmentMaxParallelism { get; set; } = 2;
+
+        /// <summary>When true, typosquatting enrichment includes WHOIS.</summary>
+        public bool TyposquattingEnrichWhois { get; set; } = true;
+
+        /// <summary>When true, typosquatting enrichment includes HTTP posture.</summary>
+        public bool TyposquattingEnrichHttp { get; set; } = true;
+
+        /// <summary>When true, typosquatting enrichment includes IP enrichment.</summary>
+        public bool TyposquattingEnrichIp { get; set; } = true;
+
+        /// <summary>When true, typosquatting enrichment includes static web discovery.</summary>
+        public bool TyposquattingEnrichWebStaticScan { get; set; }
+
+        /// <summary>When true, typosquatting enrichment includes threat intelligence lookups.</summary>
+        public bool TyposquattingEnrichThreatIntel { get; set; }
+
+        /// <summary>When true, typosquatting HTTP enrichment captures response bodies.</summary>
+        public bool TyposquattingCaptureHttpBody { get; set; }
+
+        /// <summary>When true, typosquatting candidates are compared with the source domain ownership footprint.</summary>
+        public bool TyposquattingCompareOwnershipSignals { get; set; }
+
+        /// <summary>When true, the source-domain ownership profile includes WHOIS registrar data.</summary>
+        public bool TyposquattingOwnershipIncludeWhois { get; set; } = true;
+
+        /// <summary>When true, the source-domain ownership profile includes IP enrichment and ASN data.</summary>
+        public bool TyposquattingOwnershipIncludeIp { get; set; } = true;
+
+        /// <summary>When true, typosquatting candidates are compared with the source domain web content.</summary>
+        public bool TyposquattingEnableContentSimilarity { get; set; } = true;
+
+        /// <summary>When true, content similarity also uses static web analysis for title and technology overlap.</summary>
+        public bool TyposquattingSimilarityIncludeWebStaticScan { get; set; }
+
+        /// <summary>When true, typosquatting candidates are compared using reusable visual fingerprints.</summary>
+        public bool TyposquattingEnableVisualSimilarity { get; set; }
+
+        /// <summary>Maximum number of typosquatting candidates included in visual comparison.</summary>
+        public int TyposquattingVisualMaxCandidates { get; set; } = 5;
+
+        /// <summary>Maximum number of parallel visual comparisons.</summary>
+        public int TyposquattingVisualMaxParallelism { get; set; } = 2;
+
+        /// <summary>When true, visual similarity can fall back to static asset discovery such as favicons and OG images.</summary>
+        public bool TyposquattingVisualUseStaticAssetCapture { get; set; } = true;
+
+        /// <summary>Maximum number of bytes downloaded for a single typosquatting visual asset.</summary>
+        public int TyposquattingVisualMaxAssetBytes { get; set; } = 1024 * 1024;
+
+        /// <summary>Maximum number of visual assets compared per source or candidate page.</summary>
+        public int TyposquattingVisualMaxAssetsPerPage { get; set; } = 3;
+
         /// <summary>
         /// When true, DNSSEC queries use local validation (validateDnsSec: true) in DnsClientX.
         /// </summary>

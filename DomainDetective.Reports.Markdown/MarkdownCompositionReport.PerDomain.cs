@@ -23,8 +23,8 @@ public static partial class MarkdownCompositionReport
                 .Row("Classification", b.Classification?.Classification ?? "-")
                 .Row("Confidence", b.Classification?.Confidence ?? "-")
                 .Row("Status", ComputeStatus(b))
-                .Row("Warnings", ((b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount)).ToString())
-                .Row("Errors", ((b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount)).ToString())
+                .Row("Warnings", ((b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + (b.Typosquatting?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount)).ToString())
+                .Row("Errors", ((b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + (b.Typosquatting?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount)).ToString())
                 .AlignLeft(0,1));
 
             void RenderClassification()
@@ -189,6 +189,106 @@ public static partial class MarkdownCompositionReport
                     md.H3("Evidence Ledger").Table(t => t.Headers("Label", "Category", "Confidence", "Evidence").Rows(rows).AlignLeft(0, 1, 2, 3));
                 }
                 RenderReferences(md, sec.References);
+            }
+
+            void RenderTyposquatting()
+            {
+                if (b.Typosquatting == null)
+                {
+                    return;
+                }
+
+                var sec = SectionProjectors.BuildTyposquatting(b.Typosquatting);
+                var narrative = b.Typosquatting.Raw != null ? TyposquattingNarrative.Build(b.Typosquatting.Raw) : null;
+                md.H2("Typosquatting");
+                if (sec != null)
+                {
+                    md.Table(t => { t.Headers("Key", "Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0, 1); });
+                    if (sec.Positives.Count > 0)
+                    {
+                        md.H3("Positives").Ul(sec.Positives.ToArray());
+                    }
+                    if (sec.Findings.Count > 0)
+                    {
+                        var findingRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                        md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(findingRows).AlignLeft(0, 1, 2, 3));
+                    }
+                    if (b.Typosquatting.KindCounts.Count > 0)
+                    {
+                        var kindRows = b.Typosquatting.KindCounts
+                            .Select(x => (IReadOnlyList<string>)new[] { x.Kind, x.Count.ToString() })
+                            .ToList();
+                        md.H3("Variant Families").Table(t => t.Headers("Kind", "Count").Rows(kindRows).AlignLeft(0, 1));
+                    }
+                    if (sec.Campaigns.Count > 0)
+                    {
+                        var campaignRows = sec.Campaigns
+                            .Take(100)
+                            .Select(x => (IReadOnlyList<string>)new[]
+                            {
+                                x.Label,
+                                string.IsNullOrWhiteSpace(x.Severity) ? "-" : x.Severity,
+                                x.CampaignScore.ToString(),
+                                x.CandidateCount.ToString(),
+                                x.ActiveCount.ToString(),
+                                x.ReachableWebCount.ToString(),
+                                x.ThreatListedCount.ToString(),
+                                x.LikelyMaliciousCount.ToString(),
+                                x.LikelyImpersonationCount.ToString(),
+                                x.LikelyImpersonatingCount.ToString(),
+                                x.LikelyVisualCloneCount.ToString(),
+                                string.IsNullOrWhiteSpace(x.TopCandidateDomain) ? "-" : x.TopCandidateDomain,
+                                string.IsNullOrWhiteSpace(x.TopCandidateDisposition) ? "-" : x.TopCandidateDisposition,
+                                string.IsNullOrWhiteSpace(x.Actionability) ? "-" : $"{x.Actionability} ({x.ActionabilityScore})",
+                                string.IsNullOrWhiteSpace(x.PrimaryRegistrar) ? "-" : $"{x.PrimaryRegistrar} ({x.RegistrarConcentrationPercent}%)",
+                                string.IsNullOrWhiteSpace(x.PrimaryHostingProvider) ? "-" : $"{x.PrimaryHostingProvider} ({x.HostingConcentrationPercent}%)",
+                                string.IsNullOrWhiteSpace(x.PrimaryCountry) ? "-" : $"{x.PrimaryCountry} ({x.CountryConcentrationPercent}%)",
+                                string.IsNullOrWhiteSpace(x.PrimaryAbuseContact) ? "-" : x.PrimaryAbuseContact,
+                                string.IsNullOrWhiteSpace(x.PivotSummary) ? "-" : x.PivotSummary,
+                                string.IsNullOrWhiteSpace(x.ActionabilitySummary) ? "-" : x.ActionabilitySummary,
+                                string.IsNullOrWhiteSpace(x.RecommendedAction) ? "-" : x.RecommendedAction,
+                                string.IsNullOrWhiteSpace(x.Summary) ? "-" : x.Summary
+                            })
+                            .ToList();
+                        md.H3("Campaigns").Table(t => t.Headers("Label", "Severity", "Score", "Domains", "Active", "Reachable", "Threat", "Malicious", "Impersonation", "Content", "Visual", "Top Domain", "Disposition", "Actionability", "Registrar", "Hosting", "Country", "Abuse", "Pivots", "Actionability Summary", "Action", "Summary").Rows(campaignRows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21));
+                    }
+                    if (sec.Rows.Count > 0)
+                    {
+                        var rows = sec.Rows
+                            .Take(200)
+                            .Select(x => (IReadOnlyList<string>)new[]
+                            {
+                                x.Domain,
+                                x.RiskScore.ToString(),
+                                string.IsNullOrWhiteSpace(x.RiskLevel) ? "-" : x.RiskLevel,
+                                string.IsNullOrWhiteSpace(x.Disposition) ? "-" : x.Disposition,
+                                string.IsNullOrWhiteSpace(x.InfrastructureClusterLabel) ? "-" : $"{x.InfrastructureClusterLabel} ({x.InfrastructureClusterSize})",
+                                x.Kind,
+                                x.EditDistance.ToString(),
+                                x.Resolves ? "Yes" : "No",
+                                x.AppearsRegistered ? "Yes" : "No",
+                                x.ACount.ToString(),
+                                x.AaaaCount.ToString(),
+                                x.NsCount.ToString(),
+                                x.MxCount.ToString(),
+                                x.LikelyOwned ? $"Likely ({x.OwnershipConfidence})" : "-",
+                                string.IsNullOrWhiteSpace(x.OwnershipSummary) ? "-" : x.OwnershipSummary,
+                                x.LikelyExternal ? $"Likely ({x.ExternalConfidence})" : "-",
+                                string.IsNullOrWhiteSpace(x.ExternalSummary) ? "-" : x.ExternalSummary,
+                                x.LikelyImpersonating ? $"Likely ({x.ContentSimilarityScore})" : (x.ContentSimilarityScore > 0 ? x.ContentSimilarityScore.ToString() : "-"),
+                                string.IsNullOrWhiteSpace(x.ContentSimilaritySummary) ? "-" : x.ContentSimilaritySummary,
+                                x.LikelyVisualClone ? $"Likely ({x.VisualSimilarityScore})" : (x.VisualSimilarityScore > 0 ? x.VisualSimilarityScore.ToString() : "-"),
+                                string.IsNullOrWhiteSpace(x.VisualMatchType) ? "-" : x.VisualMatchType,
+                                x.VisualSimilarityDistance?.ToString() ?? "-",
+                                string.IsNullOrWhiteSpace(x.VisualSimilaritySummary) ? "-" : x.VisualSimilaritySummary,
+                                string.IsNullOrWhiteSpace(x.EnrichmentSummary) ? "-" : x.EnrichmentSummary
+                            })
+                            .ToList();
+                        md.H3("Candidates").Table(t => t.Headers("Domain", "Score", "Risk", "Disposition", "Cluster", "Kind", "Distance", "Resolves", "Registered", "A", "AAAA", "NS", "MX", "Owned", "Ownership", "External", "Distinct", "Content", "Similarity", "Visual", "Visual Type", "Visual Diff", "Visual Summary", "Enrichment").Rows(rows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23));
+                    }
+                    RenderNarrative(md, narrative);
+                    RenderReferences(md, MergeReferences(sec.References, narrative?.References));
+                }
             }
 
             void RenderDesiredState()
@@ -834,6 +934,9 @@ public static partial class MarkdownCompositionReport
                     case "Microsoft 365":
                         RenderMicrosoft365();
                         break;
+                    case "Typosquatting":
+                        RenderTyposquatting();
+                        break;
                     case "SPF":
                         RenderSpf();
                         break;
@@ -884,6 +987,7 @@ public static partial class MarkdownCompositionReport
         if (b.Classification != null) list.Add("Classification");
         if (b.DesiredState != null) list.Add("Desired State");
         if (b.Microsoft365 != null) list.Add("Microsoft 365");
+        if (b.Typosquatting != null) list.Add("Typosquatting");
         if (b.Spf != null) list.Add("SPF");
         if (b.Dmarc != null) list.Add("DMARC");
         if (b.Dkim.Count > 0) list.Add("DKIM");

@@ -31,6 +31,71 @@ public static class TyposquattingNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var active = analysis.ActiveDomains ?? new List<string>();
+        var registered = analysis.RegisteredDomains ?? new List<string>();
+        var likelyOwned = analysis.Candidates
+            .Where(candidate => candidate.Ownership?.LikelyOwned == true)
+            .Select(candidate => candidate.Domain)
+            .ToList();
+        var likelyExternal = analysis.Candidates
+            .Where(candidate => candidate.Ownership?.LikelyExternal == true)
+            .OrderByDescending(candidate => candidate.RiskScore)
+            .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+            .Select(candidate => candidate.Domain)
+            .ToList();
+        var likelyImpersonating = analysis.Candidates
+            .Where(candidate => candidate.ContentSimilarity?.LikelyImpersonating == true)
+            .OrderByDescending(candidate => candidate.ContentSimilarity?.Score ?? 0)
+            .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+            .Select(candidate => candidate.Domain)
+            .ToList();
+        var likelyVisualClones = analysis.Candidates
+            .Where(candidate => candidate.VisualSimilarity?.LikelyClone == true)
+            .OrderByDescending(candidate => candidate.VisualSimilarity?.Score ?? 0)
+            .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+            .Select(candidate => candidate.Domain + " (" + DescribeVisualMatch(candidate.VisualSimilarity) + ")")
+            .ToList();
+        var likelyMalicious = analysis.Candidates
+            .Where(candidate => candidate.Disposition == TyposquattingDisposition.LikelyMalicious)
+            .OrderByDescending(candidate => candidate.RiskScore)
+            .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+            .Select(candidate => candidate.Domain)
+            .ToList();
+        var likelyImpersonation = analysis.Candidates
+            .Where(candidate => candidate.Disposition == TyposquattingDisposition.LikelyImpersonation)
+            .OrderByDescending(candidate => candidate.RiskScore)
+            .ThenBy(candidate => candidate.Domain, StringComparer.OrdinalIgnoreCase)
+            .Select(candidate => candidate.Domain)
+            .ToList();
+        var topClusters = analysis.InfrastructureClusters
+            .OrderByDescending(cluster => cluster.Domains.Count)
+            .ThenByDescending(cluster => cluster.HighestRiskScore)
+            .ThenBy(cluster => cluster.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .Select(cluster => $"{cluster.Label} ({cluster.Domains.Count})")
+            .ToList();
+        var topCampaigns = analysis.InfrastructureCampaigns
+            .OrderByDescending(campaign => campaign.ActionabilityScore)
+            .ThenByDescending(campaign => campaign.CampaignScore)
+            .ThenByDescending(campaign => campaign.CandidateCount)
+            .ThenBy(campaign => campaign.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .Select(campaign => $"{campaign.Label} ({campaign.Severity}, {campaign.Actionability} actionability {campaign.ActionabilityScore}, {campaign.CandidateCount}, top {campaign.TopCandidateDomain}, {campaign.PivotSummary})")
+            .ToList();
+        var topCampaignActions = analysis.InfrastructureCampaigns
+            .OrderByDescending(campaign => campaign.ActionabilityScore)
+            .ThenByDescending(campaign => campaign.CampaignScore)
+            .ThenByDescending(campaign => campaign.CandidateCount)
+            .ThenBy(campaign => campaign.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(5)
+            .Where(campaign => !string.IsNullOrWhiteSpace(campaign.RecommendedAction))
+            .Select(campaign => campaign.Label + ": " + campaign.ActionabilitySummary + "; " + campaign.RecommendedAction)
+            .ToList();
+        var highPriorityCampaigns = analysis.InfrastructureCampaigns
+            .Count(campaign => campaign.RequiresUrgentReview);
+        var criticalCampaigns = analysis.InfrastructureCampaigns
+            .Count(campaign => campaign.Severity == TyposquattingInfrastructureCampaignSeverity.Critical);
+
+        hi.Add($"{analysis.Candidates.Count} candidate variants generated.");
         if (active.Count > 0)
         {
             hi.Add($"Active typosquat domains: {string.Join(", ", active)}");
@@ -39,6 +104,83 @@ public static class TyposquattingNarrative
         else
         {
             hi.Add("No active typosquat domains detected.");
+        }
+
+        if (registered.Count > 0)
+        {
+            hi.Add($"{registered.Count} variants show a DNS footprint.");
+            det.Add("Registered or delegated: " + string.Join(", ", registered.Take(20)));
+        }
+
+        if (analysis.SourceOwnershipProfile?.HasAnySignals == true)
+        {
+            hi.Add($"{likelyExternal.Count} variants look externally distinct from the source estate.");
+            hi.Add($"{likelyOwned.Count} variants overlap with source ownership signals.");
+            if (likelyExternal.Count > 0)
+            {
+                det.Add("Most distinct external lookalikes: " + string.Join(", ", likelyExternal.Take(20)));
+            }
+            if (likelyOwned.Count > 0)
+            {
+                det.Add("Likely ours or defensively owned: " + string.Join(", ", likelyOwned.Take(20)));
+            }
+        }
+
+        if (analysis.SourceContentProfile?.HasAnySignals == true)
+        {
+            hi.Add($"{likelyImpersonating.Count} variants show meaningful source-site content similarity.");
+            if (likelyImpersonating.Count > 0)
+            {
+                det.Add("Most convincing content lookalikes: " + string.Join(", ", likelyImpersonating.Take(20)));
+            }
+        }
+
+        if (analysis.SourceVisualProfile?.HasAnySignals == true)
+        {
+            hi.Add($"{likelyVisualClones.Count} variants show strong visual similarity to the source site.");
+            if (likelyVisualClones.Count > 0)
+            {
+                det.Add("Most convincing visual lookalikes: " + string.Join(", ", likelyVisualClones.Take(20)));
+            }
+        }
+
+        hi.Add($"{analysis.InfrastructureClusters.Count} external infrastructure clusters were identified across the candidate set.");
+        if (topClusters.Count > 0)
+        {
+            det.Add("Top shared infrastructure clusters: " + string.Join(", ", topClusters));
+        }
+
+        hi.Add($"{highPriorityCampaigns} shared-infrastructure campaigns warrant urgent review, including {criticalCampaigns} critical campaigns.");
+        if (topCampaigns.Count > 0)
+        {
+            det.Add("Top hostile campaigns: " + string.Join(", ", topCampaigns));
+        }
+        if (topCampaignActions.Count > 0)
+        {
+            det.Add("Campaign actions: " + string.Join(", ", topCampaignActions));
+        }
+
+        hi.Add($"{likelyMalicious.Count} variants look likely malicious based on combined external, impersonation, and activity signals.");
+        hi.Add($"{likelyImpersonation.Count} variants look like likely impersonators that warrant urgent review.");
+        if (likelyMalicious.Count > 0)
+        {
+            det.Add("Highest-priority likely malicious variants: " + string.Join(", ", likelyMalicious.Take(20)));
+        }
+        if (likelyImpersonation.Count > 0)
+        {
+            det.Add("Likely impersonation variants: " + string.Join(", ", likelyImpersonation.Take(20)));
+        }
+
+        var topKinds = analysis.Candidates
+            .GroupBy(candidate => candidate.Kind)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key.ToString(), StringComparer.OrdinalIgnoreCase)
+            .Take(5)
+            .Select(group => $"{group.Key}: {group.Count()}")
+            .ToList();
+        if (topKinds.Count > 0)
+        {
+            det.Add("Top variant families: " + string.Join(", ", topKinds));
         }
 
         var available = (analysis.Variants ?? new List<string>())
@@ -100,6 +242,24 @@ public static class TyposquattingNarrative
             Positives = positives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Negatives = negatives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Remediations = remediations.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+        };
+    }
+
+    private static string DescribeVisualMatch(TyposquattingVisualSimilarityMatch? match)
+    {
+        if (match == null)
+        {
+            return "visual asset";
+        }
+
+        return match.MatchedArtifactKind switch
+        {
+            TyposquattingVisualArtifactKind.Screenshot => "rendered page",
+            TyposquattingVisualArtifactKind.OpenGraphImage => "og:image",
+            TyposquattingVisualArtifactKind.TwitterImage => "twitter:image",
+            TyposquattingVisualArtifactKind.AppleTouchIcon => "apple-touch-icon",
+            TyposquattingVisualArtifactKind.Favicon => "favicon",
+            _ => "visual asset"
         };
     }
 }

@@ -259,6 +259,120 @@ public static partial class ExcelCompositionReport {
         };
     }
 
+    private static Action<SheetComposer.ColumnComposer>? BuildTyposquattingBlock(DomainBucket bucket)
+    {
+        if (bucket.Typosquatting == null)
+        {
+            return null;
+        }
+
+        var info = bucket.Typosquatting;
+        var projection = DomainDetective.Reports.SectionProjectors.BuildTyposquatting(info);
+        return column =>
+        {
+            column.Section("Typosquatting").KeyValues(new (string, object?)[]
+            {
+                ("Status", info.Status ?? "-"),
+                ("Candidates", info.CandidateCount),
+                ("Active", info.ActiveCount),
+                ("Registered", info.RegisteredCount),
+                ("Campaigns", info.Campaigns.Count),
+                ("High-Priority Campaigns", info.HighPriorityCampaignCount),
+                ("Critical Campaigns", info.CriticalCampaignCount),
+                ("Content Lookalike", info.LikelyImpersonatingCount),
+                ("Visual Clone", info.LikelyVisualCloneCount),
+                ("Likely External", info.LikelyExternalCount),
+                ("Likely Owned", info.LikelyOwnedCount),
+                ("Ownership Profile", info.OwnershipProfileBuilt ? "Built" : "Not Built"),
+                ("Content Profile", info.ContentProfileBuilt ? "Built" : "Not Built"),
+                ("Visual Profile", info.VisualProfileBuilt ? "Built" : "Not Built"),
+                ("Homoglyph Input", info.ContainsHomoglyphs ? "Yes" : "No")
+            });
+
+            if (projection != null && projection.Campaigns.Count > 0)
+            {
+                const int maxCampaignRows = 100;
+                var campaignRows = projection.Campaigns
+                    .Take(maxCampaignRows)
+                    .Select(campaign => new
+                    {
+                        campaign.Label,
+                        campaign.Severity,
+                        campaign.CampaignScore,
+                        Domains = campaign.CandidateCount,
+                        Active = campaign.ActiveCount,
+                        Reachable = campaign.ReachableWebCount,
+                        Threat = campaign.ThreatListedCount,
+                        Malicious = campaign.LikelyMaliciousCount,
+                        Impersonation = campaign.LikelyImpersonationCount,
+                        Content = campaign.LikelyImpersonatingCount,
+                        Visual = campaign.LikelyVisualCloneCount,
+                        TopDomain = string.IsNullOrWhiteSpace(campaign.TopCandidateDomain) ? "-" : campaign.TopCandidateDomain,
+                        TopDisposition = string.IsNullOrWhiteSpace(campaign.TopCandidateDisposition) ? "-" : campaign.TopCandidateDisposition,
+                        Actionability = string.IsNullOrWhiteSpace(campaign.Actionability) ? "-" : $"{campaign.Actionability} ({campaign.ActionabilityScore})",
+                        Registrar = string.IsNullOrWhiteSpace(campaign.PrimaryRegistrar) ? "-" : $"{campaign.PrimaryRegistrar} ({campaign.RegistrarConcentrationPercent}%)",
+                        Hosting = string.IsNullOrWhiteSpace(campaign.PrimaryHostingProvider) ? "-" : $"{campaign.PrimaryHostingProvider} ({campaign.HostingConcentrationPercent}%)",
+                        Country = string.IsNullOrWhiteSpace(campaign.PrimaryCountry) ? "-" : $"{campaign.PrimaryCountry} ({campaign.CountryConcentrationPercent}%)",
+                        Abuse = string.IsNullOrWhiteSpace(campaign.PrimaryAbuseContact) ? "-" : campaign.PrimaryAbuseContact,
+                        Pivots = string.IsNullOrWhiteSpace(campaign.PivotSummary) ? "-" : campaign.PivotSummary,
+                        ActionabilitySummary = string.IsNullOrWhiteSpace(campaign.ActionabilitySummary) ? "-" : campaign.ActionabilitySummary,
+                        Action = string.IsNullOrWhiteSpace(campaign.RecommendedAction) ? "-" : campaign.RecommendedAction,
+                        Summary = string.IsNullOrWhiteSpace(campaign.Summary) ? "-" : campaign.Summary
+                    })
+                    .ToList();
+                column.TableFrom(campaignRows, title: "Campaigns", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (projection != null && projection.Rows.Count > 0)
+            {
+                const int maxRows = 300;
+                var rows = projection.Rows
+                    .Take(maxRows)
+                    .Select(candidate => new
+                    {
+                        candidate.Domain,
+                        candidate.RiskScore,
+                        candidate.RiskLevel,
+                        Disposition = string.IsNullOrWhiteSpace(candidate.Disposition) ? "-" : candidate.Disposition,
+                        Risk = string.IsNullOrWhiteSpace(candidate.RiskSummary) ? "-" : candidate.RiskSummary,
+                        Cluster = string.IsNullOrWhiteSpace(candidate.InfrastructureClusterLabel) ? "-" : $"{candidate.InfrastructureClusterLabel} ({candidate.InfrastructureClusterSize})",
+                        candidate.Kind,
+                        candidate.EditDistance,
+                        Resolves = candidate.Resolves ? "Yes" : "No",
+                        Registered = candidate.AppearsRegistered ? "Yes" : "No",
+                        A = candidate.ACount,
+                        AAAA = candidate.AaaaCount,
+                        NS = candidate.NsCount,
+                        MX = candidate.MxCount,
+                        Registrar = string.IsNullOrWhiteSpace(candidate.Registrar) ? "-" : candidate.Registrar,
+                        Http = candidate.HttpStatusCode?.ToString() ?? "-",
+                        Threat = candidate.ThreatListed ? "Listed" : "-",
+                        Tech = candidate.TechnologyCount,
+                        IPs = candidate.EnrichedIpCount,
+                        Owned = candidate.LikelyOwned ? $"Likely ({candidate.OwnershipConfidence})" : "-",
+                        Ownership = string.IsNullOrWhiteSpace(candidate.OwnershipSummary) ? "-" : candidate.OwnershipSummary,
+                        External = candidate.LikelyExternal ? $"Likely ({candidate.ExternalConfidence})" : "-",
+                        Distinct = string.IsNullOrWhiteSpace(candidate.ExternalSummary) ? "-" : candidate.ExternalSummary,
+                        Content = candidate.LikelyImpersonating ? $"Likely ({candidate.ContentSimilarityScore})" : (candidate.ContentSimilarityScore > 0 ? candidate.ContentSimilarityScore.ToString() : "-"),
+                        Similarity = string.IsNullOrWhiteSpace(candidate.ContentSimilaritySummary) ? "-" : candidate.ContentSimilaritySummary,
+                        Visual = candidate.LikelyVisualClone ? $"Likely ({candidate.VisualSimilarityScore})" : (candidate.VisualSimilarityScore > 0 ? candidate.VisualSimilarityScore.ToString() : "-"),
+                        VisualType = string.IsNullOrWhiteSpace(candidate.VisualMatchType) ? "-" : candidate.VisualMatchType,
+                        VisualDiff = candidate.VisualSimilarityDistance?.ToString() ?? "-",
+                        VisualSummary = string.IsNullOrWhiteSpace(candidate.VisualSimilaritySummary) ? "-" : candidate.VisualSimilaritySummary,
+                        Enrichment = string.IsNullOrWhiteSpace(candidate.EnrichmentSummary) ? "-" : candidate.EnrichmentSummary
+                    })
+                    .ToList();
+                column.TableFrom(rows, title: "Candidates", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (projection != null && projection.Findings.Count > 0)
+            {
+                var findings = projection.Findings.Select(finding => new { finding.Severity, finding.Code, finding.Target, finding.Message }).ToList();
+                column.TableFrom(findings, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+        };
+    }
+
     private static Action<SheetComposer.ColumnComposer>? BuildCaaBlock(DomainBucket bucket)
     {
         if (bucket.Caa == null)

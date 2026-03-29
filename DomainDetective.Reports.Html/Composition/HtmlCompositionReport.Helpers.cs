@@ -138,6 +138,7 @@ public static partial class HtmlCompositionReport {
         Add(ref warn, ref err, b.Http?.WarningCount ?? 0, b.Http?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.IpEnrichment?.WarningCount ?? 0, b.IpEnrichment?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Microsoft365?.WarningCount ?? 0, b.Microsoft365?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Typosquatting?.WarningCount ?? 0, b.Typosquatting?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Mtasts?.WarningCount ?? 0, b.Mtasts?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.TlsRpt?.WarningCount ?? 0, b.TlsRpt?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.TlsRptReports?.WarningCount ?? 0, b.TlsRptReports?.ErrorCount ?? 0);
@@ -233,6 +234,7 @@ public static partial class HtmlCompositionReport {
         foreach (var a in FromList(b.DnsAmplification?.Assessments)) yield return a;
         foreach (var a in FromList(b.DnsOverTls?.Assessments)) yield return a;
         foreach (var a in FromList(b.Microsoft365?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Typosquatting?.Assessments)) yield return a;
         foreach (var a in FromList(b.Classification?.Assessments)) yield return a;
         foreach (var a in FromList(b.Arc?.Assessments)) yield return a;
         foreach (var a in FromList(b.Bimi?.Assessments)) yield return a;
@@ -453,6 +455,7 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.HttpInfo? Http { get; set; }
         public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
         public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
+        public DomainDetective.Views.TyposquattingInfo? Typosquatting { get; set; }
         public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
         public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
         public DomainDetective.Views.TtlInfo? Ttl { get; set; }
@@ -549,6 +552,7 @@ public static partial class HtmlCompositionReport {
             Http = s.Http,
             IpEnrichment = s.IpEnrichment,
             Microsoft365 = s.Microsoft365,
+            Typosquatting = s.Typosquatting,
             Ttl = s.Ttl
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);

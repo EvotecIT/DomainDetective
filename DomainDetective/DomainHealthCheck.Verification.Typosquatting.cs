@@ -21,6 +21,28 @@ namespace DomainDetective {
             TyposquattingAnalysis.DetectHomoglyphs = EnableHomoglyphDetection;
             TyposquattingAnalysis.BrandKeywords.Clear();
             TyposquattingAnalysis.BrandKeywords.AddRange(TyposquattingBrandKeywords);
+            TyposquattingAnalysis.EnrichmentOptions.MaxCandidates = TyposquattingEnableEnrichment ? TyposquattingEnrichmentMaxCandidates : 0;
+            TyposquattingAnalysis.EnrichmentOptions.MaxParallelism = TyposquattingEnrichmentMaxParallelism;
+            TyposquattingAnalysis.EnrichmentOptions.IncludeWhois = TyposquattingEnrichWhois;
+            TyposquattingAnalysis.EnrichmentOptions.IncludeHttp = TyposquattingEnrichHttp || TyposquattingEnableContentSimilarity;
+            TyposquattingAnalysis.EnrichmentOptions.IncludeIpEnrichment = TyposquattingEnrichIp;
+            TyposquattingAnalysis.EnrichmentOptions.IncludeWebStaticScan = TyposquattingEnrichWebStaticScan || (TyposquattingEnableContentSimilarity && TyposquattingSimilarityIncludeWebStaticScan);
+            TyposquattingAnalysis.EnrichmentOptions.IncludeThreatIntel = TyposquattingEnrichThreatIntel;
+            TyposquattingAnalysis.EnrichmentOptions.CaptureHttpBody = TyposquattingCaptureHttpBody || TyposquattingEnableContentSimilarity;
+            TyposquattingAnalysis.EnrichmentOptions.GoogleSafeBrowsingApiKey = GoogleSafeBrowsingApiKey;
+            TyposquattingAnalysis.EnrichmentOptions.PhishTankApiKey = PhishTankApiKey;
+            TyposquattingAnalysis.EnrichmentOptions.VirusTotalApiKey = VirusTotalApiKey;
+            TyposquattingAnalysis.OwnershipProfileOptions.Enabled = TyposquattingCompareOwnershipSignals;
+            TyposquattingAnalysis.OwnershipProfileOptions.IncludeWhois = TyposquattingOwnershipIncludeWhois;
+            TyposquattingAnalysis.OwnershipProfileOptions.IncludeIpEnrichment = TyposquattingOwnershipIncludeIp;
+            TyposquattingAnalysis.ContentSimilarityOptions.Enabled = TyposquattingEnableContentSimilarity;
+            TyposquattingAnalysis.ContentSimilarityOptions.IncludeWebStaticScan = TyposquattingSimilarityIncludeWebStaticScan;
+            TyposquattingAnalysis.VisualSimilarityOptions.Enabled = TyposquattingEnableVisualSimilarity;
+            TyposquattingAnalysis.VisualSimilarityOptions.MaxCandidates = TyposquattingVisualMaxCandidates;
+            TyposquattingAnalysis.VisualSimilarityOptions.MaxParallelism = TyposquattingVisualMaxParallelism;
+            TyposquattingAnalysis.VisualSimilarityOptions.EnableStaticAssetCapture = TyposquattingVisualUseStaticAssetCapture;
+            TyposquattingAnalysis.VisualSimilarityOptions.MaxAssetBytes = TyposquattingVisualMaxAssetBytes;
+            TyposquattingAnalysis.VisualSimilarityOptions.MaxAssetsPerPage = TyposquattingVisualMaxAssetsPerPage;
             await TyposquattingAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
     }
