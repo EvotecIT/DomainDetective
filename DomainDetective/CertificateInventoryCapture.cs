@@ -995,15 +995,17 @@ public sealed partial class CertificateInventoryCapture {
                     if (TryBuildHttpsEndpointKey(target, out var key) &&
                         recentByEndpoint.TryGetValue(key, out var cached) &&
                         TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure)) {
-                        ApplyEntryProvenance(
-                            cached.Entry,
-                            GetTrackedOrigins(httpsTargetOriginsByEndpointKey, key),
-                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess,
-                            replaceTargetOrigins: true);
-                        cachedEntries.Add(cached.Entry);
-                        reusedHttps++;
                         if (reusedStableFailure) {
+                            ApplyEntryProvenance(
+                                cached.Entry,
+                                GetTrackedOrigins(httpsTargetOriginsByEndpointKey, key),
+                                CaptureDispositionReusedRecentStableFailure,
+                                replaceTargetOrigins: true);
+                            cachedEntries.Add(cached.Entry);
+                            reusedHttps++;
                             reusedStableFailureHttps++;
+                        } else {
+                            filteredHttps.Add(target);
                         }
                     } else {
                         filteredHttps.Add(target);
@@ -1016,15 +1018,17 @@ public sealed partial class CertificateInventoryCapture {
                     var key = BuildEndpointKey(target.Host, target.Port, target.Service);
                     if (recentByEndpoint.TryGetValue(key, out var cached) &&
                         TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure)) {
-                        ApplyEntryProvenance(
-                            cached.Entry,
-                            target.TargetOrigins,
-                            reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess,
-                            replaceTargetOrigins: true);
-                        cachedEntries.Add(cached.Entry);
-                        reusedMail++;
                         if (reusedStableFailure) {
+                            ApplyEntryProvenance(
+                                cached.Entry,
+                                target.TargetOrigins,
+                                CaptureDispositionReusedRecentStableFailure,
+                                replaceTargetOrigins: true);
+                            cachedEntries.Add(cached.Entry);
+                            reusedMail++;
                             reusedStableFailureMail++;
+                        } else {
+                            filteredMail.Add(target);
                         }
                     } else {
                         filteredMail.Add(target);
@@ -1060,6 +1064,56 @@ public sealed partial class CertificateInventoryCapture {
         var mailTargetCountDroppedByLimit = Math.Max(0, mailTargetCountBeforeLimit - mailTargets.Count);
         httpsTargetsToProbe = httpsTargets.ToList();
         mailTargetsToProbe = mailTargets.Values.ToList();
+
+        if (ShouldLoadRecentSnapshotEntries(options) && recentByEndpoint.Count > 0) {
+            var now = DateTimeOffset.UtcNow;
+
+            var filteredHttps = new List<string>(httpsTargetsToProbe.Count);
+            foreach (var target in httpsTargetsToProbe) {
+                if (TryBuildHttpsEndpointKey(target, out var key) &&
+                    recentByEndpoint.TryGetValue(key, out var cached) &&
+                    TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure) &&
+                    !reusedStableFailure) {
+                    ApplyEntryProvenance(
+                        cached.Entry,
+                        GetTrackedOrigins(httpsTargetOriginsByEndpointKey, key),
+                        CaptureDispositionReusedRecentSuccess,
+                        replaceTargetOrigins: true);
+                    cachedEntries.Add(cached.Entry);
+                    reusedHttps++;
+                } else {
+                    filteredHttps.Add(target);
+                }
+            }
+            httpsTargetsToProbe = filteredHttps;
+
+            var filteredMail = new List<MailEndpointTarget>(mailTargetsToProbe.Count);
+            foreach (var target in mailTargetsToProbe) {
+                var key = BuildEndpointKey(target.Host, target.Port, target.Service);
+                if (recentByEndpoint.TryGetValue(key, out var cached) &&
+                    TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure) &&
+                    !reusedStableFailure) {
+                    ApplyEntryProvenance(
+                        cached.Entry,
+                        target.TargetOrigins,
+                        CaptureDispositionReusedRecentSuccess,
+                        replaceTargetOrigins: true);
+                    cachedEntries.Add(cached.Entry);
+                    reusedMail++;
+                } else {
+                    filteredMail.Add(target);
+                }
+            }
+            mailTargetsToProbe = filteredMail;
+
+            logger.WriteVerbose(
+                "Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}, StableFailureHTTPS: {3}, StableFailureMail: {4}).",
+                reusedHttps + reusedMail,
+                reusedHttps,
+                reusedMail,
+                reusedStableFailureHttps,
+                reusedStableFailureMail);
+        }
 
         AdvanceStage("Endpoint expansion");
         logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
