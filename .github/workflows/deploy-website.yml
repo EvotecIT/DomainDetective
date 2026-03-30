@@ -1,0 +1,28 @@
+name: Deploy Website
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "Website/**"
+      - ".github/workflows/deploy-website.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  website-deploy:
+    uses: EvotecIT/PSPublishModule/.github/workflows/powerforge-website-deploy.yml@06fbc3f015c2da91bb1b49e1a1323c21aced7cdf
+    with:
+      website_root: Website
+      pipeline_config: Website/pipeline.json
+      site_output_path: Website/_site
+      runner_labels_json: ${{ github.event.repository.private && '["self-hosted","linux"]' || '["ubuntu-latest"]' }}
+      powerforge_ref: 06fbc3f015c2da91bb1b49e1a1323c21aced7cdf
+      powerforge_web_tag: PowerForgeWeb-v1.0.0-preview
+    secrets:
+      indexnow_key: ${{ secrets.INDEXNOW_KEY }}
