@@ -12,8 +12,8 @@
     <ResultCard Title="MTA-STS posture" Status="@GetStatus(view)">
         @if (isBrowserLimited) {
             <div class="tool-callout tool-callout-inline">
-                <strong>Browser-safe MTA-STS bootstrap</strong>
-                <p>This web edition validates the published DNS bootstrap record only. Policy hosting, policy parsing, and MX-policy coverage need the hosted check.</p>
+                <strong>Web edition MTA-STS bootstrap</strong>
+                <p>This web edition validates the published DNS bootstrap record only. Policy hosting, policy parsing, and MX-policy coverage need the deeper online run.</p>
             </div>
         }
 
@@ -26,11 +26,11 @@
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Policy status</span>
                 <strong class="tool-summary-value">@(isBrowserLimited ? "Unavailable online" : FormatText(view.Mode, "Missing"))</strong>
-                <p class="tool-summary-note">@(isBrowserLimited ? "Full policy fetch is not part of the browser-safe pass" : $"Max age: {FormatMaxAge(view.MaxAge)}")</p>
+                <p class="tool-summary-note">@(isBrowserLimited ? "Full policy fetch is not part of the web-edition pass" : $"Max age: {FormatMaxAge(view.MaxAge)}")</p>
             </div>
             <div class="tool-summary-card">
                 <span class="tool-summary-label">MX coverage</span>
-                <strong class="tool-summary-value">@(isBrowserLimited ? "Await hosted run" : (view.MxAligned ? "Aligned" : "Needs review"))</strong>
+                <strong class="tool-summary-value">@(isBrowserLimited ? "Needs deeper online run" : (view.MxAligned ? "Aligned" : "Needs review"))</strong>
                 <p class="tool-summary-note">@(isBrowserLimited ? "Requires the fetched policy and MX correlation" : $"Missing hosts: {view.MissingMxFromPolicy.Length}")</p>
             </div>
         </div>
@@ -60,7 +60,7 @@
         <ResultCard Title="Published policy" Status="ResultCard.ResultStatus.Info">
             <div class="tool-callout">
                 <strong>Not fetched in this web edition</strong>
-                <p>The browser-safe pass confirms whether the DNS bootstrap record exists and is valid. The hosted DD run fetches and validates the policy file itself.</p>
+                <p>The web-edition pass confirms whether the DNS bootstrap record exists and is valid. The deeper DD run fetches and validates the policy file itself.</p>
             </div>
         </ResultCard>
     }
@@ -69,7 +69,7 @@
         <ResultCard Title="Policy coverage" Status="ResultCard.ResultStatus.Info">
             @if (isBrowserLimited) {
                 <div class="tool-callout">
-                    <strong>Full policy coverage needs the hosted DD run</strong>
+                    <strong>Full policy coverage needs the deeper DD run</strong>
                     <p>MX pattern coverage, enforce mode, and missing-policy-host checks depend on fetching the policy file and correlating it with live MX results.</p>
                 </div>
             } else {

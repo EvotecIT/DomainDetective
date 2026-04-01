@@ -27,7 +27,7 @@
                     <p>
                         The web edition keeps the DNS, mail, and lightweight overview tools live in the browser.
                         Deeper web-response, certificate, registration, and larger discovery checks stay visible here as advanced online features,
-                        and the same tool pages unlock automatically when the hosted version is enabled.
+                        and the same tool pages unlock automatically when the full online experience is enabled.
                     </p>
                 </div>
 
@@ -35,17 +35,17 @@
                     <article class="tools-edition-guide-card tools-edition-guide-card-available">
                         <span class="tools-edition-guide-kicker">Available now</span>
                         <strong>@GetAvailableNowCount() live tools</strong>
-                        <p>Runs fully in this web edition using browser-safe DD checks.</p>
+                        <p>Runs fully in this web edition using live DD checks that work directly in the browser.</p>
                     </article>
 
                     <article class="tools-edition-guide-card tools-edition-guide-card-partial">
-                        <span class="tools-edition-guide-kicker">Browser-safe preview</span>
+                        <span class="tools-edition-guide-kicker">Adaptive web mode</span>
                         <strong>@GetBrowserSafePartialCount() adaptive tools</strong>
-                        <p>Same tool page, with browser-safe sections live and deeper sections clearly marked.</p>
+                        <p>Same tool page, with web-ready sections live and deeper sections clearly marked.</p>
                     </article>
 
                     <article class="tools-edition-guide-card tools-edition-guide-card-hosted">
-                        <span class="tools-edition-guide-kicker">Hosted tools</span>
+                        <span class="tools-edition-guide-kicker">Advanced online tools</span>
                         <strong>@_hostedPreviewTools.Count deeper tools</strong>
                         <p>Kept visible for discovery, with feature previews and related live tools instead of broken pages.</p>
                     </article>
@@ -54,8 +54,8 @@
 
             <div class="tools-edition-summary">
                 <span class="tools-edition-pill">Available now: @GetAvailableNowCount()</span>
-                <span class="tools-edition-pill">Browser-safe partials: @GetBrowserSafePartialCount()</span>
-                <span class="tools-edition-pill">Hosted previews: @_hostedPreviewTools.Count</span>
+                <span class="tools-edition-pill">Adaptive web tools: @GetBrowserSafePartialCount()</span>
+                <span class="tools-edition-pill">Advanced online tools: @_hostedPreviewTools.Count</span>
             </div>
         }
 
@@ -68,9 +68,9 @@
                 <div class="tools-edition-panel">
                     <div class="tools-edition-header">
                         <h2>Advanced Online Matches</h2>
-                        <p>These matches belong to the hosted tools. They stay visible here so people can discover them without hitting a broken result.</p>
+                        <p>These matches belong to the advanced online tools. They stay visible here so people can discover them without hitting a broken result.</p>
                     </div>
-                    <ToolCategoryGrid Tools="_filteredHostedPreviewTools" EnableLinks="false" ToolBadgeText="Hosted" DeploymentMode="Availability.Mode" />
+                    <ToolCategoryGrid Tools="_filteredHostedPreviewTools" EnableLinks="false" ToolBadgeText="Advanced" DeploymentMode="Availability.Mode" />
                 </div>
             }
 
@@ -85,10 +85,10 @@
             @if (Availability.IsStaticOnly && _hostedPreviewTools.Count > 0) {
                 <div class="tools-edition-panel">
                     <div class="tools-edition-header">
-                        <h2>Hosted Tools</h2>
-                        <p>These deeper checks are part of the hosted tools. The web edition keeps the browser-safe tools live and leaves the heavier checks here as product previews.</p>
+                        <h2>Advanced Online Tools</h2>
+                        <p>These deeper checks are part of the advanced online experience. The web edition keeps the web-ready tools live and leaves the heavier checks here as product previews.</p>
                     </div>
-                    <ToolCategoryGrid Tools="_hostedPreviewTools" EnableLinks="false" ToolBadgeText="Hosted" DeploymentMode="Availability.Mode" />
+                    <ToolCategoryGrid Tools="_hostedPreviewTools" EnableLinks="false" ToolBadgeText="Advanced" DeploymentMode="Availability.Mode" />
                 </div>
             }
         }

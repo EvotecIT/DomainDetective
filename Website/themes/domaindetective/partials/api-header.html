@@ -40,6 +40,19 @@
 })();
 </script>
 <style>
+.dd-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dd-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.75rem;
+}
+
 .dd-nav-links > a,
 .dd-nav-links .nav-dropdown-trigger {
   color: var(--pf-muted);
@@ -53,6 +66,90 @@
 
 .dd-nav-actions .nav-cta {
   border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.imo-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.imo-nav__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.5rem;
+  padding: 0.65rem 0.8rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--pf-muted);
+  text-decoration: none;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.imo-nav__link:hover,
+.imo-nav__link:focus-visible,
+.imo-nav__item.open > .imo-nav__link {
+  color: var(--pf-ink-strong);
+  background: rgba(0, 217, 255, 0.08);
+  outline: none;
+}
+
+.imo-chevron {
+  flex-shrink: 0;
+}
+
+.imo-dropdown {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 120;
+  min-width: 15rem;
+  padding: 0.9rem;
+  display: none;
+  border: 1px solid var(--pf-border);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--pf-surface) 94%, transparent);
+  box-shadow: 0 20px 38px rgba(8, 17, 31, 0.34);
+}
+
+.imo-nav__item:hover > .imo-dropdown,
+.imo-nav__item:focus-within > .imo-dropdown,
+.imo-nav__item.open > .imo-dropdown {
+  display: block;
+}
+
+.imo-dropdown__group {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.imo-dropdown__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--pf-muted-strong);
+}
+
+.imo-dropdown__link {
+  display: block;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.75rem;
+  color: var(--pf-ink);
+  text-decoration: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.imo-dropdown__link:hover,
+.imo-dropdown__link:focus-visible {
+  background: rgba(0, 217, 255, 0.08);
+  color: var(--pf-ink-strong);
+  outline: none;
 }
 </style>
 <header class="dd-header">

@@ -13,7 +13,7 @@
             <div class="category-tools">
                 @foreach (var tool in categoryTools) {
                     @if (EnableLinks) {
-                        <a href="@($"{tool.Slug}/")" class="category-tool-link">
+                        <a href="@($"/tools/{tool.Slug}/")" class="category-tool-link">
                             <span class="category-tool-name">@tool.Name</span>
                             @if (TryGetToolBadge(tool) is { } badge) {
                                 <span class="@badge.CssClass">@badge.Text</span>
@@ -56,10 +56,10 @@
         }
 
         if (tool.HostedCompatible && !tool.BrowserCompatible) {
-            return new ToolBadge("Preview", "category-tool-badge category-tool-badge-partial");
+            return new ToolBadge("Adaptive", "category-tool-badge category-tool-badge-partial");
         }
 
-        return new ToolBadge("Live", "category-tool-badge category-tool-badge-available");
+        return new ToolBadge("Available", "category-tool-badge category-tool-badge-available");
     }
 
     private sealed record ToolBadge(string Text, string CssClass);

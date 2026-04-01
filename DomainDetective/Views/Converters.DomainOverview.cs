@@ -72,8 +72,9 @@ public static partial class Converters {
         RdapInfo rdap,
         DnsblInfo dnsbl,
         SubdomainsInfo subdomains,
-        IEnumerable<Assessment> assessmentsSource) {
-        var assessments = assessmentsSource.ToArray();
+        IEnumerable<Assessment> assessmentsSource,
+        bool browserLimited = false) {
+        var assessments = OverviewAssessmentFilter.ForOverview(assessmentsSource, browserLimited).ToArray();
         var summary = BuildDomainSummary(spf, dkim, dmarc, mx, dnssec, rdap);
 
         int infoCount = 0;
@@ -171,8 +172,8 @@ public static partial class Converters {
             WebRegistrationChecks = webRegistrationChecks,
             Highlights = highlights.Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             Assessments = assessments,
-            Recommendations = RecommendationEngine.FromProblems(assessments),
-            Positives = RecommendationEngine.FromPositives(assessments)
+            Recommendations = OverviewRecommendationFilter.ForProblems(assessments),
+            Positives = OverviewRecommendationFilter.ForPositives(assessments)
         };
     }
 

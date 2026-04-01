@@ -45,11 +45,12 @@ public sealed class BrowserOverviewService {
             Converters.Convert(healthCheck.DaneAnalysis),
             DnsSecConverter.Convert(healthCheck.DnsSecAnalysis),
             Converters.Convert(healthCheck.NSAnalysis),
-            assessments);
+            assessments,
+            browserLimited: true);
 
         overview.IsPartial = false;
         overview.IsBrowserLimited = true;
-        overview.StageLabel = "Browser-safe overview ready";
+        overview.StageLabel = "Web edition overview ready";
         overview.GeneratedAtUtc = generatedAtUtc;
         overview.CompletedAtUtc = generatedAtUtc;
         overview.PendingSections = Array.Empty<string>();
@@ -102,11 +103,12 @@ public sealed class BrowserOverviewService {
             new RdapInfo(),
             Converters.Convert(healthCheck.DNSBLAnalysis),
             new SubdomainsInfo(),
-            assessments);
+            assessments,
+            browserLimited: true);
 
         overview.IsPartial = false;
         overview.IsBrowserLimited = true;
-        overview.StageLabel = "Browser-safe overview ready";
+        overview.StageLabel = "Web edition overview ready";
         overview.GeneratedAtUtc = generatedAtUtc;
         overview.CompletedAtUtc = generatedAtUtc;
         overview.PendingSections = Array.Empty<string>();
@@ -127,14 +129,14 @@ public sealed class BrowserOverviewService {
             highlights.Add($"Detected {dnsInventory.DetectedDnsApplications.Count} DNS application hint(s).");
         }
 
-        highlights.Add("Static browser edition: identity, tenant, and auth probing are unavailable.");
+        highlights.Add("Web edition: identity, tenant, and auth probing are unavailable.");
 
         return new Microsoft365TenantInfo {
             Subject = domainName,
             TenantName = domainName,
             DetectedDnsApplications = dnsInventory.DetectedDnsApplications,
             Highlights = highlights,
-            Summary = "Web edition Microsoft 365 preview built from public DNS and mail posture only."
+            Summary = "Web edition Microsoft 365 overview built from public DNS and mail posture only."
         };
     }
 }

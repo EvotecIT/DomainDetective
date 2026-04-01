@@ -37,8 +37,9 @@ public static partial class Converters {
         DaneRecordInfo dane,
         DnsSecInfo dnssec,
         NsInfo ns,
-        IEnumerable<Assessment> assessmentsSource) {
-        var assessments = assessmentsSource.ToArray();
+        IEnumerable<Assessment> assessmentsSource,
+        bool browserLimited = false) {
+        var assessments = OverviewAssessmentFilter.ForOverview(assessmentsSource, browserLimited).ToArray();
         var warnings = assessments.Count(static assessment => assessment.Severity == AssessmentSeverity.Warning);
         var errors = assessments.Count(static assessment => assessment.Severity == AssessmentSeverity.Error);
 
@@ -92,8 +93,8 @@ public static partial class Converters {
             MailDnsChecks = checks,
             Highlights = highlights.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             Assessments = assessments,
-            Recommendations = RecommendationEngine.FromProblems(assessments),
-            Positives = RecommendationEngine.FromPositives(assessments)
+            Recommendations = OverviewRecommendationFilter.ForProblems(assessments),
+            Positives = OverviewRecommendationFilter.ForPositives(assessments)
         };
     }
 

@@ -6,7 +6,7 @@ namespace DomainDetective.Toolbox.Components.Tools.Overview;
 
 internal static class OverviewRecommendationPresentation
 {
-    public static IReadOnlyList<DomainOverviewDetailCardView> BuildCards(IReadOnlyList<RecommendationAdvice>? items, int take = 6)
+    public static IReadOnlyList<DomainOverviewDetailCardView> BuildProblemCards(IReadOnlyList<RecommendationAdvice>? items, int take = 6)
     {
         if (items == null || items.Count == 0 || take <= 0)
         {
@@ -15,19 +15,43 @@ internal static class OverviewRecommendationPresentation
 
         return items
             .Take(take)
-            .Select(BuildCard)
+            .Select(static item => BuildCard(item, isPositive: false))
             .ToArray();
     }
 
-    private static DomainOverviewDetailCardView BuildCard(RecommendationAdvice advice)
+    public static IReadOnlyList<DomainOverviewDetailCardView> BuildPositiveCards(IReadOnlyList<RecommendationAdvice>? items, int take = 6)
     {
-        var tags = new List<string>
+        if (items == null || items.Count == 0 || take <= 0)
         {
-            "Domain: " + FormatDomain(advice.Domain),
-            "Effort: " + advice.Effort
-        };
+            return Array.Empty<DomainOverviewDetailCardView>();
+        }
 
-        if (!string.IsNullOrWhiteSpace(advice.Impact))
+        return items
+            .Take(take)
+            .Select(static item => BuildCard(item, isPositive: true))
+            .ToArray();
+    }
+
+    private static DomainOverviewDetailCardView BuildCard(RecommendationAdvice advice, bool isPositive)
+    {
+        var tags = new List<string>();
+
+        var domainTag = FormatDomainTag(advice.Domain);
+        if (!string.IsNullOrWhiteSpace(domainTag))
+        {
+            tags.Add(domainTag);
+        }
+
+        if (isPositive)
+        {
+            tags.Add("Keep in place");
+        }
+        else
+        {
+            tags.Add("Effort: " + advice.Effort);
+        }
+
+        if (!isPositive && !string.IsNullOrWhiteSpace(advice.Impact))
         {
             tags.Add("Impact: " + advice.Impact);
         }
@@ -63,8 +87,12 @@ internal static class OverviewRecommendationPresentation
         return new DomainOverviewDetailCardView
         {
             Title = advice.Title,
-            ValueLabel = FormatValueLabel(advice),
-            Summary = string.IsNullOrWhiteSpace(advice.Why) ? "DD identified this as a posture item worth tracking." : advice.Why,
+            ValueLabel = FormatValueLabel(advice, isPositive),
+            Summary = string.IsNullOrWhiteSpace(advice.Why)
+                ? isPositive
+                    ? "DD confirmed this as a positive posture signal."
+                    : "DD identified this as a posture item worth tracking."
+                : advice.Why,
             Tags = tags.Where(static value => !string.IsNullOrWhiteSpace(value)).ToArray(),
             Samples = samples.Where(static value => !string.IsNullOrWhiteSpace(value)).ToArray()
         };
@@ -76,12 +104,24 @@ internal static class OverviewRecommendationPresentation
         {
             RecommendationDomain.EmailAuth => "Email auth",
             RecommendationDomain.ThreatIntel => "Threat intel",
+            RecommendationDomain.Other => string.Empty,
             _ => domain.ToString()
         };
     }
 
-    private static string FormatValueLabel(RecommendationAdvice advice)
+    private static string? FormatDomainTag(RecommendationDomain domain)
     {
+        var formatted = FormatDomain(domain);
+        return string.IsNullOrWhiteSpace(formatted) ? null : "Area: " + formatted;
+    }
+
+    private static string FormatValueLabel(RecommendationAdvice advice, bool isPositive)
+    {
+        if (isPositive)
+        {
+            return string.Empty;
+        }
+
         if (!string.IsNullOrWhiteSpace(advice.Impact))
         {
             return advice.Impact;

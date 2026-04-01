@@ -33,7 +33,7 @@ p { color: var(--pf-muted); margin: 0 0 1rem; }
 .api-layout {
   display: grid;
   grid-template-columns: 260px 1fr;
-  min-height: calc(100vh - 64px);
+  min-height: calc(100vh - var(--header-height));
   max-width: var(--pf-max-width);
   margin: 0 auto;
 }
@@ -74,8 +74,8 @@ p { color: var(--pf-muted); margin: 0 0 1rem; }
   border-right: 1px solid var(--pf-border);
   padding: 1.25rem 0;
   position: sticky;
-  top: 64px;
-  height: calc(100vh - 64px);
+  top: var(--header-height);
+  height: calc(100vh - var(--header-height));
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1546,7 +1546,7 @@ body.pf-api-docs .type-detail-rail .type-toc ul::-webkit-scrollbar-thumb:hover {
   .api-sidebar {
     display: none;
     position: fixed;
-    top: 64px;
+    top: var(--header-height);
     left: 0;
     bottom: 0;
     width: 280px;

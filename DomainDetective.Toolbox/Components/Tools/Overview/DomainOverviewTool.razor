@@ -35,15 +35,15 @@
     var exposureEntries = DomainOverviewPresentation.BuildExposureEntries(subdomainInfo)
         .Take(12)
         .ToList();
-    var attentionCards = OverviewRecommendationPresentation.BuildCards(Info?.Recommendations);
-    var positiveCards = OverviewRecommendationPresentation.BuildCards(Info?.Positives);
+    var attentionCards = OverviewRecommendationPresentation.BuildProblemCards(Info?.Recommendations);
+    var positiveCards = OverviewRecommendationPresentation.BuildPositiveCards(Info?.Positives);
     var noAttentionControlCard = OverviewEmptyStatePresentation.BuildCard("Controls needing follow-up", "No flagged controls", "DD did not identify a failing or warning control in the current overview set.", new[] { "Current baseline is stable" });
     var noHealthyControlCard = OverviewEmptyStatePresentation.BuildCard("Healthy controls", "No clean pass state", "The current DD run did not return a clean pass state for a core control yet, so the dashboard is waiting on stronger healthy evidence.", new[] { "Review the mail, web, and evidence sections" });
-    var noAttentionPlanCard = OverviewEmptyStatePresentation.BuildCard("Needs attention", "No high-priority remediation", "The current DD overview did not flag a high-priority remediation item.", new[] { "Use posture notes and control cards for the next review step" });
-    var noPositivePlanCard = OverviewEmptyStatePresentation.BuildCard("Confirmed strengths", "No explicit positive item", "This scan completed, but DD did not emit a separate positive guidance item in the current assessment set.", new[] { "Healthy controls still document the strongest areas" });
+    var noAttentionPlanCard = OverviewEmptyStatePresentation.BuildCard("Do next", "No high-priority remediation", "The current DD overview did not flag a high-priority remediation item.", new[] { "Use posture notes and control cards for the next review step" });
+    var noPositivePlanCard = OverviewEmptyStatePresentation.BuildCard("Keep in place", "No separate positive item", "This scan completed, but DD did not emit a separate positive guidance item in the current assessment set.", new[] { "Healthy controls still document the strongest areas" });
     var noExposureCard = OverviewEmptyStatePresentation.BuildCard("Subdomain samples", "No detailed exposure entries", "DD did not produce detailed exposure entries for the current run, so only the observed subdomain sample list is available.", new[] { "Subdomain discovery may be intentionally sparse" });
     var noApplicationsCard = OverviewEmptyStatePresentation.BuildCard("Detected applications", "No application footprint", "DD did not match a provider or application fingerprint for this domain in the current run.", new[] { "Review provider, mail, and exposure sections for the strongest available evidence" });
-    var noEvidenceCard = OverviewEmptyStatePresentation.BuildCard("Evidence ledger", "No DD evidence cards", "DD did not emit section-level evidence cards for this run yet, so the overview is currently leaning on the control and posture sections.", new[] { "A deeper hosted scan can expand evidence coverage" });
+    var noEvidenceCard = OverviewEmptyStatePresentation.BuildCard("Evidence ledger", "No DD evidence cards", "DD did not emit section-level evidence cards for this run yet, so the overview is currently leaning on the control and posture sections.", new[] { "A deeper online scan can expand evidence coverage" });
     var noAssessmentsCard = OverviewEmptyStatePresentation.BuildCard("Assessments", "No DD assessments", "This domain run completed without DD assessments, warnings, or positive guidance items to display.", new[] { "Use the posture notes and control sections as the current source of truth" });
 }
 
@@ -51,14 +51,14 @@
 @if (Info.IsBrowserLimited) {
     <div class="tool-callout tool-callout-inline">
         <strong>Web edition overview</strong>
-        <p>This view uses the DD checks that run cleanly in the browser. The deeper sections stay visible below and explain when the broader online check is needed.</p>
+        <p>This view uses the DD checks that run cleanly in the browser. Sections that need deeper online validation stay visible below and are marked clearly.</p>
     </div>
 }
 
 @if (Info.IsPartial) {
     <div class="tool-callout tool-callout-inline">
-        <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "Preview ready" : Info.StageLabel)</strong>
-        <p>The first DD pass is already on the page. The full report is still loading for: @string.Join(", ", Info.PendingSections).</p>
+        <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "First pass ready" : Info.StageLabel)</strong>
+        <p>The first DD pass is already on the page. Detailed sections are still loading for: @string.Join(", ", Info.PendingSections).</p>
     </div>
 }
 
@@ -66,12 +66,12 @@
     <div class="tool-meta-row">
         <span class="tool-meta-pill">Updated @FormatUtc(Info.GeneratedAtUtc)</span>
         <span class="tool-meta-pill">Age @FormatAge(Info.GeneratedAtUtc)</span>
-        <span class="tool-meta-pill">@(Info.ServedFromCache ? "Cached result" : "Fresh scan")</span>
-        <span class="tool-meta-pill">@(Info.IsPartial ? "Preview" : "Complete")</span>
+        <span class="tool-meta-pill">@(Info.ServedFromCache ? "Saved result" : "Live result")</span>
+        <span class="tool-meta-pill">@(Info.IsPartial ? "First pass" : "Full report")</span>
         @if (Info.CompletedAtUtc.HasValue) {
             <span class="tool-meta-pill">Completed @FormatUtc(Info.CompletedAtUtc.Value)</span>
         } else if (Info.PendingSections.Count > 0) {
-            <span class="tool-meta-pill">@($"{Info.PendingSections.Count} sections pending")</span>
+            <span class="tool-meta-pill">@($"{Info.PendingSections.Count} sections loading")</span>
         }
     </div>
 }
@@ -79,7 +79,7 @@
 <div id="domain-snapshot" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span>
-    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "The baseline DD posture summary is already available.", "Snapshot remains available in the browser-safe edition.")</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "The baseline DD posture summary is already available.", "Snapshot remains available in the web edition.")</span>
 </div>
 <ResultCard Title="Domain posture overview" Status="@GetOverallStatus(Info!)">
     <div class="tool-section-grid">
@@ -145,7 +145,7 @@
 <ResultCard Title="Action plan" Status="ResultCard.ResultStatus.Info">
     <div class="tool-section-grid">
         <div class="tool-summary-card">
-            <span class="tool-summary-label">Needs attention</span>
+            <span class="tool-summary-label">Do next</span>
             @if (attentionCards.Count > 0) {
                 <div class="tool-stack">
                     @foreach (var card in attentionCards) {
@@ -163,7 +163,7 @@
             }
         </div>
         <div class="tool-summary-card">
-            <span class="tool-summary-label">Confirmed strengths</span>
+            <span class="tool-summary-label">Keep in place</span>
             @if (positiveCards.Count > 0) {
                 <div class="tool-stack">
                     @foreach (var card in positiveCards) {
@@ -177,14 +177,14 @@
     </div>
 </ResultCard>
 
-<ResultCard Title="Share result" Status="ResultCard.ResultStatus.Info">
+<ResultCard Title="Share and reopen" Status="ResultCard.ResultStatus.Info">
     <div class="tool-share-summary tool-share-summary-compact">
         <div class="tool-share-header">
             <div class="tool-share-header-copy">
                 <strong>Permalink and copy-ready summary</strong>
                 <p>Use this when you want to reopen the same result later or paste a short DD summary into a ticket or message.</p>
             </div>
-            <a class="tool-share-link" href="@GetPermalinkUrl()" target="_blank" rel="noopener">Open shareable link</a>
+            <a class="tool-share-link" href="@GetPermalinkUrl()" target="_blank" rel="noopener">Open result link</a>
         </div>
         <div class="tool-share-metrics">
             <span class="@GetShareRiskClass(Info)">@GetShareRiskLabel(Info)</span>
@@ -192,7 +192,7 @@
             <span class="tool-share-pill">Warnings @Info.WarningCount</span>
             <span class="tool-share-pill">Attention @attentionChecks.Count</span>
             <span class="@GetSharePendingClass(Info)">@GetSharePendingLabel(Info)</span>
-            <span class="@GetShareSourceClass(Info.ServedFromCache)">@(Info.ServedFromCache ? "Cached result" : "Fresh scan")</span>
+            <span class="@GetShareSourceClass(Info.ServedFromCache)">@(Info.ServedFromCache ? "Saved result" : "Live result")</span>
         </div>
         <div class="tool-share-actions">
             <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="CopySnapshotAsync">Copy summary</button>
@@ -517,7 +517,7 @@
 
     private static string BuildSummary(DomainOverviewInfo info) {
         if (info.IsBrowserLimited) {
-            return "Browser-safe DD overview built from DNS, mail, and application evidence. Web, certificate, registration, and exposure sections are unavailable in this edition.";
+            return "Web edition DD overview built from web-ready DNS, mail, and application evidence. Web, certificate, registration, and exposure sections are marked clearly when they need deeper online validation.";
         }
 
         var failing = info.MailDnsChecks.Count(static check => check.State == AggregateCheckState.Fail) +
@@ -531,8 +531,8 @@
 
     private string BuildShareableSnapshot() {
         var info = Info;
-        var source = info.ServedFromCache ? "Cached result" : "Fresh scan";
-        var stage = info.IsPartial ? "Preview" : "Complete";
+        var source = info.ServedFromCache ? "Saved result" : "Live result";
+        var stage = info.IsPartial ? "First pass" : "Full report";
         var pending = info.PendingSections.Count == 0 ? "None" : string.Join(", ", info.PendingSections);
         var unavailable = info.UnavailableSections.Count == 0 ? "None" : string.Join(", ", info.UnavailableSections);
         var provider = FormatProvider(info.MailProvider);
@@ -563,8 +563,8 @@
         var lines = new List<string> {
             $"Domain Detective domain red flags for {info.Subject}",
             $"Permalink: {Navigation.Uri}",
-            $"Stage: {(info.IsPartial ? "Preview" : "Complete")}",
-            $"Source: {(info.ServedFromCache ? "Cached result" : "Fresh scan")}",
+            $"Stage: {(info.IsPartial ? "First pass" : "Full report")}",
+            $"Source: {(info.ServedFromCache ? "Saved result" : "Live result")}",
             $"Risk: {GetShareRiskLabel(info)}",
             $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
             $"Warnings/Errors: {info.WarningCount}/{info.ErrorCount}",
@@ -667,7 +667,7 @@
             return "Unavailable";
         }
 
-        return isPending ? "Pending" : "Ready";
+        return isPending ? "Loading" : "Ready";
     }
 
     private static string GetShareRiskClass(DomainOverviewInfo info) {
@@ -692,11 +692,11 @@
         }
 
         if (info.UnavailableSections.Count > 0) {
-            return "Lite edition";
+            return "Web edition";
         }
 
         if (info.PendingSections.Count > 0) {
-            return "Preview";
+            return "First pass";
         }
 
         return "Healthy baseline";
@@ -718,8 +718,8 @@
         }
 
         return info.PendingSections.Count > 0
-            ? $"{info.PendingSections.Count} sections pending"
-            : "Complete";
+            ? $"{info.PendingSections.Count} sections loading"
+            : "Full report";
     }
 
     private static string GetShareSourceClass(bool servedFromCache) {
@@ -734,7 +734,7 @@
         }
 
         if (isPending) {
-            return "This section is still loading deeper evidence.";
+            return "Detailed checks for this section are still loading.";
         }
 
         if (info.IsPartial) {
@@ -746,9 +746,9 @@
 
     private static string GetUnavailableSectionMessage(string section) {
         return section switch {
-            "Web and registration" => "Web headers, certificates, security.txt, and registration data are unavailable in the browser-safe edition.",
-            "Exposure" => "Subdomain discovery is unavailable in the browser-safe edition.",
-            _ => "This section is unavailable in the browser-safe edition."
+            "Web and registration" => "Web headers, certificates, security.txt, and registration data are unavailable in the web edition.",
+            "Exposure" => "Subdomain discovery is unavailable in the web edition.",
+            _ => "This section is unavailable in the web edition."
         };
     }
 

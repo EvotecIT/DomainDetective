@@ -80,7 +80,7 @@ public sealed class ToolAvailabilityService {
     public string GetHomeDescription() {
         return Mode switch {
             ToolsDeploymentMode.HostedOnline => "Comprehensive domain security analysis across DNS, mail, web, registration, and exposure posture.",
-            _ => "Web-ready domain security analysis with live DNS, mail, and browser-safe overview checks."
+            _ => "Web-ready domain security analysis with live DNS, mail, and adaptive overview checks."
         };
     }
 

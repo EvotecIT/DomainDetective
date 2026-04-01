@@ -38,18 +38,18 @@
     var mailControlCards = OverviewControlPresentation.BuildAllCards(Info?.MailDnsChecks);
     var attentionControlCards = OverviewControlPresentation.BuildAttentionCards(allChecks);
     var healthyControlCards = OverviewControlPresentation.BuildHealthyCards(allChecks);
-    var attentionCards = OverviewRecommendationPresentation.BuildCards(Info?.Recommendations);
-    var positiveCards = OverviewRecommendationPresentation.BuildCards(Info?.Positives);
+    var attentionCards = OverviewRecommendationPresentation.BuildProblemCards(Info?.Recommendations);
+    var positiveCards = OverviewRecommendationPresentation.BuildPositiveCards(Info?.Positives);
     var noAttentionControlCard = OverviewEmptyStatePresentation.BuildCard("Controls needing follow-up", "No flagged controls", "DD did not surface a failing or warning mail or DNS control in this run.", new[] { "Mail and DNS baseline clean" });
     var noHealthyControlCard = OverviewEmptyStatePresentation.BuildCard("Healthy controls", "No clean pass state", "The current DD run did not return a clean pass state for a core control yet, so this dashboard is waiting on stronger healthy evidence.", new[] { "Review the control detail cards" });
-    var noAttentionPlanCard = OverviewEmptyStatePresentation.BuildCard("Needs attention", "No urgent remediation", "The current DD assessment set did not emit an urgent remediation item for this tenant.", new[] { "Continue with the recommended deep checks" });
-    var noPositivePlanCard = OverviewEmptyStatePresentation.BuildCard("Confirmed strengths", "No positive guidance emitted", "The run completed successfully, but DD did not emit a separate positive guidance item for this tenant in the current assessment set.", new[] { "Rely on the passing control and posture cards" });
+    var noAttentionPlanCard = OverviewEmptyStatePresentation.BuildCard("Do next", "No urgent remediation", "The current DD assessment set did not emit an urgent remediation item for this tenant.", new[] { "Continue with the recommended deep checks" });
+    var noPositivePlanCard = OverviewEmptyStatePresentation.BuildCard("Keep in place", "No separate positive item", "The run completed successfully, but DD did not emit a separate positive guidance item for this tenant in the current assessment set.", new[] { "Rely on the passing control and posture cards" });
     var noDetectedServiceCard = OverviewEmptyStatePresentation.BuildCard("Detected workloads", "No confident workload match", "No Microsoft 365 service family reached a confident detected state from the current public DD evidence.", new[] { "Review identity, domain, and evidence sections for weaker signals" });
     var allObservedServiceCard = OverviewEmptyStatePresentation.BuildCard("Not observed", "All modeled families observed", "All modeled Microsoft 365 service families produced public DD evidence in this run.", new[] { "Coverage is broad across the modeled workload set" });
     var noTenantDomainsCard = OverviewEmptyStatePresentation.BuildCard("Tenant domains", "No tenant-linked domains", "DD did not identify tenant-related domains from the current public Microsoft identity and namespace evidence.", new[] { "Review identity and evidence sections" });
     var noKnownSubdomainsCard = OverviewEmptyStatePresentation.BuildCard("Known subdomains", "No Microsoft-related subdomains", "DD did not identify a Microsoft-related subdomain pattern for this tenant in the current run.", new[] { "Public hostname footprint may be intentionally narrow" });
     var noAppsCard = OverviewEmptyStatePresentation.BuildCard("Detected DNS applications", "No application footprint", "DD did not match a DNS application or provider fingerprint for this tenant in the current run.", new[] { "Review domains and evidence for weaker Microsoft signals" });
-    var noEvidenceCard = OverviewEmptyStatePresentation.BuildCard("Evidence ledger", "No DD evidence cards", "DD did not emit category-level evidence cards for this tenant yet, so the overview is currently relying on the control, domain, and identity sections.", new[] { "Run a deeper hosted scan for stronger evidence coverage" });
+    var noEvidenceCard = OverviewEmptyStatePresentation.BuildCard("Evidence ledger", "No DD evidence cards", "DD did not emit category-level evidence cards for this tenant yet, so the overview is currently relying on the control, domain, and identity sections.", new[] { "Run a deeper online scan for stronger evidence coverage" });
     var noAssessmentsCard = OverviewEmptyStatePresentation.BuildCard("Assessments", "No DD assessments", "This tenant run completed without DD assessments, warnings, or positive guidance items to display.", new[] { "Use the control and posture sections as the current source of truth" });
 }
 
@@ -57,14 +57,14 @@
 @if (Info.IsBrowserLimited) {
     <div class="tool-callout tool-callout-inline">
         <strong>Web edition overview</strong>
-        <p>This view uses the DD checks that run cleanly in the browser. The deeper Microsoft identity and tenant-correlation sections stay visible below and explain when the broader online check is needed.</p>
+        <p>This view uses the DD checks that run cleanly in the browser. Sections that need deeper online validation stay visible below and are marked clearly.</p>
     </div>
 }
 
 @if (Info.IsPartial) {
     <div class="tool-callout tool-callout-inline">
-        <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "Preview ready" : Info.StageLabel)</strong>
-        <p>The first DD pass is already on the page. The full report is still loading for: @string.Join(", ", Info.PendingSections).</p>
+        <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "First pass ready" : Info.StageLabel)</strong>
+        <p>The first DD pass is already on the page. Detailed sections are still loading for: @string.Join(", ", Info.PendingSections).</p>
     </div>
 }
 
@@ -72,12 +72,12 @@
     <div class="tool-meta-row">
         <span class="tool-meta-pill">Updated @FormatUtc(Info.GeneratedAtUtc)</span>
         <span class="tool-meta-pill">Age @FormatAge(Info.GeneratedAtUtc)</span>
-        <span class="tool-meta-pill">@(Info.ServedFromCache ? "Cached result" : "Fresh scan")</span>
-        <span class="tool-meta-pill">@(Info.IsPartial ? "Preview" : "Complete")</span>
+        <span class="tool-meta-pill">@(Info.ServedFromCache ? "Saved result" : "Live result")</span>
+        <span class="tool-meta-pill">@(Info.IsPartial ? "First pass" : "Full report")</span>
         @if (Info.CompletedAtUtc.HasValue) {
             <span class="tool-meta-pill">Completed @FormatUtc(Info.CompletedAtUtc.Value)</span>
         } else if (Info.PendingSections.Count > 0) {
-            <span class="tool-meta-pill">@($"{Info.PendingSections.Count} sections pending")</span>
+            <span class="tool-meta-pill">@($"{Info.PendingSections.Count} sections loading")</span>
         }
     </div>
 }
@@ -85,7 +85,7 @@
 <div id="m365-snapshot" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span>
-    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "Included in the first pass.", "Snapshot remains available in the browser-safe edition.")</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "Included in the first pass.", "Snapshot remains available in the web edition.")</span>
 </div>
 <ResultCard Title="Microsoft 365 tenant posture" Status="@GetOverallStatus(Info!)">
     <div class="tool-section-grid">
@@ -152,7 +152,7 @@
 <ResultCard Title="Action plan" Status="ResultCard.ResultStatus.Info">
     <div class="tool-section-grid">
         <div class="tool-summary-card">
-            <span class="tool-summary-label">Needs attention</span>
+            <span class="tool-summary-label">Do next</span>
             @if (attentionCards.Count > 0) {
                 <div class="tool-stack">
                     @foreach (var card in attentionCards) {
@@ -164,7 +164,7 @@
             }
         </div>
         <div class="tool-summary-card">
-            <span class="tool-summary-label">Confirmed strengths</span>
+            <span class="tool-summary-label">Keep in place</span>
             @if (positiveCards.Count > 0) {
                 <div class="tool-stack">
                     @foreach (var card in positiveCards) {
@@ -178,14 +178,14 @@
     </div>
 </ResultCard>
 
-<ResultCard Title="Share result" Status="ResultCard.ResultStatus.Info">
+<ResultCard Title="Share and reopen" Status="ResultCard.ResultStatus.Info">
     <div class="tool-share-summary tool-share-summary-compact">
         <div class="tool-share-header">
             <div class="tool-share-header-copy">
                 <strong>Permalink and copy-ready summary</strong>
                 <p>Use this when you want to reopen the same result later or paste a short DD summary into a ticket or message.</p>
             </div>
-            <a class="tool-share-link" href="@GetPermalinkUrl()" target="_blank" rel="noopener">Open shareable link</a>
+            <a class="tool-share-link" href="@GetPermalinkUrl()" target="_blank" rel="noopener">Open result link</a>
         </div>
         <div class="tool-share-metrics">
             <span class="@GetShareRiskClass(Info)">@GetShareRiskLabel(Info)</span>
@@ -193,7 +193,7 @@
             <span class="tool-share-pill">Warnings @Info.WarningCount</span>
             <span class="tool-share-pill">Attention @attentionChecks.Count</span>
             <span class="@GetSharePendingClass(Info)">@GetSharePendingLabel(Info)</span>
-            <span class="@GetShareSourceClass(Info.ServedFromCache)">@(Info.ServedFromCache ? "Cached result" : "Fresh scan")</span>
+            <span class="@GetShareSourceClass(Info.ServedFromCache)">@(Info.ServedFromCache ? "Saved result" : "Live result")</span>
         </div>
         <div class="tool-share-actions">
             <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="CopySnapshotAsync">Copy summary</button>
@@ -566,7 +566,7 @@
 
     private static string BuildSummary(Microsoft365OverviewInfo info) {
         if (info.IsBrowserLimited) {
-            return "Web edition Microsoft 365 preview built from DNS and mail evidence. Tenant identity and authentication probing are unavailable in this edition.";
+            return "Web edition Microsoft 365 report built from web-ready DNS and mail evidence. Identity probing and tenant-correlation sections are marked clearly when they need deeper online validation.";
         }
 
         if (!info.Tenant.IsMicrosoft365Tenant) {
@@ -578,8 +578,8 @@
 
     private string BuildShareableSnapshot() {
         var info = Info;
-        var source = info.ServedFromCache ? "Cached result" : "Fresh scan";
-        var stage = info.IsPartial ? "Preview" : "Complete";
+        var source = info.ServedFromCache ? "Saved result" : "Live result";
+        var stage = info.IsPartial ? "First pass" : "Full report";
         var warnings = info.WarningCount;
         var errors = info.ErrorCount;
         var pending = info.PendingSections.Count == 0 ? "None" : string.Join(", ", info.PendingSections);
@@ -613,8 +613,8 @@
         var lines = new List<string> {
             $"Domain Detective M365 red flags for {info.Subject}",
             $"Permalink: {Navigation.Uri}",
-            $"Stage: {(info.IsPartial ? "Preview" : "Complete")}",
-            $"Source: {(info.ServedFromCache ? "Cached result" : "Fresh scan")}",
+            $"Stage: {(info.IsPartial ? "First pass" : "Full report")}",
+            $"Source: {(info.ServedFromCache ? "Saved result" : "Live result")}",
             $"Risk: {GetShareRiskLabel(info)}",
             $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
             $"Warnings/Errors: {info.WarningCount}/{info.ErrorCount}",
@@ -717,7 +717,7 @@
             return "Unavailable";
         }
 
-        return isPending ? "Pending" : "Ready";
+        return isPending ? "Loading" : "Ready";
     }
 
     private static string GetShareRiskClass(Microsoft365OverviewInfo info) {
@@ -742,11 +742,11 @@
         }
 
         if (info.UnavailableSections.Count > 0) {
-            return "Lite edition";
+            return "Web edition";
         }
 
         if (info.PendingSections.Count > 0) {
-            return "Preview";
+            return "First pass";
         }
 
         return "Healthy baseline";
@@ -768,8 +768,8 @@
         }
 
         return info.PendingSections.Count > 0
-            ? $"{info.PendingSections.Count} sections pending"
-            : "Complete";
+            ? $"{info.PendingSections.Count} sections loading"
+            : "Full report";
     }
 
     private static string GetShareSourceClass(bool servedFromCache) {
@@ -784,7 +784,7 @@
         }
 
         if (isPending) {
-            return "This section is still loading deeper evidence.";
+            return "Detailed checks for this section are still loading.";
         }
 
         if (info.IsPartial) {
@@ -796,10 +796,10 @@
 
     private static string GetUnavailableSectionMessage(string section) {
         return section switch {
-            "Identity" => "Tenant identity and Microsoft authentication probing are unavailable in the browser-safe edition.",
-            "Services" => "Microsoft workload detection in this section depends on hosted identity and tenant correlation that the browser-only edition does not run.",
-            "Domains" => "Tenant domain and Microsoft subdomain correlation are unavailable in the browser-safe edition.",
-            _ => "This section is unavailable in the browser-safe edition."
+            "Identity" => "Tenant identity and Microsoft authentication probing are unavailable in the web edition.",
+            "Services" => "Microsoft workload detection in this section depends on identity and tenant correlation that the web edition does not run.",
+            "Domains" => "Tenant domain and Microsoft subdomain correlation are unavailable in the web edition.",
+            _ => "This section is unavailable in the web edition."
         };
     }
 

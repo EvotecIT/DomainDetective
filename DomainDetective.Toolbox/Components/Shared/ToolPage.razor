@@ -74,13 +74,13 @@
                 </div>
                 @if (IsOverviewTool(Definition)) {
                     <div class="tool-progress-steps" aria-label="Overview progress">
-                        <span class="@GetProgressStepClass(_quickReadyAt.HasValue || _isHydratingDeep || _deepReadyAt.HasValue, _isLoading && !_quickReadyAt.HasValue)">1. Preview</span>
-                        <span class="@GetProgressStepClass(_deepReadyAt.HasValue, _isHydratingDeep)">2. Full report</span>
+                        <span class="@GetProgressStepClass(_quickReadyAt.HasValue || _isHydratingDeep || _deepReadyAt.HasValue, _isLoading && !_quickReadyAt.HasValue)">1. First pass</span>
+                        <span class="@GetProgressStepClass(_deepReadyAt.HasValue, _isHydratingDeep)">2. Detailed checks</span>
                     </div>
                 }
                 @if (IsOverviewTool(Definition) && _isHydratingDeep) {
                     <div class="tool-meta-row">
-                        <span class="tool-meta-pill">Preview ready</span>
+                        <span class="tool-meta-pill">First pass ready</span>
                         @foreach (var item in GetPendingSections()) {
                             <span class="tool-meta-pill">@item</span>
                         }
@@ -98,21 +98,21 @@
         @if ((_healthCheck is not null || _httpInfo is not null || _securityTxtInfo is not null || _certificateInfo is not null || _bimiInfo is not null || _mtastsInfo is not null || _rdapInfo is not null || _dnsPropagationInfo is not null || _subdomainsInfo is not null || _microsoft365OverviewInfo is not null || _domainOverviewInfo is not null) && !_isLoading) {
             @if (_isHydratingDeep) {
                 <div class="tool-callout tool-callout-inline">
-                    <strong>Building the full report</strong>
+                    <strong>Building detailed sections</strong>
                     <p>The first results are ready. DomainDetective is still filling in the deeper sections and will update this page automatically when it finishes.</p>
                     <div class="tool-meta-row">
                         <span class="tool-meta-pill">Started @FormatTimestamp(_scanStartedAt)</span>
-                        <span class="tool-meta-pill">Preview @FormatTimestamp(_quickReadyAt)</span>
-                        <span class="tool-meta-pill">Full report pending</span>
+                        <span class="tool-meta-pill">First pass @FormatTimestamp(_quickReadyAt)</span>
+                        <span class="tool-meta-pill">Detailed checks pending</span>
                     </div>
                 </div>
             } else if (!string.IsNullOrWhiteSpace(_backgroundError)) {
                 <div class="tool-callout tool-callout-inline">
-                    <strong>Full report did not finish loading</strong>
+                    <strong>Detailed checks did not finish loading</strong>
                     <p>@_backgroundError</p>
                     <div class="tool-meta-row">
                         <span class="tool-meta-pill">Started @FormatTimestamp(_scanStartedAt)</span>
-                        <span class="tool-meta-pill">Preview @FormatTimestamp(_quickReadyAt)</span>
+                        <span class="tool-meta-pill">First pass @FormatTimestamp(_quickReadyAt)</span>
                     </div>
                 </div>
             }
@@ -223,21 +223,12 @@
     private DomainDetective.Views.Microsoft365OverviewInfo? _microsoft365OverviewInfo;
     private DomainDetective.Views.DomainOverviewInfo? _domainOverviewInfo;
 
+    protected override void OnInitialized() {
+        Navigation.LocationChanged += HandleLocationChanged;
+    }
+
     protected override async Task OnParametersSetAsync() {
-        var query = ParseQuery(new Uri(Navigation.Uri).Query);
-        var domain = GetQueryValue(query, "q");
-        var secondaryInput = GetQueryValue(query, "s");
-        var runKey = BuildRunKey(domain, secondaryInput);
-
-        if (!string.IsNullOrWhiteSpace(domain)) {
-            _domain = domain;
-            _secondaryInput = secondaryInput;
-
-            if (!string.Equals(_lastRunKey, runKey, StringComparison.OrdinalIgnoreCase) && !_isLoading) {
-                _lastRunKey = runKey;
-                await RunAnalysis();
-            }
-        }
+        await SyncWithCurrentUriAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -246,20 +237,7 @@
         if (firstRender) {
             var recentRuns = await JS.InvokeAsync<List<RecentToolRun>>("domainDetectiveTools.loadRecentRuns", Definition.Slug);
             _recentRuns = recentRuns ?? new List<RecentToolRun>();
-            var shouldResumeRecentRun = false;
-
-            if (string.IsNullOrWhiteSpace(_domain) && _recentRuns.Count > 0) {
-                _domain = _recentRuns[0].Domain;
-                _secondaryInput = _recentRuns[0].SecondaryInput;
-                _lastRunKey = BuildRunKey(_domain, _secondaryInput);
-                shouldResumeRecentRun = true;
-            }
-
             await InvokeAsync(StateHasChanged);
-
-            if (shouldResumeRecentRun) {
-                await RunAnalysis();
-            }
         }
 
         if (_pendingPersistRecentRun) {
@@ -455,6 +433,60 @@
         }
     }
 
+    private void HandleLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) {
+        _ = InvokeAsync(SyncWithCurrentUriAsync);
+    }
+
+    private async Task SyncWithCurrentUriAsync() {
+        var query = ParseQuery(new Uri(Navigation.Uri).Query);
+        var domain = GetQueryValue(query, "q");
+        var secondaryInput = GetQueryValue(query, "s");
+        var runKey = BuildRunKey(domain, secondaryInput);
+
+        if (!string.IsNullOrWhiteSpace(domain)) {
+            _domain = domain;
+            _secondaryInput = secondaryInput;
+
+            if (!string.Equals(_lastRunKey, runKey, StringComparison.OrdinalIgnoreCase) && !_isLoading) {
+                _lastRunKey = runKey;
+                await RunAnalysis();
+            }
+
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_lastRunKey) || !string.IsNullOrWhiteSpace(_domain)) {
+            ResetDisplayedRun();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ResetDisplayedRun() {
+        CancelOverviewHydration();
+        _lastRunKey = null;
+        _domain = string.Empty;
+        _secondaryInput = null;
+        _isLoading = false;
+        _isHydratingDeep = false;
+        _forceHostedRefresh = false;
+        _error = null;
+        _backgroundError = null;
+        _scanStartedAt = null;
+        _quickReadyAt = null;
+        _deepReadyAt = null;
+        _healthCheck = null;
+        _httpInfo = null;
+        _securityTxtInfo = null;
+        _certificateInfo = null;
+        _bimiInfo = null;
+        _mtastsInfo = null;
+        _rdapInfo = null;
+        _dnsPropagationInfo = null;
+        _subdomainsInfo = null;
+        _microsoft365OverviewInfo = null;
+        _domainOverviewInfo = null;
+    }
+
     private async Task RunFreshAnalysis() {
         _forceHostedRefresh = true;
         await RunAnalysis();
@@ -484,17 +516,17 @@
 
     private static string GetStaticEditionTitle(ToolDefinition definition) {
         return definition.Slug switch {
-            "dns-propagation" => "Browser-safe propagation sample",
-            "mta-sts" => "Browser-safe MTA-STS bootstrap",
-            _ => "Browser-safe overview"
+            "dns-propagation" => "Web edition propagation sample",
+            "mta-sts" => "Web edition MTA-STS check",
+            _ => "Web edition overview"
         };
     }
 
     private static string GetStaticEditionDescription(ToolDefinition definition) {
         return definition.Slug switch {
-            "dns-propagation" => "This web view compares answers across a smaller public resolver sample. The broader DD resolver pool is added automatically when the hosted check is available.",
-            "mta-sts" => "This web view validates the published MTA-STS DNS bootstrap record. Policy hosting and MX-policy correlation are added automatically when the hosted check is available.",
-            _ => "This web view shows the DD sections that run safely in the browser. Deeper sections stay visible below and explain when the broader online check is needed."
+            "dns-propagation" => "This web edition compares answers across a smaller public resolver sample. Extra resolver coverage is added automatically in the deeper online run.",
+            "mta-sts" => "This web edition validates the published MTA-STS DNS bootstrap record. Policy hosting and MX-policy correlation are added automatically in the deeper online run.",
+            _ => "This web edition shows the DD sections that run safely in the browser. Deeper sections stay visible below and are marked clearly when they need the broader online run."
         };
     }
 
@@ -594,12 +626,12 @@
         if (_isHydratingDeep) {
             var pendingSections = GetPendingSections();
             return pendingSections.Count > 0
-                ? $"The first results are ready. DomainDetective is still building the full report for {string.Join(", ", pendingSections)}."
-                : "The first results are ready. DomainDetective is finishing the full report.";
+                ? $"The first results are ready. DomainDetective is still building the deeper sections for {string.Join(", ", pendingSections)}."
+                : "The first results are ready. DomainDetective is finishing the deeper sections.";
         }
 
         return IsOverviewTool(Definition)
-            ? "Running the first report pass and preparing the full report."
+            ? "Running the first report pass and preparing the deeper sections."
             : "Running DomainDetective checks and building the result view.";
     }
 
@@ -711,6 +743,7 @@
     }
 
     public void Dispose() {
+        Navigation.LocationChanged -= HandleLocationChanged;
         CancelOverviewHydration();
     }
 

@@ -12,8 +12,8 @@
 
     @if (isBrowserLimited) {
         <div class="tool-callout tool-callout-inline">
-            <strong>Browser-safe propagation sample</strong>
-            <p>This web edition compares answers across a smaller public resolver sample. It is useful for drift checks, but it is not the broader hosted DD resolver pool.</p>
+            <strong>Web edition propagation sample</strong>
+            <p>This web edition compares answers across a smaller public resolver sample. It is useful for drift checks, but it is not the broader online DD resolver pool.</p>
         </div>
     }
 
@@ -27,12 +27,12 @@
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Resolver coverage</span>
                 <strong class="tool-summary-value">@successfulResolvers / @totalResolvers</strong>
-                <p class="tool-summary-note">@(isBrowserLimited ? "Successful responses across the browser-safe resolver sample" : "Successful responses across all DD checks")</p>
+                <p class="tool-summary-note">@(isBrowserLimited ? "Successful responses across the web-edition resolver sample" : "Successful responses across all DD checks")</p>
             </div>
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Average latency</span>
                 <strong class="tool-summary-value">@FormatDuration(averageLatency)</strong>
-                <p class="tool-summary-note">@(isBrowserLimited ? "Using the browser-safe DD propagation sample" : "Using DomainDetective's full propagation engine")</p>
+                <p class="tool-summary-note">@(isBrowserLimited ? "Using the web-edition DD propagation sample" : "Using DomainDetective's full propagation engine")</p>
             </div>
         </div>
 
@@ -168,18 +168,18 @@
 
         if (successfulResolvers == 0) {
             return isBrowserLimited
-                ? $"DomainDetective queried the browser-safe resolver sample, but every resolver failed or returned no usable answer set for {view.Subject ?? "this domain"}."
+                ? $"DomainDetective queried the web-edition resolver sample, but every resolver failed or returned no usable answer set for {view.Subject ?? "this domain"}."
                 : $"DomainDetective queried the propagation resolver pool, but every resolver failed or returned no usable answer set for {view.Subject ?? "this domain"}.";
         }
 
         if (inconsistentReports > 0) {
             return isBrowserLimited
-                ? $"DomainDetective observed answer drift across {inconsistentReports} record type(s) in the browser-safe resolver sample. {successfulResolvers} of {totalResolvers} resolver responses succeeded, so confirm any drift with a full hosted run before treating propagation as complete."
+                ? $"DomainDetective observed answer drift across {inconsistentReports} record type(s) in the web-edition resolver sample. {successfulResolvers} of {totalResolvers} resolver responses succeeded, so confirm any drift with a deeper online run before treating propagation as complete."
                 : $"DomainDetective observed answer drift across {inconsistentReports} record type(s). {successfulResolvers} of {totalResolvers} resolver responses succeeded, so review the minority answer sets before treating propagation as complete.";
         }
 
         return isBrowserLimited
-            ? $"DomainDetective observed consistent answer sets across the browser-safe resolver sample. {successfulResolvers} of {totalResolvers} resolver responses succeeded, and no propagation drift was detected in the retained sample."
+            ? $"DomainDetective observed consistent answer sets across the web-edition resolver sample. {successfulResolvers} of {totalResolvers} resolver responses succeeded, and no propagation drift was detected in the retained sample."
             : $"DomainDetective observed consistent answer sets across all reported record types. {successfulResolvers} of {totalResolvers} resolver responses succeeded, and no propagation drift was detected in the retained sample.";
     }
 

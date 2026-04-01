@@ -1,7 +1,7 @@
 {
-  "generatedAtUtc": "2026-04-01T13:15:25.5995675Z",
+  "generatedAtUtc": "2026-04-01T17:21:10.5908105Z",
   "sourceCount": 2,
-  "referenceCount": 24357,
+  "referenceCount": 24364,
   "duplicateCount": 0,
   "references": [
     {
@@ -9202,6 +9202,16 @@
         "global::DomainDetective.Views.OpenResolverInfo",
         "OpenResolverInfo",
         "T:DomainDetective.Views.OpenResolverInfo"
+      ]
+    },
+    {
+      "uid": "DomainDetective.Views.OverviewRecommendationFilter",
+      "name": "OverviewRecommendationFilter",
+      "href": "/api/domaindetective-views-overviewrecommendationfilter/",
+      "aliases": [
+        "global::DomainDetective.Views.OverviewRecommendationFilter",
+        "OverviewRecommendationFilter",
+        "T:DomainDetective.Views.OverviewRecommendationFilter"
       ]
     },
     {
@@ -121636,12 +121646,12 @@
       ]
     },
     {
-      "uid": "M:DomainDetective.Views.Converters.ConvertDomainOverview(System.String,DnsInventoryInfo,SpfRecordInfo,IReadOnlyList{DkimRecordInfo},DmarcRecordInfo,MxInfo,MtastsInfo,TlsRptInfo,BimiRecordInfo,CaaInfo,DaneRecordInfo,DnsSecInfo,NsInfo,SoaInfo,HttpInfo,CertificateInfo,SecurityTxtInfo,RdapInfo,DnsblInfo,SubdomainsInfo,IEnumerable{Assessment})",
+      "uid": "M:DomainDetective.Views.Converters.ConvertDomainOverview(System.String,DnsInventoryInfo,SpfRecordInfo,IReadOnlyList{DkimRecordInfo},DmarcRecordInfo,MxInfo,MtastsInfo,TlsRptInfo,BimiRecordInfo,CaaInfo,DaneRecordInfo,DnsSecInfo,NsInfo,SoaInfo,HttpInfo,CertificateInfo,SecurityTxtInfo,RdapInfo,DnsblInfo,SubdomainsInfo,IEnumerable{Assessment},System.Boolean)",
       "name": "Converters.ConvertDomainOverview",
-      "href": "/api/domaindetective-views-converters/#method-convertdomainoverview-string-dnsinventoryinfo-spfrecordinfo-ireadonlylist-dkimrecordinfo-dmarcrecordinfo-mxinfo-mtastsinfo-tlsrptinfo-bimirecordinfo-caainfo-danerecordinfo-dnssecinfo-nsinfo-soainfo-httpinfo-certificateinfo-securitytxtinfo-rdapinfo-dnsblinfo-subdomainsinfo-ienumerable-assessment",
+      "href": "/api/domaindetective-views-converters/#method-convertdomainoverview-string-dnsinventoryinfo-spfrecordinfo-ireadonlylist-dkimrecordinfo-dmarcrecordinfo-mxinfo-mtastsinfo-tlsrptinfo-bimirecordinfo-caainfo-danerecordinfo-dnssecinfo-nsinfo-soainfo-httpinfo-certificateinfo-securitytxtinfo-rdapinfo-dnsblinfo-subdomainsinfo-ienumerable-assessment-boolean",
       "aliases": [
         "DomainDetective.Views.Converters.ConvertDomainOverview",
-        "DomainDetective.Views.Converters.ConvertDomainOverview(System.String,DnsInventoryInfo,SpfRecordInfo,IReadOnlyList{DkimRecordInfo},DmarcRecordInfo,MxInfo,MtastsInfo,TlsRptInfo,BimiRecordInfo,CaaInfo,DaneRecordInfo,DnsSecInfo,NsInfo,SoaInfo,HttpInfo,CertificateInfo,SecurityTxtInfo,RdapInfo,DnsblInfo,SubdomainsInfo,IEnumerable{Assessment})",
+        "DomainDetective.Views.Converters.ConvertDomainOverview(System.String,DnsInventoryInfo,SpfRecordInfo,IReadOnlyList{DkimRecordInfo},DmarcRecordInfo,MxInfo,MtastsInfo,TlsRptInfo,BimiRecordInfo,CaaInfo,DaneRecordInfo,DnsSecInfo,NsInfo,SoaInfo,HttpInfo,CertificateInfo,SecurityTxtInfo,RdapInfo,DnsblInfo,SubdomainsInfo,IEnumerable{Assessment},System.Boolean)",
         "global::DomainDetective.Views.Converters.ConvertDomainOverview"
       ]
     },
@@ -121656,12 +121666,12 @@
       ]
     },
     {
-      "uid": "M:DomainDetective.Views.Converters.ConvertMicrosoft365Overview(System.String,Microsoft365TenantInfo,SpfRecordInfo,IReadOnlyList{DkimRecordInfo},DmarcRecordInfo,MxInfo,MtastsInfo,TlsRptInfo,BimiRecordInfo,CaaInfo,DaneRecordInfo,DnsSecInfo,NsInfo,IEnumerable{Assessment})",
+      "uid": "M:DomainDetective.Views.Converters.ConvertMicrosoft365Overview(System.String,Microsoft365TenantInfo,SpfRecordInfo,IReadOnlyList{DkimRecordInfo},DmarcRecordInfo,MxInfo,MtastsInfo,TlsRptInfo,BimiRecordInfo,CaaInfo,DaneRecordInfo,DnsSecInfo,NsInfo,IEnumerable{Assessment},System.Boolean)",
       "name": "Converters.ConvertMicrosoft365Overview",
-      "href": "/api/domaindetective-views-converters/#method-convertmicrosoft365overview-string-microsoft365tenantinfo-spfrecordinfo-ireadonlylist-dkimrecordinfo-dmarcrecordinfo-mxinfo-mtastsinfo-tlsrptinfo-bimirecordinfo-caainfo-danerecordinfo-dnssecinfo-nsinfo-ienumerable-assessment",
+      "href": "/api/domaindetective-views-converters/#method-convertmicrosoft365overview-string-microsoft365tenantinfo-spfrecordinfo-ireadonlylist-dkimrecordinfo-dmarcrecordinfo-mxinfo-mtastsinfo-tlsrptinfo-bimirecordinfo-caainfo-danerecordinfo-dnssecinfo-nsinfo-ienumerable-assessment-boolean",
       "aliases": [
         "DomainDetective.Views.Converters.ConvertMicrosoft365Overview",
-        "DomainDetective.Views.Converters.ConvertMicrosoft365Overview(System.String,Microsoft365TenantInfo,SpfRecordInfo,IReadOnlyList{DkimRecordInfo},DmarcRecordInfo,MxInfo,MtastsInfo,TlsRptInfo,BimiRecordInfo,CaaInfo,DaneRecordInfo,DnsSecInfo,NsInfo,IEnumerable{Assessment})",
+        "DomainDetective.Views.Converters.ConvertMicrosoft365Overview(System.String,Microsoft365TenantInfo,SpfRecordInfo,IReadOnlyList{DkimRecordInfo},DmarcRecordInfo,MxInfo,MtastsInfo,TlsRptInfo,BimiRecordInfo,CaaInfo,DaneRecordInfo,DnsSecInfo,NsInfo,IEnumerable{Assessment},System.Boolean)",
         "global::DomainDetective.Views.Converters.ConvertMicrosoft365Overview"
       ]
     },
@@ -123954,6 +123964,63 @@
       "aliases": [
         "DomainDetective.Views.OpenResolverInfo.ToString",
         "global::DomainDetective.Views.OpenResolverInfo.ToString"
+      ]
+    },
+    {
+      "uid": "M:DomainDetective.Views.OverviewRecommendationFilter.Equals(System.Object)",
+      "name": "OverviewRecommendationFilter.Equals",
+      "href": "/api/domaindetective-views-overviewrecommendationfilter/#method-equals-object",
+      "aliases": [
+        "DomainDetective.Views.OverviewRecommendationFilter.Equals",
+        "DomainDetective.Views.OverviewRecommendationFilter.Equals(System.Object)",
+        "global::DomainDetective.Views.OverviewRecommendationFilter.Equals"
+      ]
+    },
+    {
+      "uid": "M:DomainDetective.Views.OverviewRecommendationFilter.ForPositives(IEnumerable{Assessment})",
+      "name": "OverviewRecommendationFilter.ForPositives",
+      "href": "/api/domaindetective-views-overviewrecommendationfilter/#method-forpositives-ienumerable-assessment",
+      "aliases": [
+        "DomainDetective.Views.OverviewRecommendationFilter.ForPositives",
+        "DomainDetective.Views.OverviewRecommendationFilter.ForPositives(IEnumerable{Assessment})",
+        "global::DomainDetective.Views.OverviewRecommendationFilter.ForPositives"
+      ]
+    },
+    {
+      "uid": "M:DomainDetective.Views.OverviewRecommendationFilter.ForProblems(IEnumerable{Assessment})",
+      "name": "OverviewRecommendationFilter.ForProblems",
+      "href": "/api/domaindetective-views-overviewrecommendationfilter/#method-forproblems-ienumerable-assessment",
+      "aliases": [
+        "DomainDetective.Views.OverviewRecommendationFilter.ForProblems",
+        "DomainDetective.Views.OverviewRecommendationFilter.ForProblems(IEnumerable{Assessment})",
+        "global::DomainDetective.Views.OverviewRecommendationFilter.ForProblems"
+      ]
+    },
+    {
+      "uid": "M:DomainDetective.Views.OverviewRecommendationFilter.GetHashCode",
+      "name": "OverviewRecommendationFilter.GetHashCode",
+      "href": "/api/domaindetective-views-overviewrecommendationfilter/#method-gethashcode",
+      "aliases": [
+        "DomainDetective.Views.OverviewRecommendationFilter.GetHashCode",
+        "global::DomainDetective.Views.OverviewRecommendationFilter.GetHashCode"
+      ]
+    },
+    {
+      "uid": "M:DomainDetective.Views.OverviewRecommendationFilter.GetType",
+      "name": "OverviewRecommendationFilter.GetType",
+      "href": "/api/domaindetective-views-overviewrecommendationfilter/#method-gettype",
+      "aliases": [
+        "DomainDetective.Views.OverviewRecommendationFilter.GetType",
+        "global::DomainDetective.Views.OverviewRecommendationFilter.GetType"
+      ]
+    },
+    {
+      "uid": "M:DomainDetective.Views.OverviewRecommendationFilter.ToString",
+      "name": "OverviewRecommendationFilter.ToString",
+      "href": "/api/domaindetective-views-overviewrecommendationfilter/#method-tostring",
+      "aliases": [
+        "DomainDetective.Views.OverviewRecommendationFilter.ToString",
+        "global::DomainDetective.Views.OverviewRecommendationFilter.ToString"
       ]
     },
     {
@@ -224611,7 +224678,7 @@
       ]
     }
   ],
-  "previousReferenceCount": 24357,
+  "previousReferenceCount": 24364,
   "referenceDeltaCount": 0,
   "referenceDeltaPercent": 0
 }

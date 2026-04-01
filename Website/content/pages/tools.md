@@ -1,6 +1,6 @@
 ---
 title: Domain Analysis Tools
-description: Run browser-safe domain analysis directly on the web, with deeper online workflows clearly marked across the full tool catalog.
+description: Run web-ready domain analysis directly on the web, with deeper online workflows clearly marked across the full tool catalog.
 slug: tools
 collection: pages
 layout: tools

@@ -195,15 +195,12 @@ a:hover { color: var(--dd-accent-light); }
 }
 
 .dd-header-inner {
-    max-width: var(--dd-max-width);
-    margin: 0 auto;
-    padding: 0;
-    min-height: var(--dd-header-height);
-    width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1.25rem;
+    width: 100%;
+    max-width: var(--dd-max-width);
+    margin: 0 auto;
 }
 
 .dd-brand {
@@ -215,10 +212,10 @@ a:hover { color: var(--dd-accent-light); }
     font-size: 1.25rem;
     color: var(--dd-ink-strong);
     letter-spacing: -0.01em;
-    transition: opacity 0.2s ease;
+    text-decoration: none;
+    transition: opacity 0.2s;
 }
 .dd-brand:hover {
-    color: var(--dd-ink-strong);
     opacity: 0.85;
 }
 
@@ -317,7 +314,7 @@ a:hover { color: var(--dd-accent-light); }
     top: 100%;
     left: 50%;
     transform: translateX(-50%) translateY(4px);
-    min-width: 220px;
+    min-width: 180px;
     padding: 0.5rem;
     background: var(--dd-panel);
     border: 1px solid var(--dd-border-light);
@@ -419,13 +416,13 @@ a:hover { color: var(--dd-accent-light); }
     color: var(--dd-btn-primary-text);
     border: 1px solid rgba(148, 163, 184, 0.14);
     box-shadow: var(--dd-shadow-button);
-    transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
 }
 
 .nav-cta:hover {
-    color: var(--dd-btn-primary-text);
     transform: translateY(-1px);
     box-shadow: 0 16px 32px rgba(0, 217, 255, 0.22);
+    color: var(--dd-btn-primary-text);
 }
 
 .nav-cta-icon {
@@ -444,7 +441,7 @@ a:hover { color: var(--dd-accent-light); }
 .dd-main-inner {
     max-width: var(--dd-max-width);
     margin: 0 auto;
-    padding: calc(var(--dd-header-height) + 2.75rem) 1.5rem 2.5rem;
+    padding: calc(var(--dd-header-height) + 2rem) 1.5rem 2rem;
     width: 100%;
 }
 
@@ -1481,6 +1478,19 @@ a:hover { color: var(--dd-accent-light); }
     background: linear-gradient(135deg, rgba(18, 34, 64, 0.96), rgba(16, 28, 56, 0.92));
     overflow-wrap: anywhere;
     box-shadow: 0 10px 22px rgba(2, 6, 23, 0.18);
+}
+
+.tool-callout-inline {
+    gap: 0.55rem;
+    padding: 0.8rem 0.95rem;
+    border-color: rgba(0, 217, 255, 0.08);
+    background: linear-gradient(180deg, rgba(14, 24, 45, 0.72), rgba(12, 20, 38, 0.58));
+    box-shadow: 0 8px 18px rgba(2, 6, 23, 0.12);
+}
+
+[data-theme="light"] .tool-callout-inline {
+    border-color: rgba(15, 143, 176, 0.12);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 250, 255, 0.92));
 }
 
 [data-theme="light"] .tool-callout {
