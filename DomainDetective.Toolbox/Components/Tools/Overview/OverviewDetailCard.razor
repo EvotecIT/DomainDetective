@@ -1,5 +1,5 @@
 @if (Card is not null) {
-    <div class="@ContainerClass">
+    <div class="@($"{ContainerClass} overview-detail-card")">
         <span class="tool-summary-label">@Card.Title</span>
         <strong class="tool-summary-value">@Card.ValueLabel</strong>
         <p class="tool-summary-note">@Card.Summary</p>

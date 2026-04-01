@@ -1,15 +1,18 @@
 @using DomainDetective.Toolbox.Models
 @using DomainDetective.Toolbox.Services
 @using DomainDetective.Views
+@using Microsoft.JSInterop
 @implements IDisposable
 @inject BrowserDnsService DnsService
 @inject BrowserOverviewService BrowserOverviewService
 @inject HostedAnalysisService HostedAnalysisService
 @inject ToolAvailabilityService Availability
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-<div class="tool-page">
+<div class="tool-page @(IsOverviewTool(Definition) ? "tool-page-overview" : string.Empty)">
     <div class="tool-breadcrumb">
-        <a href="./">Tools</a> / @ToolRegistry.GetCategoryDisplayName(Definition.Category) / @Definition.Name
+        <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(Definition.Category) / @Definition.Name
     </div>
 
     <div class="tool-page-header">
@@ -28,14 +31,6 @@
                 <strong>@GetStaticEditionTitle(Definition)</strong>
                 <p>@GetStaticEditionDescription(Definition)</p>
             </div>
-        } else if (Definition.HostedCompatible && !Definition.BrowserCompatible) {
-            <div class="tool-callout tool-callout-inline">
-                <strong>Full online analysis</strong>
-                <p>This check runs through the full DomainDetective online analysis engine for the most reliable result.</p>
-                @if (SupportsHostedCache(Definition)) {
-                    <p>Heavy overview and discovery checks may show a recent result first for speed. Use Refresh when you want to run a new scan immediately.</p>
-                }
-            </div>
         }
 
         <form class="tool-input-form" @onsubmit="RunAnalysis" @onsubmit:preventDefault>
@@ -53,8 +48,45 @@
             }
         </form>
 
-        @if (_isLoading) {
-            <LoadingSpinner Message="@($"Analyzing {_domain}...")" />
+        @if (_recentRuns.Count > 0) {
+            <div class="tool-history-row" aria-label="Recent runs">
+                <span class="tool-history-label">Recent runs</span>
+                @foreach (var item in _recentRuns) {
+                    <button type="button" class="tool-history-chip" @onclick="() => RunRecentAsync(item)">
+                        <span>@item.Domain</span>
+                        @if (!string.IsNullOrWhiteSpace(item.SecondaryInput)) {
+                            <span class="tool-history-chip-muted">@item.SecondaryInput</span>
+                        }
+                    </button>
+                }
+            </div>
+        }
+
+        @if (_isLoading || _isHydratingDeep) {
+            <div class="tool-progress-panel" role="status" aria-live="polite">
+                <div class="tool-progress-header">
+                    <strong>@GetProgressTitle()</strong>
+                    <span class="tool-progress-value">@GetProgressLabel()</span>
+                </div>
+                <p>@GetProgressDescription()</p>
+                <div class="tool-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@GetProgressPercentage()">
+                    <span class="tool-progress-fill" style="width: @(GetProgressPercentage())%;"></span>
+                </div>
+                @if (IsOverviewTool(Definition)) {
+                    <div class="tool-progress-steps" aria-label="Overview progress">
+                        <span class="@GetProgressStepClass(_quickReadyAt.HasValue || _isHydratingDeep || _deepReadyAt.HasValue, _isLoading && !_quickReadyAt.HasValue)">1. Preview</span>
+                        <span class="@GetProgressStepClass(_deepReadyAt.HasValue, _isHydratingDeep)">2. Full report</span>
+                    </div>
+                }
+                @if (IsOverviewTool(Definition) && _isHydratingDeep) {
+                    <div class="tool-meta-row">
+                        <span class="tool-meta-pill">Preview ready</span>
+                        @foreach (var item in GetPendingSections()) {
+                            <span class="tool-meta-pill">@item</span>
+                        }
+                    </div>
+                }
+            </div>
         }
 
         @if (_error is not null) {
@@ -66,43 +98,31 @@
         @if ((_healthCheck is not null || _httpInfo is not null || _securityTxtInfo is not null || _certificateInfo is not null || _bimiInfo is not null || _mtastsInfo is not null || _rdapInfo is not null || _dnsPropagationInfo is not null || _subdomainsInfo is not null || _microsoft365OverviewInfo is not null || _domainOverviewInfo is not null) && !_isLoading) {
             @if (_isHydratingDeep) {
                 <div class="tool-callout tool-callout-inline">
-                    <strong>Deep DD scan in progress</strong>
-                    <p>The quick overview is ready. DomainDetective is still collecting the deeper evidence and will update this page automatically when it finishes.</p>
+                    <strong>Building the full report</strong>
+                    <p>The first results are ready. DomainDetective is still filling in the deeper sections and will update this page automatically when it finishes.</p>
                     <div class="tool-meta-row">
                         <span class="tool-meta-pill">Started @FormatTimestamp(_scanStartedAt)</span>
-                        <span class="tool-meta-pill">Quick posture @FormatTimestamp(_quickReadyAt)</span>
-                        <span class="tool-meta-pill">Deep evidence pending</span>
+                        <span class="tool-meta-pill">Preview @FormatTimestamp(_quickReadyAt)</span>
+                        <span class="tool-meta-pill">Full report pending</span>
                     </div>
                 </div>
             } else if (!string.IsNullOrWhiteSpace(_backgroundError)) {
                 <div class="tool-callout tool-callout-inline">
-                    <strong>Deep DD scan did not finish</strong>
+                    <strong>Full report did not finish loading</strong>
                     <p>@_backgroundError</p>
                     <div class="tool-meta-row">
                         <span class="tool-meta-pill">Started @FormatTimestamp(_scanStartedAt)</span>
-                        <span class="tool-meta-pill">Quick posture @FormatTimestamp(_quickReadyAt)</span>
-                    </div>
-                </div>
-            } else if (IsOverviewTool(Definition) && _quickReadyAt.HasValue) {
-                <div class="tool-callout tool-callout-inline">
-                    <strong>DD overview ready</strong>
-                    <p>The current view reflects the latest completed DD pass for this domain.</p>
-                    <div class="tool-meta-row">
-                        <span class="tool-meta-pill">Started @FormatTimestamp(_scanStartedAt)</span>
-                        <span class="tool-meta-pill">Quick posture @FormatTimestamp(_quickReadyAt)</span>
-                        @if (_deepReadyAt.HasValue) {
-                            <span class="tool-meta-pill">Deep evidence @FormatTimestamp(_deepReadyAt)</span>
-                        }
+                        <span class="tool-meta-pill">Preview @FormatTimestamp(_quickReadyAt)</span>
                     </div>
                 </div>
             }
 
             @switch (Definition.Slug) {
                 case "m365-overview":
-                    <DomainDetective.Toolbox.Components.Tools.Overview.M365OverviewTool Info="_microsoft365OverviewInfo!" Domain="@_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Overview.M365OverviewTool Info="_microsoft365OverviewInfo!" Domain="@_domain" PermalinkUrl="@BuildPermalinkUrl()" />
                     break;
                 case "domain-overview":
-                    <DomainDetective.Toolbox.Components.Tools.Overview.DomainOverviewTool Info="_domainOverviewInfo!" Domain="@_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Overview.DomainOverviewTool Info="_domainOverviewInfo!" Domain="@_domain" PermalinkUrl="@BuildPermalinkUrl()" />
                     break;
                 case "spf":
                     <DomainDetective.Toolbox.Components.Tools.EmailSecurity.SpfTool HealthCheck="_healthCheck" Domain="@_domain" />
@@ -183,10 +203,14 @@
     private string? _error;
     private string? _backgroundError;
     private int _analysisVersion;
+    private bool _hasRendered;
+    private bool _pendingPersistRecentRun;
+    private string? _lastRunKey;
     private CancellationTokenSource? _overviewHydrationCts;
     private DateTimeOffset? _scanStartedAt;
     private DateTimeOffset? _quickReadyAt;
     private DateTimeOffset? _deepReadyAt;
+    private List<RecentToolRun> _recentRuns = new();
     private DomainHealthCheck? _healthCheck;
     private DomainDetective.Views.HttpInfo? _httpInfo;
     private DomainDetective.Views.SecurityTxtInfo? _securityTxtInfo;
@@ -198,6 +222,51 @@
     private DomainDetective.Views.SubdomainsInfo? _subdomainsInfo;
     private DomainDetective.Views.Microsoft365OverviewInfo? _microsoft365OverviewInfo;
     private DomainDetective.Views.DomainOverviewInfo? _domainOverviewInfo;
+
+    protected override async Task OnParametersSetAsync() {
+        var query = ParseQuery(new Uri(Navigation.Uri).Query);
+        var domain = GetQueryValue(query, "q");
+        var secondaryInput = GetQueryValue(query, "s");
+        var runKey = BuildRunKey(domain, secondaryInput);
+
+        if (!string.IsNullOrWhiteSpace(domain)) {
+            _domain = domain;
+            _secondaryInput = secondaryInput;
+
+            if (!string.Equals(_lastRunKey, runKey, StringComparison.OrdinalIgnoreCase) && !_isLoading) {
+                _lastRunKey = runKey;
+                await RunAnalysis();
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        _hasRendered = true;
+
+        if (firstRender) {
+            var recentRuns = await JS.InvokeAsync<List<RecentToolRun>>("domainDetectiveTools.loadRecentRuns", Definition.Slug);
+            _recentRuns = recentRuns ?? new List<RecentToolRun>();
+            var shouldResumeRecentRun = false;
+
+            if (string.IsNullOrWhiteSpace(_domain) && _recentRuns.Count > 0) {
+                _domain = _recentRuns[0].Domain;
+                _secondaryInput = _recentRuns[0].SecondaryInput;
+                _lastRunKey = BuildRunKey(_domain, _secondaryInput);
+                shouldResumeRecentRun = true;
+            }
+
+            await InvokeAsync(StateHasChanged);
+
+            if (shouldResumeRecentRun) {
+                await RunAnalysis();
+            }
+        }
+
+        if (_pendingPersistRecentRun) {
+            _pendingPersistRecentRun = false;
+            await PersistRecentRunAsync();
+        }
+    }
 
     private async Task RunAnalysis() {
         if (string.IsNullOrWhiteSpace(_domain)) return;
@@ -221,6 +290,8 @@
         _subdomainsInfo = null;
         _microsoft365OverviewInfo = null;
         _domainOverviewInfo = null;
+        _lastRunKey = BuildRunKey(_domain, _secondaryInput);
+        UpdateBrowserUrl();
         var analysisVersion = ++_analysisVersion;
         StateHasChanged();
 
@@ -318,6 +389,8 @@
             if (_httpInfo == null && _securityTxtInfo == null && _certificateInfo == null && _mtastsInfo == null && _rdapInfo == null && _dnsPropagationInfo == null && _subdomainsInfo == null && _microsoft365OverviewInfo == null && _domainOverviewInfo == null) {
                 _healthCheck = hc;
             }
+
+            await QueueRecentRunPersistenceAsync();
         } catch (Exception ex) {
             _error = ex.Message;
         } finally {
@@ -358,7 +431,7 @@
                 return;
             }
 
-            _backgroundError = $"Quick overview loaded, but the deep DD evidence pass failed: {ex.Message}";
+            _backgroundError = $"The first results loaded, but the full report could not finish: {ex.Message}";
         } finally {
             if (analysisVersion == _analysisVersion) {
                 _isHydratingDeep = false;
@@ -384,6 +457,12 @@
 
     private async Task RunFreshAnalysis() {
         _forceHostedRefresh = true;
+        await RunAnalysis();
+    }
+
+    private async Task RunRecentAsync(RecentToolRun item) {
+        _domain = item.Domain;
+        _secondaryInput = item.SecondaryInput;
         await RunAnalysis();
     }
 
@@ -413,10 +492,199 @@
 
     private static string GetStaticEditionDescription(ToolDefinition definition) {
         return definition.Slug switch {
-            "dns-propagation" => "This web edition compares answers across a smaller public resolver sample. The same DD analysis stays in place, but the broader hosted resolver pool is not used here.",
-            "mta-sts" => "This web edition validates the published MTA-STS DNS bootstrap record. Policy hosting and MX-policy correlation stay unavailable here unless the full online analysis engine is enabled.",
-            _ => "This web edition shows the DD sections that can run directly online. Deeper sections stay visible and are clearly marked unavailable here."
+            "dns-propagation" => "This web view compares answers across a smaller public resolver sample. The broader DD resolver pool is added automatically when the hosted check is available.",
+            "mta-sts" => "This web view validates the published MTA-STS DNS bootstrap record. Policy hosting and MX-policy correlation are added automatically when the hosted check is available.",
+            _ => "This web view shows the DD sections that run safely in the browser. Deeper sections stay visible below and explain when the broader online check is needed."
         };
+    }
+
+    private async Task QueueRecentRunPersistenceAsync() {
+        if (_hasRendered) {
+            await PersistRecentRunAsync();
+            return;
+        }
+
+        _pendingPersistRecentRun = true;
+    }
+
+    private async Task PersistRecentRunAsync() {
+        if (string.IsNullOrWhiteSpace(_domain)) {
+            return;
+        }
+
+        var item = new RecentToolRun {
+            Domain = _domain.Trim(),
+            SecondaryInput = string.IsNullOrWhiteSpace(_secondaryInput) ? null : _secondaryInput.Trim(),
+            SavedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        _recentRuns = await JS.InvokeAsync<List<RecentToolRun>>("domainDetectiveTools.saveRecentRun", Definition.Slug, item) ?? new List<RecentToolRun>();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateBrowserUrl() {
+        var url = BuildToolUrl(_domain, _secondaryInput);
+        Navigation.NavigateTo(url, replace: true);
+    }
+
+    private string BuildPermalinkUrl() {
+        return BuildToolUrl(_domain, _secondaryInput);
+    }
+
+    private IReadOnlyList<string> GetPendingSections() {
+        if (_microsoft365OverviewInfo is not null) {
+            return _microsoft365OverviewInfo.PendingSections.Take(4).ToList();
+        }
+
+        if (_domainOverviewInfo is not null) {
+            return _domainOverviewInfo.PendingSections.Take(4).ToList();
+        }
+
+        return Array.Empty<string>();
+    }
+
+    private int GetProgressPercentage() {
+        if (_isLoading && !IsOverviewTool(Definition)) {
+            return 32;
+        }
+
+        if (_isLoading && IsOverviewTool(Definition) && _quickReadyAt is null) {
+            return 18;
+        }
+
+        if (_isHydratingDeep) {
+            var totalSections = Definition.Slug switch {
+                "m365-overview" => 8,
+                "domain-overview" => 7,
+                _ => 1
+            };
+            var pendingCount = GetPendingSections().Count;
+            var completed = Math.Max(1, totalSections - pendingCount);
+            return Math.Clamp((int)Math.Round((double)completed / totalSections * 100), 40, 96);
+        }
+
+        if (_quickReadyAt.HasValue && _deepReadyAt.HasValue) {
+            return 100;
+        }
+
+        return 0;
+    }
+
+    private string GetProgressTitle() {
+        if (_isHydratingDeep) {
+            return $"Analyzing {_domain}";
+        }
+
+        return string.IsNullOrWhiteSpace(_domain) ? "Preparing analysis" : $"Analyzing {_domain}";
+    }
+
+    private string GetProgressLabel() {
+        if (_isHydratingDeep) {
+            return $"Step 2 of 2 · {GetProgressPercentage()}%";
+        }
+
+        if (IsOverviewTool(Definition)) {
+            return "Step 1 of 2";
+        }
+
+        return "Running checks";
+    }
+
+    private string GetProgressDescription() {
+        if (_isHydratingDeep) {
+            var pendingSections = GetPendingSections();
+            return pendingSections.Count > 0
+                ? $"The first results are ready. DomainDetective is still building the full report for {string.Join(", ", pendingSections)}."
+                : "The first results are ready. DomainDetective is finishing the full report.";
+        }
+
+        return IsOverviewTool(Definition)
+            ? "Running the first report pass and preparing the full report."
+            : "Running DomainDetective checks and building the result view.";
+    }
+
+    private static string GetProgressStepClass(bool isReady, bool isActive) {
+        var className = "tool-progress-step";
+        if (isReady) {
+            className += " tool-progress-step-ready";
+        } else if (isActive) {
+            className += " tool-progress-step-active";
+        }
+
+        return className;
+    }
+
+    private static string? GetQueryValue(Dictionary<string, string> query, string key) {
+        if (!query.TryGetValue(key, out var values)) {
+            return null;
+        }
+
+        var value = values;
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string? BuildRunKey(string? domain, string? secondaryInput) {
+        if (string.IsNullOrWhiteSpace(domain)) {
+            return null;
+        }
+
+        return $"{domain.Trim().ToLowerInvariant()}::{secondaryInput?.Trim().ToLowerInvariant() ?? string.Empty}";
+    }
+
+    private string BuildToolUrl(string? domain, string? secondaryInput) {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = ParseQuery(uri.Query);
+
+        if (string.IsNullOrWhiteSpace(domain)) {
+            query.Remove("q");
+        } else {
+            query["q"] = domain.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(secondaryInput)) {
+            query.Remove("s");
+        } else {
+            query["s"] = secondaryInput.Trim();
+        }
+
+        var queryString = BuildQueryString(query);
+        return string.IsNullOrWhiteSpace(queryString)
+            ? uri.GetLeftPart(UriPartial.Path)
+            : $"{uri.GetLeftPart(UriPartial.Path)}?{queryString}";
+    }
+
+    private static Dictionary<string, string> ParseQuery(string? query) {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(query)) {
+            return result;
+        }
+
+        var trimmed = query[0] == '?' ? query[1..] : query;
+        if (trimmed.Length == 0) {
+            return result;
+        }
+
+        foreach (var pair in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries)) {
+            var separatorIndex = pair.IndexOf('=');
+            if (separatorIndex < 0) {
+                var keyOnly = Uri.UnescapeDataString(pair);
+                result[keyOnly] = string.Empty;
+                continue;
+            }
+
+            var key = Uri.UnescapeDataString(pair[..separatorIndex]);
+            var value = Uri.UnescapeDataString(pair[(separatorIndex + 1)..]);
+            result[key] = value;
+        }
+
+        return result;
+    }
+
+    private static string BuildQueryString(Dictionary<string, string> query) {
+        return string.Join("&",
+            query
+                .Where(static item => !string.IsNullOrWhiteSpace(item.Key))
+                .Select(static item => $"{Uri.EscapeDataString(item.Key)}={Uri.EscapeDataString(item.Value ?? string.Empty)}"));
     }
 
     private string[] GetDkimSelectors() {
@@ -444,5 +712,11 @@
 
     public void Dispose() {
         CancelOverviewHydration();
+    }
+
+    private sealed class RecentToolRun {
+        public string Domain { get; set; } = string.Empty;
+        public string? SecondaryInput { get; set; }
+        public DateTimeOffset SavedAtUtc { get; set; }
     }
 }

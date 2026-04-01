@@ -23,11 +23,11 @@
         @if (Availability.IsStaticOnly) {
             <div class="tools-edition-guide">
                 <div class="tools-edition-guide-header">
-                    <h2>Choose the right kind of check</h2>
+                    <h2>What works in this web version</h2>
                     <p>
                         The web edition keeps the DNS, mail, and lightweight overview tools live in the browser.
-                        Deeper web-response, certificate, registration, and large discovery checks stay visible here as full online features,
-                        and the same tool pages unlock automatically when the hosted edition is enabled.
+                        Deeper web-response, certificate, registration, and larger discovery checks stay visible here as advanced online features,
+                        and the same tool pages unlock automatically when the hosted version is enabled.
                     </p>
                 </div>
 
@@ -45,7 +45,7 @@
                     </article>
 
                     <article class="tools-edition-guide-card tools-edition-guide-card-hosted">
-                        <span class="tools-edition-guide-kicker">Full online checks</span>
+                        <span class="tools-edition-guide-kicker">Hosted tools</span>
                         <strong>@_hostedPreviewTools.Count deeper tools</strong>
                         <p>Kept visible for discovery, with feature previews and related live tools instead of broken pages.</p>
                     </article>
@@ -55,12 +55,7 @@
             <div class="tools-edition-summary">
                 <span class="tools-edition-pill">Available now: @GetAvailableNowCount()</span>
                 <span class="tools-edition-pill">Browser-safe partials: @GetBrowserSafePartialCount()</span>
-                <span class="tools-edition-pill">Full online previews: @_hostedPreviewTools.Count</span>
-            </div>
-        } else {
-            <div class="tools-edition-summary">
-                <span class="tools-edition-pill tools-edition-pill-live">Full online edition active</span>
-                <span class="tools-edition-pill">DNS, mail, web, registration, and discovery checks are all available in this deployment.</span>
+                <span class="tools-edition-pill">Hosted previews: @_hostedPreviewTools.Count</span>
             </div>
         }
 
@@ -72,10 +67,10 @@
             @if (Availability.IsStaticOnly && _filteredHostedPreviewTools.Count > 0) {
                 <div class="tools-edition-panel">
                     <div class="tools-edition-header">
-                        <h2>Full Online Matches</h2>
-                        <p>These matches belong to the full online edition. They stay visible here so people can discover them without hitting a broken result.</p>
+                        <h2>Advanced Online Matches</h2>
+                        <p>These matches belong to the hosted tools. They stay visible here so people can discover them without hitting a broken result.</p>
                     </div>
-                    <ToolCategoryGrid Tools="_filteredHostedPreviewTools" EnableLinks="false" ToolBadgeText="Hosted edition" DeploymentMode="Availability.Mode" />
+                    <ToolCategoryGrid Tools="_filteredHostedPreviewTools" EnableLinks="false" ToolBadgeText="Hosted" DeploymentMode="Availability.Mode" />
                 </div>
             }
 
@@ -90,10 +85,10 @@
             @if (Availability.IsStaticOnly && _hostedPreviewTools.Count > 0) {
                 <div class="tools-edition-panel">
                     <div class="tools-edition-header">
-                        <h2>Full Online Checks</h2>
-                        <p>These deeper checks are part of the full Domain Detective online edition. The web edition keeps the browser-safe tools live and leaves the heavier checks here as product previews.</p>
+                        <h2>Hosted Tools</h2>
+                        <p>These deeper checks are part of the hosted tools. The web edition keeps the browser-safe tools live and leaves the heavier checks here as product previews.</p>
                     </div>
-                    <ToolCategoryGrid Tools="_hostedPreviewTools" EnableLinks="false" ToolBadgeText="Hosted edition" DeploymentMode="Availability.Mode" />
+                    <ToolCategoryGrid Tools="_hostedPreviewTools" EnableLinks="false" ToolBadgeText="Hosted" DeploymentMode="Availability.Mode" />
                 </div>
             }
         }
@@ -103,12 +98,12 @@
     if (tool is null) {
         <div class="tool-not-found">
             <h2>Tool not found</h2>
-            <p>No tool matches "<strong>@ToolSlug</strong>". <a href="./">Browse all tools</a></p>
+            <p>No tool matches "<strong>@ToolSlug</strong>". <a href="/tools/">Browse all tools</a></p>
         </div>
     } else if (Availability.IsStaticOnly && tool.HostedCompatible && !Availability.CanRun(tool)) {
         <div class="tool-page">
             <div class="tool-breadcrumb">
-                <a href="./">Tools</a> / @ToolRegistry.GetCategoryDisplayName(tool.Category) / @tool.Name
+                <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(tool.Category) / @tool.Name
             </div>
 
             <div class="tool-page-header">
@@ -121,7 +116,7 @@
     } else if (!Availability.CanRun(tool)) {
         <div class="tool-not-found">
             <h2>Tool not available online</h2>
-            <p>@Availability.GetUnavailableMessage(tool) <a href="./">Browse available tools</a></p>
+            <p>@Availability.GetUnavailableMessage(tool) <a href="/tools/">Browse available tools</a></p>
         </div>
     } else {
         <ToolPage Definition="tool" />

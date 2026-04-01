@@ -1,14 +1,14 @@
 @using DomainDetective.Toolbox.Models
 
 <div class="tool-not-available">
-    <div class="tool-not-available-eyebrow">Full online check</div>
+    <div class="tool-not-available-eyebrow">Hosted tool</div>
     <h3>@Tool.Name</h3>
     <p class="tool-not-available-copy">
         @GetIntro(Tool)
     </p>
 
     <div class="tool-share-metrics">
-        <span class="tool-share-pill tool-share-pill-unavailable">Hosted edition</span>
+        <span class="tool-share-pill tool-share-pill-unavailable">Hosted</span>
         <span class="tool-share-pill tool-share-pill-fresh">Web edition guidance included</span>
     </div>
 
@@ -49,12 +49,12 @@
 
     private static string GetIntro(ToolDefinition tool) {
         return tool.Slug switch {
-            "http-headers" => "This check inspects live web responses, header behavior, redirects, and security policy details as part of the full Domain Detective online suite.",
+            "http-headers" => "This check inspects live web responses, header behavior, redirects, and security policy details in the hosted tools experience.",
             "security-txt" => "This check retrieves and validates the published security.txt file, including disclosure fields, canonical location, expiry, and signing details.",
             "rdap" => "This check analyzes live domain registration records, registrar details, status flags, and expiry data.",
             "cert-check" => "This check inspects the live TLS handshake, certificate chain, protocol posture, and revocation details.",
             "ct-subdomains" => "This check expands attack-surface discovery using historical certificate transparency evidence and related DD correlation.",
-            _ => $"{tool.Name} is part of the full Domain Detective online suite."
+            _ => $"{tool.Name} is available in the hosted tools experience."
         };
     }
 
@@ -93,12 +93,12 @@
 
     private static string GetStaticEditionNote(ToolDefinition tool) {
         return tool.Slug switch {
-            "http-headers" => "Use the browser-safe DNS, mail, and overview tools here. This deeper web-response analysis is reserved for the full online edition.",
-            "security-txt" => "The browser-safe edition keeps the DNS and overview tools live. Security.txt retrieval itself is part of the full online edition.",
-            "rdap" => "The browser-safe edition focuses on DNS and mail posture. Registration lookups remain part of the full online edition.",
-            "cert-check" => "The browser-safe edition keeps certificate-adjacent DNS controls like CAA and DANE live. Full TLS certificate inspection stays in the full online edition.",
-            "ct-subdomains" => "The browser-safe edition keeps overview and DNS tools live. Historical CT discovery remains part of the full online edition.",
-            _ => "This check is currently part of the full online edition."
+            "http-headers" => "Use the browser-safe DNS, mail, and overview tools here. This deeper web-response analysis is reserved for the hosted version.",
+            "security-txt" => "The browser-safe edition keeps the DNS and overview tools live. Security.txt retrieval itself is part of the hosted version.",
+            "rdap" => "The browser-safe edition focuses on DNS and mail posture. Registration lookups remain part of the hosted version.",
+            "cert-check" => "The browser-safe edition keeps certificate-adjacent DNS controls like CAA and DANE live. Full TLS certificate inspection stays in the hosted version.",
+            "ct-subdomains" => "The browser-safe edition keeps overview and DNS tools live. Historical CT discovery remains part of the hosted version.",
+            _ => "This check is currently part of the hosted tools experience."
         };
     }
 

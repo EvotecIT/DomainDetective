@@ -26,9 +26,9 @@
 
             <nav class="dd-nav @(GetNavClass())" aria-label="Main navigation" @onclick:stopPropagation="true">
                 <div class="dd-nav-links">
-                    <a href="/" class="@GetNavLinkClass("/")">Home</a>
-                    <a href="/tools/" class="@GetNavLinkClass("/tools/")">Tools</a>
-                    <a href="/docs/" class="@GetNavLinkClass("/docs/")">Docs</a>
+                    <a href="/" class="@GetNavLinkClass("/")" aria-current="@(IsActivePath("/") ? "page" : null)">Home</a>
+                    <a href="/tools/" class="@GetNavLinkClass("/tools/")" aria-current="@(IsActivePath("/tools/") ? "page" : null)">Tools</a>
+                    <a href="/docs/" class="@GetNavLinkClass("/docs/")" aria-current="@(IsActivePath("/docs/") ? "page" : null)">Docs</a>
                     <div class="dd-nav-dropdown @GetApiMenuClass()">
                         <button class="dd-nav-dropdown-trigger @(_apiMenuOpen ? "is-active" : string.Empty)"
                                 type="button"
@@ -45,8 +45,8 @@
                             <a href="/api/powershell/">PowerShell API Reference</a>
                         </div>
                     </div>
-                    <a href="/blog/" class="@GetNavLinkClass("/blog/")">Blog</a>
-                    <a href="/downloads/" class="@GetNavLinkClass("/downloads/")">Downloads</a>
+                    <a href="/blog/" class="@GetNavLinkClass("/blog/")" aria-current="@(IsActivePath("/blog/") ? "page" : null)">Blog</a>
+                    <a href="/downloads/" class="@GetNavLinkClass("/downloads/")" aria-current="@(IsActivePath("/downloads/") ? "page" : null)">Downloads</a>
                 </div>
 
                 <div class="dd-nav-actions">
@@ -72,7 +72,9 @@
     </header>
 
     <main class="dd-main">
-        @Body
+        <div class="dd-main-inner">
+            @Body
+        </div>
     </main>
 
     <footer class="dd-footer">
@@ -201,7 +203,7 @@
     }
 
     private string GetNavLinkClass(string href) {
-        return IsActivePath(href) ? "dd-nav-link dd-nav-link-active" : "dd-nav-link";
+        return IsActivePath(href) ? "dd-nav-link is-active" : "dd-nav-link";
     }
 
     private bool IsActivePath(string href) {

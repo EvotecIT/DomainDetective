@@ -33,6 +33,7 @@
     var snapshotHighlights = Microsoft365OverviewPresentation.BuildSnapshotHighlights(Info);
     var snapshotCards = Microsoft365OverviewPresentation.BuildSnapshotCards(Info);
     var assessmentSummaryCards = OverviewAssessmentPresentation.BuildSummaryCards(Info?.Assessments);
+    var assessmentPreviewLines = OverviewAssessmentPresentation.BuildPreviewLines(Info?.Assessments, 5);
     var mailCards = Microsoft365OverviewPresentation.BuildMailCards(Info);
     var mailControlCards = OverviewControlPresentation.BuildAllCards(Info?.MailDnsChecks);
     var attentionControlCards = OverviewControlPresentation.BuildAttentionCards(allChecks);
@@ -55,24 +56,24 @@
 @if (Info is not null && tenant is not null) {
 @if (Info.IsBrowserLimited) {
     <div class="tool-callout tool-callout-inline">
-        <strong>Browser-safe Microsoft 365 preview</strong>
-        <p>This view is built from DD checks that run cleanly in the browser. Tenant identity, Microsoft auth probing, and related hosted-only sections stay visible below but are marked unavailable in this edition.</p>
+        <strong>Web edition overview</strong>
+        <p>This view uses the DD checks that run cleanly in the browser. The deeper Microsoft identity and tenant-correlation sections stay visible below and explain when the broader online check is needed.</p>
     </div>
 }
 
 @if (Info.IsPartial) {
     <div class="tool-callout tool-callout-inline">
-        <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "Quick posture ready" : Info.StageLabel)</strong>
-        <p>DomainDetective has already loaded the first dashboard pass. Deep evidence is still running for: @string.Join(", ", Info.PendingSections).</p>
+        <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "Preview ready" : Info.StageLabel)</strong>
+        <p>The first DD pass is already on the page. The full report is still loading for: @string.Join(", ", Info.PendingSections).</p>
     </div>
 }
 
 @if (Info.GeneratedAtUtc > DateTimeOffset.MinValue) {
     <div class="tool-meta-row">
-        <span class="tool-meta-pill">Generated @FormatUtc(Info.GeneratedAtUtc)</span>
+        <span class="tool-meta-pill">Updated @FormatUtc(Info.GeneratedAtUtc)</span>
         <span class="tool-meta-pill">Age @FormatAge(Info.GeneratedAtUtc)</span>
-        <span class="tool-meta-pill">@(Info.ServedFromCache ? "Cached DD result" : "Fresh DD run")</span>
-        <span class="tool-meta-pill">@(Info.IsPartial ? "Quick posture" : "Deep DD complete")</span>
+        <span class="tool-meta-pill">@(Info.ServedFromCache ? "Cached result" : "Fresh scan")</span>
+        <span class="tool-meta-pill">@(Info.IsPartial ? "Preview" : "Complete")</span>
         @if (Info.CompletedAtUtc.HasValue) {
             <span class="tool-meta-pill">Completed @FormatUtc(Info.CompletedAtUtc.Value)</span>
         } else if (Info.PendingSections.Count > 0) {
@@ -81,50 +82,10 @@
     </div>
 }
 
-<ResultCard Title="Shareable snapshot" Status="ResultCard.ResultStatus.Info">
-    <div class="tool-share-summary">
-        <div class="tool-share-header">
-            <div class="tool-share-header-copy">
-                <strong>Permalink-ready summary</strong>
-                <p>Use the full snapshot for reporting or the red-flags view for quick incident triage.</p>
-            </div>
-            <a class="tool-share-link" href="@Navigation.Uri" target="_blank" rel="noopener">Open permalink</a>
-        </div>
-        <div class="tool-share-metrics">
-            <span class="@GetShareRiskClass(Info)">@GetShareRiskLabel(Info)</span>
-            <span class="tool-share-pill">Errors @Info.ErrorCount</span>
-            <span class="tool-share-pill">Warnings @Info.WarningCount</span>
-            <span class="tool-share-pill">Attention @attentionChecks.Count</span>
-            <span class="@GetSharePendingClass(Info)">@GetSharePendingLabel(Info)</span>
-            <span class="@GetShareSourceClass(Info.ServedFromCache)">@(Info.ServedFromCache ? "Cached result" : "Fresh result")</span>
-        </div>
-        <pre class="tool-share-summary-text">@BuildShareableSnapshot()</pre>
-        <div class="tool-share-actions">
-            <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="CopySnapshotAsync">Copy snapshot</button>
-            <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="CopyRedFlagsAsync">Copy red flags</button>
-            @if (!string.IsNullOrWhiteSpace(_copyStatus)) {
-                <span class="tool-share-status">@_copyStatus</span>
-            }
-        </div>
-    </div>
-</ResultCard>
-
-<nav class="overview-quick-nav" aria-label="Microsoft 365 overview sections">
-    <a class="overview-quick-link" href="#m365-snapshot">Snapshot <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span></a>
-    <a class="overview-quick-link" href="#m365-identity">Identity <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Identity"), IsSectionUnavailable(Info, "Identity"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Identity"), IsSectionUnavailable(Info, "Identity"))</span></a>
-    <a class="overview-quick-link" href="#m365-services">Services <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Services"), IsSectionUnavailable(Info, "Services"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Services"), IsSectionUnavailable(Info, "Services"))</span></a>
-    <a class="overview-quick-link" href="#m365-mail">Mail controls <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Mail controls"), IsSectionUnavailable(Info, "Mail controls"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Mail controls"), IsSectionUnavailable(Info, "Mail controls"))</span></a>
-    <a class="overview-quick-link" href="#m365-apps">Apps <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"))</span></a>
-    <a class="overview-quick-link" href="#m365-domains">Domains <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Domains"), IsSectionUnavailable(Info, "Domains"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Domains"), IsSectionUnavailable(Info, "Domains"))</span></a>
-    <a class="overview-quick-link" href="#m365-evidence">Evidence <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))</span></a>
-    <a class="overview-quick-link" href="#m365-assessments">Assessments <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))</span></a>
-</nav>
-
 <div id="m365-snapshot" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span>
-    <span class="@GetSourceBadgeClass(Info.ServedFromCache)">@GetSourceBadgeLabel(Info.ServedFromCache)</span>
-    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "Included in the quick DD posture pass.", "Snapshot remains available in the browser-safe edition.")</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "Included in the first pass.", "Snapshot remains available in the browser-safe edition.")</span>
 </div>
 <ResultCard Title="Microsoft 365 tenant posture" Status="@GetOverallStatus(Info!)">
     <div class="tool-section-grid">
@@ -147,6 +108,17 @@
     </div>
 </ResultCard>
 </div>
+
+<nav class="overview-quick-nav" aria-label="Microsoft 365 overview sections">
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("m365-snapshot")'>Snapshot <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("m365-identity")'>Identity <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Identity"), IsSectionUnavailable(Info, "Identity"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Identity"), IsSectionUnavailable(Info, "Identity"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("m365-services")'>Services <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Services"), IsSectionUnavailable(Info, "Services"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Services"), IsSectionUnavailable(Info, "Services"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("m365-mail")'>Mail controls <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Mail controls"), IsSectionUnavailable(Info, "Mail controls"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Mail controls"), IsSectionUnavailable(Info, "Mail controls"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("m365-apps")'>Apps <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("m365-domains")'>Domains <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Domains"), IsSectionUnavailable(Info, "Domains"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Domains"), IsSectionUnavailable(Info, "Domains"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("m365-evidence")'>Evidence <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("m365-assessments")'>Assessments <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))</span></button>
+</nav>
 
 <ResultCard Title="Control priorities" Status="ResultCard.ResultStatus.Info">
     <div class="tool-section-grid">
@@ -206,10 +178,42 @@
     </div>
 </ResultCard>
 
+<ResultCard Title="Share result" Status="ResultCard.ResultStatus.Info">
+    <div class="tool-share-summary tool-share-summary-compact">
+        <div class="tool-share-header">
+            <div class="tool-share-header-copy">
+                <strong>Permalink and copy-ready summary</strong>
+                <p>Use this when you want to reopen the same result later or paste a short DD summary into a ticket or message.</p>
+            </div>
+            <a class="tool-share-link" href="@GetPermalinkUrl()" target="_blank" rel="noopener">Open shareable link</a>
+        </div>
+        <div class="tool-share-metrics">
+            <span class="@GetShareRiskClass(Info)">@GetShareRiskLabel(Info)</span>
+            <span class="tool-share-pill">Errors @Info.ErrorCount</span>
+            <span class="tool-share-pill">Warnings @Info.WarningCount</span>
+            <span class="tool-share-pill">Attention @attentionChecks.Count</span>
+            <span class="@GetSharePendingClass(Info)">@GetSharePendingLabel(Info)</span>
+            <span class="@GetShareSourceClass(Info.ServedFromCache)">@(Info.ServedFromCache ? "Cached result" : "Fresh scan")</span>
+        </div>
+        <div class="tool-share-actions">
+            <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="CopySnapshotAsync">Copy summary</button>
+            <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="CopyRedFlagsAsync">Copy red flags</button>
+            @if (!string.IsNullOrWhiteSpace(_copyStatus)) {
+                <span class="tool-share-status">@_copyStatus</span>
+            }
+        </div>
+        <details class="overview-disclosure tool-share-disclosure">
+            <summary class="overview-disclosure-summary">Show copied summary</summary>
+            <div class="overview-disclosure-body">
+                <pre class="tool-share-summary-text">@BuildShareableSnapshot()</pre>
+            </div>
+        </details>
+    </div>
+</ResultCard>
+
 <div id="m365-identity" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Identity"), IsSectionUnavailable(Info, "Identity"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Identity"), IsSectionUnavailable(Info, "Identity"))</span>
-    <span class="@GetSourceBadgeClass(Info.ServedFromCache)">@GetSourceBadgeLabel(Info.ServedFromCache)</span>
     <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Identity"), IsSectionUnavailable(Info, "Identity"), "Identity and tenant signals are already available.", GetUnavailableSectionMessage("Identity"))</span>
 </div>
 @if (IsSectionUnavailable(Info, "Identity")) {
@@ -230,7 +234,6 @@
 <div id="m365-services" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Services"), IsSectionUnavailable(Info, "Services"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Services"), IsSectionUnavailable(Info, "Services"))</span>
-    <span class="@GetSourceBadgeClass(Info.ServedFromCache)">@GetSourceBadgeLabel(Info.ServedFromCache)</span>
     <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Services"), IsSectionUnavailable(Info, "Services"), "Detected Microsoft 365 service families are already available.", GetUnavailableSectionMessage("Services"))</span>
 </div>
 @if (IsSectionUnavailable(Info, "Services")) {
@@ -250,15 +253,21 @@
         <div class="tool-summary-card">
             <span class="tool-summary-label">Detected workloads</span>
             @if (detectedServiceViews.Count > 0) {
-                <div class="tool-stack">
-                    @foreach (var service in detectedServiceViews.Take(6)) {
-                        <OverviewItemCallout
-                            Title="@service.Name"
-                            Summary="@service.Summary"
-                            Chips="@(new[] { $"Confidence: {service.ConfidenceLabel}", service.EvidenceSourceLabel, $"{service.ObservationCount} signal(s)" })"
-                            Samples="service.Samples" />
-                    }
-                </div>
+                <p class="tool-summary-note">DD identified @detectedServiceViews.Count workload signal(s). Expand the list to review the strongest observed service families and their evidence.</p>
+                <details class="overview-disclosure mt-2">
+                    <summary class="overview-disclosure-summary">Show detected workloads (@detectedServiceViews.Count)</summary>
+                    <div class="overview-disclosure-body">
+                        <div class="tool-stack">
+                            @foreach (var service in detectedServiceViews) {
+                                <OverviewItemCallout
+                                    Title="@service.Name"
+                                    Summary="@service.Summary"
+                                    Chips="@(new[] { $"Confidence: {service.ConfidenceLabel}", service.EvidenceSourceLabel, $"{service.ObservationCount} signal(s)" })"
+                                    Samples="service.Samples" />
+                            }
+                        </div>
+                    </div>
+                </details>
             } else {
                 <OverviewCalloutCard Card="noDetectedServiceCard" CalloutClass="tool-callout tool-callout-info" />
             }
@@ -283,7 +292,6 @@
 <div id="m365-mail" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Mail controls"), IsSectionUnavailable(Info, "Mail controls"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Mail controls"), IsSectionUnavailable(Info, "Mail controls"))</span>
-    <span class="@GetSourceBadgeClass(Info.ServedFromCache)">@GetSourceBadgeLabel(Info.ServedFromCache)</span>
     <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Mail controls"), IsSectionUnavailable(Info, "Mail controls"), "Core mail and DNS controls are fully evaluated.", GetUnavailableSectionMessage("Mail controls"))</span>
 </div>
 @if (IsSectionUnavailable(Info, "Mail controls")) {
@@ -311,7 +319,6 @@
 <div id="m365-apps" class="overview-section-anchor">
     <div class="overview-section-state">
         <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"))</span>
-        <span class="@GetSourceBadgeClass(Info.ServedFromCache)">@GetSourceBadgeLabel(Info.ServedFromCache)</span>
         <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"), "Detected DNS application evidence is already available.", GetUnavailableSectionMessage("Apps"))</span>
     </div>
     <ResultCard Title="Detected DNS applications" Status="ResultCard.ResultStatus.Info">
@@ -321,15 +328,21 @@
                     <div class="tool-summary-card">
                         <span class="tool-summary-label">@group.CategoryLabel</span>
                         <strong class="tool-summary-value">@group.ApplicationCount app(s)</strong>
-                        <div class="tool-stack">
-                            @foreach (var app in group.Applications.Take(6)) {
-                                <OverviewItemCallout
-                                    Title="@app.Name"
-                                    Summary="@app.Summary"
-                                    Chips="@BuildAppChips(app)"
-                                    Samples="app.Samples" />
-                            }
-                        </div>
+                        <p class="tool-summary-note">DD matched @group.ApplicationCount application signal(s) in this category. Expand to review the detailed provider and evidence cards.</p>
+                        <details class="overview-disclosure mt-2">
+                            <summary class="overview-disclosure-summary">Show @group.CategoryLabel.ToLowerInvariant() matches (@group.Applications.Count)</summary>
+                            <div class="overview-disclosure-body">
+                                <div class="tool-stack">
+                                    @foreach (var app in group.Applications) {
+                                        <OverviewItemCallout
+                                            Title="@app.Name"
+                                            Summary="@app.Summary"
+                                            Chips="@BuildAppChips(app)"
+                                            Samples="app.Samples" />
+                                    }
+                                </div>
+                            </div>
+                        </details>
                     </div>
                 }
             </div>
@@ -342,7 +355,6 @@
 <div id="m365-domains" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Domains"), IsSectionUnavailable(Info, "Domains"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Domains"), IsSectionUnavailable(Info, "Domains"))</span>
-    <span class="@GetSourceBadgeClass(Info.ServedFromCache)">@GetSourceBadgeLabel(Info.ServedFromCache)</span>
     <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Domains"), IsSectionUnavailable(Info, "Domains"), "Tenant domains and known Microsoft 365 subdomains are already available.", GetUnavailableSectionMessage("Domains"))</span>
 </div>
 @if (IsSectionUnavailable(Info, "Domains")) {
@@ -362,15 +374,21 @@
         <div class="tool-summary-card">
             <span class="tool-summary-label">Tenant domains</span>
             @if (tenantDomains.Count > 0) {
-                <div class="tool-stack">
-                    @foreach (var domain in tenantDomains.Take(8)) {
-                        <OverviewItemCallout
-                            Title="@domain.Domain"
-                            Summary="@domain.Summary"
-                            Chips="@(new[] { domain.RoleLabel, $"Confidence: {domain.ConfidenceLabel}", $"{domain.ObservationCount} signal(s)" })"
-                            Samples="domain.Samples" />
-                    }
-                </div>
+                <p class="tool-summary-note">DD identified @tenantDomains.Count tenant-domain relationship(s). Expand for role, confidence, and evidence details.</p>
+                <details class="overview-disclosure mt-2">
+                    <summary class="overview-disclosure-summary">Show tenant domains (@tenantDomains.Count)</summary>
+                    <div class="overview-disclosure-body">
+                        <div class="tool-stack">
+                            @foreach (var domain in tenantDomains) {
+                                <OverviewItemCallout
+                                    Title="@domain.Domain"
+                                    Summary="@domain.Summary"
+                                    Chips="@(new[] { domain.RoleLabel, $"Confidence: {domain.ConfidenceLabel}", $"{domain.ObservationCount} signal(s)" })"
+                                    Samples="domain.Samples" />
+                            }
+                        </div>
+                    </div>
+                </details>
             } else {
                 <OverviewCalloutCard Card="noTenantDomainsCard" CalloutClass="tool-callout tool-callout-info" />
             }
@@ -378,15 +396,21 @@
         <div class="tool-summary-card">
             <span class="tool-summary-label">Known subdomains</span>
             @if (knownSubdomains.Count > 0) {
-                <div class="tool-stack">
-                    @foreach (var subdomain in knownSubdomains) {
-                        <OverviewItemCallout
-                            Title="@subdomain.Name"
-                            Summary="@subdomain.Summary"
-                            Chips="@(new[] { subdomain.RoleLabel, subdomain.ResolutionLabel, $"{subdomain.ObservationCount} signal(s)" })"
-                            Samples="subdomain.Samples" />
-                    }
-                </div>
+                <p class="tool-summary-note">DD observed @knownSubdomains.Count Microsoft 365-related subdomain signal(s). Expand for resolution and evidence details.</p>
+                <details class="overview-disclosure mt-2">
+                    <summary class="overview-disclosure-summary">Show known subdomains (@knownSubdomains.Count)</summary>
+                    <div class="overview-disclosure-body">
+                        <div class="tool-stack">
+                            @foreach (var subdomain in knownSubdomains) {
+                                <OverviewItemCallout
+                                    Title="@subdomain.Name"
+                                    Summary="@subdomain.Summary"
+                                    Chips="@(new[] { subdomain.RoleLabel, subdomain.ResolutionLabel, $"{subdomain.ObservationCount} signal(s)" })"
+                                    Samples="subdomain.Samples" />
+                            }
+                        </div>
+                    </div>
+                </details>
             } else {
                 <OverviewCalloutCard Card="noKnownSubdomainsCard" CalloutClass="tool-callout tool-callout-info" />
             }
@@ -399,7 +423,6 @@
 <div id="m365-evidence" class="overview-section-anchor">
     <div class="overview-section-state">
         <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))</span>
-        <span class="@GetSourceBadgeClass(Info.ServedFromCache)">@GetSourceBadgeLabel(Info.ServedFromCache)</span>
         <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"), "The evidence ledger explains why DD inferred the tenant posture.", GetUnavailableSectionMessage("Evidence"))</span>
     </div>
     <ResultCard Title="Why DD inferred Microsoft 365" Status="ResultCard.ResultStatus.Info">
@@ -411,24 +434,29 @@
             </div>
         }
         @if (evidenceGroups.Count > 0) {
-            <div class="tool-section-grid">
-                @foreach (var group in evidenceGroups) {
-                    <div class="tool-summary-card">
-                        <span class="tool-summary-label">@group.CategoryLabel</span>
-                        <strong class="tool-summary-value">@group.ItemCount signal(s)</strong>
-                        <p class="tool-summary-note">Strongest confidence: @group.HighestConfidenceLabel</p>
-                        <div class="tool-stack">
-                            @foreach (var item in group.Items.Take(4)) {
-                                <OverviewItemCallout
-                                    Title="@item.Label"
-                                    Summary="@item.Summary"
-                                    Chips="@(new[] { $"Confidence: {item.ConfidenceLabel}", $"{item.ObservationCount} signal(s)" })"
-                                    Samples="item.Samples" />
-                            }
-                        </div>
+            <details class="overview-disclosure">
+                <summary class="overview-disclosure-summary">Show evidence details (@evidenceGroups.Count categories)</summary>
+                <div class="overview-disclosure-body">
+                    <div class="tool-section-grid">
+                        @foreach (var group in evidenceGroups) {
+                            <div class="tool-summary-card">
+                                <span class="tool-summary-label">@group.CategoryLabel</span>
+                                <strong class="tool-summary-value">@group.ItemCount signal(s)</strong>
+                                <p class="tool-summary-note">Strongest confidence: @group.HighestConfidenceLabel</p>
+                                <div class="tool-stack">
+                                    @foreach (var item in group.Items.Take(4)) {
+                                        <OverviewItemCallout
+                                            Title="@item.Label"
+                                            Summary="@item.Summary"
+                                            Chips="@(new[] { $"Confidence: {item.ConfidenceLabel}", $"{item.ObservationCount} signal(s)" })"
+                                            Samples="item.Samples" />
+                                    }
+                                </div>
+                            </div>
+                        }
                     </div>
-                }
-            </div>
+                </div>
+            </details>
         } else {
             <OverviewCalloutCard Card="noEvidenceCard" CalloutClass="tool-callout tool-callout-info" />
         }
@@ -448,7 +476,6 @@
 <div id="m365-assessments" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))</span>
-    <span class="@GetSourceBadgeClass(Info.ServedFromCache)">@GetSourceBadgeLabel(Info.ServedFromCache)</span>
     <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"), "All DD recommendations and positive findings are included.", GetUnavailableSectionMessage("Assessments"))</span>
 </div>
 <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
@@ -460,8 +487,18 @@
                 }
             </div>
         }
+        @if (assessmentPreviewLines.Count > 0) {
+            <div class="tool-callout tool-callout-inline tool-callout-soft">
+                <strong>Top findings</strong>
+                <ul class="tool-bullet-list">
+                    @foreach (var item in assessmentPreviewLines) {
+                        <li>@item</li>
+                    }
+                </ul>
+            </div>
+        }
         <details class="overview-disclosure">
-            <summary class="overview-disclosure-summary">Show DD assessments (@Info.Assessments.Count)</summary>
+            <summary class="overview-disclosure-summary">Show findings (@Info.Assessments.Count)</summary>
             <div class="overview-disclosure-body">
                 <AssessmentList Assessments="Info.Assessments" EmptyMessage="No assessments were produced for this tenant." />
             </div>
@@ -474,9 +511,19 @@
 }
 
 @code {
+    [Parameter] public string? PermalinkUrl { get; set; }
+
     [Parameter] public required Microsoft365OverviewInfo Info { get; set; }
     [Parameter] public required string Domain { get; set; }
     private string? _copyStatus;
+
+    private string GetPermalinkUrl() {
+        return string.IsNullOrWhiteSpace(PermalinkUrl) ? Navigation.Uri : PermalinkUrl;
+    }
+
+    private async Task ScrollToSectionAsync(string sectionId) {
+        await JS.InvokeVoidAsync("domainDetectiveTools.scrollToElement", sectionId);
+    }
 
     private async Task CopySnapshotAsync() {
         var copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", BuildShareableSnapshot());
@@ -519,7 +566,7 @@
 
     private static string BuildSummary(Microsoft365OverviewInfo info) {
         if (info.IsBrowserLimited) {
-            return "Browser-safe Microsoft 365 preview built from DNS and mail evidence. Tenant identity and authentication probing are unavailable in this edition.";
+            return "Web edition Microsoft 365 preview built from DNS and mail evidence. Tenant identity and authentication probing are unavailable in this edition.";
         }
 
         if (!info.Tenant.IsMicrosoft365Tenant) {
@@ -531,8 +578,8 @@
 
     private string BuildShareableSnapshot() {
         var info = Info;
-        var source = info.ServedFromCache ? "Cached DD result" : "Fresh DD run";
-        var stage = info.IsPartial ? "Quick posture" : "Deep DD complete";
+        var source = info.ServedFromCache ? "Cached result" : "Fresh scan";
+        var stage = info.IsPartial ? "Preview" : "Complete";
         var warnings = info.WarningCount;
         var errors = info.ErrorCount;
         var pending = info.PendingSections.Count == 0 ? "None" : string.Join(", ", info.PendingSections);
@@ -549,7 +596,7 @@
             $"Stage: {stage}",
             $"Source: {source}",
             $"Risk: {GetShareRiskLabel(info)}",
-            $"Generated: {FormatUtc(info.GeneratedAtUtc)}",
+            $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
             $"Pending sections: {pending}",
             $"Unavailable sections: {unavailable}",
             $"Tenant: {tenantName}",
@@ -566,10 +613,10 @@
         var lines = new List<string> {
             $"Domain Detective M365 red flags for {info.Subject}",
             $"Permalink: {Navigation.Uri}",
-            $"Stage: {(info.IsPartial ? "Quick posture" : "Deep DD complete")}",
-            $"Source: {(info.ServedFromCache ? "Cached DD result" : "Fresh DD run")}",
+            $"Stage: {(info.IsPartial ? "Preview" : "Complete")}",
+            $"Source: {(info.ServedFromCache ? "Cached result" : "Fresh scan")}",
             $"Risk: {GetShareRiskLabel(info)}",
-            $"Generated: {FormatUtc(info.GeneratedAtUtc)}",
+            $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
             $"Warnings/Errors: {info.WarningCount}/{info.ErrorCount}",
             $"Unavailable sections: {(info.UnavailableSections.Count == 0 ? "None" : string.Join(", ", info.UnavailableSections))}"
         };
@@ -673,14 +720,6 @@
         return isPending ? "Pending" : "Ready";
     }
 
-    private static string GetSourceBadgeClass(bool servedFromCache) {
-        return servedFromCache ? "overview-section-badge overview-section-badge-cached" : "overview-section-badge overview-section-badge-fresh";
-    }
-
-    private static string GetSourceBadgeLabel(bool servedFromCache) {
-        return servedFromCache ? "Cached" : "Fresh";
-    }
-
     private static string GetShareRiskClass(Microsoft365OverviewInfo info) {
         if (info.ErrorCount > 0) {
             return "tool-share-pill tool-share-pill-risk-high";
@@ -707,7 +746,7 @@
         }
 
         if (info.PendingSections.Count > 0) {
-            return "Quick posture";
+            return "Preview";
         }
 
         return "Healthy baseline";
@@ -730,7 +769,7 @@
 
         return info.PendingSections.Count > 0
             ? $"{info.PendingSections.Count} sections pending"
-            : "Deep complete";
+            : "Complete";
     }
 
     private static string GetShareSourceClass(bool servedFromCache) {
@@ -745,20 +784,14 @@
         }
 
         if (isPending) {
-            return info.ServedFromCache
-                ? "Deep DD evidence for this section is still loading. Current data comes from a cached quick posture pass."
-                : "Deep DD evidence for this section is still loading. Current data comes from a fresh quick posture pass.";
+            return "This section is still loading deeper evidence.";
         }
 
         if (info.IsPartial) {
-            return info.ServedFromCache
-                ? $"{readyText} Served from a cached quick posture pass."
-                : $"{readyText} Served from a fresh quick posture pass.";
+            return readyText;
         }
 
-        return info.ServedFromCache
-            ? $"{readyText} Served from a cached deep DD result."
-            : $"{readyText} Served from the latest deep DD run.";
+        return readyText;
     }
 
     private static string GetUnavailableSectionMessage(string section) {

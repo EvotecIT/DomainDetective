@@ -134,7 +134,7 @@ public sealed class BrowserOverviewService {
             TenantName = domainName,
             DetectedDnsApplications = dnsInventory.DetectedDnsApplications,
             Highlights = highlights,
-            Summary = "Browser-safe Microsoft 365 preview built from public DNS and mail posture only."
+            Summary = "Web edition Microsoft 365 preview built from public DNS and mail posture only."
         };
     }
 }

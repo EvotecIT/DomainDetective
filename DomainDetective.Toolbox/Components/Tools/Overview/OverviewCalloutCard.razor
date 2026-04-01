@@ -1,5 +1,5 @@
 @if (Card is not null) {
-    <div class="@CalloutClass">
+    <div class="@($"{CalloutClass} overview-callout-card")">
         <strong>@Card.Title</strong>
         @if (!string.IsNullOrWhiteSpace(Card.ValueLabel)) {
             <span class="tool-summary-value">@Card.ValueLabel</span>

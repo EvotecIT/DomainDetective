@@ -2,11 +2,34 @@
     'use strict';
 
     var themes = ['dark', 'light'];
+    var recentRunsKey = 'dd-tool-recent-runs';
 
     function applyTheme(theme) {
         var nextTheme = theme === 'light' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', nextTheme);
         document.documentElement.style.colorScheme = nextTheme;
+    }
+
+    function loadRecentRunsState() {
+        try {
+            var raw = localStorage.getItem(recentRunsKey);
+            if (!raw) {
+                return {};
+            }
+
+            var parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function saveRecentRunsState(state) {
+        try {
+            localStorage.setItem(recentRunsKey, JSON.stringify(state));
+        } catch (error) {
+            // Ignore quota and storage errors.
+        }
     }
 
     window.domainDetectiveTools = {
@@ -51,6 +74,61 @@
             } catch (error) {
                 return false;
             }
+        },
+        loadRecentRuns: function (toolSlug) {
+            if (!toolSlug) {
+                return [];
+            }
+
+            var state = loadRecentRunsState();
+            return Array.isArray(state[toolSlug]) ? state[toolSlug] : [];
+        },
+        saveRecentRun: function (toolSlug, item) {
+            if (!toolSlug || !item || !item.domain) {
+                return [];
+            }
+
+            var state = loadRecentRunsState();
+            var current = Array.isArray(state[toolSlug]) ? state[toolSlug] : [];
+            var normalized = {
+                domain: item.domain,
+                secondaryInput: item.secondaryInput || null,
+                savedAtUtc: item.savedAtUtc || new Date().toISOString()
+            };
+            var deduped = current.filter(function (entry) {
+                if (!entry || !entry.domain) {
+                    return false;
+                }
+
+                return !(entry.domain.toLowerCase() === normalized.domain.toLowerCase()
+                    && (entry.secondaryInput || '') === (normalized.secondaryInput || ''));
+            });
+
+            deduped.unshift(normalized);
+            state[toolSlug] = deduped.slice(0, 6);
+            saveRecentRunsState(state);
+            return state[toolSlug];
+        },
+        scrollToElement: function (id) {
+            if (!id) {
+                return false;
+            }
+
+            var element = document.getElementById(id);
+            if (!element) {
+                return false;
+            }
+
+            var header = document.querySelector('.dd-header');
+            var headerHeight = header ? header.getBoundingClientRect().height : 0;
+            var extraOffset = 20;
+            var top = window.scrollY + element.getBoundingClientRect().top - headerHeight - extraOffset;
+            window.scrollTo({
+                top: Math.max(top, 0),
+                behavior: 'smooth'
+            });
+
+            return true;
         }
     };
 })();
