@@ -1,6 +1,7 @@
 using DomainDetective;
 using DomainDetective.Views;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
@@ -8,9 +9,10 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
-var allowedOrigins = ResolveAllowedOrigins(builder.Configuration);
+var allowedOrigins = ResolveAllowedOrigins(builder.Configuration, out var usingFallbackOrigins);
 
 builder.Services.AddCors(options => {
     options.AddDefaultPolicy(policy => {
@@ -20,29 +22,47 @@ builder.Services.AddCors(options => {
     });
 });
 builder.Services.AddMemoryCache();
+builder.Services.AddRateLimiter(options => {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("tool-api", httpContext => {
+        var remoteIpAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(remoteIpAddress, static _ => new FixedWindowRateLimiterOptions {
+            PermitLimit = 20,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        });
+    });
+});
 
 var app = builder.Build();
 var siteRoot = ResolveSiteRoot(app.Configuration, app.Environment);
 
 app.UseCors();
+app.UseRateLimiter();
+
+if (usingFallbackOrigins) {
+    app.Logger.LogWarning("Cors:AllowedOrigins was not configured. Using default development and production origins.");
+}
 
 app.MapGet("/tool-api/health", () => TypedResults.Ok(new {
     status = "ok",
     siteRootExists = siteRoot != null && Directory.Exists(siteRoot)
 }));
 
-app.MapPost("/tool-api/http-headers", AnalyzeHttpHeadersAsync);
-app.MapPost("/tool-api/security-txt", AnalyzeSecurityTxtAsync);
-app.MapPost("/tool-api/cert-check", AnalyzeCertificateAsync);
-app.MapPost("/tool-api/bimi", AnalyzeBimiAsync);
-app.MapPost("/tool-api/mta-sts", AnalyzeMtastsAsync);
-app.MapPost("/tool-api/rdap", AnalyzeRdapAsync);
-app.MapPost("/tool-api/dns-propagation", AnalyzeDnsPropagationAsync);
-app.MapPost("/tool-api/ct-subdomains", AnalyzeCtSubdomainsAsync);
-app.MapPost("/tool-api/m365-overview/quick", AnalyzeMicrosoft365OverviewQuickAsync);
-app.MapPost("/tool-api/m365-overview", AnalyzeMicrosoft365OverviewAsync);
-app.MapPost("/tool-api/domain-overview/quick", AnalyzeDomainOverviewQuickAsync);
-app.MapPost("/tool-api/domain-overview", AnalyzeDomainOverviewAsync);
+app.MapPost("/tool-api/http-headers", AnalyzeHttpHeadersAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/security-txt", AnalyzeSecurityTxtAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/cert-check", AnalyzeCertificateAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/bimi", AnalyzeBimiAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/mta-sts", AnalyzeMtastsAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/rdap", AnalyzeRdapAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/dns-propagation", AnalyzeDnsPropagationAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/ct-subdomains", AnalyzeCtSubdomainsAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/m365-overview/quick", AnalyzeMicrosoft365OverviewQuickAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/m365-overview", AnalyzeMicrosoft365OverviewAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/domain-overview/quick", AnalyzeDomainOverviewQuickAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/domain-overview", AnalyzeDomainOverviewAsync).RequireRateLimiting("tool-api");
 
 if (!string.IsNullOrWhiteSpace(siteRoot) && Directory.Exists(siteRoot)) {
     var fileProvider = new PhysicalFileProvider(siteRoot);
@@ -739,9 +759,10 @@ static string? ResolveSiteRoot(IConfiguration configuration, IWebHostEnvironment
     return null;
 }
 
-static string[] ResolveAllowedOrigins(IConfiguration configuration) {
+static string[] ResolveAllowedOrigins(IConfiguration configuration, out bool usingFallbackOrigins) {
     var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
     if (configuredOrigins is { Length: > 0 }) {
+        usingFallbackOrigins = false;
         return configuredOrigins
             .Where(static origin => !string.IsNullOrWhiteSpace(origin))
             .Select(static origin => origin.Trim().TrimEnd('/'))
@@ -751,6 +772,7 @@ static string[] ResolveAllowedOrigins(IConfiguration configuration) {
 
     var inlineOrigins = configuration["Cors:AllowedOrigins"];
     if (!string.IsNullOrWhiteSpace(inlineOrigins)) {
+        usingFallbackOrigins = false;
         return inlineOrigins
             .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries)
             .Select(static origin => origin.Trim().TrimEnd('/'))
@@ -758,6 +780,7 @@ static string[] ResolveAllowedOrigins(IConfiguration configuration) {
             .ToArray();
     }
 
+    usingFallbackOrigins = true;
     return new[] {
         "http://localhost:8097",
         "http://localhost:8098",
@@ -890,8 +913,7 @@ static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>
         return (cached, true);
     }
 
-    var cacheLock = CacheStampedeLocks.PerKey.GetOrAdd(cacheKey, static _ => new SemaphoreSlim(1, 1));
-    await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+    using var cacheLease = await CacheStampedeLocks.AcquireAsync(cacheKey, cancellationToken).ConfigureAwait(false);
     try {
         if (!forceRefresh && cache.TryGetValue(cacheKey, out cached) && cached is not null) {
             return (cached, true);
@@ -900,9 +922,7 @@ static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>
         var created = await factory(cancellationToken).ConfigureAwait(false);
         cache.Set(cacheKey, created, ttl);
         return (created, false);
-    } finally {
-        cacheLock.Release();
-    }
+    } finally { }
 }
 
 static AggregateCheckStatusInfo[] MarkPendingChecks(IReadOnlyList<AggregateCheckStatusInfo> checks, params string[] pendingKeys) {
@@ -926,5 +946,39 @@ public sealed class AnalyzeDomainRequest {
 }
 
 file static class CacheStampedeLocks {
-    internal static readonly ConcurrentDictionary<string, SemaphoreSlim> PerKey = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, RefCountedLock> PerKey = new(StringComparer.OrdinalIgnoreCase);
+
+    internal static async Task<Lease> AcquireAsync(string key, CancellationToken cancellationToken) {
+        var created = new RefCountedLock();
+        var gate = PerKey.GetOrAdd(key, created);
+        if (!ReferenceEquals(gate, created)) {
+            Interlocked.Increment(ref gate.RefCount);
+        }
+
+        await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return new Lease(key, gate);
+    }
+
+    internal readonly struct Lease : IDisposable {
+        private readonly string _key;
+        private readonly RefCountedLock _gate;
+
+        internal Lease(string key, RefCountedLock gate) {
+            _key = key;
+            _gate = gate;
+        }
+
+        public void Dispose() {
+            _gate.Semaphore.Release();
+            if (Interlocked.Decrement(ref _gate.RefCount) == 0 &&
+                PerKey.TryRemove(new KeyValuePair<string, RefCountedLock>(_key, _gate))) {
+                _gate.Semaphore.Dispose();
+            }
+        }
+    }
+
+    internal sealed class RefCountedLock {
+        internal readonly SemaphoreSlim Semaphore = new(1, 1);
+        internal int RefCount = 1;
+    }
 }

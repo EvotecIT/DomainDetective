@@ -66,7 +66,7 @@ public sealed class HostedAnalysisService {
 
     private async Task<T> PostAsync<T>(string requestPath, string domainName, bool forceRefresh, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(domainName)) {
-            throw new ArgumentNullException(nameof(domainName));
+            throw new ArgumentException("A domain name is required.", nameof(domainName));
         }
 
         using var response = await _httpClient.PostAsJsonAsync(
