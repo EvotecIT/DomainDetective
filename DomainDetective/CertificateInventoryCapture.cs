@@ -980,6 +980,7 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var cachedEntries = new List<CertificateInventoryEntry>();
+        var reusedSuccessCandidates = new List<ReusedRecentSuccessCandidate>();
         var httpsTargetsToProbe = httpsTargets.ToList();
         var mailTargetsToProbe = mailTargets.Values.ToList();
         var reusedHttps = 0;
@@ -995,13 +996,26 @@ public sealed partial class CertificateInventoryCapture {
                     if (TryBuildHttpsEndpointKey(target, out var key) &&
                         recentByEndpoint.TryGetValue(key, out var cached) &&
                         TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure)) {
+                        var trackedOrigins = GetTrackedOrigins(httpsTargetOriginsByEndpointKey, key);
                         ApplyEntryProvenance(
                             cached.Entry,
-                            GetTrackedOrigins(httpsTargetOriginsByEndpointKey, key),
+                            trackedOrigins,
                             reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess,
                             replaceTargetOrigins: true);
-                        cachedEntries.Add(cached.Entry);
-                        reusedHttps++;
+                        if (reusedStableFailure) {
+                            cachedEntries.Add(cached.Entry);
+                            reusedHttps++;
+                        } else {
+                            reusedSuccessCandidates.Add(new ReusedRecentSuccessCandidate {
+                                Kind = ReusedTargetKind.Https,
+                                Target = target,
+                                Service = "HTTPS",
+                                Entry = cached.Entry,
+                                Priority = ComputeCachedEntryPriority(cached.Entry, options.ReprobeExpiringWithinDays),
+                                SortDays = ParseSortDays(cached.Entry),
+                                TargetOrigins = trackedOrigins
+                            });
+                        }
                         if (reusedStableFailure) {
                             reusedStableFailureHttps++;
                         }
@@ -1021,8 +1035,21 @@ public sealed partial class CertificateInventoryCapture {
                             target.TargetOrigins,
                             reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess,
                             replaceTargetOrigins: true);
-                        cachedEntries.Add(cached.Entry);
-                        reusedMail++;
+                        if (reusedStableFailure) {
+                            cachedEntries.Add(cached.Entry);
+                            reusedMail++;
+                        } else {
+                            reusedSuccessCandidates.Add(new ReusedRecentSuccessCandidate {
+                                Kind = ReusedTargetKind.Mail,
+                                Target = BuildMailTargetLabel(target),
+                                Service = target.Service,
+                                Entry = cached.Entry,
+                                Priority = ComputeCachedEntryPriority(cached.Entry, options.ReprobeExpiringWithinDays),
+                                SortDays = ParseSortDays(cached.Entry),
+                                TargetOrigins = target.TargetOrigins,
+                                MailTarget = target
+                            });
+                        }
                         if (reusedStableFailure) {
                             reusedStableFailureMail++;
                         }
@@ -1055,7 +1082,19 @@ public sealed partial class CertificateInventoryCapture {
 
         var httpsTargetCountBeforeLimit = httpsTargets.Count;
         var mailTargetCountBeforeLimit = mailTargets.Count;
-        ApplyTargetLimit(options, httpsTargets, httpsTargetOriginsByEndpointKey, mailTargets, warnings, recentByEndpoint, options.ReprobeExpiringWithinDays, targetDecisionDiagnostics);
+        ApplyTargetLimitIncludingReusedSuccesses(
+            options,
+            httpsTargets,
+            httpsTargetOriginsByEndpointKey,
+            mailTargets,
+            cachedEntries,
+            reusedSuccessCandidates,
+            warnings,
+            recentByEndpoint,
+            options.ReprobeExpiringWithinDays,
+            targetDecisionDiagnostics,
+            ref reusedHttps,
+            ref reusedMail);
         var httpsTargetCountDroppedByLimit = Math.Max(0, httpsTargetCountBeforeLimit - httpsTargets.Count);
         var mailTargetCountDroppedByLimit = Math.Max(0, mailTargetCountBeforeLimit - mailTargets.Count);
         httpsTargetsToProbe = httpsTargets.ToList();

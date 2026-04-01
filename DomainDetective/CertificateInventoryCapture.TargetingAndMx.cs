@@ -19,6 +19,29 @@ public sealed partial class CertificateInventoryCapture {
         public required DateTimeOffset CapturedAtUtc { get; init; }
     }
 
+    private enum ReusedTargetKind {
+        Https,
+        Mail
+    }
+
+    private sealed class ReusedRecentSuccessCandidate {
+        public required ReusedTargetKind Kind { get; init; }
+
+        public required string Target { get; init; }
+
+        public required string Service { get; init; }
+
+        public required CertificateInventoryEntry Entry { get; init; }
+
+        public required int Priority { get; init; }
+
+        public required int SortDays { get; init; }
+
+        public IReadOnlyCollection<string> TargetOrigins { get; init; } = Array.Empty<string>();
+
+        public MailEndpointTarget? MailTarget { get; init; }
+    }
+
     private static string BuildMailTargetLabel(MailEndpointTarget target) {
         return $"{target.Scheme}://{target.Host}:{target.Port}";
     }
@@ -302,6 +325,187 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         warnings.Add($"Probe target list capped from {totalTargets} to {options.MaxTargets} by MaxTargets (HTTPS: {originalHttps}->{httpsTargets.Count}, Mail: {originalMail}->{mailTargets.Count}).");
+    }
+
+    private static void ApplyTargetLimitIncludingReusedSuccesses(
+        CertificateInventoryCaptureOptions options,
+        HashSet<string> httpsTargets,
+        Dictionary<string, HashSet<string>> httpsTargetOriginsByEndpointKey,
+        Dictionary<string, MailEndpointTarget> mailTargets,
+        List<CertificateInventoryEntry> cachedEntries,
+        List<ReusedRecentSuccessCandidate> reusedSuccessCandidates,
+        List<string> warnings,
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
+        int reprobeExpiringWithinDays,
+        List<TargetDecisionDiagnosticEntry> targetDecisionDiagnostics,
+        ref int reusedHttps,
+        ref int reusedMail) {
+        if (reusedSuccessCandidates.Count == 0) {
+            ApplyTargetLimit(
+                options,
+                httpsTargets,
+                httpsTargetOriginsByEndpointKey,
+                mailTargets,
+                warnings,
+                recentByEndpoint,
+                reprobeExpiringWithinDays,
+                targetDecisionDiagnostics);
+            return;
+        }
+
+        if (options.MaxTargets <= 0) {
+            cachedEntries.AddRange(reusedSuccessCandidates.Select(static candidate => candidate.Entry));
+            reusedHttps += reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Https);
+            reusedMail += reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail);
+            return;
+        }
+
+        var originalHttps = httpsTargets.Count + reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Https);
+        var originalMail = mailTargets.Count + reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail);
+        var totalTargets = originalHttps + originalMail;
+        if (totalTargets <= options.MaxTargets) {
+            cachedEntries.AddRange(reusedSuccessCandidates.Select(static candidate => candidate.Entry));
+            reusedHttps += reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Https);
+            reusedMail += reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail);
+            return;
+        }
+
+        ResolveTargetBudget(
+            originalHttps,
+            originalMail,
+            options.MaxTargets,
+            out var allowedHttps,
+            out var allowedMail);
+
+        var keptHttps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var keptMail = new List<MailEndpointTarget>();
+        var keptReused = new List<ReusedRecentSuccessCandidate>();
+
+        if (originalHttps > 0) {
+            var rankedHttps = new List<(string Target, int Priority, int SortDays, ReusedRecentSuccessCandidate? Reused)>(originalHttps);
+            rankedHttps.AddRange(
+                httpsTargets.Select(target => (
+                    Target: target,
+                    Priority: ComputeHttpsTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays),
+                    SortDays: ResolvePrioritySortDays(target, recentByEndpoint),
+                    Reused: (ReusedRecentSuccessCandidate?)null)));
+            rankedHttps.AddRange(
+                reusedSuccessCandidates
+                    .Where(static candidate => candidate.Kind == ReusedTargetKind.Https)
+                    .Select(candidate => (
+                        Target: candidate.Target,
+                        Priority: candidate.Priority,
+                        SortDays: candidate.SortDays,
+                        Reused: (ReusedRecentSuccessCandidate?)candidate)));
+
+            var orderedHttps = rankedHttps
+                .OrderByDescending(static item => item.Priority)
+                .ThenBy(static item => item.SortDays)
+                .ThenBy(static item => item.Target, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var item in orderedHttps.Take(allowedHttps)) {
+                if (item.Reused != null) {
+                    keptReused.Add(item.Reused);
+                } else {
+                    keptHttps.Add(item.Target);
+                }
+            }
+
+            foreach (var item in orderedHttps.Skip(allowedHttps)) {
+                if (item.Reused != null) {
+                    targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                        Stage = "target-limit",
+                        Action = "pruned",
+                        Reason = "max-targets",
+                        Target = item.Target,
+                        Service = item.Reused.Service,
+                        PriorityScore = item.Priority,
+                        Message = $"Pruned by MaxTargets={options.MaxTargets}.",
+                        TargetOrigins = item.Reused.TargetOrigins.ToList()
+                    });
+                    continue;
+                }
+
+                string endpointKey = TryBuildHttpsEndpointKey(item.Target, out string key)
+                    ? key
+                    : item.Target;
+                targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                    Stage = "target-limit",
+                    Action = "pruned",
+                    Reason = "max-targets",
+                    Target = item.Target,
+                    Service = "HTTPS",
+                    PriorityScore = item.Priority,
+                    Message = $"Pruned by MaxTargets={options.MaxTargets}.",
+                    TargetOrigins = GetTrackedOrigins(httpsTargetOriginsByEndpointKey, endpointKey).ToList()
+                });
+            }
+        }
+
+        if (originalMail > 0) {
+            var rankedMail = new List<(MailEndpointTarget Target, int Priority, int SortDays, ReusedRecentSuccessCandidate? Reused)>(originalMail);
+            rankedMail.AddRange(
+                mailTargets.Values.Select(target => (
+                    Target: target,
+                    Priority: ComputeMailTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays),
+                    SortDays: ResolvePrioritySortDays(target, recentByEndpoint),
+                    Reused: (ReusedRecentSuccessCandidate?)null)));
+            rankedMail.AddRange(
+                reusedSuccessCandidates
+                    .Where(static candidate => candidate.Kind == ReusedTargetKind.Mail && candidate.MailTarget != null)
+                    .Select(candidate => (
+                        Target: candidate.MailTarget!,
+                        Priority: candidate.Priority,
+                        SortDays: candidate.SortDays,
+                        Reused: (ReusedRecentSuccessCandidate?)candidate)));
+
+            var orderedMail = rankedMail
+                .OrderByDescending(static item => item.Priority)
+                .ThenBy(static item => item.SortDays)
+                .ThenBy(static item => item.Target.Host, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(static item => item.Target.Port)
+                .ThenBy(static item => item.Target.Service, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var item in orderedMail.Take(allowedMail)) {
+                if (item.Reused != null) {
+                    keptReused.Add(item.Reused);
+                } else {
+                    keptMail.Add(item.Target);
+                }
+            }
+
+            foreach (var item in orderedMail.Skip(allowedMail)) {
+                targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                    Stage = "target-limit",
+                    Action = "pruned",
+                    Reason = "max-targets",
+                    Target = BuildMailTargetLabel(item.Target),
+                    Service = item.Target.Service,
+                    PriorityScore = item.Priority,
+                    Message = $"Pruned by MaxTargets={options.MaxTargets}.",
+                    TargetOrigins = (item.Reused?.TargetOrigins ?? item.Target.TargetOrigins).ToList()
+                });
+            }
+        }
+
+        httpsTargets.Clear();
+        foreach (var target in keptHttps) {
+            httpsTargets.Add(target);
+        }
+        PruneTrackedHttpsOrigins(httpsTargetOriginsByEndpointKey, keptHttps);
+
+        mailTargets.Clear();
+        foreach (var target in keptMail) {
+            AddMailTarget(mailTargets, target);
+        }
+
+        cachedEntries.AddRange(keptReused.Select(static candidate => candidate.Entry));
+        reusedHttps += keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Https);
+        reusedMail += keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail);
+
+        warnings.Add($"Probe target list capped from {totalTargets} to {options.MaxTargets} by MaxTargets (HTTPS: {originalHttps}->{httpsTargets.Count + keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Https)}, Mail: {originalMail}->{mailTargets.Count + keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail)}).");
     }
 
     private static int ComputeHttpsTargetPriority(
