@@ -63,9 +63,7 @@
       { "Rel": "icon", "Href": "/favicon.svg", "Type": "image/svg+xml" },
       { "Rel": "preconnect", "Href": "https://fonts.googleapis.com" },
       { "Rel": "preconnect", "Href": "https://fonts.gstatic.com", "Crossorigin": "anonymous" },
-      { "Rel": "dns-prefetch", "Href": "https://cdn.jsdelivr.net" },
-      { "Rel": "preconnect", "Href": "https://cdn.jsdelivr.net", "Crossorigin": "anonymous" },
-      { "Rel": "stylesheet", "Href": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" }
+      { "Rel": "stylesheet", "Href": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=optional" }
     ]
   },
   "Social": {
@@ -102,9 +100,9 @@
   "AssetRegistry": {
     "CssStrategy": "blocking",
     "Bundles": [
-      { "Name": "global", "Css": ["/css/app.css"], "Js": ["/js/site.js"] },
-      { "Name": "docs", "Css": ["/css/app.css", "/css/docs.css"], "Js": ["/js/site.js"] },
-      { "Name": "api", "Css": ["/css/app.css", "/css/api.css"], "Js": ["/js/site.js"] }
+      { "Name": "global", "Css": ["/css/app.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
+      { "Name": "docs", "Css": ["/css/app.css", "/css/docs.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
+      { "Name": "api", "Css": ["/css/app.css", "/css/api.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] }
     ],
     "RouteBundles": [
       { "Match": "/api/**", "Bundles": ["api"] },
@@ -127,9 +125,16 @@
     }
   },
   "Prism": {
+    "Mode": "auto",
+    "Source": "local",
     "DefaultLanguage": "csharp",
     "ThemeLight": "/css/prism-theme.css",
-    "ThemeDark": "/css/prism-theme.css"
+    "ThemeDark": "/css/prism-theme.css",
+    "Local": {
+      "Core": "/assets/prism/prism-core.min.js",
+      "Autoloader": "/assets/prism/prism-autoloader.min.js",
+      "LanguagesPath": "/assets/prism/components/"
+    }
   },
   "A11y": {
     "SkipLinkLabel": "Skip to content",

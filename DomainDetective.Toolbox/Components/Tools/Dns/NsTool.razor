@@ -1,19 +1,60 @@
 @using DomainDetective.Toolbox.Components.Shared
 
-@if (HealthCheck.NSAnalysis is { } ns) {
-    <ResultCard Title="Nameservers" Status="ResultCard.ResultStatus.Info">
-        @if (ns.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in ns.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+@if (HealthCheck.NSAnalysis is { } nameservers) {
+    <ResultCard Title="Nameserver posture" Status="@(nameservers.NsRecordExists ? GetStatus(nameservers.Assessments) : ResultCard.ResultStatus.Fail)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Published NS</span>
+                <strong class="tool-summary-value">@nameservers.NsRecords.Count</strong>
+                <p class="tool-summary-note">At least two: @FormatBool(nameservers.AtLeastTwoRecords)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Glue coverage</span>
+                <strong class="tool-summary-value">@(nameservers.GlueRecordsComplete ? "Complete" : "Incomplete")</strong>
+                <p class="tool-summary-note">Consistent: @FormatBool(nameservers.GlueRecordsConsistent)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Diversity</span>
+                <strong class="tool-summary-value">@nameservers.AsnDistinctCount ASN</strong>
+                <p class="tool-summary-note">Delegation matches: @FormatBool(nameservers.DelegationMatches)</p>
+            </div>
+        </div>
+
+        @if (nameservers.NsRecords.Count > 0) {
+            <div class="tool-stack">
+                <div>
+                    <span class="tool-summary-label">Authoritative nameservers</span>
+                    <div class="tool-chip-list">
+                        @foreach (var nsRecord in nameservers.NsRecords) {
+                            <span class="tool-chip">@nsRecord</span>
+                        }
+                    </div>
+                </div>
+
+                @if (nameservers.ParentNsRecords.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">Parent delegation</span>
+                        <div class="tool-chip-list">
+                            @foreach (var nsRecord in nameservers.ParentNsRecords) {
+                                <span class="tool-chip">@nsRecord</span>
+                            }
+                        </div>
+                    </div>
                 }
-            </ul>
-        } else {
-            <p>NS analysis complete for @Domain.</p>
+            </div>
         }
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Duplicate records</td><td>@FormatBool(nameservers.HasDuplicates)</td></tr>
+            <tr><td>All hosts have A or AAAA</td><td>@FormatBool(nameservers.AllHaveAOrAaaa)</td></tr>
+            <tr><td>NS points to CNAME</td><td>@FormatBool(nameservers.PointsToCname)</td></tr>
+            <tr><td>Diverse locations</td><td>@FormatBool(nameservers.HasDiverseLocations)</td></tr>
+            <tr><td>Delegation matches parent</td><td>@FormatBool(nameservers.DelegationMatches)</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="nameservers.Assessments" EmptyMessage="@($"NS analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
@@ -21,10 +62,17 @@
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatBool(bool value) => value ? "Yes" : "No";
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

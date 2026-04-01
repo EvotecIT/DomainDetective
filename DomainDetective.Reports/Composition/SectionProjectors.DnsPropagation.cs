@@ -103,34 +103,38 @@ public static partial class SectionProjectors
         s.Summary.Add(("Capped", s.ResultsCapped ? "Yes" : "No"));
 
         // Group successful answers into normalized answer sets
-        var results = dp.Results ?? Array.Empty<DomainDetective.DnsPropagationResult>();
-        var groups = new Dictionary<string, List<DomainDetective.DnsComparisonEntry>>(StringComparer.OrdinalIgnoreCase);
-        try { groups = DomainDetective.DnsPropagationAnalysis.CompareResults(results); } catch { }
+        var results = dp.Results ?? Array.Empty<DomainDetective.Views.DnsPropagationResultInfo>();
+        var groups = results
+            .Where(static result => result != null && result.Success)
+            .GroupBy(static result => NormalizeAnswerSet(result.Records), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(static group => group.Key, static group => group.ToList(), StringComparer.OrdinalIgnoreCase);
 
         var answerKeyByServerIp = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var kv in groups)
         {
-            foreach (var e in kv.Value ?? new List<DomainDetective.DnsComparisonEntry>())
+            foreach (var result in kv.Value ?? new List<DomainDetective.Views.DnsPropagationResultInfo>())
             {
-                if (e != null && !string.IsNullOrWhiteSpace(e.IPAddress) && !answerKeyByServerIp.ContainsKey(e.IPAddress))
+                if (result != null && !string.IsNullOrWhiteSpace(result.ServerAddress) && !answerKeyByServerIp.ContainsKey(result.ServerAddress))
                 {
-                    answerKeyByServerIp[e.IPAddress] = kv.Key;
+                    answerKeyByServerIp[result.ServerAddress] = kv.Key;
                 }
             }
         }
 
         foreach (var kv in groups.OrderByDescending(x => x.Value?.Count ?? 0).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
         {
-            var servers = kv.Value ?? new List<DomainDetective.DnsComparisonEntry>();
-            var countries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var locations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var e in servers)
-            {
-                if (e == null) continue;
-                if (e.Country.HasValue) countries.Add(DomainDetective.CountryIdExtensions.ToName(e.Country.Value));
-                if (e.Location.HasValue) locations.Add(DomainDetective.LocationIdExtensions.ToName(e.Location.Value));
-            }
-            var ips = servers.Select(e => e?.IPAddress).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToList();
+            var servers = kv.Value ?? new List<DomainDetective.Views.DnsPropagationResultInfo>();
+            var countries = servers
+                .Select(static result => result?.Country)
+                .Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var locations = servers
+                .Select(static result => result?.Location)
+                .Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var ips = servers.Select(static result => result?.ServerAddress).Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToList();
             s.AnswerSets.Add(new DnsPropagationSection.AnswerSetRow
             {
                 AnswerSetKey = kv.Key,
@@ -160,20 +164,20 @@ public static partial class SectionProjectors
 
         foreach (var r in results)
         {
-            if (r == null || r.Server == null) continue;
-            var ip = r.Server.IPAddress?.ToString() ?? string.Empty;
+            if (r == null) continue;
+            var ip = r.ServerAddress ?? string.Empty;
             var key = (!string.IsNullOrWhiteSpace(ip) && answerKeyByServerIp.TryGetValue(ip, out var k)) ? k : string.Empty;
             var isMajority = !string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(s.MajorityAnswerSet) && string.Equals(key, s.MajorityAnswerSet, StringComparison.OrdinalIgnoreCase);
-            var country = r.Server.Country.HasValue ? DomainDetective.CountryIdExtensions.ToName(r.Server.Country.Value) : "-";
-            var location = r.Server.Location.HasValue ? DomainDetective.LocationIdExtensions.ToName(r.Server.Location.Value) : "-";
+            var country = r.Country ?? "-";
+            var location = r.Location ?? "-";
             s.Servers.Add(new DnsPropagationSection.ServerRow
             {
                 ServerIp = ip,
-                HostName = string.IsNullOrWhiteSpace(r.Server.HostName) ? "-" : r.Server.HostName,
+                HostName = string.IsNullOrWhiteSpace(r.ServerName) ? "-" : r.ServerName,
                 Country = string.IsNullOrWhiteSpace(country) ? "-" : country,
                 Location = string.IsNullOrWhiteSpace(location) ? "-" : location,
-                Asn = string.IsNullOrWhiteSpace(r.Server.ASN) ? "-" : r.Server.ASN,
-                AsnName = string.IsNullOrWhiteSpace(r.Server.ASNName) ? "-" : r.Server.ASNName,
+                Asn = string.IsNullOrWhiteSpace(r.Asn) ? "-" : r.Asn,
+                AsnName = string.IsNullOrWhiteSpace(r.AsnName) ? "-" : r.AsnName,
                 Success = r.Success,
                 DurationMs = (int)Math.Round(r.Duration.TotalMilliseconds),
                 AnswerSetKey = string.IsNullOrWhiteSpace(key) ? "-" : key,
@@ -217,5 +221,22 @@ public static partial class SectionProjectors
         foreach (var rr in dp.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(rr)) s.References.Add(rr);
 
         return s;
+    }
+
+    private static string NormalizeAnswerSet(IEnumerable<string>? records)
+    {
+        if (records == null)
+        {
+            return string.Empty;
+        }
+
+        var values = records
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return values.Length == 0 ? string.Empty : string.Join(", ", values);
     }
 }

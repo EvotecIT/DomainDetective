@@ -2,7 +2,7 @@
   "hero": {
     "label": "FAQ",
     "title": "Frequently Asked Questions",
-    "description": "Common questions about DomainDetective, the website tools, and client-side DNS analysis."
+    "description": "Common questions about DomainDetective, the website tools, and privacy-first online analysis."
   },
   "sections": [
     {
@@ -19,7 +19,7 @@
           "id": "is-my-data-safe",
           "question": "Is my data safe when using the online tools?",
           "answer": [
-            "<p>Yes. All analysis runs entirely client-side in your browser using DNS-over-HTTPS (DoH). No domain data, query results, or analysis output is transmitted to or stored on our servers.</p>"
+            "<p>Yes. DNS-heavy checks run browser-side via DNS-over-HTTPS, and advanced HTTP/TLS checks use the hosted DomainDetective analysis API when the browser cannot inspect them directly. We do not store domain data, query results, or analysis output.</p>"
           ]
         },
         {
@@ -61,7 +61,7 @@
           "id": "browser-dns-queries",
           "question": "How are DNS queries performed in the browser?",
           "answer": [
-            "<p>The online tools use DNS-over-HTTPS (DoH) to query DNS records directly from your browser. Queries are encrypted and sent straight to public resolvers without a DomainDetective server in the middle.</p>"
+            "<p>The online tools use DNS-over-HTTPS (DoH) to query DNS records directly from your browser whenever the web platform allows it. For checks that require direct TLS inspection or unrestricted HTTP probing, the hosted analysis API performs the request server-side and returns the result to the browser.</p>"
           ]
         }
       ]

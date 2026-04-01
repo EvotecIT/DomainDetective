@@ -1,70 +1,95 @@
+<script>
+(function () {
+  try {
+    var storedTheme = localStorage.getItem('dd-theme');
+    var theme = storedTheme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.style.colorScheme = theme;
+  } catch (error) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.style.colorScheme = 'dark';
+  }
+})();
+</script>
 <style>
 :root,
 [data-theme="dark"] {
-  --pf-bg: #0a0e1a;
-  --pf-bg-alt: #111528;
-  --pf-panel: #111528;
-  --pf-card: #141830;
-  --pf-ink: #e2e8f0;
+  --pf-bg: #0a0f1c;
+  --pf-bg-alt: #111827;
+  --pf-panel: #101827;
+  --pf-card: #131d31;
+  --pf-card-hover: #17253d;
+  --pf-ink: #e5edf7;
   --pf-ink-strong: #ffffff;
-  --pf-muted: #94a3b8;
-  --pf-accent: #14b8a6;
-  --pf-accent-light: #2dd4bf;
-  --pf-accent-dark: #0d9488;
-  --pf-accent2: #06b6d4;
-  --pf-border: #1e293b;
+  --pf-muted: #93a4b8;
+  --pf-dim: #6d7d93;
+  --pf-accent: #00d9ff;
+  --pf-accent-light: #67e8f9;
+  --pf-accent-dark: #0891b2;
+  --pf-accent2: #5b8cff;
+  --pf-accent2-light: #93c5fd;
+  --pf-accent3: #22c55e;
   --pf-success: #22c55e;
   --pf-warning: #f59e0b;
   --pf-danger: #ef4444;
-  --pf-header-bg: rgba(10, 14, 26, 0.85);
-  --pf-card-bg: rgba(20, 24, 48, 0.6);
-  --pf-code-bg: #0c0f1e;
-  --pf-code-border: rgba(30, 41, 59, 0.8);
-  --pf-glow-primary: rgba(20, 184, 166, 0.15);
-  --pf-glow-secondary: rgba(6, 182, 212, 0.12);
-  --pf-btn-primary-bg: #14b8a6;
-  --pf-btn-primary-text: #0a0e1a;
-  --pf-btn-secondary-bg: rgba(6, 182, 212, 0.2);
-  --pf-btn-secondary-border: rgba(6, 182, 212, 0.5);
-  --pf-btn-ghost-border: rgba(148, 163, 184, 0.4);
-  --pf-shadow-button: 0 8px 24px rgba(20, 184, 166, 0.15);
-  --pf-shadow-panel: 0 24px 48px rgba(2, 4, 15, 0.45);
-  --pf-shadow-card: 0 12px 28px rgba(2, 4, 15, 0.35);
+  --pf-border: rgba(148, 163, 184, 0.16);
+  --pf-border-light: rgba(148, 163, 184, 0.26);
+  --pf-header-bg: rgba(10, 15, 28, 0.86);
+  --pf-header-border: rgba(148, 163, 184, 0.12);
+  --pf-card-bg: rgba(19, 29, 49, 0.76);
+  --pf-code-bg: #0b1220;
+  --pf-code-border: rgba(148, 163, 184, 0.16);
+  --pf-glow-primary: rgba(0, 217, 255, 0.12);
+  --pf-glow-secondary: rgba(91, 140, 255, 0.12);
+  --pf-btn-primary-bg: #00d9ff;
+  --pf-btn-primary-text: #08111f;
+  --pf-btn-secondary-bg: rgba(91, 140, 255, 0.16);
+  --pf-btn-secondary-border: rgba(91, 140, 255, 0.32);
+  --pf-btn-ghost-border: rgba(148, 163, 184, 0.26);
+  --pf-shadow-button: 0 12px 30px rgba(0, 217, 255, 0.18);
+  --pf-shadow-panel: 0 24px 48px rgba(2, 6, 23, 0.42);
+  --pf-shadow-card: 0 16px 32px rgba(2, 6, 23, 0.28);
   --pf-radius: 12px;
   --pf-radius-sm: 8px;
-  --pf-radius-lg: 16px;
+  --pf-radius-lg: 18px;
   --pf-max-width: 1200px;
-  --pf-font-body: Inter, system-ui, sans-serif;
-  --pf-font-display: Space Grotesk, Inter, sans-serif;
-  --pf-font-mono: JetBrains Mono, Consolas, monospace;
+  --pf-font-body: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --pf-font-display: "Space Grotesk", Inter, system-ui, sans-serif;
+  --pf-font-mono: "JetBrains Mono", Consolas, monospace;
 }
 
 [data-theme="light"] {
-  --pf-bg: #f8fafc;
-  --pf-bg-alt: #f1f5f9;
-  --pf-panel: #ffffff;
+  --pf-bg: #f6f8fc;
+  --pf-bg-alt: #ecf2fb;
+  --pf-panel: rgba(255, 255, 255, 0.94);
   --pf-card: #ffffff;
-  --pf-ink: #1e293b;
+  --pf-card-hover: #f7fbff;
+  --pf-ink: #163047;
   --pf-ink-strong: #0f172a;
-  --pf-muted: #64748b;
-  --pf-accent: #0d9488;
-  --pf-accent-light: #14b8a6;
+  --pf-muted: #5e7288;
+  --pf-dim: #7b8da3;
+  --pf-accent: #0ea5c4;
+  --pf-accent-light: #06b6d4;
   --pf-accent-dark: #0f766e;
-  --pf-accent2: #0891b2;
-  --pf-border: #e2e8f0;
-  --pf-header-bg: rgba(248, 250, 252, 0.9);
-  --pf-card-bg: rgba(255, 255, 255, 0.8);
-  --pf-code-bg: #f1f5f9;
-  --pf-code-border: rgba(203, 213, 225, 0.6);
-  --pf-glow-primary: rgba(13, 148, 136, 0.1);
-  --pf-glow-secondary: rgba(8, 145, 178, 0.08);
-  --pf-btn-primary-bg: #0d9488;
+  --pf-accent2: #3b82f6;
+  --pf-accent2-light: #60a5fa;
+  --pf-accent3: #16a34a;
+  --pf-border: rgba(148, 163, 184, 0.32);
+  --pf-border-light: rgba(148, 163, 184, 0.42);
+  --pf-header-bg: rgba(246, 248, 252, 0.92);
+  --pf-header-border: rgba(148, 163, 184, 0.2);
+  --pf-card-bg: rgba(255, 255, 255, 0.88);
+  --pf-code-bg: #eef4fb;
+  --pf-code-border: rgba(148, 163, 184, 0.24);
+  --pf-glow-primary: rgba(14, 165, 196, 0.12);
+  --pf-glow-secondary: rgba(59, 130, 246, 0.1);
+  --pf-btn-primary-bg: #0ea5c4;
   --pf-btn-primary-text: #ffffff;
-  --pf-btn-secondary-bg: rgba(8, 145, 178, 0.12);
-  --pf-btn-secondary-border: rgba(8, 145, 178, 0.4);
-  --pf-btn-ghost-border: rgba(100, 116, 139, 0.3);
-  --pf-shadow-button: 0 4px 16px rgba(13, 148, 136, 0.12);
-  --pf-shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.08);
-  --pf-shadow-card: 0 6px 20px rgba(0, 0, 0, 0.06);
+  --pf-btn-secondary-bg: rgba(59, 130, 246, 0.1);
+  --pf-btn-secondary-border: rgba(59, 130, 246, 0.24);
+  --pf-btn-ghost-border: rgba(100, 116, 139, 0.26);
+  --pf-shadow-button: 0 12px 30px rgba(14, 165, 196, 0.12);
+  --pf-shadow-panel: 0 20px 42px rgba(15, 23, 42, 0.08);
+  --pf-shadow-card: 0 12px 24px rgba(15, 23, 42, 0.06);
 }
 </style>

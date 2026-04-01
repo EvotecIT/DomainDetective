@@ -23,7 +23,8 @@ namespace DomainDetective {
                 return;
             }
             DnsSecAnalysis = new DnsSecAnalysis {
-                UseLocalDnssecValidation = this.DnsSecValidateLocally
+                UseLocalDnssecValidation = this.DnsSecValidateLocally,
+                QueryDnsResponseOverride = DnsConfiguration.QueryDnsResponseOverride
             };
             await DnsSecAnalysis.Analyze(domainName, _logger, DnsConfiguration, cancellationToken);
         }

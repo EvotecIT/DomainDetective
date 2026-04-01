@@ -622,6 +622,10 @@ internal sealed class PassiveCtSourceClient
                     await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 return new FetchOutcome

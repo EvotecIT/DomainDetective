@@ -42,6 +42,14 @@
     },
     {
       "task": "dotnet-build",
+      "id": "build-online-host",
+      "dependsOn": "build-library",
+      "project": "../DomainDetective.OnlineHost/DomainDetective.OnlineHost.csproj",
+      "configuration": "Release",
+      "skipIfProjectMissing": true
+    },
+    {
+      "task": "dotnet-build",
       "id": "build-powershell",
       "dependsOn": "verify-site",
       "project": "../DomainDetective.PowerShell/DomainDetective.PowerShell.csproj",

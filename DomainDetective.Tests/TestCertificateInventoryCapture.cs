@@ -1860,6 +1860,89 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public void MergeCtSubdomainEntry_PrefersCoherentLatestCertificateBundleAcrossDifferentCertificates() {
+        const string hostName = "mixed-bundle.example.com";
+        var existing = new SubdomainDiscoveryEntry {
+            Name = hostName,
+            LatestCertificateCtEntryTimestampUtc = new DateTimeOffset(2026, 3, 1, 8, 0, 0, TimeSpan.Zero),
+            LatestCertificateSubject = "CN=legacy.example.com",
+            LatestCertificateIssuer = "CN=Legacy Issuer",
+            LatestCertificateSerialNumber = "LEGACY-SERIAL",
+            LatestCertificateNotBeforeUtc = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            LatestCertificateNotAfterUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        var candidate = new SubdomainDiscoveryEntry {
+            Name = hostName,
+            LatestCertificateCtEntryTimestampUtc = new DateTimeOffset(2026, 3, 2, 8, 0, 0, TimeSpan.Zero),
+            LatestCertificateThumbprint = "AABBCCDDEEFF00112233445566778899AABBCCDD",
+            LatestCertificateSubject = "CN=current.example.com",
+            LatestCertificateIssuer = "CN=Current Issuer",
+            LatestCertificateNotBeforeUtc = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero),
+            LatestCertificateNotAfterUtc = new DateTimeOffset(2027, 2, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        IDictionary<string, SubdomainDiscoveryEntry> byName = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase) {
+            [hostName] = existing
+        };
+
+        MethodInfo? method = typeof(CertificateInventoryCapture).GetMethod(
+            "MergeCtSubdomainEntry",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        _ = method!.Invoke(null, new object[] { byName, candidate });
+
+        SubdomainDiscoveryEntry merged = byName[hostName];
+        Assert.Equal(candidate.LatestCertificateThumbprint, merged.LatestCertificateThumbprint);
+        Assert.Equal(candidate.LatestCertificateSubject, merged.LatestCertificateSubject);
+        Assert.Equal(candidate.LatestCertificateIssuer, merged.LatestCertificateIssuer);
+        Assert.Null(merged.LatestCertificateSerialNumber);
+        Assert.Equal(candidate.LatestCertificateNotBeforeUtc, merged.LatestCertificateNotBeforeUtc);
+        Assert.Equal(candidate.LatestCertificateNotAfterUtc, merged.LatestCertificateNotAfterUtc);
+    }
+
+    [Fact]
+    public void MergeCtSubdomainEntry_MergesMissingFieldsWhenBothCandidatesDescribeSameCertificate() {
+        const string hostName = "same-certificate.example.com";
+        var existing = new SubdomainDiscoveryEntry {
+            Name = hostName,
+            LatestCertificateCtEntryTimestampUtc = new DateTimeOffset(2026, 3, 1, 8, 0, 0, TimeSpan.Zero),
+            LatestCertificateSubject = "CN=same-certificate.example.com",
+            LatestCertificateIssuer = "CN=Shared Issuer",
+            LatestCertificateSerialNumber = "SHARED-SERIAL",
+            LatestCertificateNotBeforeUtc = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero),
+            LatestCertificateNotAfterUtc = new DateTimeOffset(2027, 2, 1, 0, 0, 0, TimeSpan.Zero),
+            LatestCertificateAuthenticationProfile = "ServerAuth"
+        };
+        var candidate = new SubdomainDiscoveryEntry {
+            Name = hostName,
+            LatestCertificateCtEntryTimestampUtc = new DateTimeOffset(2026, 3, 2, 8, 0, 0, TimeSpan.Zero),
+            LatestCertificateThumbprint = "FFEEDDCCBBAA99887766554433221100FFEEDDCC",
+            LatestCertificateSubject = "CN=same-certificate.example.com",
+            LatestCertificateIssuer = "CN=Shared Issuer",
+            LatestCertificateSerialNumber = "SHARED-SERIAL",
+            LatestCertificateNotBeforeUtc = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero),
+            LatestCertificateNotAfterUtc = new DateTimeOffset(2027, 2, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        IDictionary<string, SubdomainDiscoveryEntry> byName = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase) {
+            [hostName] = existing
+        };
+
+        MethodInfo? method = typeof(CertificateInventoryCapture).GetMethod(
+            "MergeCtSubdomainEntry",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        _ = method!.Invoke(null, new object[] { byName, candidate });
+
+        SubdomainDiscoveryEntry merged = byName[hostName];
+        Assert.Equal(candidate.LatestCertificateThumbprint, merged.LatestCertificateThumbprint);
+        Assert.Equal(existing.LatestCertificateSerialNumber, merged.LatestCertificateSerialNumber);
+        Assert.Equal(existing.LatestCertificateAuthenticationProfile, merged.LatestCertificateAuthenticationProfile);
+        Assert.Equal(candidate.LatestCertificateSubject, merged.LatestCertificateSubject);
+        Assert.Equal(candidate.LatestCertificateIssuer, merged.LatestCertificateIssuer);
+    }
+
+    [Fact]
     public async Task CaptureAsync_BackfillsMissingCtCertificateMetadataFromExactPassiveHostWhenDomainBackfillMissesHost() {
         var nativeCtFirstSeen = new DateTimeOffset(2026, 3, 5, 10, 21, 27, TimeSpan.Zero);
         var nativeCtLastSeen = new DateTimeOffset(2026, 3, 5, 15, 42, 37, TimeSpan.Zero);
@@ -3124,6 +3207,48 @@ public class TestCertificateInventoryCapture {
         Assert.DoesNotContain(
             warnings,
             warning => warning.Contains("Passive CT exact metadata backfill skipped", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ExactCtMetadataBackfill_PropagatesCancellationDuringPassiveExactLookup()
+    {
+        var capture = new CertificateInventoryCapture
+        {
+            CtPassiveMetadataBackfillOverride = async (_, _, _, cancellationToken) =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                return Array.Empty<SubdomainDiscoveryEntry>();
+            }
+        };
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "BackfillMissingCtCertificateMetadataExactAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(method);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var warnings = new List<string>();
+        var diagnostics = new List<PassiveCtDiagnosticEntry>();
+        var options = new CertificateInventoryCaptureOptions
+        {
+            EnablePassiveCtFallback = true,
+            EnablePassiveCtMetadataFallback = true
+        };
+
+        Task<IReadOnlyList<SubdomainDiscoveryEntry>> task =
+            (Task<IReadOnlyList<SubdomainDiscoveryEntry>>)method!.Invoke(
+                capture,
+                new object[]
+                {
+                    new[] { "api.example.com" },
+                    options,
+                    warnings,
+                    diagnostics,
+                    new InternalLogger(false),
+                    cts.Token
+                })!;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
     }
 
     [Theory]

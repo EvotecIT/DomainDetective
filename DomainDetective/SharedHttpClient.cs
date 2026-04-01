@@ -20,6 +20,7 @@ public sealed class SharedHttpClient : IHttpClientFactory
     {
         NetFrameworkTls.EnsureEnabled();
         Instance = new HttpClient();
+        Instance.DefaultRequestHeaders.UserAgent.ParseAdd("DomainDetective/1.0 (+https://github.com/EvotecIT/DomainDetective)");
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Instance.Dispose();
     }
 

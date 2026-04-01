@@ -1,0 +1,28 @@
+@if (Card is not null) {
+    <div class="@CalloutClass">
+        <strong>@Card.Title</strong>
+        @if (!string.IsNullOrWhiteSpace(Card.ValueLabel)) {
+            <span class="tool-summary-value">@Card.ValueLabel</span>
+        }
+        <p>@Card.Summary</p>
+        @if (Card.Tags.Count > 0) {
+            <div class="tool-chip-list">
+                @foreach (var tag in Card.Tags) {
+                    <span class="tool-chip">@tag</span>
+                }
+            </div>
+        }
+        @if (Card.Samples.Count > 0) {
+            <ul class="tool-bullet-list mt-2">
+                @foreach (var sample in Card.Samples) {
+                    <li>@sample</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public required DomainOverviewDetailCardView Card { get; set; }
+    [Parameter] public string CalloutClass { get; set; } = "tool-callout";
+}

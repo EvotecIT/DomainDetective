@@ -7,6 +7,7 @@ public sealed class ToolDefinition {
     public required ToolCategory Category { get; init; }
     public required string Icon { get; init; }
     public bool BrowserCompatible { get; init; } = true;
+    public bool HostedCompatible { get; init; }
     public string? InputPlaceholder { get; init; }
     public string? SecondaryInputLabel { get; init; }
     public string? SecondaryInputPlaceholder { get; init; }

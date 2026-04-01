@@ -1,0 +1,328 @@
+@using System.Globalization
+@using System.Linq
+@using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
+
+@if (Info is { } view) {
+    var chainSources = (view.ChainSourceHistory ?? Array.Empty<string>())
+        .Where(static value => !string.IsNullOrWhiteSpace(value))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    var ocspUrls = (view.OcspUrls ?? Array.Empty<string>())
+        .Where(static value => !string.IsNullOrWhiteSpace(value))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    var crlUrls = (view.CrlUrls ?? Array.Empty<string>())
+        .Where(static value => !string.IsNullOrWhiteSpace(value))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    <ResultCard Title="Certificate posture" Status="@(view.IsReachable ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Validity</span>
+                <strong class="tool-summary-value">@(view.IsValid ? "Trusted" : "Needs attention")</strong>
+                <p class="tool-summary-note">Host match: @FormatBool(view.HostnameMatch)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Grade</span>
+                <strong class="tool-summary-value">@FormatGrade(view.Grade)</strong>
+                <p class="tool-summary-note">Expires in: @FormatDays(view.DaysToExpire)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">TLS posture</span>
+                <strong class="tool-summary-value">@FormatProtocol(view)</strong>
+                <p class="tool-summary-note">Cipher: @FormatValue(view.CipherSuite, "Not captured")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Revocation</span>
+                <strong class="tool-summary-value">@FormatRevocation(view)</strong>
+                <p class="tool-summary-note">OCSP stapling: @FormatNullableBool(view.OcspStaplingPresent)</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@(view.IsReachable ? BuildSummary(view) : $"Could not retrieve a certificate from {Domain}: {FormatValue(view.FailureReason, "request failed")}.")</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Endpoint</td><td>@(view.Url ?? Domain)</td></tr>
+            <tr><td>HTTP version</td><td>@FormatValue(view.ProtocolVersion, "Not captured")</td></tr>
+            <tr><td>TLS protocol</td><td>@FormatValue(view.TlsProtocol, "Not captured")</td></tr>
+            <tr><td>Valid from</td><td>@FormatDate(view.ValidFrom)</td></tr>
+            <tr><td>Valid to</td><td>@FormatDate(view.ValidTo)</td></tr>
+            <tr><td>Certificate expired</td><td>@FormatBool(view.IsExpired)</td></tr>
+            <tr><td>Chain source</td><td>@FormatValue(view.ChainSource, "Not reported")</td></tr>
+            <tr><td>Chain length</td><td>@view.ChainLength.ToString(CultureInfo.InvariantCulture)</td></tr>
+            <tr><td>Wildcard certificate</td><td>@FormatBool(view.IsWildcardCertificate)</td></tr>
+            <tr><td>Unrelated hosts on cert</td><td>@FormatBool(view.SecuresUnrelatedHosts)</td></tr>
+            <tr><td>Self-signed</td><td>@FormatBool(view.IsSelfSigned)</td></tr>
+            <tr><td>Key algorithm</td><td>@($"{view.KeyAlgorithm} {view.KeySize}-bit")</td></tr>
+            <tr><td>Weak key</td><td>@FormatBool(view.WeakKey)</td></tr>
+            <tr><td>RSA-PSS signature</td><td>@FormatBool(view.RsaPssSignature)</td></tr>
+            <tr><td>SHA-1 signature</td><td>@FormatBool(view.Sha1Signature)</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (view.Highlights.Count > 0 || view.Details.Count > 0 || view.Positives.Count > 0 || view.Recommendations.Count > 0) {
+        <ResultCard Title="Certificate guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights.Take(5)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Details.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Observed details</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(6)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Take(5)) {
+                                <li>@item.Title</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Follow-up guidance</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Recommendations.Take(5)) {
+                                <li>@item.Title</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(view.CertificateSubject) || !string.IsNullOrWhiteSpace(view.CertificateIssuer) || chainSources.Length > 0) {
+        <ResultCard Title="Certificate identity" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                <div class="tool-summary-card">
+                    <span class="tool-summary-label">Identity</span>
+                    <ResultTable Columns="@(new[] { "Field", "Value" })">
+                        <tr><td>Subject</td><td>@FormatValue(view.CertificateSubject, "Not captured")</td></tr>
+                        <tr><td>Issuer</td><td>@FormatValue(view.CertificateIssuer, "Not captured")</td></tr>
+                        <tr><td>Authentication profile</td><td>@FormatValue(view.AuthenticationProfile, "Not classified")</td></tr>
+                        <tr><td>Server auth EKU</td><td>@FormatBool(view.AllowsServerAuthentication)</td></tr>
+                        <tr><td>Client auth EKU</td><td>@FormatBool(view.AllowsClientAuthentication)</td></tr>
+                        <tr><td>Secure email EKU</td><td>@FormatBool(view.AllowsSecureEmail)</td></tr>
+                    </ResultTable>
+                </div>
+
+                @if (chainSources.Length > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Chain acquisition history</span>
+                        <div class="tool-chip-list">
+                            @foreach (var value in chainSources) {
+                                <span class="tool-chip">@value</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(view.CipherSuite) || !string.IsNullOrWhiteSpace(view.CipherAlgorithm) || ocspUrls.Length > 0 || crlUrls.Length > 0 || view.SctCount > 0 || view.OcspMustStaple || view.OcspStaplingPresent.HasValue) {
+        <ResultCard Title="Transport and revocation" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                <div class="tool-summary-card">
+                    <span class="tool-summary-label">TLS negotiation</span>
+                    <ResultTable Columns="@(new[] { "Field", "Value" })">
+                        <tr><td>TLS protocol</td><td>@FormatValue(view.TlsProtocol, "Not captured")</td></tr>
+                        <tr><td>Cipher algorithm</td><td>@FormatValue(view.CipherAlgorithm, "Not captured")</td></tr>
+                        <tr><td>Cipher suite</td><td>@FormatValue(view.CipherSuite, "Not captured")</td></tr>
+                        <tr><td>Cipher strength</td><td>@FormatBits(view.CipherStrength)</td></tr>
+                        <tr><td>DH key size</td><td>@FormatBits(view.DhKeyBits)</td></tr>
+                        <tr><td>Embedded SCTs</td><td>@view.SctCount.ToString(CultureInfo.InvariantCulture)</td></tr>
+                        <tr><td>OCSP Must-Staple</td><td>@FormatBool(view.OcspMustStaple)</td></tr>
+                        <tr><td>OCSP stapling</td><td>@FormatNullableBool(view.OcspStaplingPresent)</td></tr>
+                    </ResultTable>
+                </div>
+
+                <div class="tool-summary-card">
+                    <span class="tool-summary-label">Revocation evidence</span>
+                    <ResultTable Columns="@(new[] { "Check", "Value" })">
+                        <tr><td>OCSP status</td><td>@FormatRevocationState(view.OcspRevoked)</td></tr>
+                        <tr><td>CRL status</td><td>@FormatRevocationState(view.CrlRevoked)</td></tr>
+                        <tr><td>OCSP endpoints</td><td>@ocspUrls.Length</td></tr>
+                        <tr><td>CRL endpoints</td><td>@crlUrls.Length</td></tr>
+                    </ResultTable>
+                </div>
+            </div>
+
+            @if (ocspUrls.Length > 0) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">OCSP endpoints</span>
+                    <ul class="tool-link-list">
+                        @foreach (var value in ocspUrls.Take(6)) {
+                            <li><a href="@value" target="_blank" rel="noopener">@value</a></li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (crlUrls.Length > 0) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">CRL endpoints</span>
+                    <ul class="tool-link-list">
+                        @foreach (var value in crlUrls.Take(6)) {
+                            <li><a href="@value" target="_blank" rel="noopener">@value</a></li>
+                        }
+                    </ul>
+                </div>
+            }
+        </ResultCard>
+    }
+
+    @if (view.SubjectAlternativeNames.Count > 0 || view.ExtendedKeyUsageFriendlyNames.Count > 0 || view.ExtendedKeyUsageOids.Count > 0) {
+        <ResultCard Title="Names and usages" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.SubjectAlternativeNames.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Subject alternative names</span>
+                        <div class="tool-chip-list">
+                            @foreach (var value in view.SubjectAlternativeNames.Take(16)) {
+                                <span class="tool-chip">@value</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.ExtendedKeyUsageFriendlyNames.Count > 0 || view.ExtendedKeyUsageOids.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Extended key usage</span>
+                        <div class="tool-chip-list">
+                            @foreach (var value in view.ExtendedKeyUsageFriendlyNames) {
+                                <span class="tool-chip">@value</span>
+                            }
+                            @foreach (var value in view.ExtendedKeyUsageOids.Where(static oid => !string.IsNullOrWhiteSpace(oid)).Except(view.ExtendedKeyUsageFriendlyNames, StringComparer.OrdinalIgnoreCase)) {
+                                <span class="tool-chip">@value</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"Certificate analysis complete for {Domain}.")" />
+    </ResultCard>
+}
+
+@code {
+    [Parameter] public required CertificateInfo Info { get; set; }
+    [Parameter] public required string Domain { get; set; }
+
+    private static string BuildSummary(CertificateInfo view) {
+        if (view.Highlights.Count > 0) {
+            return string.Join(" ", view.Highlights.Take(3));
+        }
+
+        return view.Summary;
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatNullableBool(bool? value) {
+        return value.HasValue ? (value.Value ? "Present" : "Not observed") : "Not observed";
+    }
+
+    private static string FormatDays(int days) {
+        return days >= 0 ? $"{days} day(s)" : "Expired";
+    }
+
+    private static string FormatBits(int bits) {
+        return bits > 0 ? $"{bits} bit" : "Not captured";
+    }
+
+    private static string FormatDate(DateTime? value) {
+        if (!value.HasValue) {
+            return "Not captured";
+        }
+
+        return value.Value.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatGrade(DomainDetective.GradeLevel grade) {
+        return grade == DomainDetective.GradeLevel.Unknown ? "Unknown" : grade.ToString();
+    }
+
+    private static string FormatProtocol(CertificateInfo view) {
+        var values = new List<string>();
+        if (view.SupportsTls13) {
+            values.Add("TLS 1.3");
+        }
+        if (view.SupportsTls12) {
+            values.Add("TLS 1.2");
+        }
+        if (view.SupportsTls11) {
+            values.Add("TLS 1.1");
+        }
+        if (view.SupportsTls10) {
+            values.Add("TLS 1.0");
+        }
+
+        return values.Count > 0 ? string.Join(" / ", values) : "Not captured";
+    }
+
+    private static string FormatRevocation(CertificateInfo view) {
+        if (view.OcspRevoked == true || view.CrlRevoked == true) {
+            return "Revoked";
+        }
+
+        if (view.OcspRevoked == false || view.CrlRevoked == false) {
+            return "Not revoked";
+        }
+
+        return "Not checked";
+    }
+
+    private static string FormatRevocationState(bool? value) {
+        if (!value.HasValue) {
+            return "Not checked";
+        }
+
+        return value.Value ? "Revoked" : "Not revoked";
+    }
+
+    private static string FormatValue(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+}

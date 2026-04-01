@@ -31,6 +31,8 @@ namespace DomainDetective {
         public bool SupportsResolverConcurrency => true;
         /// <summary>Optional override for DNS queries.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { get; set; }
+        /// <summary>Optional override for full DNS responses, including flags such as AD.</summary>
+        public Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? QueryDnsResponseOverride { get; set; }
         /// <summary>
         /// Gets or sets the primary DNS endpoint.
         /// </summary>
@@ -288,6 +290,15 @@ namespace DomainDetective {
 	            if (names == null || names.Length == 0) {
 	                throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
 	            }
+	            if (QueryDnsResponseOverride != null) {
+	                var list = new List<DnsResponse>(names.Length);
+	                foreach (var n in names) {
+	                    cancellationToken.ThrowIfCancellationRequested();
+	                    var response = await QueryDnsResponseOverride(n, recordType, cancellationToken).ConfigureAwait(false);
+	                    list.Add(ApplyLocalFilter(response, filter, includeAliasesInFilter: false));
+	                }
+	                return list;
+	            }
 	            if (QueryDnsOverride != null) {
 	                var list = new List<DnsResponse>(names.Length);
 	                foreach (var n in names) {
@@ -332,6 +343,18 @@ namespace DomainDetective {
 	            if (names == null || names.Length == 0)
 	            {
 	                throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
+	            }
+
+	            if (QueryDnsResponseOverride != null)
+	            {
+	                var list = new List<DnsResponse?>(names.Length);
+	                foreach (var n in names)
+	                {
+	                    cancellationToken.ThrowIfCancellationRequested();
+	                    var response = await QueryDnsResponseOverride(n, recordType, cancellationToken).ConfigureAwait(false);
+	                    list.Add(ApplyLocalFilter(response, filter, includeAliasesInFilter));
+	                }
+	                return list;
 	            }
 
 	            if (QueryDnsOverride != null)
@@ -427,6 +450,25 @@ namespace DomainDetective {
 	                return empty;
 	            }
 	        }
+
+        private static DnsResponse ApplyLocalFilter(DnsResponse response, string filter, bool includeAliasesInFilter) {
+            if (response == null) {
+                return new DnsResponse {
+                    Status = DnsResponseCode.ServerFailure,
+                    Answers = Array.Empty<DnsAnswer>(),
+                    Authorities = Array.Empty<DnsAnswer>(),
+                    Additional = Array.Empty<DnsAnswer>()
+                };
+            }
+
+            return new DnsResponse {
+                Status = response.Status,
+                AuthenticData = response.AuthenticData,
+                Answers = ApplyLocalFilter(response.Answers ?? Array.Empty<DnsAnswer>(), filter, includeAliasesInFilter),
+                Authorities = response.Authorities ?? Array.Empty<DnsAnswer>(),
+                Additional = response.Additional ?? Array.Empty<DnsAnswer>()
+            };
+        }
 
 	        /// <summary>
 	        /// Queries the DNS for a list of names and returns a per-name result set in the same order as <paramref name="names"/>.

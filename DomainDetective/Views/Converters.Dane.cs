@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective.Views;
 
@@ -9,6 +10,10 @@ public static partial class Converters
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
         var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
+        var narrative = DomainDetective.Narratives.DaneNarrative.Build(analysis, analysis.Assessments);
+        var records = analysis.AnalysisResults?.ToList() ?? new List<DANERecordAnalysis>();
+        var validRecordCount = records.Count(static record => record.ValidDANERecord);
+        var recommendedRecordCount = records.Count(static record => record.IsValidChoiceForSmtp || record.IsValidChoiceForHttps);
         return new DaneRecordInfo
         {
             Check = HealthCheckType.DANE,
@@ -17,8 +22,12 @@ public static partial class Converters
             NumberOfRecords = analysis.NumberOfRecords,
             HasDuplicateRecords = analysis.HasDuplicateRecords,
             HasInvalidRecords = analysis.HasInvalidRecords,
-            QueriedNames = analysis.QueriedNames,
-            QueriedPorts = analysis.QueriedPorts,
+            QueriedNames = analysis.QueriedNames.ToList(),
+            QueriedPorts = analysis.QueriedPorts.ToList(),
+            QueriedServiceTypes = analysis.QueriedServiceTypes.Select(static serviceType => serviceType.ToString()).ToList(),
+            Records = records,
+            ValidRecordCount = validRecordCount,
+            RecommendedRecordCount = recommendedRecordCount,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
@@ -27,6 +36,9 @@ public static partial class Converters
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
+            Narrative = narrative,
+            Highlights = narrative.Highlights?.ToList() ?? new List<string>(),
+            Details = narrative.Details?.ToList() ?? new List<string>(),
             Raw = analysis
         };
     }
@@ -45,6 +57,10 @@ public class DaneRecordInfo
     public bool HasInvalidRecords { get; set; }
     public IReadOnlyList<string> QueriedNames { get; set; } = System.Array.Empty<string>();
     public IReadOnlyList<int> QueriedPorts { get; set; } = System.Array.Empty<int>();
+    public IReadOnlyList<string> QueriedServiceTypes { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<DANERecordAnalysis> Records { get; set; } = System.Array.Empty<DANERecordAnalysis>();
+    public int ValidRecordCount { get; set; }
+    public int RecommendedRecordCount { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
@@ -53,5 +69,8 @@ public class DaneRecordInfo
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
     public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public DomainDetective.Narratives.DaneNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.DaneNarrative.Sections();
+    public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> Details { get; set; } = System.Array.Empty<string>();
     public DANEAnalysis Raw { get; set; } = new DANEAnalysis();
 }

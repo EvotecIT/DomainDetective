@@ -1,30 +1,184 @@
+@using System.Globalization
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
-@if (HealthCheck.BimiAnalysis is { } bimi) {
-    <ResultCard Title="BIMI" Status="@(bimi.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (bimi.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in bimi.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+@if (GetView() is { } view) {
+    <ResultCard Title="BIMI posture" Status="@GetStatus(view)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Record</span>
+                <strong class="tool-summary-value">@(view.BimiRecordExists ? "Published" : "Missing")</strong>
+                <p class="tool-summary-note">Syntax: @(view.StartsCorrectly ? "BIMI1" : "Needs review")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Indicator</span>
+                <strong class="tool-summary-value">@(view.SvgValid ? "Valid SVG" : (view.SvgFetched ? "Needs fixes" : "Not fetched"))</strong>
+                <p class="tool-summary-note">HTTPS: @FormatBool(view.LocationUsesHttps)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">VMC</span>
+                <strong class="tool-summary-value">@(view.ValidVmc ? "Present" : "Missing")</strong>
+                <p class="tool-summary-note">Trusted root: @FormatBool(view.VmcSignedByKnownRoot)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Publishing mode</span>
+                <strong class="tool-summary-value">@(view.DeclinedToPublish ? "Declined" : "Active")</strong>
+                <p class="tool-summary-note">Authority URL: @FormatBool(!string.IsNullOrWhiteSpace(view.Authority))</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@BuildSummary(view)</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Starts with v=BIMI1</td><td>@FormatBool(view.StartsCorrectly)</td></tr>
+            <tr><td>Indicator URL</td><td>@FormatValue(view.Location, "Not declared")</td></tr>
+            <tr><td>Authority URL</td><td>@FormatValue(view.Authority, "Not declared")</td></tr>
+            <tr><td>Declined to publish</td><td>@FormatBool(view.DeclinedToPublish)</td></tr>
+            <tr><td>SVG fetched</td><td>@FormatBool(view.SvgFetched)</td></tr>
+            <tr><td>SVG dimensions valid</td><td>@FormatBool(view.DimensionsValid)</td></tr>
+            <tr><td>SVG viewBox valid</td><td>@FormatBool(view.ViewBoxValid)</td></tr>
+            <tr><td>Required SVG attributes</td><td>@FormatBool(view.SvgAttributesPresent)</td></tr>
+            <tr><td>VMC contains logo</td><td>@FormatBool(view.VmcContainsLogo)</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (view.Highlights.Count > 0 || view.Details.Count > 0 || view.Recommendations.Count > 0 || view.Positives.Count > 0) {
+        <ResultCard Title="Branding guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights.Take(5)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
                 }
-            </ul>
-        } else {
-            <p>No BIMI issues found.</p>
-        }
+
+                @if (view.Details.Count > 0 || view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Operational notes</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(5)) {
+                                <li>@item</li>
+                            }
+                            @foreach (var item in view.Recommendations.Select(static advice => advice.Title).Where(static title => !string.IsNullOrWhiteSpace(title)).Take(3)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Select(static advice => advice.Title).Where(static title => !string.IsNullOrWhiteSpace(title)).Take(4)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(view.BimiRecord) || !string.IsNullOrWhiteSpace(view.SvgInvalidReason) || !string.IsNullOrWhiteSpace(view.Location) || !string.IsNullOrWhiteSpace(view.Authority)) {
+        <ResultCard Title="Record and indicator details" Status="ResultCard.ResultStatus.Info">
+            @if (!string.IsNullOrWhiteSpace(view.BimiRecord)) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">Published record</span>
+                    <div class="result-record">@view.BimiRecord</div>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(view.Location)) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">Indicator location</span>
+                    <p>@view.Location</p>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(view.Authority)) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">Certificate location</span>
+                    <p>@view.Authority</p>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(view.SvgInvalidReason)) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">SVG validation note</span>
+                    <p>@view.SvgInvalidReason</p>
+                </div>
+            }
+        </ResultCard>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(view.VmcSubject) || !string.IsNullOrWhiteSpace(view.VmcIssuer) || view.VmcNotBefore.HasValue || view.VmcNotAfter.HasValue) {
+        <ResultCard Title="Verified Mark Certificate" Status="ResultCard.ResultStatus.Info">
+            <ResultTable Columns="@(new[] { "Property", "Value" })">
+                <tr><td>Subject</td><td>@FormatValue(view.VmcSubject, "Not captured")</td></tr>
+                <tr><td>Issuer</td><td>@FormatValue(view.VmcIssuer, "Not captured")</td></tr>
+                <tr><td>Valid from</td><td>@FormatDate(view.VmcNotBefore)</td></tr>
+                <tr><td>Valid to</td><td>@FormatDate(view.VmcNotAfter)</td></tr>
+                <tr><td>Thumbprint</td><td>@FormatValue(view.VmcThumbprint, "Not captured")</td></tr>
+            </ResultTable>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"BIMI analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
 @code {
-    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public DomainDetective.DomainHealthCheck? HealthCheck { get; set; }
+    [Parameter] public BimiRecordInfo? Info { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private BimiRecordInfo? GetView() {
+        if (Info != null) {
+            return Info;
+        }
+
+        return HealthCheck?.BimiAnalysis is { } bimi ? Converters.Convert(bimi) : null;
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string BuildSummary(BimiRecordInfo view) {
+        if (view.Highlights.Count > 0) {
+            return string.Join(" ", view.Highlights.Take(3));
+        }
+
+        return !string.IsNullOrWhiteSpace(view.FailureReason) ? view.FailureReason : view.Summary;
+    }
+
+    private static string FormatDate(DateTime? value) {
+        return value.HasValue ? value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "Not captured";
+    }
+
+    private static string FormatValue(string value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(BimiRecordInfo view) {
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

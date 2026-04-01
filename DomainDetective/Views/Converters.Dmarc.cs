@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective.Views;
 
@@ -40,6 +41,19 @@ public static partial class Converters
             ExternalReportAuthorization = analysis.ExternalReportAuthorization,
             InvalidReportUri = analysis.InvalidReportUri,
             DeprecatedTags = analysis.DeprecatedTags,
+            UnknownTags = analysis.UnknownTags,
+            MultipleRecords = analysis.MultipleRecords,
+            ExceedsCharacterLimit = analysis.ExceedsCharacterLimit,
+            HasMandatoryTags = analysis.HasMandatoryTags,
+            ValidDkimAlignment = analysis.ValidDkimAlignment,
+            ValidSpfAlignment = analysis.ValidSpfAlignment,
+            WeakPolicy = analysis.WeakPolicy,
+            PolicyRecommendation = analysis.PolicyRecommendation,
+            Advisory = analysis.Advisory,
+            SpfAligned = analysis.SpfAligned,
+            DkimAligned = analysis.DkimAligned,
+            IsPctValid = analysis.IsPctValid,
+            OriginalPct = analysis.OriginalPct,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
@@ -50,7 +64,13 @@ public static partial class Converters
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis,
             Narrative = narrative,
-            Highlights = narrative.Highlights
+            Highlights = narrative.Highlights,
+            Details = narrative.Details,
+            UnauthorizedExternalReportDomains = analysis.ExternalReportAuthorization
+                .Where(static entry => !entry.Value)
+                .Select(static entry => entry.Key)
+                .OrderBy(static entry => entry, System.StringComparer.OrdinalIgnoreCase)
+                .ToArray()
         };
     }
 }
@@ -106,9 +126,24 @@ public class DmarcRecordInfo
     /// <summary>Forensic report HTTP URIs (ruf).</summary>
     public IReadOnlyList<string> HttpRuf { get; set; } = System.Array.Empty<string>();
     public IReadOnlyDictionary<string, bool> ExternalReportAuthorization { get; set; } = new System.Collections.Generic.Dictionary<string, bool>();
+    public IReadOnlyList<string> UnauthorizedExternalReportDomains { get; set; } = System.Array.Empty<string>();
     public bool InvalidReportUri { get; set; }
     /// <summary>Deprecated tags present in the record.</summary>
     public IReadOnlyList<string> DeprecatedTags { get; set; } = System.Array.Empty<string>();
+    /// <summary>Unknown tags present in the record.</summary>
+    public IReadOnlyList<string> UnknownTags { get; set; } = System.Array.Empty<string>();
+    public bool MultipleRecords { get; set; }
+    public bool ExceedsCharacterLimit { get; set; }
+    public bool HasMandatoryTags { get; set; }
+    public bool ValidDkimAlignment { get; set; }
+    public bool ValidSpfAlignment { get; set; }
+    public bool WeakPolicy { get; set; }
+    public string? PolicyRecommendation { get; set; }
+    public string Advisory { get; set; } = string.Empty;
+    public bool SpfAligned { get; set; }
+    public bool DkimAligned { get; set; }
+    public bool IsPctValid { get; set; }
+    public int? OriginalPct { get; set; }
     /// <summary>Assessment list.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
@@ -129,4 +164,6 @@ public class DmarcRecordInfo
     public DomainDetective.Narratives.DmarcNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.DmarcNarrative.Sections();
     /// <summary>Key highlights extracted for the report.</summary>
     public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
+    /// <summary>Supporting narrative details extracted for the report.</summary>
+    public IReadOnlyList<string> Details { get; set; } = System.Array.Empty<string>();
 }

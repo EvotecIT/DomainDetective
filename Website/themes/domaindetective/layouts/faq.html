@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ page.title }} | DomainDetective</title>
+  {{ if description_meta_html == "" }}
+  <meta name="description" content="Frequently asked questions about DomainDetective." />
+  {{ end }}
+  {{ description_meta_html }}
+  {{ canonical_html }}
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  {{ assets.critical_css_html }}
+  {{ include "theme-tokens" }}
+  {{ extra_css_html }}
+  {{ assets.css_html }}
+  {{ include "head-meta" }}
+  {{ head_html }}
+</head>
+<body>
+  {{ include "header" }}
+  <main class="dd-main">
+    <div class="dd-container">
+      <article class="dd-article faq-page" data-collection="{{ page.collection }}" data-kind="{{ page.kind }}" data-route="{{ page.output_path }}">
+        <header class="dd-article-header">
+          <h1>{{ page.title }}</h1>
+          {{ if page.description }}
+          <p class="dd-article-desc">{{ page.description }}</p>
+          {{ end }}
+        </header>
+        <div class="faq-page-body">
+          {{ for section in data.faq.sections }}
+          <section class="faq-group"{{ if section.title }} aria-labelledby="faq-section-{{ for.index }}"{{ end }}>
+            {{ if section.title }}
+            <div class="faq-group-header">
+              <span class="section-eyebrow">FAQ</span>
+              <h2 id="faq-section-{{ for.index }}">{{ section.title }}</h2>
+            </div>
+            {{ end }}
+            <div class="faq-list">
+              {{ for item in section.items }}
+              <details class="faq-item"{{ if item.id }} id="{{ item.id }}"{{ end }}>
+                <summary>{{ item.question }}</summary>
+                <div class="faq-answer">
+                  {{ if item.answer && item.answer.size > 0 }}
+                  {{ for block in item.answer }}
+                  <p>{{ block | string.replace "<p>" "" | string.replace "</p>" "" }}</p>
+                  {{ end }}
+                  {{ else }}
+                  <p>{{ item.answer }}</p>
+                  {{ end }}
+                </div>
+              </details>
+              {{ end }}
+            </div>
+          </section>
+          {{ end }}
+        </div>
+      </article>
+    </div>
+  </main>
+  {{ include "footer" }}
+  {{ assets.js_html }}
+  {{ extra_scripts_html }}
+</body>
+</html>

@@ -358,14 +358,14 @@ public static partial class ExcelCompositionReport
 
             foreach (var dp in propagation)
             {
-                var results = dp.Results ?? Array.Empty<DomainDetective.DnsPropagationResult>();
+                var results = dp.Results ?? Array.Empty<DomainDetective.Views.DnsPropagationResultInfo>();
 
                 // Total servers + errors (from raw results)
                 foreach (var r in results)
                 {
-                    if (r?.Server == null || !r.Server.Country.HasValue) continue;
+                    if (r == null || string.IsNullOrWhiteSpace(r.Country)) continue;
 
-                    var country = DomainDetective.CountryIdExtensions.ToName(r.Server.Country.Value);
+                    var country = r.Country;
                     if (string.IsNullOrWhiteSpace(country)) continue;
 
                     EnsureCountry(country);
@@ -378,7 +378,10 @@ public static partial class ExcelCompositionReport
                 // Majority vs non-majority (from answer sets)
                 try
                 {
-                    var groups = DomainDetective.DnsPropagationAnalysis.CompareResults(results);
+                    var groups = results
+                        .Where(static result => result != null && result.Success)
+                        .GroupBy(static result => NormalizeAnswerSet(result.Records), StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(static group => group.Key, static group => group.ToList(), StringComparer.OrdinalIgnoreCase);
                     var majority = dp.MajorityAnswerSet;
                     if (string.IsNullOrWhiteSpace(majority))
                     {
@@ -392,11 +395,10 @@ public static partial class ExcelCompositionReport
                     foreach (var kv in groups)
                     {
                         var isMajority = !string.IsNullOrWhiteSpace(majority) && string.Equals(kv.Key, majority, StringComparison.OrdinalIgnoreCase);
-                        foreach (var e in kv.Value ?? new List<DomainDetective.DnsComparisonEntry>())
+                        foreach (var e in kv.Value ?? new List<DomainDetective.Views.DnsPropagationResultInfo>())
                         {
-                            if (e == null || !e.Country.HasValue) continue;
-
-                            var country = DomainDetective.CountryIdExtensions.ToName(e.Country.Value);
+                            if (e == null || string.IsNullOrWhiteSpace(e.Country)) continue;
+                            var country = e.Country;
                             if (string.IsNullOrWhiteSpace(country)) continue;
 
                             EnsureCountry(country);
@@ -586,5 +588,22 @@ public static partial class ExcelCompositionReport
             default:
                 return int.MaxValue;
         }
+    }
+
+    private static string NormalizeAnswerSet(IEnumerable<string>? records)
+    {
+        if (records == null)
+        {
+            return string.Empty;
+        }
+
+        var values = records
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return values.Length == 0 ? string.Empty : string.Join(", ", values);
     }
 }

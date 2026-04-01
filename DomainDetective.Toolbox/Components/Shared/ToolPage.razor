@@ -1,6 +1,11 @@
 @using DomainDetective.Toolbox.Models
 @using DomainDetective.Toolbox.Services
+@using DomainDetective.Views
+@implements IDisposable
 @inject BrowserDnsService DnsService
+@inject BrowserOverviewService BrowserOverviewService
+@inject HostedAnalysisService HostedAnalysisService
+@inject ToolAvailabilityService Availability
 
 <div class="tool-page">
     <div class="tool-breadcrumb">
@@ -12,9 +17,27 @@
         <p>@Definition.Description</p>
     </div>
 
-    @if (!Definition.BrowserCompatible) {
-        <ToolNotAvailable CliCommand="@Definition.Slug" PowerShellCommand="@GetPowerShellCommand()" />
+    @if (!CanRunOnline(Definition)) {
+        <ToolNotAvailable ToolName="@Definition.Name"
+                          Description="@Definition.Description"
+                          CliCommand="@Definition.Slug"
+                          PowerShellCommand="@GetPowerShellCommand()" />
     } else {
+        @if (Availability.IsStaticOnly && SupportsLiteTool(Definition)) {
+            <div class="tool-callout tool-callout-inline">
+                <strong>@GetStaticEditionTitle(Definition)</strong>
+                <p>@GetStaticEditionDescription(Definition)</p>
+            </div>
+        } else if (Definition.HostedCompatible && !Definition.BrowserCompatible) {
+            <div class="tool-callout tool-callout-inline">
+                <strong>Full online analysis</strong>
+                <p>This check runs through the full DomainDetective online analysis engine for the most reliable result.</p>
+                @if (SupportsHostedCache(Definition)) {
+                    <p>Heavy overview and discovery checks may show a recent result first for speed. Use Refresh when you want to run a new scan immediately.</p>
+                }
+            </div>
+        }
+
         <form class="tool-input-form" @onsubmit="RunAnalysis" @onsubmit:preventDefault>
             <input type="text" @bind="_domain" placeholder="@(Definition.InputPlaceholder ?? "example.com")" />
             @if (Definition.SecondaryInputLabel is not null) {
@@ -23,6 +46,11 @@
             <button type="submit" class="tool-run-btn" disabled="@_isLoading">
                 @(_isLoading ? "Analyzing..." : "Analyze")
             </button>
+            @if (SupportsHostedCache(Definition)) {
+                <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="RunFreshAnalysis" disabled="@_isLoading">
+                    @(_isLoading ? "Working..." : "Refresh")
+                </button>
+            }
         </form>
 
         @if (_isLoading) {
@@ -35,64 +63,109 @@
             </ResultCard>
         }
 
-        @if (_healthCheck is not null && !_isLoading) {
+        @if ((_healthCheck is not null || _httpInfo is not null || _securityTxtInfo is not null || _certificateInfo is not null || _bimiInfo is not null || _mtastsInfo is not null || _rdapInfo is not null || _dnsPropagationInfo is not null || _subdomainsInfo is not null || _microsoft365OverviewInfo is not null || _domainOverviewInfo is not null) && !_isLoading) {
+            @if (_isHydratingDeep) {
+                <div class="tool-callout tool-callout-inline">
+                    <strong>Deep DD scan in progress</strong>
+                    <p>The quick overview is ready. DomainDetective is still collecting the deeper evidence and will update this page automatically when it finishes.</p>
+                    <div class="tool-meta-row">
+                        <span class="tool-meta-pill">Started @FormatTimestamp(_scanStartedAt)</span>
+                        <span class="tool-meta-pill">Quick posture @FormatTimestamp(_quickReadyAt)</span>
+                        <span class="tool-meta-pill">Deep evidence pending</span>
+                    </div>
+                </div>
+            } else if (!string.IsNullOrWhiteSpace(_backgroundError)) {
+                <div class="tool-callout tool-callout-inline">
+                    <strong>Deep DD scan did not finish</strong>
+                    <p>@_backgroundError</p>
+                    <div class="tool-meta-row">
+                        <span class="tool-meta-pill">Started @FormatTimestamp(_scanStartedAt)</span>
+                        <span class="tool-meta-pill">Quick posture @FormatTimestamp(_quickReadyAt)</span>
+                    </div>
+                </div>
+            } else if (IsOverviewTool(Definition) && _quickReadyAt.HasValue) {
+                <div class="tool-callout tool-callout-inline">
+                    <strong>DD overview ready</strong>
+                    <p>The current view reflects the latest completed DD pass for this domain.</p>
+                    <div class="tool-meta-row">
+                        <span class="tool-meta-pill">Started @FormatTimestamp(_scanStartedAt)</span>
+                        <span class="tool-meta-pill">Quick posture @FormatTimestamp(_quickReadyAt)</span>
+                        @if (_deepReadyAt.HasValue) {
+                            <span class="tool-meta-pill">Deep evidence @FormatTimestamp(_deepReadyAt)</span>
+                        }
+                    </div>
+                </div>
+            }
+
             @switch (Definition.Slug) {
+                case "m365-overview":
+                    <DomainDetective.Toolbox.Components.Tools.Overview.M365OverviewTool Info="_microsoft365OverviewInfo!" Domain="@_domain" />
+                    break;
+                case "domain-overview":
+                    <DomainDetective.Toolbox.Components.Tools.Overview.DomainOverviewTool Info="_domainOverviewInfo!" Domain="@_domain" />
+                    break;
                 case "spf":
-                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.SpfTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.SpfTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "dkim":
-                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.DkimTool HealthCheck="_healthCheck" Domain="_domain" Selector="@(_secondaryInput ?? "default")" />
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.DkimTool HealthCheck="_healthCheck" Domain="@_domain" Selector="@(_secondaryInput ?? string.Empty)" />
                     break;
                 case "dmarc":
-                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.DmarcTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.DmarcTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "mx":
-                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.MxTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.MxTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "mta-sts":
-                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.MtaStsTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.MtaStsTool HealthCheck="_healthCheck" Info="_mtastsInfo" Domain="@_domain" />
                     break;
                 case "tls-rpt":
-                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.TlsRptTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.TlsRptTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "bimi":
-                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.BimiTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.EmailSecurity.BimiTool HealthCheck="_healthCheck" Info="_bimiInfo" Domain="@_domain" />
                     break;
                 case "dns-lookup":
-                    <DomainDetective.Toolbox.Components.Tools.Dns.DnsLookupTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Dns.DnsLookupTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "dnssec":
-                    <DomainDetective.Toolbox.Components.Tools.Dns.DnssecTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Dns.DnssecTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "soa":
-                    <DomainDetective.Toolbox.Components.Tools.Dns.SoaTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Dns.SoaTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "ns":
-                    <DomainDetective.Toolbox.Components.Tools.Dns.NsTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Dns.NsTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "dns-propagation":
-                    <DomainDetective.Toolbox.Components.Tools.Dns.DnsPropagationTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Dns.DnsPropagationTool HealthCheck="_healthCheck" Info="_dnsPropagationInfo" Domain="@_domain" />
                     break;
                 case "caa":
-                    <DomainDetective.Toolbox.Components.Tools.TlsCert.CaaTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.TlsCert.CaaTool HealthCheck="_healthCheck" Domain="@_domain" />
+                    break;
+                case "dane":
+                    <DomainDetective.Toolbox.Components.Tools.TlsCert.DaneTool HealthCheck="_healthCheck" Domain="@_domain" />
+                    break;
+                case "cert-check":
+                    <DomainDetective.Toolbox.Components.Tools.TlsCert.CertificateTool Info="_certificateInfo" Domain="@_domain" />
                     break;
                 case "http-headers":
-                    <DomainDetective.Toolbox.Components.Tools.WebSecurity.HttpHeadersTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.WebSecurity.HttpHeadersTool HealthCheck="_healthCheck" Info="_httpInfo" Domain="@_domain" />
                     break;
                 case "security-txt":
-                    <DomainDetective.Toolbox.Components.Tools.WebSecurity.SecurityTxtTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.WebSecurity.SecurityTxtTool HealthCheck="_healthCheck" Info="_securityTxtInfo" Domain="@_domain" />
                     break;
                 case "rdap":
-                    <DomainDetective.Toolbox.Components.Tools.Registration.RdapTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Registration.RdapTool HealthCheck="_healthCheck" Info="_rdapInfo" Domain="@_domain" />
                     break;
                 case "dnsbl":
-                    <DomainDetective.Toolbox.Components.Tools.ThreatIntel.DnsblTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.ThreatIntel.DnsblTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "dangling-cname":
-                    <DomainDetective.Toolbox.Components.Tools.ThreatIntel.DanglingCnameTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.ThreatIntel.DanglingCnameTool HealthCheck="_healthCheck" Domain="@_domain" />
                     break;
                 case "ct-subdomains":
-                    <DomainDetective.Toolbox.Components.Tools.Subdomain.CtSubdomainTool HealthCheck="_healthCheck" Domain="_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Subdomain.CtSubdomainTool HealthCheck="_healthCheck" Info="_subdomainsInfo" Domain="@_domain" />
                     break;
             }
         }
@@ -105,49 +178,258 @@
     private string _domain = "";
     private string? _secondaryInput;
     private bool _isLoading;
+    private bool _forceHostedRefresh;
+    private bool _isHydratingDeep;
     private string? _error;
+    private string? _backgroundError;
+    private int _analysisVersion;
+    private CancellationTokenSource? _overviewHydrationCts;
+    private DateTimeOffset? _scanStartedAt;
+    private DateTimeOffset? _quickReadyAt;
+    private DateTimeOffset? _deepReadyAt;
     private DomainHealthCheck? _healthCheck;
+    private DomainDetective.Views.HttpInfo? _httpInfo;
+    private DomainDetective.Views.SecurityTxtInfo? _securityTxtInfo;
+    private DomainDetective.Views.CertificateInfo? _certificateInfo;
+    private DomainDetective.Views.BimiRecordInfo? _bimiInfo;
+    private DomainDetective.Views.MtastsInfo? _mtastsInfo;
+    private DomainDetective.Views.RdapInfo? _rdapInfo;
+    private DomainDetective.Views.DnsPropagationSetInfo? _dnsPropagationInfo;
+    private DomainDetective.Views.SubdomainsInfo? _subdomainsInfo;
+    private DomainDetective.Views.Microsoft365OverviewInfo? _microsoft365OverviewInfo;
+    private DomainDetective.Views.DomainOverviewInfo? _domainOverviewInfo;
 
     private async Task RunAnalysis() {
         if (string.IsNullOrWhiteSpace(_domain)) return;
 
+        CancelOverviewHydration();
         _isLoading = true;
+        _isHydratingDeep = false;
         _error = null;
+        _backgroundError = null;
+        _scanStartedAt = DateTimeOffset.Now;
+        _quickReadyAt = null;
+        _deepReadyAt = null;
         _healthCheck = null;
+        _httpInfo = null;
+        _securityTxtInfo = null;
+        _certificateInfo = null;
+        _bimiInfo = null;
+        _mtastsInfo = null;
+        _rdapInfo = null;
+        _dnsPropagationInfo = null;
+        _subdomainsInfo = null;
+        _microsoft365OverviewInfo = null;
+        _domainOverviewInfo = null;
+        var analysisVersion = ++_analysisVersion;
         StateHasChanged();
 
         try {
             var hc = DnsService.CreateHealthCheck();
 
             switch (Definition.Slug) {
+                case "m365-overview":
+                    if (Availability.IsHostedOnline) {
+                        _microsoft365OverviewInfo = await HostedAnalysisService.AnalyzeMicrosoft365OverviewQuickAsync(_domain, _forceHostedRefresh);
+                        _quickReadyAt = DateTimeOffset.Now;
+                        _isHydratingDeep = _microsoft365OverviewInfo.IsPartial;
+                        if (_isHydratingDeep) {
+                            _overviewHydrationCts = new CancellationTokenSource();
+                            _ = LoadDeepOverviewAsync("m365-overview", _domain, _forceHostedRefresh, analysisVersion, _overviewHydrationCts.Token);
+                        } else {
+                            _deepReadyAt = _quickReadyAt;
+                        }
+                    } else {
+                        _microsoft365OverviewInfo = await BrowserOverviewService.AnalyzeMicrosoft365OverviewLiteAsync(_domain);
+                        _quickReadyAt = DateTimeOffset.Now;
+                        _deepReadyAt = _quickReadyAt;
+                    }
+                    break;
+                case "domain-overview":
+                    if (Availability.IsHostedOnline) {
+                        _domainOverviewInfo = await HostedAnalysisService.AnalyzeDomainOverviewQuickAsync(_domain, _forceHostedRefresh);
+                        _quickReadyAt = DateTimeOffset.Now;
+                        _isHydratingDeep = _domainOverviewInfo.IsPartial;
+                        if (_isHydratingDeep) {
+                            _overviewHydrationCts = new CancellationTokenSource();
+                            _ = LoadDeepOverviewAsync("domain-overview", _domain, _forceHostedRefresh, analysisVersion, _overviewHydrationCts.Token);
+                        } else {
+                            _deepReadyAt = _quickReadyAt;
+                        }
+                    } else {
+                        _domainOverviewInfo = await BrowserOverviewService.AnalyzeDomainOverviewLiteAsync(_domain);
+                        _quickReadyAt = DateTimeOffset.Now;
+                        _deepReadyAt = _quickReadyAt;
+                    }
+                    break;
                 case "spf": await hc.VerifySPF(_domain); break;
-                case "dkim": await hc.VerifyDKIM(_domain, new[] { _secondaryInput ?? "default" }); break;
+                case "dkim":
+                    await hc.VerifyDKIM(_domain, GetDkimSelectors());
+                    break;
                 case "dmarc": await hc.VerifyDMARC(_domain); break;
                 case "mx": await hc.VerifyMX(_domain); break;
-                case "mta-sts": await hc.VerifyMTASTS(_domain); break;
+                case "mta-sts":
+                    if (Availability.IsHostedOnline) {
+                        _mtastsInfo = await HostedAnalysisService.AnalyzeMtastsAsync(_domain, _forceHostedRefresh);
+                    } else {
+                        await hc.VerifyMTASTSBootstrap(_domain);
+                    }
+                    break;
                 case "tls-rpt": await hc.VerifyTLSRPT(_domain); break;
-                case "bimi": await hc.VerifyBIMI(_domain); break;
+                case "bimi":
+                    try {
+                        _bimiInfo = await HostedAnalysisService.AnalyzeBimiAsync(_domain, _forceHostedRefresh);
+                    } catch (HostedAnalysisUnavailableException) {
+                        await hc.VerifyBIMI(_domain, skipIndicatorDownload: true);
+                    }
+                    break;
                 case "dns-lookup": await hc.VerifyDnsInventoryAsync(_domain); break;
                 case "dnssec": await hc.VerifyDNSSEC(_domain); break;
                 case "soa": await hc.VerifySOA(_domain); break;
                 case "ns": await hc.VerifyNS(_domain); break;
-                case "dns-propagation": await hc.VerifyDnsPropagationAsync(_domain); break;
+                case "dns-propagation":
+                    if (Availability.IsHostedOnline) {
+                        _dnsPropagationInfo = await HostedAnalysisService.AnalyzeDnsPropagationAsync(_domain, _forceHostedRefresh);
+                    } else {
+                        await DnsService.AnalyzeDnsPropagationAsync(hc, _domain);
+                    }
+                    break;
                 case "caa": await hc.VerifyCAA(_domain); break;
-                case "http-headers": await hc.VerifyWebsiteHttps(_domain); break;
-                case "security-txt": await hc.VerifySecurityTxt(_domain); break;
-                case "rdap": await hc.QueryRDAP(_domain); break;
-                case "dnsbl": await hc.VerifyDNSBL(_domain); break;
+                case "dane": await hc.VerifyDANE(_domain, new[] { DomainDetective.ServiceType.SMTP, DomainDetective.ServiceType.HTTPS }); break;
+                case "cert-check":
+                    _certificateInfo = await HostedAnalysisService.AnalyzeCertificateAsync(_domain, _forceHostedRefresh);
+                    break;
+                case "http-headers":
+                    _httpInfo = await HostedAnalysisService.AnalyzeHttpHeadersAsync(_domain, _forceHostedRefresh);
+                    break;
+                case "security-txt":
+                    _securityTxtInfo = await HostedAnalysisService.AnalyzeSecurityTxtAsync(_domain, _forceHostedRefresh);
+                    break;
+                case "rdap":
+                    _rdapInfo = await HostedAnalysisService.AnalyzeRdapAsync(_domain, _forceHostedRefresh);
+                    break;
+                case "dnsbl": await hc.VerifyDNSBLWithMode(_domain, DomainDetective.DomainIpScanMode.MxAOnly); break;
                 case "dangling-cname": await hc.VerifyDanglingCname(_domain); break;
-                case "ct-subdomains": await hc.VerifySubdomainsAsync(_domain); break;
+                case "ct-subdomains":
+                    _subdomainsInfo = await HostedAnalysisService.AnalyzeCtSubdomainsAsync(_domain, _forceHostedRefresh);
+                    break;
             }
 
-            _healthCheck = hc;
+            if (_httpInfo == null && _securityTxtInfo == null && _certificateInfo == null && _mtastsInfo == null && _rdapInfo == null && _dnsPropagationInfo == null && _subdomainsInfo == null && _microsoft365OverviewInfo == null && _domainOverviewInfo == null) {
+                _healthCheck = hc;
+            }
         } catch (Exception ex) {
             _error = ex.Message;
         } finally {
+            _forceHostedRefresh = false;
             _isLoading = false;
             StateHasChanged();
         }
+    }
+
+    private async Task LoadDeepOverviewAsync(string slug, string domainName, bool forceRefresh, int analysisVersion, CancellationToken cancellationToken) {
+        try {
+            switch (slug) {
+                case "m365-overview":
+                    var microsoft365Overview = await HostedAnalysisService.AnalyzeMicrosoft365OverviewAsync(domainName, forceRefresh, cancellationToken);
+                    if (analysisVersion != _analysisVersion) {
+                        return;
+                    }
+
+                    _microsoft365OverviewInfo = microsoft365Overview;
+                    _deepReadyAt = DateTimeOffset.Now;
+                    break;
+                case "domain-overview":
+                    var domainOverview = await HostedAnalysisService.AnalyzeDomainOverviewAsync(domainName, forceRefresh, cancellationToken);
+                    if (analysisVersion != _analysisVersion) {
+                        return;
+                    }
+
+                    _domainOverviewInfo = domainOverview;
+                    _deepReadyAt = DateTimeOffset.Now;
+                    break;
+            }
+        } catch (OperationCanceledException) {
+            if (analysisVersion != _analysisVersion) {
+                return;
+            }
+        } catch (Exception ex) {
+            if (analysisVersion != _analysisVersion) {
+                return;
+            }
+
+            _backgroundError = $"Quick overview loaded, but the deep DD evidence pass failed: {ex.Message}";
+        } finally {
+            if (analysisVersion == _analysisVersion) {
+                _isHydratingDeep = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private void CancelOverviewHydration() {
+        if (_overviewHydrationCts is null) {
+            return;
+        }
+
+        try {
+            _overviewHydrationCts.Cancel();
+        } catch {
+            // Best effort only.
+        } finally {
+            _overviewHydrationCts.Dispose();
+            _overviewHydrationCts = null;
+        }
+    }
+
+    private async Task RunFreshAnalysis() {
+        _forceHostedRefresh = true;
+        await RunAnalysis();
+    }
+
+    private bool CanRunOnline(ToolDefinition definition) {
+        return Availability.CanRun(definition);
+    }
+
+    private static bool SupportsHostedCache(ToolDefinition definition) {
+        return definition.Slug == "m365-overview" || definition.Slug == "domain-overview";
+    }
+
+    private static bool IsOverviewTool(ToolDefinition definition) {
+        return definition.Slug == "m365-overview" || definition.Slug == "domain-overview";
+    }
+
+    private static bool SupportsLiteTool(ToolDefinition definition) {
+        return IsOverviewTool(definition) || definition.Slug == "dns-propagation" || definition.Slug == "mta-sts";
+    }
+
+    private static string GetStaticEditionTitle(ToolDefinition definition) {
+        return definition.Slug switch {
+            "dns-propagation" => "Browser-safe propagation sample",
+            "mta-sts" => "Browser-safe MTA-STS bootstrap",
+            _ => "Browser-safe overview"
+        };
+    }
+
+    private static string GetStaticEditionDescription(ToolDefinition definition) {
+        return definition.Slug switch {
+            "dns-propagation" => "This web edition compares answers across a smaller public resolver sample. The same DD analysis stays in place, but the broader hosted resolver pool is not used here.",
+            "mta-sts" => "This web edition validates the published MTA-STS DNS bootstrap record. Policy hosting and MX-policy correlation stay unavailable here unless the full online analysis engine is enabled.",
+            _ => "This web edition shows the DD sections that can run directly online. Deeper sections stay visible and are clearly marked unavailable here."
+        };
+    }
+
+    private string[] GetDkimSelectors() {
+        if (string.IsNullOrWhiteSpace(_secondaryInput)) {
+            return Array.Empty<string>();
+        }
+
+        return _secondaryInput
+            .Split(new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static selector => selector.Trim())
+            .Where(static selector => selector.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private string GetPowerShellCommand() => Definition.Slug switch {
@@ -155,4 +437,12 @@
         "dane" => "Get-DomainDANE -Domain example.com",
         _ => $"Get-DomainHealthCheck -Domain example.com"
     };
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp) {
+        return timestamp.HasValue ? timestamp.Value.ToString("HH:mm:ss") : "pending";
+    }
+
+    public void Dispose() {
+        CancelOverviewHydration();
+    }
 }

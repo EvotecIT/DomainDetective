@@ -181,7 +181,7 @@ namespace DomainDetective {
         /// <returns><c>true</c> when the record is signed and validated; otherwise <c>false</c>.</returns>
         public async Task<bool> ValidateRecord(string domain, DnsRecordType type, CancellationToken ct = default) {
             var endpoints = new[] { DnsEndpoint.System, DnsEndpoint.SystemTcp, DnsEndpoint.CloudflareWireFormat, DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 };
-            var resp = await ResolveWithFallback(endpoints, domain, type, requestDnsSec: true, validateDnsSec: false, ct).ConfigureAwait(false);
+            var resp = await ResolveWithFallback(endpoints, domain, type, requestDnsSec: true, validateDnsSec: false, responseOverride: null, ct).ConfigureAwait(false);
             bool ad = resp.AuthenticData;
             bool hasSig = (resp.Answers ?? Array.Empty<DnsAnswer>()).Any(a => a.Type == DnsRecordType.RRSIG);
             if (ad && hasSig) return true;

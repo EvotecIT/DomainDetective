@@ -1,19 +1,42 @@
 @using DomainDetective.Toolbox.Components.Shared
 
 @if (HealthCheck.SOAAnalysis is { } soa) {
-    <ResultCard Title="SOA Record" Status="ResultCard.ResultStatus.Info">
-        @if (soa.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in soa.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
-                }
-            </ul>
-        } else {
-            <p>SOA analysis complete for @Domain.</p>
+    <ResultCard Title="SOA record" Status="@(soa.RecordExists ? GetStatus(soa.Assessments) : ResultCard.ResultStatus.Fail)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Serial</span>
+                <strong class="tool-summary-value">@soa.SerialNumber</strong>
+                <p class="tool-summary-note">Format valid: @FormatBool(soa.SerialFormatValid)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Refresh / Retry</span>
+                <strong class="tool-summary-value">@($"{soa.Refresh}s / {soa.Retry}s")</strong>
+                <p class="tool-summary-note">Expire: @soa.Expire s</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Negative TTL</span>
+                <strong class="tool-summary-value">@($"{soa.NegativeCacheTtl}s")</strong>
+                <p class="tool-summary-note">Minimum: @soa.Minimum s</p>
+            </div>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Primary nameserver</td><td>@FormatText(soa.PrimaryNameServer)</td></tr>
+            <tr><td>Responsible mailbox</td><td>@FormatText(soa.ResponsibleMailbox)</td></tr>
+            <tr><td>Domain name</td><td>@FormatText(soa.DomainName)</td></tr>
+            <tr><td>Serial format suggestion</td><td>@FormatText(soa.SerialFormatSuggestion)</td></tr>
+        </ResultTable>
+
+        @if (!string.IsNullOrWhiteSpace(soa.SerialFormatSuggestion)) {
+            <div class="tool-callout">
+                <strong>Serial format guidance</strong>
+                <p>@soa.SerialFormatSuggestion</p>
+            </div>
         }
+    </ResultCard>
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="soa.Assessments" EmptyMessage="@($"SOA analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
@@ -21,10 +44,19 @@
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatBool(bool value) => value ? "Yes" : "No";
+
+    private static string FormatText(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

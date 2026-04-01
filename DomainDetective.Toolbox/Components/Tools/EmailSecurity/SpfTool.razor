@@ -1,40 +1,248 @@
+@using System.Globalization
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
 @if (HealthCheck.SpfAnalysis is { } spf) {
-    <ResultCard Title="SPF Record" Status="@(spf.SpfRecordExists ? ResultCard.ResultStatus.Pass : ResultCard.ResultStatus.Fail)">
-        @if (spf.SpfRecordExists && spf.SpfRecord is not null) {
-            <div class="result-record">@spf.SpfRecord</div>
-            <ResultTable Columns="@(new[] { "Property", "Value" })">
-                <tr><td>DNS Lookups</td><td>@spf.DnsLookupsCount / 10</td></tr>
-                <tr><td>Records Found</td><td>@spf.SpfRecords.Count</td></tr>
-            </ResultTable>
-        } else {
-            <p>No SPF record found for @Domain</p>
-        }
+    var view = Converters.Convert(spf);
+    var providerSignals = view.ProviderCounts.OrderByDescending(static item => item.Value).ThenBy(static item => item.Key, StringComparer.OrdinalIgnoreCase).ToArray();
+    var mechanismCounts = view.Mechanisms.GroupBy(static item => item.Type ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+        .OrderByDescending(static group => group.Count())
+        .ThenBy(static group => group.Key, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    <ResultCard Title="SPF posture" Status="@GetStatus(view)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Policy</span>
+                <strong class="tool-summary-value">@FormatPolicy(view)</strong>
+                <p class="tool-summary-note">Published: @FormatBool(view.SpfRecordExists)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Lookup budget</span>
+                <strong class="tool-summary-value">@($"{view.DnsLookupsCount}/10")</strong>
+                <p class="tool-summary-note">@(view.ExceedsDnsLookups ? "Exceeds RFC guidance" : "Within RFC guidance")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Authorized sources</span>
+                <strong class="tool-summary-value">@view.FlattenedUniqueIps.Count</strong>
+                <p class="tool-summary-note">Duplicates: @view.FlattenedDuplicateIps.Count</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Providers</span>
+                <strong class="tool-summary-value">@(providerSignals.Length > 0 ? providerSignals[0].Key : "Unknown")</strong>
+                <p class="tool-summary-note">Signals: @providerSignals.Length</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@BuildSummary(view)</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Starts with v=spf1</td><td>@FormatBool(view.StartsCorrectly)</td></tr>
+            <tr><td>Multiple SPF records</td><td>@FormatBool(view.MultipleSpfRecords)</td></tr>
+            <tr><td>Resolved through CNAME</td><td>@FormatBool(view.IsCnameResolved, view.IsCnameResolved ? FormatTtl(view.CnameTtl) : "No")</td></tr>
+            <tr><td>Terminal all mechanism</td><td>@FormatValue(view.AllMechanism, "Not found")</td></tr>
+            <tr><td>Contains tokens after all</td><td>@FormatBool(view.ContainsCharactersAfterAll)</td></tr>
+            <tr><td>PTR mechanism used</td><td>@FormatBool(view.HasPtrType)</td></tr>
+            <tr><td>Null exists lookups</td><td>@FormatBool(view.HasNullLookups)</td></tr>
+            <tr><td>Redirect modifier</td><td>@FormatBool(view.HasRedirect, FormatValue(view.RedirectValue, "Present"))</td></tr>
+            <tr><td>exp modifier</td><td>@FormatBool(view.HasExp, FormatValue(view.ExpValue, "Present"))</td></tr>
+            <tr><td>Invalid IP syntax</td><td>@FormatBool(view.InvalidIpSyntax)</td></tr>
+            <tr><td>Permanent error</td><td>@FormatBool(view.PermError)</td></tr>
+            <tr><td>Effective outbound sending</td><td>@FormatBool(view.EffectiveSpfSends)</td></tr>
+            <tr><td>Record length</td><td>@($"{view.RecordLength} chars")</td></tr>
+            <tr><td>TXT TTL</td><td>@FormatTtl(view.DnsRecordTtl)</td></tr>
+        </ResultTable>
     </ResultCard>
 
-    @if (spf.Assessments?.Count > 0) {
-        <ResultCard Title="Assessments">
-            <ul class="issues-list">
-                @foreach (var a in spf.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
-                }
-            </ul>
+    @if (view.SpfRecordExists && !string.IsNullOrWhiteSpace(view.SpfRecord)) {
+        <ResultCard Title="Published SPF record" Status="ResultCard.ResultStatus.Info">
+            <div class="result-record">@view.SpfRecord</div>
         </ResultCard>
     }
+
+    @if (view.Highlights.Count > 0 || view.Details.Count > 0 || !string.IsNullOrWhiteSpace(view.Advisory)) {
+        <ResultCard Title="Protocol guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights.Take(5)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Details.Count > 0 || !string.IsNullOrWhiteSpace(view.Advisory)) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Operational notes</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(6)) {
+                                <li>@item</li>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(view.Advisory) && !view.Details.Contains($"Advisory: {view.Advisory}", StringComparer.OrdinalIgnoreCase)) {
+                                <li>@view.Advisory</li>
+                            }
+                            @if (view.CycleDetected && !string.IsNullOrWhiteSpace(view.CyclePath)) {
+                                <li>Include/redirect cycle: @view.CyclePath</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (view.Includes.Count > 0 || view.ResolvedIpv4Records.Count > 0 || view.ResolvedIpv6Records.Count > 0 || mechanismCounts.Length > 0) {
+        <ResultCard Title="Sending sources" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (mechanismCounts.Length > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Mechanism mix</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in mechanismCounts.Take(8)) {
+                                <span class="tool-chip">@item.Key (@item.Count())</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.Includes.Count > 0 || view.ResolvedIncludeRecords.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Include chain</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.Includes.Distinct(StringComparer.OrdinalIgnoreCase).Take(8)) {
+                                <span class="tool-chip">@item</span>
+                            }
+                            @foreach (var item in view.ResolvedIncludeRecords.Distinct(StringComparer.OrdinalIgnoreCase).Except(view.Includes, StringComparer.OrdinalIgnoreCase).Take(8)) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.ResolvedIpv4Records.Count > 0 || view.ResolvedIpv6Records.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Resolved ranges</span>
+                        <ResultTable Columns="@(new[] { "Type", "Count" })">
+                            <tr><td>IPv4</td><td>@view.ResolvedIpv4Records.Count</td></tr>
+                            <tr><td>IPv6</td><td>@view.ResolvedIpv6Records.Count</td></tr>
+                            <tr><td>Unique flattened IPs</td><td>@view.FlattenedUniqueIps.Count</td></tr>
+                            <tr><td>Duplicate flattened IPs</td><td>@view.FlattenedDuplicateIps.Count</td></tr>
+                        </ResultTable>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (providerSignals.Length > 0 || view.ProviderHelp.Count > 0 || view.UnknownMechanisms.Count > 0) {
+        <ResultCard Title="Provider and syntax signals" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (providerSignals.Length > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Detected providers</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in providerSignals.Take(8)) {
+                                <span class="tool-chip">@item.Key (@item.Value)</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.UnknownMechanisms.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Unknown mechanisms</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.UnknownMechanisms.Distinct(StringComparer.OrdinalIgnoreCase)) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @foreach (var provider in view.ProviderHelp.Where(static item => item.HasAny)) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">@provider.ProviderName documentation</span>
+                        <ul class="tool-link-list">
+                            @foreach (var topic in provider.Topics.Where(static item => !string.IsNullOrWhiteSpace(item.Url)).Take(5)) {
+                                <li><a href="@topic.Url" target="_blank" rel="noopener">@topic.Topic</a></li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"SPF analysis complete for {Domain}.")" />
+    </ResultCard>
 }
 
 @code {
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string BuildSummary(SpfRecordInfo view) {
+        if (view.Highlights.Count > 0) {
+            return string.Join(" ", view.Highlights.Take(3));
+        }
+
+        return view.Summary;
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatBool(bool value, string positive) {
+        return value ? positive : "No";
+    }
+
+    private static string FormatPolicy(SpfRecordInfo view) {
+        if (!string.IsNullOrWhiteSpace(view.AllMechanism)) {
+            return view.AllMechanism!.ToLowerInvariant() switch {
+                "-all" => "Enforced (-all)",
+                "~all" => "Softfail (~all)",
+                "+all" => "Permissive (+all)",
+                "?all" => "Neutral (?all)",
+                _ => view.AllMechanism
+            };
+        }
+
+        if (view.DenyAll) {
+            return "Deny all";
+        }
+
+        return "No terminal all";
+    }
+
+    private static string FormatTtl(int? ttl) {
+        return ttl.HasValue && ttl.Value > 0 ? $"{ttl.Value}s" : "Not captured";
+    }
+
+    private static string FormatValue(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(SpfRecordInfo view) {
+        if (!view.SpfRecordExists || view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning) ||
+            view.ExceedsDnsLookups ||
+            view.MultipleSpfRecords ||
+            view.PermError) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

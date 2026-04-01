@@ -1,30 +1,206 @@
+@using System.Globalization
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
-@if (HealthCheck.RdapAnalysis is { } rdap) {
-    <ResultCard Title="RDAP / WHOIS" Status="ResultCard.ResultStatus.Info">
-        @if (rdap.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in rdap.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+@{
+    var view = Info ?? (HealthCheck is not null ? Converters.Convert(HealthCheck.RdapAnalysis) : null);
+}
+
+@if (view is not null) {
+    var lifecycle = FormatLifecycle(view.ExpiryDate);
+    var orderedEvents = view.EventSummaries.OrderBy(static item => item.ParsedDate ?? DateTimeOffset.MaxValue).ToArray();
+
+    <ResultCard Title="Registration summary" Status="@GetStatus(view.Assessments)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Registrar</span>
+                <strong class="tool-summary-value">@FormatValue(view.Registrar, "Unknown")</strong>
+                <p class="tool-summary-note">IANA / handle: @FormatValue(view.RegistrarId, "Not reported")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Lifecycle</span>
+                <strong class="tool-summary-value">@lifecycle</strong>
+                <p class="tool-summary-note">Created: @FormatDate(view.CreationDate)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Nameservers</span>
+                <strong class="tool-summary-value">@view.NameServers.Count</strong>
+                <p class="tool-summary-note">Status values: @view.StatusValues.Count</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">RDAP entities</span>
+                <strong class="tool-summary-value">@view.EntitySummaries.Count</strong>
+                <p class="tool-summary-note">Contact data: @(view.HasContactEntity ? "Present" : "Limited")</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@view.Summary</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Domain</td><td>@FormatValue(view.Subject, Domain)</td></tr>
+            <tr><td>Unicode name</td><td>@FormatValue(view.UnicodeName, "Not reported")</td></tr>
+            <tr><td>RDAP handle</td><td>@FormatValue(view.Handle, "Not reported")</td></tr>
+            <tr><td>Created</td><td>@FormatDate(view.CreationDate)</td></tr>
+            <tr><td>Expires</td><td>@FormatDate(view.ExpiryDate)</td></tr>
+            <tr><td>Days until expiration</td><td>@FormatDays(view.DaysUntilExpiration)</td></tr>
+            <tr><td>Hold status</td><td>@FormatBool(view.HasHoldStatus, view.HasHoldStatus ? "Reported" : "Not reported")</td></tr>
+            <tr><td>RDAP record</td><td>@(view.RecordAvailable ? "Available" : "Not returned")</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (view.StatusValues.Count > 0 || view.NameServers.Count > 0 || view.EntitySummaries.Count > 0) {
+        <ResultCard Title="Published registration data" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.StatusValues.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">RDAP statuses</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.StatusValues.OrderBy(static value => value)) {
+                                <span class="tool-chip">@FormatStatus(item)</span>
+                            }
+                        </div>
+                    </div>
                 }
-            </ul>
-        } else {
-            <p>RDAP lookup complete for @Domain.</p>
-        }
+
+                @if (view.EntitySummaries.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Entity roles</span>
+                        <ResultTable Columns="@(new[] { "Handle", "Roles", "vCard" })">
+                            @foreach (var entity in view.EntitySummaries.Take(8)) {
+                                <tr>
+                                    <td>@FormatValue(entity.Handle, "Unknown")</td>
+                                    <td>@(entity.Roles.Count > 0 ? string.Join(", ", entity.Roles) : "—")</td>
+                                    <td>@(entity.HasVcard ? "Present" : "No")</td>
+                                </tr>
+                            }
+                        </ResultTable>
+                    </div>
+                }
+
+                @if (view.NameServers.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Authoritative nameservers</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.NameServers.OrderBy(static value => value)) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (orderedEvents.Length > 0 || view.Recommendations.Count > 0 || view.Positives.Count > 0) {
+        <ResultCard Title="Registration guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (orderedEvents.Length > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">RDAP event timeline</span>
+                        <ResultTable Columns="@(new[] { "Action", "Date" })">
+                            @foreach (var item in orderedEvents.Take(8)) {
+                                <tr>
+                                    <td>@FormatStatus(item.Action)</td>
+                                    <td>@FormatDate(item.Date)</td>
+                                </tr>
+                            }
+                        </ResultTable>
+                    </div>
+                }
+
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Take(5)) {
+                                <li>@item.Title</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Follow-up guidance</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Recommendations.Take(5)) {
+                                <li>@item.Title</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"RDAP lookup complete for {Domain}.")" />
     </ResultCard>
 }
 
 @code {
-    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public DomainDetective.DomainHealthCheck? HealthCheck { get; set; }
+    [Parameter] public RdapInfo? Info { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatDate(string? value) {
+        if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)) {
+            return parsed.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
+        return string.IsNullOrWhiteSpace(value) ? "Not reported" : value;
+    }
+
+    private static string FormatLifecycle(string? expiryDate) {
+        if (!DateTimeOffset.TryParse(expiryDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)) {
+            return "Unknown";
+        }
+
+        var days = Math.Ceiling((parsed - DateTimeOffset.UtcNow).TotalDays);
+        if (days < 0) {
+            return $"Expired {Math.Abs(days):N0} days ago";
+        }
+
+        return $"{days:N0} days left";
+    }
+
+    private static string FormatDays(int? days) {
+        if (!days.HasValue) {
+            return "Unknown";
+        }
+
+        if (days.Value < 0) {
+            return $"{Math.Abs(days.Value).ToString(CultureInfo.InvariantCulture)} days ago";
+        }
+
+        return $"{days.Value.ToString(CultureInfo.InvariantCulture)} days";
+    }
+
+    private static string FormatBool(bool value, string positive) {
+        return value ? positive : "No";
+    }
+
+    private static string FormatStatus(string status) {
+        return string.IsNullOrWhiteSpace(status) ? "Unknown" : status.Replace('_', ' ');
+    }
+
+    private static string FormatValue(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return assessments.Count > 0 ? ResultCard.ResultStatus.Pass : ResultCard.ResultStatus.Info;
+    }
 }

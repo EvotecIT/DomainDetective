@@ -1,50 +1,254 @@
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
 
 @if (HealthCheck.DKIMAnalysis is { } dkim) {
-    @foreach (var kvp in dkim.AnalysisResults) {
-        var selector = kvp.Key;
-        var result = kvp.Value;
+    var requestedSelectors = ParseSelectors(Selector);
+    var autoDetected = requestedSelectors.Count == 0;
+    var selectors = dkim.AnalysisResults
+        .OrderBy(static entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+    var providers = selectors
+        .Select(static entry => entry.Value.Provider)
+        .Where(static provider => !string.IsNullOrWhiteSpace(provider))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(static provider => provider)
+        .ToList();
 
-        <ResultCard Title="@($"DKIM — {selector}")" Status="@(result.ValidPublicKey ? ResultCard.ResultStatus.Pass : ResultCard.ResultStatus.Fail)">
-            @if (result.DkimRecord is not null) {
-                <div class="result-record">@result.DkimRecord</div>
-                <ResultTable Columns="@(new[] { "Property", "Value" })">
-                    <tr><td>Selector</td><td>@selector</td></tr>
-                    <tr><td>Key Length</td><td>@(result.KeyLength > 0 ? $"{result.KeyLength} bits" : "Unknown")</td></tr>
-                    <tr><td>Valid Public Key</td><td>@(result.ValidPublicKey ? "Yes" : "No")</td></tr>
-                    @if (result.Provider is not null) {
-                        <tr><td>Provider</td><td>@result.Provider</td></tr>
-                    }
-                </ResultTable>
-            } else {
-                <p>No DKIM record found for selector <strong>@selector</strong></p>
-            }
+    <ResultCard Title="DKIM posture" Status="@GetOverallStatus(dkim, selectors)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Detection mode</span>
+                <strong class="tool-summary-value">@(autoDetected ? "Auto-detect" : "Manual")</strong>
+                <p class="tool-summary-note">Selectors found: @selectors.Count</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Strongest key</span>
+                <strong class="tool-summary-value">@GetStrongestKeyLabel(selectors)</strong>
+                <p class="tool-summary-note">Weak keys: @selectors.Count(static entry => entry.Value.WeakKey)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Provider signals</span>
+                <strong class="tool-summary-value">@(providers.Count > 0 ? providers.Count.ToString() : "None")</strong>
+                <p class="tool-summary-note">Invalid selectors: @selectors.Count(static entry => !entry.Value.ValidPublicKey || !entry.Value.DkimRecordExists)</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@BuildSummary(dkim, selectors, requestedSelectors, autoDetected)</p>
+        </div>
+    </ResultCard>
+
+    @if (autoDetected) {
+        <ResultCard Title="Selector discovery" Status="ResultCard.ResultStatus.Info">
+            <p>DomainDetective auto-detected selectors using its built-in provider selector catalog and DKIM best-practice guess list. Leave the selector field empty to use that discovery path, or provide one or more selectors to force a manual check.</p>
         </ResultCard>
     }
 
-    @if (dkim.Assessments?.Count > 0) {
-        <ResultCard Title="Assessments">
-            <ul class="issues-list">
-                @foreach (var a in dkim.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+    @if (providers.Count > 0) {
+        <ResultCard Title="Provider hints" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-chip-list">
+                @foreach (var provider in providers) {
+                    <span class="tool-chip">@provider</span>
                 }
-            </ul>
+            </div>
         </ResultCard>
     }
+
+    @if (selectors.Count == 0) {
+        <ResultCard Title="Selectors" Status="ResultCard.ResultStatus.Fail">
+            <p>No DKIM selector results were returned for @Domain.</p>
+        </ResultCard>
+    } else {
+        @foreach (var entry in selectors) {
+            var selectorName = entry.Key;
+            var result = entry.Value;
+
+            <ResultCard Title="@($"Selector {selectorName}")" Status="@GetSelectorStatus(result)">
+                @if (result.DkimRecordExists && !string.IsNullOrWhiteSpace(result.DkimRecord)) {
+                    <div class="result-record">@result.DkimRecord</div>
+                }
+
+                <div class="tool-summary-grid">
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Key strength</span>
+                        <strong class="tool-summary-value">@GetKeyStrength(result)</strong>
+                        <p class="tool-summary-note">Public key valid: @FormatBool(result.ValidPublicKey)</p>
+                    </div>
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Publishing path</span>
+                        <strong class="tool-summary-value">@(result.IsCnameResolved ? "CNAME alias" : "TXT record")</strong>
+                        <p class="tool-summary-note">TTL: @FormatTtl(result.DnsRecordTtl)</p>
+                    </div>
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Canonicalization</span>
+                        <strong class="tool-summary-value">@FormatText(result.Canonicalization, "Default")</strong>
+                        <p class="tool-summary-note">Flags: @FormatText(result.Flags, "None")</p>
+                    </div>
+                </div>
+
+                <ResultTable Columns="@(new[] { "Property", "Value" })">
+                    <tr><td>Record published</td><td>@FormatBool(result.DkimRecordExists)</td></tr>
+                    <tr><td>Starts with v=DKIM1</td><td>@FormatBool(result.StartsCorrectly)</td></tr>
+                    <tr><td>Key type</td><td>@FormatText(result.KeyType, "Unspecified")</td></tr>
+                    <tr><td>Hash algorithm</td><td>@FormatText(result.HashAlgorithm, "Default")</td></tr>
+                    <tr><td>Service type</td><td>@FormatText(result.ServiceType, "Any")</td></tr>
+                    <tr><td>Key fingerprint</td><td>@FormatText(result.KeyFingerprint, "Not derived")</td></tr>
+                    <tr><td>Provider</td><td>@FormatText(result.Provider, "Unknown")</td></tr>
+                    <tr><td>CNAME target</td><td>@FormatText(result.CnameTarget, "Not used")</td></tr>
+                    <tr><td>Record TTL</td><td>@FormatTtl(result.DnsRecordTtl)</td></tr>
+                    <tr><td>CNAME TTL</td><td>@FormatTtl(result.CnameTtl)</td></tr>
+                </ResultTable>
+
+                @if (result.DeprecatedTags.Count > 0 || result.UnknownCanonicalizationModes.Count > 0 || !string.IsNullOrWhiteSpace(result.UnknownFlagCharacters)) {
+                    <div class="tool-section-grid">
+                        @if (result.DeprecatedTags.Count > 0) {
+                            <div class="tool-summary-card">
+                                <span class="tool-summary-label">Deprecated tags</span>
+                                <div class="tool-chip-list">
+                                    @foreach (var item in result.DeprecatedTags.OrderBy(static value => value)) {
+                                        <span class="tool-chip">@item</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (result.UnknownCanonicalizationModes.Count > 0) {
+                            <div class="tool-summary-card">
+                                <span class="tool-summary-label">Unknown canonicalization</span>
+                                <div class="tool-chip-list">
+                                    @foreach (var item in result.UnknownCanonicalizationModes.OrderBy(static value => value)) {
+                                        <span class="tool-chip">@item</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(result.UnknownFlagCharacters)) {
+                            <div class="tool-summary-card">
+                                <span class="tool-summary-label">Unknown flag characters</span>
+                                <div class="tool-chip-list">
+                                    @foreach (var item in result.UnknownFlagCharacters.Select(static character => character.ToString())) {
+                                        <span class="tool-chip">@item</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </ResultCard>
+        }
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="dkim.Assessments" EmptyMessage="@($"DKIM analysis complete for {Domain}.")" />
+    </ResultCard>
 }
 
 @code {
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
-    [Parameter] public string Selector { get; set; } = "default";
+    [Parameter] public string Selector { get; set; } = string.Empty;
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string BuildSummary(
+        DomainDetective.DkimAnalysis analysis,
+        IReadOnlyList<KeyValuePair<string, DomainDetective.DkimRecordAnalysis>> selectors,
+        IReadOnlyList<string> requestedSelectors,
+        bool autoDetected) {
+        if (selectors.Count == 0) {
+            return autoDetected
+                ? $"No DKIM selectors were discovered for {analysis.Subject ?? "this domain"} from DomainDetective's built-in selector catalog."
+                : $"No DKIM selector records were found for {analysis.Subject ?? "this domain"} using the requested selector set: {string.Join(", ", requestedSelectors)}.";
+        }
+
+        var publishedCount = selectors.Count(static entry => entry.Value.DkimRecordExists);
+        var validCount = selectors.Count(static entry => entry.Value.ValidPublicKey && entry.Value.ValidRsaKeyLength);
+        var weakCount = selectors.Count(static entry => entry.Value.WeakKey);
+        var modePrefix = autoDetected
+            ? "Auto-detected selectors with DomainDetective's built-in selector discovery."
+            : $"Checked the requested selector set: {string.Join(", ", requestedSelectors)}.";
+        return $"{modePrefix} Validated {selectors.Count} selector(s); {publishedCount} published DKIM record(s), {validCount} selector(s) with a valid public key, and {weakCount} selector(s) that should be rotated to stronger material.";
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatText(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static string FormatTtl(int? value) {
+        return value.HasValue && value.Value > 0 ? $"{value.Value}s" : "Not captured";
+    }
+
+    private static string GetKeyStrength(DomainDetective.DkimRecordAnalysis result) {
+        if (!result.DkimRecordExists) {
+            return "Missing";
+        }
+
+        if (!result.ValidPublicKey || result.KeyLength <= 0) {
+            return "Invalid";
+        }
+
+        return $"{result.KeyLength} bits";
+    }
+
+    private static string GetStrongestKeyLabel(IReadOnlyList<KeyValuePair<string, DomainDetective.DkimRecordAnalysis>> selectors) {
+        var strongest = selectors
+            .Select(static entry => entry.Value.KeyLength)
+            .Where(static bits => bits > 0)
+            .DefaultIfEmpty()
+            .Max();
+
+        return strongest > 0 ? $"{strongest} bits" : "No valid key";
+    }
+
+    private static ResultCard.ResultStatus GetOverallStatus(DomainDetective.DkimAnalysis analysis, IReadOnlyList<KeyValuePair<string, DomainDetective.DkimRecordAnalysis>> selectors) {
+        if (selectors.Count == 0 || selectors.All(static entry => !entry.Value.DkimRecordExists)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (analysis.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (analysis.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning) ||
+            selectors.Any(static entry => entry.Value.WeakKey || entry.Value.OldKey)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+
+    private static ResultCard.ResultStatus GetSelectorStatus(DomainDetective.DkimRecordAnalysis result) {
+        if (!result.DkimRecordExists ||
+            !result.StartsCorrectly ||
+            !result.ValidPublicKey ||
+            !result.ValidRsaKeyLength ||
+            !result.ValidKeyType ||
+            !result.ValidFlags ||
+            !result.ValidCanonicalization) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (result.WeakKey ||
+            result.OldKey ||
+            result.DeprecatedTags.Count > 0 ||
+            result.UnknownCanonicalizationModes.Count > 0 ||
+            !string.IsNullOrWhiteSpace(result.UnknownFlagCharacters)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+
+    private static IReadOnlyList<string> ParseSelectors(string? selectorInput) {
+        return (selectorInput ?? string.Empty)
+            .Split(new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static selector => selector.Trim())
+            .Where(static selector => selector.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 }

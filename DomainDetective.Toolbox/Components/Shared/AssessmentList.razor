@@ -1,0 +1,33 @@
+@using System.Linq
+
+@if (Assessments is not null && Assessments.Count > 0) {
+    <ul class="issues-list">
+        @foreach (var assessment in Assessments.OrderByDescending(static a => GetSeverityWeight(a.Severity)).ThenBy(static a => a.Code)) {
+            <li>
+                <span class="status-badge @GetAssessmentCss(assessment)">@assessment.Severity</span>
+                <span><strong>@(assessment.Code ?? assessment.Category)</strong> — @assessment.Message</span>
+            </li>
+        }
+    </ul>
+} else if (!string.IsNullOrWhiteSpace(EmptyMessage)) {
+    <p>@EmptyMessage</p>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<DomainDetective.Assessment>? Assessments { get; set; }
+    [Parameter] public string? EmptyMessage { get; set; }
+
+    private static int GetSeverityWeight(DomainDetective.AssessmentSeverity severity) => severity switch {
+        DomainDetective.AssessmentSeverity.Error => 3,
+        DomainDetective.AssessmentSeverity.Warning => 2,
+        DomainDetective.AssessmentSeverity.Info => 1,
+        _ => 0
+    };
+
+    private static string GetAssessmentCss(DomainDetective.Assessment assessment) => assessment.Severity switch {
+        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
+        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
+        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
+        _ => "status-badge-info"
+    };
+}

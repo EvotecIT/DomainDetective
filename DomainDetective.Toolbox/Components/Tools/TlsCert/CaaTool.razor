@@ -1,19 +1,93 @@
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
 @if (HealthCheck.CAAAnalysis is { } caa) {
-    <ResultCard Title="CAA Records" Status="@(caa.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (caa.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in caa.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+    var view = Converters.Convert(caa);
+
+    <ResultCard Title="CAA posture" Status="@GetStatus(view.Assessments)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Valid records</span>
+                <strong class="tool-summary-value">@view.ValidRecords</strong>
+                <p class="tool-summary-note">Invalid: @view.InvalidRecords</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Domain issuers</span>
+                <strong class="tool-summary-value">@view.CanIssueCertificatesForDomain.Count</strong>
+                <p class="tool-summary-note">Wildcard: @view.CanIssueWildcardCertificatesForDomain.Count</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Mail issuers</span>
+                <strong class="tool-summary-value">@view.CanIssueMail.Count</strong>
+                <p class="tool-summary-note">IODEF contacts: @view.ReportViolationEmail.Count</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@view.Summary</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Conflicting directives</td><td>@FormatBool(view.Conflicting)</td></tr>
+            <tr><td>Duplicate issuers</td><td>@FormatBool(view.HasDuplicateIssuers)</td></tr>
+            <tr><td>Wildcard certificates allowed</td><td>@FormatBool(view.CanIssueWildcardCertificatesForDomain.Count > 0)</td></tr>
+            <tr><td>Mail certificates allowed</td><td>@FormatBool(view.CanIssueMail.Count > 0)</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (view.CanIssueCertificatesForDomain.Count > 0 || view.CanIssueWildcardCertificatesForDomain.Count > 0 || view.CanIssueMail.Count > 0 || view.ReportViolationEmail.Count > 0) {
+        <ResultCard Title="Authorized issuers and contacts" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-stack">
+                @if (view.CanIssueCertificatesForDomain.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">Domain certificates</span>
+                        <div class="tool-chip-list">
+                            @foreach (var issuer in view.CanIssueCertificatesForDomain) {
+                                <span class="tool-chip">@issuer</span>
+                            }
+                        </div>
+                    </div>
                 }
-            </ul>
-        } else {
-            <p>CAA analysis complete for @Domain.</p>
-        }
+
+                @if (view.CanIssueWildcardCertificatesForDomain.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">Wildcard certificates</span>
+                        <div class="tool-chip-list">
+                            @foreach (var issuer in view.CanIssueWildcardCertificatesForDomain) {
+                                <span class="tool-chip">@issuer</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.CanIssueMail.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">S/MIME issuers</span>
+                        <div class="tool-chip-list">
+                            @foreach (var issuer in view.CanIssueMail) {
+                                <span class="tool-chip">@issuer</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.ReportViolationEmail.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">Violation reporting</span>
+                        <div class="tool-chip-list">
+                            @foreach (var contact in view.ReportViolationEmail) {
+                                <span class="tool-chip">@contact</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"CAA analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
@@ -21,10 +95,17 @@
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatBool(bool value) => value ? "Yes" : "No";
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

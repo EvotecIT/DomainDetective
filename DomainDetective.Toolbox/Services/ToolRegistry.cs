@@ -4,6 +4,27 @@ namespace DomainDetective.Toolbox.Services;
 
 public sealed class ToolRegistry {
     private static readonly List<ToolDefinition> _tools = new() {
+        new ToolDefinition {
+            Name = "M365 Tenant Overview",
+            Slug = "m365-overview",
+            Description = "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one DD-backed dashboard",
+            Category = ToolCategory.Overview,
+            Icon = "building",
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false,
+            HostedCompatible = true
+        },
+        new ToolDefinition {
+            Name = "Domain Overview",
+            Slug = "domain-overview",
+            Description = "Aggregate DNS, mail, web, registration, and exposure posture for any domain",
+            Category = ToolCategory.Overview,
+            Icon = "layout-dashboard",
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false,
+            HostedCompatible = true
+        },
+
         // Email Security
         new ToolDefinition {
             Name = "SPF Lookup",
@@ -20,8 +41,8 @@ public sealed class ToolRegistry {
             Category = ToolCategory.EmailSecurity,
             Icon = "key",
             InputPlaceholder = "example.com",
-            SecondaryInputLabel = "Selector",
-            SecondaryInputPlaceholder = "default"
+            SecondaryInputLabel = "Selector (optional)",
+            SecondaryInputPlaceholder = "Leave blank to auto-detect"
         },
         new ToolDefinition {
             Name = "DMARC Lookup",
@@ -46,7 +67,8 @@ public sealed class ToolRegistry {
             Category = ToolCategory.EmailSecurity,
             Icon = "lock",
             InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            BrowserCompatible = false,
+            HostedCompatible = true
         },
         new ToolDefinition {
             Name = "TLS-RPT Check",
@@ -62,8 +84,7 @@ public sealed class ToolRegistry {
             Description = "Validate BIMI record and brand indicator",
             Category = ToolCategory.EmailSecurity,
             Icon = "image",
-            InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            InputPlaceholder = "example.com"
         },
 
         // DNS
@@ -81,8 +102,7 @@ public sealed class ToolRegistry {
             Description = "Validate DNSSEC chain of trust",
             Category = ToolCategory.Dns,
             Icon = "shield",
-            InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            InputPlaceholder = "example.com"
         },
         new ToolDefinition {
             Name = "SOA Lookup",
@@ -103,11 +123,12 @@ public sealed class ToolRegistry {
         new ToolDefinition {
             Name = "DNS Propagation",
             Slug = "dns-propagation",
-            Description = "Check DNS propagation across global resolvers",
+            Description = "Compare DNS answers across DomainDetective's distributed public resolver pool",
             Category = ToolCategory.Dns,
             Icon = "radio",
             InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            BrowserCompatible = false,
+            HostedCompatible = true
         },
 
         // TLS & Certificates
@@ -118,7 +139,8 @@ public sealed class ToolRegistry {
             Category = ToolCategory.TlsCert,
             Icon = "award",
             InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            BrowserCompatible = false,
+            HostedCompatible = true
         },
         new ToolDefinition {
             Name = "CAA Lookup",
@@ -134,8 +156,7 @@ public sealed class ToolRegistry {
             Description = "Validate DANE/TLSA records",
             Category = ToolCategory.TlsCert,
             Icon = "link",
-            InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            InputPlaceholder = "example.com"
         },
 
         // Web Security
@@ -146,7 +167,8 @@ public sealed class ToolRegistry {
             Category = ToolCategory.WebSecurity,
             Icon = "code",
             InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            BrowserCompatible = false,
+            HostedCompatible = true
         },
         new ToolDefinition {
             Name = "Security.txt",
@@ -155,7 +177,8 @@ public sealed class ToolRegistry {
             Category = ToolCategory.WebSecurity,
             Icon = "file-text",
             InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            BrowserCompatible = false,
+            HostedCompatible = true
         },
 
         // Registration
@@ -166,7 +189,8 @@ public sealed class ToolRegistry {
             Category = ToolCategory.Registration,
             Icon = "database",
             InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            BrowserCompatible = false,
+            HostedCompatible = true
         },
 
         // Threat Intel
@@ -176,8 +200,7 @@ public sealed class ToolRegistry {
             Description = "Check domain/IP against DNS blacklists",
             Category = ToolCategory.ThreatIntel,
             Icon = "alert-triangle",
-            InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            InputPlaceholder = "example.com"
         },
         new ToolDefinition {
             Name = "Dangling CNAME",
@@ -196,7 +219,8 @@ public sealed class ToolRegistry {
             Category = ToolCategory.Subdomain,
             Icon = "layers",
             InputPlaceholder = "example.com",
-            BrowserCompatible = false
+            BrowserCompatible = false,
+            HostedCompatible = true
         }
     };
 
@@ -218,6 +242,7 @@ public sealed class ToolRegistry {
     }
 
     public static string GetCategoryDisplayName(ToolCategory category) => category switch {
+        ToolCategory.Overview => "Overview",
         ToolCategory.EmailSecurity => "Email Security",
         ToolCategory.Dns => "DNS",
         ToolCategory.TlsCert => "TLS & Certificates",
@@ -230,6 +255,7 @@ public sealed class ToolRegistry {
     };
 
     public static string GetCategoryIcon(ToolCategory category) => category switch {
+        ToolCategory.Overview => "layout-dashboard",
         ToolCategory.EmailSecurity => "mail",
         ToolCategory.Dns => "globe",
         ToolCategory.TlsCert => "lock",

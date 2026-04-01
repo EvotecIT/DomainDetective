@@ -11,6 +11,7 @@ Welcome to the DomainDetective documentation.
 ## Getting Started
 
 - [Quick Start](/docs/quickstart/) - Get up and running in minutes
+- [Online Tools Hosting](/docs/online-tools-hosting/) - Build and host the website with the online analysis API
 - [C# API Guide](/docs/csharp-api/) - Use DomainDetective in your .NET applications
 - [PowerShell Cmdlets](/docs/powershell-cmdlets/) - Domain analysis from PowerShell
 - [CLI Usage](/docs/cli-usage/) - Command-line interface guide

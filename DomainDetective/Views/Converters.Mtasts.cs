@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace DomainDetective.Views;
 
@@ -20,18 +21,26 @@ public static partial class Converters
             DnsRecordTtl = analysis.DnsRecordTtl,
             CnameTtl = analysis.CnameTtl,
             IsCnameResolved = analysis.IsCnameResolved,
+            PolicyId = analysis.PolicyId,
             PolicyPresent = analysis.PolicyPresent,
+            PolicyFetchSkipped = analysis.PolicyFetchSkipped,
+            PolicyText = analysis.Policy,
             PolicyValid = analysis.PolicyValid,
             Mode = analysis.Mode,
             MaxAge = analysis.MaxAge,
+            EnforcesMtaSts = analysis.EnforcesMtaSts,
+            HasDuplicateFields = analysis.HasDuplicateFields,
             HasMx = analysis.HasMx,
+            MxPatterns = analysis.Mx?.ToArray() ?? System.Array.Empty<string>(),
             MxAligned = analysis.MxAligned,
             MissingMxFromPolicy = analysis.MissingMxFromPolicy?.ToArray() ?? System.Array.Empty<string>(),
             Assessments = assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"mode {(analysis.Mode ?? "?")}; max-age {analysis.MaxAge}; DNS {(analysis.DnsRecordPresent ? "yes" : "no")}; valid {(analysis.PolicyValid ? "yes" : "no")}; MX aligned {(analysis.MxAligned ? "yes" : "no")}",
+            Summary = analysis.PolicyFetchSkipped
+                ? $"DNS {(analysis.DnsRecordPresent ? "yes" : "no")}; bootstrap valid {(analysis.DnsRecordValid ? "yes" : "no")}; policy fetch skipped in this pass"
+                : $"mode {(analysis.Mode ?? "?")}; max-age {analysis.MaxAge}; DNS {(analysis.DnsRecordPresent ? "yes" : "no")}; valid {(analysis.PolicyValid ? "yes" : "no")}; MX aligned {(analysis.MxAligned ? "yes" : "no")}",
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
@@ -53,11 +62,17 @@ public class MtastsInfo
     public int? CnameTtl { get; set; }
     /// <summary>True when the MTA-STS TXT record was resolved through a CNAME alias.</summary>
     public bool IsCnameResolved { get; set; }
+    public string PolicyId { get; set; } = string.Empty;
     public bool PolicyPresent { get; set; }
+    public bool PolicyFetchSkipped { get; set; }
+    public string PolicyText { get; set; } = string.Empty;
     public bool PolicyValid { get; set; }
     public string Mode { get; set; } = null!;
     public int MaxAge { get; set; }
+    public bool EnforcesMtaSts { get; set; }
+    public bool HasDuplicateFields { get; set; }
     public bool HasMx { get; set; }
+    public IReadOnlyList<string> MxPatterns { get; set; } = System.Array.Empty<string>();
     public bool MxAligned { get; set; }
     public string[] MissingMxFromPolicy { get; set; } = System.Array.Empty<string>();
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
@@ -68,6 +83,6 @@ public class MtastsInfo
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
     public IReadOnlyList<string> References { get; set; } = null!;
+    [JsonIgnore]
     public MTASTSAnalysis Raw { get; set; } = null!;
 }
-

@@ -1,6 +1,6 @@
 ---
 title: Domain Analysis Tools
-description: Run domain analysis directly in your browser. SPF, DKIM, DMARC, DNS, DNSSEC, HTTP headers, RDAP, and more.
+description: Run browser-safe domain analysis directly on the web, with deeper online workflows clearly marked across the full tool catalog.
 slug: tools
 collection: pages
 layout: tools

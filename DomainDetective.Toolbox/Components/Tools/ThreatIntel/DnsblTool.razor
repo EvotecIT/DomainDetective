@@ -1,19 +1,151 @@
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
 @if (HealthCheck.DNSBLAnalysis is { } dnsbl) {
-    <ResultCard Title="DNSBL Check" Status="@(dnsbl.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (dnsbl.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in dnsbl.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+    var view = Converters.Convert(dnsbl);
+    var listedTargets = view.Targets.Where(static target => target.ProvidersListed > 0).ToList();
+    var activeProviders = view.ProviderSummaries.Where(static provider => provider.ListedCount > 0).ToList();
+
+    <ResultCard Title="DNSBL posture" Status="@(view.HostsListed > 0 ? ResultCard.ResultStatus.Warning : ResultCard.ResultStatus.Pass)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Targets analyzed</span>
+                <strong class="tool-summary-value">@view.Targets.Count</strong>
+                <p class="tool-summary-note">Providers checked: @view.ProvidersChecked</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Listed targets</span>
+                <strong class="tool-summary-value">@view.HostsListed</strong>
+                <p class="tool-summary-note">Providers with hits: @view.ProvidersWithListings</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Scan pathways</span>
+                <strong class="tool-summary-value">@view.Pathways.Count</strong>
+                <p class="tool-summary-note">DD summary: @view.Summary</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>How DD checked this domain</strong>
+            <p>@BuildSummary(view, listedTargets.Count, activeProviders.Count)</p>
+        </div>
+    </ResultCard>
+
+    @if (view.Highlights.Count > 0 || view.Details.Count > 0 || view.Positives.Count > 0 || view.Recommendations.Count > 0) {
+        <ResultCard Title="Threat guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights.Take(5)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
                 }
-            </ul>
-        } else {
-            <p>DNSBL check complete for @Domain. No listings found.</p>
-        }
+
+                @if (view.Details.Count > 0 || view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Operational notes</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(6)) {
+                                <li>@item</li>
+                            }
+                            @foreach (var item in view.Recommendations.Select(static advice => advice.Title).Where(static title => !string.IsNullOrWhiteSpace(title)).Take(3)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Select(static advice => advice.Title).Where(static title => !string.IsNullOrWhiteSpace(title)).Take(4)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (view.Pathways.Count > 0) {
+        <ResultCard Title="Scan pathways" Status="ResultCard.ResultStatus.Info">
+            <ResultTable Columns="@(new[] { "Pathway", "Query types", "Targets checked", "Listed targets", "Providers with hits" })">
+                @foreach (var pathway in view.Pathways) {
+                    <tr>
+                        <td>@pathway.Label</td>
+                        <td>@JoinValues(pathway.QueryKinds, "Mixed")</td>
+                        <td>@pathway.TargetsChecked</td>
+                        <td>@pathway.ListedTargets</td>
+                        <td>@pathway.ProvidersWithListings</td>
+                    </tr>
+                }
+            </ResultTable>
+        </ResultCard>
+    }
+
+    @if (view.Targets.Count > 0) {
+        <ResultCard Title="Targets analyzed" Status="ResultCard.ResultStatus.Info">
+            <ResultTable Columns="@(new[] { "Target", "Primary pathway", "Query types", "Providers checked", "Listed on", "Providers" })">
+                @foreach (var target in view.Targets) {
+                    <tr>
+                        <td>@target.Label</td>
+                        <td>@target.PrimaryPathway</td>
+                        <td>@JoinValues(target.QueryKinds, "Unknown")</td>
+                        <td>@target.ProvidersChecked</td>
+                        <td>@target.ProvidersListed</td>
+                        <td>@JoinValues(target.ListedProviders.Take(4), "None")</td>
+                    </tr>
+                }
+            </ResultTable>
+        </ResultCard>
+    }
+
+    @if (view.Listings.Count > 0) {
+        <ResultCard Title="Active listings" Status="ResultCard.ResultStatus.Warning">
+            <ResultTable Columns="@(new[] { "Target", "Provider", "Pathway", "Reason", "Query" })">
+                @foreach (var listing in view.Listings) {
+                    <tr>
+                        <td>@listing.Target</td>
+                        <td>@listing.Provider</td>
+                        <td>@listing.Pathway</td>
+                        <td>@listing.Meaning</td>
+                        <td>@FormatQuery(listing)</td>
+                    </tr>
+                }
+            </ResultTable>
+        </ResultCard>
+    }
+
+    @if (activeProviders.Count > 0) {
+        <ResultCard Title="Provider hotspots" Status="ResultCard.ResultStatus.Warning">
+            <div class="tool-section-grid">
+                @foreach (var provider in activeProviders.Take(8)) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">@provider.Provider</span>
+                        <strong class="tool-summary-value">@provider.ListedCount hit(s)</strong>
+                        <p class="tool-summary-note">@JoinValues(provider.ListedTargets.Take(3), "No targets")</p>
+                        @if (provider.Meanings.Count > 0) {
+                            <div class="tool-chip-list">
+                                @foreach (var meaning in provider.Meanings.Take(3)) {
+                                    <span class="tool-chip">@meaning</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"DNSBL analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
@@ -21,10 +153,44 @@
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string BuildSummary(DnsblInfo view, int listedTargets, int listedProviders) {
+        if (view.Highlights.Count > 0) {
+            return string.Join(" ", view.Highlights.Take(3));
+        }
+
+        if (view.Targets.Count == 0) {
+            return $"DomainDetective did not produce DNSBL targets for {view.Subject ?? "this domain"}.";
+        }
+
+        var pathways = view.Pathways.Select(static pathway => pathway.Label).ToArray();
+        var pathwayText = pathways.Length > 0 ? string.Join(", ", pathways) : "configured DNSBL pathways";
+
+        if (listedTargets == 0) {
+            return $"DomainDetective checked {view.Targets.Count} target(s) across {view.ProvidersChecked} providers using {pathwayText}. No DNSBL listings were reported in the retained result set.";
+        }
+
+        return $"DomainDetective checked {view.Targets.Count} target(s) across {view.ProvidersChecked} providers using {pathwayText}. {listedTargets} target(s) were listed by {listedProviders} provider(s), so those hosts or IPs need follow-up.";
+    }
+
+    private static string JoinValues(IEnumerable<string> values, string fallback) {
+        var items = values
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return items.Length > 0 ? string.Join(", ", items) : fallback;
+    }
+
+    private static string FormatQuery(DnsblListingInfo listing) {
+        if (!string.IsNullOrWhiteSpace(listing.FullyQualifiedQuery)) {
+            return listing.FullyQualifiedQuery;
+        }
+
+        if (!string.IsNullOrWhiteSpace(listing.Query)) {
+            return listing.Query;
+        }
+
+        return "Generated by DD";
+    }
 }

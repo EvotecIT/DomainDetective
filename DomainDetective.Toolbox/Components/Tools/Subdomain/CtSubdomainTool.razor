@@ -1,30 +1,254 @@
+@using System.Globalization
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
-@if (HealthCheck.SubdomainsAnalysis is { } sub) {
-    <ResultCard Title="CT Subdomain Discovery" Status="ResultCard.ResultStatus.Info">
-        @if (sub.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in sub.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+@if (GetView() is { } view) {
+    var highlighted = view.Subdomains.Take(25).ToList();
+    var sensitive = view.Subdomains
+        .Where(static entry => entry.SensitiveRisk != DomainDetective.SensitiveSubdomainRisk.None)
+        .OrderByDescending(static entry => entry.SensitiveRisk)
+        .ThenBy(static entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+        .Take(12)
+        .ToList();
+
+    <ResultCard Title="CT discovery" Status="@(view.QuerySucceeded ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Subdomains</span>
+                <strong class="tool-summary-value">@view.SubdomainCount</strong>
+                <p class="tool-summary-note">Certificate observations: @view.CertificateObservationCount</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Issuers</span>
+                <strong class="tool-summary-value">@view.DistinctIssuerCount</strong>
+                <p class="tool-summary-note">Results capped: @(view.ResultsCapped ? "Yes" : "No")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Timeline</span>
+                <strong class="tool-summary-value">@FormatDateRange(view.FirstSeenUtc, view.LastSeenUtc)</strong>
+                <p class="tool-summary-note">DNS checks reduced: @(view.ResolutionReduced ? "Yes" : "No")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Exposure signals</span>
+                <strong class="tool-summary-value">@($"{view.SensitiveHighCount + view.SensitiveModerateCount} flagged")</strong>
+                <p class="tool-summary-note">AI-like hosts: @view.AiExposureCount</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@BuildSummary(view, Domain)</p>
+        </div>
+    </ResultCard>
+
+    @if (view.Highlights.Count > 0 || view.Details.Count > 0 || view.Positives.Count > 0 || view.Recommendations.Count > 0) {
+        <ResultCard Title="Discovery guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights.Take(5)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
                 }
-            </ul>
-        } else {
-            <p>Subdomain discovery complete for @Domain.</p>
-        }
+
+                @if (view.Details.Count > 0 || view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Operational notes</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(6)) {
+                                <li>@item</li>
+                            }
+                            @foreach (var item in view.Recommendations.Select(static advice => advice.Title).Where(static title => !string.IsNullOrWhiteSpace(title)).Take(3)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Select(static advice => advice.Title).Where(static title => !string.IsNullOrWhiteSpace(title)).Take(4)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Resolution posture" Status="ResultCard.ResultStatus.Info">
+        <div class="tool-section-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">DNS verification</span>
+                <ResultTable Columns="@(new[] { "Status", "Count" })">
+                    <tr><td>Resolves</td><td>@view.ResolvesCount</td></tr>
+                    <tr><td>No DNS answer</td><td>@view.DoesNotResolveCount</td></tr>
+                    <tr><td>Lookup failed</td><td>@view.QueryFailedCount</td></tr>
+                    <tr><td>Not checked</td><td>@view.UnknownResolutionCount</td></tr>
+                </ResultTable>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Certificate signals</span>
+                <ResultTable Columns="@(new[] { "Signal", "Count" })">
+                    <tr><td>Weak key observed</td><td>@view.WeakCertificateCount</td></tr>
+                    <tr><td>Self-signed latest cert</td><td>@view.SelfSignedCertificateCount</td></tr>
+                    <tr><td>Sensitive naming</td><td>@(view.SensitiveHighCount + view.SensitiveModerateCount)</td></tr>
+                    <tr><td>AI-like naming</td><td>@view.AiExposureCount</td></tr>
+                </ResultTable>
+            </div>
+        </div>
+    </ResultCard>
+
+    @if (sensitive.Count > 0) {
+        <ResultCard Title="Sensitive names to review" Status="ResultCard.ResultStatus.Warning">
+            @foreach (var entry in sensitive) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">@entry.Name</span>
+                    <p>@entry.SensitiveRisk risk: @string.Join(", ", entry.SensitiveSignals)</p>
+                </div>
+            }
+        </ResultCard>
+    }
+
+    @if (view.CtSourceCounts.Count > 0) {
+        <ResultCard Title="CT source coverage" Status="ResultCard.ResultStatus.Info">
+            <ResultTable Columns="@(new[] { "Source", "Subdomains" })">
+                @foreach (var source in view.CtSourceCounts.OrderByDescending(static item => item.Value).ThenBy(static item => item.Key, StringComparer.OrdinalIgnoreCase)) {
+                    <tr>
+                        <td>@source.Key</td>
+                        <td>@source.Value</td>
+                    </tr>
+                }
+            </ResultTable>
+        </ResultCard>
+    }
+
+    @if (highlighted.Count > 0) {
+        <ResultCard Title="Discovered subdomains" Status="ResultCard.ResultStatus.Info">
+            <ResultTable Columns="@(new[] { "Subdomain", "Resolution", "Last seen", "Certificate", "Signals" })">
+                @foreach (var entry in highlighted) {
+                    <tr>
+                        <td>@entry.Name</td>
+                        <td>@FormatResolution(entry)</td>
+                        <td>@FormatDate(entry.LastSeenUtc)</td>
+                        <td>@FormatCertificate(entry)</td>
+                        <td>@FormatSignals(entry)</td>
+                    </tr>
+                }
+            </ResultTable>
+        </ResultCard>
+    }
+
+    @if (view.IssuerCounts.Count > 0) {
+        <ResultCard Title="Top issuers" Status="ResultCard.ResultStatus.Info">
+            <ResultTable Columns="@(new[] { "Issuer", "Observations" })">
+                @foreach (var issuer in view.IssuerCounts.OrderByDescending(static item => item.Value).Take(10)) {
+                    <tr>
+                        <td>@issuer.Key</td>
+                        <td>@issuer.Value</td>
+                    </tr>
+                }
+            </ResultTable>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"Subdomain discovery complete for {Domain}.")" />
     </ResultCard>
 }
 
 @code {
-    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public DomainDetective.DomainHealthCheck? HealthCheck { get; set; }
+    [Parameter] public DomainDetective.Views.SubdomainsInfo? Info { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private DomainDetective.Views.SubdomainsInfo? GetView() {
+        if (Info != null) {
+            return Info;
+        }
+
+        return HealthCheck?.SubdomainsAnalysis is { } subdomains ? Converters.Convert(subdomains) : null;
+    }
+
+    private static string BuildSummary(SubdomainsInfo view, string domain) {
+        if (view.Highlights.Count > 0) {
+            return string.Join(" ", view.Highlights.Take(3));
+        }
+
+        return view.QuerySucceeded ? view.Summary : view.FailureReason ?? $"No Certificate Transparency data was returned for {domain}.";
+    }
+
+    private static string FormatDate(DateTimeOffset? value) {
+        return value.HasValue ? value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "Not observed";
+    }
+
+    private static string FormatDateRange(DateTimeOffset? from, DateTimeOffset? to) {
+        if (!from.HasValue && !to.HasValue) {
+            return "Not observed";
+        }
+
+        return $"{FormatDate(from)} -> {FormatDate(to)}";
+    }
+
+    private static string FormatResolution(SubdomainDiscoveryEntry entry) {
+        return entry.ResolutionStatus switch {
+            DomainDetective.SubdomainResolutionStatus.Resolves => "Resolves",
+            DomainDetective.SubdomainResolutionStatus.DoesNotResolve => "No DNS answer",
+            DomainDetective.SubdomainResolutionStatus.QueryFailed => "Lookup failed",
+            _ => "Not checked"
+        };
+    }
+
+    private static string FormatCertificate(SubdomainDiscoveryEntry entry) {
+        var flags = new List<string>();
+        if (!string.IsNullOrWhiteSpace(entry.LatestCertificateAuthenticationProfile)) {
+            flags.Add(entry.LatestCertificateAuthenticationProfile);
+        }
+        if (entry.LatestCertificateWeakKey == true) {
+            flags.Add("Weak key");
+        }
+        if (entry.LatestCertificateIsSelfSigned == true) {
+            flags.Add("Self-signed");
+        }
+
+        return flags.Count > 0 ? string.Join(" | ", flags) : "No signal";
+    }
+
+    private static string FormatSignals(SubdomainDiscoveryEntry entry) {
+        var values = new List<string>();
+        if (entry.CtSources.Count > 0) {
+            values.Add("CT: " + string.Join(", ", entry.CtSources.Take(2)));
+        }
+        if (entry.SensitiveSignals.Count > 0) {
+            values.Add(string.Join(", ", entry.SensitiveSignals));
+        }
+        if (entry.AiSignals.Count > 0) {
+            values.Add("AI: " + string.Join(", ", entry.AiSignals));
+        }
+        if (entry.ARecords.Count > 0 || entry.AaaaRecords.Count > 0) {
+            values.Add($"{entry.ARecords.Count + entry.AaaaRecords.Count} IPs");
+        }
+
+        return values.Count > 0 ? string.Join(" | ", values) : "None";
+    }
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

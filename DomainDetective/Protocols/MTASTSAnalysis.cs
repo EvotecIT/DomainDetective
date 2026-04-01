@@ -35,6 +35,11 @@ public class MTASTSAnalysis : IHasAssessments {
         public bool PolicyPresent { get; private set; }
 
         /// <summary>
+        /// Gets a value indicating whether only the DNS bootstrap was evaluated.
+        /// </summary>
+        public bool PolicyFetchSkipped { get; private set; }
+
+        /// <summary>
         /// Gets a value indicating whether the policy is valid.
         /// </summary>
         public bool PolicyValid { get; private set; }
@@ -157,6 +162,7 @@ public class MTASTSAnalysis : IHasAssessments {
         public void Reset() {
             Domain = string.Empty;
             PolicyPresent = false;
+            PolicyFetchSkipped = false;
             PolicyValid = false;
             ValidVersion = false;
             VersionPresent = false;
@@ -260,6 +266,42 @@ public class MTASTSAnalysis : IHasAssessments {
         }
 
         /// <summary>
+        /// Analyzes only the DNS bootstrap record for the specified domain.
+        /// </summary>
+        /// <param name="domainName">The domain to query.</param>
+        /// <param name="logger">A logger for warning messages.</param>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        public async Task AnalyzeDnsBootstrap(string domainName, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MTASTS", target: domainName);
+            Reset();
+            Logger = logger;
+
+            if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
+                throw new ArgumentException("Invalid host name.", nameof(domainName));
+            }
+            Domain = domainName;
+
+            var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
+            var dnsList = dns?.ToList() ?? new List<DnsAnswer>();
+
+            var cnameRecords = dnsList.Where(r => r.Type == DnsRecordType.CNAME).ToList();
+            if (cnameRecords.Any()) {
+                IsCnameResolved = true;
+                CnameTtl = cnameRecords.Min(r => r.TTL);
+            }
+
+            var txtRecords = dnsList.Where(r => r.Type != DnsRecordType.CNAME).ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
+            DnsRecordPresent = txtRecords.Any();
+            if (DnsRecordPresent) {
+                ParseDnsRecord(string.Join(string.Empty, txtRecords.Select(r => r.Data ?? string.Empty)));
+            }
+
+            PolicyFetchSkipped = true;
+            UpdateBootstrapAdvisory();
+        }
+
+        /// <summary>
         /// Analyses the supplied policy text.
         /// </summary>
         /// <param name="text">Raw policy contents.</param>
@@ -288,6 +330,19 @@ public class MTASTSAnalysis : IHasAssessments {
                     Advisory = "MTA-STS policy enforced.";
                     Logger?.WriteInformationCode(MtaStsCodes.Enforced, "{0}", Advisory);
                 }
+            }
+        }
+
+        private void UpdateBootstrapAdvisory() {
+            if (!DnsRecordPresent) {
+                Advisory = "No MTA-STS DNS bootstrap record published.";
+                Logger?.WriteWarningCode(MtaStsCodes.MissingRecord, Advisory);
+            } else if (!DnsRecordValid) {
+                Advisory = "MTA-STS DNS bootstrap record is present but invalid.";
+                Logger?.WriteWarningCode(MtaStsCodes.PolicyInvalid, Advisory);
+            } else {
+                Advisory = "MTA-STS DNS bootstrap record is present. Policy fetch was not evaluated in this pass.";
+                Logger?.WriteInformationCode(MtaStsCodes.PolicyValid, Advisory);
             }
         }
 

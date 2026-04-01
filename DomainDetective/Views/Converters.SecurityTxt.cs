@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace DomainDetective.Views;
 
@@ -10,6 +13,16 @@ public static partial class Converters
         Summarize(assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.FromProblems(assessments);
         var positives = RecommendationEngine.FromPositives(assessments);
+        var narrative = DomainDetective.Narratives.SecurityTxtNarrative.Build(analysis);
+        DateTimeOffset? expiresAt = null;
+        int? daysUntilExpiry = null;
+        if (!string.IsNullOrWhiteSpace(analysis.Expires) &&
+            DateTimeOffset.TryParse(analysis.Expires, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+        {
+            expiresAt = parsed;
+            daysUntilExpiry = (int)Math.Ceiling((parsed - DateTimeOffset.UtcNow).TotalDays);
+        }
+
         return new SecurityTxtInfo
         {
             Check = HealthCheckType.SECURITYTXT,
@@ -30,12 +43,17 @@ public static partial class Converters
             Hiring = analysis.Hiring,
             Canonical = analysis.Canonical,
             Expires = analysis.Expires,
+            ExpiresAt = expiresAt,
+            DaysUntilExpiry = daysUntilExpiry,
             SignatureEncryption = analysis.SignatureEncryption,
             Assessments = assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
             Summary = $"present {(analysis.RecordPresent ? "yes" : "no")}; signed {(analysis.PGPSigned ? "yes" : "no")}",
+            Narrative = narrative,
+            Highlights = narrative.Highlights,
+            Details = narrative.Details,
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
@@ -64,14 +82,20 @@ public class SecurityTxtInfo
     public IReadOnlyList<string> Hiring { get; set; } = null!;
     public IReadOnlyList<string> Canonical { get; set; } = null!;
     public string Expires { get; set; } = null!;
+    public DateTimeOffset? ExpiresAt { get; set; }
+    public int? DaysUntilExpiry { get; set; }
     public string SignatureEncryption { get; set; } = null!;
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
     public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
     public string Summary { get; set; } = null!;
+    public DomainDetective.Narratives.SecurityTxtNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.SecurityTxtNarrative.Sections();
+    public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> Details { get; set; } = System.Array.Empty<string>();
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
     public IReadOnlyList<string> References { get; set; } = null!;
+    [JsonIgnore]
     public SecurityTXTAnalysis Raw { get; set; } = null!;
 }

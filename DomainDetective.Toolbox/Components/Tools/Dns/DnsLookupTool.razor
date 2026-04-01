@@ -1,19 +1,111 @@
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
-@if (HealthCheck.DnsInventoryAnalysis is { } inv) {
-    <ResultCard Title="DNS Records" Status="ResultCard.ResultStatus.Info">
-        @if (inv.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in inv.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+@if (HealthCheck.DnsInventoryAnalysis is { } inventory) {
+    var view = Converters.Convert(inventory);
+
+    <ResultCard Title="DNS inventory summary" Status="@(view.QuerySucceeded ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Captured records</span>
+                <strong class="tool-summary-value">@view.TotalRecords</strong>
+                <p class="tool-summary-note">Queried types: @view.RecordTypesQueried</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">DNS provider</span>
+                <strong class="tool-summary-value">@FormatEnum(view.Provider, "Unknown")</strong>
+                <p class="tool-summary-note">Score: @view.ProviderScore</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Mail provider</span>
+                <strong class="tool-summary-value">@FormatEnum(view.MailProvider, "Unknown")</strong>
+                <p class="tool-summary-note">Failed types: @view.RecordTypesFailed</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@view.Summary</p>
+        </div>
+    </ResultCard>
+
+    @if (view.ProviderEvidence.Count > 0 || view.MailProviderEvidence.Count > 0 || view.TxtSignalsEvidence.Count > 0 || view.CaaIssuersEvidence.Count > 0 || view.DetectedDnsApplications.Count > 0) {
+        <ResultCard Title="Detected signals" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-stack">
+                @if (view.ProviderEvidence.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">DNS provider evidence</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.ProviderEvidence) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
                 }
-            </ul>
-        } else {
-            <p>DNS inventory analysis complete for @Domain.</p>
-        }
+
+                @if (view.MailProviderEvidence.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">Mail provider evidence</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.MailProviderEvidence) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.TxtSignalsEvidence.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">TXT signals</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.TxtSignalsEvidence) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.CaaIssuersEvidence.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">CAA issuer evidence</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.CaaIssuersEvidence) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.DetectedDnsApplications.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">Detected applications</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.DetectedDnsApplications) {
+                                <span class="tool-chip">@item.Name</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Query breakdown" Status="ResultCard.ResultStatus.Info">
+        <ResultTable Columns="@(new[] { "Type", "Status", "Records", "Details" })">
+            @foreach (var query in view.Queries.OrderBy(static q => q.RecordType.ToString())) {
+                <tr>
+                    <td>@query.RecordType</td>
+                    <td>@query.Status</td>
+                    <td>@query.Records.Count</td>
+                    <td>@FormatQueryDetails(query)</td>
+                </tr>
+            }
+        </ResultTable>
+    </ResultCard>
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"DNS inventory complete for {Domain}.")" />
     </ResultCard>
 }
 
@@ -21,10 +113,37 @@
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatEnum<TEnum>(TEnum value, string fallback) where TEnum : struct, Enum {
+        return value.ToString() == "Unknown" || value.ToString() == "None" ? fallback : value.ToString();
+    }
+
+    private static string FormatQueryDetails(DomainDetective.DnsInventoryQuery query) {
+        if (!string.IsNullOrWhiteSpace(query.FailureReason)) {
+            return query.FailureReason;
+        }
+
+        if (query.Records.Count == 0) {
+            return "No records returned.";
+        }
+
+        var preview = query.Records.Take(2).Select(static record => record.Data);
+        var details = string.Join(" | ", preview);
+        if (query.Records.Count > 2) {
+            details += $" (+{query.Records.Count - 2} more)";
+        }
+
+        return details;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

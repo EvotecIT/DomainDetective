@@ -1,3 +1,60 @@
+<script>
+(function () {
+  function readTheme() {
+    try {
+      return localStorage.getItem('dd-theme') === 'light' ? 'light' : 'dark';
+    } catch (error) {
+      return 'dark';
+    }
+  }
+
+  function applyTheme(theme) {
+    var nextTheme = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    document.documentElement.style.colorScheme = nextTheme;
+    return nextTheme;
+  }
+
+  var initialTheme = applyTheme(readTheme());
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.theme-cycle-btn').forEach(function (button) {
+      if (button.dataset.themeBound === 'true') {
+        return;
+      }
+
+      button.dataset.themeBound = 'true';
+      button.addEventListener('click', function () {
+        var currentTheme = document.documentElement.getAttribute('data-theme') || initialTheme || 'dark';
+        var nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        applyTheme(nextTheme);
+
+        try {
+          localStorage.setItem('dd-theme', nextTheme);
+        } catch (error) {
+          /* Ignore storage failures. */
+        }
+      });
+    });
+  });
+})();
+</script>
+<style>
+.dd-nav-links > a,
+.dd-nav-links .nav-dropdown-trigger {
+  color: var(--pf-muted);
+  text-decoration: none;
+}
+
+.dd-nav-links > a:hover,
+.dd-nav-links .nav-dropdown-trigger:hover {
+  color: var(--pf-ink-strong);
+}
+
+.dd-nav-actions .nav-cta {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+</style>
 <header class="dd-header">
   <div class="dd-header-inner">
     <a href="/" class="dd-brand">
