@@ -12,39 +12,110 @@ public sealed class BrowserOverviewService {
 
     public async Task<Microsoft365OverviewInfo> AnalyzeMicrosoft365OverviewLiteAsync(string domainName, CancellationToken cancellationToken = default) {
         var generatedAtUtc = DateTimeOffset.UtcNow;
-        var healthCheck = _dnsService.CreateHealthCheck();
+        var dnsInventoryTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDnsInventoryAsync(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.DnsInventoryAnalysis),
+            cancellationToken);
+        var spfTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifySPF(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.SpfAnalysis),
+            cancellationToken);
+        var dkimTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDKIM(subject, Array.Empty<string>(), token),
+            static healthCheck => (IReadOnlyList<DkimRecordInfo>)Converters.Convert(healthCheck.DKIMAnalysis).ToArray(),
+            cancellationToken);
+        var dmarcTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDMARC(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.DmarcAnalysis),
+            cancellationToken);
+        var mxTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyMX(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.MXAnalysis),
+            cancellationToken);
+        var mtastsTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyMTASTSBootstrap(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.MTASTSAnalysis),
+            cancellationToken);
+        var tlsRptTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyTLSRPT(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.TLSRPTAnalysis),
+            cancellationToken);
+        var bimiTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyBIMI(subject, skipIndicatorDownload: true, cancellationToken: token),
+            static healthCheck => Converters.Convert(healthCheck.BimiAnalysis),
+            cancellationToken);
+        var caaTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyCAA(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.CAAAnalysis),
+            cancellationToken);
+        var daneTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDANE(subject, new[] { ServiceType.SMTP, ServiceType.HTTPS }, token),
+            static healthCheck => Converters.Convert(healthCheck.DaneAnalysis),
+            cancellationToken);
+        var dnssecTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDNSSEC(subject, token),
+            static healthCheck => DnsSecConverter.Convert(healthCheck.DnsSecAnalysis),
+            cancellationToken);
+        var nsTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyNS(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.NSAnalysis),
+            cancellationToken);
 
-        await healthCheck.VerifyDnsInventoryAsync(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifySPF(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyDKIM(domainName, Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyDMARC(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyMX(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyMTASTSBootstrap(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyTLSRPT(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyBIMI(domainName, skipIndicatorDownload: true, cancellationToken: cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyCAA(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyDANE(domainName, new[] { ServiceType.SMTP, ServiceType.HTTPS }, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyDNSSEC(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyNS(domainName, cancellationToken).ConfigureAwait(false);
+        await Task.WhenAll(
+            dnsInventoryTask,
+            spfTask,
+            dkimTask,
+            dmarcTask,
+            mxTask,
+            mtastsTask,
+            tlsRptTask,
+            bimiTask,
+            caaTask,
+            daneTask,
+            dnssecTask,
+            nsTask).ConfigureAwait(false);
 
-        var dnsInventory = Converters.Convert(healthCheck.DnsInventoryAnalysis);
-        var tenant = BuildBrowserMicrosoft365Tenant(domainName, dnsInventory);
-        var assessments = healthCheck.GetAllAssessments().ToArray();
+        var tenant = BuildBrowserMicrosoft365Tenant(domainName, dnsInventoryTask.Result.Result);
+        var assessments = dnsInventoryTask.Result.Assessments
+            .Concat(spfTask.Result.Assessments)
+            .Concat(dkimTask.Result.Assessments)
+            .Concat(dmarcTask.Result.Assessments)
+            .Concat(mxTask.Result.Assessments)
+            .Concat(mtastsTask.Result.Assessments)
+            .Concat(tlsRptTask.Result.Assessments)
+            .Concat(bimiTask.Result.Assessments)
+            .Concat(caaTask.Result.Assessments)
+            .Concat(daneTask.Result.Assessments)
+            .Concat(dnssecTask.Result.Assessments)
+            .Concat(nsTask.Result.Assessments)
+            .ToArray();
 
         var overview = Converters.ConvertMicrosoft365Overview(
             domainName,
             tenant,
-            Converters.Convert(healthCheck.SpfAnalysis),
-            Converters.Convert(healthCheck.DKIMAnalysis).ToArray(),
-            Converters.Convert(healthCheck.DmarcAnalysis),
-            Converters.Convert(healthCheck.MXAnalysis),
-            Converters.Convert(healthCheck.MTASTSAnalysis),
-            Converters.Convert(healthCheck.TLSRPTAnalysis),
-            Converters.Convert(healthCheck.BimiAnalysis),
-            Converters.Convert(healthCheck.CAAAnalysis),
-            Converters.Convert(healthCheck.DaneAnalysis),
-            DnsSecConverter.Convert(healthCheck.DnsSecAnalysis),
-            Converters.Convert(healthCheck.NSAnalysis),
+            spfTask.Result.Result,
+            dkimTask.Result.Result,
+            dmarcTask.Result.Result,
+            mxTask.Result.Result,
+            mtastsTask.Result.Result,
+            tlsRptTask.Result.Result,
+            bimiTask.Result.Result,
+            caaTask.Result.Result,
+            daneTask.Result.Result,
+            dnssecTask.Result.Result,
+            nsTask.Result.Result,
             assessments,
             browserLimited: true);
 
@@ -64,44 +135,129 @@ public sealed class BrowserOverviewService {
 
     public async Task<DomainOverviewInfo> AnalyzeDomainOverviewLiteAsync(string domainName, CancellationToken cancellationToken = default) {
         var generatedAtUtc = DateTimeOffset.UtcNow;
-        var healthCheck = _dnsService.CreateHealthCheck();
+        var dnsInventoryTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDnsInventoryAsync(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.DnsInventoryAnalysis),
+            cancellationToken);
+        var spfTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifySPF(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.SpfAnalysis),
+            cancellationToken);
+        var dkimTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDKIM(subject, Array.Empty<string>(), token),
+            static healthCheck => (IReadOnlyList<DkimRecordInfo>)Converters.Convert(healthCheck.DKIMAnalysis).ToArray(),
+            cancellationToken);
+        var dmarcTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDMARC(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.DmarcAnalysis),
+            cancellationToken);
+        var mxTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyMX(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.MXAnalysis),
+            cancellationToken);
+        var mtastsTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyMTASTSBootstrap(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.MTASTSAnalysis),
+            cancellationToken);
+        var tlsRptTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyTLSRPT(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.TLSRPTAnalysis),
+            cancellationToken);
+        var bimiTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyBIMI(subject, skipIndicatorDownload: true, cancellationToken: token),
+            static healthCheck => Converters.Convert(healthCheck.BimiAnalysis),
+            cancellationToken);
+        var caaTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyCAA(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.CAAAnalysis),
+            cancellationToken);
+        var daneTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDANE(subject, new[] { ServiceType.SMTP, ServiceType.HTTPS }, token),
+            static healthCheck => Converters.Convert(healthCheck.DaneAnalysis),
+            cancellationToken);
+        var dnssecTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDNSSEC(subject, token),
+            static healthCheck => DnsSecConverter.Convert(healthCheck.DnsSecAnalysis),
+            cancellationToken);
+        var nsTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyNS(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.NSAnalysis),
+            cancellationToken);
+        var soaTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifySOA(subject, token),
+            static healthCheck => Converters.Convert(healthCheck.SOAAnalysis),
+            cancellationToken);
+        var dnsblTask = RunAnalysisAsync(
+            domainName,
+            static (healthCheck, subject, token) => healthCheck.VerifyDNSBLWithMode(subject, DomainIpScanMode.MxAOnly, cancellationToken: token),
+            static healthCheck => Converters.Convert(healthCheck.DNSBLAnalysis),
+            cancellationToken);
 
-        await healthCheck.VerifyDnsInventoryAsync(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifySPF(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyDKIM(domainName, Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyDMARC(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyMX(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyMTASTSBootstrap(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyTLSRPT(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyBIMI(domainName, skipIndicatorDownload: true, cancellationToken: cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyCAA(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyDANE(domainName, new[] { ServiceType.SMTP, ServiceType.HTTPS }, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyDNSSEC(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyNS(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifySOA(domainName, cancellationToken).ConfigureAwait(false);
-        await healthCheck.VerifyDNSBLWithMode(domainName, DomainIpScanMode.MxAOnly, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await Task.WhenAll(
+            dnsInventoryTask,
+            spfTask,
+            dkimTask,
+            dmarcTask,
+            mxTask,
+            mtastsTask,
+            tlsRptTask,
+            bimiTask,
+            caaTask,
+            daneTask,
+            dnssecTask,
+            nsTask,
+            soaTask,
+            dnsblTask).ConfigureAwait(false);
 
-        var assessments = healthCheck.GetAllAssessments().ToArray();
+        var assessments = dnsInventoryTask.Result.Assessments
+            .Concat(spfTask.Result.Assessments)
+            .Concat(dkimTask.Result.Assessments)
+            .Concat(dmarcTask.Result.Assessments)
+            .Concat(mxTask.Result.Assessments)
+            .Concat(mtastsTask.Result.Assessments)
+            .Concat(tlsRptTask.Result.Assessments)
+            .Concat(bimiTask.Result.Assessments)
+            .Concat(caaTask.Result.Assessments)
+            .Concat(daneTask.Result.Assessments)
+            .Concat(dnssecTask.Result.Assessments)
+            .Concat(nsTask.Result.Assessments)
+            .Concat(soaTask.Result.Assessments)
+            .Concat(dnsblTask.Result.Assessments)
+            .ToArray();
+
         var overview = Converters.ConvertDomainOverview(
             domainName,
-            Converters.Convert(healthCheck.DnsInventoryAnalysis),
-            Converters.Convert(healthCheck.SpfAnalysis),
-            Converters.Convert(healthCheck.DKIMAnalysis).ToArray(),
-            Converters.Convert(healthCheck.DmarcAnalysis),
-            Converters.Convert(healthCheck.MXAnalysis),
-            Converters.Convert(healthCheck.MTASTSAnalysis),
-            Converters.Convert(healthCheck.TLSRPTAnalysis),
-            Converters.Convert(healthCheck.BimiAnalysis),
-            Converters.Convert(healthCheck.CAAAnalysis),
-            Converters.Convert(healthCheck.DaneAnalysis),
-            DnsSecConverter.Convert(healthCheck.DnsSecAnalysis),
-            Converters.Convert(healthCheck.NSAnalysis),
-            Converters.Convert(healthCheck.SOAAnalysis),
+            dnsInventoryTask.Result.Result,
+            spfTask.Result.Result,
+            dkimTask.Result.Result,
+            dmarcTask.Result.Result,
+            mxTask.Result.Result,
+            mtastsTask.Result.Result,
+            tlsRptTask.Result.Result,
+            bimiTask.Result.Result,
+            caaTask.Result.Result,
+            daneTask.Result.Result,
+            dnssecTask.Result.Result,
+            nsTask.Result.Result,
+            soaTask.Result.Result,
             new HttpInfo(),
             new CertificateInfo(),
             new SecurityTxtInfo(),
             new RdapInfo(),
-            Converters.Convert(healthCheck.DNSBLAnalysis),
+            dnsblTask.Result.Result,
             new SubdomainsInfo(),
             assessments,
             browserLimited: true);
@@ -138,5 +294,17 @@ public sealed class BrowserOverviewService {
             Highlights = highlights,
             Summary = "Web edition Microsoft 365 overview built from public DNS and mail posture only."
         };
+    }
+
+    private async Task<(T Result, Assessment[] Assessments)> RunAnalysisAsync<T>(
+        string domainName,
+        Func<DomainHealthCheck, string, CancellationToken, Task> verifyAsync,
+        Func<DomainHealthCheck, T> convert,
+        CancellationToken cancellationToken,
+        Action<DomainHealthCheck>? configure = null) {
+        var healthCheck = _dnsService.CreateHealthCheck();
+        configure?.Invoke(healthCheck);
+        await verifyAsync(healthCheck, domainName, cancellationToken).ConfigureAwait(false);
+        return (convert(healthCheck), healthCheck.GetAllAssessments().ToArray());
     }
 }

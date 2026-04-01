@@ -8,7 +8,7 @@ public sealed class ToolAvailabilityService {
     private readonly HttpClient _httpClient;
     private readonly ToolsDeploymentMode? _configuredMode;
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
-    private bool _isInitialized;
+    private volatile bool _isInitialized;
 
     public ToolAvailabilityService(HttpClient httpClient, IConfiguration configuration) {
         _httpClient = httpClient;
@@ -17,7 +17,6 @@ public sealed class ToolAvailabilityService {
         if (Enum.TryParse(configuredMode, ignoreCase: true, out ToolsDeploymentMode parsedMode)) {
             _configuredMode = parsedMode;
             Mode = parsedMode;
-            _isInitialized = true;
             return;
         }
 
@@ -61,11 +60,12 @@ public sealed class ToolAvailabilityService {
 
         return Mode switch {
             ToolsDeploymentMode.HostedOnline => definition.BrowserCompatible || definition.HostedCompatible,
-            _ => definition.BrowserCompatible || SupportsLiteExperience(definition)
+            _ => definition.BrowserCompatible || definition.LiteCompatible
         };
     }
 
     public bool CanRun(ToolDefinition definition) {
+        // In the current product model, visible tools are also runnable.
         return CanList(definition);
     }
 
@@ -74,7 +74,7 @@ public sealed class ToolAvailabilityService {
             throw new ArgumentNullException(nameof(tools));
         }
 
-        return tools.Where(CanList).ToList();
+        return tools.Where(CanList).ToArray();
     }
 
     public string GetHomeDescription() {
@@ -89,11 +89,9 @@ public sealed class ToolAvailabilityService {
             throw new ArgumentNullException(nameof(definition));
         }
 
-        if (definition.BrowserCompatible) {
-            return $"{definition.Name} is available in this deployment.";
-        }
-
-        return $"{definition.Name} is not available in this web edition yet.";
+        return definition.LiteCompatible
+            ? $"{definition.Name} is available here in a lighter web edition."
+            : $"{definition.Name} is not available in this web edition yet.";
     }
 
     private async Task<ToolsDeploymentMode> DetectModeAsync(CancellationToken cancellationToken) {
@@ -105,12 +103,5 @@ public sealed class ToolAvailabilityService {
         } catch {
             return ToolsDeploymentMode.StaticOnly;
         }
-    }
-
-    private static bool SupportsLiteExperience(ToolDefinition definition) {
-        return definition.Slug == "m365-overview" ||
-               definition.Slug == "domain-overview" ||
-               definition.Slug == "mta-sts" ||
-               definition.Slug == "dns-propagation";
     }
 }

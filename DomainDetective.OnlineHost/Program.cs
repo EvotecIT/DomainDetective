@@ -1,15 +1,20 @@
 using DomainDetective;
 using DomainDetective.Views;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
+using System.Collections.Concurrent;
+using System.Globalization;
 using System.Linq;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
+var allowedOrigins = ResolveAllowedOrigins(builder.Configuration);
 
 builder.Services.AddCors(options => {
     options.AddDefaultPolicy(policy => {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -46,7 +51,7 @@ if (!string.IsNullOrWhiteSpace(siteRoot) && Directory.Exists(siteRoot)) {
     });
     app.UseStaticFiles(new StaticFileOptions {
         FileProvider = fileProvider,
-        ServeUnknownFileTypes = true
+        ContentTypeProvider = CreateStaticContentTypeProvider()
     });
 } else {
     app.Logger.LogWarning("Static site root was not found. Serving API only.");
@@ -734,15 +739,130 @@ static string? ResolveSiteRoot(IConfiguration configuration, IWebHostEnvironment
     return null;
 }
 
+static string[] ResolveAllowedOrigins(IConfiguration configuration) {
+    var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+    if (configuredOrigins is { Length: > 0 }) {
+        return configuredOrigins
+            .Where(static origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(static origin => origin.Trim().TrimEnd('/'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    var inlineOrigins = configuration["Cors:AllowedOrigins"];
+    if (!string.IsNullOrWhiteSpace(inlineOrigins)) {
+        return inlineOrigins
+            .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static origin => origin.Trim().TrimEnd('/'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    return new[] {
+        "http://localhost:8097",
+        "http://localhost:8098",
+        "http://127.0.0.1:8097",
+        "http://127.0.0.1:8098",
+        "https://domaindetective.dev",
+        "https://www.domaindetective.dev"
+    };
+}
+
+static FileExtensionContentTypeProvider CreateStaticContentTypeProvider() {
+    var provider = new FileExtensionContentTypeProvider();
+    provider.Mappings[".wasm"] = "application/wasm";
+    provider.Mappings[".webcil"] = "application/octet-stream";
+    provider.Mappings[".dat"] = "application/octet-stream";
+    provider.Mappings[".dll"] = "application/octet-stream";
+    provider.Mappings[".pdb"] = "application/octet-stream";
+    provider.Mappings[".mjs"] = "text/javascript";
+    return provider;
+}
+
 static bool TryNormalizeDomain(AnalyzeDomainRequest request, out string domainName, out Dictionary<string, string[]> errors) {
     errors = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
-    domainName = request.Domain?.Trim() ?? string.Empty;
-    if (!string.IsNullOrWhiteSpace(domainName)) {
+    var requestedDomain = request.Domain?.Trim() ?? string.Empty;
+    if (string.IsNullOrWhiteSpace(requestedDomain)) {
+        domainName = string.Empty;
+        errors["domain"] = new[] { "A domain name is required." };
+        return false;
+    }
+
+    if (TryNormalizeDomainName(requestedDomain, out domainName, out var errorMessage)) {
         return true;
     }
 
-    errors["domain"] = new[] { "A domain name is required." };
+    domainName = string.Empty;
+    errors["domain"] = new[] { errorMessage };
     return false;
+}
+
+static bool TryNormalizeDomainName(string value, out string domainName, out string errorMessage) {
+    domainName = string.Empty;
+    errorMessage = "Enter a valid public domain name.";
+
+    if (string.IsNullOrWhiteSpace(value)) {
+        errorMessage = "A domain name is required.";
+        return false;
+    }
+
+    var candidate = value.Trim();
+    if (candidate.Contains("://", StringComparison.Ordinal) ||
+        candidate.Contains('/', StringComparison.Ordinal) ||
+        candidate.Contains('\\', StringComparison.Ordinal) ||
+        candidate.Contains('?', StringComparison.Ordinal) ||
+        candidate.Contains('#', StringComparison.Ordinal) ||
+        candidate.Any(char.IsWhiteSpace)) {
+        return false;
+    }
+
+    candidate = candidate.TrimEnd('.');
+    if (candidate.Length == 0 || candidate.Length > 253) {
+        return false;
+    }
+
+    if (IPAddress.TryParse(candidate, out _)) {
+        errorMessage = "Enter a public domain name, not an IP address.";
+        return false;
+    }
+
+    try {
+        candidate = new IdnMapping().GetAscii(candidate);
+    } catch (ArgumentException) {
+        return false;
+    }
+
+    if (candidate.Equals("localhost", StringComparison.OrdinalIgnoreCase) || candidate.Contains("..", StringComparison.Ordinal)) {
+        return false;
+    }
+
+    var labels = candidate.Split('.');
+    if (labels.Length < 2) {
+        return false;
+    }
+
+    foreach (var label in labels) {
+        if (label.Length == 0 || label.Length > 63) {
+            return false;
+        }
+
+        if (label[0] == '-' || label[^1] == '-') {
+            return false;
+        }
+
+        foreach (var character in label) {
+            if (!(char.IsLetterOrDigit(character) || character == '-')) {
+                return false;
+            }
+        }
+    }
+
+    if (labels[^1].All(char.IsDigit)) {
+        return false;
+    }
+
+    domainName = candidate.ToLowerInvariant();
+    return true;
 }
 
 static async Task<(T Result, Assessment[] Assessments)> RunAnalysisAsync<T>(
@@ -770,9 +890,19 @@ static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>
         return (cached, true);
     }
 
-    var created = await factory(cancellationToken).ConfigureAwait(false);
-    cache.Set(cacheKey, created, ttl);
-    return (created, false);
+    var cacheLock = CacheStampedeLocks.PerKey.GetOrAdd(cacheKey, static _ => new SemaphoreSlim(1, 1));
+    await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try {
+        if (!forceRefresh && cache.TryGetValue(cacheKey, out cached) && cached is not null) {
+            return (cached, true);
+        }
+
+        var created = await factory(cancellationToken).ConfigureAwait(false);
+        cache.Set(cacheKey, created, ttl);
+        return (created, false);
+    } finally {
+        cacheLock.Release();
+    }
 }
 
 static AggregateCheckStatusInfo[] MarkPendingChecks(IReadOnlyList<AggregateCheckStatusInfo> checks, params string[] pendingKeys) {
@@ -793,4 +923,8 @@ static AggregateCheckStatusInfo[] MarkPendingChecks(IReadOnlyList<AggregateCheck
 public sealed class AnalyzeDomainRequest {
     public string Domain { get; set; } = string.Empty;
     public bool ForceRefresh { get; set; }
+}
+
+file static class CacheStampedeLocks {
+    internal static readonly ConcurrentDictionary<string, SemaphoreSlim> PerKey = new(StringComparer.OrdinalIgnoreCase);
 }

@@ -8,6 +8,7 @@ public sealed class ToolDefinition {
     public required string Icon { get; init; }
     public bool BrowserCompatible { get; init; } = true;
     public bool HostedCompatible { get; init; }
+    public bool LiteCompatible { get; init; }
     public string? InputPlaceholder { get; init; }
     public string? SecondaryInputLabel { get; init; }
     public string? SecondaryInputPlaceholder { get; init; }

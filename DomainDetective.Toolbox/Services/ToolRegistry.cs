@@ -12,7 +12,8 @@ public sealed class ToolRegistry {
             Icon = "building",
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
-            HostedCompatible = true
+            HostedCompatible = true,
+            LiteCompatible = true
         },
         new ToolDefinition {
             Name = "Domain Overview",
@@ -22,7 +23,8 @@ public sealed class ToolRegistry {
             Icon = "layout-dashboard",
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
-            HostedCompatible = true
+            HostedCompatible = true,
+            LiteCompatible = true
         },
 
         // Email Security
@@ -68,7 +70,8 @@ public sealed class ToolRegistry {
             Icon = "lock",
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
-            HostedCompatible = true
+            HostedCompatible = true,
+            LiteCompatible = true
         },
         new ToolDefinition {
             Name = "TLS-RPT Check",
@@ -128,7 +131,8 @@ public sealed class ToolRegistry {
             Icon = "radio",
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
-            HostedCompatible = true
+            HostedCompatible = true,
+            LiteCompatible = true
         },
 
         // TLS & Certificates
