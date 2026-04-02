@@ -439,7 +439,7 @@
     }
 
     private void CancelOverviewHydration() {
-        var overviewHydrationCts = Interlocked.Exchange(ref _overviewHydrationCts, null);
+        using var overviewHydrationCts = Interlocked.Exchange(ref _overviewHydrationCts, null);
         if (overviewHydrationCts is null) {
             return;
         }
@@ -449,8 +449,6 @@
         } catch (ObjectDisposedException) {
             // Best effort only.
         }
-
-        overviewHydrationCts.Dispose();
     }
 
     private void HandleLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) {
