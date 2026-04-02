@@ -12,7 +12,7 @@ using System.Net;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
-var allowedOrigins = ResolveAllowedOrigins(builder.Configuration, out var usingFallbackOrigins);
+var allowedOrigins = ResolveAllowedOrigins(builder.Configuration, builder.Environment, out var usingFallbackOrigins);
 
 builder.Services.AddCors(options => {
     options.AddDefaultPolicy(policy => {
@@ -43,7 +43,9 @@ app.UseCors();
 app.UseRateLimiter();
 
 if (usingFallbackOrigins) {
-    app.Logger.LogWarning("Cors:AllowedOrigins was not configured. Using default development and production origins.");
+    app.Logger.LogWarning(
+        "Cors:AllowedOrigins was not configured. Using default {EnvironmentName} origins.",
+        builder.Environment.EnvironmentName);
 }
 
 app.MapGet("/tool-api/health", () => TypedResults.Ok(new {
@@ -759,7 +761,7 @@ static string? ResolveSiteRoot(IConfiguration configuration, IWebHostEnvironment
     return null;
 }
 
-static string[] ResolveAllowedOrigins(IConfiguration configuration, out bool usingFallbackOrigins) {
+static string[] ResolveAllowedOrigins(IConfiguration configuration, IWebHostEnvironment environment, out bool usingFallbackOrigins) {
     var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
     if (configuredOrigins is { Length: > 0 }) {
         usingFallbackOrigins = false;
@@ -781,11 +783,16 @@ static string[] ResolveAllowedOrigins(IConfiguration configuration, out bool usi
     }
 
     usingFallbackOrigins = true;
+    if (environment.IsDevelopment()) {
+        return new[] {
+            "http://localhost:8097",
+            "http://localhost:8098",
+            "http://127.0.0.1:8097",
+            "http://127.0.0.1:8098"
+        };
+    }
+
     return new[] {
-        "http://localhost:8097",
-        "http://localhost:8098",
-        "http://127.0.0.1:8097",
-        "http://127.0.0.1:8098",
         "https://domaindetective.dev",
         "https://www.domaindetective.dev"
     };
@@ -914,15 +921,13 @@ static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>
     }
 
     using var cacheLease = await CacheStampedeLocks.AcquireAsync(cacheKey, cancellationToken).ConfigureAwait(false);
-    try {
-        if (!forceRefresh && cache.TryGetValue(cacheKey, out cached) && cached is not null) {
-            return (cached, true);
-        }
+    if (!forceRefresh && cache.TryGetValue(cacheKey, out cached) && cached is not null) {
+        return (cached, true);
+    }
 
-        var created = await factory(cancellationToken).ConfigureAwait(false);
-        cache.Set(cacheKey, created, ttl);
-        return (created, false);
-    } finally { }
+    var created = await factory(cancellationToken).ConfigureAwait(false);
+    cache.Set(cacheKey, created, ttl);
+    return (created, false);
 }
 
 static AggregateCheckStatusInfo[] MarkPendingChecks(IReadOnlyList<AggregateCheckStatusInfo> checks, params string[] pendingKeys) {

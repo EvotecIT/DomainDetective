@@ -9,6 +9,7 @@ public sealed class HostedAnalysisService {
     private static readonly JsonSerializerOptions _jsonOptions = new() {
         PropertyNameCaseInsensitive = true
     };
+    private static readonly TimeSpan _requestTimeout = TimeSpan.FromMinutes(2);
 
     private readonly HttpClient _httpClient;
 
@@ -69,6 +70,9 @@ public sealed class HostedAnalysisService {
             throw new ArgumentException("A domain name is required.", nameof(domainName));
         }
 
+        using var timeoutTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutTokenSource.CancelAfter(_requestTimeout);
+
         using var response = await _httpClient.PostAsJsonAsync(
             requestPath,
             new AnalyzeDomainRequest {
@@ -76,7 +80,7 @@ public sealed class HostedAnalysisService {
                 ForceRefresh = forceRefresh
             },
             _jsonOptions,
-            cancellationToken).ConfigureAwait(false);
+            timeoutTokenSource.Token).ConfigureAwait(false);
 
         if (response.StatusCode == HttpStatusCode.NotFound) {
             throw new HostedAnalysisUnavailableException("This online check requires the hosted DomainDetective analysis API.");
@@ -101,7 +105,7 @@ public sealed class HostedAnalysisService {
             if (!string.IsNullOrWhiteSpace(problem?.Detail)) {
                 return problem.Detail;
             }
-        } catch {
+        } catch (Exception) {
             // Best effort only.
         }
 

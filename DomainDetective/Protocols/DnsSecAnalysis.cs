@@ -169,7 +169,7 @@ namespace DomainDetective {
                         var (probeKeyAd, probeDsAd) = await ProbeAdStatusAsync(current, ct).ConfigureAwait(false);
                         if (!keyAd && probeKeyAd) keyAd = true;
                         if (!dsResult.ad && probeDsAd) dsResult = (dsResult.records, dsResult.ttl, ad: true);
-                    } catch { /* non-fatal */ }
+                    } catch (Exception) { /* non-fatal */ }
                 }
                 dsTtls.Add(dsResult.ttl);
 
@@ -310,7 +310,7 @@ namespace DomainDetective {
                 {
                     effectiveLogger.WriteInformationCode(DnssecCodes.DsPresent, "DS record present at parent");
                 }
-            } catch { /* non-fatal */ }
+            } catch (Exception) { /* non-fatal */ }
 
             if (!hasResponseOverride) {
                 await MultiResolverAdCheck(domainName, effectiveLogger, ct).ConfigureAwait(false);
@@ -339,7 +339,7 @@ namespace DomainDetective {
                             throw;
                         }
                         // Timeout per resolver; try next.
-                    } catch {
+                    } catch (Exception) {
                         // Best-effort: resolver may be unavailable; try next.
                     }
                 }
@@ -485,7 +485,7 @@ namespace DomainDetective {
                         throw;
                     }
                     // Timeout per endpoint; try next fallback.
-                } catch {
+                } catch (Exception) {
                     // Best-effort: endpoint may be unavailable; try next fallback.
                 }
             }
@@ -493,7 +493,7 @@ namespace DomainDetective {
             using (var c = new ClientX(endpoint: DnsEndpoint.System))
             {
                 try { return await c.Resolve(name, type, requestDnsSec: requestDnsSec, validateDnsSec: validateDnsSec, cancellationToken: ct).ConfigureAwait(false); }
-                catch { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (Exception) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
             }
         }
 
@@ -582,7 +582,7 @@ namespace DomainDetective {
                 var digestHex = BitConverter.ToString(digestBytes).Replace("-", string.Empty).ToLowerInvariant();
 
                 return digestHex.StartsWith(digest.ToLowerInvariant());
-            } catch {
+            } catch (Exception) {
                 // Any parsing/crypto error => treat as mismatch.
                 return false;
             }
@@ -716,7 +716,7 @@ namespace DomainDetective {
                 using ECDsa ecdsa = ECDsa.Create(p);
                 HashAlgorithmName hash = algorithm == 14 ? HashAlgorithmName.SHA384 : HashAlgorithmName.SHA256;
                 return ecdsa.VerifyData(data, sig, hash);
-            } catch {
+            } catch (Exception) {
                 // Treat invalid key/signature formats as verification failure.
                 return false;
             }
