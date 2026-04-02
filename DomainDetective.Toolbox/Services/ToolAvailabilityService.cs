@@ -1,6 +1,7 @@
 using DomainDetective.Toolbox.Models;
 using Microsoft.Extensions.Configuration;
 using System.Net;
+using System.Net.Http;
 
 namespace DomainDetective.Toolbox.Services;
 
@@ -100,7 +101,11 @@ public sealed class ToolAvailabilityService {
             return response.StatusCode == HttpStatusCode.OK
                 ? ToolsDeploymentMode.HostedOnline
                 : ToolsDeploymentMode.StaticOnly;
-        } catch (Exception) {
+        } catch (HttpRequestException) {
+            return ToolsDeploymentMode.StaticOnly;
+        } catch (TaskCanceledException) {
+            return ToolsDeploymentMode.StaticOnly;
+        } catch (InvalidOperationException) {
             return ToolsDeploymentMode.StaticOnly;
         }
     }

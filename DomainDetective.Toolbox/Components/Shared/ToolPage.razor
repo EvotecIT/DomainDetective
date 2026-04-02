@@ -369,7 +369,15 @@
             }
 
             await QueueRecentRunPersistenceAsync();
-        } catch (Exception ex) {
+        } catch (HostedAnalysisException ex) {
+            _error = ex.Message;
+        } catch (HttpRequestException ex) {
+            _error = ex.Message;
+        } catch (TaskCanceledException ex) {
+            _error = ex.Message;
+        } catch (InvalidOperationException ex) {
+            _error = ex.Message;
+        } catch (ArgumentException ex) {
             _error = ex.Message;
         } finally {
             _forceHostedRefresh = false;
@@ -404,7 +412,19 @@
             if (analysisVersion != _analysisVersion) {
                 return;
             }
-        } catch (Exception ex) {
+        } catch (HostedAnalysisException ex) {
+            if (analysisVersion != _analysisVersion) {
+                return;
+            }
+
+            _backgroundError = $"The first results loaded, but the full report could not finish: {ex.Message}";
+        } catch (HttpRequestException ex) {
+            if (analysisVersion != _analysisVersion) {
+                return;
+            }
+
+            _backgroundError = $"The first results loaded, but the full report could not finish: {ex.Message}";
+        } catch (InvalidOperationException ex) {
             if (analysisVersion != _analysisVersion) {
                 return;
             }
@@ -425,7 +445,7 @@
 
         try {
             _overviewHydrationCts.Cancel();
-        } catch {
+        } catch (ObjectDisposedException) {
             // Best effort only.
         } finally {
             _overviewHydrationCts.Dispose();

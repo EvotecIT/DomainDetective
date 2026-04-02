@@ -751,20 +751,21 @@ static string? ResolveSiteRoot(IConfiguration configuration, IWebHostEnvironment
     }
 
     var candidates = new[] {
-        Path.Combine(Directory.GetCurrentDirectory(), "..", "Website", "_site"),
-        Path.Combine(Directory.GetCurrentDirectory(), "Website", "_site"),
-        Path.Combine(environment.ContentRootPath, "..", "Website", "_site"),
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Website", "_site")
+        BuildSiteRootCandidate(Directory.GetCurrentDirectory(), "..", "Website", "_site"),
+        BuildSiteRootCandidate(Directory.GetCurrentDirectory(), "Website", "_site"),
+        BuildSiteRootCandidate(environment.ContentRootPath, "..", "Website", "_site"),
+        BuildSiteRootCandidate(AppContext.BaseDirectory, "..", "..", "..", "..", "Website", "_site")
     };
 
-    foreach (var candidate in candidates) {
-        var fullPath = Path.GetFullPath(candidate);
-        if (Directory.Exists(fullPath)) {
-            return fullPath;
-        }
+    foreach (var fullPath in candidates.Where(Directory.Exists)) {
+        return fullPath;
     }
 
     return null;
+}
+
+static string BuildSiteRootCandidate(string basePath, params string[] segments) {
+    return Path.GetFullPath(Path.Join(basePath, Path.Combine(segments)));
 }
 
 static string[] ResolveAllowedOrigins(IConfiguration configuration, IWebHostEnvironment environment, out bool usingFallbackOrigins) {

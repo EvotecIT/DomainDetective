@@ -13,9 +13,6 @@
         .Where(static check => check.State == AggregateCheckState.Fail || check.State == AggregateCheckState.Warning)
         .Take(10)
         .ToList();
-    var healthyChecks = allChecks
-        .Where(static check => check.State == AggregateCheckState.Pass)
-        .ToList();
     var subdomainInfo = Info?.Subdomains;
     var subdomainHighlights = subdomainInfo?.Highlights?.Take(4).ToList() ?? new List<string>();
     var appGroups = DetectedApplicationPresentation.BuildCategories(Info?.DetectedApplications);

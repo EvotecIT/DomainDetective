@@ -383,20 +383,21 @@ public sealed partial class CertificateInventoryCapture {
 
         if (originalHttps > 0) {
             var rankedHttps = new List<(string Target, int Priority, int SortDays, ReusedRecentSuccessCandidate? Reused)>(originalHttps);
-            rankedHttps.AddRange(
-                httpsTargets.Select(target => (
+            foreach (var target in httpsTargets) {
+                rankedHttps.Add((
                     Target: target,
                     Priority: ComputeHttpsTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays),
                     SortDays: ResolvePrioritySortDays(target, recentByEndpoint),
-                    Reused: (ReusedRecentSuccessCandidate?)null)));
-            rankedHttps.AddRange(
-                reusedSuccessCandidates
-                    .Where(static candidate => candidate.Kind == ReusedTargetKind.Https)
-                    .Select(candidate => (
-                        Target: candidate.Target,
-                        Priority: candidate.Priority,
-                        SortDays: candidate.SortDays,
-                        Reused: (ReusedRecentSuccessCandidate?)candidate)));
+                    Reused: null));
+            }
+
+            foreach (var candidate in reusedSuccessCandidates.Where(static item => item.Kind == ReusedTargetKind.Https)) {
+                rankedHttps.Add((
+                    Target: candidate.Target,
+                    Priority: candidate.Priority,
+                    SortDays: candidate.SortDays,
+                    Reused: candidate));
+            }
 
             var orderedHttps = rankedHttps
                 .OrderByDescending(static item => item.Priority)
@@ -445,20 +446,21 @@ public sealed partial class CertificateInventoryCapture {
 
         if (originalMail > 0) {
             var rankedMail = new List<(MailEndpointTarget Target, int Priority, int SortDays, ReusedRecentSuccessCandidate? Reused)>(originalMail);
-            rankedMail.AddRange(
-                mailTargets.Values.Select(target => (
+            foreach (var target in mailTargets.Values) {
+                rankedMail.Add((
                     Target: target,
                     Priority: ComputeMailTargetPriority(target, recentByEndpoint, reprobeExpiringWithinDays),
                     SortDays: ResolvePrioritySortDays(target, recentByEndpoint),
-                    Reused: (ReusedRecentSuccessCandidate?)null)));
-            rankedMail.AddRange(
-                reusedSuccessCandidates
-                    .Where(static candidate => candidate.Kind == ReusedTargetKind.Mail && candidate.MailTarget != null)
-                    .Select(candidate => (
-                        Target: candidate.MailTarget!,
-                        Priority: candidate.Priority,
-                        SortDays: candidate.SortDays,
-                        Reused: (ReusedRecentSuccessCandidate?)candidate)));
+                    Reused: null));
+            }
+
+            foreach (var candidate in reusedSuccessCandidates.Where(static item => item.Kind == ReusedTargetKind.Mail && item.MailTarget != null)) {
+                rankedMail.Add((
+                    Target: candidate.MailTarget!,
+                    Priority: candidate.Priority,
+                    SortDays: candidate.SortDays,
+                    Reused: candidate));
+            }
 
             var orderedMail = rankedMail
                 .OrderByDescending(static item => item.Priority)

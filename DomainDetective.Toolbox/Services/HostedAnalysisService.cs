@@ -105,7 +105,11 @@ public sealed class HostedAnalysisService {
             if (!string.IsNullOrWhiteSpace(problem?.Detail)) {
                 return problem.Detail;
             }
-        } catch (Exception) {
+        } catch (JsonException) {
+            // Best effort only.
+        } catch (NotSupportedException) {
+            // Best effort only.
+        } catch (InvalidOperationException) {
             // Best effort only.
         }
 

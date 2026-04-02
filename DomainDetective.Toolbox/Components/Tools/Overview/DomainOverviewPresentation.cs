@@ -1080,7 +1080,7 @@ internal static class DomainOverviewPresentation
         return new DomainOverviewDetailCardView
         {
             Title = "HTTP headers",
-            ValueLabel = info.IsReachable ? "Grade " + info.Grade.ToString() : "Offline",
+            ValueLabel = info.IsReachable ? "Grade " + info.Grade : "Offline",
             Summary = info.IsReachable
                 ? $"Reachable over {(string.IsNullOrWhiteSpace(info.ProtocolVersion) ? "HTTP" : info.ProtocolVersion)} with {(info.HstsPresent ? "HSTS enabled" : "no HSTS")} and {info.MissingSecurityHeaders.Count} missing security header(s)."
                 : (string.IsNullOrWhiteSpace(info.FailureReason) ? "HTTP endpoint was not reachable during the DD run." : info.FailureReason),

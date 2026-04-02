@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -169,7 +170,7 @@ namespace DomainDetective {
                         var (probeKeyAd, probeDsAd) = await ProbeAdStatusAsync(current, ct).ConfigureAwait(false);
                         if (!keyAd && probeKeyAd) keyAd = true;
                         if (!dsResult.ad && probeDsAd) dsResult = (dsResult.records, dsResult.ttl, ad: true);
-                    } catch (Exception) { /* non-fatal */ }
+                    } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) { /* non-fatal */ }
                 }
                 dsTtls.Add(dsResult.ttl);
 
@@ -310,7 +311,7 @@ namespace DomainDetective {
                 {
                     effectiveLogger.WriteInformationCode(DnssecCodes.DsPresent, "DS record present at parent");
                 }
-            } catch (Exception) { /* non-fatal */ }
+            } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) { /* non-fatal */ }
 
             if (!hasResponseOverride) {
                 await MultiResolverAdCheck(domainName, effectiveLogger, ct).ConfigureAwait(false);
@@ -339,7 +340,7 @@ namespace DomainDetective {
                             throw;
                         }
                         // Timeout per resolver; try next.
-                    } catch (Exception) {
+                    } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) {
                         // Best-effort: resolver may be unavailable; try next.
                     }
                 }
@@ -422,27 +423,23 @@ namespace DomainDetective {
 
         private static async Task<bool> HasNsec3OptOutAsync(string domain, Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>> responseOverride, CancellationToken ct) {
             var nsec3param = await responseOverride(domain, (DnsRecordType)51, ct).ConfigureAwait(false);
-            foreach (var ans in nsec3param.Answers ?? Array.Empty<DnsAnswer>()) {
-                if ((int)ans.Type == 51) {
-                    var data = ans.Data ?? ans.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(data)) {
-                        var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
-                            return true;
-                        }
+            foreach (var ans in (nsec3param.Answers ?? Array.Empty<DnsAnswer>()).Where(static answer => (int)answer.Type == 51)) {
+                var data = ans.Data ?? ans.DataRaw;
+                if (!string.IsNullOrWhiteSpace(data)) {
+                    var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                        return true;
                     }
                 }
             }
 
             var nsec3 = await responseOverride(domain, (DnsRecordType)50, ct).ConfigureAwait(false);
-            foreach (var ans in nsec3.Answers ?? Array.Empty<DnsAnswer>()) {
-                if ((int)ans.Type == 50) {
-                    var data = ans.Data ?? ans.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(data)) {
-                        var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
-                            return true;
-                        }
+            foreach (var ans in (nsec3.Answers ?? Array.Empty<DnsAnswer>()).Where(static answer => (int)answer.Type == 50)) {
+                var data = ans.Data ?? ans.DataRaw;
+                if (!string.IsNullOrWhiteSpace(data)) {
+                    var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                        return true;
                     }
                 }
             }
@@ -493,8 +490,21 @@ namespace DomainDetective {
             using (var c = new ClientX(endpoint: DnsEndpoint.System))
             {
                 try { return await c.Resolve(name, type, requestDnsSec: requestDnsSec, validateDnsSec: validateDnsSec, cancellationToken: ct).ConfigureAwait(false); }
-                catch (Exception) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
             }
+        }
+
+        private static bool IsNonFatalDnssecProbeException(Exception exception, CancellationToken cancellationToken) {
+            if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested) {
+                return false;
+            }
+
+            return exception is HttpRequestException
+                || exception is IOException
+                || exception is InvalidOperationException
+                || exception is ObjectDisposedException
+                || exception is SocketException
+                || exception is TaskCanceledException;
         }
 
         private static bool IsDsDigestLengthValid(string record) {

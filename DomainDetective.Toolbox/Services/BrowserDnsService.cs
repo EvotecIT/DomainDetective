@@ -75,7 +75,39 @@ public sealed class BrowserDnsService {
                         Success = response.Status == DnsResponseCode.NoError && records.Length > 0,
                         Error = response.Status == DnsResponseCode.NoError ? string.Empty : response.Status.ToString()
                     });
-                } catch (Exception ex) {
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
+                } catch (HttpRequestException ex) {
+                    stopwatch.Stop();
+                    results.Add(new DnsPropagationResult {
+                        Server = resolver.Server,
+                        RecordType = recordType,
+                        Records = Array.Empty<string>(),
+                        Duration = stopwatch.Elapsed,
+                        Success = false,
+                        Error = ex.Message
+                    });
+                } catch (TaskCanceledException ex) {
+                    stopwatch.Stop();
+                    results.Add(new DnsPropagationResult {
+                        Server = resolver.Server,
+                        RecordType = recordType,
+                        Records = Array.Empty<string>(),
+                        Duration = stopwatch.Elapsed,
+                        Success = false,
+                        Error = ex.Message
+                    });
+                } catch (JsonException ex) {
+                    stopwatch.Stop();
+                    results.Add(new DnsPropagationResult {
+                        Server = resolver.Server,
+                        RecordType = recordType,
+                        Records = Array.Empty<string>(),
+                        Duration = stopwatch.Elapsed,
+                        Success = false,
+                        Error = ex.Message
+                    });
+                } catch (InvalidOperationException ex) {
                     stopwatch.Stop();
                     results.Add(new DnsPropagationResult {
                         Server = resolver.Server,

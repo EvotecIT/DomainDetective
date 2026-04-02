@@ -436,10 +436,6 @@ internal sealed class PassiveCtSourceClient
     internal static void ResetSharedStateForTesting()
     {
         SharedSourceStates.Clear();
-        foreach (SemaphoreSlim gate in SharedSourceGates.Values)
-        {
-            gate.Dispose();
-        }
         SharedSourceGates.Clear();
         Interlocked.Exchange(ref _rotationCursor, -1);
     }
