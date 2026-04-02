@@ -156,11 +156,17 @@ static async Task<Results<Ok<SubdomainsInfo>, ValidationProblem>> AnalyzeCtSubdo
         return TypedResults.ValidationProblem(errors);
     }
 
-    var healthCheck = new DomainHealthCheck();
-    healthCheck.SubdomainsAnalysis.EnableNativeCtLogSource = true;
-    healthCheck.SubdomainsAnalysis.UseCertSpotterFallback = true;
-    await healthCheck.VerifySubdomainsAsync(domainName, cancellationToken).ConfigureAwait(false);
-    return TypedResults.Ok(Converters.Convert(healthCheck.SubdomainsAnalysis));
+    var analysis = await RunAnalysisAsync(
+        domainName,
+        static (healthCheck, subject, token) => healthCheck.VerifySubdomainsAsync(subject, token),
+        static healthCheck => Converters.Convert(healthCheck.SubdomainsAnalysis),
+        cancellationToken,
+        configure: static healthCheck => {
+            healthCheck.SubdomainsAnalysis.EnableNativeCtLogSource = true;
+            healthCheck.SubdomainsAnalysis.UseCertSpotterFallback = true;
+        }).ConfigureAwait(false);
+
+    return TypedResults.Ok(analysis.Result);
 }
 
 static async Task<Results<Ok<Microsoft365OverviewInfo>, ValidationProblem>> AnalyzeMicrosoft365OverviewAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {

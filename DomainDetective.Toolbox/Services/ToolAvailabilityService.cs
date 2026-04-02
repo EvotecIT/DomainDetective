@@ -90,7 +90,7 @@ public sealed class ToolAvailabilityService {
         }
 
         return definition.LiteCompatible
-            ? $"{definition.Name} is available here in a lighter web edition."
+            ? $"{definition.Name} is available here as a lighter web edition."
             : $"{definition.Name} is not available in this web edition yet.";
     }
 
@@ -100,7 +100,7 @@ public sealed class ToolAvailabilityService {
             return response.StatusCode == HttpStatusCode.OK
                 ? ToolsDeploymentMode.HostedOnline
                 : ToolsDeploymentMode.StaticOnly;
-        } catch {
+        } catch (Exception) {
             return ToolsDeploymentMode.StaticOnly;
         }
     }
