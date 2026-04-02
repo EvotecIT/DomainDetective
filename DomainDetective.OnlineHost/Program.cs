@@ -765,7 +765,10 @@ static string? ResolveSiteRoot(IConfiguration configuration, IWebHostEnvironment
 }
 
 static string BuildSiteRootCandidate(string basePath, params string[] segments) {
-    return Path.GetFullPath(Path.Join(basePath, Path.Combine(segments)));
+    var pathSegments = new string[segments.Length + 1];
+    pathSegments[0] = basePath;
+    Array.Copy(segments, 0, pathSegments, 1, segments.Length);
+    return Path.GetFullPath(Path.Combine(pathSegments));
 }
 
 static string[] ResolveAllowedOrigins(IConfiguration configuration, IWebHostEnvironment environment, out bool usingFallbackOrigins) {

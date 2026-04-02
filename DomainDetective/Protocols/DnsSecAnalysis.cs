@@ -423,24 +423,24 @@ namespace DomainDetective {
 
         private static async Task<bool> HasNsec3OptOutAsync(string domain, Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>> responseOverride, CancellationToken ct) {
             var nsec3param = await responseOverride(domain, (DnsRecordType)51, ct).ConfigureAwait(false);
-            foreach (var ans in (nsec3param.Answers ?? Array.Empty<DnsAnswer>()).Where(static answer => (int)answer.Type == 51)) {
-                var data = ans.Data ?? ans.DataRaw;
-                if (!string.IsNullOrWhiteSpace(data)) {
-                    var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
-                        return true;
-                    }
+            foreach (var data in (nsec3param.Answers ?? Array.Empty<DnsAnswer>())
+                .Where(static answer => (int)answer.Type == 51)
+                .Select(static answer => answer.Data ?? answer.DataRaw)
+                .Where(static data => !string.IsNullOrWhiteSpace(data))) {
+                var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                    return true;
                 }
             }
 
             var nsec3 = await responseOverride(domain, (DnsRecordType)50, ct).ConfigureAwait(false);
-            foreach (var ans in (nsec3.Answers ?? Array.Empty<DnsAnswer>()).Where(static answer => (int)answer.Type == 50)) {
-                var data = ans.Data ?? ans.DataRaw;
-                if (!string.IsNullOrWhiteSpace(data)) {
-                    var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
-                        return true;
-                    }
+            foreach (var data in (nsec3.Answers ?? Array.Empty<DnsAnswer>())
+                .Where(static answer => (int)answer.Type == 50)
+                .Select(static answer => answer.Data ?? answer.DataRaw)
+                .Where(static data => !string.IsNullOrWhiteSpace(data))) {
+                var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                    return true;
                 }
             }
 
