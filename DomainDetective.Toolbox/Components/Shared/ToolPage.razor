@@ -439,18 +439,18 @@
     }
 
     private void CancelOverviewHydration() {
-        if (_overviewHydrationCts is null) {
+        var overviewHydrationCts = Interlocked.Exchange(ref _overviewHydrationCts, null);
+        if (overviewHydrationCts is null) {
             return;
         }
 
         try {
-            _overviewHydrationCts.Cancel();
+            overviewHydrationCts.Cancel();
         } catch (ObjectDisposedException) {
             // Best effort only.
-        } finally {
-            _overviewHydrationCts.Dispose();
-            _overviewHydrationCts = null;
         }
+
+        overviewHydrationCts.Dispose();
     }
 
     private void HandleLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) {

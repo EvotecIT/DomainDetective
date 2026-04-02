@@ -887,10 +887,8 @@ static bool TryNormalizeDomainName(string value, out string domainName, out stri
             return false;
         }
 
-        foreach (var character in label) {
-            if (!(char.IsLetterOrDigit(character) || character == '-')) {
-                return false;
-            }
+        if (label.Any(static character => !(char.IsLetterOrDigit(character) || character == '-'))) {
+            return false;
         }
     }
 
