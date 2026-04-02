@@ -490,7 +490,12 @@ namespace DomainDetective {
             using (var c = new ClientX(endpoint: DnsEndpoint.System))
             {
                 try { return await c.Resolve(name, type, requestDnsSec: requestDnsSec, validateDnsSec: validateDnsSec, cancellationToken: ct).ConfigureAwait(false); }
-                catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (HttpRequestException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (IOException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (ObjectDisposedException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (InvalidOperationException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (SocketException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
             }
         }
 
