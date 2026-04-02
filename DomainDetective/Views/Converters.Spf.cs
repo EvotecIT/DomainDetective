@@ -109,6 +109,14 @@ public static partial class Converters
             DnsLookupsCount = analysis.DnsLookupsCount,
             ExceedsDnsLookups = analysis.ExceedsDnsLookups,
             MultipleAllMechanisms = analysis.MultipleAllMechanisms,
+            ContainsCharactersAfterAll = analysis.ContainsCharactersAfterAll,
+            HasPtrType = analysis.HasPtrType,
+            HasNullLookups = analysis.HasNullLookups,
+            HasRedirect = analysis.HasRedirect,
+            HasExp = analysis.HasExp,
+            InvalidIpSyntax = analysis.InvalidIpSyntax,
+            DenyAll = analysis.DenyAll,
+            AllMechanism = analysis.AllMechanism,
             ExceedsTotalCharacterLimit = analysis.ExceedsTotalCharacterLimit,
             ExceedsCharacterLimit = analysis.ExceedsCharacterLimit,
             UnknownMechanisms = analysis.UnknownMechanisms,
@@ -125,6 +133,20 @@ public static partial class Converters
             Raw = analysis,
             Narrative = narrative,
             Highlights = narrative.Highlights,
+            Details = narrative.Details,
+            Includes = analysis.IncludeRecords ?? new List<string>(),
+            RedirectValue = analysis.RedirectValue,
+            ExpValue = analysis.ExpValue,
+            ResolvedIpv4Records = analysis.ResolvedIpv4Records ?? new List<string>(),
+            ResolvedIpv6Records = analysis.ResolvedIpv6Records ?? new List<string>(),
+            ResolvedIncludeRecords = analysis.ResolvedIncludeRecords ?? new List<string>(),
+            FlattenedUniqueIps = analysis.FlattenedIpAnalysis?.UniqueIps ?? new List<string>(),
+            FlattenedDuplicateIps = analysis.FlattenedIpAnalysis?.DuplicateIps ?? new List<string>(),
+            EffectiveSpfSends = analysis.EffectiveSpfSends,
+            PermError = analysis.PermError,
+            Advisory = analysis.Advisory,
+            CycleDetected = analysis.CycleDetected,
+            CyclePath = analysis.CyclePath,
             ProviderHelp = helpList
         };
     }
@@ -172,6 +194,14 @@ public class SpfRecordInfo
     public int DnsLookupsCount { get; set; }
     public bool ExceedsDnsLookups { get; set; }
     public bool MultipleAllMechanisms { get; set; }
+    public bool ContainsCharactersAfterAll { get; set; }
+    public bool HasPtrType { get; set; }
+    public bool HasNullLookups { get; set; }
+    public bool HasRedirect { get; set; }
+    public bool HasExp { get; set; }
+    public bool InvalidIpSyntax { get; set; }
+    public bool DenyAll { get; set; }
+    public string? AllMechanism { get; set; }
     public bool ExceedsTotalCharacterLimit { get; set; }
     public bool ExceedsCharacterLimit { get; set; }
     public IReadOnlyList<string> UnknownMechanisms { get; set; } = System.Array.Empty<string>();
@@ -188,5 +218,19 @@ public class SpfRecordInfo
     public SpfAnalysis Raw { get; set; } = new SpfAnalysis();
     public DomainDetective.Narratives.SpfNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.SpfNarrative.Sections();
     public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> Details { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> Includes { get; set; } = System.Array.Empty<string>();
+    public string? RedirectValue { get; set; }
+    public string? ExpValue { get; set; }
+    public IReadOnlyList<string> ResolvedIpv4Records { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> ResolvedIpv6Records { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> ResolvedIncludeRecords { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> FlattenedUniqueIps { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> FlattenedDuplicateIps { get; set; } = System.Array.Empty<string>();
+    public bool EffectiveSpfSends { get; set; }
+    public bool PermError { get; set; }
+    public string Advisory { get; set; } = string.Empty;
+    public bool CycleDetected { get; set; }
+    public string? CyclePath { get; set; }
     public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; } = System.Array.Empty<ProviderHelpLinks>();
 }

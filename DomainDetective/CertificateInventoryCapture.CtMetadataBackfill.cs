@@ -512,6 +512,8 @@ public sealed partial class CertificateInventoryCapture {
                             lock (results) {
                                 MergeCtSubdomainEntry(results, exactEntry);
                             }
+                        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                            throw;
                         } catch (Exception ex) {
                             logger.WriteVerbose(
                                 "CT metadata backfill exact lookup failed for {0}: {1}",
@@ -564,6 +566,8 @@ public sealed partial class CertificateInventoryCapture {
                     lock (results) {
                         MergeCtSubdomainEntry(results, exactEntry);
                     }
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
                 } catch (Exception ex) {
                     logger.WriteVerbose(
                         "CT metadata backfill exact lookup failed for {0}: {1}",
@@ -617,6 +621,8 @@ public sealed partial class CertificateInventoryCapture {
                     lock (results) {
                         MergeCtSubdomainEntry(results, entry);
                     }
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
                 } catch (Exception ex) {
                     logger.WriteVerbose(
                         "CT metadata backfill exact PostgreSQL lookup failed for {0}: {1}",

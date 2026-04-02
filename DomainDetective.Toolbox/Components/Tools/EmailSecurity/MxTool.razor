@@ -1,46 +1,210 @@
+@using System.Globalization
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
 @if (HealthCheck.MXAnalysis is { } mx) {
-    <ResultCard Title="MX Records" Status="@(mx.MxRecordExists ? ResultCard.ResultStatus.Pass : ResultCard.ResultStatus.Fail)">
-        @if (mx.MxRecordExists && mx.MxRecords?.Count > 0) {
-            <ResultTable Columns="@(new[] { "Priority", "Mail Server" })">
-                @foreach (var record in mx.MxRecords) {
-                    <tr><td>—</td><td>@record</td></tr>
-                }
-            </ResultTable>
-            <div style="margin-top: 0.75rem;">
-                <span>IPv6 Support: </span>
-                <span class="status-badge @(mx.Ipv6Supported ? "status-badge-pass" : "status-badge-warning")">
-                    @(mx.Ipv6Supported ? "Yes" : "No")
-                </span>
+    var view = Converters.Convert(mx);
+    var records = view.Hosts;
+
+    <ResultCard Title="Mail routing posture" Status="@(view.MxRecordExists ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Published MX</span>
+                <strong class="tool-summary-value">@records.Count</strong>
+                <p class="tool-summary-note">Backup servers: @GetBackupNarrative(view)</p>
             </div>
-        } else {
-            <p>No MX records found for @Domain</p>
-        }
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Provider</span>
+                <strong class="tool-summary-value">@FormatValue(view.ProviderPrimary, "Unknown")</strong>
+                <p class="tool-summary-note">Confidence: @view.ProviderPrimaryScore.ToString("P0", CultureInfo.InvariantCulture)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Transport</span>
+                <strong class="tool-summary-value">@(view.Ipv6Supported ? "IPv6 ready" : "IPv4 only")</strong>
+                <p class="tool-summary-note">TTL profile: @FormatTtlProfile(view)</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@(view.Highlights.Count > 0 ? string.Join(" ", view.Highlights.Take(3)) : view.Summary)</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Valid MX configuration</td><td>@FormatBool(view.Raw.ValidMxConfiguration)</td></tr>
+            <tr><td>Null MX</td><td>@FormatBool(view.HasNullMx, view.HasNullMx ? "Present" : "No")</td></tr>
+            <tr><td>MX targets to IP</td><td>@FormatBool(view.PointsToIpAddress)</td></tr>
+            <tr><td>MX targets to CNAME</td><td>@FormatBool(view.PointsToCname)</td></tr>
+            <tr><td>Targets to localhost</td><td>@FormatBool(view.PointsToLocalhost)</td></tr>
+            <tr><td>Targets to NXDOMAIN</td><td>@FormatBool(view.PointsToNonExistentDomain)</td></tr>
+            <tr><td>Targets without A/AAAA</td><td>@FormatBool(view.PointsToDomainWithoutAOrAaaaRecord)</td></tr>
+            <tr><td>Cross-NS MX consistency</td><td>@FormatBool(view.MxRrsetConsistentAcrossNs)</td></tr>
+            <tr><td>Address consistency</td><td>@FormatBool(view.TargetAddressConsistentAcrossNs)</td></tr>
+            <tr><td>Priorities ordered</td><td>@FormatBool(view.PrioritiesInOrder)</td></tr>
+        </ResultTable>
     </ResultCard>
 
-    @if (mx.Assessments?.Count > 0) {
-        <ResultCard Title="Assessments">
-            <ul class="issues-list">
-                @foreach (var a in mx.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+    @if (view.Highlights.Count > 0 || view.Details.Count > 0) {
+        <ResultCard Title="Routing insights" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
                 }
-            </ul>
+
+                @if (view.Details.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Operational notes</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(6)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
         </ResultCard>
     }
+
+    @if (records.Count > 0) {
+        <ResultCard Title="Published MX records" Status="ResultCard.ResultStatus.Info">
+            <ResultTable Columns="@(new[] { "Priority", "Mail server", "TTL", "Flags" })">
+                @foreach (var record in records) {
+                    <tr>
+                        <td>@FormatPriority(record.Priority)</td>
+                        <td>@record.Host</td>
+                        <td>@FormatTtl(record.Ttl)</td>
+                        <td>@BuildHostFlags(record)</td>
+                    </tr>
+                }
+            </ResultTable>
+        </ResultCard>
+    }
+
+    @if (view.ProviderGateways.Count > 0 || view.ProviderHelp.Count > 0) {
+        <ResultCard Title="Provider signals" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.ProviderGateways.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Gateway providers</span>
+                        <div class="tool-chip-list">
+                            @foreach (var gateway in view.ProviderGateways.OrderBy(static value => value)) {
+                                <span class="tool-chip">@gateway</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(view.ProviderPrimary)) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Provider posture</span>
+                        <p class="tool-summary-note">
+                            @(view.PrimaryProviderSingleMxOk
+                                ? $"{view.ProviderPrimary} typically accepts a single MX without separate backup preferences."
+                                : $"{view.ProviderPrimary} benefits from explicit backup MX preferences for resilience.")
+                        </p>
+                    </div>
+                }
+
+                @foreach (var provider in view.ProviderHelp.Where(static item => item.HasAny)) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">@provider.ProviderName documentation</span>
+                        <ul class="tool-link-list">
+                            @foreach (var topic in provider.Topics.Where(static item => !string.IsNullOrWhiteSpace(item.Url)).Take(5)) {
+                                <li><a href="@topic.Url" target="_blank" rel="noopener">@topic.Topic</a></li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"MX analysis complete for {Domain}.")" />
+    </ResultCard>
 }
 
 @code {
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatBool(bool value, string positive) {
+        return value ? positive : "No";
+    }
+
+    private static string FormatTtlProfile(MxInfo view) {
+        if (view.MinMxTtl.HasValue && view.MaxMxTtl.HasValue) {
+            if (view.MinMxTtl == view.MaxMxTtl) {
+                return $"{view.MinMxTtl.Value}s uniform";
+            }
+
+            return $"{view.MinMxTtl.Value}s to {view.MaxMxTtl.Value}s";
+        }
+
+        return "Not captured";
+    }
+
+    private static string FormatValue(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static string GetBackupNarrative(MxInfo view) {
+        if (view.HasNullMx) {
+            return "Null MX";
+        }
+
+        if (view.HasBackupServers) {
+            return "Yes";
+        }
+
+        if (view.PrimaryProviderSingleMxOk && !string.IsNullOrWhiteSpace(view.ProviderPrimary)) {
+            return $"Single MX acceptable for {view.ProviderPrimary}";
+        }
+
+        return "No";
+    }
+
+    private static string FormatPriority(int? priority) {
+        return priority.HasValue ? priority.Value.ToString(CultureInfo.InvariantCulture) : "—";
+    }
+
+    private static string FormatTtl(int? ttl) {
+        return ttl.HasValue && ttl.Value > 0 ? $"{ttl.Value}s" : "—";
+    }
+
+    private static string BuildHostFlags(MxHostInfo record) {
+        var flags = new List<string>();
+        if (record.IsNullMx) {
+            flags.Add("Null MX");
+        }
+        if (record.IsLocalhost) {
+            flags.Add("Localhost");
+        }
+
+        return flags.Count > 0 ? string.Join(", ", flags) : "—";
+    }
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

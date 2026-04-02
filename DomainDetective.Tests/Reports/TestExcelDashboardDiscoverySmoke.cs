@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Net;
 using DnsClientX;
 using DomainDetective.Providers.Dns;
 using DomainDetective.Providers.Email;
@@ -91,9 +90,6 @@ public class TestExcelDashboardDiscoverySmoke
             MissingSecurityHeaders = Array.Empty<string>()
         });
 
-        CountryIdExtensions.TryParse("US", out var us);
-        CountryIdExtensions.TryParse("PL", out var pl);
-
         items.Add(new DomainDetective.Views.DnsPropagationInfo
         {
             Subject = domain,
@@ -104,11 +100,12 @@ public class TestExcelDashboardDiscoverySmoke
             ServerErrorCount = 1,
             DistinctAnswerSets = 2,
             MajorityAnswerSet = "1.1.1.1",
-            Results = new List<DnsPropagationResult>
+            Results = new List<DomainDetective.Views.DnsPropagationResultInfo>
             {
                 new()
                 {
-                    Server = new PublicDnsEntry { IPAddress = IPAddress.Parse("1.1.1.1"), Country = us, Enabled = true },
+                    ServerAddress = "1.1.1.1",
+                    Country = "United States",
                     RecordType = DnsRecordType.A,
                     Records = new[] { "1.1.1.1" },
                     Duration = TimeSpan.FromMilliseconds(12),
@@ -116,7 +113,8 @@ public class TestExcelDashboardDiscoverySmoke
                 },
                 new()
                 {
-                    Server = new PublicDnsEntry { IPAddress = IPAddress.Parse("2.2.2.2"), Country = pl, Enabled = true },
+                    ServerAddress = "2.2.2.2",
+                    Country = "Poland",
                     RecordType = DnsRecordType.A,
                     Records = new[] { "2.2.2.2" },
                     Duration = TimeSpan.FromMilliseconds(25),
@@ -124,7 +122,8 @@ public class TestExcelDashboardDiscoverySmoke
                 },
                 new()
                 {
-                    Server = new PublicDnsEntry { IPAddress = IPAddress.Parse("3.3.3.3"), Country = us, Enabled = true },
+                    ServerAddress = "3.3.3.3",
+                    Country = "United States",
                     RecordType = DnsRecordType.A,
                     Records = Array.Empty<string>(),
                     Duration = TimeSpan.FromMilliseconds(40),

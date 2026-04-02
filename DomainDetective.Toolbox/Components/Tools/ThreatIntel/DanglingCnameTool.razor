@@ -1,19 +1,46 @@
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
-@if (HealthCheck.DanglingCnameAnalysis is { } dc) {
-    <ResultCard Title="Dangling CNAME" Status="@(dc.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (dc.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in dc.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
-                }
-            </ul>
-        } else {
-            <p>No dangling CNAME records found for @Domain.</p>
+@if (HealthCheck.DanglingCnameAnalysis is { } danglingCname) {
+    var view = Converters.Convert(danglingCname);
+
+    <ResultCard Title="Takeover posture" Status="@GetStatus(view)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">CNAME record</span>
+                <strong class="tool-summary-value">@(view.CnameRecordExists ? "Present" : "Missing")</strong>
+                <p class="tool-summary-note">Known service: @FormatBool(view.KnownService)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Target resolution</span>
+                <strong class="tool-summary-value">@(view.TargetResolves ? "Resolves" : "Does not resolve")</strong>
+                <p class="tool-summary-note">Unclaimed service: @FormatBool(view.UnclaimedService)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Risk</span>
+                <strong class="tool-summary-value">@(view.IsDangling ? "Dangling" : "Not dangling")</strong>
+                <p class="tool-summary-note">Status: @view.Status</p>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(view.Target)) {
+            <div class="result-record">@view.Target</div>
         }
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Known provider pattern</td><td>@FormatBool(view.KnownService)</td></tr>
+            <tr><td>Dangling CNAME</td><td>@FormatBool(view.IsDangling)</td></tr>
+            <tr><td>Failure reason</td><td>@FormatText(view.FailureReason)</td></tr>
+        </ResultTable>
+
+        <div class="tool-callout">
+            <strong>@(view.IsDangling ? "Potential takeover path detected" : "No takeover path detected")</strong>
+            <p>@view.Summary</p>
+        </div>
+    </ResultCard>
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"Dangling CNAME analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
@@ -21,10 +48,19 @@
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatBool(bool value) => value ? "Yes" : "No";
+
+    private static string FormatText(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static ResultCard.ResultStatus GetStatus(DanglingCnameInfo view) {
+        if (view.IsDangling || view.Assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

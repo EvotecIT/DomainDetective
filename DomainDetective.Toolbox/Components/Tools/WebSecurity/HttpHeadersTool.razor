@@ -1,30 +1,347 @@
+@using System.Globalization
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
-@if (HealthCheck.HttpAnalysis is { } https) {
-    <ResultCard Title="HTTP Security Headers" Status="@(https.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (https.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in https.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+@if (GetView() is { } view) {
+    var presentHeaders = (view.SecurityHeaders?.Keys ?? Array.Empty<string>()).OrderBy(static key => key).ToList();
+    var missingHeaders = (view.MissingSecurityHeaders ?? Array.Empty<string>()).OrderBy(static key => key).ToList();
+    var disclosureHeaders = (view.InformationDisclosureHeaders ?? new Dictionary<string, string>()).OrderBy(static entry => entry.Key).ToList();
+    var cachingHeaders = (view.CachingHeaders ?? new Dictionary<string, string>()).OrderBy(static entry => entry.Key).ToList();
+    var redirectChain = (view.VisitedUrls ?? Array.Empty<string>()).Where(static url => !string.IsNullOrWhiteSpace(url)).ToList();
+    var permissionsPolicy = (view.PermissionsPolicy ?? new Dictionary<string, string>()).OrderBy(static entry => entry.Key).ToList();
+    var insecureFormActions = view.InsecureFormActions ?? Array.Empty<string>();
+
+    <ResultCard Title="HTTP posture" Status="@(view.IsReachable ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Grade</span>
+                <strong class="tool-summary-value">@FormatGrade(view.Grade)</strong>
+                <p class="tool-summary-note">Warnings: @view.WarningCount | Errors: @view.ErrorCount</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Transport</span>
+                <strong class="tool-summary-value">@FormatTransport(view)</strong>
+                <p class="tool-summary-note">Status: @FormatStatusCode(view.StatusCode)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Security headers</span>
+                <strong class="tool-summary-value">@presentHeaders.Count present</strong>
+                <p class="tool-summary-note">Missing: @missingHeaders.Count</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">HSTS posture</span>
+                <strong class="tool-summary-value">@(view.HstsPresent ? "Enabled" : "Missing")</strong>
+                <p class="tool-summary-note">@FormatHsts(view)</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@(view.IsReachable ? BuildSummary(view) : $"Could not reach {Domain}: {FormatValue(view.FailureReason, "request failed")}.")</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Endpoint</td><td>@(view.Url ?? Domain)</td></tr>
+            <tr><td>Protocol version</td><td>@FormatValue(view.ProtocolVersion, "Not captured")</td></tr>
+            <tr><td>Server header</td><td>@FormatValue(view.ServerHeader, "Not disclosed")</td></tr>
+            <tr><td>Response time</td><td>@FormatResponseTime(view.ResponseTime)</td></tr>
+            <tr><td>Body length</td><td>@FormatBodyLength(view.BodyLength)</td></tr>
+            <tr><td>HSTS</td><td>@FormatBool(view.HstsPresent, view.HstsPresent ? "Present" : "Missing")</td></tr>
+            <tr><td>HSTS preload eligible</td><td>@FormatBool(view.HstsPreloadEligible)</td></tr>
+            <tr><td>CSP unsafe directives</td><td>@FormatBool(view.CspUnsafeDirectives)</td></tr>
+            <tr><td>Mixed content</td><td>@FormatBool(view.MixedContentDetected, view.MixedContentDetected ? "Detected" : "Not detected")</td></tr>
+            <tr><td>Insecure forms</td><td>@view.InsecureFormsCount.ToString(CultureInfo.InvariantCulture)</td></tr>
+            <tr><td>Frame ancestors</td><td>@FormatBool(view.CspFrameAncestorsPresent, view.CspFrameAncestorsPresent ? "Defined" : "Not defined")</td></tr>
+            <tr><td>Origin-Agent-Cluster</td><td>@FormatBool(view.OriginAgentClusterPresent, view.OriginAgentClusterEnabled ? "Enabled" : "Present")</td></tr>
+            <tr><td>Redirects followed</td><td>@Math.Max(redirectChain.Count - 1, 0)</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (view.Highlights.Count > 0 || view.Details.Count > 0 || view.Recommendations.Count > 0 || view.Positives.Count > 0) {
+        <ResultCard Title="Protocol guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights.Take(5)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
                 }
-            </ul>
-        } else {
-            <p>HTTPS analysis complete for @Domain.</p>
-        }
+
+                @if (view.Details.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Observed details</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(6)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Take(5)) {
+                                <li>@item.Title</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Follow-up guidance</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Recommendations.Take(5)) {
+                                <li>@item.Title</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (presentHeaders.Count > 0 || missingHeaders.Count > 0 || view.DeprecatedHeadersPresent.Count > 0 || view.MissingDeprecatedHeaders.Count > 0) {
+        <ResultCard Title="Header coverage" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (presentHeaders.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Present security headers</span>
+                        <div class="tool-chip-list">
+                            @foreach (var header in presentHeaders) {
+                                <span class="tool-chip">@header</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (missingHeaders.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Missing security headers</span>
+                        <div class="tool-chip-list">
+                            @foreach (var header in missingHeaders) {
+                                <span class="tool-chip">@header</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.DeprecatedHeadersPresent.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Deprecated headers present</span>
+                        <div class="tool-chip-list">
+                            @foreach (var header in view.DeprecatedHeadersPresent.OrderBy(static item => item)) {
+                                <span class="tool-chip">@header</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.MissingDeprecatedHeaders.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Legacy headers not present</span>
+                        <div class="tool-chip-list">
+                            @foreach (var header in view.MissingDeprecatedHeaders.OrderBy(static item => item)) {
+                                <span class="tool-chip">@header</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (permissionsPolicy.Count > 0 || !string.IsNullOrWhiteSpace(view.ReferrerPolicy) || !string.IsNullOrWhiteSpace(view.XFrameOptions) || !string.IsNullOrWhiteSpace(view.CrossOriginOpenerPolicy) || !string.IsNullOrWhiteSpace(view.CrossOriginEmbedderPolicy) || !string.IsNullOrWhiteSpace(view.CrossOriginResourcePolicy)) {
+        <ResultCard Title="Policy details" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                <div class="tool-summary-card">
+                    <span class="tool-summary-label">Browser isolation</span>
+                    <ResultTable Columns="@(new[] { "Header", "Value" })">
+                        <tr><td>Referrer-Policy</td><td>@FormatValue(view.ReferrerPolicy, "Not present")</td></tr>
+                        <tr><td>X-Frame-Options</td><td>@FormatValue(view.XFrameOptions, "Not present")</td></tr>
+                        <tr><td>COOP</td><td>@FormatValue(view.CrossOriginOpenerPolicy, "Not present")</td></tr>
+                        <tr><td>COEP</td><td>@FormatValue(view.CrossOriginEmbedderPolicy, "Not present")</td></tr>
+                        <tr><td>CORP</td><td>@FormatValue(view.CrossOriginResourcePolicy, "Not present")</td></tr>
+                    </ResultTable>
+                </div>
+
+                @if (permissionsPolicy.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Permissions-Policy directives</span>
+                        <ResultTable Columns="@(new[] { "Directive", "Value" })">
+                            @foreach (var item in permissionsPolicy.Take(10)) {
+                                <tr><td>@item.Key</td><td>@item.Value</td></tr>
+                            }
+                        </ResultTable>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (disclosureHeaders.Count > 0 || cachingHeaders.Count > 0 || redirectChain.Count > 1 || insecureFormActions.Count > 0 || !string.IsNullOrWhiteSpace(view.ReportTo) || !string.IsNullOrWhiteSpace(view.Nel)) {
+        <ResultCard Title="Observed behavior" Status="ResultCard.ResultStatus.Info">
+            @if (redirectChain.Count > 1) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">Redirect chain</span>
+                    <ul class="tool-bullet-list">
+                        @foreach (var url in redirectChain) {
+                            <li>@url</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (insecureFormActions.Count > 0) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">Insecure form targets</span>
+                    <ul class="tool-bullet-list">
+                        @foreach (var item in insecureFormActions.Take(5)) {
+                            <li>@item</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(view.ReportTo) || !string.IsNullOrWhiteSpace(view.Nel) || !string.IsNullOrWhiteSpace(view.SpeculationRules)) {
+                <div class="tool-mini-note">Reporting and browser behavior headers captured from the response.</div>
+                <ResultTable Columns="@(new[] { "Header", "Value" })">
+                    @if (!string.IsNullOrWhiteSpace(view.ReportTo)) {
+                        <tr><td>Report-To</td><td>@view.ReportTo</td></tr>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(view.Nel)) {
+                        <tr><td>NEL</td><td>@view.Nel</td></tr>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(view.SpeculationRules)) {
+                        <tr><td>Speculation-Rules</td><td>@view.SpeculationRules</td></tr>
+                    }
+                </ResultTable>
+            }
+
+            @if (disclosureHeaders.Count > 0) {
+                <div class="tool-mini-note">Information disclosure headers exposed by the server.</div>
+                <ResultTable Columns="@(new[] { "Header", "Value" })">
+                    @foreach (var header in disclosureHeaders) {
+                        <tr><td>@header.Key</td><td>@header.Value</td></tr>
+                    }
+                </ResultTable>
+            }
+
+            @if (cachingHeaders.Count > 0) {
+                <div class="tool-mini-note">Caching policy observed on the response.</div>
+                <ResultTable Columns="@(new[] { "Header", "Value" })">
+                    @foreach (var header in cachingHeaders) {
+                        <tr><td>@header.Key</td><td>@header.Value</td></tr>
+                    }
+                </ResultTable>
+            }
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"HTTP analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
 @code {
-    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public DomainDetective.DomainHealthCheck? HealthCheck { get; set; }
+    [Parameter] public HttpInfo? Info { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private HttpInfo? GetView() {
+        if (Info != null) {
+            return Info;
+        }
+
+        return HealthCheck?.HttpAnalysis is { } http ? Converters.Convert(http) : null;
+    }
+
+    private static string BuildSummary(HttpInfo view) {
+        if (view.Highlights.Count > 0) {
+            return string.Join(" ", view.Highlights.Take(3));
+        }
+
+        return view.Summary;
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatBool(bool value, string positive) {
+        return value ? positive : "No";
+    }
+
+    private static string FormatResponseTime(TimeSpan duration) {
+        return duration == TimeSpan.Zero ? "Not captured" : $"{duration.TotalMilliseconds:N0} ms";
+    }
+
+    private static string FormatBodyLength(int? bodyLength) {
+        return bodyLength.HasValue ? $"{bodyLength.Value:N0} bytes" : "Not captured";
+    }
+
+    private static string FormatGrade(DomainDetective.GradeLevel grade) {
+        return grade == DomainDetective.GradeLevel.Unknown ? "Unknown" : grade.ToString();
+    }
+
+    private static string FormatStatusCode(int? statusCode) {
+        return statusCode.HasValue ? statusCode.Value.ToString(CultureInfo.InvariantCulture) : "No response";
+    }
+
+    private static string FormatTransport(HttpInfo view) {
+        var versions = new List<string>();
+        if (view.Http2Supported) {
+            versions.Add("HTTP/2");
+        }
+        if (view.Http3Supported) {
+            versions.Add("HTTP/3");
+        }
+
+        return versions.Count > 0 ? string.Join(" + ", versions) : "HTTP/1.x";
+    }
+
+    private static string FormatHsts(HttpInfo view) {
+        if (!view.HstsPresent) {
+            return "Header missing";
+        }
+
+        var details = new List<string>();
+        if (view.HstsMaxAge.HasValue) {
+            details.Add($"max-age={view.HstsMaxAge.Value.ToString(CultureInfo.InvariantCulture)}");
+        }
+        if (view.HstsIncludesSubDomains) {
+            details.Add("includeSubDomains");
+        }
+        if (view.HstsPreloadDirectivePresent) {
+            details.Add("preload");
+        }
+        if (view.HstsTooShort) {
+            details.Add("too short");
+        }
+
+        return details.Count > 0 ? string.Join(", ", details) : "Present";
+    }
+
+    private static string FormatValue(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

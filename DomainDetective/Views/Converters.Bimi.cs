@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace DomainDetective.Views;
 
@@ -9,6 +11,8 @@ public static partial class Converters
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
         var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
+        var narrative = DomainDetective.Narratives.BimiNarrative.Build(analysis);
+        var certificate = analysis.VmcCertificate;
         return new BimiRecordInfo
         {
             Check = HealthCheckType.BIMI,
@@ -41,7 +45,19 @@ public static partial class Converters
             Summary = $"svg {(analysis.SvgValid ? "ok" : "invalid")}; vmc {(analysis.ValidVmc ? "ok" : "missing")}; https {(analysis.LocationUsesHttps ? "yes" : "no")}",
             Recommendations = recs,
             Positives = positives,
-            References = BuildReferences(analysis.RfcReferences, recs),
+            References = BuildReferences(analysis.RfcReferences, recs)
+                .Concat(narrative.References ?? new List<string>())
+                .Where(static reference => !string.IsNullOrWhiteSpace(reference))
+                .Distinct(System.StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            Narrative = narrative,
+            Highlights = narrative.Highlights?.ToList() ?? new List<string>(),
+            Details = narrative.Details?.ToList() ?? new List<string>(),
+            VmcSubject = certificate?.Subject ?? string.Empty,
+            VmcIssuer = certificate?.Issuer ?? string.Empty,
+            VmcThumbprint = certificate?.Thumbprint ?? string.Empty,
+            VmcNotBefore = certificate?.NotBefore,
+            VmcNotAfter = certificate?.NotAfter,
             Raw = analysis
         };
     }
@@ -97,6 +113,23 @@ public class BimiRecordInfo
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
     /// <summary>Reference links.</summary>
     public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Narrative (human-friendly) content blocks.</summary>
+    public DomainDetective.Narratives.BimiNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.BimiNarrative.Sections();
+    /// <summary>Key highlights extracted for the report.</summary>
+    public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
+    /// <summary>Additional operational notes from the DD narrative.</summary>
+    public IReadOnlyList<string> Details { get; set; } = System.Array.Empty<string>();
+    /// <summary>VMC certificate subject, when downloaded.</summary>
+    public string VmcSubject { get; set; } = string.Empty;
+    /// <summary>VMC certificate issuer, when downloaded.</summary>
+    public string VmcIssuer { get; set; } = string.Empty;
+    /// <summary>VMC certificate thumbprint, when downloaded.</summary>
+    public string VmcThumbprint { get; set; } = string.Empty;
+    /// <summary>VMC certificate validity start time.</summary>
+    public System.DateTime? VmcNotBefore { get; set; }
+    /// <summary>VMC certificate validity end time.</summary>
+    public System.DateTime? VmcNotAfter { get; set; }
     /// <summary>Underlying analysis.</summary>
+    [JsonIgnore]
     public BimiAnalysis Raw { get; set; } = new BimiAnalysis();
 }

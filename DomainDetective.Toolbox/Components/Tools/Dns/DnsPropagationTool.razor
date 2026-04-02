@@ -1,30 +1,369 @@
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
-@if (HealthCheck.DnsPropagationSet is { } prop) {
-    <ResultCard Title="DNS Propagation" Status="ResultCard.ResultStatus.Info">
-        @if (prop.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in prop.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
-                }
-            </ul>
-        } else {
-            <p>DNS propagation check complete for @Domain.</p>
+@if (GetView() is { } view) {
+    var isBrowserLimited = IsBrowserLimited();
+    var inconsistentReports = view.Items.Count(static item => item.DistinctAnswerSets > 1);
+    var successfulResolvers = view.Items.Sum(static item => item.ServerSuccessCount);
+    var totalResolvers = view.Items.Sum(static item => item.ServerCount);
+    var averageLatency = GetAverageLatency(view.Items);
+    var topCountries = GetCountryCoverage(view.Items);
+
+    @if (isBrowserLimited) {
+        <div class="tool-callout tool-callout-inline">
+            <strong>Web edition propagation sample</strong>
+            <p>This web edition compares answers across a smaller public resolver sample. It is useful for drift checks, but it is not the broader online DD resolver pool.</p>
+        </div>
+    }
+
+    <ResultCard Title="Propagation posture" Status="@GetStatus(view)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Record types</span>
+                <strong class="tool-summary-value">@view.Items.Count</strong>
+                <p class="tool-summary-note">Reports with drift: @inconsistentReports</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Resolver coverage</span>
+                <strong class="tool-summary-value">@successfulResolvers / @totalResolvers</strong>
+                <p class="tool-summary-note">@(isBrowserLimited ? "Successful responses across the web-edition resolver sample" : "Successful responses across all DD checks")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Average latency</span>
+                <strong class="tool-summary-value">@FormatDuration(averageLatency)</strong>
+                <p class="tool-summary-note">@(isBrowserLimited ? "Using the web-edition DD propagation sample" : "Using DomainDetective's full propagation engine")</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@BuildSummary(view, inconsistentReports, successfulResolvers, totalResolvers, isBrowserLimited)</p>
+        </div>
+
+        @if (topCountries.Count > 0) {
+            <div class="tool-detail-item">
+                <span class="tool-detail-term">Resolver footprint</span>
+                <div class="tool-chip-list">
+                    @foreach (var country in topCountries) {
+                        <span class="tool-chip">@($"{country.Key} ({country.Value})")</span>
+                    }
+                </div>
+            </div>
         }
+    </ResultCard>
+
+    @foreach (var item in view.Items.OrderBy(static report => report.RecordType.ToString(), StringComparer.OrdinalIgnoreCase)) {
+        var answerSets = GetAnswerSetGroups(item);
+        var resolverSample = GetResolverSample(item);
+        var omittedResolvers = item.Results.Count - resolverSample.Count;
+
+        <ResultCard Title="@($"{item.RecordType} propagation")" Status="@GetReportStatus(item)">
+            <div class="tool-summary-grid">
+                <div class="tool-summary-card">
+                    <span class="tool-summary-label">Consistency</span>
+                    <strong class="tool-summary-value">@(item.DistinctAnswerSets <= 1 ? "Consistent" : "Drift detected")</strong>
+                    <p class="tool-summary-note">Distinct answer sets: @item.DistinctAnswerSets</p>
+                </div>
+                <div class="tool-summary-card">
+                    <span class="tool-summary-label">Resolver success</span>
+                    <strong class="tool-summary-value">@item.ServerSuccessCount / @item.ServerCount</strong>
+                    <p class="tool-summary-note">Resolver errors: @item.ServerErrorCount</p>
+                </div>
+                <div class="tool-summary-card">
+                    <span class="tool-summary-label">Latency band</span>
+                    <strong class="tool-summary-value">@FormatLatencyBand(item)</strong>
+                    <p class="tool-summary-note">Results capped: @FormatBool(item.ResultsCapped)</p>
+                </div>
+            </div>
+
+            <ResultTable Columns="@(new[] { "Property", "Value" })">
+                <tr><td>Majority answer set</td><td>@FormatAnswerSet(item.MajorityAnswerSet)</td></tr>
+                <tr><td>Average response time</td><td>@FormatDuration(item.AvgDuration)</td></tr>
+                <tr><td>Fastest response</td><td>@FormatDuration(item.MinDuration)</td></tr>
+                <tr><td>Slowest response</td><td>@FormatDuration(item.MaxDuration)</td></tr>
+                <tr><td>Assessments</td><td>@item.Assessments.Count</td></tr>
+            </ResultTable>
+
+            @if (answerSets.Count > 0) {
+                <ResultTable Columns="@(new[] { "Answer set", "Resolvers", "Status" })">
+                    @foreach (var answerSet in answerSets) {
+                        <tr>
+                            <td>@answerSet.Label</td>
+                            <td>@answerSet.Count</td>
+                            <td>@(answerSet.IsMajority ? "Majority" : "Observed")</td>
+                        </tr>
+                    }
+                </ResultTable>
+            }
+
+            <div class="tool-data-table-wrap">
+                <table class="tool-data-table">
+                    <thead>
+                        <tr>
+                            <th>Resolver</th>
+                            <th>Network</th>
+                            <th>Coverage</th>
+                            <th>Status</th>
+                            <th>Answers</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var result in resolverSample) {
+                            <tr>
+                                <td>@FormatResolver(result)</td>
+                                <td>@FormatNetwork(result)</td>
+                                <td>@FormatLocation(result)</td>
+                                <td>
+                                    <span class="status-badge @(result.Success ? "status-badge-pass" : "status-badge-warning")">
+                                        @(result.Success ? "Seen" : "Unavailable")
+                                    </span>
+                                </td>
+                                <td>@FormatRecords(result.Records)</td>
+                                <td>@FormatDuration(result.Duration)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (omittedResolvers > 0) {
+                <div class="tool-callout">
+                    <strong>Resolver sample</strong>
+                    <p>Showing @resolverSample.Count of @item.Results.Count retained resolver result(s) to keep the online view readable. DD assessments and answer-set counts still reflect the full retained sample.</p>
+                </div>
+            }
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"DNS propagation analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
 @code {
-    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public DomainDetective.DomainHealthCheck? HealthCheck { get; set; }
+    [Parameter] public DnsPropagationSetInfo? Info { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private DnsPropagationSetInfo? GetView() {
+        if (Info != null) {
+            return Info;
+        }
+
+        return HealthCheck?.DnsPropagationSet is { } propagation
+            ? Converters.Convert(propagation)
+            : null;
+    }
+
+    private bool IsBrowserLimited() {
+        return Info == null && HealthCheck?.DnsPropagationSet != null;
+    }
+
+    private static string BuildSummary(DnsPropagationSetInfo view, int inconsistentReports, int successfulResolvers, int totalResolvers, bool isBrowserLimited) {
+        if (view.Items.Count == 0) {
+            return $"DomainDetective did not return any propagation reports for {view.Subject ?? "this domain"}.";
+        }
+
+        if (successfulResolvers == 0) {
+            return isBrowserLimited
+                ? $"DomainDetective queried the web-edition resolver sample, but every resolver failed or returned no usable answer set for {view.Subject ?? "this domain"}."
+                : $"DomainDetective queried the propagation resolver pool, but every resolver failed or returned no usable answer set for {view.Subject ?? "this domain"}.";
+        }
+
+        if (inconsistentReports > 0) {
+            return isBrowserLimited
+                ? $"DomainDetective observed answer drift across {inconsistentReports} record type(s) in the web-edition resolver sample. {successfulResolvers} of {totalResolvers} resolver responses succeeded, so confirm any drift with a deeper online run before treating propagation as complete."
+                : $"DomainDetective observed answer drift across {inconsistentReports} record type(s). {successfulResolvers} of {totalResolvers} resolver responses succeeded, so review the minority answer sets before treating propagation as complete.";
+        }
+
+        return isBrowserLimited
+            ? $"DomainDetective observed consistent answer sets across the web-edition resolver sample. {successfulResolvers} of {totalResolvers} resolver responses succeeded, and no propagation drift was detected in the retained sample."
+            : $"DomainDetective observed consistent answer sets across all reported record types. {successfulResolvers} of {totalResolvers} resolver responses succeeded, and no propagation drift was detected in the retained sample.";
+    }
+
+    private static TimeSpan? GetAverageLatency(IReadOnlyList<DnsPropagationInfo> items) {
+        var values = items
+            .Where(static item => item.AvgDuration.HasValue && item.AvgDuration.Value > TimeSpan.Zero)
+            .Select(static item => item.AvgDuration!.Value.TotalMilliseconds)
+            .ToArray();
+
+        if (values.Length == 0) {
+            return null;
+        }
+
+        return TimeSpan.FromMilliseconds(values.Average());
+    }
+
+    private static IReadOnlyList<KeyValuePair<string, int>> GetCountryCoverage(IReadOnlyList<DnsPropagationInfo> items) {
+        return items
+            .SelectMany(static item => item.Results)
+            .Where(static result => !string.IsNullOrWhiteSpace(result.Country))
+            .GroupBy(static result => result.Country, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => new KeyValuePair<string, int>(group.Key, group.Count()))
+            .OrderByDescending(static entry => entry.Value)
+            .ThenBy(static entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+            .Take(6)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<DnsPropagationAnswerSetInfo> GetAnswerSetGroups(DnsPropagationInfo item) {
+        return item.Results
+            .Where(static result => result.Success)
+            .GroupBy(static result => NormalizeAnswerSet(result.Records), StringComparer.OrdinalIgnoreCase)
+            .Select(group => new DnsPropagationAnswerSetInfo {
+                Key = group.Key,
+                Label = FormatAnswerSet(group.Key),
+                Count = group.Count(),
+                IsMajority = string.Equals(group.Key, item.MajorityAnswerSet ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+            })
+            .OrderByDescending(static group => group.Count)
+            .ThenBy(static group => group.Label, StringComparer.OrdinalIgnoreCase)
+            .Take(5)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<DnsPropagationResultInfo> GetResolverSample(DnsPropagationInfo item) {
+        var preferred = item.Results
+            .OrderByDescending(static result => result.Success)
+            .ThenBy(static result => string.IsNullOrWhiteSpace(result.Error) ? 0 : 1)
+            .ThenBy(static result => result.Duration)
+            .ThenBy(static result => result.ServerName, StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToArray();
+
+        return preferred;
+    }
+
+    private static string NormalizeAnswerSet(IEnumerable<string> records) {
+        var values = records?
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value.Trim())
+            .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? Array.Empty<string>();
+
+        return values.Length > 0 ? string.Join(", ", values) : "(no answer)";
+    }
+
+    private static string FormatAnswerSet(string? value) {
+        if (string.IsNullOrWhiteSpace(value) || string.Equals(value, "(no answer)", StringComparison.OrdinalIgnoreCase)) {
+            return "No majority answer set";
+        }
+
+        var entries = value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(static item => item.Trim())
+            .Where(static item => item.Length > 0)
+            .ToArray();
+
+        return entries.Length > 0 ? string.Join(", ", entries) : "No majority answer set";
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatDuration(TimeSpan? duration) {
+        return duration.HasValue && duration.Value > TimeSpan.Zero
+            ? $"{duration.Value.TotalMilliseconds:F0} ms"
+            : "n/a";
+    }
+
+    private static string FormatDuration(TimeSpan duration) {
+        return duration > TimeSpan.Zero ? $"{duration.TotalMilliseconds:F0} ms" : "n/a";
+    }
+
+    private static string FormatLatencyBand(DnsPropagationInfo item) {
+        if (item.MinDuration.HasValue && item.MaxDuration.HasValue) {
+            return $"{item.MinDuration.Value.TotalMilliseconds:F0}-{item.MaxDuration.Value.TotalMilliseconds:F0} ms";
+        }
+
+        return FormatDuration(item.AvgDuration);
+    }
+
+    private static string FormatLocation(DnsPropagationResultInfo result) {
+        var country = result.Country;
+        var location = result.Location;
+
+        if (!string.IsNullOrWhiteSpace(country)) {
+            return country;
+        }
+
+        if (!string.IsNullOrWhiteSpace(location)) {
+            return location;
+        }
+
+        return !string.IsNullOrWhiteSpace(country) ? country : "Not tagged";
+    }
+
+    private static string FormatNetwork(DnsPropagationResultInfo result) {
+        if (!string.IsNullOrWhiteSpace(result.AsnName) && !string.IsNullOrWhiteSpace(result.Asn)) {
+            return $"{result.AsnName} ({result.Asn})";
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.AsnName)) {
+            return result.AsnName;
+        }
+
+        return !string.IsNullOrWhiteSpace(result.Asn) ? result.Asn : "Unknown";
+    }
+
+    private static string FormatRecords(IEnumerable<string> records) {
+        var values = records?.Where(static value => !string.IsNullOrWhiteSpace(value)).ToArray() ?? Array.Empty<string>();
+        return values.Length > 0 ? string.Join(", ", values) : "No answer";
+    }
+
+    private static string FormatResolver(DnsPropagationResultInfo result) {
+        var host = string.IsNullOrWhiteSpace(result.ServerName) ? null : result.ServerName;
+        var address = string.IsNullOrWhiteSpace(result.ServerAddress) ? null : result.ServerAddress;
+
+        if (!string.IsNullOrWhiteSpace(host) && !string.IsNullOrWhiteSpace(address)) {
+            return $"{host} ({address})";
+        }
+
+        return host ?? address ?? "Resolver";
+    }
+
+    private static ResultCard.ResultStatus GetReportStatus(DnsPropagationInfo item) {
+        if (!item.QuerySucceeded || item.ServerSuccessCount == 0) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (item.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (item.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning) ||
+            item.ServerErrorCount > 0 ||
+            item.DistinctAnswerSets > 1) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(DnsPropagationSetInfo view) {
+        if (view.Items.Count == 0 || view.Items.All(static item => !item.QuerySucceeded)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning) ||
+            view.Items.Any(static item => item.DistinctAnswerSets > 1 || item.ServerErrorCount > 0)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+
+    private sealed class DnsPropagationAnswerSetInfo {
+        public string Key { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public bool IsMajority { get; set; }
+    }
 }

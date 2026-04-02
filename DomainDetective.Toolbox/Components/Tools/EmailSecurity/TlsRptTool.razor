@@ -1,19 +1,93 @@
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
 @if (HealthCheck.TLSRPTAnalysis is { } tlsrpt) {
-    <ResultCard Title="TLS-RPT" Status="@(tlsrpt.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (tlsrpt.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in tlsrpt.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
-                }
-            </ul>
-        } else {
-            <p>No TLS-RPT issues found.</p>
+    var view = Converters.Convert(tlsrpt);
+
+    <ResultCard Title="TLS-RPT policy" Status="@(view.TlsRptRecordExists ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+        @if (!string.IsNullOrWhiteSpace(view.TlsRptRecord)) {
+            <div class="result-record">@view.TlsRptRecord</div>
         }
+
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Policy</span>
+                <strong class="tool-summary-value">@(view.PolicyValid ? "Valid" : "Needs work")</strong>
+                <p class="tool-summary-note">Starts correctly: @FormatBool(view.StartsCorrectly)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Mailto RUA</span>
+                <strong class="tool-summary-value">@view.MailtoRua.Count</strong>
+                <p class="tool-summary-note">HTTPS RUA: @view.HttpRua.Count</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Routing</span>
+                <strong class="tool-summary-value">@(view.IsCnameResolved ? "Via CNAME" : "Direct TXT")</strong>
+                <p class="tool-summary-note">Invalid RUA: @view.InvalidRua.Count</p>
+            </div>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Record present</td><td>@FormatBool(view.TlsRptRecordExists)</td></tr>
+            <tr><td>RUA defined</td><td>@FormatBool(view.RuaDefined)</td></tr>
+            <tr><td>Multiple records</td><td>@FormatBool(view.MultipleRecords)</td></tr>
+            <tr><td>DNS TTL</td><td>@FormatNullableNumber(view.DnsRecordTtl)</td></tr>
+            <tr><td>CNAME TTL</td><td>@FormatNullableNumber(view.CnameTtl)</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (view.MailtoRua.Count > 0 || view.HttpRua.Count > 0 || view.InvalidRua.Count > 0 || view.UnknownTags.Count > 0) {
+        <ResultCard Title="Destinations and tags" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-stack">
+                @if (view.MailtoRua.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">Mail reports</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.MailtoRua) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.HttpRua.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">HTTPS reports</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.HttpRua) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.InvalidRua.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">Invalid destinations</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.InvalidRua) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.UnknownTags.Count > 0) {
+                    <div>
+                        <span class="tool-summary-label">Unknown tags</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.UnknownTags) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="No TLS-RPT issues found." />
     </ResultCard>
 }
 
@@ -21,10 +95,19 @@
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatBool(bool value) => value ? "Yes" : "No";
+
+    private static string FormatNullableNumber(int? value) => value.HasValue ? $"{value.Value}s" : "—";
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

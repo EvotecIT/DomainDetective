@@ -1,30 +1,259 @@
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
-@if (HealthCheck.SecurityTXTAnalysis is { } securityTxt) {
-    <ResultCard Title="Security.txt" Status="@(securityTxt.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (securityTxt.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in securityTxt.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+@if (GetView() is { } view) {
+    var contactsCount = view.ContactEmail.Count + view.ContactWebsite.Count;
+    var optionalSignals = view.Acknowledgments.Count + view.Encryption.Count + view.Policy.Count + view.Hiring.Count + view.Canonical.Count;
+    var lifecycle = FormatLifecycle(view.DaysUntilExpiry);
+
+    <ResultCard Title="Security.txt posture" Status="@(view.RecordPresent ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Document</span>
+                <strong class="tool-summary-value">@(view.RecordPresent ? "Published" : "Missing")</strong>
+                <p class="tool-summary-note">Valid: @FormatBool(view.RecordValid)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Contacts</span>
+                <strong class="tool-summary-value">@contactsCount</strong>
+                <p class="tool-summary-note">PGP signed: @FormatBool(view.PGPSigned)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Signals</span>
+                <strong class="tool-summary-value">@optionalSignals optional</strong>
+                <p class="tool-summary-note">Fallback fetch: @FormatBool(view.FallbackUsed)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Lifecycle</span>
+                <strong class="tool-summary-value">@lifecycle</strong>
+                <p class="tool-summary-note">Warnings: @view.WarningCount | Errors: @view.ErrorCount</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@(view.RecordPresent ? BuildSummary(view) : $"No security.txt file was detected for {Domain}.")</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Source</td><td>@(string.IsNullOrWhiteSpace(view.Url) ? "Not retrieved" : view.Url)</td></tr>
+            <tr><td>Expires</td><td>@FormatValue(view.Expires, "Not declared")</td></tr>
+            <tr><td>Days until expiry</td><td>@FormatDays(view.DaysUntilExpiry)</td></tr>
+            <tr><td>Duplicate tags</td><td>@(view.DuplicateTags.Count > 0 ? string.Join(", ", view.DuplicateTags.OrderBy(static tag => tag)) : "None")</td></tr>
+            <tr><td>Preferred languages</td><td>@(view.PreferredLanguages.Count > 0 ? string.Join(", ", view.PreferredLanguages) : "Not declared")</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (view.Highlights.Count > 0 || view.Details.Count > 0 || view.Positives.Count > 0 || view.Recommendations.Count > 0) {
+        <ResultCard Title="Disclosure guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights.Take(5)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
                 }
-            </ul>
-        } else {
-            <p>Security.txt check complete for @Domain.</p>
-        }
+
+                @if (view.Details.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Observed details</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(6)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Take(5)) {
+                                <li>@item.Title</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Follow-up guidance</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Recommendations.Take(5)) {
+                                <li>@item.Title</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (view.ContactEmail.Count > 0 || view.ContactWebsite.Count > 0 || view.Canonical.Count > 0) {
+        <ResultCard Title="Contact and disclosure paths" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.ContactEmail.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Email contacts</span>
+                        <div class="tool-chip-list">
+                            @foreach (var address in view.ContactEmail) {
+                                <span class="tool-chip">@address</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.ContactWebsite.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Contact pages</span>
+                        <ul class="tool-link-list">
+                            @foreach (var link in view.ContactWebsite) {
+                                <li><a href="@link" target="_blank" rel="noopener">@link</a></li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Canonical.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Canonical locations</span>
+                        <ul class="tool-link-list">
+                            @foreach (var link in view.Canonical) {
+                                <li><a href="@link" target="_blank" rel="noopener">@link</a></li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (view.Policy.Count > 0 || view.Encryption.Count > 0 || view.Acknowledgments.Count > 0 || view.Hiring.Count > 0 || !string.IsNullOrWhiteSpace(view.SignatureEncryption)) {
+        <ResultCard Title="Additional directives" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Policy.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Policy links</span>
+                        <ul class="tool-link-list">
+                            @foreach (var link in view.Policy) {
+                                <li><a href="@link" target="_blank" rel="noopener">@link</a></li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Encryption.Count > 0 || !string.IsNullOrWhiteSpace(view.SignatureEncryption)) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Encryption and signature</span>
+                        <div class="tool-chip-list">
+                            @foreach (var value in view.Encryption) {
+                                <span class="tool-chip">@value</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(view.SignatureEncryption)) {
+                                <span class="tool-chip">@view.SignatureEncryption</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.Acknowledgments.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Acknowledgments</span>
+                        <ul class="tool-link-list">
+                            @foreach (var link in view.Acknowledgments) {
+                                <li><a href="@link" target="_blank" rel="noopener">@link</a></li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Hiring.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Hiring</span>
+                        <ul class="tool-link-list">
+                            @foreach (var link in view.Hiring) {
+                                <li><a href="@link" target="_blank" rel="noopener">@link</a></li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"Security.txt analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
 @code {
-    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public DomainDetective.DomainHealthCheck? HealthCheck { get; set; }
+    [Parameter] public SecurityTxtInfo? Info { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private SecurityTxtInfo? GetView() {
+        if (Info != null) {
+            return Info;
+        }
+
+        return HealthCheck?.SecurityTXTAnalysis is { } securityTxt ? Converters.Convert(securityTxt) : null;
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string BuildSummary(SecurityTxtInfo view) {
+        if (view.Highlights.Count > 0) {
+            return string.Join(" ", view.Highlights.Take(3));
+        }
+
+        return view.Summary;
+    }
+
+    private static string FormatLifecycle(int? daysUntilExpiry) {
+        if (!daysUntilExpiry.HasValue) {
+            return "No expiry";
+        }
+
+        if (daysUntilExpiry.Value < 0) {
+            return $"Expired {Math.Abs(daysUntilExpiry.Value)} days ago";
+        }
+
+        return $"{daysUntilExpiry.Value} days left";
+    }
+
+    private static string FormatDays(int? days) {
+        if (!days.HasValue) {
+            return "Unknown";
+        }
+
+        if (days.Value < 0) {
+            return $"{Math.Abs(days.Value)} days ago";
+        }
+
+        return $"{days.Value} days";
+    }
+
+    private static string FormatValue(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

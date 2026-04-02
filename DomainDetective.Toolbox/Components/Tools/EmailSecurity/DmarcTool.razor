@@ -1,41 +1,200 @@
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
 @if (HealthCheck.DmarcAnalysis is { } dmarc) {
-    <ResultCard Title="DMARC Record" Status="@(dmarc.DmarcRecordExists ? ResultCard.ResultStatus.Pass : ResultCard.ResultStatus.Fail)">
-        @if (dmarc.DmarcRecordExists && dmarc.DmarcRecord is not null) {
-            <div class="result-record">@dmarc.DmarcRecord</div>
-            <ResultTable Columns="@(new[] { "Property", "Value" })">
-                @if (dmarc.PolicyShort is not null) {
-                    <tr><td>Policy</td><td>@dmarc.PolicyShort</td></tr>
-                }
-            </ResultTable>
-        } else {
-            <p>No DMARC record found for @Domain</p>
+    var view = Converters.Convert(dmarc);
+
+    <ResultCard Title="DMARC posture" Status="@(view.DmarcRecordExists ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+        @if (view.DmarcRecordExists && !string.IsNullOrWhiteSpace(view.DmarcRecord)) {
+            <div class="result-record">@view.DmarcRecord</div>
         }
+
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Policy</span>
+                <strong class="tool-summary-value">@FormatValue(view.Policy, "Unknown")</strong>
+                <p class="tool-summary-note">Subdomain: @FormatValue(view.SubPolicy, "Inherited")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Reporting</span>
+                <strong class="tool-summary-value">@(view.MailtoRua.Count + view.HttpRua.Count) destinations</strong>
+                <p class="tool-summary-note">Forensic: @(view.MailtoRuf.Count + view.HttpRuf.Count)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Alignment</span>
+                <strong class="tool-summary-value">@ShortAlignment(view.DkimAlignment) / @ShortAlignment(view.SpfAlignment)</strong>
+                <p class="tool-summary-note">Coverage: @FormatValue(view.Percent, "Default")</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@(view.Highlights.Count > 0 ? string.Join(" ", view.Highlights.Take(3)) : view.Summary)</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Record published</td><td>@FormatBool(view.DmarcRecordExists)</td></tr>
+            <tr><td>Mandatory tags present</td><td>@FormatBool(view.HasMandatoryTags)</td></tr>
+            <tr><td>Starts with v=DMARC1</td><td>@FormatBool(view.StartsCorrectly)</td></tr>
+            <tr><td>Multiple DMARC records</td><td>@FormatBool(view.MultipleRecords)</td></tr>
+            <tr><td>Policy valid</td><td>@FormatBool(view.IsPolicyValid)</td></tr>
+            <tr><td>Weak policy</td><td>@FormatBool(view.WeakPolicy)</td></tr>
+            <tr><td>Resolved through CNAME</td><td>@FormatBool(view.IsCnameResolved)</td></tr>
+            <tr><td>Record TTL</td><td>@FormatTtl(view.DnsRecordTtl)</td></tr>
+            <tr><td>Length within 255 chars</td><td>@FormatBool(!view.ExceedsCharacterLimit)</td></tr>
+            <tr><td>Report URIs valid</td><td>@FormatBool(!view.InvalidReportUri)</td></tr>
+            <tr><td>Deprecated tags</td><td>@(view.DeprecatedTags.Count > 0 ? string.Join(", ", view.DeprecatedTags) : "None")</td></tr>
+            <tr><td>Unknown tags</td><td>@(view.UnknownTags.Count > 0 ? string.Join(", ", view.UnknownTags) : "None")</td></tr>
+        </ResultTable>
     </ResultCard>
 
-    @if (dmarc.Assessments?.Count > 0) {
-        <ResultCard Title="Assessments">
-            <ul class="issues-list">
-                @foreach (var a in dmarc.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+    @if (!string.IsNullOrWhiteSpace(view.Advisory) || !string.IsNullOrWhiteSpace(view.PolicyRecommendation) || view.Details.Count > 0 || view.UnauthorizedExternalReportDomains.Count > 0) {
+        <ResultCard Title="Protocol guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (!string.IsNullOrWhiteSpace(view.Advisory)) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Advisory</span>
+                        <p>@view.Advisory</p>
+                    </div>
                 }
-            </ul>
+
+                @if (!string.IsNullOrWhiteSpace(view.PolicyRecommendation)) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Policy recommendation</span>
+                        <p>@view.PolicyRecommendation</p>
+                    </div>
+                }
+
+                @if (view.Details.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">DMARC details</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(6)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.UnauthorizedExternalReportDomains.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Unauthorized external report domains</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.UnauthorizedExternalReportDomains) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
         </ResultCard>
     }
+
+    @if (view.Highlights.Count > 0 || view.MailtoRua.Count > 0 || view.HttpRua.Count > 0 || view.MailtoRuf.Count > 0 || view.HttpRuf.Count > 0 || view.ExternalReportAuthorization.Count > 0) {
+        <ResultCard Title="Reporting and enforcement" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.MailtoRua.Count > 0 || view.HttpRua.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Aggregate reports (rua)</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.MailtoRua.Concat(view.HttpRua)) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.MailtoRuf.Count > 0 || view.HttpRuf.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Forensic reports (ruf)</span>
+                        <div class="tool-chip-list">
+                            @foreach (var item in view.MailtoRuf.Concat(view.HttpRuf)) {
+                                <span class="tool-chip">@item</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (view.ExternalReportAuthorization.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">External report authorization</span>
+                        <ResultTable Columns="@(new[] { "Domain", "Authorized" })">
+                            @foreach (var item in view.ExternalReportAuthorization.OrderBy(static entry => entry.Key)) {
+                                <tr><td>@item.Key</td><td>@(item.Value ? "Yes" : "No")</td></tr>
+                            }
+                        </ResultTable>
+                    </div>
+                }
+
+                <div class="tool-summary-card">
+                    <span class="tool-summary-label">Alignment and coverage</span>
+                    <ResultTable Columns="@(new[] { "Property", "Value" })">
+                        <tr><td>DKIM alignment tag valid</td><td>@FormatBool(view.ValidDkimAlignment)</td></tr>
+                        <tr><td>SPF alignment tag valid</td><td>@FormatBool(view.ValidSpfAlignment)</td></tr>
+                        <tr><td>DKIM aligned</td><td>@FormatBool(view.DkimAligned)</td></tr>
+                        <tr><td>SPF aligned</td><td>@FormatBool(view.SpfAligned)</td></tr>
+                        <tr><td>pct valid</td><td>@FormatBool(view.IsPctValid)</td></tr>
+                        <tr><td>Original pct</td><td>@FormatPct(view.OriginalPct)</td></tr>
+                    </ResultTable>
+                </div>
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"DMARC analysis complete for {Domain}.")" />
+    </ResultCard>
 }
 
 @code {
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatTtl(int? value) {
+        return value.HasValue ? $"{value.Value}s" : "Not captured";
+    }
+
+    private static string FormatValue(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static string FormatPct(int? value) {
+        return value.HasValue ? value.Value.ToString() : "Default";
+    }
+
+    private static string ShortAlignment(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return "Default";
+        }
+
+        return value;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

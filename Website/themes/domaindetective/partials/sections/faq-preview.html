@@ -7,23 +7,33 @@
     <div class="faq-list">
       <details class="faq-item">
         <summary>What is DomainDetective?</summary>
-        <p>DomainDetective is a comprehensive domain analysis toolkit that performs 115+ protocol checks including SPF, DKIM, DMARC, DNSSEC, TLS certificate validation, HTTP security headers, DNSBL lookups, and more. It is available as a C# library, PowerShell module, CLI tool, and online web application.</p>
+        <div class="faq-answer">
+          <p>DomainDetective is a domain analysis toolkit with 115+ checks across DNS, email authentication, TLS, HTTP security, threat intelligence, and subdomain discovery. It is available as a C# library, PowerShell module, CLI tool, and browser-based toolkit.</p>
+        </div>
       </details>
       <details class="faq-item">
         <summary>Is my data safe?</summary>
-        <p>Yes. All analysis runs entirely client-side in your browser using DNS-over-HTTPS. No domain data is stored, transmitted to our servers, or shared with third parties. You can verify this by inspecting the open-source code on GitHub.</p>
+        <div class="faq-answer">
+          <p>Yes. DNS checks run browser-side via DNS-over-HTTPS, and advanced HTTP/TLS checks use the hosted analysis API only when the browser cannot inspect them directly. DomainDetective does not store your query data or analysis output.</p>
+        </div>
       </details>
       <details class="faq-item">
         <summary>What protocols are supported?</summary>
-        <p>DomainDetective supports SPF, DKIM, DMARC, MX, MTA-STS, TLS-RPT, BIMI, DNSSEC, DNS propagation, TLS certificate checks, DANE, CAA records, HTTP security headers, Security.txt, RDAP/WHOIS, DNSBL blacklist checks, dangling CNAME detection, and Certificate Transparency subdomain discovery.</p>
+        <div class="faq-answer">
+          <p>Supported checks include SPF, DKIM, DMARC, MX, MTA-STS, TLS-RPT, BIMI, DNSSEC, TLS certificates, DANE, CAA, HTTP security headers, security.txt, RDAP / WHOIS, DNSBL, dangling CNAME detection, and Certificate Transparency discovery.</p>
+        </div>
       </details>
       <details class="faq-item">
         <summary>Can I use it in my own application?</summary>
-        <p>Absolutely. DomainDetective is available as a NuGet package that you can add to any .NET project. It targets .NET 8+, .NET Standard 2.0, and .NET Framework 4.7.2, making it compatible with a wide range of applications. Install it with <code>dotnet add package DomainDetective</code>.</p>
+        <div class="faq-answer">
+          <p>Absolutely. You can add it to .NET applications with <code>dotnet add package DomainDetective</code>, use the PowerShell module, or automate it from the CLI.</p>
+        </div>
       </details>
       <details class="faq-item">
         <summary>Is it really free?</summary>
-        <p>Yes. DomainDetective is fully open source under the MIT license. You can use it for personal, commercial, or educational purposes without any restrictions. There are no paid tiers, usage limits, or hidden costs.</p>
+        <div class="faq-answer">
+          <p>Yes. DomainDetective is MIT licensed and open source, so you can use it in personal or commercial environments without paid tiers or hidden limits.</p>
+        </div>
       </details>
     </div>
     <p class="faq-more">

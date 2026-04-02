@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -27,6 +28,8 @@ namespace DomainDetective {
         public string? Subject { get; set; }
         /// <summary>When true, DnsClientX performs local DNSSEC validation.</summary>
         public bool UseLocalDnssecValidation { get; set; }
+        /// <summary>Optional full-response DNS override used by browser-safe callers.</summary>
+        public Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? QueryDnsResponseOverride { private get; set; }
         /// <summary>
         /// Optional override for multi-resolver AD probing used in tests.
         /// Returns (ok: response success, ad: AD bit set for DS and DNSKEY).
@@ -104,6 +107,8 @@ namespace DomainDetective {
             var effectiveLogger = logger ?? new InternalLogger();
             using var _collector = AssessmentCollector.ForAnalysis(effectiveLogger, this, category: "DNSSEC", target: domainName);
             Subject = domainName;
+            var responseOverride = QueryDnsResponseOverride ?? dnsConfiguration?.QueryDnsResponseOverride;
+            var hasResponseOverride = responseOverride != null;
             // Prepare a short list of fallback endpoints for robust DNSSEC queries
             var epPrimary = (dnsConfiguration?.DnsEndpoint) ?? DnsEndpoint.System;
             var endpoints = new List<DnsEndpoint> { epPrimary, DnsEndpoint.SystemTcp, DnsEndpoint.CloudflareWireFormat, DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 }
@@ -125,7 +130,7 @@ namespace DomainDetective {
 
             while (true) {
                 // Query DNSKEY with DO=1 to retrieve keys and signatures
-                DnsResponse dnskeyResp = await ResolveWithFallback(endpoints, current, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: UseLocalDnssecValidation, ct).ConfigureAwait(false);
+                DnsResponse dnskeyResp = await ResolveWithFallback(endpoints, current, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: UseLocalDnssecValidation, responseOverride, ct).ConfigureAwait(false);
 
                 bool keyAd = dnskeyResp.AuthenticData;
 
@@ -155,17 +160,17 @@ namespace DomainDetective {
                     }
                 }
 
-                var dsResult = await FetchDsRecordsWithFallback(current, endpoints, ct).ConfigureAwait(false);
+                var dsResult = await FetchDsRecordsWithFallback(current, endpoints, responseOverride, ct).ConfigureAwait(false);
                 // Some system resolvers clear AD even when data validates. Probe well-known
                 // public validating resolvers to augment AD signals so tests/environment
                 // differences don't flip ChainValid.
-                if (!keyAd || !dsResult.ad)
+                if ((!keyAd || !dsResult.ad) && !hasResponseOverride)
                 {
                     try {
                         var (probeKeyAd, probeDsAd) = await ProbeAdStatusAsync(current, ct).ConfigureAwait(false);
                         if (!keyAd && probeKeyAd) keyAd = true;
                         if (!dsResult.ad && probeDsAd) dsResult = (dsResult.records, dsResult.ttl, ad: true);
-                    } catch { /* non-fatal */ }
+                    } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) { /* non-fatal */ }
                 }
                 dsTtls.Add(dsResult.ttl);
 
@@ -280,9 +285,15 @@ namespace DomainDetective {
 
             // Check NSEC3/NSEC3PARAM for Opt-Out usage (risk advisory)
             try {
-                // Use System endpoint for feature check, but tolerate failure
-                using var featureResolver = new ClientX(endpoint: DnsEndpoint.System);
-                if (await HasNsec3OptOutAsync(domainName, featureResolver, UseLocalDnssecValidation, ct).ConfigureAwait(false)) {
+                bool hasOptOut;
+                if (responseOverride != null) {
+                    hasOptOut = await HasNsec3OptOutAsync(domainName, responseOverride, ct).ConfigureAwait(false);
+                } else {
+                    // Use System endpoint for feature check, but tolerate failure
+                    using var featureResolver = new ClientX(endpoint: DnsEndpoint.System);
+                    hasOptOut = await HasNsec3OptOutAsync(domainName, featureResolver, UseLocalDnssecValidation, ct).ConfigureAwait(false);
+                }
+                if (hasOptOut) {
                     effectiveLogger.WriteWarningCode(DnssecCodes.Nsec3OptOutRisk, "Zone uses NSEC3 Opt-Out");
                 }
             } catch (Exception ex) {
@@ -300,9 +311,11 @@ namespace DomainDetective {
                 {
                     effectiveLogger.WriteInformationCode(DnssecCodes.DsPresent, "DS record present at parent");
                 }
-            } catch { /* non-fatal */ }
+            } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) { /* non-fatal */ }
 
-            await MultiResolverAdCheck(domainName, effectiveLogger, ct).ConfigureAwait(false);
+            if (!hasResponseOverride) {
+                await MultiResolverAdCheck(domainName, effectiveLogger, ct).ConfigureAwait(false);
+            }
         }
 
         // Probes DS and DNSKEY AD bits using multiple public resolvers and aggregates results.
@@ -327,7 +340,7 @@ namespace DomainDetective {
                             throw;
                         }
                         // Timeout per resolver; try next.
-                    } catch {
+                    } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) {
                         // Best-effort: resolver may be unavailable; try next.
                     }
                 }
@@ -408,9 +421,35 @@ namespace DomainDetective {
             return false;
         }
 
-        private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecordsWithFallback(string domain, DnsEndpoint[] endpoints, CancellationToken ct)
+        private static async Task<bool> HasNsec3OptOutAsync(string domain, Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>> responseOverride, CancellationToken ct) {
+            var nsec3param = await responseOverride(domain, (DnsRecordType)51, ct).ConfigureAwait(false);
+            foreach (var data in (nsec3param.Answers ?? Array.Empty<DnsAnswer>())
+                .Where(static answer => (int)answer.Type == 51)
+                .Select(static answer => answer.Data ?? answer.DataRaw)
+                .Where(static data => !string.IsNullOrWhiteSpace(data))) {
+                var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                    return true;
+                }
+            }
+
+            var nsec3 = await responseOverride(domain, (DnsRecordType)50, ct).ConfigureAwait(false);
+            foreach (var data in (nsec3.Answers ?? Array.Empty<DnsAnswer>())
+                .Where(static answer => (int)answer.Type == 50)
+                .Select(static answer => answer.Data ?? answer.DataRaw)
+                .Where(static data => !string.IsNullOrWhiteSpace(data))) {
+                var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecordsWithFallback(string domain, DnsEndpoint[] endpoints, Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? responseOverride, CancellationToken ct)
         {
-            var resp = await ResolveWithFallback(endpoints, domain, DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, ct).ConfigureAwait(false);
+            var resp = await ResolveWithFallback(endpoints, domain, DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, responseOverride, ct).ConfigureAwait(false);
             bool ad = resp.AuthenticData;
             List<string> records = new();
             int ttl = 0;
@@ -424,8 +463,12 @@ namespace DomainDetective {
             return (records, ttl, ad);
         }
 
-        private static async Task<DnsResponse> ResolveWithFallback(DnsEndpoint[] endpoints, string name, DnsRecordType type, bool requestDnsSec, bool validateDnsSec, CancellationToken ct)
+        private static async Task<DnsResponse> ResolveWithFallback(DnsEndpoint[] endpoints, string name, DnsRecordType type, bool requestDnsSec, bool validateDnsSec, Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? responseOverride, CancellationToken ct)
         {
+            if (responseOverride != null) {
+                return await responseOverride(name, type, ct).ConfigureAwait(false);
+            }
+
             foreach (var ep in endpoints)
             {
                 try {
@@ -439,7 +482,7 @@ namespace DomainDetective {
                         throw;
                     }
                     // Timeout per endpoint; try next fallback.
-                } catch {
+                } catch (Exception) {
                     // Best-effort: endpoint may be unavailable; try next fallback.
                 }
             }
@@ -447,8 +490,26 @@ namespace DomainDetective {
             using (var c = new ClientX(endpoint: DnsEndpoint.System))
             {
                 try { return await c.Resolve(name, type, requestDnsSec: requestDnsSec, validateDnsSec: validateDnsSec, cancellationToken: ct).ConfigureAwait(false); }
-                catch { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (HttpRequestException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (IOException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (ObjectDisposedException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (InvalidOperationException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (SocketException) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+                catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
             }
+        }
+
+        private static bool IsNonFatalDnssecProbeException(Exception exception, CancellationToken cancellationToken) {
+            if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested) {
+                return false;
+            }
+
+            return exception is HttpRequestException
+                || exception is IOException
+                || exception is InvalidOperationException
+                || exception is ObjectDisposedException
+                || exception is SocketException
+                || exception is TaskCanceledException;
         }
 
         private static bool IsDsDigestLengthValid(string record) {
@@ -476,8 +537,8 @@ namespace DomainDetective {
         /// <returns><c>true</c> if the DS record corresponds to the DNSKEY; otherwise <c>false</c>.</returns>
         private static bool VerifyDsMatch(string dnskey, string dsRecord, string domainName) {
             if (string.IsNullOrWhiteSpace(dnskey) || string.IsNullOrWhiteSpace(dsRecord)) {
-                return false;
-            }
+            return false;
+        }
             try {
                 var keyParts = dnskey.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (keyParts.Length < 4) {
@@ -536,7 +597,7 @@ namespace DomainDetective {
                 var digestHex = BitConverter.ToString(digestBytes).Replace("-", string.Empty).ToLowerInvariant();
 
                 return digestHex.StartsWith(digest.ToLowerInvariant());
-            } catch {
+            } catch (Exception) {
                 // Any parsing/crypto error => treat as mismatch.
                 return false;
             }
@@ -670,7 +731,7 @@ namespace DomainDetective {
                 using ECDsa ecdsa = ECDsa.Create(p);
                 HashAlgorithmName hash = algorithm == 14 ? HashAlgorithmName.SHA384 : HashAlgorithmName.SHA256;
                 return ecdsa.VerifyData(data, sig, hash);
-            } catch {
+            } catch (Exception) {
                 // Treat invalid key/signature formats as verification failure.
                 return false;
             }

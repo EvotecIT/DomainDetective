@@ -1,0 +1,32 @@
+@if (!string.IsNullOrWhiteSpace(Title)) {
+    <div class="@($"{CalloutClass} overview-item-card")">
+        <strong>@Title</strong>
+        @if (!string.IsNullOrWhiteSpace(ValueLabel)) {
+            <span class="tool-summary-value">@ValueLabel</span>
+        }
+        <p>@Summary</p>
+        @if (Chips.Count > 0) {
+            <div class="tool-chip-list">
+                @foreach (var chip in Chips) {
+                    <span class="tool-chip">@chip</span>
+                }
+            </div>
+        }
+        @if (Samples.Count > 0) {
+            <ul class="tool-bullet-list mt-2">
+                @foreach (var sample in Samples) {
+                    <li>@sample</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public required string Title { get; set; }
+    [Parameter] public required string Summary { get; set; }
+    [Parameter] public string? ValueLabel { get; set; }
+    [Parameter] public IReadOnlyList<string> Chips { get; set; } = Array.Empty<string>();
+    [Parameter] public IReadOnlyList<string> Samples { get; set; } = Array.Empty<string>();
+    [Parameter] public string CalloutClass { get; set; } = "tool-callout";
+}

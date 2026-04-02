@@ -1,0 +1,277 @@
+@using System.Linq
+@using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
+
+@if (HealthCheck.DaneAnalysis is { } dane) {
+    var view = Converters.Convert(dane);
+    var records = view.Records
+        .OrderBy(static record => record.DomainName, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(static record => record.ServiceType)
+        .ToList();
+    var validCount = view.ValidRecordCount;
+    var recommendedCount = view.RecommendedRecordCount;
+    var serviceNames = GetQueriedServices(view);
+
+    <ResultCard Title="DANE posture" Status="@GetStatus(view)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Coverage</span>
+                <strong class="tool-summary-value">@records.Count TLSA</strong>
+                <p class="tool-summary-note">Queried endpoints: @view.QueriedNames.Count</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Validation</span>
+                <strong class="tool-summary-value">@validCount valid</strong>
+                <p class="tool-summary-note">Invalid records: @records.Count(static record => !record.ValidDANERecord)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Recommended profile</span>
+                <strong class="tool-summary-value">@recommendedCount aligned</strong>
+                <p class="tool-summary-note">Services: @serviceNames</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@BuildSummary(view, records, validCount, recommendedCount)</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>Queried service types</td><td>@serviceNames</td></tr>
+            <tr><td>Queried ports</td><td>@FormatPorts(view.QueriedPorts)</td></tr>
+            <tr><td>Duplicate records</td><td>@FormatBool(view.HasDuplicateRecords)</td></tr>
+            <tr><td>Invalid records present</td><td>@FormatBool(view.HasInvalidRecords)</td></tr>
+            <tr><td>Assessments</td><td>@view.Assessments.Count</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (view.Highlights.Count > 0 || view.Details.Count > 0 || view.Positives.Count > 0 || view.Recommendations.Count > 0) {
+        <ResultCard Title="Protocol guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Highlights.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Highlights</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Highlights.Take(5)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Details.Count > 0 || view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Operational notes</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Details.Take(6)) {
+                                <li>@item</li>
+                            }
+                            @foreach (var item in view.Recommendations.Select(static advice => advice.Title).Where(static title => !string.IsNullOrWhiteSpace(title)).Take(3)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Select(static advice => advice.Title).Where(static title => !string.IsNullOrWhiteSpace(title)).Take(4)) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (view.QueriedNames.Count > 0) {
+        <ResultCard Title="Queried TLSA endpoints" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-chip-list">
+                @foreach (var queriedName in view.QueriedNames.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)) {
+                    <span class="tool-chip">@queriedName</span>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (records.Count > 0) {
+        <ResultCard Title="TLSA records" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-data-table-wrap">
+                <table class="tool-data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Service</th>
+                            <th>Usage</th>
+                            <th>Selector</th>
+                            <th>Match</th>
+                            <th>Association</th>
+                            <th>Profile</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var record in records) {
+                            <tr>
+                                <td><code>@record.DomainName</code></td>
+                                <td>@record.ServiceType</td>
+                                <td>@record.CertificateUsage</td>
+                                <td>@record.SelectorField</td>
+                                <td>@record.MatchingTypeField</td>
+                                <td>@FormatAssociation(record)</td>
+                                <td>
+                                    <span class="status-badge @GetProfileCss(record)">
+                                        @GetProfileLabel(record)
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </ResultCard>
+
+        @foreach (var record in records) {
+            <ResultCard Title="@($"{record.ServiceType} detail")" Status="@GetRecordStatus(record)">
+                <div class="result-record">@record.DANERecord</div>
+
+                <ResultTable Columns="@(new[] { "Property", "Value" })">
+                    <tr><td>Domain</td><td>@record.DomainName</td></tr>
+                    <tr><td>Field count</td><td>@($"{record.NumberOfFields} field(s)")</td></tr>
+                    <tr><td>Usage valid</td><td>@FormatBool(record.ValidUsage)</td></tr>
+                    <tr><td>Selector valid</td><td>@FormatBool(record.ValidSelector)</td></tr>
+                    <tr><td>Matching type valid</td><td>@FormatBool(record.ValidMatchingType)</td></tr>
+                    <tr><td>Association hex</td><td>@FormatBool(record.ValidCertificateAssociationData)</td></tr>
+                    <tr><td>Association length</td><td>@($"{record.LengthOfCertificateAssociationData} chars")</td></tr>
+                    <tr><td>Expected length matched</td><td>@FormatBool(record.CorrectLengthOfCertificateAssociationData)</td></tr>
+                    <tr><td>Recommended for SMTP</td><td>@FormatBool(record.IsValidChoiceForSmtp)</td></tr>
+                    <tr><td>Recommended for HTTPS</td><td>@FormatBool(record.IsValidChoiceForHttps)</td></tr>
+                </ResultTable>
+            </ResultCard>
+        }
+    } else {
+        <ResultCard Title="TLSA records" Status="ResultCard.ResultStatus.Warning">
+            <p>No TLSA records were returned for the queried DANE endpoints.</p>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="dane.Assessments" EmptyMessage="@($"DANE analysis complete for {Domain}.")" />
+    </ResultCard>
+}
+
+@code {
+    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public required string Domain { get; set; }
+
+    private static string BuildSummary(
+        DaneRecordInfo view,
+        IReadOnlyList<DomainDetective.DANERecordAnalysis> records,
+        int validCount,
+        int recommendedCount) {
+        if (view.Highlights.Count > 0) {
+            return string.Join(" ", view.Highlights.Take(3));
+        }
+
+        if (records.Count == 0) {
+            return $"DomainDetective queried {view.QueriedNames.Count} TLSA owner name(s) for {view.Subject ?? "this domain"}, but no DANE records were published on those endpoints.";
+        }
+
+        if (validCount == 0) {
+            return $"DomainDetective found {records.Count} TLSA record(s), but none passed validation cleanly. Review the record structure and assessments before treating DANE as active protection.";
+        }
+
+        if (recommendedCount < validCount) {
+            return $"DomainDetective validated {validCount} of {records.Count} TLSA record(s), but only {recommendedCount} currently match the recommended SMTP/HTTPS DANE profile.";
+        }
+
+        return $"DomainDetective validated {validCount} TLSA record(s) across {view.QueriedNames.Count} queried endpoint(s), and the recommended DANE profile is in place for the covered services.";
+    }
+
+    private static string FormatAssociation(DomainDetective.DANERecordAnalysis record) {
+        if (string.IsNullOrWhiteSpace(record.CertificateAssociationData)) {
+            return "Missing";
+        }
+
+        return record.CertificateAssociationData.Length <= 24
+            ? record.CertificateAssociationData
+            : $"{record.CertificateAssociationData[..12]}...{record.CertificateAssociationData[^12..]}";
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatPorts(IReadOnlyList<int> ports) {
+        return ports.Count > 0
+            ? string.Join(", ", ports.OrderBy(static port => port))
+            : "Default profile";
+    }
+
+    private static string GetProfileCss(DomainDetective.DANERecordAnalysis record) {
+        return GetRecordStatus(record) switch {
+            ResultCard.ResultStatus.Pass => "status-badge-pass",
+            ResultCard.ResultStatus.Warning => "status-badge-warning",
+            _ => "status-badge-fail"
+        };
+    }
+
+    private static string GetProfileLabel(DomainDetective.DANERecordAnalysis record) {
+        if (!record.ValidDANERecord) {
+            return "Invalid";
+        }
+
+        if (record.IsValidChoiceForSmtp || record.IsValidChoiceForHttps) {
+            return "Recommended";
+        }
+
+        return "Valid";
+    }
+
+    private static DomainDetective.Toolbox.Components.Shared.ResultCard.ResultStatus GetRecordStatus(DomainDetective.DANERecordAnalysis record) {
+        if (!record.ValidDANERecord || !record.CorrectNumberOfFields || !record.CorrectLengthOfCertificateAssociationData) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (!record.IsValidChoiceForSmtp && !record.IsValidChoiceForHttps) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+
+    private static string GetQueriedServices(DaneRecordInfo view) {
+        if (view.QueriedServiceTypes.Count == 0) {
+            return "SMTP, HTTPS";
+        }
+
+        return string.Join(", ", view.QueriedServiceTypes
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static serviceType => serviceType, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static ResultCard.ResultStatus GetStatus(DaneRecordInfo view) {
+        var records = view.Records;
+        var validCount = view.ValidRecordCount;
+        var recommendedCount = view.RecommendedRecordCount;
+
+        if (records.Count == 0 || validCount == 0) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning) ||
+            view.HasDuplicateRecords ||
+            view.HasInvalidRecords ||
+            recommendedCount < validCount) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+}

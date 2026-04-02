@@ -1,0 +1,33 @@
+@if (Card is not null) {
+    <div class="@($"{CalloutClass} overview-control-card")">
+        <strong>@Card.Title</strong>
+        <span class="tool-summary-value">@Card.ValueLabel</span>
+        <div class="tool-chip-list">
+            @foreach (var tag in Card.Tags) {
+                <span class="tool-chip">@tag</span>
+            }
+        </div>
+        <p>@GetSummaryText()</p>
+        @if (!Compact && Card.Samples.Count > 0) {
+            <ul class="tool-bullet-list mt-2">
+                @foreach (var sample in Card.Samples) {
+                    <li>@sample</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public required OverviewControlCardView Card { get; set; }
+    [Parameter] public string CalloutClass { get; set; } = "tool-callout tool-callout-control";
+    [Parameter] public bool Compact { get; set; }
+
+    private string GetSummaryText() {
+        if (Compact && Card.Samples.Count > 0) {
+            return Card.Samples[0];
+        }
+
+        return Card.Summary;
+    }
+}

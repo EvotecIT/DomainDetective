@@ -1,19 +1,137 @@
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
 
 @if (HealthCheck.DnsSecAnalysis is { } dnssec) {
-    <ResultCard Title="DNSSEC Validation" Status="@(dnssec.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (dnssec.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in dnssec.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
+    var view = DomainDetective.DnsSecConverter.Convert(dnssec);
+    var expiringSoon = view.Rrsigs.Count(static record => record.DaysRemaining >= 0 && record.DaysRemaining <= 14);
+
+    <ResultCard Title="DNSSEC posture" Status="@GetStatus(view)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Chain of trust</span>
+                <strong class="tool-summary-value">@(view.ChainValid ? "Valid" : "Broken")</strong>
+                <p class="tool-summary-note">DS match: @FormatBool(view.DsMatch)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Delegation</span>
+                <strong class="tool-summary-value">@view.DsRecords.Count DS</strong>
+                <p class="tool-summary-note">@view.DnsKeys.Count DNSKEY records</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Signatures</span>
+                <strong class="tool-summary-value">@view.Rrsigs.Count RRSIG</strong>
+                <p class="tool-summary-note">Expiring soon: @expiringSoon</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Validation mode</span>
+                <strong class="tool-summary-value">@(view.UsedLocalValidation ? "Local" : "Resolver-assisted")</strong>
+                <p class="tool-summary-note">Root anchor: @FormatAnchorExpiry(view.RootAnchorExpiration)</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@BuildSummary(view, expiringSoon)</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>DNSKEY AD flag</td><td>@FormatBool(view.AuthenticData)</td></tr>
+            <tr><td>DS AD flag</td><td>@FormatBool(view.DsAuthenticData)</td></tr>
+            <tr><td>Root trust anchor</td><td>@(view.RootKeyTag > 0 ? view.RootKeyTag.ToString() : "Not captured")</td></tr>
+            <tr><td>Root anchor expiration</td><td>@FormatAnchorExpiry(view.RootAnchorExpiration)</td></tr>
+            <tr><td>Key rollover watch</td><td>@FormatBool(view.KeyExpiresSoon)</td></tr>
+            <tr><td>DS TTL profile</td><td>@FormatTtls(view.DsTtls)</td></tr>
+            <tr><td>Mismatch count</td><td>@view.MismatchSummary.Count</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (view.Warnings.Count > 0 || view.RootAnchorExpiration.HasValue) {
+        <ResultCard Title="Trust anchor and rollover guidance" Status="@(view.KeyExpiresSoon ? ResultCard.ResultStatus.Warning : ResultCard.ResultStatus.Info)">
+            <div class="tool-section-grid">
+                <div class="tool-summary-card">
+                    <span class="tool-summary-label">Operational guidance</span>
+                    <ul class="tool-bullet-list">
+                        @if (view.RootAnchorExpiration.HasValue) {
+                            <li>Root trust anchor expires @view.RootAnchorExpiration.Value.ToString("u") (@FormatAnchorCountdown(view.RootAnchorExpiration.Value)).</li>
+                        }
+                        @foreach (var warning in view.Warnings.Take(6)) {
+                            <li>@warning</li>
+                        }
+                        @if (view.Warnings.Count == 0 && !view.KeyExpiresSoon) {
+                            <li>No DNSSEC rollover warnings were raised during this run.</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </ResultCard>
+    }
+
+    @if (view.DsRecords.Count > 0) {
+        <ResultCard Title="Delegation signer records" Status="ResultCard.ResultStatus.Info">
+            <ResultTable Columns="@(new[] { "Key tag", "Algorithm", "Digest", "Digest preview" })">
+                @foreach (var record in view.DsRecords.OrderBy(static item => item.KeyTag)) {
+                    <tr>
+                        <td>@record.KeyTag</td>
+                        <td>@record.Algorithm</td>
+                        <td>@record.DigestType</td>
+                        <td>@Abbreviate(record.Digest)</td>
+                    </tr>
                 }
-            </ul>
-        } else {
-            <p>DNSSEC check complete for @Domain.</p>
-        }
+            </ResultTable>
+        </ResultCard>
+    }
+
+    @if (view.DnsKeys.Count > 0 || view.Rrsigs.Count > 0 || view.MismatchSummary.Count > 0) {
+        <ResultCard Title="Validation details" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.DnsKeys.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">DNSKEY algorithms</span>
+                        <ResultTable Columns="@(new[] { "Flags", "Protocol", "Algorithm", "Key preview" })">
+                            @foreach (var record in view.DnsKeys.Take(6)) {
+                                <tr>
+                                    <td>@record.Flags</td>
+                                    <td>@record.Protocol</td>
+                                    <td>@record.Algorithm</td>
+                                    <td>@Abbreviate(record.PublicKey)</td>
+                                </tr>
+                            }
+                        </ResultTable>
+                    </div>
+                }
+
+                @if (view.Rrsigs.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">RRSIG rollover window</span>
+                        <ResultTable Columns="@(new[] { "Key tag", "Algorithm", "Expires", "Days left" })">
+                            @foreach (var record in view.Rrsigs.OrderBy(static item => item.Expiration).Take(6)) {
+                                <tr>
+                                    <td>@record.KeyTag</td>
+                                    <td>@record.Algorithm</td>
+                                    <td>@record.Expiration.ToString("u")</td>
+                                    <td>@($"{record.DaysRemaining:F1}")</td>
+                                </tr>
+                            }
+                        </ResultTable>
+                    </div>
+                }
+
+                @if (view.MismatchSummary.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Chain mismatches</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.MismatchSummary) {
+                                <li>@item</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"DNSSEC validation complete for {Domain}.")" />
     </ResultCard>
 }
 
@@ -21,10 +139,74 @@
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string Abbreviate(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return "—";
+        }
+
+        return value.Length <= 28 ? value : $"{value[..12]}...{value[^12..]}";
+    }
+
+    private static string BuildSummary(DomainDetective.DnsSecInfo view, int expiringSoon) {
+        if (!view.ChainValid) {
+            return $"DNSSEC validation did not complete cleanly for {view.DsRecords.Count} DS record(s) and {view.DnsKeys.Count} DNSKEY record(s); review mismatch details and assessments before trusting the zone.";
+        }
+
+        if (expiringSoon > 0) {
+            return $"The DNSSEC chain validates, but {expiringSoon} signature(s) are approaching expiration and should be monitored before the next rollover window.";
+        }
+
+        return $"The DNSSEC chain validates cleanly with {view.DsRecords.Count} DS record(s), {view.DnsKeys.Count} DNSKEY record(s), and {view.Rrsigs.Count} signature record(s).";
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatTtls(IReadOnlyList<int> values) {
+        var filtered = values.Where(static value => value > 0).ToArray();
+        if (filtered.Length == 0) {
+            return "Not captured";
+        }
+
+        return filtered.Min() == filtered.Max()
+            ? $"{filtered[0]}s uniform"
+            : $"{filtered.Min()}s to {filtered.Max()}s";
+    }
+
+    private static string FormatAnchorExpiry(DateTimeOffset? value) {
+        if (!value.HasValue) {
+            return "Not captured";
+        }
+
+        return $"{value.Value:yyyy-MM-dd}";
+    }
+
+    private static string FormatAnchorCountdown(DateTimeOffset value) {
+        var remaining = value - DateTimeOffset.UtcNow;
+        if (remaining.TotalDays < 0) {
+            return "expired";
+        }
+
+        return $"{Math.Ceiling(remaining.TotalDays).ToString("F0", System.Globalization.CultureInfo.InvariantCulture)} days remaining";
+    }
+
+    private static ResultCard.ResultStatus GetStatus(DomainDetective.DnsSecInfo view) {
+        if (!view.ChainValid || !view.DsMatch) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning) ||
+            view.MismatchSummary.Count > 0 ||
+            view.KeyExpiresSoon ||
+            view.Rrsigs.Any(static record => record.DaysRemaining >= 0 && record.DaysRemaining <= 14)) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

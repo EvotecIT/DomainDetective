@@ -63,7 +63,11 @@ namespace DomainDetective {
                 ChainValid = analysis.ChainValid,
                 DsTtls = analysis.DsTtls,
                 RootKeyTag = analysis.RootKeyTag,
+                RootAnchorExpiration = analysis.RootAnchorExpiration,
+                KeyExpiresSoon = analysis.KeyExpiresSoon,
                 MismatchSummary = analysis.MismatchSummary,
+                Warnings = analysis.Warnings,
+                UsedLocalValidation = analysis.UseLocalDnssecValidation,
                 Assessments = analysis.Assessments
             };
         }
@@ -162,8 +166,20 @@ namespace DomainDetective {
         /// <summary>Key tag for the root trust anchor.</summary>
         public int RootKeyTag { get; set; }
 
+        /// <summary>Expiration time of the root trust anchor if known.</summary>
+        public DateTimeOffset? RootAnchorExpiration { get; set; }
+
+        /// <summary>True when the validator detected keys or signatures expiring soon.</summary>
+        public bool KeyExpiresSoon { get; set; }
+
         /// <summary>Descriptions of any mismatches encountered.</summary>
         public IReadOnlyList<string> MismatchSummary { get; set; } = Array.Empty<string>();
+
+        /// <summary>Human-readable warnings produced during validation.</summary>
+        public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
+
+        /// <summary>True when local DNSSEC validation was enabled for the run.</summary>
+        public bool UsedLocalValidation { get; set; }
 
         /// <summary>Structured assessments gathered during DNSSEC validation.</summary>
         public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();

@@ -5,18 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Domain Detective Tools</title>
     <base href="/tools/" />
+    <script>
+        (function () {
+            try {
+                var theme = localStorage.getItem('dd-theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
+                document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark';
+            } catch (error) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.documentElement.style.colorScheme = 'dark';
+            }
+        })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=optional" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="DomainDetective.Website.styles.css" />
 </head>
 <body>
     <div id="app">
         <div class="loading-screen">
-            <div class="loading-spinner"></div>
-            <p>Loading Domain Detective Tools...</p>
+            <div class="loading-brand">
+                <svg class="loading-logo" viewBox="0 0 32 32" width="28" height="28" fill="none" aria-hidden="true" focusable="false">
+                    <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" fill="none" />
+                    <path d="M10 16l4 4 8-8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                </svg>
+                <span>Domain Detective</span>
+            </div>
+            <div class="loading-copy">
+                <strong class="loading-title">Preparing browser tools</strong>
+                <p class="loading-text">Loading the shared navigation, theme, and DNS analysis toolkit.</p>
+            </div>
+            <div class="loading-bar" aria-hidden="true"></div>
         </div>
     </div>
 

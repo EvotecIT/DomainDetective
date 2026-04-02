@@ -46,19 +46,23 @@ namespace DomainDetective {
 
 
         public void Reset() {
-            AnalysisResults = new List<DANERecordAnalysis>();
-            NumberOfRecords = 0;
-            HasDuplicateRecords = false;
-            HasInvalidRecords = false;
+            ResetResults();
             QueriedNames = new List<string>();
             QueriedPorts = new List<int>();
             QueriedServiceTypes = new List<ServiceType>();
         }
 
+        private void ResetResults() {
+            AnalysisResults = new List<DANERecordAnalysis>();
+            NumberOfRecords = 0;
+            HasDuplicateRecords = false;
+            HasInvalidRecords = false;
+        }
+
 
         public Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DANE");
-            Reset();
+            ResetResults();
 
             cancellationToken.ThrowIfCancellationRequested();
 

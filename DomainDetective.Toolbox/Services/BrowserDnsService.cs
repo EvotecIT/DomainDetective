@@ -1,4 +1,5 @@
 using DnsClientX;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -22,12 +23,107 @@ public sealed class BrowserDnsService {
 
         healthCheck.HttpClientFactory = new BrowserHttpClientFactory(_httpClient);
         healthCheck.DnsConfiguration.QueryDnsOverride = doh.QueryAnswersAsync;
+        healthCheck.DnsConfiguration.QueryDnsResponseOverride = doh.QueryResponseAsync;
         healthCheck.DnsInventoryAnalysis.QueryOverride = doh.QueryInventoryResponseAsync;
         healthCheck.NSAnalysis.QueryDnsFullOverride = doh.QueryFullAsync;
         healthCheck.DNSBLAnalysis.QueryDnsFullOverride = doh.QueryBatchAsync;
+        healthCheck.DnsSecValidateLocally = false;
         healthCheck.NSAnalysis.EnableChaosFingerprinting = false;
 
         return healthCheck;
+    }
+
+    public async Task AnalyzeDnsPropagationAsync(DomainHealthCheck healthCheck, string domainName, CancellationToken cancellationToken = default) {
+        if (healthCheck == null) {
+            throw new ArgumentNullException(nameof(healthCheck));
+        }
+
+        if (string.IsNullOrWhiteSpace(domainName)) {
+            throw new ArgumentNullException(nameof(domainName));
+        }
+
+        var doh = new BrowserDohResolver(_httpClient);
+        var recordTypes = (healthCheck.DnsPropagationRecordTypes != null && healthCheck.DnsPropagationRecordTypes.Length > 0)
+            ? healthCheck.DnsPropagationRecordTypes.Distinct().ToArray()
+            : new[] { DnsRecordType.A, DnsRecordType.AAAA };
+
+        healthCheck.DnsPropagationSet.Reset(domainName);
+
+        foreach (var recordType in recordTypes) {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var results = new List<DnsPropagationResult>(BrowserDohResolver.PropagationResolvers.Count);
+            foreach (var resolver in BrowserDohResolver.PropagationResolvers) {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var stopwatch = Stopwatch.StartNew();
+                try {
+                    var response = await doh.QueryResolverResponseAsync(resolver, domainName, recordType, cancellationToken).ConfigureAwait(false);
+                    stopwatch.Stop();
+
+                    var records = (response.Answers ?? Array.Empty<DnsAnswer>())
+                        .Select(answer => answer.Data ?? answer.DataRaw)
+                        .Where(value => !string.IsNullOrWhiteSpace(value))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+
+                    results.Add(new DnsPropagationResult {
+                        Server = resolver.Server,
+                        RecordType = recordType,
+                        Records = records,
+                        Duration = stopwatch.Elapsed,
+                        Success = response.Status == DnsResponseCode.NoError && records.Length > 0,
+                        Error = response.Status == DnsResponseCode.NoError ? string.Empty : response.Status.ToString()
+                    });
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
+                } catch (HttpRequestException ex) {
+                    stopwatch.Stop();
+                    results.Add(new DnsPropagationResult {
+                        Server = resolver.Server,
+                        RecordType = recordType,
+                        Records = Array.Empty<string>(),
+                        Duration = stopwatch.Elapsed,
+                        Success = false,
+                        Error = ex.Message
+                    });
+                } catch (TaskCanceledException ex) {
+                    stopwatch.Stop();
+                    results.Add(new DnsPropagationResult {
+                        Server = resolver.Server,
+                        RecordType = recordType,
+                        Records = Array.Empty<string>(),
+                        Duration = stopwatch.Elapsed,
+                        Success = false,
+                        Error = ex.Message
+                    });
+                } catch (JsonException ex) {
+                    stopwatch.Stop();
+                    results.Add(new DnsPropagationResult {
+                        Server = resolver.Server,
+                        RecordType = recordType,
+                        Records = Array.Empty<string>(),
+                        Duration = stopwatch.Elapsed,
+                        Success = false,
+                        Error = ex.Message
+                    });
+                } catch (InvalidOperationException ex) {
+                    stopwatch.Stop();
+                    results.Add(new DnsPropagationResult {
+                        Server = resolver.Server,
+                        RecordType = recordType,
+                        Records = Array.Empty<string>(),
+                        Duration = stopwatch.Elapsed,
+                        Success = false,
+                        Error = ex.Message
+                    });
+                }
+            }
+
+            var report = new DnsPropagationReportAnalysis();
+            report.Load(domainName, recordType, results, maxResultsToKeep: BrowserDohResolver.PropagationResolvers.Count);
+            healthCheck.DnsPropagationSet.Add(report);
+        }
     }
 
     private sealed class BrowserHttpClientFactory : DomainDetective.IHttpClientFactory {
@@ -37,12 +133,29 @@ public sealed class BrowserDnsService {
             _client = client;
         }
 
-        public HttpClient CreateClient() => _client;
+        public HttpClient CreateClient() {
+            return _client;
+        }
+    }
+
+    public sealed record DohResolverProfile(string Name, Uri QueryEndpoint, string Address, string Provider) {
+        public PublicDnsEntry Server { get; } = new() {
+            IPAddress = System.Net.IPAddress.Parse(Address),
+            HostName = Name,
+            ASN = string.Empty,
+            ASNName = Provider,
+            Enabled = true
+        };
     }
 
     private sealed class BrowserDohResolver {
         private static readonly JsonSerializerOptions _jsonOptions = new() {
             PropertyNameCaseInsensitive = true
+        };
+
+        internal static readonly IReadOnlyList<DohResolverProfile> PropagationResolvers = new[] {
+            new DohResolverProfile("Google DNS", new Uri("https://dns.google/resolve"), "8.8.8.8", "Google"),
+            new DohResolverProfile("Cloudflare DNS", new Uri("https://cloudflare-dns.com/dns-query"), "1.1.1.1", "Cloudflare")
         };
 
         private readonly HttpClient _httpClient;
@@ -52,25 +165,33 @@ public sealed class BrowserDnsService {
         }
 
         public async Task<DnsAnswer[]> QueryAnswersAsync(string name, DnsRecordType type) {
-            var response = await QueryResponseAsync(name, type).ConfigureAwait(false);
+            var response = await QueryResponseAsync(name, type, CancellationToken.None).ConfigureAwait(false);
             return response.Answers ?? Array.Empty<DnsAnswer>();
         }
 
-        public async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType type) {
+        public Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType type, CancellationToken cancellationToken) {
+            return QueryResolverResponseAsync(PropagationResolvers[0], name, type, cancellationToken);
+        }
+
+        public async Task<DnsResponse> QueryResolverResponseAsync(DohResolverProfile profile, string name, DnsRecordType type, CancellationToken cancellationToken) {
             var normalizedName = NormalizeName(name);
-            var requestUri = $"https://dns.google/resolve?name={Uri.EscapeDataString(normalizedName)}&type={(int)type}";
+            var separator = profile.QueryEndpoint.Query.Contains('?') ? "&" : "?";
+            var requestUri = $"{profile.QueryEndpoint}{separator}name={Uri.EscapeDataString(normalizedName)}&type={(int)type}";
             using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
-            using var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            request.Headers.Accept.ParseAdd("application/dns-json");
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
-            await using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-            var payload = await JsonSerializer.DeserializeAsync<DohResponse>(stream, _jsonOptions).ConfigureAwait(false);
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            var payload = await JsonSerializer.DeserializeAsync<DohResponse>(stream, _jsonOptions, cancellationToken).ConfigureAwait(false);
             if (payload == null) {
                 return EmptyResponse(DnsResponseCode.ServerFailure);
             }
 
             return new DnsResponse {
                 Status = MapStatus(payload.Status),
+                AuthenticData = payload.AD,
                 Answers = MapAnswers(payload.Answer),
                 Authorities = MapAnswers(payload.Authority),
                 Additional = Array.Empty<DnsAnswer>()
@@ -79,7 +200,7 @@ public sealed class BrowserDnsService {
 
         public Task<DnsResponse> QueryInventoryResponseAsync(string name, DnsRecordType type, CancellationToken cancellationToken) {
             cancellationToken.ThrowIfCancellationRequested();
-            return QueryResponseAsync(name, type);
+            return QueryResponseAsync(name, type, cancellationToken);
         }
 
         public Task<IEnumerable<DnsResponse>> QueryFullAsync(string name, DnsRecordType type) {
@@ -93,8 +214,9 @@ public sealed class BrowserDnsService {
 
             var responses = new List<DnsResponse>(names.Length);
             foreach (var name in names) {
-                responses.Add(await QueryResponseAsync(name, type).ConfigureAwait(false));
+                responses.Add(await QueryResponseAsync(name, type, CancellationToken.None).ConfigureAwait(false));
             }
+
             return responses;
         }
 
@@ -152,6 +274,12 @@ public sealed class BrowserDnsService {
 
     private sealed class DohResponse {
         public int Status { get; set; }
+
+        public bool AD { get; set; }
+
+        public bool RA { get; set; }
+
+        public bool RD { get; set; }
 
         public DohAnswer[]? Answer { get; set; }
 

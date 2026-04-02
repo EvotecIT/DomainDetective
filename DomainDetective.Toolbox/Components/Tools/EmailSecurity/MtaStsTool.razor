@@ -1,30 +1,165 @@
+@using System.Linq
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
 
-@if (HealthCheck.MTASTSAnalysis is { } mtasts) {
-    <ResultCard Title="MTA-STS" Status="@(mtasts.Assessments?.Any(a => a.Severity == DomainDetective.AssessmentSeverity.Error) == true ? ResultCard.ResultStatus.Fail : ResultCard.ResultStatus.Pass)">
-        @if (mtasts.Assessments?.Count > 0) {
-            <ul class="issues-list">
-                @foreach (var a in mtasts.Assessments) {
-                    <li>
-                        <span class="status-badge @GetAssessmentCss(a)">@a.Severity</span>
-                        <span><strong>@(a.Code ?? a.Category)</strong> — @a.Message</span>
-                    </li>
-                }
-            </ul>
-        } else {
-            <p>No MTA-STS issues found.</p>
+@{
+    var view = Info ?? (HealthCheck is not null ? Converters.Convert(HealthCheck.MTASTSAnalysis) : null);
+}
+
+@if (view is not null) {
+    var isBrowserLimited = view.PolicyFetchSkipped;
+
+    <ResultCard Title="MTA-STS posture" Status="@GetStatus(view)">
+        @if (isBrowserLimited) {
+            <div class="tool-callout tool-callout-inline">
+                <strong>Web edition MTA-STS bootstrap</strong>
+                <p>This web edition validates the published DNS bootstrap record only. Policy hosting, policy parsing, and MX-policy coverage need the deeper online run.</p>
+            </div>
         }
+
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">DNS record</span>
+                <strong class="tool-summary-value">@(view.DnsRecordPresent ? "Published" : "Missing")</strong>
+                <p class="tool-summary-note">Valid: @FormatBool(view.DnsRecordValid)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Policy status</span>
+                <strong class="tool-summary-value">@(isBrowserLimited ? "Unavailable online" : FormatText(view.Mode, "Missing"))</strong>
+                <p class="tool-summary-note">@(isBrowserLimited ? "Full policy fetch is not part of the web-edition pass" : $"Max age: {FormatMaxAge(view.MaxAge)}")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">MX coverage</span>
+                <strong class="tool-summary-value">@(isBrowserLimited ? "Needs deeper online run" : (view.MxAligned ? "Aligned" : "Needs review"))</strong>
+                <p class="tool-summary-note">@(isBrowserLimited ? "Requires the fetched policy and MX correlation" : $"Missing hosts: {view.MissingMxFromPolicy.Length}")</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@view.Summary</p>
+        </div>
+
+        <ResultTable Columns="@(new[] { "Property", "Value" })">
+            <tr><td>TXT record TTL</td><td>@FormatTtl(view.DnsRecordTtl)</td></tr>
+            <tr><td>CNAME resolution</td><td>@FormatBool(view.IsCnameResolved)</td></tr>
+            <tr><td>CNAME TTL</td><td>@FormatTtl(view.CnameTtl)</td></tr>
+            <tr><td>Policy fetched</td><td>@(isBrowserLimited ? "Unavailable in this web edition" : FormatBool(view.PolicyPresent))</td></tr>
+            <tr><td>Policy valid</td><td>@(isBrowserLimited ? "Unavailable in this web edition" : FormatBool(view.PolicyValid))</td></tr>
+            <tr><td>Enforce mode</td><td>@(isBrowserLimited ? "Unavailable in this web edition" : FormatBool(view.EnforcesMtaSts))</td></tr>
+            <tr><td>Duplicate fields</td><td>@(isBrowserLimited ? "Unavailable in this web edition" : FormatBool(view.HasDuplicateFields))</td></tr>
+            <tr><td>Policy id</td><td>@FormatText(view.PolicyId, "Not published")</td></tr>
+        </ResultTable>
+    </ResultCard>
+
+    @if (!string.IsNullOrWhiteSpace(view.PolicyText)) {
+        <ResultCard Title="Published policy" Status="ResultCard.ResultStatus.Info">
+            <div class="result-record">@view.PolicyText</div>
+        </ResultCard>
+    } else if (isBrowserLimited) {
+        <ResultCard Title="Published policy" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-callout">
+                <strong>Not fetched in this web edition</strong>
+                <p>The web-edition pass confirms whether the DNS bootstrap record exists and is valid. The deeper DD run fetches and validates the policy file itself.</p>
+            </div>
+        </ResultCard>
+    }
+
+    @if (view.MxPatterns.Count > 0 || view.MissingMxFromPolicy.Length > 0 || view.References.Count > 0 || isBrowserLimited) {
+        <ResultCard Title="Policy coverage" Status="ResultCard.ResultStatus.Info">
+            @if (isBrowserLimited) {
+                <div class="tool-callout">
+                    <strong>Full policy coverage needs the deeper DD run</strong>
+                    <p>MX pattern coverage, enforce mode, and missing-policy-host checks depend on fetching the policy file and correlating it with live MX results.</p>
+                </div>
+            } else {
+                <div class="tool-section-grid">
+                    @if (view.MxPatterns.Count > 0) {
+                        <div class="tool-summary-card">
+                            <span class="tool-summary-label">Policy MX patterns</span>
+                            <div class="tool-chip-list">
+                                @foreach (var item in view.MxPatterns.OrderBy(static value => value)) {
+                                    <span class="tool-chip">@item</span>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (view.MissingMxFromPolicy.Length > 0) {
+                        <div class="tool-summary-card">
+                            <span class="tool-summary-label">MX hosts missing from policy</span>
+                            <div class="tool-chip-list">
+                                @foreach (var item in view.MissingMxFromPolicy.OrderBy(static value => value)) {
+                                    <span class="tool-chip">@item</span>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (view.References.Count > 0) {
+                        <div class="tool-summary-card">
+                            <span class="tool-summary-label">Standards references</span>
+                            <ul class="tool-link-list">
+                                @foreach (var item in view.References.Take(5)) {
+                                    <li>@item</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                </div>
+            }
+        </ResultCard>
+    }
+
+    <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+        <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"MTA-STS analysis complete for {Domain}.")" />
     </ResultCard>
 }
 
 @code {
-    [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
+    [Parameter] public DomainDetective.DomainHealthCheck? HealthCheck { get; set; }
+    [Parameter] public MtastsInfo? Info { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private string GetAssessmentCss(DomainDetective.Assessment a) => a.Severity switch {
-        DomainDetective.AssessmentSeverity.Error => "status-badge-fail",
-        DomainDetective.AssessmentSeverity.Warning => "status-badge-warning",
-        DomainDetective.AssessmentSeverity.Info => "status-badge-info",
-        _ => "status-badge-info"
-    };
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatMaxAge(int value) {
+        return value > 0 ? $"{value}s" : "Not set";
+    }
+
+    private static string FormatText(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static string FormatTtl(int? value) {
+        return value.HasValue && value.Value > 0 ? $"{value.Value}s" : "Not captured";
+    }
+
+    private static ResultCard.ResultStatus GetStatus(MtastsInfo view) {
+        if (view.PolicyFetchSkipped) {
+            if (!view.DnsRecordPresent || !view.DnsRecordValid) {
+                return ResultCard.ResultStatus.Fail;
+            }
+
+            return ResultCard.ResultStatus.Info;
+        }
+
+        if (!view.DnsRecordPresent || !view.PolicyPresent || !view.PolicyValid) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning) ||
+            !view.MxAligned ||
+            !view.EnforcesMtaSts) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
 }

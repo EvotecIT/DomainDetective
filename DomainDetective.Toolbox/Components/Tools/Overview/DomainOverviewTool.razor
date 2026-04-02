@@ -1,0 +1,758 @@
+@using System.Collections.Generic
+@using System.Linq
+@using DomainDetective.Views
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+@{
+    var allChecks = (Info?.MailDnsChecks ?? Array.Empty<AggregateCheckStatusInfo>())
+        .Concat(Info?.WebRegistrationChecks ?? Array.Empty<AggregateCheckStatusInfo>())
+        .ToList();
+    var attentionChecks = allChecks
+        .Where(static check => check.State == AggregateCheckState.Fail || check.State == AggregateCheckState.Warning)
+        .Take(10)
+        .ToList();
+    var subdomainInfo = Info?.Subdomains;
+    var subdomainHighlights = subdomainInfo?.Highlights?.Take(4).ToList() ?? new List<string>();
+    var appGroups = DetectedApplicationPresentation.BuildCategories(Info?.DetectedApplications);
+    var mailControlCards = OverviewControlPresentation.BuildAllCards(Info?.MailDnsChecks);
+    var webRegistrationControlCards = OverviewControlPresentation.BuildAllCards(Info?.WebRegistrationChecks);
+    var mailCards = DomainOverviewPresentation.BuildMailCards(Info);
+    var evidenceCards = DomainOverviewPresentation.BuildEvidenceCards(Info);
+    var evidenceSummaryCards = DomainOverviewPresentation.BuildEvidenceSummaryCards(Info);
+    var highlightCards = DomainOverviewPresentation.BuildHighlightCards(Info);
+    var snapshotHighlights = DomainOverviewPresentation.BuildSnapshotHighlights(Info);
+    var snapshotCards = DomainOverviewPresentation.BuildSnapshotCards(Info);
+    var assessmentSummaryCards = OverviewAssessmentPresentation.BuildSummaryCards(Info?.Assessments);
+    var assessmentPreviewLines = OverviewAssessmentPresentation.BuildPreviewLines(Info?.Assessments, 5);
+    var webRegistrationCards = DomainOverviewPresentation.BuildWebRegistrationCards(Info);
+    var attentionControlCards = OverviewControlPresentation.BuildAttentionCards(allChecks);
+    var healthyControlCards = OverviewControlPresentation.BuildHealthyCards(allChecks);
+    var exposureEntries = DomainOverviewPresentation.BuildExposureEntries(subdomainInfo)
+        .Take(12)
+        .ToList();
+    var attentionCards = OverviewRecommendationPresentation.BuildProblemCards(Info?.Recommendations);
+    var positiveCards = OverviewRecommendationPresentation.BuildPositiveCards(Info?.Positives);
+    var noAttentionControlCard = OverviewEmptyStatePresentation.BuildCard("Controls needing follow-up", "No flagged controls", "DD did not identify a failing or warning control in the current overview set.", new[] { "Current baseline is stable" });
+    var noHealthyControlCard = OverviewEmptyStatePresentation.BuildCard("Healthy controls", "No clean pass state", "The current DD run did not return a clean pass state for a core control yet, so the dashboard is waiting on stronger healthy evidence.", new[] { "Review the mail, web, and evidence sections" });
+    var noAttentionPlanCard = OverviewEmptyStatePresentation.BuildCard("Do next", "No high-priority remediation", "The current DD overview did not flag a high-priority remediation item.", new[] { "Use posture notes and control cards for the next review step" });
+    var noPositivePlanCard = OverviewEmptyStatePresentation.BuildCard("Keep in place", "No separate positive item", "This scan completed, but DD did not emit a separate positive guidance item in the current assessment set.", new[] { "Healthy controls still document the strongest areas" });
+    var noExposureCard = OverviewEmptyStatePresentation.BuildCard("Subdomain samples", "No detailed exposure entries", "DD did not produce detailed exposure entries for the current run, so only the observed subdomain sample list is available.", new[] { "Subdomain discovery may be intentionally sparse" });
+    var noApplicationsCard = OverviewEmptyStatePresentation.BuildCard("Detected applications", "No application footprint", "DD did not match a provider or application fingerprint for this domain in the current run.", new[] { "Review provider, mail, and exposure sections for the strongest available evidence" });
+    var noEvidenceCard = OverviewEmptyStatePresentation.BuildCard("Evidence ledger", "No DD evidence cards", "DD did not emit section-level evidence cards for this run yet, so the overview is currently leaning on the control and posture sections.", new[] { "A deeper online scan can expand evidence coverage" });
+    var noAssessmentsCard = OverviewEmptyStatePresentation.BuildCard("Assessments", "No DD assessments", "This domain run completed without DD assessments, warnings, or positive guidance items to display.", new[] { "Use the posture notes and control sections as the current source of truth" });
+}
+
+@if (Info is not null) {
+@if (Info.IsBrowserLimited) {
+    <div class="tool-callout tool-callout-inline">
+        <strong>Web edition overview</strong>
+        <p>This view uses the DD checks that run cleanly in the browser. Sections that need deeper online validation stay visible below and are marked clearly.</p>
+    </div>
+}
+
+@if (Info.IsPartial) {
+    <div class="tool-callout tool-callout-inline">
+        <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "First pass ready" : Info.StageLabel)</strong>
+        <p>The first DD pass is already on the page. Detailed sections are still loading for: @string.Join(", ", Info.PendingSections).</p>
+    </div>
+}
+
+@if (Info.GeneratedAtUtc > DateTimeOffset.MinValue) {
+    <div class="tool-meta-row">
+        <span class="tool-meta-pill">Updated @FormatUtc(Info.GeneratedAtUtc)</span>
+        <span class="tool-meta-pill">Age @FormatAge(Info.GeneratedAtUtc)</span>
+        <span class="tool-meta-pill">@(Info.ServedFromCache ? "Saved result" : "Live result")</span>
+        <span class="tool-meta-pill">@(Info.IsPartial ? "First pass" : "Full report")</span>
+        @if (Info.CompletedAtUtc.HasValue) {
+            <span class="tool-meta-pill">Completed @FormatUtc(Info.CompletedAtUtc.Value)</span>
+        } else if (Info.PendingSections.Count > 0) {
+            <span class="tool-meta-pill">@($"{Info.PendingSections.Count} sections loading")</span>
+        }
+    </div>
+}
+
+<div id="domain-snapshot" class="overview-section-anchor">
+<div class="overview-section-state">
+    <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "The baseline DD posture summary is already available.", "Snapshot remains available in the web edition.")</span>
+</div>
+<ResultCard Title="Domain posture overview" Status="@GetOverallStatus(Info!)">
+    <div class="tool-section-grid">
+        @foreach (var card in snapshotCards) {
+            <OverviewDetailCard Card="card" />
+        }
+    </div>
+
+    <div class="tool-callout">
+        <strong>@BuildSummary(Info)</strong>
+        @if (snapshotHighlights.Count > 0) {
+            <ul class="tool-bullet-list mt-2">
+                @foreach (var item in snapshotHighlights) {
+                    <li>@item</li>
+                }
+            </ul>
+        } else {
+            <p>@string.Join(" ", Info.Highlights.Take(3))</p>
+        }
+    </div>
+</ResultCard>
+</div>
+
+<nav class="overview-quick-nav" aria-label="Domain overview sections">
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("domain-snapshot")'>Snapshot <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("domain-mail")'>Mail and DNS <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Mail and DNS"), IsSectionUnavailable(Info, "Mail and DNS"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Mail and DNS"), IsSectionUnavailable(Info, "Mail and DNS"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("domain-web")'>Web and registration <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Web and registration"), IsSectionUnavailable(Info, "Web and registration"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Web and registration"), IsSectionUnavailable(Info, "Web and registration"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("domain-apps")'>Applications <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Applications"), IsSectionUnavailable(Info, "Applications"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Applications"), IsSectionUnavailable(Info, "Applications"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("domain-exposure")'>Exposure <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Exposure"), IsSectionUnavailable(Info, "Exposure"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Exposure"), IsSectionUnavailable(Info, "Exposure"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("domain-evidence")'>Evidence <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))</span></button>
+    <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("domain-assessments")'>Assessments <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))</span></button>
+</nav>
+
+<ResultCard Title="Control priorities" Status="ResultCard.ResultStatus.Info">
+    <div class="tool-section-grid">
+        <div class="tool-summary-card">
+            <span class="tool-summary-label">Controls needing follow-up</span>
+            @if (attentionControlCards.Count > 0) {
+                <div class="tool-stack">
+                    @foreach (var card in attentionControlCards) {
+                        <OverviewControlCard Card="card" CalloutClass="@($"tool-callout tool-callout-control {card.StateClass}")" />
+                    }
+                </div>
+            } else {
+                <OverviewCalloutCard Card="noAttentionControlCard" CalloutClass="tool-callout tool-callout-control tool-callout-info" />
+            }
+        </div>
+        <div class="tool-summary-card">
+            <span class="tool-summary-label">Healthy controls</span>
+            @if (healthyControlCards.Count > 0) {
+                <div class="tool-stack">
+                    @foreach (var card in healthyControlCards) {
+                        <OverviewControlCard Card="card" CalloutClass="@($"tool-callout tool-callout-control {card.StateClass}")" />
+                    }
+                </div>
+            } else {
+                <OverviewCalloutCard Card="noHealthyControlCard" CalloutClass="tool-callout tool-callout-control tool-callout-info" />
+            }
+        </div>
+    </div>
+</ResultCard>
+
+<ResultCard Title="Action plan" Status="ResultCard.ResultStatus.Info">
+    <div class="tool-section-grid">
+        <div class="tool-summary-card">
+            <span class="tool-summary-label">Do next</span>
+            @if (attentionCards.Count > 0) {
+                <div class="tool-stack">
+                    @foreach (var card in attentionCards) {
+                        <OverviewCalloutCard Card="card" />
+                    }
+                </div>
+            } else if (Info.Summary.Hints.Count > 0) {
+                <ul class="tool-bullet-list">
+                    @foreach (var hint in Info.Summary.Hints.Take(6)) {
+                        <li>@hint</li>
+                    }
+                </ul>
+            } else {
+                <OverviewCalloutCard Card="noAttentionPlanCard" CalloutClass="tool-callout tool-callout-info" />
+            }
+        </div>
+        <div class="tool-summary-card">
+            <span class="tool-summary-label">Keep in place</span>
+            @if (positiveCards.Count > 0) {
+                <div class="tool-stack">
+                    @foreach (var card in positiveCards) {
+                        <OverviewCalloutCard Card="card" />
+                    }
+                </div>
+            } else {
+                <OverviewCalloutCard Card="noPositivePlanCard" CalloutClass="tool-callout tool-callout-info" />
+            }
+        </div>
+    </div>
+</ResultCard>
+
+<ResultCard Title="Share and reopen" Status="ResultCard.ResultStatus.Info">
+    <div class="tool-share-summary tool-share-summary-compact">
+        <div class="tool-share-header">
+            <div class="tool-share-header-copy">
+                <strong>Permalink and copy-ready summary</strong>
+                <p>Use this when you want to reopen the same result later or paste a short DD summary into a ticket or message.</p>
+            </div>
+            <a class="tool-share-link" href="@GetPermalinkUrl()" target="_blank" rel="noopener">Open result link</a>
+        </div>
+        <div class="tool-share-metrics">
+            <span class="@GetShareRiskClass(Info)">@GetShareRiskLabel(Info)</span>
+            <span class="tool-share-pill">Errors @Info.ErrorCount</span>
+            <span class="tool-share-pill">Warnings @Info.WarningCount</span>
+            <span class="tool-share-pill">Attention @attentionChecks.Count</span>
+            <span class="@GetSharePendingClass(Info)">@GetSharePendingLabel(Info)</span>
+            <span class="@GetShareSourceClass(Info.ServedFromCache)">@(Info.ServedFromCache ? "Saved result" : "Live result")</span>
+        </div>
+        <div class="tool-share-actions">
+            <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="CopySnapshotAsync">Copy summary</button>
+            <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="CopyRedFlagsAsync">Copy red flags</button>
+            @if (!string.IsNullOrWhiteSpace(_copyStatus)) {
+                <span class="tool-share-status">@_copyStatus</span>
+            }
+        </div>
+        <details class="overview-disclosure tool-share-disclosure">
+            <summary class="overview-disclosure-summary">Show copied summary</summary>
+            <div class="overview-disclosure-body">
+                <pre class="tool-share-summary-text">@BuildShareableSnapshot()</pre>
+            </div>
+        </details>
+    </div>
+</ResultCard>
+
+<div id="domain-mail" class="overview-section-anchor">
+<div class="overview-section-state">
+    <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Mail and DNS"), IsSectionUnavailable(Info, "Mail and DNS"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Mail and DNS"), IsSectionUnavailable(Info, "Mail and DNS"))</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Mail and DNS"), IsSectionUnavailable(Info, "Mail and DNS"), "Mail and DNS controls are fully included in this result.", GetUnavailableSectionMessage("Mail and DNS"))</span>
+</div>
+@if (IsSectionUnavailable(Info, "Mail and DNS")) {
+    <ResultCard Title="Mail and DNS security" Status="ResultCard.ResultStatus.Info">
+        <p class="tool-summary-note">@GetUnavailableSectionMessage("Mail and DNS")</p>
+    </ResultCard>
+} else {
+<ResultCard Title="Mail and DNS security" Status="ResultCard.ResultStatus.Info">
+    <div class="overview-status-strip">
+        @foreach (var card in mailControlCards) {
+            <OverviewControlCard Card="card" CalloutClass="@($"tool-callout tool-callout-control {card.StateClass}")" Compact="true" />
+        }
+    </div>
+    @if (mailCards.Count > 0) {
+        <div class="tool-section-grid mt-3">
+            @foreach (var card in mailCards) {
+                <OverviewDetailCard Card="card" />
+            }
+        </div>
+    }
+</ResultCard>
+}
+</div>
+
+<div id="domain-web" class="overview-section-anchor">
+<div class="overview-section-state">
+    <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Web and registration"), IsSectionUnavailable(Info, "Web and registration"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Web and registration"), IsSectionUnavailable(Info, "Web and registration"))</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Web and registration"), IsSectionUnavailable(Info, "Web and registration"), "Web, certificate, registration, and exposure checks are fully included.", GetUnavailableSectionMessage("Web and registration"))</span>
+</div>
+@if (IsSectionUnavailable(Info, "Web and registration")) {
+    <ResultCard Title="Web, registration, and exposure" Status="ResultCard.ResultStatus.Info">
+        <p class="tool-summary-note">@GetUnavailableSectionMessage("Web and registration")</p>
+    </ResultCard>
+} else {
+<ResultCard Title="Web, registration, and exposure" Status="ResultCard.ResultStatus.Info">
+    <div class="overview-status-strip">
+        @foreach (var card in webRegistrationControlCards) {
+            <OverviewControlCard Card="card" CalloutClass="@($"tool-callout tool-callout-control {card.StateClass}")" Compact="true" />
+        }
+    </div>
+
+    @if (webRegistrationCards.Count > 0) {
+        <div class="tool-section-grid mt-3">
+            @foreach (var card in webRegistrationCards) {
+                <OverviewDetailCard Card="card" />
+            }
+        </div>
+    }
+</ResultCard>
+}
+</div>
+
+<div id="domain-apps" class="overview-section-anchor">
+    <div class="overview-section-state">
+        <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Applications"), IsSectionUnavailable(Info, "Applications"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Applications"), IsSectionUnavailable(Info, "Applications"))</span>
+        <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Applications"), IsSectionUnavailable(Info, "Applications"), "Detected DNS application evidence is already available.", GetUnavailableSectionMessage("Applications"))</span>
+    </div>
+    <ResultCard Title="Detected applications and services" Status="ResultCard.ResultStatus.Info">
+        @if (appGroups.Count > 0) {
+            <div class="tool-section-grid">
+                @foreach (var group in appGroups) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">@group.CategoryLabel</span>
+                        <strong class="tool-summary-value">@group.ApplicationCount app(s)</strong>
+                        <p class="tool-summary-note">DD matched @group.ApplicationCount provider or application signal(s) in this category. Expand to review the detailed evidence cards.</p>
+                        <details class="overview-disclosure mt-2">
+                            <summary class="overview-disclosure-summary">Show @group.CategoryLabel.ToLowerInvariant() matches (@group.Applications.Count)</summary>
+                            <div class="overview-disclosure-body">
+                                <div class="tool-stack">
+                                    @foreach (var app in group.Applications) {
+                                        <OverviewItemCallout
+                                            Title="@app.Name"
+                                            Summary="@app.Summary"
+                                            Chips="@BuildAppChips(app)"
+                                            Samples="app.Samples" />
+                                    }
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                }
+            </div>
+        } else {
+            <OverviewCalloutCard Card="noApplicationsCard" CalloutClass="tool-callout tool-callout-info" />
+        }
+    </ResultCard>
+</div>
+
+@if (Info.SubdomainSample.Count > 0 || exposureEntries.Count > 0) {
+    <div id="domain-exposure" class="overview-section-anchor">
+    <div class="overview-section-state">
+        <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Exposure"), IsSectionUnavailable(Info, "Exposure"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Exposure"), IsSectionUnavailable(Info, "Exposure"))</span>
+        <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Exposure"), IsSectionUnavailable(Info, "Exposure"), "Subdomain discovery and exposure sampling are fully included.", GetUnavailableSectionMessage("Exposure"))</span>
+    </div>
+    @if (IsSectionUnavailable(Info, "Exposure")) {
+        <ResultCard Title="Discovered subdomains" Status="ResultCard.ResultStatus.Info">
+            <p class="tool-summary-note">@GetUnavailableSectionMessage("Exposure")</p>
+        </ResultCard>
+    } else {
+    <ResultCard Title="Discovered subdomains" Status="ResultCard.ResultStatus.Info">
+        <div class="tool-section-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Exposure posture</span>
+                <strong class="tool-summary-value">@Info.SubdomainCount observed</strong>
+                <div class="tool-chip-list">
+                    <span class="tool-chip">@(subdomainInfo?.ResolvesCount ?? 0) resolving</span>
+                    <span class="tool-chip">@(subdomainInfo?.SensitiveHighCount ?? 0) high-sensitivity</span>
+                    <span class="tool-chip">@(subdomainInfo?.AiExposureCount ?? 0) AI-signaled</span>
+                    <span class="tool-chip">@(subdomainInfo?.DistinctIssuerCount ?? 0) issuer(s)</span>
+                </div>
+                @if (subdomainHighlights.Count > 0) {
+                    <ul class="tool-bullet-list mt-2">
+                        @foreach (var highlight in subdomainHighlights) {
+                            <li>@highlight</li>
+                        }
+                    </ul>
+                }
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Subdomain samples</span>
+                @if (exposureEntries.Count > 0) {
+                    <p class="tool-summary-note">DD produced @exposureEntries.Count exposure sample(s). Expand to review the detailed posture and signal evidence for each subdomain.</p>
+                    <details class="overview-disclosure mt-2">
+                        <summary class="overview-disclosure-summary">Show subdomain samples (@exposureEntries.Count)</summary>
+                        <div class="overview-disclosure-body">
+                            <div class="tool-stack">
+                                @foreach (var entry in exposureEntries) {
+                                    <OverviewItemCallout
+                                        Title="@entry.Name"
+                                        Summary="@entry.Summary"
+                                        Chips="@BuildExposureChips(entry)"
+                                        Samples="entry.Samples" />
+                                }
+                            </div>
+                        </div>
+                    </details>
+                } else {
+                    <div class="tool-callout tool-callout-info">
+                        <strong>@noExposureCard.Title</strong>
+                        <span class="tool-summary-value">@noExposureCard.ValueLabel</span>
+                        <p>@noExposureCard.Summary</p>
+                        <div class="tool-chip-list">
+                            @foreach (var tag in noExposureCard.Tags) {
+                                <span class="tool-chip">@tag</span>
+                            }
+                            @foreach (var name in Info.SubdomainSample) {
+                                <span class="tool-chip">@name</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </ResultCard>
+    }
+    </div>
+}
+
+<div id="domain-evidence" class="overview-section-anchor">
+    <div class="overview-section-state">
+        <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))</span>
+        <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"), "These cards explain which DD evidence sources drove the current domain posture.", "Evidence stays available in the current edition for the sections that can be analyzed.")</span>
+    </div>
+    <ResultCard Title="Why DD reached this posture" Status="ResultCard.ResultStatus.Info">
+        @if (evidenceCards.Count > 0 && evidenceSummaryCards.Count > 0) {
+            <div class="tool-section-grid mb-3">
+                @foreach (var card in evidenceSummaryCards) {
+                    <OverviewDetailCard Card="card" />
+                }
+            </div>
+        }
+        @if (evidenceCards.Count > 0) {
+            <details class="overview-disclosure">
+                <summary class="overview-disclosure-summary">Show evidence details (@evidenceCards.Count cards)</summary>
+                <div class="overview-disclosure-body">
+                    <div class="tool-section-grid">
+                        @foreach (var card in evidenceCards) {
+                            <OverviewDetailCard Card="card" />
+                        }
+                    </div>
+                </div>
+            </details>
+        } else {
+            <OverviewCalloutCard Card="noEvidenceCard" CalloutClass="tool-callout tool-callout-info" />
+        }
+    </ResultCard>
+</div>
+
+@if (highlightCards.Count > 0) {
+    <ResultCard Title="Posture notes" Status="ResultCard.ResultStatus.Info">
+        <div class="tool-section-grid">
+            @foreach (var card in highlightCards) {
+                <OverviewDetailCard Card="card" />
+            }
+        </div>
+    </ResultCard>
+}
+
+<div id="domain-assessments" class="overview-section-anchor">
+<div class="overview-section-state">
+    <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"), "All DD recommendations and positive findings are included.", GetUnavailableSectionMessage("Assessments"))</span>
+</div>
+<ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+    @if (Info.Assessments.Count > 0) {
+        @if (assessmentSummaryCards.Count > 0) {
+            <div class="tool-section-grid mb-3">
+                @foreach (var card in assessmentSummaryCards) {
+                    <OverviewDetailCard Card="card" />
+                }
+            </div>
+        }
+        @if (assessmentPreviewLines.Count > 0) {
+            <div class="tool-callout tool-callout-inline tool-callout-soft">
+                <strong>Top findings</strong>
+                <ul class="tool-bullet-list">
+                    @foreach (var item in assessmentPreviewLines) {
+                        <li>@item</li>
+                    }
+                </ul>
+            </div>
+        }
+        <details class="overview-disclosure">
+            <summary class="overview-disclosure-summary">Show findings (@Info.Assessments.Count)</summary>
+            <div class="overview-disclosure-body">
+                <AssessmentList Assessments="Info.Assessments" EmptyMessage="No assessments were produced for this domain." />
+            </div>
+        </details>
+    } else {
+        <OverviewCalloutCard Card="noAssessmentsCard" CalloutClass="tool-callout tool-callout-info" />
+    }
+</ResultCard>
+</div>
+}
+
+@code {
+    [Parameter] public string? PermalinkUrl { get; set; }
+
+    [Parameter] public required DomainOverviewInfo Info { get; set; }
+    [Parameter] public required string Domain { get; set; }
+    private string? _copyStatus;
+
+    private string GetPermalinkUrl() {
+        return string.IsNullOrWhiteSpace(PermalinkUrl) ? Navigation.Uri : PermalinkUrl;
+    }
+
+    private async Task ScrollToSectionAsync(string sectionId) {
+        await JS.InvokeVoidAsync("domainDetectiveTools.scrollToElement", sectionId);
+    }
+
+    private async Task CopySnapshotAsync() {
+        var copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", BuildShareableSnapshot());
+        _copyStatus = copied ? "Snapshot copied to clipboard." : "Copy failed. You can still select the text manually.";
+    }
+
+    private async Task CopyRedFlagsAsync() {
+        var copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", BuildRedFlagsSnapshot());
+        _copyStatus = copied ? "Red-flags snapshot copied to clipboard." : "Copy failed. You can still select the text manually.";
+    }
+
+    private static IReadOnlyList<string> BuildAppChips(DetectedApplicationItemView app) {
+        var chips = new List<string> {
+            $"Confidence: {app.ConfidenceLabel}",
+            $"{app.ObservationCount} observation(s)"
+        };
+
+        if (!string.IsNullOrWhiteSpace(app.SourceLabel)) {
+            chips.Add(app.SourceLabel);
+        }
+
+        if (app.Signals.Count > 0) {
+            chips.AddRange(app.Signals);
+        }
+
+        return chips;
+    }
+
+    private static IReadOnlyList<string> BuildExposureChips(DomainExposureView entry) {
+        var chips = new List<string> {
+            entry.ResolutionLabel,
+            entry.RiskLabel
+        };
+
+        if (entry.Signals.Count > 2) {
+            chips.AddRange(entry.Signals.Skip(2));
+        }
+
+        return chips;
+    }
+
+    private static ResultCard.ResultStatus GetOverallStatus(DomainOverviewInfo info) {
+        if (info.ErrorCount > 0) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (info.WarningCount > 0) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+
+    private static string BuildSummary(DomainOverviewInfo info) {
+        if (info.IsBrowserLimited) {
+            return "Web edition DD overview built from web-ready DNS, mail, and application evidence. Web, certificate, registration, and exposure sections are marked clearly when they need deeper online validation.";
+        }
+
+        var failing = info.MailDnsChecks.Count(static check => check.State == AggregateCheckState.Fail) +
+            info.WebRegistrationChecks.Count(static check => check.State == AggregateCheckState.Fail);
+        if (failing > 0) {
+            return $"{failing} major posture areas need attention across mail, DNS, web, or registration.";
+        }
+
+        return "The domain presents a clean baseline across the core DD posture checks included in this overview.";
+    }
+
+    private string BuildShareableSnapshot() {
+        var info = Info;
+        var source = info.ServedFromCache ? "Saved result" : "Live result";
+        var stage = info.IsPartial ? "First pass" : "Full report";
+        var pending = info.PendingSections.Count == 0 ? "None" : string.Join(", ", info.PendingSections);
+        var unavailable = info.UnavailableSections.Count == 0 ? "None" : string.Join(", ", info.UnavailableSections);
+        var provider = FormatProvider(info.MailProvider);
+        var dnsProvider = FormatProvider(info.DnsProvider);
+        var mailSummary = string.Join(", ", info.MailDnsChecks.Select(static check => $"{check.Label}={check.Value}"));
+        var webSummary = string.Join(", ", info.WebRegistrationChecks.Select(static check => $"{check.Label}={check.Value}"));
+
+        return string.Join(Environment.NewLine, new[] {
+            $"Domain Detective domain overview for {info.Subject}",
+            $"Permalink: {Navigation.Uri}",
+            $"Stage: {stage}",
+            $"Source: {source}",
+            $"Risk: {GetShareRiskLabel(info)}",
+            $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
+            $"Pending sections: {pending}",
+            $"Unavailable sections: {unavailable}",
+            $"Mail provider: {provider}",
+            $"DNS provider: {dnsProvider}",
+            $"Warnings/Errors: {info.WarningCount}/{info.ErrorCount}",
+            $"Subdomains: {info.SubdomainCount}",
+            $"Mail controls: {mailSummary}",
+            $"Web/registration: {webSummary}"
+        });
+    }
+
+    private string BuildRedFlagsSnapshot() {
+        var info = Info;
+        var lines = new List<string> {
+            $"Domain Detective domain red flags for {info.Subject}",
+            $"Permalink: {Navigation.Uri}",
+            $"Stage: {(info.IsPartial ? "First pass" : "Full report")}",
+            $"Source: {(info.ServedFromCache ? "Saved result" : "Live result")}",
+            $"Risk: {GetShareRiskLabel(info)}",
+            $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
+            $"Warnings/Errors: {info.WarningCount}/{info.ErrorCount}",
+            $"Unavailable sections: {(info.UnavailableSections.Count == 0 ? "None" : string.Join(", ", info.UnavailableSections))}"
+        };
+
+        var failingChecks = info.MailDnsChecks
+            .Concat(info.WebRegistrationChecks)
+            .Where(static check => check.State == AggregateCheckState.Fail || check.State == AggregateCheckState.Warning)
+            .Take(10)
+            .Select(static check => $"{check.Label}: {check.Value} ({check.Detail})")
+            .ToList();
+
+        if (failingChecks.Count > 0) {
+            lines.Add("Priority controls:");
+            lines.AddRange(failingChecks.Select(static item => "- " + item));
+        } else {
+            lines.Add("Priority controls: none flagged in the current DD overview.");
+        }
+
+        var recommendations = info.Recommendations.Take(6).Select(static item => $"{item.Title}: {item.Why}").ToList();
+        if (recommendations.Count > 0) {
+            lines.Add("Top recommendations:");
+            lines.AddRange(recommendations.Select(static item => "- " + item));
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string FormatProvider(string? value) {
+        return string.IsNullOrWhiteSpace(value) || string.Equals(value, "Unknown", StringComparison.OrdinalIgnoreCase) ? "Unknown" : value;
+    }
+
+    private static string FormatExpiry(int? daysUntilExpiration) {
+        if (!daysUntilExpiration.HasValue) {
+            return "Unknown";
+        }
+
+        return daysUntilExpiration.Value >= 0 ? $"{daysUntilExpiration.Value} days" : "Expired";
+    }
+
+    private static string FormatSource(string? source, string evidence) {
+        if (!string.IsNullOrWhiteSpace(source)) {
+            return source;
+        }
+
+        return evidence;
+    }
+
+    private static string FormatUtc(DateTimeOffset timestamp) {
+        return timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    private static string FormatAge(DateTimeOffset timestamp) {
+        var age = DateTimeOffset.UtcNow - timestamp;
+        if (age.TotalSeconds < 60) {
+            return $"{Math.Max(1, (int)age.TotalSeconds)}s ago";
+        }
+
+        if (age.TotalMinutes < 60) {
+            return $"{(int)age.TotalMinutes}m ago";
+        }
+
+        if (age.TotalHours < 24) {
+            return $"{(int)age.TotalHours}h ago";
+        }
+
+        return $"{(int)age.TotalDays}d ago";
+    }
+
+    private static bool IsSectionPending(DomainOverviewInfo info, string section) {
+        return section switch {
+            "Mail and DNS" => HasPending(info, "MTA-STS", "TLS-RPT", "BIMI", "CAA", "DANE", "DNSSEC"),
+            "Web and registration" => HasPending(info, "Certificate", "DNSBL"),
+            "Exposure" => HasPending(info, "Subdomain discovery"),
+            "Evidence" => HasPending(info, "Certificate", "DNSBL", "Subdomain discovery", "Deep recommendations"),
+            "Assessments" => HasPending(info, "Deep recommendations"),
+            _ => false
+        };
+    }
+
+    private static bool IsSectionUnavailable(DomainOverviewInfo info, string section) {
+        return info.UnavailableSections.Any(item => string.Equals(item, section, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool HasPending(DomainOverviewInfo info, params string[] sections) {
+        return sections.Any(section => info.PendingSections.Any(pending => string.Equals(pending, section, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static string GetSectionBadgeClass(bool isPending, bool isUnavailable) {
+        if (isUnavailable) {
+            return "overview-section-badge overview-section-badge-unavailable";
+        }
+
+        return isPending ? "overview-section-badge overview-section-badge-pending" : "overview-section-badge overview-section-badge-ready";
+    }
+
+    private static string GetSectionBadgeLabel(bool isPending, bool isUnavailable) {
+        if (isUnavailable) {
+            return "Unavailable";
+        }
+
+        return isPending ? "Loading" : "Ready";
+    }
+
+    private static string GetShareRiskClass(DomainOverviewInfo info) {
+        if (info.ErrorCount > 0) {
+            return "tool-share-pill tool-share-pill-risk-high";
+        }
+
+        if (info.WarningCount > 0 || info.PendingSections.Count > 0) {
+            return "tool-share-pill tool-share-pill-risk-medium";
+        }
+
+        return "tool-share-pill tool-share-pill-risk-low";
+    }
+
+    private static string GetShareRiskLabel(DomainOverviewInfo info) {
+        if (info.ErrorCount > 0) {
+            return "High risk";
+        }
+
+        if (info.WarningCount > 0) {
+            return "Needs review";
+        }
+
+        if (info.UnavailableSections.Count > 0) {
+            return "Web edition";
+        }
+
+        if (info.PendingSections.Count > 0) {
+            return "First pass";
+        }
+
+        return "Healthy baseline";
+    }
+
+    private static string GetSharePendingClass(DomainOverviewInfo info) {
+        if (info.UnavailableSections.Count > 0) {
+            return "tool-share-pill tool-share-pill-unavailable";
+        }
+
+        return info.PendingSections.Count > 0
+            ? "tool-share-pill tool-share-pill-pending"
+            : "tool-share-pill tool-share-pill-complete";
+    }
+
+    private static string GetSharePendingLabel(DomainOverviewInfo info) {
+        if (info.UnavailableSections.Count > 0) {
+            return $"{info.UnavailableSections.Count} sections unavailable";
+        }
+
+        return info.PendingSections.Count > 0
+            ? $"{info.PendingSections.Count} sections loading"
+            : "Full report";
+    }
+
+    private static string GetShareSourceClass(bool servedFromCache) {
+        return servedFromCache
+            ? "tool-share-pill tool-share-pill-cached"
+            : "tool-share-pill tool-share-pill-fresh";
+    }
+
+    private static string GetSectionStatusText(DomainOverviewInfo info, bool isPending, bool isUnavailable, string readyText, string unavailableText) {
+        if (isUnavailable) {
+            return unavailableText;
+        }
+
+        if (isPending) {
+            return "Detailed checks for this section are still loading.";
+        }
+
+        if (info.IsPartial) {
+            return readyText;
+        }
+
+        return readyText;
+    }
+
+    private static string GetUnavailableSectionMessage(string section) {
+        return section switch {
+            "Web and registration" => "Web headers, certificates, security.txt, and registration data are unavailable in the web edition.",
+            "Exposure" => "Subdomain discovery is unavailable in the web edition.",
+            _ => "This section is unavailable in the web edition."
+        };
+    }
+
+    private static string GetStatusStripClass(AggregateCheckState state) => state switch {
+        AggregateCheckState.Pass => "overview-status-card overview-status-pass",
+        AggregateCheckState.Warning => "overview-status-card overview-status-warning",
+        AggregateCheckState.Fail => "overview-status-card overview-status-fail",
+        _ => "overview-status-card overview-status-info"
+    };
+}

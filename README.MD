@@ -43,6 +43,40 @@ flowchart LR
     D --> H["Stores: DMARC Aggregate, TLS-RPT, registration, cert inventory"]
 ```
 
+## Website and Online Tools
+
+The repository also includes the public website and the online tools experience:
+
+- `Website` builds the static marketing/docs/API site into `Website/_site`
+- `DomainDetective.Website` contains the Blazor WebAssembly tools app that is published into `Website/_site/tools`
+- `DomainDetective.OnlineHost` serves the built site and exposes same-origin `/tool-api` endpoints for checks that browsers cannot perform directly
+
+Build the full website stack:
+
+```powershell
+pwsh ./Website/build.ps1 -Fast
+```
+
+Run the local online host after the build:
+
+```powershell
+dotnet run --project ./DomainDetective.OnlineHost/DomainDetective.OnlineHost.csproj --urls http://localhost:8097
+```
+
+Then open:
+
+- `http://localhost:8097/` for the static site
+- `http://localhost:8097/tools/` for the online tools
+- `http://localhost:8097/tool-api/health` to confirm the hosted analysis API is available
+
+Why the host matters:
+
+- DNS-style lookups can run directly in the browser through DNS-over-HTTPS
+- HTTP header inspection, `security.txt`, certificate analysis, and some richer probes need a hosted backend because browsers cannot reliably inspect remote TLS handshakes or arbitrary cross-origin responses
+- Hosted-first checks include HTTP headers, `security.txt`, certificate analysis, MTA-STS policy retrieval, RDAP, and BIMI indicator/logo fetches
+- A static-only deployment such as GitHub Pages will publish the site, but it will not provide `/tool-api`
+- Production deployments should serve the site through `DomainDetective.OnlineHost` or an equivalent reverse proxy/application host that exposes the same `/tool-api` endpoints
+
 ## Quick Start
 
 ### PowerShell

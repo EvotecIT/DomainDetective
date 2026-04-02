@@ -88,6 +88,7 @@ public static partial class Converters
             }
         }
         catch { }
+        var narrative = DomainDetective.Narratives.MxNarrative.Build(analysis);
         var gateways = providerMatch?.Gateways?.Select(g => g.DisplayName).Distinct().ToList() ?? new List<string>();
 
         return new MxInfo
@@ -125,8 +126,53 @@ public static partial class Converters
             ProviderPrimary = providerMatch?.Primary?.DisplayName,
             ProviderPrimaryScore = providerMatch?.PrimaryScore ?? 0.0,
             ProviderGateways = gateways,
-            ProviderHelp = providerHelps
+            ProviderHelp = providerHelps,
+            PrimaryProviderSingleMxOk = providerMatch?.Primary?.SingleMxOk ?? false,
+            Hosts = BuildMxHosts(analysis.MxRecords, analysis.MxRecordTtls),
+            Narrative = narrative,
+            Highlights = narrative.Highlights,
+            Details = narrative.Details
         };
+    }
+
+    private static IReadOnlyList<MxHostInfo> BuildMxHosts(IReadOnlyList<string>? records, IReadOnlyList<int>? ttls)
+    {
+        if (records == null || records.Count == 0)
+        {
+            return Array.Empty<MxHostInfo>();
+        }
+
+        var rows = new List<MxHostInfo>();
+        for (var i = 0; i < records.Count; i++)
+        {
+            var record = records[i] ?? string.Empty;
+            var ttl = ttls != null && i < ttls.Count && ttls[i] > 0 ? ttls[i] : (int?) null;
+            var parts = record.Split(new[] { ' ', '\t' }, 2, StringSplitOptions.RemoveEmptyEntries);
+            int? priority = null;
+            string host;
+            if (parts.Length == 2 && int.TryParse(parts[0], out var parsedPriority))
+            {
+                priority = parsedPriority;
+                host = parts[1].TrimEnd('.');
+            }
+            else
+            {
+                host = record.TrimEnd('.');
+            }
+
+            rows.Add(new MxHostInfo
+            {
+                Priority = priority,
+                Host = host,
+                Ttl = ttl,
+                IsNullMx = priority == 0 && string.IsNullOrWhiteSpace(host),
+                IsLocalhost = string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(host, "localhost.localdomain", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(host, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
+            });
+        }
+
+        return rows;
     }
 
     private static List<ProviderHelpTopic> BuildHelpTopics(string providerName, DomainDetective.Providers.Email.ProviderDocumentation? docs, IEnumerable<(string Topic, string? Url)> pairs)
@@ -224,6 +270,16 @@ public class MxInfo
     public IReadOnlyList<string> ProviderGateways { get; set; } = System.Array.Empty<string>();
     /// <summary>Helpful vendor documentation links for this provider.</summary>
     public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; } = System.Array.Empty<ProviderHelpLinks>();
+    /// <summary>True when the inferred provider considers a single MX acceptable.</summary>
+    public bool PrimaryProviderSingleMxOk { get; set; }
+    /// <summary>Normalized MX hosts and their published preferences.</summary>
+    public IReadOnlyList<MxHostInfo> Hosts { get; set; } = System.Array.Empty<MxHostInfo>();
+    /// <summary>Narrative content built from DD analysis.</summary>
+    public DomainDetective.Narratives.MxNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.MxNarrative.Sections();
+    /// <summary>Key highlights extracted from the MX narrative.</summary>
+    public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
+    /// <summary>Supporting details extracted from the MX narrative.</summary>
+    public IReadOnlyList<string> Details { get; set; } = System.Array.Empty<string>();
 }
 
 /// <summary>
@@ -241,4 +297,16 @@ public sealed class ProviderHelpLinks
     public List<ProviderHelpTopic> Topics { get; set; } = new();
     public bool HasAny => Topics?.Any(t => !string.IsNullOrWhiteSpace(t?.Url)) == true ||
                           !string.IsNullOrWhiteSpace(Dmarc) || !string.IsNullOrWhiteSpace(Spf) || !string.IsNullOrWhiteSpace(Dkim) || !string.IsNullOrWhiteSpace(MtaSts) || !string.IsNullOrWhiteSpace(TlsRpt) || !string.IsNullOrWhiteSpace(Deliverability);
+}
+
+/// <summary>
+/// Normalized MX host row for reusable UI/report rendering.
+/// </summary>
+public sealed class MxHostInfo
+{
+    public int? Priority { get; set; }
+    public string Host { get; set; } = string.Empty;
+    public int? Ttl { get; set; }
+    public bool IsNullMx { get; set; }
+    public bool IsLocalhost { get; set; }
 }

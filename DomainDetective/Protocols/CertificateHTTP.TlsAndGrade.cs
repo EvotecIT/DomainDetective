@@ -76,13 +76,35 @@ namespace DomainDetective {
             } catch {
                 KeySize = 0;
             }
-            WeakKey = KeySize > 0 && KeySize < 2048;
+            WeakKey = IsWeakPublicKey(KeyAlgorithm, KeySize);
             var oid = certificate.SignatureAlgorithm?.Value ?? string.Empty;
             Sha1Signature = oid == "1.2.840.113549.1.1.5" ||
                             oid == "1.2.840.10040.4.3" ||
                             oid == "1.3.14.3.2.29";
             RsaPssSignature = oid == "1.2.840.113549.1.1.10";
             PopulateExtendedKeyUsageInfo(certificate);
+        }
+
+        private static bool IsWeakPublicKey(string? keyAlgorithm, int keySize) {
+            if (keySize <= 0) {
+                return false;
+            }
+
+            var algorithm = keyAlgorithm ?? string.Empty;
+            if (algorithm.IndexOf("EC", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                algorithm.IndexOf("ECC", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                algorithm.IndexOf("ECDSA", StringComparison.OrdinalIgnoreCase) >= 0) {
+                return keySize < 256;
+            }
+
+            if (algorithm.IndexOf("RSA", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                algorithm.IndexOf("DSA", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                algorithm.IndexOf("DH", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                algorithm.IndexOf("Diffie", StringComparison.OrdinalIgnoreCase) >= 0) {
+                return keySize < 2048;
+            }
+
+            return keySize < 2048;
         }
 
         private void PopulateExtendedKeyUsageInfo(X509Certificate2? certificate) {

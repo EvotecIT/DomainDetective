@@ -905,57 +905,29 @@ public sealed partial class CertificateInventoryCapture {
             .OrderBy(signal => signal, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var mergedCertificate = MergeLatestCertificateMetadata(
+            preferCandidateCert ? candidate : existing,
+            preferCandidateCert ? existing : candidate);
+
         byName[name] = new SubdomainDiscoveryEntry {
             Name = name,
             FirstSeenUtc = mergedFirstSeenUtc,
             LastSeenUtc = mergedLastSeenUtc,
             LatestCertificateCtEntryTimestampUtc = mergedLatestTs,
-            LatestCertificateThumbprint = preferCandidateCert
-                ? FirstNonEmpty(candidate.LatestCertificateThumbprint, existing.LatestCertificateThumbprint)
-                : FirstNonEmpty(existing.LatestCertificateThumbprint, candidate.LatestCertificateThumbprint),
-            LatestCertificateSubject = preferCandidateCert
-                ? FirstNonEmpty(candidate.LatestCertificateSubject, existing.LatestCertificateSubject)
-                : FirstNonEmpty(existing.LatestCertificateSubject, candidate.LatestCertificateSubject),
-            LatestCertificateIssuer = preferCandidateCert
-                ? FirstNonEmpty(candidate.LatestCertificateIssuer, existing.LatestCertificateIssuer)
-                : FirstNonEmpty(existing.LatestCertificateIssuer, candidate.LatestCertificateIssuer),
-            LatestCertificateSerialNumber = preferCandidateCert
-                ? FirstNonEmpty(candidate.LatestCertificateSerialNumber, existing.LatestCertificateSerialNumber)
-                : FirstNonEmpty(existing.LatestCertificateSerialNumber, candidate.LatestCertificateSerialNumber),
-            LatestCertificateNotBeforeUtc = preferCandidateCert
-                ? FirstTimestamp(candidate.LatestCertificateNotBeforeUtc, existing.LatestCertificateNotBeforeUtc)
-                : FirstTimestamp(existing.LatestCertificateNotBeforeUtc, candidate.LatestCertificateNotBeforeUtc),
-            LatestCertificateNotAfterUtc = preferCandidateCert
-                ? FirstTimestamp(candidate.LatestCertificateNotAfterUtc, existing.LatestCertificateNotAfterUtc)
-                : FirstTimestamp(existing.LatestCertificateNotAfterUtc, candidate.LatestCertificateNotAfterUtc),
-            LatestCertificateSubjectAlternativeNames = preferCandidateCert
-                ? (candidate.LatestCertificateSubjectAlternativeNames?.Count > 0
-                    ? candidate.LatestCertificateSubjectAlternativeNames
-                    : existing.LatestCertificateSubjectAlternativeNames)
-                : (existing.LatestCertificateSubjectAlternativeNames?.Count > 0
-                    ? existing.LatestCertificateSubjectAlternativeNames
-                    : candidate.LatestCertificateSubjectAlternativeNames),
-            LatestCertificateIsSelfSigned = preferCandidateCert
-                ? candidate.LatestCertificateIsSelfSigned ?? existing.LatestCertificateIsSelfSigned
-                : existing.LatestCertificateIsSelfSigned ?? candidate.LatestCertificateIsSelfSigned,
-            LatestCertificateWeakKey = preferCandidateCert
-                ? candidate.LatestCertificateWeakKey ?? existing.LatestCertificateWeakKey
-                : existing.LatestCertificateWeakKey ?? candidate.LatestCertificateWeakKey,
-            LatestCertificateSha1Signature = preferCandidateCert
-                ? candidate.LatestCertificateSha1Signature ?? existing.LatestCertificateSha1Signature
-                : existing.LatestCertificateSha1Signature ?? candidate.LatestCertificateSha1Signature,
-            LatestCertificateHasServerAuthentication = preferCandidateCert
-                ? candidate.LatestCertificateHasServerAuthentication ?? existing.LatestCertificateHasServerAuthentication
-                : existing.LatestCertificateHasServerAuthentication ?? candidate.LatestCertificateHasServerAuthentication,
-            LatestCertificateHasClientAuthentication = preferCandidateCert
-                ? candidate.LatestCertificateHasClientAuthentication ?? existing.LatestCertificateHasClientAuthentication
-                : existing.LatestCertificateHasClientAuthentication ?? candidate.LatestCertificateHasClientAuthentication,
-            LatestCertificateHasSecureEmail = preferCandidateCert
-                ? candidate.LatestCertificateHasSecureEmail ?? existing.LatestCertificateHasSecureEmail
-                : existing.LatestCertificateHasSecureEmail ?? candidate.LatestCertificateHasSecureEmail,
-            LatestCertificateAuthenticationProfile = preferCandidateCert
-                ? FirstNonEmpty(candidate.LatestCertificateAuthenticationProfile, existing.LatestCertificateAuthenticationProfile)
-                : FirstNonEmpty(existing.LatestCertificateAuthenticationProfile, candidate.LatestCertificateAuthenticationProfile),
+            LatestCertificateThumbprint = mergedCertificate.LatestCertificateThumbprint,
+            LatestCertificateSubject = mergedCertificate.LatestCertificateSubject,
+            LatestCertificateIssuer = mergedCertificate.LatestCertificateIssuer,
+            LatestCertificateSerialNumber = mergedCertificate.LatestCertificateSerialNumber,
+            LatestCertificateNotBeforeUtc = mergedCertificate.LatestCertificateNotBeforeUtc,
+            LatestCertificateNotAfterUtc = mergedCertificate.LatestCertificateNotAfterUtc,
+            LatestCertificateSubjectAlternativeNames = mergedCertificate.LatestCertificateSubjectAlternativeNames,
+            LatestCertificateIsSelfSigned = mergedCertificate.LatestCertificateIsSelfSigned,
+            LatestCertificateWeakKey = mergedCertificate.LatestCertificateWeakKey,
+            LatestCertificateSha1Signature = mergedCertificate.LatestCertificateSha1Signature,
+            LatestCertificateHasServerAuthentication = mergedCertificate.LatestCertificateHasServerAuthentication,
+            LatestCertificateHasClientAuthentication = mergedCertificate.LatestCertificateHasClientAuthentication,
+            LatestCertificateHasSecureEmail = mergedCertificate.LatestCertificateHasSecureEmail,
+            LatestCertificateAuthenticationProfile = mergedCertificate.LatestCertificateAuthenticationProfile,
             CtSources = mergedSources,
             CertificateObservationCount = existing.CertificateObservationCount + candidate.CertificateObservationCount,
             ResolutionStatus = mergedResolution,
@@ -964,6 +936,149 @@ public sealed partial class CertificateInventoryCapture {
             SensitiveRisk = existing.SensitiveRisk >= candidate.SensitiveRisk ? existing.SensitiveRisk : candidate.SensitiveRisk,
             SensitiveSignals = mergedSensitiveSignals,
             AiSignals = mergedAiSignals
+        };
+    }
+
+    private static SubdomainDiscoveryEntry MergeLatestCertificateMetadata(
+        SubdomainDiscoveryEntry primary,
+        SubdomainDiscoveryEntry secondary) {
+        if (!HasLatestCertificateMetadata(primary)) {
+            return CloneLatestCertificateMetadata(secondary);
+        }
+
+        if (!HasLatestCertificateMetadata(secondary)) {
+            return CloneLatestCertificateMetadata(primary);
+        }
+
+        if (!RefersToSameLatestCertificate(primary, secondary)) {
+            return CloneLatestCertificateMetadata(primary);
+        }
+
+        return new SubdomainDiscoveryEntry {
+            LatestCertificateThumbprint = FirstNonEmpty(primary.LatestCertificateThumbprint, secondary.LatestCertificateThumbprint),
+            LatestCertificateSubject = FirstNonEmpty(primary.LatestCertificateSubject, secondary.LatestCertificateSubject),
+            LatestCertificateIssuer = FirstNonEmpty(primary.LatestCertificateIssuer, secondary.LatestCertificateIssuer),
+            LatestCertificateSerialNumber = FirstNonEmpty(primary.LatestCertificateSerialNumber, secondary.LatestCertificateSerialNumber),
+            LatestCertificateNotBeforeUtc = FirstTimestamp(primary.LatestCertificateNotBeforeUtc, secondary.LatestCertificateNotBeforeUtc),
+            LatestCertificateNotAfterUtc = FirstTimestamp(primary.LatestCertificateNotAfterUtc, secondary.LatestCertificateNotAfterUtc),
+            LatestCertificateSubjectAlternativeNames = primary.LatestCertificateSubjectAlternativeNames?.Count > 0
+                ? primary.LatestCertificateSubjectAlternativeNames
+                : secondary.LatestCertificateSubjectAlternativeNames,
+            LatestCertificateIsSelfSigned = primary.LatestCertificateIsSelfSigned ?? secondary.LatestCertificateIsSelfSigned,
+            LatestCertificateWeakKey = primary.LatestCertificateWeakKey ?? secondary.LatestCertificateWeakKey,
+            LatestCertificateSha1Signature = primary.LatestCertificateSha1Signature ?? secondary.LatestCertificateSha1Signature,
+            LatestCertificateHasServerAuthentication = primary.LatestCertificateHasServerAuthentication ?? secondary.LatestCertificateHasServerAuthentication,
+            LatestCertificateHasClientAuthentication = primary.LatestCertificateHasClientAuthentication ?? secondary.LatestCertificateHasClientAuthentication,
+            LatestCertificateHasSecureEmail = primary.LatestCertificateHasSecureEmail ?? secondary.LatestCertificateHasSecureEmail,
+            LatestCertificateAuthenticationProfile = FirstNonEmpty(primary.LatestCertificateAuthenticationProfile, secondary.LatestCertificateAuthenticationProfile)
+        };
+    }
+
+    private static bool HasLatestCertificateMetadata(SubdomainDiscoveryEntry entry) {
+        if (entry == null) {
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(entry.LatestCertificateThumbprint) ||
+               !string.IsNullOrWhiteSpace(entry.LatestCertificateSubject) ||
+               !string.IsNullOrWhiteSpace(entry.LatestCertificateIssuer) ||
+               !string.IsNullOrWhiteSpace(entry.LatestCertificateSerialNumber) ||
+               entry.LatestCertificateNotBeforeUtc.HasValue ||
+               entry.LatestCertificateNotAfterUtc.HasValue ||
+               (entry.LatestCertificateSubjectAlternativeNames?.Count ?? 0) > 0 ||
+               entry.LatestCertificateIsSelfSigned.HasValue ||
+               entry.LatestCertificateWeakKey.HasValue ||
+               entry.LatestCertificateSha1Signature.HasValue ||
+               entry.LatestCertificateHasServerAuthentication.HasValue ||
+               entry.LatestCertificateHasClientAuthentication.HasValue ||
+               entry.LatestCertificateHasSecureEmail.HasValue ||
+               !string.IsNullOrWhiteSpace(entry.LatestCertificateAuthenticationProfile);
+    }
+
+    private static bool RefersToSameLatestCertificate(
+        SubdomainDiscoveryEntry first,
+        SubdomainDiscoveryEntry second) {
+        var firstThumbprint = NormalizeLatestCertificateToken(first.LatestCertificateThumbprint, upperInvariant: true);
+        var secondThumbprint = NormalizeLatestCertificateToken(second.LatestCertificateThumbprint, upperInvariant: true);
+        if (!string.IsNullOrWhiteSpace(firstThumbprint) &&
+            !string.IsNullOrWhiteSpace(secondThumbprint)) {
+            return string.Equals(firstThumbprint, secondThumbprint, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return TryBuildLatestCertificateIdentity(first, out string? firstIdentity) &&
+               TryBuildLatestCertificateIdentity(second, out string? secondIdentity) &&
+               string.Equals(firstIdentity, secondIdentity, StringComparison.Ordinal);
+    }
+
+    private static bool TryBuildLatestCertificateIdentity(
+        SubdomainDiscoveryEntry? entry,
+        out string? identity) {
+        identity = null;
+        if (entry == null) {
+            return false;
+        }
+
+        string serialNumber = NormalizeLatestCertificateToken(entry.LatestCertificateSerialNumber, upperInvariant: true) ?? string.Empty;
+        string subject = NormalizeLatestCertificateText(entry.LatestCertificateSubject) ?? string.Empty;
+        string issuer = NormalizeLatestCertificateText(entry.LatestCertificateIssuer) ?? string.Empty;
+        string notBefore = entry.LatestCertificateNotBeforeUtc?.UtcDateTime.ToString("O") ?? string.Empty;
+        string notAfter = entry.LatestCertificateNotAfterUtc?.UtcDateTime.ToString("O") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(subject) ||
+            string.IsNullOrWhiteSpace(issuer) ||
+            (string.IsNullOrWhiteSpace(serialNumber) &&
+             string.IsNullOrWhiteSpace(notBefore) &&
+             string.IsNullOrWhiteSpace(notAfter))) {
+            return false;
+        }
+
+        identity = serialNumber + "|" + issuer + "|" + subject + "|" + notBefore + "|" + notAfter;
+        return true;
+    }
+
+    private static string? NormalizeLatestCertificateToken(string? value, bool upperInvariant) {
+        if (value == null) {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length == 0) {
+            return null;
+        }
+
+        return upperInvariant ? normalized.ToUpperInvariant() : normalized.ToLowerInvariant();
+    }
+
+    private static string? NormalizeLatestCertificateText(string? value) {
+        if (value == null) {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        return normalized.Length == 0 ? null : normalized;
+    }
+
+    private static SubdomainDiscoveryEntry CloneLatestCertificateMetadata(SubdomainDiscoveryEntry? entry) {
+        if (entry == null) {
+            return new SubdomainDiscoveryEntry();
+        }
+
+        return new SubdomainDiscoveryEntry {
+            LatestCertificateThumbprint = entry.LatestCertificateThumbprint,
+            LatestCertificateSubject = entry.LatestCertificateSubject,
+            LatestCertificateIssuer = entry.LatestCertificateIssuer,
+            LatestCertificateSerialNumber = entry.LatestCertificateSerialNumber,
+            LatestCertificateNotBeforeUtc = entry.LatestCertificateNotBeforeUtc,
+            LatestCertificateNotAfterUtc = entry.LatestCertificateNotAfterUtc,
+            LatestCertificateSubjectAlternativeNames = entry.LatestCertificateSubjectAlternativeNames == null
+                ? Array.Empty<string>()
+                : entry.LatestCertificateSubjectAlternativeNames.ToList(),
+            LatestCertificateIsSelfSigned = entry.LatestCertificateIsSelfSigned,
+            LatestCertificateWeakKey = entry.LatestCertificateWeakKey,
+            LatestCertificateSha1Signature = entry.LatestCertificateSha1Signature,
+            LatestCertificateHasServerAuthentication = entry.LatestCertificateHasServerAuthentication,
+            LatestCertificateHasClientAuthentication = entry.LatestCertificateHasClientAuthentication,
+            LatestCertificateHasSecureEmail = entry.LatestCertificateHasSecureEmail,
+            LatestCertificateAuthenticationProfile = entry.LatestCertificateAuthenticationProfile
         };
     }
 

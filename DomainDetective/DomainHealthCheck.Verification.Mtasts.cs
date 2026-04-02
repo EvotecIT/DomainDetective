@@ -89,5 +89,24 @@ namespace DomainDetective {
                 _logger.WriteVerbose("MTA-STS TLS correlation skipped for {0}: {1}", domainName, ex.Message);
             }
         }
+
+        /// <summary>
+        /// Verifies only the MTA-STS DNS bootstrap record for a domain.
+        /// </summary>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyMTASTSBootstrap(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            domainName = NormalizeDomain(domainName);
+            UpdateIsPublicSuffix(domainName);
+            MTASTSAnalysis = new MTASTSAnalysis {
+                PolicyUrlOverride = MtaStsPolicyUrlOverride,
+                DnsConfiguration = DnsConfiguration
+            };
+            await MTASTSAnalysis.AnalyzeDnsBootstrap(domainName, _logger);
+        }
     }
 }
