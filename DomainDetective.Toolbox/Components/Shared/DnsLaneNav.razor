@@ -1,0 +1,25 @@
+<div class="tool-callout tool-callout-inline tool-lane-nav">
+    <strong>@Title</strong>
+    <p>@Description</p>
+    <div class="tool-link-row tool-link-row-left">
+        <a href="@BuildDnsLookupUrl()" class="tool-inline-link">DNS Lookup</a>
+        <a href="/docs/dnsclientx/" class="tool-inline-link">DnsClientX toolkit</a>
+        <a href="/docs/dns-workspace/" class="tool-inline-link">Workspace guide</a>
+        <a href="/docs/dns-examples/" class="tool-inline-link">DNS examples</a>
+        <a href="/docs/dns-resolvers/" class="tool-inline-link">Resolver guide</a>
+        <a href="/docs/csharp-api/" class="tool-inline-link">C# guide</a>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "DnsClientX lane";
+    [Parameter] public string Description { get; set; } = "Move between the browser DNS workspace, DnsClientX docs, and direct PowerShell or C# usage without leaving the DNS flow.";
+    [Parameter] public string? Domain { get; set; }
+
+    private string BuildDnsLookupUrl() {
+        var normalizedDomain = (Domain ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalizedDomain)
+            ? "/tools/dns-lookup/"
+            : $"/tools/dns-lookup/?q={Uri.EscapeDataString(normalizedDomain)}";
+    }
+}

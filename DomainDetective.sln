@@ -39,6 +39,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainDetective.Website", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainDetective.OnlineHost", "DomainDetective.OnlineHost\DomainDetective.OnlineHost.csproj", "{DC649406-D3AD-4B22-89F1-C3B8B0988C02}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainDetective.Website.Tests", "DomainDetective.Website.Tests\DomainDetective.Website.Tests.csproj", "{0A7566A5-722E-4DF1-867D-93EF2A12C032}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -229,6 +231,18 @@ Global
 		{DC649406-D3AD-4B22-89F1-C3B8B0988C02}.Release|x64.Build.0 = Release|Any CPU
 		{DC649406-D3AD-4B22-89F1-C3B8B0988C02}.Release|x86.ActiveCfg = Release|Any CPU
 		{DC649406-D3AD-4B22-89F1-C3B8B0988C02}.Release|x86.Build.0 = Release|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Debug|x64.Build.0 = Debug|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Debug|x86.Build.0 = Debug|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Release|x64.ActiveCfg = Release|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Release|x64.Build.0 = Release|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Release|x86.ActiveCfg = Release|Any CPU
+		{0A7566A5-722E-4DF1-867D-93EF2A12C032}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

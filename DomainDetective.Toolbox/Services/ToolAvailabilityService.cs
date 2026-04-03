@@ -1,19 +1,14 @@
 using DomainDetective.Toolbox.Models;
 using Microsoft.Extensions.Configuration;
-using System.Net;
-using System.Net.Http;
 
 namespace DomainDetective.Toolbox.Services;
 
 public sealed class ToolAvailabilityService {
-    private readonly HttpClient _httpClient;
     private readonly ToolsDeploymentMode? _configuredMode;
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private volatile bool _isInitialized;
 
-    public ToolAvailabilityService(HttpClient httpClient, IConfiguration configuration) {
-        _httpClient = httpClient;
-
+    public ToolAvailabilityService(IConfiguration configuration) {
         var configuredMode = configuration["Tools:Mode"];
         if (Enum.TryParse(configuredMode, ignoreCase: true, out ToolsDeploymentMode parsedMode)) {
             _configuredMode = parsedMode;
@@ -81,7 +76,7 @@ public sealed class ToolAvailabilityService {
     public string GetHomeDescription() {
         return Mode switch {
             ToolsDeploymentMode.HostedOnline => "Comprehensive domain security analysis across DNS, mail, web, registration, and exposure posture.",
-            _ => "Web-ready domain security analysis with live DNS, mail, and adaptive overview checks."
+            _ => "Web-ready domain security analysis with live DNS, mail, adaptive overview checks, and local workflows for deeper tools."
         };
     }
 
@@ -95,18 +90,8 @@ public sealed class ToolAvailabilityService {
             : $"{definition.Name} is not available in this web edition yet.";
     }
 
-    private async Task<ToolsDeploymentMode> DetectModeAsync(CancellationToken cancellationToken) {
-        try {
-            using var response = await _httpClient.GetAsync("/tool-api/health", cancellationToken).ConfigureAwait(false);
-            return response.StatusCode == HttpStatusCode.OK
-                ? ToolsDeploymentMode.HostedOnline
-                : ToolsDeploymentMode.StaticOnly;
-        } catch (HttpRequestException) {
-            return ToolsDeploymentMode.StaticOnly;
-        } catch (TaskCanceledException) {
-            return ToolsDeploymentMode.StaticOnly;
-        } catch (InvalidOperationException) {
-            return ToolsDeploymentMode.StaticOnly;
-        }
+    private Task<ToolsDeploymentMode> DetectModeAsync(CancellationToken cancellationToken) {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ToolsDeploymentMode.StaticOnly);
     }
 }

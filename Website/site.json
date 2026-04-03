@@ -188,6 +188,7 @@
         "Name": "footer-resources",
         "Items": [
           { "Title": "Quick Start", "Url": "/docs/quickstart/" },
+          { "Title": "DnsClientX Toolkit", "Url": "/docs/dnsclientx/" },
           { "Title": "C# API Reference", "Url": "/api/" },
           { "Title": "PowerShell API Reference", "Url": "/api/powershell/" },
           { "Title": "CLI Usage", "Url": "/docs/cli-usage/" },

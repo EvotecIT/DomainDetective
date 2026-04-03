@@ -120,15 +120,24 @@ body {
 .nav-dropdown-trigger {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
   min-height: 2.5rem;
   padding: 0.5rem 0.8rem;
+  height: 2.5rem;
   color: var(--pf-muted);
   text-decoration: none;
   border-radius: var(--pf-radius-sm);
   font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.dd-nav-dropdown,
+.nav-dropdown {
+  display: flex;
+  align-items: center;
 }
 
 .nav-icon {

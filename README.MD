@@ -57,6 +57,12 @@ Build the full website stack:
 pwsh ./Website/build.ps1 -Fast
 ```
 
+Run the website regression suite:
+
+```powershell
+dotnet test ./DomainDetective.Website.Tests/DomainDetective.Website.Tests.csproj --configuration Release --framework net10.0
+```
+
 Run the local online host after the build:
 
 ```powershell
@@ -76,6 +82,10 @@ Why the host matters:
 - Hosted-first checks include HTTP headers, `security.txt`, certificate analysis, MTA-STS policy retrieval, RDAP, and BIMI indicator/logo fetches
 - A static-only deployment such as GitHub Pages will publish the site, but it will not provide `/tool-api`
 - Production deployments should serve the site through `DomainDetective.OnlineHost` or an equivalent reverse proxy/application host that exposes the same `/tool-api` endpoints
+
+### Website PR Checklist
+
+The website validation commands and CI notes now live in [CONTRIBUTING.md](./CONTRIBUTING.md) so there is one source of truth for contributor workflows.
 
 ## Quick Start
 

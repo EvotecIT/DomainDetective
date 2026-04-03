@@ -92,7 +92,9 @@
             var current = Array.isArray(state[toolSlug]) ? state[toolSlug] : [];
             var normalized = {
                 domain: item.domain,
+                dnsHost: item.dnsHost || null,
                 secondaryInput: item.secondaryInput || null,
+                dnsResolver: item.dnsResolver || null,
                 savedAtUtc: item.savedAtUtc || new Date().toISOString()
             };
             var deduped = current.filter(function (entry) {
@@ -101,7 +103,9 @@
                 }
 
                 return !(entry.domain.toLowerCase() === normalized.domain.toLowerCase()
-                    && (entry.secondaryInput || '') === (normalized.secondaryInput || ''));
+                    && (entry.dnsHost || '') === (normalized.dnsHost || '')
+                    && (entry.secondaryInput || '') === (normalized.secondaryInput || '')
+                    && (entry.dnsResolver || '') === (normalized.dnsResolver || ''));
             });
 
             deduped.unshift(normalized);

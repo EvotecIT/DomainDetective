@@ -13,13 +13,38 @@ namespace DomainDetective.Toolbox.Services;
 public sealed class BrowserDnsService {
     private readonly HttpClient _httpClient;
 
+    private static readonly IReadOnlyList<DohResolverProfile> _supportedResolvers = new[] {
+        new DohResolverProfile("Google DNS", new Uri("https://dns.google/resolve"), "8.8.8.8", "Google"),
+        new DohResolverProfile("Cloudflare DNS", new Uri("https://cloudflare-dns.com/dns-query"), "1.1.1.1", "Cloudflare")
+    };
+
     public BrowserDnsService(HttpClient httpClient) {
         _httpClient = httpClient;
     }
 
-    public DomainHealthCheck CreateHealthCheck() {
+    public static IReadOnlyList<DohResolverProfile> GetSupportedResolvers() {
+        return _supportedResolvers;
+    }
+
+    public static string GetDefaultResolverName() {
+        return _supportedResolvers[0].Name;
+    }
+
+    public static DohResolverProfile GetResolverProfile(string? resolverName) {
+        if (!string.IsNullOrWhiteSpace(resolverName)) {
+            foreach (var resolver in _supportedResolvers) {
+                if (string.Equals(resolver.Name, resolverName.Trim(), StringComparison.OrdinalIgnoreCase)) {
+                    return resolver;
+                }
+            }
+        }
+
+        return _supportedResolvers[0];
+    }
+
+    public DomainHealthCheck CreateHealthCheck(string? resolverName = null) {
         var healthCheck = new DomainHealthCheck();
-        var doh = new BrowserDohResolver(_httpClient);
+        var doh = new BrowserDohResolver(_httpClient, GetResolverProfile(resolverName));
 
         healthCheck.HttpClientFactory = new BrowserHttpClientFactory(_httpClient);
         healthCheck.DnsConfiguration.QueryDnsOverride = doh.QueryAnswersAsync;
@@ -42,7 +67,7 @@ public sealed class BrowserDnsService {
             throw new ArgumentNullException(nameof(domainName));
         }
 
-        var doh = new BrowserDohResolver(_httpClient);
+        var doh = new BrowserDohResolver(_httpClient, GetResolverProfile(null));
         var recordTypes = (healthCheck.DnsPropagationRecordTypes != null && healthCheck.DnsPropagationRecordTypes.Length > 0)
             ? healthCheck.DnsPropagationRecordTypes.Distinct().ToArray()
             : new[] { DnsRecordType.A, DnsRecordType.AAAA };
@@ -52,8 +77,8 @@ public sealed class BrowserDnsService {
         foreach (var recordType in recordTypes) {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var results = new List<DnsPropagationResult>(BrowserDohResolver.PropagationResolvers.Count);
-            foreach (var resolver in BrowserDohResolver.PropagationResolvers) {
+            var results = new List<DnsPropagationResult>(_supportedResolvers.Count);
+            foreach (var resolver in _supportedResolvers) {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var stopwatch = Stopwatch.StartNew();
@@ -121,7 +146,7 @@ public sealed class BrowserDnsService {
             }
 
             var report = new DnsPropagationReportAnalysis();
-            report.Load(domainName, recordType, results, maxResultsToKeep: BrowserDohResolver.PropagationResolvers.Count);
+            report.Load(domainName, recordType, results, maxResultsToKeep: _supportedResolvers.Count);
             healthCheck.DnsPropagationSet.Add(report);
         }
     }
@@ -153,15 +178,12 @@ public sealed class BrowserDnsService {
             PropertyNameCaseInsensitive = true
         };
 
-        internal static readonly IReadOnlyList<DohResolverProfile> PropagationResolvers = new[] {
-            new DohResolverProfile("Google DNS", new Uri("https://dns.google/resolve"), "8.8.8.8", "Google"),
-            new DohResolverProfile("Cloudflare DNS", new Uri("https://cloudflare-dns.com/dns-query"), "1.1.1.1", "Cloudflare")
-        };
-
         private readonly HttpClient _httpClient;
+        private readonly DohResolverProfile _selectedResolver;
 
-        public BrowserDohResolver(HttpClient httpClient) {
+        public BrowserDohResolver(HttpClient httpClient, DohResolverProfile selectedResolver) {
             _httpClient = httpClient;
+            _selectedResolver = selectedResolver;
         }
 
         public async Task<DnsAnswer[]> QueryAnswersAsync(string name, DnsRecordType type) {
@@ -170,7 +192,7 @@ public sealed class BrowserDnsService {
         }
 
         public Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType type, CancellationToken cancellationToken) {
-            return QueryResolverResponseAsync(PropagationResolvers[0], name, type, cancellationToken);
+            return QueryResolverResponseAsync(_selectedResolver, name, type, cancellationToken);
         }
 
         public async Task<DnsResponse> QueryResolverResponseAsync(DohResolverProfile profile, string name, DnsRecordType type, CancellationToken cancellationToken) {

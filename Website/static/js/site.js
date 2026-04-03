@@ -186,10 +186,20 @@
         var navToggle = document.querySelector('.dd-nav-toggle');
         var nav = document.querySelector('.dd-nav');
         if (navToggle && nav) {
-            navToggle.addEventListener('click', function () {
-                var isOpen = nav.classList.toggle('open');
+            var setNavState = function (isOpen) {
+                nav.classList.toggle('open', isOpen);
                 navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
                 document.body.classList.toggle('nav-open', isOpen);
+            };
+
+            navToggle.addEventListener('click', function () {
+                setNavState(!nav.classList.contains('open'));
+            });
+
+            nav.querySelectorAll('a').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    setNavState(false);
+                });
             });
         }
 
