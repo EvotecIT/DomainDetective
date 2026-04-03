@@ -2,6 +2,7 @@
 @page "/{ToolSlug}"
 @inject ToolRegistry Registry
 @inject ToolAvailabilityService Availability
+@inject NavigationManager Navigation
 
 <PageTitle>@GetPageTitle()</PageTitle>
 
@@ -80,6 +81,7 @@
 
 @code {
     [Parameter] public string? ToolSlug { get; set; }
+    [SupplyParameterFromQuery(Name = "domain")] public string? DomainQuery { get; set; }
 
     private bool _isReady;
     private string? _searchQuery;
@@ -87,6 +89,12 @@
     private IReadOnlyList<ToolDefinition> _filteredAllTools = Array.Empty<ToolDefinition>();
 
     protected override async Task OnParametersSetAsync() {
+        if (string.IsNullOrEmpty(ToolSlug) && !string.IsNullOrWhiteSpace(DomainQuery)) {
+            var target = "/tools/domain-overview/?q=" + Uri.EscapeDataString(DomainQuery.Trim());
+            Navigation.NavigateTo(target, replace: true);
+            return;
+        }
+
         await Availability.InitializeAsync();
         _allTools = Registry.GetAll();
         if (!string.IsNullOrWhiteSpace(_searchQuery)) {
