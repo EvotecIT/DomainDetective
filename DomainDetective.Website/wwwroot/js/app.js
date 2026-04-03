@@ -3,6 +3,10 @@
 
     var themes = ['dark', 'light'];
     var recentRunsKey = 'dd-tool-recent-runs';
+    var prismLoadPromise = null;
+
+    window.Prism = window.Prism || {};
+    window.Prism.manual = true;
 
     function applyTheme(theme) {
         var nextTheme = theme === 'light' ? 'light' : 'dark';
@@ -30,6 +34,101 @@
         } catch (error) {
             // Ignore quota and storage errors.
         }
+    }
+
+    function hasCodeBlocks(scope) {
+        var root = scope || document;
+        return !!(root && root.querySelector && root.querySelector('pre code[class*="language-"]'));
+    }
+
+    function loadScript(src) {
+        return new Promise(function (resolve) {
+            var existing = document.querySelector('script[data-dynamic-src="' + src + '"]');
+            if (existing) {
+                if (existing.getAttribute('data-loaded') === 'true') {
+                    resolve(true);
+                    return;
+                }
+
+                existing.addEventListener('load', function () { resolve(true); }, { once: true });
+                existing.addEventListener('error', function () { resolve(false); }, { once: true });
+                return;
+            }
+
+            var script = document.createElement('script');
+            script.src = src;
+            script.async = true;
+            script.defer = true;
+            script.setAttribute('data-dynamic-src', src);
+            script.addEventListener('load', function () {
+                script.setAttribute('data-loaded', 'true');
+                resolve(true);
+            }, { once: true });
+            script.addEventListener('error', function () {
+                resolve(false);
+            }, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    function ensurePrismLoaded(scope) {
+        if (!hasCodeBlocks(scope)) {
+            return Promise.resolve(false);
+        }
+
+        if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+            return Promise.resolve(true);
+        }
+
+        if (prismLoadPromise) {
+            return prismLoadPromise;
+        }
+
+        prismLoadPromise = loadScript('assets/prism/prism-core.min.js')
+            .then(function (coreLoaded) {
+                if (!coreLoaded) {
+                    return false;
+                }
+
+                return loadScript('assets/prism/prism-autoloader.min.js');
+            })
+            .then(function (autoloadLoaded) {
+                return !!autoloadLoaded;
+            })
+            .catch(function () {
+                return false;
+            });
+
+        return prismLoadPromise;
+    }
+
+    function highlightCodeBlocks(scope) {
+        var root = scope || document;
+        if (!hasCodeBlocks(root)) {
+            return Promise.resolve(false);
+        }
+
+        return ensurePrismLoaded(root).then(function (loaded) {
+            if (!loaded || !window.Prism) {
+                return false;
+            }
+
+            if (window.Prism.plugins && window.Prism.plugins.autoloader) {
+                window.Prism.plugins.autoloader.languages_path = 'assets/prism/components/';
+            }
+
+            if (root && typeof window.Prism.highlightAllUnder === 'function') {
+                window.Prism.highlightAllUnder(root);
+                return true;
+            }
+
+            if (typeof window.Prism.highlightAll === 'function') {
+                window.Prism.highlightAll();
+                return true;
+            }
+
+            return false;
+        });
     }
 
     window.domainDetectiveTools = {
@@ -129,6 +228,9 @@
             });
 
             return true;
+        },
+        highlightCodeBlocks: function (scope) {
+            return highlightCodeBlocks(scope);
         }
     };
 })();
