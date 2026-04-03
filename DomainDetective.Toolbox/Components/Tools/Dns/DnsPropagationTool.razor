@@ -78,7 +78,16 @@
             </div>
 
             <ResultTable Columns="@(new[] { "Property", "Value" })">
-                <tr><td>Majority answer set</td><td>@FormatAnswerSet(item.MajorityAnswerSet)</td></tr>
+                <tr>
+                    <td>Majority answer set</td>
+                    <td>
+                        <div class="tool-value-stack">
+                            @foreach (var value in GetAnswerSetEntries(item.MajorityAnswerSet)) {
+                                <code>@value</code>
+                            }
+                        </div>
+                    </td>
+                </tr>
                 <tr><td>Average response time</td><td>@FormatDuration(item.AvgDuration)</td></tr>
                 <tr><td>Fastest response</td><td>@FormatDuration(item.MinDuration)</td></tr>
                 <tr><td>Slowest response</td><td>@FormatDuration(item.MaxDuration)</td></tr>
@@ -89,7 +98,13 @@
                 <ResultTable Columns="@(new[] { "Answer set", "Resolvers", "Status" })">
                     @foreach (var answerSet in answerSets) {
                         <tr>
-                            <td>@answerSet.Label</td>
+                            <td>
+                                <div class="tool-value-stack">
+                                    @foreach (var value in GetAnswerSetEntries(answerSet.Key)) {
+                                        <code>@value</code>
+                                    }
+                                </div>
+                            </td>
                             <td>@answerSet.Count</td>
                             <td>@(answerSet.IsMajority ? "Majority" : "Observed")</td>
                         </tr>
@@ -98,7 +113,7 @@
             }
 
             <div class="tool-data-table-wrap">
-                <table class="tool-data-table">
+                <table class="tool-data-table tool-data-table-dns">
                     <thead>
                         <tr>
                             <th>Resolver</th>
@@ -120,7 +135,13 @@
                                         @(result.Success ? "Seen" : "Unavailable")
                                     </span>
                                 </td>
-                                <td>@FormatRecords(result.Records)</td>
+                                <td>
+                                    <div class="tool-value-stack">
+                                        @foreach (var value in GetRecordEntries(result.Records)) {
+                                            <code>@value</code>
+                                        }
+                                    </div>
+                                </td>
                                 <td>@FormatDuration(result.Duration)</td>
                             </tr>
                         }
@@ -214,7 +235,7 @@
             .GroupBy(static result => NormalizeAnswerSet(result.Records), StringComparer.OrdinalIgnoreCase)
             .Select(group => new DnsPropagationAnswerSetInfo {
                 Key = group.Key,
-                Label = FormatAnswerSet(group.Key),
+                Label = string.Join(" | ", GetAnswerSetEntries(group.Key)),
                 Count = group.Count(),
                 IsMajority = string.Equals(group.Key, item.MajorityAnswerSet ?? string.Empty, StringComparison.OrdinalIgnoreCase)
             })
@@ -246,9 +267,9 @@
         return values.Length > 0 ? string.Join(", ", values) : "(no answer)";
     }
 
-    private static string FormatAnswerSet(string? value) {
+    private static IReadOnlyList<string> GetAnswerSetEntries(string? value) {
         if (string.IsNullOrWhiteSpace(value) || string.Equals(value, "(no answer)", StringComparison.OrdinalIgnoreCase)) {
-            return "No majority answer set";
+            return new[] { "No majority answer set" };
         }
 
         var entries = value
@@ -257,7 +278,7 @@
             .Where(static item => item.Length > 0)
             .ToArray();
 
-        return entries.Length > 0 ? string.Join(", ", entries) : "No majority answer set";
+        return entries.Length > 0 ? entries : new[] { "No majority answer set" };
     }
 
     private static string FormatBool(bool value) {
@@ -309,9 +330,9 @@
         return !string.IsNullOrWhiteSpace(result.Asn) ? result.Asn : "Unknown";
     }
 
-    private static string FormatRecords(IEnumerable<string> records) {
+    private static IReadOnlyList<string> GetRecordEntries(IEnumerable<string> records) {
         var values = records?.Where(static value => !string.IsNullOrWhiteSpace(value)).ToArray() ?? Array.Empty<string>();
-        return values.Length > 0 ? string.Join(", ", values) : "No answer";
+        return values.Length > 0 ? values : new[] { "No answer" };
     }
 
     private static string FormatResolver(DnsPropagationResultInfo result) {
