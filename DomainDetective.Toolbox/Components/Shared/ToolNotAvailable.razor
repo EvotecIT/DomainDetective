@@ -22,20 +22,24 @@
         </div>
     </div>
 
-    <div class="desktop-command-grid">
-        @if (!string.IsNullOrEmpty(CliCommand)) {
-            <div class="desktop-command-card">
-                <div class="desktop-command-label">CLI</div>
-                <div class="result-record desktop-command-text">$ domaindetective @CliCommand example.com</div>
-            </div>
-        }
-        @if (!string.IsNullOrEmpty(PowerShellCommand)) {
-            <div class="desktop-command-card">
-                <div class="desktop-command-label">PowerShell</div>
-                <div class="result-record desktop-command-text">PS&gt; @PowerShellCommand</div>
-            </div>
-        }
-    </div>
+    @if (Tool is not null) {
+        <ToolWorkflowGuidance Tool="Tool" Emphasize="true" Domain="@CurrentDomain" />
+    } else {
+        <div class="desktop-command-grid">
+            @if (!string.IsNullOrEmpty(CliCommand)) {
+                <div class="desktop-command-card">
+                    <div class="desktop-command-label">CLI</div>
+                    <div class="result-record desktop-command-text">$ domaindetective @CliCommand example.com</div>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(PowerShellCommand)) {
+                <div class="desktop-command-card">
+                    <div class="desktop-command-label">PowerShell</div>
+                    <div class="result-record desktop-command-text">PS&gt; @PowerShellCommand</div>
+                </div>
+            }
+        </div>
+    }
 
     <div class="tool-link-row">
         <a href="/docs/quickstart/" class="tool-inline-link">Install Domain Detective</a>
@@ -49,4 +53,6 @@
     [Parameter] public string? Description { get; set; }
     [Parameter] public string? CliCommand { get; set; }
     [Parameter] public string? PowerShellCommand { get; set; }
+    [Parameter] public ToolDefinition? Tool { get; set; }
+    [Parameter] public string? CurrentDomain { get; set; }
 }

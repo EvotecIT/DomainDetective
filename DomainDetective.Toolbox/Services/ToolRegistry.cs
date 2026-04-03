@@ -94,10 +94,12 @@ public sealed class ToolRegistry {
         new ToolDefinition {
             Name = "DNS Lookup",
             Slug = "dns-lookup",
-            Description = "Query DNS records of any type (A, AAAA, CNAME, TXT, etc.)",
+            Description = "Query DNS records of any type (A, AAAA, MX, CNAME, TXT, etc.) with the DnsClientX resolver engine",
             Category = ToolCategory.Dns,
             Icon = "search",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            SecondaryInputLabel = "Focus record types (optional)",
+            SecondaryInputPlaceholder = "A, AAAA, MX, TXT"
         },
         new ToolDefinition {
             Name = "DNSSEC Check",

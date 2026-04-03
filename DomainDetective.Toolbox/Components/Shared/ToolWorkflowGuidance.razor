@@ -1,0 +1,345 @@
+@using DomainDetective
+@using System.Linq
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<div class="tool-workflow-panel@(Emphasize ? " tool-workflow-panel-emphasis" : string.Empty)">
+    <div class="tool-workflow-header">
+        <span class="tool-workflow-kicker">@GetKicker()</span>
+        <h3>@GetTitle()</h3>
+        <p>@GetDescription()</p>
+    </div>
+
+    <div class="tool-workflow-grid">
+        <article class="tool-workflow-card">
+            <div class="tool-workflow-card-header">
+                <span class="tool-workflow-label">CLI</span>
+                <button type="button"
+                        class="@GetCopyButtonClass("cli")"
+                        @onclick="@(() => CopyWorkflowAsync("cli", GetCliCommand()))">
+                    @GetCopyButtonText("cli")
+                </button>
+            </div>
+            <p class="tool-workflow-note">Best for scripting, CI, and repeatable audits.</p>
+            <pre class="tool-workflow-code"><code class="language-bash">@GetCliCommand()</code></pre>
+        </article>
+
+        <article class="tool-workflow-card">
+            <div class="tool-workflow-card-header">
+                <span class="tool-workflow-label">PowerShell</span>
+                <button type="button"
+                        class="@GetCopyButtonClass("powershell")"
+                        @onclick="@(() => CopyWorkflowAsync("powershell", GetPowerShellCommand()))">
+                    @GetCopyButtonText("powershell")
+                </button>
+            </div>
+            <p class="tool-workflow-note">Good when you want the DD module in shell automation.</p>
+            <pre class="tool-workflow-code"><code class="language-powershell">@GetPowerShellCommand()</code></pre>
+        </article>
+
+        <article class="tool-workflow-card">
+            <div class="tool-workflow-card-header">
+                <span class="tool-workflow-label">C#</span>
+                <button type="button"
+                        class="@GetCopyButtonClass("csharp")"
+                        @onclick="@(() => CopyWorkflowAsync("csharp", GetCSharpSnippet()))">
+                    @GetCopyButtonText("csharp")
+                </button>
+            </div>
+            <p class="tool-workflow-note">Use the same engine directly from your .NET code.</p>
+            <pre class="tool-workflow-code"><code class="language-csharp">@GetCSharpSnippet()</code></pre>
+        </article>
+    </div>
+
+    <div class="tool-link-row">
+        <a href="/docs/quickstart/" class="tool-inline-link">Quick start</a>
+        <a href="/docs/cli-usage/" class="tool-inline-link">CLI usage</a>
+        <a href="/docs/powershell-cmdlets/" class="tool-inline-link">PowerShell usage</a>
+        <a href="/docs/csharp-api/" class="tool-inline-link">C# guide</a>
+        @if (Tool.Slug == "dns-lookup") {
+            <a href="/docs/dnsclientx/" class="tool-inline-link">DnsClientX toolkit</a>
+            <a href="/docs/dns-workspace/" class="tool-inline-link">DnsClientX guide</a>
+            <a href="/docs/dns-examples/" class="tool-inline-link">DNS examples</a>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public required ToolDefinition Tool { get; set; }
+    [Parameter] public bool Emphasize { get; set; }
+    [Parameter] public string? Domain { get; set; }
+    [Parameter] public string? DnsResolver { get; set; }
+    [Parameter] public string? DnsHost { get; set; }
+    [Parameter] public string? DnsRequestedTypes { get; set; }
+
+    private string? _copyState;
+
+    private string GetKicker() {
+        return Tool.BrowserCompatible ? "Local workflow" : "Run this today";
+    }
+
+    private string GetTitle() {
+        return Tool.BrowserCompatible
+            ? $"Prefer {Tool.Name} outside the browser?"
+            : $"Run {Tool.Name} in CLI, PowerShell, or C#";
+    }
+
+    private string GetDescription() {
+        if (Tool.Slug == "dns-lookup") {
+            return "Use the browser workspace for a quick focused DNS view, then switch to DnsClientX locally when you want resolver choice, local host targets, typed records, or repeatable DNS automation.";
+        }
+
+        return Tool.BrowserCompatible
+            ? "The web edition is ready here, but the same check is also available locally when you want scripting, privacy, or repeatable automation."
+            : "GitHub Pages and browser sandboxing limit the deeper online path here, so this page keeps the workflow discoverable and shows the local commands that work today.";
+    }
+
+    private string GetCopyButtonClass(string workflow) {
+        var cssClass = "tool-workflow-copy-btn";
+        if (_copyState == workflow) {
+            cssClass += " is-success";
+        } else if (_copyState == $"{workflow}-failed") {
+            cssClass += " is-failure";
+        }
+
+        return cssClass;
+    }
+
+    private string GetCopyButtonText(string workflow) {
+        return _copyState switch {
+            var state when state == workflow => "Copied",
+            var state when state == $"{workflow}-failed" => "Copy failed",
+            _ => "Copy"
+        };
+    }
+
+    private async Task CopyWorkflowAsync(string workflow, string text) {
+        var copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", text);
+        _copyState = copied ? workflow : $"{workflow}-failed";
+        StateHasChanged();
+
+        var currentState = _copyState;
+        await Task.Delay(1600);
+        if (_copyState == currentState) {
+            _copyState = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string GetSampleDomain() {
+        return string.IsNullOrWhiteSpace(Domain) ? "example.com" : Domain.Trim();
+    }
+
+    private string GetDnsLocalTarget() {
+        var sampleDomain = GetSampleDomain().Trim().TrimEnd('.');
+        var host = (DnsHost ?? string.Empty).Trim().TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(host) || string.Equals(host, "@", StringComparison.Ordinal)) {
+            return sampleDomain;
+        }
+
+        if (string.Equals(host, sampleDomain, StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith("." + sampleDomain, StringComparison.OrdinalIgnoreCase)) {
+            return host;
+        }
+
+        return $"{host}.{sampleDomain}";
+    }
+
+    private string GetDnsRecordTypeList() {
+        if (string.IsNullOrWhiteSpace(DnsRequestedTypes)) {
+            return "A, AAAA, MX";
+        }
+
+        var recordTypes = DnsRequestedTypes
+            .Split(new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static value => value.Trim())
+            .Where(static value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return recordTypes.Length == 0 ? "A, AAAA, MX" : string.Join(", ", recordTypes);
+    }
+
+    private string GetDnsRecordTypeArray() {
+        var entries = GetDnsRecordTypeList()
+            .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static value => value.Trim())
+            .Where(static value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(static value => $"DnsRecordType.{value.ToUpperInvariant()}")
+            .ToArray();
+
+        return entries.Length == 0
+            ? "new[] { DnsRecordType.A, DnsRecordType.AAAA, DnsRecordType.MX }"
+            : $"new[] {{ {string.Join(", ", entries)} }}";
+    }
+
+    private string GetDnsProviderName() {
+        return DnsResolver switch {
+            var value when string.Equals(value, "Google DNS", StringComparison.OrdinalIgnoreCase) => "Google",
+            var value when string.Equals(value, "Cloudflare DNS", StringComparison.OrdinalIgnoreCase) => "Cloudflare",
+            _ => "Cloudflare"
+        };
+    }
+
+    private string GetCliCommand() {
+        var sampleDomain = QuoteForBash(GetSampleDomain());
+        return Tool.Slug switch {
+            "m365-overview" => "dotnet tool install -g DomainDetective.CLI\n" +
+                               $"domaindetective wizard --domain {sampleDomain} --quick",
+            "domain-overview" => "dotnet tool install -g DomainDetective.CLI\n" +
+                                 $"domaindetective check {sampleDomain} --summary",
+            "cert-check" => "dotnet tool install -g DomainDetective.CLI\n" +
+                            $"domaindetective check {sampleDomain} --checks CERT",
+            "http-headers" => "dotnet tool install -g DomainDetective.CLI\n" +
+                              $"domaindetective check {sampleDomain} --checks HTTP",
+            "security-txt" => "dotnet tool install -g DomainDetective.CLI\n" +
+                              $"domaindetective check {sampleDomain} --checks SECURITYTXT",
+            "rdap" => "dotnet tool install -g DomainDetective.CLI\n" +
+                      $"domaindetective check {sampleDomain} --checks RDAP",
+            "dns-propagation" => "dotnet tool install -g DomainDetective.CLI\n" +
+                                 $"domaindetective DnsPropagation --domain {sampleDomain} --record-type A",
+            "ct-subdomains" => "dotnet tool install -g DomainDetective.CLI\n" +
+                               $"domaindetective check {sampleDomain} --checks SUBDOMAINS",
+            _ => "dotnet tool install -g DomainDetective.CLI\n" +
+                 $"domaindetective check {sampleDomain} --checks {GetHealthCheckTypeName()}"
+        };
+    }
+
+    private static string QuoteForBash(string value) {
+        return "'" + (value ?? string.Empty).Replace("'", "'\"'\"'") + "'";
+    }
+
+    private string GetPowerShellCommand() {
+        var sampleDomain = GetSampleDomain();
+        return Tool.Slug switch {
+            "m365-overview" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                               "Import-Module DomainDetective\n" +
+                               $"$check = Get-DomainHealthCheck -Domain \"{sampleDomain}\"",
+            "domain-overview" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                                 "Import-Module DomainDetective\n" +
+                                 $"$check = Get-DomainHealthCheck -Domain \"{sampleDomain}\"",
+            "dkim" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                      "Import-Module DomainDetective\n" +
+                      $"$check = Get-DomainHealthCheck -Domain \"{sampleDomain}\" -Type DKIM -DkimSelectors \"default\"",
+            "dns-lookup" => "Install-Module DnsClientX -Scope CurrentUser\n" +
+                            "Import-Module DnsClientX\n" +
+                            $"Resolve-Dns -Name \"{GetDnsLocalTarget()}\" -Type {GetDnsRecordTypeList()} -DnsProvider {GetDnsProviderName()} | Format-Table",
+            _ => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                 "Import-Module DomainDetective\n" +
+                 $"$check = Get-DomainHealthCheck -Domain \"{sampleDomain}\" -Type {GetHealthCheckTypeName()}"
+        };
+    }
+
+    private string GetCSharpSnippet() {
+        var sampleDomain = GetSampleDomain();
+        return Tool.Slug switch {
+            "m365-overview" => "using DomainDetective;\n\n" +
+                               "var healthCheck = new DomainHealthCheck();\n" +
+                               $"await healthCheck.Verify(\"{sampleDomain}\");",
+            "domain-overview" => "using DomainDetective;\n\n" +
+                                 "var healthCheck = new DomainHealthCheck();\n" +
+                                 $"await healthCheck.Verify(\"{sampleDomain}\");",
+            "dkim" => "using DomainDetective;\n\n" +
+                      "var healthCheck = new DomainHealthCheck();\n" +
+                      $"await healthCheck.VerifyDKIM(\"{sampleDomain}\", new[] {{ \"default\" }});",
+            "spf" => "using DomainDetective;\n\n" +
+                     "var healthCheck = new DomainHealthCheck();\n" +
+                     $"await healthCheck.VerifySPF(\"{sampleDomain}\");",
+            "dmarc" => "using DomainDetective;\n\n" +
+                       "var healthCheck = new DomainHealthCheck();\n" +
+                       $"await healthCheck.VerifyDMARC(\"{sampleDomain}\");",
+            "mx" => "using DomainDetective;\n\n" +
+                    "var healthCheck = new DomainHealthCheck();\n" +
+                    $"await healthCheck.VerifyMX(\"{sampleDomain}\");",
+            "mta-sts" => "using DomainDetective;\n\n" +
+                         "var healthCheck = new DomainHealthCheck();\n" +
+                         $"await healthCheck.VerifyMTASTSBootstrap(\"{sampleDomain}\");",
+            "tls-rpt" => "using DomainDetective;\n\n" +
+                         "var healthCheck = new DomainHealthCheck();\n" +
+                         $"await healthCheck.VerifyTLSRPT(\"{sampleDomain}\");",
+            "bimi" => "using DomainDetective;\n\n" +
+                      "var healthCheck = new DomainHealthCheck();\n" +
+                      $"await healthCheck.VerifyBIMI(\"{sampleDomain}\");",
+            "dns-lookup" => "using DnsClientX;\n\n" +
+                            $"var recordTypes = {GetDnsRecordTypeArray()};\n" +
+                            "foreach (var recordType in recordTypes) {\n" +
+                            $"    var response = await ClientX.QueryDns(\"{GetDnsLocalTarget()}\", recordType, DnsEndpoint.{GetDnsProviderName()});\n" +
+                            "    foreach (var answer in response.Answers) {\n" +
+                            "        Console.WriteLine($\"{recordType}: {answer.Name} -> {answer.Data}\");\n" +
+                            "    }\n" +
+                            "}",
+            "dnssec" => "using DomainDetective;\n\n" +
+                        "var healthCheck = new DomainHealthCheck();\n" +
+                        $"await healthCheck.VerifyDNSSEC(\"{sampleDomain}\");",
+            "soa" => "using DomainDetective;\n\n" +
+                     "var healthCheck = new DomainHealthCheck();\n" +
+                     $"await healthCheck.VerifySOA(\"{sampleDomain}\");",
+            "ns" => "using DomainDetective;\n\n" +
+                    "var healthCheck = new DomainHealthCheck();\n" +
+                    $"await healthCheck.VerifyNS(\"{sampleDomain}\");",
+            "dns-propagation" => "using DomainDetective;\n\n" +
+                                 "var healthCheck = new DomainHealthCheck();\n" +
+                                 $"await healthCheck.Verify(\"{sampleDomain}\", new[] {{ HealthCheckType.DNSPROPAGATION }});",
+            "caa" => "using DomainDetective;\n\n" +
+                     "var healthCheck = new DomainHealthCheck();\n" +
+                     $"await healthCheck.VerifyCAA(\"{sampleDomain}\");",
+            "dane" => "using DomainDetective;\n\n" +
+                      "var healthCheck = new DomainHealthCheck();\n" +
+                      $"await healthCheck.VerifyDANE(\"{sampleDomain}\", new[] {{ ServiceType.SMTP, ServiceType.HTTPS }});",
+            "cert-check" => "using DomainDetective;\n\n" +
+                            "var healthCheck = new DomainHealthCheck();\n" +
+                            $"await healthCheck.Verify(\"{sampleDomain}\", new[] {{ HealthCheckType.CERT }});",
+            "http-headers" => "using DomainDetective;\n\n" +
+                              "var healthCheck = new DomainHealthCheck();\n" +
+                              $"await healthCheck.Verify(\"{sampleDomain}\", new[] {{ HealthCheckType.HTTP }});",
+            "security-txt" => "using DomainDetective;\n\n" +
+                              "var healthCheck = new DomainHealthCheck();\n" +
+                              $"await healthCheck.Verify(\"{sampleDomain}\", new[] {{ HealthCheckType.SECURITYTXT }});",
+            "rdap" => "using DomainDetective;\n\n" +
+                      "var healthCheck = new DomainHealthCheck();\n" +
+                      $"await healthCheck.Verify(\"{sampleDomain}\", new[] {{ HealthCheckType.RDAP }});",
+            "dnsbl" => "using DomainDetective;\n\n" +
+                       "var healthCheck = new DomainHealthCheck();\n" +
+                       $"await healthCheck.VerifyDNSBL(\"{sampleDomain}\");",
+            "dangling-cname" => "using DomainDetective;\n\n" +
+                                "var healthCheck = new DomainHealthCheck();\n" +
+                                $"await healthCheck.VerifyDanglingCname(\"{sampleDomain}\");",
+            "ct-subdomains" => "using DomainDetective;\n\n" +
+                               "var healthCheck = new DomainHealthCheck();\n" +
+                               $"await healthCheck.Verify(\"{sampleDomain}\", new[] {{ HealthCheckType.SUBDOMAINS }});",
+            _ => "using DomainDetective;\n\n" +
+                 "var healthCheck = new DomainHealthCheck();\n" +
+                 $"await healthCheck.Verify(\"{sampleDomain}\");"
+        };
+    }
+
+    private string GetHealthCheckTypeName() {
+        return Tool.Slug switch {
+            "m365-overview" => "MICROSOFT365",
+            "domain-overview" => "DNSINVENTORY,SPF,DMARC,DKIM,MX,DNSSEC,CAA,DANE,RDAP,DNSBL",
+            "spf" => "SPF",
+            "dkim" => "DKIM",
+            "dmarc" => "DMARC",
+            "mx" => "MX",
+            "mta-sts" => "MTASTS",
+            "tls-rpt" => "TLSRPT",
+            "bimi" => "BIMI",
+            "dns-lookup" => "DNSINVENTORY",
+            "dnssec" => "DNSSEC",
+            "soa" => "SOA",
+            "ns" => "NS",
+            "dns-propagation" => "DNSPROPAGATION",
+            "caa" => "CAA",
+            "dane" => "DANE",
+            "cert-check" => "CERT",
+            "http-headers" => "HTTP",
+            "security-txt" => "SECURITYTXT",
+            "rdap" => "RDAP",
+            "dnsbl" => "DNSBL",
+            "dangling-cname" => "DANGLINGCNAME",
+            "ct-subdomains" => "SUBDOMAINS",
+            _ => "SPF"
+        };
+    }
+}

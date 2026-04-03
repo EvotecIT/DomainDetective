@@ -1,0 +1,295 @@
+@using DomainDetective.Toolbox.Models
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<section class="tool-plan-panel" aria-label="Tool launch planner">
+    <div class="tool-plan-header">
+        <span class="tool-plan-kicker">Guided launcher</span>
+        <h2>Build a tool run for one domain</h2>
+        <p>Start with an overview when you want the bigger picture, then pick the narrower checks you want with the same domain already filled in.</p>
+    </div>
+
+    <div class="tool-plan-domain">
+        <label class="tool-plan-label" for="tool-plan-domain">Domain</label>
+        <input id="tool-plan-domain"
+               class="tool-plan-input"
+               type="text"
+               value="@Domain"
+               @oninput="HandleDomainInput"
+               placeholder="example.com" />
+    </div>
+
+    <div class="tool-plan-toolbar">
+        <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="ResetStarterSelection">
+            Core checks
+        </button>
+        <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="SelectAllVisibleTools">
+            Select all checks
+        </button>
+        <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="ClearSelection">
+            Clear
+        </button>
+        <button type="button"
+                class="tool-run-btn tool-run-btn-secondary"
+                disabled="@(!HasDomain())"
+                @onclick="CopyShareLinkAsync">
+            @GetShareButtonText()
+        </button>
+    </div>
+
+    @if (GetOverviewTools().Count > 0) {
+        <section class="tool-plan-overview-panel">
+            <div class="tool-plan-group-header">
+                <h3>Start with an overview</h3>
+                <span>@GetOverviewTools().Count dashboard@(GetOverviewTools().Count == 1 ? string.Empty : "s")</span>
+            </div>
+            <p class="tool-plan-overview-summary">
+                Keep the overview dashboards separate from the checklist flow. They are the quickest way to get posture context before stepping into the individual checks below.
+            </p>
+            <div class="tool-plan-overview-grid">
+                @foreach (var tool in GetOverviewTools()) {
+                    <article class="tool-plan-overview-card">
+                        <span class="tool-plan-overview-mode">@GetPlannerMode(tool)</span>
+                        <strong>@tool.Name</strong>
+                        <p>@tool.Description</p>
+                        <a href="@BuildToolUrl(tool)" class="tool-run-btn tool-run-btn-secondary">Open @tool.Name</a>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+
+    <div class="tool-plan-groups">
+        @foreach (var category in GetCategories()) {
+            var tools = GetToolsForCategory(category);
+            if (tools.Count == 0) {
+                continue;
+            }
+
+            <section class="tool-plan-group">
+                <div class="tool-plan-group-header">
+                    <h3>@ToolRegistry.GetCategoryDisplayName(category)</h3>
+                    <span>@tools.Count tool@(tools.Count == 1 ? string.Empty : "s")</span>
+                </div>
+                <div class="tool-plan-options">
+                    @foreach (var tool in tools) {
+                        var isSelected = _selectedSlugs.Contains(tool.Slug);
+                        <label class="@GetOptionClass(isSelected)">
+                            <input type="checkbox"
+                                   checked="@isSelected"
+                                   @onchange="args => HandleSelectionChanged(tool.Slug, args.Value is bool value && value)" />
+                            <span class="tool-plan-option-copy">
+                                <strong>@tool.Name</strong>
+                                <small>@GetPlannerMode(tool)</small>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+
+    <div class="tool-plan-results">
+        <div class="tool-plan-results-header">
+            <h3>Selected run order</h3>
+            <span>@GetSelectedTools().Count selected</span>
+        </div>
+
+        @if (!HasDomain()) {
+            <p class="tool-plan-empty">Enter a domain to turn the selected checks into ready-to-run tool links.</p>
+        } else if (GetSelectedTools().Count == 0) {
+            <p class="tool-plan-empty">Select at least one tool to build a guided run order.</p>
+        } else {
+            <div class="tool-plan-status">
+                <span class="tool-plan-status-pill">@GetModeCountLabel(ToolPlannerMode.AvailableNow)</span>
+                <span class="tool-plan-status-pill">@GetModeCountLabel(ToolPlannerMode.Adaptive)</span>
+                <span class="tool-plan-status-pill">@GetModeCountLabel(ToolPlannerMode.GuidedLocally)</span>
+            </div>
+
+            @if (HasGuidedLocalTools()) {
+                <p class="tool-plan-summary">
+                    This run includes deeper checks that stay guided in the GitHub Pages edition.
+                    Their tool pages still show the exact CLI, PowerShell, and C# workflows you can run today.
+                </p>
+            }
+
+            <div class="tool-plan-actions">
+                <a href="@BuildFirstSelectedToolUrl()" class="tool-run-btn">Open first selected tool</a>
+            </div>
+
+            <div class="tool-plan-links">
+                @{
+                    var order = 1;
+                }
+                @foreach (var tool in GetSelectedTools()) {
+                    <a href="@BuildToolUrl(tool)" class="tool-plan-link">
+                        <span class="tool-plan-step">@order</span>
+                        <span class="tool-plan-link-copy">
+                            <strong>@tool.Name</strong>
+                            <small>@tool.Description</small>
+                        </span>
+                        <span class="tool-plan-link-mode">@GetPlannerMode(tool)</span>
+                    </a>
+                    order++;
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private static readonly string[] _starterSelection = {
+        "spf",
+        "dkim",
+        "dmarc",
+        "dnssec"
+    };
+
+    private HashSet<string> _selectedSlugs = new(StringComparer.OrdinalIgnoreCase);
+    private string? _shareState;
+
+    [Parameter] public required IReadOnlyList<ToolDefinition> Tools { get; set; }
+    [Parameter] public string? Domain { get; set; }
+    [Parameter] public EventCallback<string?> DomainChanged { get; set; }
+    [Parameter] public ToolsDeploymentMode DeploymentMode { get; set; }
+
+    protected override void OnParametersSet() {
+        var availableSlugs = Tools.Select(static tool => tool.Slug).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _selectedSlugs.RemoveWhere(slug => !availableSlugs.Contains(slug));
+
+        if (_selectedSlugs.Count == 0) {
+            ResetStarterSelection();
+        }
+    }
+
+    private async Task HandleDomainInput(ChangeEventArgs args) {
+        await DomainChanged.InvokeAsync(args.Value?.ToString());
+    }
+
+    private void HandleSelectionChanged(string slug, bool isSelected) {
+        if (isSelected) {
+            _selectedSlugs.Add(slug);
+        } else {
+            _selectedSlugs.Remove(slug);
+        }
+    }
+
+    private void ResetStarterSelection() {
+        _selectedSlugs = GetChecklistTools()
+            .Where(tool => _starterSelection.Contains(tool.Slug, StringComparer.OrdinalIgnoreCase))
+            .Select(static tool => tool.Slug)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void SelectAllVisibleTools() {
+        _selectedSlugs = GetChecklistTools()
+            .Select(static tool => tool.Slug)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void ClearSelection() {
+        _selectedSlugs.Clear();
+    }
+
+    private string GetShareButtonText() {
+        return _shareState switch {
+            "success" => "Share link copied",
+            "failed" => "Copy failed",
+            _ => "Copy share link"
+        };
+    }
+
+    private IReadOnlyList<ToolCategory> GetCategories() {
+        return GetChecklistTools()
+            .Select(static tool => tool.Category)
+            .Distinct()
+            .OrderBy(static category => category)
+            .ToArray();
+    }
+
+    private IReadOnlyList<ToolDefinition> GetToolsForCategory(ToolCategory category) {
+        return GetChecklistTools()
+            .Where(tool => tool.Category == category)
+            .OrderBy(static tool => tool.Name)
+            .ToArray();
+    }
+
+    private IReadOnlyList<ToolDefinition> GetSelectedTools() {
+        return GetChecklistTools()
+            .Where(tool => _selectedSlugs.Contains(tool.Slug))
+            .ToArray();
+    }
+
+    private IReadOnlyList<ToolDefinition> GetOverviewTools() {
+        return Tools
+            .Where(ToolPlannerPresentation.IsOverviewTool)
+            .OrderBy(static tool => tool.Name)
+            .ToArray();
+    }
+
+    private IReadOnlyList<ToolDefinition> GetChecklistTools() {
+        return Tools
+            .Where(tool => !ToolPlannerPresentation.IsOverviewTool(tool))
+            .ToArray();
+    }
+
+    private bool HasDomain() {
+        return !string.IsNullOrWhiteSpace(Domain);
+    }
+
+    private bool HasGuidedLocalTools() {
+        return ToolPlannerPresentation.CountToolsByMode(GetSelectedTools(), DeploymentMode, ToolPlannerMode.GuidedLocally) > 0;
+    }
+
+    private string BuildToolUrl(ToolDefinition tool) {
+        return ToolPlannerPresentation.BuildToolUrl(tool, Domain);
+    }
+
+    private async Task CopyShareLinkAsync() {
+        if (!HasDomain()) {
+            return;
+        }
+
+        var shareUrl = Navigation.ToAbsoluteUri(BuildCatalogUrl()).ToString();
+        var copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", shareUrl);
+        _shareState = copied ? "success" : "failed";
+        StateHasChanged();
+
+        var currentState = _shareState;
+        await Task.Delay(1600);
+        if (_shareState == currentState) {
+            _shareState = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string BuildCatalogUrl() {
+        return ToolPlannerPresentation.BuildCatalogUrl(Domain);
+    }
+
+    private string GetOptionClass(bool isSelected) {
+        return isSelected
+            ? "tool-plan-option is-selected"
+            : "tool-plan-option";
+    }
+
+    private string BuildFirstSelectedToolUrl() {
+        var firstTool = GetSelectedTools().FirstOrDefault();
+        return firstTool is null ? BuildCatalogUrl() : BuildToolUrl(firstTool);
+    }
+
+    private string GetModeCountLabel(ToolPlannerMode mode) {
+        var count = ToolPlannerPresentation.CountToolsByMode(GetSelectedTools(), DeploymentMode, mode);
+        return mode switch {
+            ToolPlannerMode.Adaptive => $"{count} adaptive",
+            ToolPlannerMode.GuidedLocally => $"{count} guided locally",
+            ToolPlannerMode.Online => $"{count} online",
+            _ => $"{count} available now"
+        };
+    }
+
+    private string GetPlannerMode(ToolDefinition tool) {
+        return ToolPlannerPresentation.GetModeLabel(tool, DeploymentMode);
+    }
+}

@@ -1,32 +1,92 @@
+@using DnsClientX
 @using System.Linq
+@using System.Text.Json
 @using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Toolbox.Services
 @using DomainDetective.Views
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
 
 @if (HealthCheck.DnsInventoryAnalysis is { } inventory) {
     var view = Converters.Convert(inventory);
+    var requestedTypes = GetRequestedTypes();
+    var requestedTypesLabel = GetRequestedTypesLabel(requestedTypes);
+    var ignoredTypes = GetIgnoredTypes();
+    var visibleQueries = GetVisibleQueries(view, requestedTypes);
+    var visibleRecords = GetVisibleRecords(visibleQueries);
 
-    <ResultCard Title="DNS inventory summary" Status="@(view.QuerySucceeded ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+    <ResultCard Title="DnsClientX DNS workspace" Status="@(view.QuerySucceeded ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+        <DnsLaneNav Domain="@Domain"
+                    Title="DnsClientX lane"
+                    Description="Stay in the DNS flow as you move between the browser workspace, DnsClientX docs, resolver guidance, and the direct PowerShell or C# paths." />
+
         <div class="tool-summary-grid">
             <div class="tool-summary-card">
-                <span class="tool-summary-label">Captured records</span>
-                <strong class="tool-summary-value">@view.TotalRecords</strong>
-                <p class="tool-summary-note">Queried types: @view.RecordTypesQueried</p>
+                <span class="tool-summary-label">Focused types</span>
+                <strong class="tool-summary-value">@requestedTypesLabel</strong>
+                <p class="tool-summary-note">Browser-safe answer view over the DD DNS inventory.</p>
             </div>
             <div class="tool-summary-card">
-                <span class="tool-summary-label">DNS provider</span>
-                <strong class="tool-summary-value">@FormatEnum(view.Provider, "Unknown")</strong>
-                <p class="tool-summary-note">Score: @view.ProviderScore</p>
+                <span class="tool-summary-label">Visible queries</span>
+                <strong class="tool-summary-value">@visibleQueries.Count</strong>
+                <p class="tool-summary-note">@GetQueryCoverageLabel(visibleQueries)</p>
             </div>
             <div class="tool-summary-card">
-                <span class="tool-summary-label">Mail provider</span>
-                <strong class="tool-summary-value">@FormatEnum(view.MailProvider, "Unknown")</strong>
-                <p class="tool-summary-note">Failed types: @view.RecordTypesFailed</p>
+                <span class="tool-summary-label">Raw records</span>
+                <strong class="tool-summary-value">@visibleRecords.Count</strong>
+                <p class="tool-summary-note">@GetRecordCoverageLabel(visibleRecords)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Resolver path</span>
+                <strong class="tool-summary-value">@GetResolverLabel()</strong>
+                <p class="tool-summary-note">@GetResolverNote()</p>
             </div>
         </div>
 
         <div class="tool-callout">
-            <strong>Summary</strong>
-            <p>@view.Summary</p>
+            <strong>Workspace view</strong>
+            <p>@GetWorkspaceSummary(view, requestedTypes)</p>
+        </div>
+
+        @if (HasLocalHostTarget()) {
+            <div class="tool-callout">
+                <strong>Local host target</strong>
+                <p>@($"The browser inventory below stays focused on {Domain}. The local DnsClientX helpers in this page are targeted at {BuildLocalTargetSubject()} instead.")</p>
+            </div>
+        }
+
+        <div class="tool-stack tool-stack-compact">
+            <div>
+                <span class="tool-summary-label">Preset views</span>
+                <div class="tool-chip-list">
+                    @foreach (var preset in FocusPresets) {
+                        <a href="@BuildPresetUrl(preset)" class="@GetPresetClass(preset, requestedTypes)">@preset.Name</a>
+                    }
+                </div>
+                <p class="tool-summary-note">Jump between common DNS slices without retyping the focus field.</p>
+            </div>
+            <div>
+                <span class="tool-summary-label">Quick host targets</span>
+                <div class="tool-chip-list">
+                    @foreach (var target in GetQueryTargets()) {
+                        <a href="@BuildTargetUrl(target)" class="@GetTargetClass(target)">@target.Name</a>
+                    }
+                </div>
+                <p class="tool-summary-note">Pivot from the apex into common DNS hostnames like DMARC, MTA-STS, TLS-RPT, Autodiscover, or a default DKIM selector.</p>
+            </div>
+        </div>
+
+        @if (ignoredTypes.Count > 0) {
+            <div class="tool-callout">
+                <strong>Ignored record types</strong>
+                <p>@($"These values were not recognized and were skipped: {string.Join(", ", ignoredTypes)}.")</p>
+            </div>
+        }
+
+        <div class="tool-link-row">
+            <a href="/docs/dnsclientx/" class="tool-inline-link">DnsClientX toolkit</a>
+            <a href="/docs/dns-workspace/" class="tool-inline-link">DnsClientX guide</a>
+            <a href="/docs/dns-resolvers/" class="tool-inline-link">Resolver guide</a>
         </div>
     </ResultCard>
 
@@ -91,9 +151,9 @@
         </ResultCard>
     }
 
-    <ResultCard Title="Query breakdown" Status="ResultCard.ResultStatus.Info">
+    <ResultCard Title="Focused query breakdown" Status="ResultCard.ResultStatus.Info">
         <ResultTable Columns="@(new[] { "Type", "Status", "Records", "Details" })">
-            @foreach (var query in view.Queries.OrderBy(static q => q.RecordType.ToString())) {
+            @foreach (var query in visibleQueries.OrderBy(static q => q.RecordType.ToString())) {
                 <tr>
                     <td>@query.RecordType</td>
                     <td>@query.Status</td>
@@ -104,6 +164,85 @@
         </ResultTable>
     </ResultCard>
 
+    <ResultCard Title="Raw answer view" Status="ResultCard.ResultStatus.Info">
+        @if (visibleRecords.Count == 0) {
+            <p>No raw records matched the current focused view.</p>
+        } else {
+            <ResultTable Columns="@(new[] { "Query type", "Section", "Name", "TTL", "Data" })">
+                @foreach (var record in visibleRecords) {
+                    <tr>
+                        <td>@record.QueryType</td>
+                        <td>@record.Section</td>
+                        <td>@record.Name</td>
+                        <td>@record.Ttl</td>
+                        <td>@record.Data</td>
+                    </tr>
+                }
+            </ResultTable>
+        }
+    </ResultCard>
+
+    <ResultCard Title="Focused export" Status="ResultCard.ResultStatus.Info">
+        <div class="tool-stack tool-stack-compact">
+            <p class="tool-summary-note">Copy the current focused result set as JSON or zone-style text for tickets, notes, or a local DnsClientX follow-up.</p>
+            <div class="tool-export-actions">
+                <button type="button"
+                        class="@GetCopyButtonClass("json")"
+                        @onclick="@(() => CopyExportAsync("json", GetJsonExport(view, requestedTypes, visibleQueries, visibleRecords)))">
+                    @GetCopyButtonText("json", "Copy JSON")
+                </button>
+                <button type="button"
+                        class="@GetCopyButtonClass("zone")"
+                        @onclick="@(() => CopyExportAsync("zone", GetZoneExport(visibleRecords)))">
+                    @GetCopyButtonText("zone", "Copy zone text")
+                </button>
+            </div>
+            <pre class="tool-export-preview"><code>@GetZoneExportPreview(visibleRecords)</code></pre>
+        </div>
+    </ResultCard>
+
+    <ResultCard Title="Advanced DNS workflows" Status="ResultCard.ResultStatus.Info">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Specific hostnames</span>
+                <strong class="tool-summary-value">Query off-apex names locally</strong>
+                <p class="tool-summary-note">Use DnsClientX directly for names like `_dmarc.@Domain`, `selector._domainkey.@Domain`, or any service hostname outside the browser workspace focus.</p>
+                <div class="tool-export-actions">
+                    <button type="button"
+                            class="@GetCopyButtonClass("host")"
+                            @onclick="@(() => CopyExportAsync("host", GetHostLookupCommand()))">
+                        @GetCopyButtonText("host", "Copy host query")
+                    </button>
+                </div>
+                <pre class="tool-export-preview"><code>@GetHostLookupCommand()</code></pre>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Benchmarking</span>
+                <strong class="tool-summary-value">Compare resolver performance</strong>
+                <p class="tool-summary-note">Benchmark Cloudflare, Google, and Quad9 locally when you want more than the browser-safe resolver switch on this page.</p>
+                <div class="tool-export-actions">
+                    <button type="button"
+                            class="@GetCopyButtonClass("benchmark")"
+                            @onclick="@(() => CopyExportAsync("benchmark", GetBenchmarkCommand()))">
+                        @GetCopyButtonText("benchmark", "Copy benchmark")
+                    </button>
+                </div>
+                <pre class="tool-export-preview"><code>@GetBenchmarkCommand()</code></pre>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Docs and API lane</span>
+                <strong class="tool-summary-value">Keep DNS guidance together</strong>
+                <p class="tool-summary-note">Use the DnsClientX toolkit page as the DNS landing area today, then grow this into fuller DNS docs and API references later.</p>
+                <div class="tool-link-row tool-link-row-left">
+                    <a href="/docs/dnsclientx/" class="tool-inline-link">DnsClientX toolkit</a>
+                    <a href="/docs/dns-workspace/" class="tool-inline-link">Workspace guide</a>
+                    <a href="/docs/dns-resolvers/" class="tool-inline-link">Resolver guide</a>
+                    <a href="/api/" class="tool-inline-link">C# API reference</a>
+                </div>
+            </div>
+        </div>
+    </ResultCard>
+
     <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
         <AssessmentList Assessments="view.Assessments" EmptyMessage="@($"DNS inventory complete for {Domain}.")" />
     </ResultCard>
@@ -112,6 +251,25 @@
 @code {
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
+    [Parameter] public string? HostLabel { get; set; }
+    [Parameter] public string? RequestedTypes { get; set; }
+    [Parameter] public string? BrowserResolverName { get; set; }
+
+    private string? _copyState;
+
+    private static readonly DnsRecordType[] DefaultFocusTypes = {
+        DnsRecordType.A,
+        DnsRecordType.AAAA,
+        DnsRecordType.MX,
+        DnsRecordType.TXT
+    };
+
+    private static readonly FocusPreset[] FocusPresets = {
+        new("Starter", new[] { DnsRecordType.A, DnsRecordType.AAAA, DnsRecordType.MX, DnsRecordType.TXT }),
+        new("Web", new[] { DnsRecordType.A, DnsRecordType.AAAA, DnsRecordType.CNAME, DnsRecordType.CAA }),
+        new("Mail", new[] { DnsRecordType.MX, DnsRecordType.TXT, DnsRecordType.CNAME }),
+        new("Zone", new[] { DnsRecordType.NS, DnsRecordType.SOA, DnsRecordType.CAA })
+    };
 
     private static string FormatEnum<TEnum>(TEnum value, string fallback) where TEnum : struct, Enum {
         return value.ToString() == "Unknown" || value.ToString() == "None" ? fallback : value.ToString();
@@ -146,4 +304,332 @@
 
         return ResultCard.ResultStatus.Pass;
     }
+
+    private IReadOnlyList<DnsRecordType> GetRequestedTypes() {
+        if (string.IsNullOrWhiteSpace(RequestedTypes)) {
+            return DefaultFocusTypes;
+        }
+
+        var recordTypes = SplitRequestedTypes()
+            .Select(static token => Enum.TryParse(token, ignoreCase: true, out DnsRecordType recordType) ? recordType : (DnsRecordType?)null)
+            .Where(static recordType => recordType.HasValue)
+            .Select(static recordType => recordType!.Value)
+            .Distinct()
+            .ToArray();
+
+        return recordTypes.Length == 0 ? DefaultFocusTypes : recordTypes;
+    }
+
+    private IReadOnlyList<string> GetIgnoredTypes() {
+        return SplitRequestedTypes()
+            .Where(static token => !Enum.TryParse(token, ignoreCase: true, out DnsRecordType _))
+            .ToArray();
+    }
+
+    private IEnumerable<string> SplitRequestedTypes() {
+        return (RequestedTypes ?? string.Empty)
+            .Split(new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static value => value.Trim())
+            .Where(static value => value.Length > 0);
+    }
+
+    private static IReadOnlyList<DnsInventoryQuery> GetVisibleQueries(DnsInventoryInfo view, IReadOnlyList<DnsRecordType> requestedTypes) {
+        return view.Queries
+            .Where(query => requestedTypes.Contains(query.RecordType))
+            .OrderBy(static query => query.RecordType.ToString())
+            .ToArray();
+    }
+
+    private static IReadOnlyList<DnsLookupRecordRow> GetVisibleRecords(IReadOnlyList<DnsInventoryQuery> queries) {
+        return queries
+            .SelectMany(query => query.Records.Select(record => new DnsLookupRecordRow(
+                query.RecordType,
+                record.Section,
+                record.Name,
+                record.Ttl,
+                record.Data)))
+            .OrderBy(static record => record.QueryType.ToString())
+            .ThenBy(static record => record.Section.ToString())
+            .ThenBy(static record => record.Name)
+            .ToArray();
+    }
+
+    private static string GetRequestedTypesLabel(IReadOnlyList<DnsRecordType> requestedTypes) {
+        return string.Join(", ", requestedTypes);
+    }
+
+    private static string GetQueryCoverageLabel(IReadOnlyList<DnsInventoryQuery> queries) {
+        var successfulQueries = queries.Count(static query => query.Status != DomainDetective.DnsInventoryQueryStatus.Failed);
+        return $"{successfulQueries} successful, {queries.Count - successfulQueries} failed";
+    }
+
+    private static string GetRecordCoverageLabel(IReadOnlyList<DnsLookupRecordRow> records) {
+        var answerRecords = records.Count(static record => record.Section == DomainDetective.DnsInventorySection.Answer);
+        return answerRecords > 0
+            ? $"{answerRecords} answer record(s), {records.Count - answerRecords} authority/additional"
+            : "No answer records returned yet";
+    }
+
+    private static string GetWorkspaceSummary(DnsInventoryInfo view, IReadOnlyList<DnsRecordType> requestedTypes) {
+        var focusedTypes = string.Join(", ", requestedTypes);
+        return $"This workspace keeps the full DomainDetective inventory behind the scenes, then focuses the browser answer view on {focusedTypes}. Use it for quick DnsClientX-oriented inspection here, then step into the local DnsClientX workflows when you want resolver choice, typed records, or batch queries.";
+    }
+
+    private string GetResolverLabel() {
+        return string.IsNullOrWhiteSpace(BrowserResolverName) ? "Google DNS" : BrowserResolverName;
+    }
+
+    private string GetResolverNote() {
+        return $"Browser-safe DoH answers through {GetResolverLabel()} in the DnsClientX-backed DD inventory.";
+    }
+
+    private IReadOnlyList<QueryTargetPreset> GetQueryTargets() {
+        return new[] {
+            new QueryTargetPreset("Apex", "@", new[] { DnsRecordType.A, DnsRecordType.AAAA, DnsRecordType.MX, DnsRecordType.TXT }),
+            new QueryTargetPreset("DMARC", "_dmarc", new[] { DnsRecordType.TXT }),
+            new QueryTargetPreset("MTA-STS", "_mta-sts", new[] { DnsRecordType.TXT }),
+            new QueryTargetPreset("TLS-RPT", "_smtp._tls", new[] { DnsRecordType.TXT }),
+            new QueryTargetPreset("Autodiscover", "autodiscover", new[] { DnsRecordType.CNAME, DnsRecordType.A, DnsRecordType.AAAA }),
+            new QueryTargetPreset("DKIM (default)", "default._domainkey", new[] { DnsRecordType.TXT, DnsRecordType.CNAME })
+        };
+    }
+
+    private string GetApexCandidate() {
+        var domain = (Domain ?? string.Empty).Trim().TrimEnd('.');
+        if (domain.StartsWith("_dmarc.", StringComparison.OrdinalIgnoreCase)) {
+            return domain[7..];
+        }
+
+        if (domain.StartsWith("_mta-sts.", StringComparison.OrdinalIgnoreCase)) {
+            return domain[9..];
+        }
+
+        if (domain.StartsWith("_smtp._tls.", StringComparison.OrdinalIgnoreCase)) {
+            return domain[11..];
+        }
+
+        if (domain.StartsWith("autodiscover.", StringComparison.OrdinalIgnoreCase)) {
+            return domain[13..];
+        }
+
+        const string dkimMarker = "._domainkey.";
+        var dkimIndex = domain.IndexOf(dkimMarker, StringComparison.OrdinalIgnoreCase);
+        if (dkimIndex >= 0) {
+            return domain[(dkimIndex + dkimMarker.Length)..];
+        }
+
+        return string.IsNullOrWhiteSpace(domain) ? "example.com" : domain;
+    }
+
+    private string BuildPresetUrl(FocusPreset preset) {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(Domain)) {
+            query.Add($"q={Uri.EscapeDataString(Domain.Trim())}");
+        }
+
+        query.Add($"s={Uri.EscapeDataString(string.Join(",", preset.Types.Select(static type => type.ToString())))}");
+
+        var resolverLabel = GetResolverLabel();
+        if (!string.Equals(resolverLabel, BrowserDnsService.GetDefaultResolverName(), StringComparison.OrdinalIgnoreCase)) {
+            query.Add($"r={Uri.EscapeDataString(resolverLabel)}");
+        }
+
+        return query.Count == 0 ? "/tools/dns-lookup/" : $"/tools/dns-lookup/?{string.Join("&", query)}";
+    }
+
+    private string BuildTargetUrl(QueryTargetPreset target) {
+        var query = new List<string> {
+            $"q={Uri.EscapeDataString(GetApexCandidate())}",
+            $"s={Uri.EscapeDataString(string.Join(",", target.Types.Select(static type => type.ToString())))}"
+        };
+
+        if (!string.Equals(target.HostLabel, "@", StringComparison.Ordinal)) {
+            query.Add($"h={Uri.EscapeDataString(target.HostLabel)}");
+        }
+
+        var resolverLabel = GetResolverLabel();
+        if (!string.Equals(resolverLabel, BrowserDnsService.GetDefaultResolverName(), StringComparison.OrdinalIgnoreCase)) {
+            query.Add($"r={Uri.EscapeDataString(resolverLabel)}");
+        }
+
+        return $"/tools/dns-lookup/?{string.Join("&", query)}";
+    }
+
+    private static string GetPresetClass(FocusPreset preset, IReadOnlyList<DnsRecordType> requestedTypes) {
+        var cssClass = "tool-chip tool-chip-link";
+        if (HasMatchingTypes(preset.Types, requestedTypes)) {
+            cssClass += " is-active";
+        }
+
+        return cssClass;
+    }
+
+    private static bool HasMatchingTypes(IReadOnlyList<DnsRecordType> presetTypes, IReadOnlyList<DnsRecordType> requestedTypes) {
+        if (presetTypes.Count != requestedTypes.Count) {
+            return false;
+        }
+
+        return presetTypes.All(requestedTypes.Contains);
+    }
+
+    private string GetTargetClass(QueryTargetPreset target) {
+        var cssClass = "tool-chip tool-chip-link";
+        if (IsTargetSelected(target)) {
+            cssClass += " is-active";
+        }
+
+        return cssClass;
+    }
+
+    private string GetCopyButtonClass(string exportType) {
+        var cssClass = "tool-run-btn tool-run-btn-secondary tool-export-btn";
+        if (_copyState == exportType) {
+            cssClass += " is-success";
+        } else if (_copyState == $"{exportType}-failed") {
+            cssClass += " is-failure";
+        }
+
+        return cssClass;
+    }
+
+    private string GetCopyButtonText(string exportType, string label) {
+        return _copyState switch {
+            var state when state == exportType => "Copied",
+            var state when state == $"{exportType}-failed" => "Copy failed",
+            _ => label
+        };
+    }
+
+    private async Task CopyExportAsync(string exportType, string text) {
+        var copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", text);
+        _copyState = copied ? exportType : $"{exportType}-failed";
+        StateHasChanged();
+
+        var currentState = _copyState;
+        await Task.Delay(1600);
+        if (_copyState == currentState) {
+            _copyState = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string GetJsonExport(
+        DnsInventoryInfo view,
+        IReadOnlyList<DnsRecordType> requestedTypes,
+        IReadOnlyList<DnsInventoryQuery> visibleQueries,
+        IReadOnlyList<DnsLookupRecordRow> visibleRecords) {
+        var export = new {
+            domain = Domain,
+            localHostTarget = HasLocalHostTarget() ? BuildLocalTargetSubject() : null,
+            browserResolver = GetResolverLabel(),
+            focusedTypes = requestedTypes.Select(static type => type.ToString()).ToArray(),
+            querySucceeded = view.QuerySucceeded,
+            queries = visibleQueries.Select(static query => new {
+                recordType = query.RecordType.ToString(),
+                status = query.Status.ToString(),
+                details = FormatQueryDetails(query),
+                recordCount = query.Records.Count
+            }).ToArray(),
+            records = visibleRecords.Select(static record => new {
+                queryType = record.QueryType.ToString(),
+                section = record.Section.ToString(),
+                name = record.Name,
+                ttl = record.Ttl,
+                data = record.Data
+            }).ToArray()
+        };
+
+        return JsonSerializer.Serialize(export, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static string GetZoneExport(IReadOnlyList<DnsLookupRecordRow> visibleRecords) {
+        if (visibleRecords.Count == 0) {
+            return "; No focused records matched the current DNS workspace view.";
+        }
+
+        return string.Join(
+            Environment.NewLine,
+            visibleRecords.Select(static record => $"{record.Name} {record.Ttl} IN {record.QueryType} {record.Data}"));
+    }
+
+    private static string GetZoneExportPreview(IReadOnlyList<DnsLookupRecordRow> visibleRecords) {
+        if (visibleRecords.Count == 0) {
+            return GetZoneExport(visibleRecords);
+        }
+
+        var preview = visibleRecords
+            .Take(8)
+            .Select(static record => $"{record.Name} {record.Ttl} IN {record.QueryType} {record.Data}")
+            .ToList();
+
+        if (visibleRecords.Count > preview.Count) {
+            preview.Add($"; +{visibleRecords.Count - preview.Count} more record(s)");
+        }
+
+        return string.Join(Environment.NewLine, preview);
+    }
+
+    private string GetHostLookupCommand() {
+        var recordTypes = string.Join(", ", GetRequestedTypes().Select(static recordType => recordType.ToString()));
+        return $"Resolve-Dns -Name '{BuildLocalTargetSubject()}' -Type {recordTypes} -DnsProvider {GetDnsProviderName()} | Format-Table";
+    }
+
+    private string GetBenchmarkCommand() {
+        return $"Test-DnsBenchmark -Name '{Domain}' -DnsProvider Cloudflare, Google, Quad9 -Attempts 3 |\n    Sort-Object Rank | Format-Table Target, SuccessPercent, AverageMs, Rank, IsRecommended";
+    }
+
+    private string GetDnsProviderName() {
+        return GetResolverLabel() switch {
+            "Google DNS" => "Google",
+            "Cloudflare DNS" => "Cloudflare",
+            _ => "Cloudflare"
+        };
+    }
+
+    private bool HasLocalHostTarget() {
+        return !string.IsNullOrWhiteSpace(NormalizeHostLabel());
+    }
+
+    private string NormalizeHostLabel() {
+        var hostLabel = (HostLabel ?? string.Empty).Trim().TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(hostLabel) || string.Equals(hostLabel, "@", StringComparison.Ordinal)) {
+            return string.Empty;
+        }
+
+        return hostLabel;
+    }
+
+    private string BuildLocalTargetSubject() {
+        var domain = GetApexCandidate();
+        var hostLabel = NormalizeHostLabel();
+        if (string.IsNullOrWhiteSpace(hostLabel)) {
+            return domain;
+        }
+
+        if (string.Equals(hostLabel, domain, StringComparison.OrdinalIgnoreCase) ||
+            hostLabel.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase)) {
+            return hostLabel;
+        }
+
+        return $"{hostLabel}.{domain}";
+    }
+
+    private bool IsTargetSelected(QueryTargetPreset target) {
+        var selectedHostLabel = NormalizeHostLabel();
+        if (string.Equals(target.HostLabel, "@", StringComparison.Ordinal)) {
+            return string.IsNullOrWhiteSpace(selectedHostLabel);
+        }
+
+        return string.Equals(selectedHostLabel, target.HostLabel, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed record DnsLookupRecordRow(
+        DnsRecordType QueryType,
+        DomainDetective.DnsInventorySection Section,
+        string Name,
+        int Ttl,
+        string Data);
+
+    private sealed record FocusPreset(string Name, IReadOnlyList<DnsRecordType> Types);
+    private sealed record QueryTargetPreset(string Name, string HostLabel, IReadOnlyList<DnsRecordType> Types);
 }

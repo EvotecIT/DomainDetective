@@ -37,8 +37,8 @@
                     {{~ end ~}}
                     {{~ item_active = item_active || child_active ~}}
                     <div class="dd-nav-dropdown{{ if item_active }} open{{ end }}">
-                      <button class="dd-nav-dropdown-trigger{{ if item_active }} is-active{{ end }}" type="button" aria-expanded="{{ if item_active }}true{{ else }}false{{ end }}" aria-haspopup="true">
-                        {{ item.title }}
+                      <button class="dd-nav-link dd-nav-dropdown-trigger{{ if item_active }} is-active{{ end }}" type="button" aria-expanded="{{ if item_active }}true{{ else }}false{{ end }}" aria-haspopup="true">
+                        <span class="dd-nav-dropdown-label">{{ item.title }}</span>
                         <svg class="dd-nav-dropdown-arrow" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg>
                       </button>
                       <div class="dd-nav-dropdown-menu">

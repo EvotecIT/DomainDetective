@@ -363,12 +363,20 @@ pre code {
 
 .dd-nav-links {
     display: flex;
+    align-items: center;
     gap: 0.125rem;
 }
 
 .dd-nav-link,
 .nav-link,
-.dd-nav-links > a {
+.dd-nav-links > a,
+.dd-nav-dropdown-trigger,
+.nav-dropdown-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    line-height: 1.2;
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 500;
@@ -377,6 +385,7 @@ pre code {
     transition: color 0.2s, background 0.2s;
     position: relative;
     white-space: nowrap;
+    text-decoration: none;
 }
 
 .dd-nav-link:hover,
@@ -389,7 +398,9 @@ pre code {
 /* Underline animation on hover - cyan */
 .dd-nav-link::after,
 .nav-link::after,
-.dd-nav-links > a::after {
+.dd-nav-links > a::after,
+.dd-nav-dropdown-trigger::after,
+.nav-dropdown-trigger::after {
     content: '';
     position: absolute;
     bottom: 2px;
@@ -405,12 +416,19 @@ pre code {
 .dd-nav-link:hover::after,
 .nav-link:hover::after,
 .dd-nav-links > a:hover::after,
+.dd-nav-dropdown-trigger:hover::after,
+.nav-dropdown-trigger:hover::after,
 .dd-nav-link.is-active::after,
 .nav-link.is-active::after,
 .dd-nav-link.is-ancestor::after,
 .nav-link.is-ancestor::after,
 .dd-nav-links > a.is-active::after,
-.dd-nav-links > a.is-ancestor::after {
+.dd-nav-links > a.is-ancestor::after,
+.dd-nav-dropdown-trigger.is-active::after,
+.dd-nav-dropdown.open .dd-nav-dropdown-trigger::after,
+.nav-dropdown-trigger.is-active::after,
+.nav-dropdown.open .nav-dropdown-trigger::after,
+.pf-api-docs .nav-dropdown > .nav-dropdown-trigger::after {
     transform: translateX(-50%) scaleX(1);
 }
 
@@ -427,24 +445,29 @@ pre code {
 .dd-nav-dropdown,
 .nav-dropdown {
     position: relative;
+    display: flex;
+    align-items: center;
 }
 
 .dd-nav-dropdown-trigger,
 .nav-dropdown-trigger {
-    display: flex;
-    align-items: center;
     gap: 0.25rem;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--pf-muted);
-    border-radius: var(--pf-radius-sm);
-    transition: color 0.2s, background 0.2s;
-    position: relative;
     cursor: pointer;
     border: none;
     background: transparent;
     font-family: inherit;
+    height: 2.5rem;
+    padding-inline: 0.75rem;
+    margin: 0;
+    box-sizing: border-box;
+    appearance: none;
+}
+
+.dd-nav-dropdown-label,
+.nav-dropdown-label {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
 }
 
 .dd-nav-dropdown-trigger:hover,
@@ -453,22 +476,25 @@ pre code {
     background: rgba(0, 217, 255, 0.08);
 }
 
-.dd-nav-dropdown-trigger.is-active,
 .dd-nav-dropdown.open .dd-nav-dropdown-trigger,
-.nav-dropdown-trigger.is-active,
 .nav-dropdown.open .nav-dropdown-trigger,
 .nav-dropdown.open .nav-dropdown-trigger-button {
     color: var(--pf-ink-strong);
     background: rgba(0, 217, 255, 0.08);
 }
 
+.dd-nav-dropdown-trigger.is-active,
+.nav-dropdown-trigger.is-active,
 .pf-api-docs .nav-dropdown > .nav-dropdown-trigger {
-    color: var(--pf-ink-strong);
+    color: var(--pf-accent);
     background: rgba(0, 217, 255, 0.08);
 }
 
 .dd-nav-dropdown-arrow,
 .nav-dropdown-arrow {
+    display: block;
+    flex-shrink: 0;
+    margin-top: 1px;
     transition: transform 0.2s;
     opacity: 0.6;
 }
@@ -486,9 +512,9 @@ pre code {
 .dd-nav-dropdown-menu,
 .nav-dropdown-menu {
     position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
+    top: calc(100% + 0.45rem);
+    left: 0;
+    transform: translateY(4px);
     min-width: 180px;
     padding: 0.5rem;
     background: var(--pf-panel);
@@ -511,7 +537,7 @@ pre code {
 .nav-dropdown.open .nav-dropdown-menu {
     opacity: 1;
     visibility: visible;
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
 }
 
 .dd-nav-dropdown-menu a,
@@ -753,8 +779,10 @@ pre code {
 }
 
 .hero-search-form {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
+    gap: 0.35rem;
     background: var(--pf-card);
     border: 1px solid var(--pf-border);
     border-radius: var(--pf-radius);
@@ -775,7 +803,8 @@ pre code {
 }
 
 .hero-search-form input {
-    flex: 1;
+    min-width: 0;
+    width: 100%;
     background: none;
     border: none;
     color: var(--pf-ink);
@@ -783,11 +812,13 @@ pre code {
     font-family: var(--pf-font-body);
     padding: 0.625rem 0;
     outline: none;
+    text-overflow: ellipsis;
 }
 
 .hero-search-form input::placeholder { color: var(--pf-muted); }
 
 .hero-search-btn {
+    flex-shrink: 0;
     min-height: 3rem;
     padding: 0.75rem 1.35rem;
     background: linear-gradient(135deg, var(--pf-accent), var(--pf-accent2));
@@ -800,12 +831,21 @@ pre code {
     transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
     font-family: var(--pf-font-body);
     box-shadow: 0 4px 12px rgba(0, 217, 255, 0.2);
+    white-space: nowrap;
 }
 
 .hero-search-btn:hover {
     opacity: 0.92;
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(0, 217, 255, 0.35);
+}
+
+.hero-form-note {
+    margin: 0.85rem auto 0;
+    max-width: 36rem;
+    color: var(--pf-muted);
+    font-size: 0.9rem;
+    line-height: 1.55;
 }
 
 /* Install command bar */
@@ -1757,7 +1797,7 @@ pre code {
     margin: 2rem auto 0;
     position: relative;
     z-index: 1;
-    background: var(--pf-card-bg);
+    background: linear-gradient(180deg, var(--pf-card-bg), var(--pf-card));
     border: 1px solid var(--pf-border);
     border-radius: var(--pf-radius-lg);
     overflow: hidden;
@@ -1800,14 +1840,14 @@ pre code {
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem 1.25rem;
-    background: rgba(0, 0, 0, 0.35);
+    background: linear-gradient(180deg, var(--pf-bg-alt), var(--pf-bg-input));
     border-bottom: 1px solid var(--pf-border);
 }
 
 .code-tab-label {
     font-family: var(--pf-font-mono);
     font-size: 0.8rem;
-    color: var(--pf-dim);
+    color: var(--pf-muted);
     font-weight: 500;
 }
 
@@ -1835,7 +1875,7 @@ pre code {
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem 1.25rem;
-    background: rgba(0, 0, 0, 0.35);
+    background: linear-gradient(180deg, var(--pf-bg-alt), var(--pf-bg-input));
     border-bottom: 1px solid var(--pf-border);
 }
 
@@ -1858,7 +1898,7 @@ pre code {
 .code-filename {
     font-family: var(--pf-font-mono);
     font-size: 0.8rem;
-    color: var(--pf-dim);
+    color: var(--pf-muted);
     font-weight: 500;
 }
 
@@ -1867,12 +1907,13 @@ pre code {
     border: none;
     border-radius: 0;
     margin: 0;
-    background: transparent;
+    background: var(--pf-code-bg);
 }
 
 /* Subtle scan-line effect on code blocks */
 .code-tab pre,
 .code-showcase pre {
+    background-color: var(--pf-code-bg);
     background-image: repeating-linear-gradient(
         0deg,
         transparent,
@@ -1910,7 +1951,7 @@ pre code {
 .code-tab-bar {
     display: flex;
     gap: 0;
-    background: rgba(0, 0, 0, 0.3);
+    background: linear-gradient(180deg, var(--pf-bg-alt), var(--pf-card));
     border-bottom: 1px solid var(--pf-border);
     overflow-x: auto;
 }
@@ -1920,7 +1961,7 @@ pre code {
     font-family: var(--pf-font-mono);
     font-size: 0.8rem;
     font-weight: 500;
-    color: var(--pf-dim);
+    color: var(--pf-muted);
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
@@ -1930,14 +1971,15 @@ pre code {
 }
 
 .code-tab-btn:hover {
-    color: var(--pf-ink);
-    background: rgba(0, 217, 255, 0.04);
+    color: var(--pf-ink-strong);
+    background: var(--pf-bg-input);
 }
 
 .code-tab-btn.active {
     color: var(--pf-accent);
     border-bottom-color: var(--pf-accent);
-    background: rgba(0, 217, 255, 0.06);
+    background: var(--pf-card);
+    box-shadow: inset 0 -2px 0 var(--pf-accent);
 }
 
 .code-panel {
@@ -1952,12 +1994,28 @@ pre code {
     margin: 0;
     border: none;
     border-radius: 0;
-    background: transparent;
+    background: var(--pf-code-bg);
 }
 
 .code-panel code {
     display: block;
     min-height: 0;
+}
+
+[data-theme="light"] .code-tabs,
+[data-theme="light"] .code-showcase {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 255, 0.96));
+}
+
+[data-theme="light"] .code-tab-bar,
+[data-theme="light"] .code-tab-header,
+[data-theme="light"] .code-showcase-header {
+    box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.12);
+}
+
+[data-theme="light"] .code-panel pre,
+[data-theme="light"] .code-showcase pre {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 /* ============================================================
@@ -3036,6 +3094,7 @@ pre code {
         height: calc(100vh - var(--header-height));
         background: var(--pf-bg);
         flex-direction: column;
+        align-items: stretch;
         padding: 2rem;
         transform: translateX(-100%);
         transition: transform var(--nav-transition);
@@ -3053,8 +3112,10 @@ pre code {
 
     .dd-nav-links {
         flex-direction: column;
+        align-items: stretch;
         gap: 0.5rem;
         margin-bottom: 2rem;
+        width: 100%;
     }
 
     .dd-nav-link,
@@ -3093,6 +3154,7 @@ pre code {
     .nav-dropdown-menu {
         position: static;
         transform: none;
+        display: none;
         opacity: 1;
         visibility: visible;
         min-width: 0;
@@ -3100,6 +3162,10 @@ pre code {
         border: none;
         box-shadow: none;
         padding: 0 0 0 1rem;
+    }
+    .dd-nav-dropdown.open .dd-nav-dropdown-menu,
+    .nav-dropdown.open .nav-dropdown-menu {
+        display: block;
     }
     .dd-nav-dropdown:hover .dd-nav-dropdown-menu,
     .nav-dropdown:hover .nav-dropdown-menu {
@@ -3113,7 +3179,9 @@ pre code {
 
     .dd-nav-actions,
     .dd-actions {
+        width: 100%;
         flex-wrap: wrap;
+        justify-content: flex-start;
         gap: 1rem;
         margin-left: 0;
         margin-top: 0.75rem;
@@ -3125,6 +3193,10 @@ pre code {
     .hero h1,
     .hero-title {
         font-size: clamp(1.75rem, 6vw, 2.5rem);
+    }
+
+    .hero-form-note {
+        font-size: 0.85rem;
     }
 
     /* Stats mobile */
@@ -3256,6 +3328,15 @@ pre code {
 
     .hero-actions .dd-button {
         width: min(100%, 22rem);
+    }
+
+    .hero-search-form {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .hero-search-btn {
+        grid-column: 1 / -1;
+        width: 100%;
     }
 
     .dd-button {

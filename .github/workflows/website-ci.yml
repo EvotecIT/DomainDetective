@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "Website/**"
+      - "DomainDetective.Website/**"
+      - "DomainDetective.Toolbox/**"
+      - "DomainDetective.Website.Tests/**"
       - ".github/workflows/website-ci.yml"
   workflow_dispatch:
 
@@ -14,8 +17,26 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  BUILD_CONFIGURATION: 'Release'
+
 jobs:
+  website-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.x
+
+      - name: Run website regression tests
+        run: dotnet test DomainDetective.Website.Tests/DomainDetective.Website.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net10.0 --verbosity minimal --logger "console;verbosity=minimal" --logger trx --collect:"XPlat Code Coverage"
+
   website-build:
+    needs: website-tests
     uses: EvotecIT/PSPublishModule/.github/workflows/powerforge-website-ci.yml@15192638c1c7d2f6907cd6c8b586017a0f4ec4a8
     with:
       website_root: Website
