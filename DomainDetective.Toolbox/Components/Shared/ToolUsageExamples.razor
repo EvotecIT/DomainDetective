@@ -3,21 +3,21 @@
 @inject IJSRuntime JS
 
 @if (HasAnyExample()) {
-    <details class="tool-usage-examples" open="@StartOpen">
+    <details class="tool-usage-examples" open="@StartOpen" @ref="_examplesElement">
         <summary>Run with CLI, PowerShell, or C#</summary>
         <div class="tool-usage-tabs">
             <div class="tool-usage-tab-bar">
                 @if (Definition.CliExample is not null) {
                     <button type="button" class="tool-usage-tab-btn @(_activeTab == "cli" ? "active" : "")"
-                            @onclick="@(() => _activeTab = "cli")">CLI</button>
+                            @onclick="@(() => SelectTab("cli"))">CLI</button>
                 }
                 @if (Definition.PowerShellExample is not null) {
                     <button type="button" class="tool-usage-tab-btn @(_activeTab == "ps" ? "active" : "")"
-                            @onclick="@(() => _activeTab = "ps")">PowerShell</button>
+                            @onclick="@(() => SelectTab("ps"))">PowerShell</button>
                 }
                 @if (Definition.CSharpExample is not null) {
                     <button type="button" class="tool-usage-tab-btn @(_activeTab == "cs" ? "active" : "")"
-                            @onclick="@(() => _activeTab = "cs")">C#</button>
+                            @onclick="@(() => SelectTab("cs"))">C#</button>
                 }
             </div>
 
@@ -29,7 +29,7 @@
                             @(_copied ? "Copied" : "Copy")
                         </button>
                     </div>
-                    <pre class="tool-usage-code"><code>$ dotnet tool install -g DomainDetective.CLI
+                    <pre class="tool-usage-code language-bash"><code class="language-bash">$ dotnet tool install -g DomainDetective.CLI
 $ @Definition.CliExample</code></pre>
                 </div>
             }
@@ -42,7 +42,7 @@ $ @Definition.CliExample</code></pre>
                             @(_copied ? "Copied" : "Copy")
                         </button>
                     </div>
-                    <pre class="tool-usage-code"><code>PS&gt; Install-Module DomainDetective -Scope CurrentUser
+                    <pre class="tool-usage-code language-powershell"><code class="language-powershell">PS&gt; Install-Module DomainDetective -Scope CurrentUser
 PS&gt; Import-Module DomainDetective
 PS&gt; @Definition.PowerShellExample</code></pre>
                 </div>
@@ -56,7 +56,7 @@ PS&gt; @Definition.PowerShellExample</code></pre>
                             @(_copied ? "Copied" : "Copy")
                         </button>
                     </div>
-                    <pre class="tool-usage-code"><code>using DomainDetective;
+                    <pre class="tool-usage-code language-csharp"><code class="language-csharp">using DomainDetective;
 
 @Definition.CSharpExample</code></pre>
                 </div>
@@ -71,17 +71,56 @@ PS&gt; @Definition.PowerShellExample</code></pre>
 
     private string _activeTab = "cli";
     private bool _copied;
+    private bool _shouldHighlightCode;
+    private ElementReference _examplesElement;
 
     protected override void OnParametersSet() {
-        if (Definition.CliExample is not null) _activeTab = "cli";
-        else if (Definition.PowerShellExample is not null) _activeTab = "ps";
-        else if (Definition.CSharpExample is not null) _activeTab = "cs";
+        if (!IsTabAvailable(_activeTab)) {
+            if (Definition.CliExample is not null) _activeTab = "cli";
+            else if (Definition.PowerShellExample is not null) _activeTab = "ps";
+            else if (Definition.CSharpExample is not null) _activeTab = "cs";
+        }
+
+        _shouldHighlightCode = HasAnyExample();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!_shouldHighlightCode) {
+            return;
+        }
+
+        _shouldHighlightCode = false;
+
+        try {
+            await JS.InvokeVoidAsync("domainDetectiveTools.highlightCodeBlocks", _examplesElement);
+        } catch {
+            // Syntax highlighting is an enhancement and should not break the page.
+        }
     }
 
     private bool HasAnyExample() =>
         Definition.CliExample is not null ||
         Definition.PowerShellExample is not null ||
         Definition.CSharpExample is not null;
+
+    private bool IsTabAvailable(string tab) {
+        return tab switch {
+            "cli" => Definition.CliExample is not null,
+            "ps" => Definition.PowerShellExample is not null,
+            "cs" => Definition.CSharpExample is not null,
+            _ => false
+        };
+    }
+
+    private void SelectTab(string tab) {
+        if (!IsTabAvailable(tab) || string.Equals(_activeTab, tab, StringComparison.Ordinal)) {
+            return;
+        }
+
+        _activeTab = tab;
+        _copied = false;
+        _shouldHighlightCode = true;
+    }
 
     private async Task CopyAsync(string text) {
         try {
