@@ -231,12 +231,16 @@ a:hover { color: var(--dd-accent-light); }
 }
 
 .dd-nav-link {
+    display: inline-flex;
+    align-items: center;
     position: relative;
     color: var(--dd-muted);
     font-size: 0.875rem;
     font-weight: 500;
+    line-height: 1.4;
     transition: color 0.2s, background 0.2s;
     padding: 0.5rem 0.75rem;
+    min-height: 2.4rem;
     border-radius: var(--dd-radius-sm);
     white-space: nowrap;
 }
@@ -274,10 +278,12 @@ a:hover { color: var(--dd-accent-light); }
 }
 
 .dd-nav-dropdown-trigger {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 0.25rem;
     padding: 0.5rem 0.75rem;
+    min-height: 2.4rem;
+    line-height: 1.4;
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--dd-muted);
@@ -882,7 +888,9 @@ a:hover { color: var(--dd-accent-light); }
 }
 
 .tool-input-secondary {
-    max-width: 200px;
+    flex: 0 1 17rem;
+    min-width: 17rem;
+    max-width: 20rem;
 }
 
 .tool-run-btn {
@@ -2347,7 +2355,12 @@ a:hover { color: var(--dd-accent-light); }
     .desktop-command-grid {
         grid-template-columns: 1fr;
     }
-    .tool-input-secondary { max-width: none; }
+    .tool-input-secondary {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+    }
     .dd-nav-toggle { display: inline-flex; }
     .dd-nav {
         position: fixed;
