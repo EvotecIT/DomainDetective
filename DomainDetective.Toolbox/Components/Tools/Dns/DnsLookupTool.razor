@@ -310,25 +310,20 @@
             return DefaultFocusTypes;
         }
 
-        var recordTypes = new List<DnsRecordType>();
-        foreach (var token in SplitRequestedTypes()) {
-            if (Enum.TryParse(token, ignoreCase: true, out DnsRecordType recordType) && !recordTypes.Contains(recordType)) {
-                recordTypes.Add(recordType);
-            }
-        }
+        var recordTypes = SplitRequestedTypes()
+            .Select(static token => Enum.TryParse(token, ignoreCase: true, out DnsRecordType recordType) ? recordType : (DnsRecordType?)null)
+            .Where(static recordType => recordType.HasValue)
+            .Select(static recordType => recordType!.Value)
+            .Distinct()
+            .ToArray();
 
-        return recordTypes.Count == 0 ? DefaultFocusTypes : recordTypes;
+        return recordTypes.Length == 0 ? DefaultFocusTypes : recordTypes;
     }
 
     private IReadOnlyList<string> GetIgnoredTypes() {
-        var ignored = new List<string>();
-        foreach (var token in SplitRequestedTypes()) {
-            if (!Enum.TryParse(token, ignoreCase: true, out DnsRecordType _)) {
-                ignored.Add(token);
-            }
-        }
-
-        return ignored;
+        return SplitRequestedTypes()
+            .Where(static token => !Enum.TryParse(token, ignoreCase: true, out DnsRecordType _))
+            .ToArray();
     }
 
     private IEnumerable<string> SplitRequestedTypes() {

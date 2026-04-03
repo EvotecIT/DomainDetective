@@ -5,6 +5,27 @@ namespace DomainDetective.Website.Tests;
 
 public sealed class ToolWorkflowGuidanceComponentTests : TestContext {
     [Fact]
+    public void CliGuidanceQuotesDomainBeforeEmbeddingInShellCommand() {
+        var tool = new ToolDefinition {
+            Name = "SPF Lookup",
+            Slug = "spf",
+            Description = "SPF check",
+            Category = ToolCategory.EmailSecurity,
+            Icon = "shield",
+            BrowserCompatible = true,
+            InputPlaceholder = "example.com"
+        };
+
+        var cut = RenderComponent<ToolWorkflowGuidance>(parameters => parameters
+            .Add(component => component.Tool, tool)
+            .Add(component => component.Domain, "contoso.com && echo owned"));
+
+        var content = cut.Markup + cut.Find(".tool-workflow-panel").TextContent;
+
+        Assert.Contains("domaindetective check 'contoso.com && echo owned' --checks SPF", content);
+    }
+
+    [Fact]
     public void DnsLookupGuidanceUsesDnsClientXSpecificExamplesAndGuideLink() {
         var tool = new ToolDefinition {
             Name = "DNS Lookup",

@@ -74,11 +74,9 @@ public sealed class ToolPageComponentTests : TestContext {
 
     private sealed class StaticDnsHandler : HttpMessageHandler {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
-            var response = new HttpResponseMessage(HttpStatusCode.OK) {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
                 Content = new StringContent("{\"Status\":0,\"AD\":false,\"Answer\":[],\"Authority\":[]}")
-            };
-
-            return Task.FromResult(response);
+            });
         }
     }
 }

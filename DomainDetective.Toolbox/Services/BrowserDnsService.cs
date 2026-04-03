@@ -31,15 +31,9 @@ public sealed class BrowserDnsService {
     }
 
     public static DohResolverProfile GetResolverProfile(string? resolverName) {
-        if (!string.IsNullOrWhiteSpace(resolverName)) {
-            foreach (var resolver in _supportedResolvers) {
-                if (string.Equals(resolver.Name, resolverName.Trim(), StringComparison.OrdinalIgnoreCase)) {
-                    return resolver;
-                }
-            }
-        }
-
-        return _supportedResolvers[0];
+        return string.IsNullOrWhiteSpace(resolverName)
+            ? _supportedResolvers[0]
+            : _supportedResolvers.FirstOrDefault(resolver => string.Equals(resolver.Name, resolverName.Trim(), StringComparison.OrdinalIgnoreCase)) ?? _supportedResolvers[0];
     }
 
     public DomainHealthCheck CreateHealthCheck(string? resolverName = null) {

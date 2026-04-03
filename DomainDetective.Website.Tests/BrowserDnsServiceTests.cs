@@ -31,11 +31,9 @@ public sealed class BrowserDnsServiceTests {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
             RequestUris.Add(request.RequestUri!);
 
-            var response = new HttpResponseMessage(HttpStatusCode.OK) {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
                 Content = new StringContent("{\"Status\":0,\"AD\":false,\"Answer\":[],\"Authority\":[]}")
-            };
-
-            return Task.FromResult(response);
+            });
         }
     }
 }

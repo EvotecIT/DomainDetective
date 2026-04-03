@@ -276,6 +276,7 @@
     }
 
     protected override async Task OnParametersSetAsync() {
+        await Availability.InitializeAsync();
         await SyncWithCurrentUriAsync();
     }
 

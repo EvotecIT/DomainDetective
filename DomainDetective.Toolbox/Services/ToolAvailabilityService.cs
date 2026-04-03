@@ -4,13 +4,19 @@ using Microsoft.Extensions.Configuration;
 namespace DomainDetective.Toolbox.Services;
 
 public sealed class ToolAvailabilityService {
+    private static readonly TimeSpan DetectionTimeout = TimeSpan.FromSeconds(2);
+
     private readonly ToolsDeploymentMode? _configuredMode;
+    private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private volatile bool _isInitialized;
 
-    public ToolAvailabilityService(IConfiguration configuration) {
+    public ToolAvailabilityService(IConfiguration configuration, HttpClient httpClient) {
+        _httpClient = httpClient;
         var configuredMode = configuration["Tools:Mode"];
-        if (Enum.TryParse(configuredMode, ignoreCase: true, out ToolsDeploymentMode parsedMode)) {
+        if (!string.IsNullOrWhiteSpace(configuredMode) &&
+            !string.Equals(configuredMode, "Auto", StringComparison.OrdinalIgnoreCase) &&
+            Enum.TryParse(configuredMode, ignoreCase: true, out ToolsDeploymentMode parsedMode)) {
             _configuredMode = parsedMode;
             Mode = parsedMode;
             return;
@@ -91,7 +97,26 @@ public sealed class ToolAvailabilityService {
     }
 
     private Task<ToolsDeploymentMode> DetectModeAsync(CancellationToken cancellationToken) {
+        return DetectHostedModeAsync(cancellationToken);
+    }
+
+    private async Task<ToolsDeploymentMode> DetectHostedModeAsync(CancellationToken cancellationToken) {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(ToolsDeploymentMode.StaticOnly);
+
+        using var detectionCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        detectionCancellationTokenSource.CancelAfter(DetectionTimeout);
+
+        try {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/tool-api/health");
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, detectionCancellationTokenSource.Token).ConfigureAwait(false);
+
+            return response.IsSuccessStatusCode ? ToolsDeploymentMode.HostedOnline : ToolsDeploymentMode.StaticOnly;
+        } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
+            return ToolsDeploymentMode.StaticOnly;
+        } catch (HttpRequestException) {
+            return ToolsDeploymentMode.StaticOnly;
+        } catch (InvalidOperationException) {
+            return ToolsDeploymentMode.StaticOnly;
+        }
     }
 }

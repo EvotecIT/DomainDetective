@@ -183,7 +183,7 @@
     }
 
     private string GetCliCommand() {
-        var sampleDomain = GetSampleDomain();
+        var sampleDomain = QuoteForBash(GetSampleDomain());
         return Tool.Slug switch {
             "m365-overview" => "dotnet tool install -g DomainDetective.CLI\n" +
                                $"domaindetective wizard --domain {sampleDomain} --quick",
@@ -204,6 +204,10 @@
             _ => "dotnet tool install -g DomainDetective.CLI\n" +
                  $"domaindetective check {sampleDomain} --checks {GetHealthCheckTypeName()}"
         };
+    }
+
+    private static string QuoteForBash(string value) {
+        return "'" + (value ?? string.Empty).Replace("'", "'\"'\"'") + "'";
     }
 
     private string GetPowerShellCommand() {
