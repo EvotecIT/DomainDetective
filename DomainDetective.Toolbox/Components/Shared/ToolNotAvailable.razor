@@ -1,41 +1,14 @@
+@using DomainDetective.Toolbox.Models
+
 <div class="tool-not-available">
-    <div class="tool-not-available-eyebrow">Desktop workflow</div>
-    <h3>@(string.IsNullOrWhiteSpace(ToolName) ? "Desktop Only" : $"{ToolName} works best outside the browser")</h3>
+    <div class="tool-not-available-eyebrow">Run locally</div>
+    <h3>@Tool.Name</h3>
     <p class="tool-not-available-copy">
-        @if (!string.IsNullOrWhiteSpace(Description)) {
-            <span>@Description</span>
-            <span> </span>
-        }
-        <span>This check relies on network capabilities that browser sandboxing can limit, so the full experience lives in the CLI and PowerShell module.</span>
+        @Tool.Description.
+        This check relies on network capabilities that browser sandboxing limits. Use the CLI or PowerShell module for the full experience.
     </p>
 
-    <div class="tool-summary-grid tool-summary-grid-compact">
-        <div class="tool-summary-card">
-            <span class="tool-summary-label">Best runtime</span>
-            <strong class="tool-summary-value">CLI + PowerShell</strong>
-            <p class="tool-summary-note">Direct DNS, certificate, and protocol checks without browser restrictions.</p>
-        </div>
-        <div class="tool-summary-card">
-            <span class="tool-summary-label">Install once</span>
-            <strong class="tool-summary-value">Same engine</strong>
-            <p class="tool-summary-note">You get the exact same analysis core that powers the docs, reports, and automation flows.</p>
-        </div>
-    </div>
-
-    <div class="desktop-command-grid">
-        @if (!string.IsNullOrEmpty(CliCommand)) {
-            <div class="desktop-command-card">
-                <div class="desktop-command-label">CLI</div>
-                <div class="result-record desktop-command-text">$ domaindetective @CliCommand example.com</div>
-            </div>
-        }
-        @if (!string.IsNullOrEmpty(PowerShellCommand)) {
-            <div class="desktop-command-card">
-                <div class="desktop-command-label">PowerShell</div>
-                <div class="result-record desktop-command-text">PS&gt; @PowerShellCommand</div>
-            </div>
-        }
-    </div>
+    <ToolUsageExamples Definition="Tool" StartOpen="true" />
 
     <div class="tool-link-row">
         <a href="/docs/quickstart/" class="tool-inline-link">Install Domain Detective</a>
@@ -45,8 +18,5 @@
 </div>
 
 @code {
-    [Parameter] public string? ToolName { get; set; }
-    [Parameter] public string? Description { get; set; }
-    [Parameter] public string? CliCommand { get; set; }
-    [Parameter] public string? PowerShellCommand { get; set; }
+    [Parameter] public required ToolDefinition Tool { get; set; }
 }

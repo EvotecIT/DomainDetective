@@ -28,10 +28,11 @@ Console.WriteLine(healthCheck.DmarcAnalysis.DmarcRecord);</code></pre>
           <div class="code-dots"><span></span><span></span><span></span></div>
           <span class="code-tab-label">check.ps1</span>
         </div>
-        <pre><code class="language-powershell">Install-Module DomainDetective
+        <pre><code class="language-powershell">Install-Module DomainDetective -Scope CurrentUser
+Import-Module DomainDetective
 
 # Quick domain check
-$results = Get-DomainHealthCheck -Domain "example.com"
+$results = Test-DomainHealth -DomainName "example.com"
 $results.SpfAnalysis | Format-Table
 $results.DmarcAnalysis | Format-Table</code></pre>
       </div>
@@ -43,8 +44,8 @@ $results.DmarcAnalysis | Format-Table</code></pre>
         <pre><code class="language-bash">dotnet tool install -g DomainDetective.CLI
 
 # Analyze a domain
-domaindetective check example.com --spf --dmarc --dkim
-domaindetective check example.com --all</code></pre>
+domaindetective check example.com --checks SPF,DMARC,DKIM
+domaindetective check example.com --summary</code></pre>
       </div>
     </div>
   </div>

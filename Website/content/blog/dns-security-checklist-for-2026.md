@@ -49,7 +49,7 @@ DNS remains a critical attack surface. From cache poisoning to subdomain takeove
 Run all these checks with a single command:
 
 ```bash
-domaindetective check example.com --all
+domaindetective check example.com --summary
 ```
 
 Or use the [online tools](/tools/) to check each item individually - all analysis runs client-side in your browser.

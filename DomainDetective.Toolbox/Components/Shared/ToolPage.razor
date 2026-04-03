@@ -21,10 +21,7 @@
     </div>
 
     @if (!CanRunOnline(Definition)) {
-        <ToolNotAvailable ToolName="@Definition.Name"
-                          Description="@Definition.Description"
-                          CliCommand="@Definition.Slug"
-                          PowerShellCommand="@GetPowerShellCommand()" />
+        <ToolNotAvailable Tool="Definition" />
     } else {
         @if (Availability.IsStaticOnly && SupportsLiteTool(Definition)) {
             <div class="tool-callout tool-callout-inline">
@@ -190,6 +187,8 @@
             }
         }
     }
+
+    <ToolUsageExamples Definition="Definition" />
 </div>
 
 @code {
@@ -749,12 +748,6 @@
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
-
-    private string GetPowerShellCommand() => Definition.Slug switch {
-        "cert-check" => "Get-DomainCertificate -Domain example.com",
-        "dane" => "Get-DomainDANE -Domain example.com",
-        _ => $"Get-DomainHealthCheck -Domain example.com"
-    };
 
     private static string FormatTimestamp(DateTimeOffset? timestamp) {
         return timestamp.HasValue ? timestamp.Value.ToString("HH:mm:ss") : "pending";

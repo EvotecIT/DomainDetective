@@ -21,76 +21,23 @@
         </div>
 
         @if (Availability.IsStaticOnly) {
-            <div class="tools-edition-guide">
-                <div class="tools-edition-guide-header">
-                    <h2>What works in this web version</h2>
-                    <p>
-                        The web edition keeps the DNS, mail, and lightweight overview tools live in the browser.
-                        Deeper web-response, certificate, registration, and larger discovery checks stay visible here as advanced online features,
-                        and the same tool pages unlock automatically when the full online experience is enabled.
-                    </p>
-                </div>
-
-                <div class="tools-edition-guide-grid">
-                    <article class="tools-edition-guide-card tools-edition-guide-card-available">
-                        <span class="tools-edition-guide-kicker">Available now</span>
-                        <strong>@GetAvailableNowCount() live tools</strong>
-                        <p>Runs fully in this web edition using live DD checks that work directly in the browser.</p>
-                    </article>
-
-                    <article class="tools-edition-guide-card tools-edition-guide-card-partial">
-                        <span class="tools-edition-guide-kicker">Adaptive web mode</span>
-                        <strong>@GetBrowserSafePartialCount() adaptive tools</strong>
-                        <p>Same tool page, with web-ready sections live and deeper sections clearly marked.</p>
-                    </article>
-
-                    <article class="tools-edition-guide-card tools-edition-guide-card-hosted">
-                        <span class="tools-edition-guide-kicker">Advanced online tools</span>
-                        <strong>@_hostedPreviewTools.Count deeper tools</strong>
-                        <p>Kept visible for discovery, with feature previews and related live tools instead of broken pages.</p>
-                    </article>
-                </div>
-            </div>
-
-            <div class="tools-edition-summary">
-                <span class="tools-edition-pill">Available now: @GetAvailableNowCount()</span>
-                <span class="tools-edition-pill">Adaptive web tools: @GetBrowserSafePartialCount()</span>
-                <span class="tools-edition-pill">Advanced online tools: @_hostedPreviewTools.Count</span>
+            <div class="tools-availability-legend">
+                <span class="legend-item"><span class="legend-dot legend-dot-browser"></span> Runs in browser</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-partial"></span> Partial browser support</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-local"></span> Run locally (CLI / PowerShell)</span>
             </div>
         }
 
         @if (!string.IsNullOrEmpty(_searchQuery)) {
-            if (_filteredTools is not null && _filteredTools.Count > 0) {
-                <ToolCategoryGrid Tools="_filteredTools" DeploymentMode="Availability.Mode" />
-            }
-
-            @if (Availability.IsStaticOnly && _filteredHostedPreviewTools.Count > 0) {
-                <div class="tools-edition-panel">
-                    <div class="tools-edition-header">
-                        <h2>Advanced Online Matches</h2>
-                        <p>These matches belong to the advanced online tools. They stay visible here so people can discover them without hitting a broken result.</p>
-                    </div>
-                    <ToolCategoryGrid Tools="_filteredHostedPreviewTools" EnableLinks="false" ToolBadgeText="Advanced" DeploymentMode="Availability.Mode" />
-                </div>
-            }
-
-            @if ((_filteredTools is null || _filteredTools.Count == 0) && _filteredHostedPreviewTools.Count == 0) {
+            @if (_filteredAllTools.Count > 0) {
+                <ToolCategoryGrid Tools="_filteredAllTools" DeploymentMode="Availability.Mode" />
+            } else {
                 <div class="tools-empty">
                     <p>No tools match "<strong>@_searchQuery</strong>"</p>
                 </div>
             }
         } else {
-            <ToolCategoryGrid Tools="_availableTools" DeploymentMode="Availability.Mode" />
-
-            @if (Availability.IsStaticOnly && _hostedPreviewTools.Count > 0) {
-                <div class="tools-edition-panel">
-                    <div class="tools-edition-header">
-                        <h2>Advanced Online Tools</h2>
-                        <p>These deeper checks are part of the advanced online experience. The web edition keeps the web-ready tools live and leaves the heavier checks here as product previews.</p>
-                    </div>
-                    <ToolCategoryGrid Tools="_hostedPreviewTools" EnableLinks="false" ToolBadgeText="Advanced" DeploymentMode="Availability.Mode" />
-                </div>
-            }
+            <ToolCategoryGrid Tools="_allTools" DeploymentMode="Availability.Mode" />
         }
     </div>
 } else {
@@ -100,7 +47,7 @@
             <h2>Tool not found</h2>
             <p>No tool matches "<strong>@ToolSlug</strong>". <a href="/tools/">Browse all tools</a></p>
         </div>
-    } else if (Availability.IsStaticOnly && tool.HostedCompatible && !Availability.CanRun(tool)) {
+    } else if (Availability.IsStaticOnly && tool.HostedCompatible && !tool.BrowserCompatible && !tool.LiteCompatible) {
         <div class="tool-page">
             <div class="tool-breadcrumb">
                 <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(tool.Category) / @tool.Name
@@ -114,9 +61,17 @@
             <HostedFeaturePreview Tool="tool" />
         </div>
     } else if (!Availability.CanRun(tool)) {
-        <div class="tool-not-found">
-            <h2>Tool not available online</h2>
-            <p>@Availability.GetUnavailableMessage(tool) <a href="/tools/">Browse available tools</a></p>
+        <div class="tool-page">
+            <div class="tool-breadcrumb">
+                <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(tool.Category) / @tool.Name
+            </div>
+
+            <div class="tool-page-header">
+                <h1>@tool.Name</h1>
+                <p>@tool.Description</p>
+            </div>
+
+            <ToolNotAvailable Tool="tool" />
         </div>
     } else {
         <ToolPage Definition="tool" />
@@ -128,71 +83,28 @@
 
     private bool _isReady;
     private string? _searchQuery;
-    private IReadOnlyList<ToolDefinition> _availableTools = Array.Empty<ToolDefinition>();
-    private IReadOnlyList<ToolDefinition> _hostedPreviewTools = Array.Empty<ToolDefinition>();
-    private IReadOnlyList<ToolDefinition>? _filteredTools;
-    private IReadOnlyList<ToolDefinition> _filteredHostedPreviewTools = Array.Empty<ToolDefinition>();
+    private IReadOnlyList<ToolDefinition> _allTools = Array.Empty<ToolDefinition>();
+    private IReadOnlyList<ToolDefinition> _filteredAllTools = Array.Empty<ToolDefinition>();
 
     protected override async Task OnParametersSetAsync() {
         await Availability.InitializeAsync();
-        _availableTools = Availability.FilterVisible(Registry.GetAll());
-        _hostedPreviewTools = Availability.IsStaticOnly
-            ? Registry.GetAll()
-                .Where(static tool => tool.HostedCompatible && !tool.BrowserCompatible)
-                .Where(tool => !_availableTools.Any(available => string.Equals(available.Slug, tool.Slug, StringComparison.OrdinalIgnoreCase)))
-                .ToList()
-            : Array.Empty<ToolDefinition>();
-        if (string.IsNullOrWhiteSpace(_searchQuery)) {
-            _filteredTools = null;
-            _filteredHostedPreviewTools = Array.Empty<ToolDefinition>();
-        } else {
-            var matches = Registry.Search(_searchQuery);
-            _filteredTools = Availability.FilterVisible(matches);
-            _filteredHostedPreviewTools = Availability.IsStaticOnly
-                ? matches
-                    .Where(static tool => tool.HostedCompatible && !tool.BrowserCompatible)
-                    .Where(tool => !_availableTools.Any(available => string.Equals(available.Slug, tool.Slug, StringComparison.OrdinalIgnoreCase)))
-                    .ToList()
-                : Array.Empty<ToolDefinition>();
+        _allTools = Registry.GetAll();
+        if (!string.IsNullOrWhiteSpace(_searchQuery)) {
+            _filteredAllTools = Registry.Search(_searchQuery);
         }
-
         _isReady = true;
     }
 
     private void HandleSearch(string query) {
         _searchQuery = query;
-        if (string.IsNullOrWhiteSpace(query)) {
-            _filteredTools = null;
-            _filteredHostedPreviewTools = Array.Empty<ToolDefinition>();
-            return;
-        }
-
-        var matches = Registry.Search(query);
-        _filteredTools = Availability.FilterVisible(matches);
-        _filteredHostedPreviewTools = Availability.IsStaticOnly
-            ? matches
-                .Where(static tool => tool.HostedCompatible && !tool.BrowserCompatible)
-                .Where(tool => !_availableTools.Any(available => string.Equals(available.Slug, tool.Slug, StringComparison.OrdinalIgnoreCase)))
-                .ToList()
-            : Array.Empty<ToolDefinition>();
-    }
-
-    private int GetBrowserSafePartialCount() {
-        return _availableTools.Count(static tool => tool.HostedCompatible && !tool.BrowserCompatible);
-    }
-
-    private int GetAvailableNowCount() {
-        return _availableTools.Count(static tool => tool.BrowserCompatible);
+        _filteredAllTools = string.IsNullOrWhiteSpace(query)
+            ? Array.Empty<ToolDefinition>()
+            : Registry.Search(query);
     }
 
     private string GetPageTitle() {
-        if (!_isReady) return "Tools | Domain Detective";
-        if (string.IsNullOrEmpty(ToolSlug)) return "Tools | Domain Detective";
+        if (!_isReady || string.IsNullOrEmpty(ToolSlug)) return "Tools | Domain Detective";
         var tool = Registry.GetBySlug(ToolSlug);
-        if (tool is null || !Availability.CanRun(tool)) {
-            return tool is not null ? $"{tool.Name} | Domain Detective" : "Tool Not Available | Domain Detective";
-        }
-
-        return $"{tool.Name} | Domain Detective";
+        return tool is not null ? $"{tool.Name} | Domain Detective" : "Tool Not Available | Domain Detective";
     }
 }

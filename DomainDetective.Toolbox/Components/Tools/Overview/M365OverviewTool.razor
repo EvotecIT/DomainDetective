@@ -299,16 +299,9 @@
 <ResultCard Title="Mail and DNS controls" Status="ResultCard.ResultStatus.Info">
     <div class="overview-status-strip">
         @foreach (var card in mailControlCards) {
-            <OverviewControlCard Card="card" CalloutClass="@($"tool-callout tool-callout-control {card.StateClass}")" Compact="true" />
+            <OverviewPairedCard Control="card" Detail="FindMatchingDetail(card, mailCards)" />
         }
     </div>
-    @if (mailCards.Count > 0) {
-        <div class="tool-section-grid mt-3">
-            @foreach (var card in mailCards) {
-                <OverviewDetailCard Card="card" />
-            }
-        </div>
-    }
 </ResultCard>
 }
 </div>
@@ -683,6 +676,12 @@
         }
 
         return string.Join(", ", values);
+    }
+
+    private static DomainOverviewDetailCardView? FindMatchingDetail(OverviewControlCardView control, IReadOnlyList<DomainOverviewDetailCardView> details) {
+        var title = control.Title.Trim().ToLowerInvariant();
+        return details.FirstOrDefault(d => d.Title.ToLowerInvariant().Contains(title)) ??
+               details.FirstOrDefault(d => title.Contains(d.Title.Split(' ')[0].ToLowerInvariant()));
     }
 
     private static bool IsSectionPending(Microsoft365OverviewInfo info, string section) {

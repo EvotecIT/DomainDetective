@@ -1,20 +1,15 @@
 @using DomainDetective.Toolbox.Models
 
 <div class="tool-not-available">
-    <div class="tool-not-available-eyebrow">Advanced online tool</div>
+    <div class="tool-not-available-eyebrow">Run locally</div>
     <h3>@Tool.Name</h3>
     <p class="tool-not-available-copy">
         @GetIntro(Tool)
     </p>
 
-    <div class="tool-share-metrics">
-        <span class="tool-share-pill tool-share-pill-unavailable">Advanced online</span>
-        <span class="tool-share-pill tool-share-pill-fresh">Web edition guidance included</span>
-    </div>
-
     <div class="tool-summary-grid tool-summary-grid-compact">
         <div class="tool-summary-card">
-            <span class="tool-summary-label">What it covers</span>
+            <span class="tool-summary-label">What it checks</span>
             <ul class="tool-bullet-list">
                 @foreach (var item in GetCoverage(Tool)) {
                     <li>@item</li>
@@ -22,18 +17,12 @@
             </ul>
         </div>
         <div class="tool-summary-card">
-            <span class="tool-summary-label">In this web edition</span>
-            <p class="tool-summary-note">@GetStaticEditionNote(Tool)</p>
-        </div>
-        <div class="tool-summary-card">
-            <span class="tool-summary-label">What you can use now</span>
-            <ul class="tool-bullet-list">
-                @foreach (var item in GetWebEditionHighlights(Tool)) {
-                    <li>@item</li>
-                }
-            </ul>
+            <span class="tool-summary-label">How to run it</span>
+            <p class="tool-summary-note">Install the CLI or PowerShell module to run this check locally with the same analysis engine.</p>
         </div>
     </div>
+
+    <ToolUsageExamples Definition="Tool" StartOpen="true" />
 
     @if (GetRelatedLinks(Tool).Count > 0) {
         <div class="tool-link-row">
@@ -49,12 +38,12 @@
 
     private static string GetIntro(ToolDefinition tool) {
         return tool.Slug switch {
-            "http-headers" => "This check inspects live web responses, header behavior, redirects, and security policy details in the advanced online experience.",
-            "security-txt" => "This check retrieves and validates the published security.txt file, including disclosure fields, canonical location, expiry, and signing details.",
-            "rdap" => "This check analyzes live domain registration records, registrar details, status flags, and expiry data.",
-            "cert-check" => "This check inspects the live TLS handshake, certificate chain, protocol posture, and revocation details.",
-            "ct-subdomains" => "This check expands attack-surface discovery using historical certificate transparency evidence and related DD correlation.",
-            _ => $"{tool.Name} is available in the advanced online experience."
+            "http-headers" => "Inspects live web responses, header behavior, redirects, and security policy details.",
+            "security-txt" => "Retrieves and validates the published security.txt file, including disclosure fields, canonical location, expiry, and signing details.",
+            "rdap" => "Analyzes live domain registration records, registrar details, status flags, and expiry data.",
+            "cert-check" => "Inspects the live TLS handshake, certificate chain, protocol posture, and revocation details.",
+            "ct-subdomains" => "Discovers subdomains using historical certificate transparency evidence.",
+            _ => tool.Description
         };
     }
 
@@ -63,7 +52,7 @@
             "http-headers" => new[] {
                 "Response headers and redirect behavior",
                 "CSP, HSTS, framing, and mixed-header posture",
-                "DD guidance and policy follow-up"
+                "Security policy guidance"
             },
             "security-txt" => new[] {
                 "Published disclosure file retrieval",
@@ -73,7 +62,7 @@
             "rdap" => new[] {
                 "Registrar and registration status",
                 "Expiry and lifecycle posture",
-                "DD-backed registration guidance"
+                "Registration guidance"
             },
             "cert-check" => new[] {
                 "Certificate chain and issuer identity",
@@ -83,55 +72,9 @@
             "ct-subdomains" => new[] {
                 "Historical subdomain discovery",
                 "CT-backed hostname evidence",
-                "Exposure-oriented review points"
+                "Exposure-oriented review"
             },
-            _ => new[] {
-                tool.Description
-            }
-        };
-    }
-
-    private static string GetStaticEditionNote(ToolDefinition tool) {
-        return tool.Slug switch {
-            "http-headers" => "Use the web edition DNS, mail, and overview tools here. This deeper web-response analysis is part of the advanced online experience.",
-            "security-txt" => "The web edition keeps the DNS and overview tools live. Security.txt retrieval itself is part of the advanced online experience.",
-            "rdap" => "The web edition focuses on DNS and mail posture. Registration lookups remain part of the advanced online experience.",
-            "cert-check" => "The web edition keeps certificate-adjacent DNS controls like CAA and DANE live. Full TLS certificate inspection stays in the advanced online experience.",
-            "ct-subdomains" => "The web edition keeps overview and DNS tools live. Historical CT discovery remains part of the advanced online experience.",
-            _ => "This check is currently part of the advanced online experience."
-        };
-    }
-
-    private static IReadOnlyList<string> GetWebEditionHighlights(ToolDefinition tool) {
-        return tool.Slug switch {
-            "http-headers" => new[] {
-                "Use Domain Overview for broader web-edition posture",
-                "Validate DNS controls like CAA, DANE, and DNSSEC right now",
-                "Keep MX, SPF, DKIM, and DMARC checks live from the same tools catalog"
-            },
-            "security-txt" => new[] {
-                "Review mail and DNS posture with the live overview tools",
-                "Confirm contact-supporting DNS signals like MX, SPF, and DMARC",
-                "Use DNS Lookup when you need direct web-edition record inspection"
-            },
-            "rdap" => new[] {
-                "Use Domain Overview for a web-edition registration-adjacent posture snapshot",
-                "Inspect delegation with NS and SOA right now",
-                "Cross-check security controls with DNSSEC, CAA, and DANE"
-            },
-            "cert-check" => new[] {
-                "Validate certificate-adjacent DNS controls with CAA and DANE",
-                "Check name-server and DNSSEC posture before deeper TLS analysis",
-                "Use Domain Overview for a broader web-edition posture summary"
-            },
-            "ct-subdomains" => new[] {
-                "Use Domain Overview for a lighter attack-surface snapshot",
-                "Run DNS Propagation and Dangling CNAME in the web edition",
-                "Inspect mail and DNS controls for the main domain right now"
-            },
-            _ => new[] {
-                "Use the live DNS, mail, and overview tools available in this web edition"
-            }
+            _ => new[] { tool.Description }
         };
     }
 

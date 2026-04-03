@@ -21,4 +21,7 @@ public sealed class ToolDefinition {
     public string? InputPlaceholder { get; init; }
     public string? SecondaryInputLabel { get; init; }
     public string? SecondaryInputPlaceholder { get; init; }
+    public string? CliExample { get; init; }
+    public string? PowerShellExample { get; init; }
+    public string? CSharpExample { get; init; }
 }
