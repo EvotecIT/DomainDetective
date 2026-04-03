@@ -13,7 +13,10 @@ public sealed class ToolRegistry {
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
             HostedCompatible = true,
-            LiteCompatible = true
+            LiteCompatible = true,
+            CliExample = "domaindetective check 'example.com'",
+            PowerShellExample = "Test-DomainHealth -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
         },
         new ToolDefinition {
             Name = "Domain Overview",
@@ -24,7 +27,10 @@ public sealed class ToolRegistry {
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
             HostedCompatible = true,
-            LiteCompatible = true
+            LiteCompatible = true,
+            CliExample = "domaindetective check 'example.com'",
+            PowerShellExample = "Test-DomainHealth -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
         },
 
         // Email Security
@@ -34,7 +40,10 @@ public sealed class ToolRegistry {
             Description = "Validate SPF records and check for misconfigurations",
             Category = ToolCategory.EmailSecurity,
             Icon = "shield-check",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks SPF",
+            PowerShellExample = "Test-DDEmailSpfRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifySPF(\"example.com\");"
         },
         new ToolDefinition {
             Name = "DKIM Lookup",
@@ -44,7 +53,10 @@ public sealed class ToolRegistry {
             Icon = "key",
             InputPlaceholder = "example.com",
             SecondaryInputLabel = "Selector (optional)",
-            SecondaryInputPlaceholder = "Leave blank to auto-detect"
+            SecondaryInputPlaceholder = "Leave blank to auto-detect",
+            CliExample = "domaindetective check 'example.com' --checks DKIM",
+            PowerShellExample = "Test-DDEmailDkimRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDKIM(\"example.com\", new[] { \"selector1\" });"
         },
         new ToolDefinition {
             Name = "DMARC Lookup",
@@ -52,7 +64,10 @@ public sealed class ToolRegistry {
             Description = "Analyze DMARC policy and reporting configuration",
             Category = ToolCategory.EmailSecurity,
             Icon = "shield",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks DMARC",
+            PowerShellExample = "Test-DDEmailDmarcRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDMARC(\"example.com\");"
         },
         new ToolDefinition {
             Name = "MX Lookup",
@@ -60,7 +75,10 @@ public sealed class ToolRegistry {
             Description = "Check mail exchanger records and priorities",
             Category = ToolCategory.EmailSecurity,
             Icon = "mail",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks MX",
+            PowerShellExample = "Test-DDDnsMxRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyMX(\"example.com\");"
         },
         new ToolDefinition {
             Name = "MTA-STS Check",
@@ -71,7 +89,10 @@ public sealed class ToolRegistry {
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
             HostedCompatible = true,
-            LiteCompatible = true
+            LiteCompatible = true,
+            CliExample = "domaindetective check 'example.com' --checks MTASTS",
+            PowerShellExample = "Test-DDEmailMtaSts -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyMTASTS(\"example.com\");"
         },
         new ToolDefinition {
             Name = "TLS-RPT Check",
@@ -79,7 +100,10 @@ public sealed class ToolRegistry {
             Description = "Check TLS reporting DNS record configuration",
             Category = ToolCategory.EmailSecurity,
             Icon = "file-text",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks TLSRPT",
+            PowerShellExample = "Test-DDEmailTlsRptRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyTLSRPT(\"example.com\");"
         },
         new ToolDefinition {
             Name = "BIMI Lookup",
@@ -87,19 +111,23 @@ public sealed class ToolRegistry {
             Description = "Validate BIMI record and brand indicator",
             Category = ToolCategory.EmailSecurity,
             Icon = "image",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks BIMI",
+            PowerShellExample = "Test-DDEmailBimiRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyBIMI(\"example.com\");"
         },
 
         // DNS
         new ToolDefinition {
             Name = "DNS Lookup",
             Slug = "dns-lookup",
-            Description = "Query DNS records of any type (A, AAAA, MX, CNAME, TXT, etc.) with the DnsClientX resolver engine",
+            Description = "Query DNS records of any type (A, AAAA, CNAME, TXT, etc.)",
             Category = ToolCategory.Dns,
             Icon = "search",
             InputPlaceholder = "example.com",
-            SecondaryInputLabel = "Focus record types (optional)",
-            SecondaryInputPlaceholder = "A, AAAA, MX, TXT"
+            CliExample = "domaindetective check 'example.com' --checks DNSINVENTORY",
+            PowerShellExample = "Test-DomainHealth -DomainName 'example.com' -HealthCheckType DNSINVENTORY",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsInventoryAsync(\"example.com\");"
         },
         new ToolDefinition {
             Name = "DNSSEC Check",
@@ -107,7 +135,10 @@ public sealed class ToolRegistry {
             Description = "Validate DNSSEC chain of trust",
             Category = ToolCategory.Dns,
             Icon = "shield",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks DNSSEC",
+            PowerShellExample = "Test-DDDnsSecStatus -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSSEC(\"example.com\");"
         },
         new ToolDefinition {
             Name = "SOA Lookup",
@@ -115,7 +146,10 @@ public sealed class ToolRegistry {
             Description = "Check SOA record and zone authority",
             Category = ToolCategory.Dns,
             Icon = "server",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks SOA",
+            PowerShellExample = "Test-DDDnsSoaRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifySOA(\"example.com\");"
         },
         new ToolDefinition {
             Name = "NS Lookup",
@@ -123,7 +157,10 @@ public sealed class ToolRegistry {
             Description = "List authoritative nameservers",
             Category = ToolCategory.Dns,
             Icon = "globe",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks NS",
+            PowerShellExample = "Test-DDDnsNsRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyNS(\"example.com\");"
         },
         new ToolDefinition {
             Name = "DNS Propagation",
@@ -134,7 +171,10 @@ public sealed class ToolRegistry {
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
             HostedCompatible = true,
-            LiteCompatible = true
+            LiteCompatible = true,
+            CliExample = "domaindetective DnsPropagation --domain 'example.com' --record-type A",
+            PowerShellExample = "Test-DDDnsPropagation -DomainName 'example.com' -RecordType A",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsPropagationAsync(\"example.com\");"
         },
 
         // TLS & Certificates
@@ -146,7 +186,10 @@ public sealed class ToolRegistry {
             Icon = "award",
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
-            HostedCompatible = true
+            HostedCompatible = true,
+            CliExample = "domaindetective check 'example.com' --checks CERT",
+            PowerShellExample = "Test-DDDomainCertificate -Url 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteCertificate(\"example.com\");"
         },
         new ToolDefinition {
             Name = "CAA Lookup",
@@ -154,7 +197,10 @@ public sealed class ToolRegistry {
             Description = "Check Certificate Authority Authorization records",
             Category = ToolCategory.TlsCert,
             Icon = "check-square",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks CAA",
+            PowerShellExample = "Test-DDDnsCaaRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyCAA(\"example.com\");"
         },
         new ToolDefinition {
             Name = "DANE Check",
@@ -162,7 +208,10 @@ public sealed class ToolRegistry {
             Description = "Validate DANE/TLSA records",
             Category = ToolCategory.TlsCert,
             Icon = "link",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks DANE",
+            PowerShellExample = "Test-DDTlsDaneRecord -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDANE(\"example.com\", new[] { 443 });"
         },
 
         // Web Security
@@ -174,7 +223,10 @@ public sealed class ToolRegistry {
             Icon = "code",
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
-            HostedCompatible = true
+            HostedCompatible = true,
+            CliExample = "domaindetective check 'example.com' --checks WEBSITE",
+            PowerShellExample = "Test-DDWebsiteSecurity -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteHttps(\"example.com\");"
         },
         new ToolDefinition {
             Name = "Security.txt",
@@ -184,7 +236,10 @@ public sealed class ToolRegistry {
             Icon = "file-text",
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
-            HostedCompatible = true
+            HostedCompatible = true,
+            CliExample = "domaindetective check 'example.com' --checks SECURITYTXT",
+            PowerShellExample = "Test-DDDomainSecurityTxt -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");"
         },
 
         // Registration
@@ -196,7 +251,10 @@ public sealed class ToolRegistry {
             Icon = "database",
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
-            HostedCompatible = true
+            HostedCompatible = true,
+            CliExample = "domaindetective TestRDAP 'example.com'",
+            PowerShellExample = "Get-DDRdap -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.QueryRDAP(\"example.com\");"
         },
 
         // Threat Intel
@@ -206,7 +264,10 @@ public sealed class ToolRegistry {
             Description = "Check domain/IP against DNS blacklists",
             Category = ToolCategory.ThreatIntel,
             Icon = "alert-triangle",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks DNSBL",
+            PowerShellExample = "Test-DDDnsBlacklist -NameOrIpAddress 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSBL(\"example.com\");"
         },
         new ToolDefinition {
             Name = "Dangling CNAME",
@@ -214,7 +275,10 @@ public sealed class ToolRegistry {
             Description = "Detect dangling CNAME records vulnerable to takeover",
             Category = ToolCategory.ThreatIntel,
             Icon = "alert-circle",
-            InputPlaceholder = "example.com"
+            InputPlaceholder = "example.com",
+            CliExample = "domaindetective check 'example.com' --checks DANGLINGCNAME",
+            PowerShellExample = "Test-DDDnsDanglingCname -DomainName 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDanglingCname(\"example.com\");"
         },
 
         // Subdomain
@@ -226,7 +290,10 @@ public sealed class ToolRegistry {
             Icon = "layers",
             InputPlaceholder = "example.com",
             BrowserCompatible = false,
-            HostedCompatible = true
+            HostedCompatible = true,
+            CliExample = "domaindetective cert-inventory-capture 'example.com' --include-ct-subdomains",
+            PowerShellExample = "Invoke-DDCertificateInventory -DomainName 'example.com' -IncludeCtSubdomains",
+            CSharpExample = "var capture = new CertificateInventoryCapture();\nvar options = new CertificateInventoryCaptureOptions { IncludeCtDiscoveredSubdomains = true };\nawait capture.CaptureAsync(new[] { \"example.com\" }, options);"
         }
     };
 

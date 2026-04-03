@@ -12,23 +12,12 @@
             </div>
             <div class="category-tools">
                 @foreach (var tool in categoryTools) {
-                    @if (EnableLinks) {
-                        <a href="@GetToolHref(tool)" class="category-tool-link">
-                            <span class="category-tool-name">@tool.Name</span>
-                            @if (TryGetToolBadge(tool) is { } badge) {
-                                <span class="@badge.CssClass">@badge.Text</span>
-                            }
-                        </a>
-                    } else {
-                        <div class="category-tool-static">
-                            <span class="category-tool-name">@tool.Name</span>
-                            @if (TryGetToolBadge(tool) is { } badge) {
-                                <span class="@badge.CssClass">@badge.Text</span>
-                            } else if (!string.IsNullOrWhiteSpace(ToolBadgeText)) {
-                                <span class="category-tool-badge category-tool-badge-hosted">@ToolBadgeText</span>
-                            }
-                        </div>
-                    }
+                    <a href="@($"/tools/{tool.Slug}/")" class="category-tool-link">
+                        @if (DeploymentMode == ToolsDeploymentMode.StaticOnly) {
+                            <span class="tool-availability-dot @GetDotClass(tool)"></span>
+                        }
+                        <span class="category-tool-name">@tool.Name</span>
+                    </a>
                 }
             </div>
         </div>
@@ -37,35 +26,14 @@
 
 @code {
     [Parameter] public required IReadOnlyList<ToolDefinition> Tools { get; set; }
-    [Parameter] public bool EnableLinks { get; set; } = true;
-    [Parameter] public string? ToolBadgeText { get; set; }
     [Parameter] public ToolsDeploymentMode? DeploymentMode { get; set; }
-    [Parameter] public string? CurrentDomain { get; set; }
 
     private IEnumerable<ToolCategory> GetCategories() =>
         Tools.Select(t => t.Category).Distinct().OrderBy(c => c);
 
-    private string GetToolHref(ToolDefinition tool) {
-        return ToolPlannerPresentation.BuildToolUrl(tool, CurrentDomain);
+    private static string GetDotClass(ToolDefinition tool) {
+        if (tool.BrowserCompatible) return "tool-availability-dot-browser";
+        if (tool.LiteCompatible) return "tool-availability-dot-partial";
+        return "tool-availability-dot-local";
     }
-
-    private ToolBadge? TryGetToolBadge(ToolDefinition tool) {
-        if (!DeploymentMode.HasValue || DeploymentMode != ToolsDeploymentMode.StaticOnly) {
-            return null;
-        }
-
-        if (!EnableLinks) {
-            return !string.IsNullOrWhiteSpace(ToolBadgeText)
-                ? new ToolBadge(ToolBadgeText!, "category-tool-badge category-tool-badge-hosted")
-                : null;
-        }
-
-        return ToolPlannerPresentation.GetMode(tool, DeploymentMode.Value) switch {
-            ToolPlannerMode.Adaptive => new ToolBadge("Adaptive", "category-tool-badge category-tool-badge-partial"),
-            ToolPlannerMode.GuidedLocally => new ToolBadge("Guided locally", "category-tool-badge category-tool-badge-hosted"),
-            _ => new ToolBadge("Available", "category-tool-badge category-tool-badge-available")
-        };
-    }
-
-    private sealed record ToolBadge(string Text, string CssClass);
 }

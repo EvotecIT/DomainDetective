@@ -1,0 +1,98 @@
+@using DomainDetective.Toolbox.Models
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+@if (HasAnyExample()) {
+    <details class="tool-usage-examples" open="@StartOpen">
+        <summary>Run with CLI, PowerShell, or C#</summary>
+        <div class="tool-usage-tabs">
+            <div class="tool-usage-tab-bar">
+                @if (Definition.CliExample is not null) {
+                    <button type="button" class="tool-usage-tab-btn @(_activeTab == "cli" ? "active" : "")"
+                            @onclick="@(() => _activeTab = "cli")">CLI</button>
+                }
+                @if (Definition.PowerShellExample is not null) {
+                    <button type="button" class="tool-usage-tab-btn @(_activeTab == "ps" ? "active" : "")"
+                            @onclick="@(() => _activeTab = "ps")">PowerShell</button>
+                }
+                @if (Definition.CSharpExample is not null) {
+                    <button type="button" class="tool-usage-tab-btn @(_activeTab == "cs" ? "active" : "")"
+                            @onclick="@(() => _activeTab = "cs")">C#</button>
+                }
+            </div>
+
+            @if (_activeTab == "cli" && Definition.CliExample is not null) {
+                <div class="tool-usage-panel">
+                    <div class="tool-usage-panel-header">
+                        <span class="tool-usage-panel-label">Install &amp; run</span>
+                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync($"dotnet tool install -g DomainDetective.CLI\n{Definition.CliExample}"))">
+                            @(_copied ? "Copied" : "Copy")
+                        </button>
+                    </div>
+                    <pre class="tool-usage-code"><code>$ dotnet tool install -g DomainDetective.CLI
+$ @Definition.CliExample</code></pre>
+                </div>
+            }
+
+            @if (_activeTab == "ps" && Definition.PowerShellExample is not null) {
+                <div class="tool-usage-panel">
+                    <div class="tool-usage-panel-header">
+                        <span class="tool-usage-panel-label">Install module &amp; run</span>
+                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync($"Install-Module DomainDetective -Scope CurrentUser\nImport-Module DomainDetective\n{Definition.PowerShellExample}"))">
+                            @(_copied ? "Copied" : "Copy")
+                        </button>
+                    </div>
+                    <pre class="tool-usage-code"><code>PS&gt; Install-Module DomainDetective -Scope CurrentUser
+PS&gt; Import-Module DomainDetective
+PS&gt; @Definition.PowerShellExample</code></pre>
+                </div>
+            }
+
+            @if (_activeTab == "cs" && Definition.CSharpExample is not null) {
+                <div class="tool-usage-panel">
+                    <div class="tool-usage-panel-header">
+                        <span class="tool-usage-panel-label">NuGet package</span>
+                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync(Definition.CSharpExample))">
+                            @(_copied ? "Copied" : "Copy")
+                        </button>
+                    </div>
+                    <pre class="tool-usage-code"><code>using DomainDetective;
+
+@Definition.CSharpExample</code></pre>
+                </div>
+            }
+        </div>
+    </details>
+}
+
+@code {
+    [Parameter] public required ToolDefinition Definition { get; set; }
+    [Parameter] public bool StartOpen { get; set; }
+
+    private string _activeTab = "cli";
+    private bool _copied;
+
+    protected override void OnParametersSet() {
+        if (Definition.CliExample is not null) _activeTab = "cli";
+        else if (Definition.PowerShellExample is not null) _activeTab = "ps";
+        else if (Definition.CSharpExample is not null) _activeTab = "cs";
+    }
+
+    private bool HasAnyExample() =>
+        Definition.CliExample is not null ||
+        Definition.PowerShellExample is not null ||
+        Definition.CSharpExample is not null;
+
+    private async Task CopyAsync(string text) {
+        try {
+            await JS.InvokeVoidAsync("domainDetectiveTools.copyText", text);
+            _copied = true;
+            StateHasChanged();
+            await Task.Delay(1400);
+            _copied = false;
+            StateHasChanged();
+        } catch {
+            // clipboard API may not be available
+        }
+    }
+}

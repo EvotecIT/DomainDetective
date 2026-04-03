@@ -36,7 +36,7 @@ Console.WriteLine($"Issues: {spf.Issues.Count}");
 ### Using PowerShell
 
 ```powershell
-$results = Get-DomainHealthCheck -Domain "example.com"
+$results = Test-DomainHealth -DomainName "example.com" -HealthCheckType SPF
 $results.SpfAnalysis | Format-List
 $results.SpfAnalysis.Issues | Format-Table
 ```

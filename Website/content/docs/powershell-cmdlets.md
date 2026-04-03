@@ -18,7 +18,7 @@ Install-Module DomainDetective -Scope CurrentUser
 Import-Module DomainDetective
 
 # Run a comprehensive domain health check
-$check = Get-DomainHealthCheck -Domain "example.com"
+$check = Test-DomainHealth -DomainName "example.com"
 
 # View specific results
 $check.SpfAnalysis
@@ -31,13 +31,13 @@ $check.DnsSecAnalysis
 
 ```powershell
 # SPF
-$check = Get-DomainHealthCheck -Domain "example.com" -Type SPF
+$check = Test-DomainHealth -DomainName "example.com" -HealthCheckType SPF
 
 # DKIM with selectors
-$check = Get-DomainHealthCheck -Domain "example.com" -Type DKIM -DkimSelectors "default", "selector1"
+$check = Test-DomainHealth -DomainName "example.com" -HealthCheckType DKIM -DkimSelectors "default", "selector1"
 
 # DNSSEC
-$check = Get-DomainHealthCheck -Domain "example.com" -Type DNSSEC
+$check = Test-DomainHealth -DomainName "example.com" -HealthCheckType DNSSEC
 ```
 
 ## Batch Analysis
@@ -45,7 +45,7 @@ $check = Get-DomainHealthCheck -Domain "example.com" -Type DNSSEC
 ```powershell
 $domains = "example.com", "contoso.com", "evotec.xyz"
 $results = $domains | ForEach-Object {
-    Get-DomainHealthCheck -Domain $_ -Type SPF, DMARC
+    Test-DomainHealth -DomainName $_ -HealthCheckType SPF, DMARC
 }
 $results | Format-Table Domain, SpfAnalysis, DmarcAnalysis
 ```

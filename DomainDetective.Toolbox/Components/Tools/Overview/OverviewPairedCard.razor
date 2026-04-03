@@ -1,0 +1,48 @@
+@* Renders a control card with its matching detail card as an expandable section *@
+
+<div class="overview-paired-card @Control.StateClass">
+    <div class="overview-paired-header">
+        <div class="overview-paired-title">
+            <strong>@Control.Title</strong>
+            <span class="overview-paired-value">@Control.ValueLabel</span>
+        </div>
+        <div class="tool-chip-list">
+            @foreach (var tag in Control.Tags) {
+                <span class="tool-chip">@tag</span>
+            }
+        </div>
+        @if (Control.Samples.Count > 0) {
+            <p class="overview-paired-sample">@Control.Samples[0]</p>
+        }
+    </div>
+
+    @if (Detail is not null) {
+        <details class="overview-paired-detail">
+            <summary class="overview-paired-detail-toggle">
+                @Detail.Title: @Detail.ValueLabel
+            </summary>
+            <div class="overview-paired-detail-body">
+                <p class="tool-summary-note">@Detail.Summary</p>
+                @if (Detail.Tags.Count > 0) {
+                    <div class="tool-chip-list">
+                        @foreach (var tag in Detail.Tags) {
+                            <span class="tool-chip">@tag</span>
+                        }
+                    </div>
+                }
+                @if (Detail.Samples.Count > 0) {
+                    <ul class="tool-bullet-list mt-2">
+                        @foreach (var sample in Detail.Samples) {
+                            <li>@sample</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </details>
+    }
+</div>
+
+@code {
+    [Parameter] public required OverviewControlCardView Control { get; set; }
+    [Parameter] public DomainOverviewDetailCardView? Detail { get; set; }
+}
