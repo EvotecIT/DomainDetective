@@ -1571,3 +1571,39 @@ body.pf-api-docs .type-detail-rail .type-toc ul::-webkit-scrollbar-thumb:hover {
     position: static;
   }
 }
+
+.type-usage,
+.type-related-content,
+.type-parameters,
+.type-examples,
+.type-see-also {
+  margin: 0.9rem 0;
+}
+
+.type-usage-summary {
+  margin: 0 0 0.85rem;
+  color: var(--pf-muted);
+  line-height: 1.6;
+}
+
+.usage-group {
+  margin-top: 0.8rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--pf-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--pf-card-bg) 96%, transparent);
+}
+
+.usage-group h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
+.usage-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

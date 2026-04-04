@@ -6,8 +6,17 @@
   "profilePath": "./_temp/pipeline-profile.json",
   "steps": [
     {
+      "task": "sources-sync",
+      "id": "sync-sources",
+      "config": "./site.json",
+      "lockMode": "verify",
+      "lockPath": "./.powerforge/git-sync-lock.json",
+      "writeManifest": true
+    },
+    {
       "task": "build",
       "id": "build-site",
+      "dependsOn": "sync-sources",
       "config": "./site.json",
       "out": "./_site",
       "clean": true
@@ -53,6 +62,24 @@
       "id": "build-powershell",
       "dependsOn": "verify-site",
       "project": "../DomainDetective.PowerShell/DomainDetective.PowerShell.csproj",
+      "framework": "net8.0",
+      "configuration": "Release",
+      "skipIfProjectMissing": true
+    },
+    {
+      "task": "dotnet-build",
+      "id": "build-dnsclientx-library",
+      "dependsOn": "verify-site",
+      "project": "./projects/dnsclientx/DnsClientX/DnsClientX.csproj",
+      "framework": "net10.0",
+      "configuration": "Release",
+      "skipIfProjectMissing": true
+    },
+    {
+      "task": "dotnet-build",
+      "id": "build-dnsclientx-powershell",
+      "dependsOn": "verify-site",
+      "project": "./projects/dnsclientx/DnsClientX.PowerShell/DnsClientX.PowerShell.csproj",
       "framework": "net8.0",
       "configuration": "Release",
       "skipIfProjectMissing": true
@@ -113,13 +140,73 @@
       "socialAutoGenerate": false
     },
     {
+      "task": "exec",
+      "id": "sync-dnsclientx-apidocs",
+      "dependsOn": "sync-sources",
+      "command": "pwsh",
+      "argsList": [
+        "-NoLogo",
+        "-NoProfile",
+        "-File",
+        "./scripts/Sync-DnsClientXApiDocs.ps1",
+        "-SiteRoot",
+        "."
+      ],
+      "workingDirectory": "."
+    },
+    {
+      "task": "apidocs",
+      "id": "build-apidocs-dnsclientx-csharp",
+      "dependsOn": ["build-dnsclientx-library", "build-site"],
+      "config": "./site.json",
+      "xml": "./projects/dnsclientx/DnsClientX/bin/Release/net10.0/DnsClientX.xml",
+      "assembly": "./projects/dnsclientx/DnsClientX/bin/Release/net10.0/DnsClientX.dll",
+      "out": "./_site/api/dnsclientx",
+      "title": "DnsClientX API Reference",
+      "baseUrl": "/api/dnsclientx",
+      "format": "both",
+      "css": "/css/app.css,/css/api.css",
+      "template": "docs",
+      "injectCriticalCss": true,
+      "nav": "./site.json",
+      "navContextPath": "/",
+      "sourceRoot": "./projects/dnsclientx",
+      "sourceUrl": "https://github.com/EvotecIT/DnsClientX/blob/master/{path}#L{line}",
+      "includeNamespace": "DnsClientX",
+      "socialAutoGenerate": false
+    },
+    {
+      "task": "apidocs",
+      "id": "build-apidocs-dnsclientx-powershell",
+      "dependsOn": ["build-site", "sync-dnsclientx-apidocs", "build-dnsclientx-powershell"],
+      "config": "./site.json",
+      "type": "PowerShell",
+      "helpPath": "./data/apidocs/dnsclientx-powershell/DnsClientX.PowerShell.dll-Help.xml",
+      "psManifestPath": "./data/apidocs/dnsclientx-powershell/DnsClientX.psd1",
+      "psExamplesPath": "./data/apidocs/dnsclientx-powershell/examples",
+      "out": "./_site/api/dnsclientx-powershell",
+      "title": "DnsClientX PowerShell Cmdlet Reference",
+      "baseUrl": "/api/dnsclientx-powershell",
+      "format": "both",
+      "template": "docs",
+      "bodyClass": "pf-api-docs pf-api-docs--powershell",
+      "docsHome": "/products/dnsclientx/",
+      "nav": "./site.json",
+      "navContextPath": "/",
+      "css": "/css/app.css,/css/api.css",
+      "injectCriticalCss": true,
+      "socialAutoGenerate": false
+    },
+    {
       "task": "xref-merge",
       "id": "merge-xref",
-      "dependsOn": ["build-apidocs-csharp", "build-apidocs-powershell"],
+      "dependsOn": ["build-apidocs-csharp", "build-apidocs-powershell", "build-apidocs-dnsclientx-csharp", "build-apidocs-dnsclientx-powershell"],
       "out": "./data/xrefmap.json",
       "mapFiles": [
         "./_site/api/xrefmap.json",
-        "./_site/api/powershell/xrefmap.json"
+        "./_site/api/powershell/xrefmap.json",
+        "./_site/api/dnsclientx/xrefmap.json",
+        "./_site/api/dnsclientx-powershell/xrefmap.json"
       ],
       "preferLast": true,
       "maxReferences": 50000,
@@ -264,7 +351,6 @@
       "navCanonicalRequired": true,
       "navRequiredLinks": "/,/docs/,/tools/",
       "minNavCoveragePercent": 35,
-      "requiredRoutes": "/,/docs/,/tools/,/404.html,/search/,/sitemap/",
       "failOnCategories": "budget,nav,link,asset,rendered-console-error,rendered-request-failure",
       "rendered": false,
       "renderedEnsureInstalled": false,
@@ -276,7 +362,8 @@
       "summaryMaxIssues": 50,
       "checkUtf8": true,
       "checkMetaCharset": true,
-      "checkUnicodeReplacementChars": true
+      "checkUnicodeReplacementChars": true,
+      "requiredRoutes": "/,/docs/,/tools/,/404.html,/search/,/sitemap/,/products/dnsclientx/,/docs/dnsclientx/"
     }
   ]
 }
