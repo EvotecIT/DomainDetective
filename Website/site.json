@@ -7,8 +7,16 @@
   "Features": ["docs", "apiDocs", "blog", "search", "notFound"],
   "TrailingSlash": "always",
   "ContentRoot": "content",
+  "ProjectsRoot": "projects",
   "ThemesRoot": "themes",
   "DataRoot": "data",
+  "Sources": [
+    {
+      "Repo": "EvotecIT/DnsClientX",
+      "Slug": "dnsclientx",
+      "Destination": "./projects/dnsclientx"
+    }
+  ],
   "StaticAssets": [
     { "Source": "static" }
   ],
@@ -18,6 +26,14 @@
       "Input": "content/pages",
       "Output": "/",
       "DefaultLayout": "home",
+      "UseToc": false,
+      "Include": ["*.md", "**/*.md"]
+    },
+    {
+      "Name": "products",
+      "Input": "content/products",
+      "Output": "/products",
+      "DefaultLayout": "page",
       "UseToc": false,
       "Include": ["*.md", "**/*.md"]
     },
@@ -102,9 +118,13 @@
     "Bundles": [
       { "Name": "global", "Css": ["/css/app.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
       { "Name": "docs", "Css": ["/css/app.css", "/css/docs.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
-      { "Name": "api", "Css": ["/css/app.css", "/css/api.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] }
+      { "Name": "api", "Css": ["/css/app.css", "/css/api.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
+      { "Name": "product", "Css": ["/css/app.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
+      { "Name": "dns-playground", "Css": ["/css/app.css", "/css/prism-theme.css", "/css/dns-playground.css"], "Js": ["/js/site.js", "/js/dns-playground.js"] }
     ],
     "RouteBundles": [
+      { "Match": "/products/dnsclientx/playground/**", "Bundles": ["dns-playground"] },
+      { "Match": "/products/**", "Bundles": ["product"] },
       { "Match": "/api/**", "Bundles": ["api"] },
       { "Match": "/docs/**", "Bundles": ["docs"] },
       { "Match": "/**", "Bundles": ["global"] }
@@ -150,6 +170,7 @@
   "Navigation": {
     "Surfaces": [
       { "Name": "main", "Path": "/", "PrimaryMenu": "main" },
+      { "Name": "products", "Path": "/products/", "PrimaryMenu": "main" },
       { "Name": "docs", "Path": "/docs/", "Collection": "docs", "Layout": "docs", "PrimaryMenu": "main", "SidebarMenu": "docs" },
       { "Name": "apidocs", "Path": "/api/", "Layout": "apiDocs", "PrimaryMenu": "main" },
       { "Name": "notFound", "Path": "/404/", "PrimaryMenu": "main" }
@@ -165,8 +186,10 @@
             "Title": "API",
             "Url": "/api/",
             "Items": [
-              { "Title": "C# API Reference", "Url": "/api/" },
-              { "Title": "PowerShell API Reference", "Url": "/api/powershell/" }
+              { "Title": "DomainDetective C# API", "Url": "/api/" },
+              { "Title": "DomainDetective PowerShell API", "Url": "/api/powershell/" },
+              { "Title": "DnsClientX C# API", "Url": "/api/dnsclientx/" },
+              { "Title": "DnsClientX PowerShell API", "Url": "/api/dnsclientx-powershell/" }
             ]
           },
           { "Title": "Blog", "Url": "/blog/" },
@@ -191,6 +214,8 @@
           { "Title": "DnsClientX Toolkit", "Url": "/docs/dnsclientx/" },
           { "Title": "C# API Reference", "Url": "/api/" },
           { "Title": "PowerShell API Reference", "Url": "/api/powershell/" },
+          { "Title": "DnsClientX Product", "Url": "/products/dnsclientx/" },
+          { "Title": "DnsClientX Docs", "Url": "/docs/dnsclientx/" },
           { "Title": "CLI Usage", "Url": "/docs/cli-usage/" },
           { "Title": "FAQ", "Url": "/faq/" },
           { "Title": "GitHub Repository", "Url": "https://github.com/EvotecIT/DomainDetective", "External": true }

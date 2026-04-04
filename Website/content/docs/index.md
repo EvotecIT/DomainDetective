@@ -39,3 +39,10 @@ Use the DnsClientX lane when you want a DNS-first workflow instead of the broade
 - [PowerShell API Reference](/api/powershell/) - Full generated reference for the PowerShell module
 - [PowerShell Cmdlets](/docs/powershell-cmdlets/) - Module-focused examples and command usage
 - [CLI Usage](/docs/cli-usage/) - Command-line workflows and batch processing
+
+## DNS Client Library
+
+- [DnsClientX Product](/products/dnsclientx/) - Direct DNS library and module behind DomainDetective resolver workflows
+- [DnsClientX Docs](/docs/dnsclientx/) - Choose the right DnsClientX entry point for .NET, PowerShell, or browser exploration
+- [DnsClientX C# API](/api/dnsclientx/) - Generated reference for the standalone DNS library
+- [DnsClientX PowerShell API](/api/dnsclientx-powershell/) - Generated cmdlet reference for the DnsClientX module

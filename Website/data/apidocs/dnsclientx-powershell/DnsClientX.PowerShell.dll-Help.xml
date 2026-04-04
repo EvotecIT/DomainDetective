@@ -1,0 +1,2684 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<helpItems schema="maml" xmlns="http://msh">
+  <!-- Cmdlet: Resolve-Dns -->
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+    <command:details>
+      <command:name>Resolve-Dns</command:name>
+      <command:verb>Resolve</command:verb>
+      <command:noun>Dns</command:noun>
+      <maml:description>
+        <maml:para>Resolves DNS records (A, AAAA, MX, TXT, …) over UDP/TCP/DoT/DoH with optional multi-resolver strategies.</maml:para>
+        <maml:para>Supports single-provider queries, multiple providers with FirstSuccess/FastestWins/SequentialAll/RoundRobin, direct endpoints (IPv4/IPv6/DoH URLs), concurrency control, and TTL-based response caching.</maml:para>
+      </maml:description>
+    </command:details>
+    <command:syntax>
+      <!-- Parameter set: DnsProvider -->
+      <command:syntaxItem>
+        <maml:name>Resolve-Dns</maml:name>
+        <!-- Parameter: Name -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Name</maml:name>
+          <command:parameterValue required="true">string[]</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: Type -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="1">
+          <maml:name>Type</maml:name>
+          <command:parameterValue required="true">DnsRecordType[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsRecordType[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>A</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: CacheExpirationSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>CacheExpirationSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: DnsProvider -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>DnsProvider</maml:name>
+          <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: FastestCacheMinutes -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FastestCacheMinutes</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>5</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: FullResponse -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FullResponse</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxParallelism -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxParallelism</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>4</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MinCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MinCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ParseTypedTxtRecords -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ParseTypedTxtRecords</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: PerEndpointMaxInFlight -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>PerEndpointMaxInFlight</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RequestDnsSec -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RequestDnsSec</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverStrategy -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverStrategy</maml:name>
+          <command:parameterValue required="true">MultiResolverStrategy</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.MultiResolverStrategy</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>FirstSuccess</dev:defaultValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">FirstSuccess</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">FastestWins</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SequentialAll</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RoundRobin</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: RespectEndpointTimeout -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RespectEndpointTimeout</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResponseCache -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResponseCache</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RetryCount -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RetryCount</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>3</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RetryDelayMs -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RetryDelayMs</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>200</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: TypedRecords -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>TypedRecords</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ValidateDnsSec -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ValidateDnsSec</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: ServerName -->
+      <command:syntaxItem>
+        <maml:name>Resolve-Dns</maml:name>
+        <!-- Parameter: Name -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Name</maml:name>
+          <command:parameterValue required="true">string[]</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: Type -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="1">
+          <maml:name>Type</maml:name>
+          <command:parameterValue required="true">DnsRecordType[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsRecordType[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>A</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: AllServers -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>AllServers</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Fallback -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>Fallback</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: FullResponse -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FullResponse</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ParseTypedTxtRecords -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ParseTypedTxtRecords</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RandomServer -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RandomServer</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RequestDnsSec -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RequestDnsSec</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RetryCount -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RetryCount</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>3</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RetryDelayMs -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RetryDelayMs</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>200</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Server -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named" aliases="ServerName">
+          <maml:name>Server</maml:name>
+          <command:parameterValue required="true">List`1</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Collections.Generic.List`1[[System.String, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: TimeOut -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>TimeOut</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>2000</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: TypedRecords -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>TypedRecords</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ValidateDnsSec -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ValidateDnsSec</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: ResolverEndpoint -->
+      <command:syntaxItem>
+        <maml:name>Resolve-Dns</maml:name>
+        <!-- Parameter: Name -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Name</maml:name>
+          <command:parameterValue required="true">string[]</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: Type -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="1">
+          <maml:name>Type</maml:name>
+          <command:parameterValue required="true">DnsRecordType[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsRecordType[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>A</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverEndpoint -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverEndpoint</maml:name>
+          <command:parameterValue required="true">string[]</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: CacheExpirationSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>CacheExpirationSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: FastestCacheMinutes -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FastestCacheMinutes</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>5</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxParallelism -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxParallelism</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>4</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MinCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MinCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: PerEndpointMaxInFlight -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>PerEndpointMaxInFlight</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverStrategy -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverStrategy</maml:name>
+          <command:parameterValue required="true">MultiResolverStrategy</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.MultiResolverStrategy</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>FirstSuccess</dev:defaultValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">FirstSuccess</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">FastestWins</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SequentialAll</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RoundRobin</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: RespectEndpointTimeout -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RespectEndpointTimeout</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResponseCache -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResponseCache</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: ResolverDnsProvider -->
+      <command:syntaxItem>
+        <maml:name>Resolve-Dns</maml:name>
+        <!-- Parameter: Name -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Name</maml:name>
+          <command:parameterValue required="true">string[]</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: Type -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="1">
+          <maml:name>Type</maml:name>
+          <command:parameterValue required="true">DnsRecordType[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsRecordType[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>A</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverDnsProvider -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="named" aliases="DnsProviders">
+          <maml:name>ResolverDnsProvider</maml:name>
+          <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: CacheExpirationSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>CacheExpirationSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: FastestCacheMinutes -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FastestCacheMinutes</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>5</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxParallelism -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxParallelism</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>4</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MinCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MinCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: PerEndpointMaxInFlight -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>PerEndpointMaxInFlight</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverStrategy -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverStrategy</maml:name>
+          <command:parameterValue required="true">MultiResolverStrategy</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.MultiResolverStrategy</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>FirstSuccess</dev:defaultValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">FirstSuccess</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">FastestWins</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SequentialAll</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RoundRobin</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: RespectEndpointTimeout -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RespectEndpointTimeout</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResponseCache -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResponseCache</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: PatternDnsProvider -->
+      <command:syntaxItem>
+        <maml:name>Resolve-Dns</maml:name>
+        <!-- Parameter: Pattern -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Pattern</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: Type -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="1">
+          <maml:name>Type</maml:name>
+          <command:parameterValue required="true">DnsRecordType[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsRecordType[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>A</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: CacheExpirationSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>CacheExpirationSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: DnsProvider -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>DnsProvider</maml:name>
+          <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: FastestCacheMinutes -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FastestCacheMinutes</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>5</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: FullResponse -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FullResponse</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxParallelism -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxParallelism</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>4</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MinCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MinCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ParseTypedTxtRecords -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ParseTypedTxtRecords</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: PerEndpointMaxInFlight -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>PerEndpointMaxInFlight</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RequestDnsSec -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RequestDnsSec</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverStrategy -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverStrategy</maml:name>
+          <command:parameterValue required="true">MultiResolverStrategy</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.MultiResolverStrategy</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>FirstSuccess</dev:defaultValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">FirstSuccess</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">FastestWins</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SequentialAll</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RoundRobin</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: RespectEndpointTimeout -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RespectEndpointTimeout</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResponseCache -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResponseCache</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RetryCount -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RetryCount</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>3</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RetryDelayMs -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RetryDelayMs</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>200</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: TypedRecords -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>TypedRecords</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ValidateDnsSec -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ValidateDnsSec</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: PatternServerName -->
+      <command:syntaxItem>
+        <maml:name>Resolve-Dns</maml:name>
+        <!-- Parameter: Pattern -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Pattern</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: Type -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="1">
+          <maml:name>Type</maml:name>
+          <command:parameterValue required="true">DnsRecordType[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsRecordType[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>A</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: AllServers -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>AllServers</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Fallback -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>Fallback</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: FullResponse -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FullResponse</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ParseTypedTxtRecords -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ParseTypedTxtRecords</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RandomServer -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RandomServer</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RequestDnsSec -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RequestDnsSec</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RetryCount -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RetryCount</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>3</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: RetryDelayMs -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RetryDelayMs</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>200</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Server -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named" aliases="ServerName">
+          <maml:name>Server</maml:name>
+          <command:parameterValue required="true">List`1</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Collections.Generic.List`1[[System.String, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: TimeOut -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>TimeOut</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>2000</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: TypedRecords -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>TypedRecords</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ValidateDnsSec -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ValidateDnsSec</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: PatternResolverEndpoint -->
+      <command:syntaxItem>
+        <maml:name>Resolve-Dns</maml:name>
+        <!-- Parameter: Pattern -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Pattern</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: Type -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="1">
+          <maml:name>Type</maml:name>
+          <command:parameterValue required="true">DnsRecordType[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsRecordType[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>A</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverEndpoint -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverEndpoint</maml:name>
+          <command:parameterValue required="true">string[]</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: CacheExpirationSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>CacheExpirationSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: FastestCacheMinutes -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FastestCacheMinutes</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>5</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxParallelism -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxParallelism</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>4</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MinCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MinCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: PerEndpointMaxInFlight -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>PerEndpointMaxInFlight</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverStrategy -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverStrategy</maml:name>
+          <command:parameterValue required="true">MultiResolverStrategy</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.MultiResolverStrategy</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>FirstSuccess</dev:defaultValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">FirstSuccess</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">FastestWins</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SequentialAll</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RoundRobin</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: RespectEndpointTimeout -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RespectEndpointTimeout</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResponseCache -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResponseCache</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: PatternResolverDnsProvider -->
+      <command:syntaxItem>
+        <maml:name>Resolve-Dns</maml:name>
+        <!-- Parameter: Pattern -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Pattern</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+        <!-- Parameter: Type -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="1">
+          <maml:name>Type</maml:name>
+          <command:parameterValue required="true">DnsRecordType[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsRecordType[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>A</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverDnsProvider -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="named" aliases="DnsProviders">
+          <maml:name>ResolverDnsProvider</maml:name>
+          <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: CacheExpirationSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>CacheExpirationSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: FastestCacheMinutes -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>FastestCacheMinutes</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>5</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MaxParallelism -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MaxParallelism</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>4</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: MinCacheTtlSeconds -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>MinCacheTtlSeconds</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: PerEndpointMaxInFlight -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>PerEndpointMaxInFlight</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>0</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResolverStrategy -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverStrategy</maml:name>
+          <command:parameterValue required="true">MultiResolverStrategy</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.MultiResolverStrategy</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>FirstSuccess</dev:defaultValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">FirstSuccess</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">FastestWins</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SequentialAll</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RoundRobin</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: RespectEndpointTimeout -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>RespectEndpointTimeout</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: ResponseCache -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResponseCache</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <!-- Parameter: Name -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+        <maml:name>Name</maml:name>
+        <maml:description>
+          <maml:para>The name of the DNS record to query for</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string[]</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+      </command:parameter>
+      <!-- Parameter: Pattern -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+        <maml:name>Pattern</maml:name>
+        <maml:description>
+          <maml:para>Pattern to expand into multiple DNS queries.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+          <maml:uri />
+        </dev:type>
+      </command:parameter>
+      <!-- Parameter: DnsProvider -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>DnsProvider</maml:name>
+        <maml:description>
+          <maml:para>Predefined provider(s) (DnsEndpoint) for the query. When a single provider is specified, the classic single-resolver path is used. When multiple providers are specified, the multi-resolver path is used. If not specified, the default provider System (UDP) is used.</maml:para>
+          <maml:para>Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+        <dev:type>
+          <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+        </command:parameterValueGroup>
+      </command:parameter>
+      <!-- Parameter: ResolverEndpoint -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="named">
+        <maml:name>ResolverEndpoint</maml:name>
+        <maml:description>
+          <maml:para>One or more resolver endpoints in string format. Accepted: "1.1.1.1:53", "[2606:4700:4700::1111]:53", "dns.google:53", or DoH URLs like "https://dns.google/dns-query".</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string[]</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+      </command:parameter>
+      <!-- Parameter: ResolverDnsProvider -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="named" aliases="DnsProviders">
+        <maml:name>ResolverDnsProvider</maml:name>
+        <maml:description>
+          <maml:para>One or more predefined providers (DnsEndpoint enum) to expand into endpoints for the multi-resolver. This enables strategy control (FirstSuccess/FastestWins/SequentialAll) and other multi-resolver options.</maml:para>
+          <maml:para>Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+        <dev:type>
+          <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+        </command:parameterValueGroup>
+      </command:parameter>
+      <!-- Parameter: ResolverStrategy -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>ResolverStrategy</maml:name>
+        <maml:description>
+          <maml:para>Multi-resolver strategy to use when multiple endpoints are provided.</maml:para>
+          <maml:para>Possible values: FirstSuccess, FastestWins, SequentialAll, RoundRobin</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">MultiResolverStrategy</command:parameterValue>
+        <dev:type>
+          <maml:name>DnsClientX.MultiResolverStrategy</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>FirstSuccess</dev:defaultValue>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">FirstSuccess</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">FastestWins</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SequentialAll</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RoundRobin</command:parameterValue>
+        </command:parameterValueGroup>
+      </command:parameter>
+      <!-- Parameter: MaxParallelism -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>MaxParallelism</maml:name>
+        <maml:description>
+          <maml:para>Limits concurrent queries across endpoints. Defaults to 4.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>4</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: RespectEndpointTimeout -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>RespectEndpointTimeout</maml:name>
+        <maml:description>
+          <maml:para>Respect endpoint-level timeouts if present. When not set, the cmdlet's -TimeOut value is used.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: FastestCacheMinutes -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>FastestCacheMinutes</maml:name>
+        <maml:description>
+          <maml:para>Cache duration in minutes for FastestWins strategy.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>5</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: PerEndpointMaxInFlight -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>PerEndpointMaxInFlight</maml:name>
+        <maml:description>
+          <maml:para>Limits concurrent queries per endpoint when using the multi-resolver. Set to a positive value to cap in-flight queries per endpoint; 0 disables the cap.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>0</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: ResponseCache -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>ResponseCache</maml:name>
+        <maml:description>
+          <maml:para>Enables response caching based on TTLs for repeated queries of the same (name,type). Disabled by default.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: CacheExpirationSeconds -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>CacheExpirationSeconds</maml:name>
+        <maml:description>
+          <maml:para>Optional override for default cache expiration when TTL is unavailable (seconds).</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>0</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: MinCacheTtlSeconds -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>MinCacheTtlSeconds</maml:name>
+        <maml:description>
+          <maml:para>Minimal TTL allowed for cached entries (seconds). 0 leaves library default.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>0</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: MaxCacheTtlSeconds -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>MaxCacheTtlSeconds</maml:name>
+        <maml:description>
+          <maml:para>Maximal TTL allowed for cached entries (seconds). 0 leaves library default.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>0</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Type -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="1">
+        <maml:name>Type</maml:name>
+        <maml:description>
+          <maml:para>The type of the record to query for. If not specified, A record is queried.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">DnsRecordType[]</command:parameterValue>
+        <dev:type>
+          <maml:name>DnsClientX.DnsRecordType[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>A</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Server -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named" aliases="ServerName">
+        <maml:name>Server</maml:name>
+        <maml:description>
+          <maml:para>Server to use for the query. If not specified, the default provider System (UDP) is used. Once a server is specified, the query will be sent to that server.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">List`1</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Collections.Generic.List`1[[System.String, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]</maml:name>
+          <maml:uri />
+        </dev:type>
+      </command:parameter>
+      <!-- Parameter: AllServers -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>AllServers</maml:name>
+        <maml:description>
+          <maml:para>If specified, all servers listed in Server are queried sequentially and the responses are aggregated in server order. When not specified, only the first server is queried for faster results.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Fallback -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>Fallback</maml:name>
+        <maml:description>
+          <maml:para>If specified, the cmdlet sequentially queries each server until a successful response is received. This option stops on the first server that returns DnsResponseCode.NoError.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: RandomServer -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>RandomServer</maml:name>
+        <maml:description>
+          <maml:para>If specified, the order of servers defined in Server is randomized before querying.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: FullResponse -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>FullResponse</maml:name>
+        <maml:description>
+          <maml:para>Provides the full response of the query. If not specified, only the minimal response is provided (just the answer). If specified, the full response is provided (answer, authority, and additional sections).</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: TypedRecords -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>TypedRecords</maml:name>
+        <maml:description>
+          <maml:para>When set, attempts to parse answers into typed record objects.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: ParseTypedTxtRecords -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>ParseTypedTxtRecords</maml:name>
+        <maml:description>
+          <maml:para>Gets or sets a value indicating whether TXT records should be parsed into specialized types (DMARC, SPF, etc.) when TypedRecords is specified. When false, returns simple TXT records.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: TimeOut -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>TimeOut</maml:name>
+        <maml:description>
+          <maml:para>Specifies the timeout for the DNS query, in milliseconds. If the DNS server does not respond within this time, the query will fail. Default is 2000 ms (2 seconds) as defined by DefaultTimeout. Increase this value for slow networks or unreliable servers.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>2000</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: RetryCount -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>RetryCount</maml:name>
+        <maml:description>
+          <maml:para>Number of retry attempts on transient errors.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>3</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: RetryDelayMs -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>RetryDelayMs</maml:name>
+        <maml:description>
+          <maml:para>Delay between retry attempts in milliseconds.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>200</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: RequestDnsSec -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>RequestDnsSec</maml:name>
+        <maml:description>
+          <maml:para>Request DNSSEC data (sets the DO bit).</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: ValidateDnsSec -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>ValidateDnsSec</maml:name>
+        <maml:description>
+          <maml:para>Validate DNSSEC signatures. Implies requesting DNSSEC data.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes />
+    <command:returnValues />
+    <command:examples>
+      <command:example>
+        <maml:title>----------  Example 1  ----------</maml:title>
+        <dev:code>Resolve-Dns -Name "example.com" -Type A</dev:code>
+        <dev:remarks>
+          <maml:para>Simple (system default)</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 2  ----------</maml:title>
+        <dev:code>Resolve-Dns -Name "example.com" -Type A -DnsProvider Cloudflare</dev:code>
+        <dev:remarks>
+          <maml:para>Single provider (classic)</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 3  ----------</maml:title>
+        <dev:code>Resolve-Dns -Name "example.com" -Type A -DnsProvider Cloudflare,Google -ResolverStrategy FirstSuccess</dev:code>
+        <dev:remarks>
+          <maml:para>FirstSuccess across providers</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 4  ----------</maml:title>
+        <dev:code>Resolve-Dns -Name "example.com" -Type A -DnsProvider Cloudflare,Google -ResolverStrategy FastestWins -FastestCacheMinutes 10 -ResponseCache</dev:code>
+        <dev:remarks>
+          <maml:para>FastestWins with cache</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 5  ----------</maml:title>
+        <dev:code>Resolve-Dns -Name @('a.com','b.com') -Type A -DnsProvider System,Cloudflare,Quad9 -ResolverStrategy RoundRobin -MaxParallelism 16 -PerEndpointMaxInFlight 4</dev:code>
+        <dev:remarks>
+          <maml:para>RoundRobin with per-endpoint cap</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 6  ----------</maml:title>
+        <dev:code>Resolve-Dns -Name 'example.com' -Type TXT -ResolverEndpoint '1.1.1.1:53','https://dns.google/dns-query' -ResolverStrategy FirstSuccess</dev:code>
+        <dev:remarks>
+          <maml:para>Mixed endpoints (UDP + DoH)</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 7  ----------</maml:title>
+        <dev:code>Resolve-Dns -Name 'example.com' -Type MX -DnsProvider Cloudflare,Google -ResponseCache -CacheExpirationSeconds 30 -MinCacheTtlSeconds 1 -MaxCacheTtlSeconds 3600</dev:code>
+        <dev:remarks>
+          <maml:para>Enable TTL-based response cache with bounds</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+    <maml:relatedLinks>
+      <maml:navigationLink>
+        <maml:linkText></maml:linkText>
+      </maml:navigationLink>
+    </maml:relatedLinks>
+  </command:command>
+  <!-- Cmdlet: Clear-DnsMultiResolverCache -->
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+    <command:details>
+      <command:name>Clear-DnsMultiResolverCache</command:name>
+      <command:verb>Clear</command:verb>
+      <command:noun>DnsMultiResolverCache</command:noun>
+      <maml:description>
+        <maml:para>Clears the multi-resolver fastest-endpoint cache used by the FastestWins strategy.</maml:para>
+        <maml:para>Clears the in-memory cache used to remember the fastest endpoint for a given set of endpoints. Use this when you change network conditions or want to force re-probing. Does not affect TTL-based response caching, which expires automatically.</maml:para>
+      </maml:description>
+    </command:details>
+    <command:syntax>
+      <!-- Parameter set: All -->
+      <command:syntaxItem>
+        <maml:name>Clear-DnsMultiResolverCache</maml:name>
+        <!-- Parameter: All -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>All</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: ResolverEndpoint -->
+      <command:syntaxItem>
+        <maml:name>Clear-DnsMultiResolverCache</maml:name>
+        <!-- Parameter: ResolverEndpoint -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverEndpoint</maml:name>
+          <command:parameterValue required="true">string[]</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: ResolverDnsProvider -->
+      <command:syntaxItem>
+        <maml:name>Clear-DnsMultiResolverCache</maml:name>
+        <!-- Parameter: ResolverDnsProvider -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="named">
+          <maml:name>ResolverDnsProvider</maml:name>
+          <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+      </command:syntaxItem>
+      <!-- Parameter set: DnsProvider -->
+      <command:syntaxItem>
+        <maml:name>Clear-DnsMultiResolverCache</maml:name>
+        <!-- Parameter: DnsProvider -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="named">
+          <maml:name>DnsProvider</maml:name>
+          <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <!-- Parameter: All -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>All</maml:name>
+        <maml:description>
+          <maml:para>Clear all cached fastest-endpoint choices.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: ResolverEndpoint -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="named">
+        <maml:name>ResolverEndpoint</maml:name>
+        <maml:description>
+          <maml:para>Specific endpoints to clear, e.g. "1.1.1.1:53", "[2606:4700:4700::1111]:53", or DoH URLs.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string[]</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+      </command:parameter>
+      <!-- Parameter: ResolverDnsProvider -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="named">
+        <maml:name>ResolverDnsProvider</maml:name>
+        <maml:description>
+          <maml:para>Clear cache entries for the specified predefined providers (DnsEndpoint enum).</maml:para>
+          <maml:para>Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+        <dev:type>
+          <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+        </command:parameterValueGroup>
+      </command:parameter>
+      <!-- Parameter: DnsProvider -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="named">
+        <maml:name>DnsProvider</maml:name>
+        <maml:description>
+          <maml:para>Alternate parameter: providers to clear when using the classic -DnsProvider parameter style.</maml:para>
+          <maml:para>Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">DnsEndpoint[]</command:parameterValue>
+        <dev:type>
+          <maml:name>DnsClientX.DnsEndpoint[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+        </command:parameterValueGroup>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes />
+    <command:returnValues />
+    <command:examples>
+      <command:example>
+        <maml:title>----------  Example 1  ----------</maml:title>
+        <dev:code>Clear-DnsMultiResolverCache</dev:code>
+        <dev:remarks>
+          <maml:para>Clears the entire FastestWins cache.</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 2  ----------</maml:title>
+        <dev:code>Clear-DnsMultiResolverCache -ResolverDnsProvider Cloudflare,Google</dev:code>
+        <dev:remarks>
+          <maml:para>Clears cache entries only for the specified provider set.</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 3  ----------</maml:title>
+        <dev:code>Clear-DnsMultiResolverCache -ResolverEndpoint '1.1.1.1:53','https://dns.google/dns-query'</dev:code>
+        <dev:remarks>
+          <maml:para>Clears cache entries only for the specified endpoints.</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+  </command:command>
+  <!-- Cmdlet: Find-DnsService -->
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+    <command:details>
+      <command:name>Find-DnsService</command:name>
+      <command:verb>Find</command:verb>
+      <command:noun>DnsService</command:noun>
+      <maml:description>
+        <maml:para>Discovers services advertised via DNS Service Discovery.</maml:para>
+        <maml:para>Wraps CancellationToken) to return services under a domain.</maml:para>
+      </maml:description>
+    </command:details>
+    <command:syntax>
+      <!-- Parameter set: __AllParameterSets -->
+      <command:syntaxItem>
+        <maml:name>Find-DnsService</maml:name>
+        <!-- Parameter: Domain -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Domain</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue></dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <!-- Parameter: Domain -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+        <maml:name>Domain</maml:name>
+        <maml:description>
+          <maml:para>Domain name to search for advertised services.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue></dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes />
+    <command:returnValues />
+    <command:examples>
+      <command:example>
+        <maml:title>----------  Example 1  ----------</maml:title>
+        <dev:code>Find-DnsService -Domain example.com</dev:code>
+        <dev:remarks>
+          <maml:para>Find services under a domain</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 2  ----------</maml:title>
+        <dev:code>Find-DnsService -Domain example.com | Where-Object {$_.ServiceName -like '*http*'}</dev:code>
+        <dev:remarks>
+          <maml:para>Filter for a specific service type</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+  </command:command>
+  <!-- Cmdlet: Get-DnsService -->
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+    <command:details>
+      <command:name>Get-DnsService</command:name>
+      <command:verb>Get</command:verb>
+      <command:noun>DnsService</command:noun>
+      <maml:description>
+        <maml:para>Retrieves services advertised via DNS Service Discovery.</maml:para>
+        <maml:para>Queries the _services._dns-sd._udp tree for the specified domain and returns SRV/TXT data describing each advertised service.</maml:para>
+      </maml:description>
+    </command:details>
+    <command:syntax>
+      <!-- Parameter set: __AllParameterSets -->
+      <command:syntaxItem>
+        <maml:name>Get-DnsService</maml:name>
+        <!-- Parameter: Domain -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Domain</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue></dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <!-- Parameter: Domain -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+        <maml:name>Domain</maml:name>
+        <maml:description>
+          <maml:para>Domain name to search for advertised services.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue></dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes />
+    <command:returnValues />
+    <command:examples>
+      <command:example>
+        <maml:title>----------  Example 1  ----------</maml:title>
+        <dev:code>Get-DnsService -Domain example.com</dev:code>
+        <dev:remarks>
+          <maml:para>Discover services under a domain</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 2  ----------</maml:title>
+        <dev:code>Get-DnsService -Domain example.com | Select-Object ServiceName,Target,Port</dev:code>
+        <dev:remarks>
+          <maml:para>Pipe results to select useful fields</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+  </command:command>
+  <!-- Cmdlet: Invoke-DnsUpdate -->
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+    <command:details>
+      <command:name>Invoke-DnsUpdate</command:name>
+      <command:verb>Invoke</command:verb>
+      <command:noun>DnsUpdate</command:noun>
+      <maml:description>
+        <maml:para>Sends DNS UPDATE messages to a server.</maml:para>
+        <maml:para>Adds or removes records in a zone using RFC 2136 over TCP.</maml:para>
+      </maml:description>
+    </command:details>
+    <command:syntax>
+      <!-- Parameter set: __AllParameterSets -->
+      <command:syntaxItem>
+        <maml:name>Invoke-DnsUpdate</maml:name>
+        <!-- Parameter: Zone -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Zone</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue></dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Server -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="1" aliases="ServerName">
+          <maml:name>Server</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue></dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Name -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="2">
+          <maml:name>Name</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue></dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Type -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="3">
+          <maml:name>Type</maml:name>
+          <command:parameterValue required="true">DnsRecordType</command:parameterValue>
+          <dev:type>
+            <maml:name>DnsClientX.DnsRecordType</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>Reserved</dev:defaultValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Reserved</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">A</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MD</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MF</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CNAME</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SOA</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MB</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MG</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MR</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NULL</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">WKS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">PTR</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">HINFO</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MINFO</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MX</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TXT</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RP</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AFSDB</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">X25</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ISDN</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RT</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NSAP</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NSAP_PTR</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SIG</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AAAA</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">LOC</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SRV</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ATMA</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NAPTR</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">KX</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CERT</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">A6</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DNAME</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SINK</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OPT</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">APL</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SSHFP</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">IPSECKEY</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RRSIG</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NSEC</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DNSKEY</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DHCID</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NSEC3</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NSEC3PARAM</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TLSA</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SMIMEA</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">HIP</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NINFO</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RKEY</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TALINK</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CDS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CDNSKEY</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OPENPGPKEY</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CSYNC</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ZONEMD</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SVCB</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">HTTPS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TKEY</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TSIG</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">IXFR</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AXFR</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MAILB</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MAILA</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ANY</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SPF</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">URI</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CAA</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AVC</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DOA</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AMTRELAY</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RESINFO</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">TA</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DLV</command:parameterValue>
+          </command:parameterValueGroup>
+        </command:parameter>
+        <!-- Parameter: Data -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="4">
+          <maml:name>Data</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue></dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Delete -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>Delete</maml:name>
+          <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>False</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Port -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>Port</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>53</dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Ttl -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>Ttl</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>300</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <!-- Parameter: Zone -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+        <maml:name>Zone</maml:name>
+        <maml:description>
+          <maml:para>Zone to update.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue></dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Server -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="1" aliases="ServerName">
+        <maml:name>Server</maml:name>
+        <maml:description>
+          <maml:para>DNS server to send the update to.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue></dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Port -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>Port</maml:name>
+        <maml:description>
+          <maml:para>Port number to use. Defaults to 53.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>53</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Name -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="2">
+        <maml:name>Name</maml:name>
+        <maml:description>
+          <maml:para>Record name.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue></dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Type -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="3">
+        <maml:name>Type</maml:name>
+        <maml:description>
+          <maml:para>Type of record.</maml:para>
+          <maml:para>Possible values: Reserved, A, NS, MD, MF, CNAME, SOA, MB, MG, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT, RP, AFSDB, X25, ISDN, RT, NSAP, NSAP_PTR, SIG, AAAA, LOC, SRV, ATMA, NAPTR, KX, CERT, A6, DNAME, SINK, OPT, APL, DS, SSHFP, IPSECKEY, RRSIG, NSEC, DNSKEY, DHCID, NSEC3, NSEC3PARAM, TLSA, SMIMEA, HIP, NINFO, RKEY, TALINK, CDS, CDNSKEY, OPENPGPKEY, CSYNC, ZONEMD, SVCB, HTTPS, TKEY, TSIG, IXFR, AXFR, MAILB, MAILA, ANY, SPF, URI, CAA, AVC, DOA, AMTRELAY, RESINFO, TA, DLV</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">DnsRecordType</command:parameterValue>
+        <dev:type>
+          <maml:name>DnsClientX.DnsRecordType</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>Reserved</dev:defaultValue>
+        <command:parameterValueGroup>
+          <command:parameterValue required="false" variableLength="false">Reserved</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">A</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">MD</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">MF</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CNAME</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SOA</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">MB</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">MG</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">MR</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NULL</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">WKS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">PTR</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">HINFO</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">MINFO</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">MX</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">TXT</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RP</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AFSDB</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">X25</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ISDN</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RT</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NSAP</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NSAP_PTR</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SIG</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AAAA</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">LOC</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SRV</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ATMA</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NAPTR</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">KX</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CERT</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">A6</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DNAME</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SINK</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OPT</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">APL</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SSHFP</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">IPSECKEY</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RRSIG</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NSEC</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DNSKEY</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DHCID</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NSEC3</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NSEC3PARAM</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">TLSA</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SMIMEA</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">HIP</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">NINFO</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RKEY</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">TALINK</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CDS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CDNSKEY</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">OPENPGPKEY</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CSYNC</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ZONEMD</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SVCB</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">HTTPS</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">TKEY</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">TSIG</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">IXFR</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AXFR</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">MAILB</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">MAILA</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ANY</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">SPF</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">URI</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CAA</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AVC</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DOA</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">AMTRELAY</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">RESINFO</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">TA</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DLV</command:parameterValue>
+        </command:parameterValueGroup>
+      </command:parameter>
+      <!-- Parameter: Data -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="4">
+        <maml:name>Data</maml:name>
+        <maml:description>
+          <maml:para>Record data used when adding a record.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue></dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Ttl -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>Ttl</maml:name>
+        <maml:description>
+          <maml:para>TTL for the new record. Defaults to 300 seconds.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>300</dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Delete -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>Delete</maml:name>
+        <maml:description>
+          <maml:para>If specified, the record is removed instead of added.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Management.Automation.SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>False</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes />
+    <command:returnValues />
+    <command:examples>
+      <command:example>
+        <maml:title>----------  Example 1  ----------</maml:title>
+        <dev:code>Invoke-DnsUpdate -Zone example.com -Server 127.0.0.1 -Name www -Type A -Data 1.2.3.4 -Ttl 300</dev:code>
+        <dev:remarks>
+          <maml:para>Add an A record</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 2  ----------</maml:title>
+        <dev:code>Invoke-DnsUpdate -Zone example.com -Server 127.0.0.1 -Name www -Type A -Delete</dev:code>
+        <dev:remarks>
+          <maml:para>Delete an existing record</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+  </command:command>
+  <!-- Cmdlet: Get-DnsZone -->
+  <command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10" xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+    <command:details>
+      <command:name>Get-DnsZone</command:name>
+      <command:verb>Get</command:verb>
+      <command:noun>DnsZone</command:noun>
+      <maml:description>
+        <maml:para>Performs a DNS zone transfer (AXFR) for a given zone.</maml:para>
+        <maml:para>Retrieves all records for the specified zone using TCP based zone transfer.</maml:para>
+      </maml:description>
+    </command:details>
+    <command:syntax>
+      <!-- Parameter set: __AllParameterSets -->
+      <command:syntaxItem>
+        <maml:name>Get-DnsZone</maml:name>
+        <!-- Parameter: Zone -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+          <maml:name>Zone</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue></dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Server -->
+        <command:parameter required="true" globbing="false" pipelineInput="false" position="1" aliases="ServerName">
+          <maml:name>Server</maml:name>
+          <command:parameterValue required="true">string</command:parameterValue>
+          <dev:type>
+            <maml:name>System.String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue></dev:defaultValue>
+        </command:parameter>
+        <!-- Parameter: Port -->
+        <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+          <maml:name>Port</maml:name>
+          <command:parameterValue required="true">int</command:parameterValue>
+          <dev:type>
+            <maml:name>System.Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>53</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+    </command:syntax>
+    <command:parameters>
+      <!-- Parameter: Zone -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="0">
+        <maml:name>Zone</maml:name>
+        <maml:description>
+          <maml:para>The zone to transfer.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue></dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Server -->
+      <command:parameter required="true" globbing="false" pipelineInput="false" position="1" aliases="ServerName">
+        <maml:name>Server</maml:name>
+        <maml:description>
+          <maml:para>DNS server to query.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">string</command:parameterValue>
+        <dev:type>
+          <maml:name>System.String</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue></dev:defaultValue>
+      </command:parameter>
+      <!-- Parameter: Port -->
+      <command:parameter required="false" globbing="false" pipelineInput="false" position="named">
+        <maml:name>Port</maml:name>
+        <maml:description>
+          <maml:para>Port number to use. Defaults to 53.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true">int</command:parameterValue>
+        <dev:type>
+          <maml:name>System.Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>53</dev:defaultValue>
+      </command:parameter>
+    </command:parameters>
+    <command:inputTypes />
+    <command:returnValues />
+    <command:examples>
+      <command:example>
+        <maml:title>----------  Example 1  ----------</maml:title>
+        <dev:code>Get-DnsZone -Zone example.com -Server 127.0.0.1</dev:code>
+        <dev:remarks>
+          <maml:para>Transfer a zone (default port 53)</maml:para>
+        </dev:remarks>
+      </command:example>
+      <command:example>
+        <maml:title>----------  Example 2  ----------</maml:title>
+        <dev:code>Get-DnsZone -Zone example.com -Server 127.0.0.1 -Port 5353</dev:code>
+        <dev:remarks>
+          <maml:para>Transfer a zone from a custom port</maml:para>
+        </dev:remarks>
+      </command:example>
+    </command:examples>
+  </command:command>
+</helpItems>

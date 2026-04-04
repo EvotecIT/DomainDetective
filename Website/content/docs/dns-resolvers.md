@@ -16,7 +16,7 @@ layout: docs
 
 ## Overview
 
-DomainDetective uses the [DnsClientX](https://github.com/EvotecIT/DnsClientX) library for DNS resolution. You can configure which DNS resolvers to use for all queries.
+DomainDetective uses the [DnsClientX library](https://github.com/EvotecIT/DnsClientX) for DNS resolution. You can configure which DNS resolvers to use for all queries, or drop down to the dedicated [DnsClientX product docs](/products/dnsclientx/) when you need direct DNS workflows outside the full DomainDetective analysis model.
 
 ## Default Behavior
 
