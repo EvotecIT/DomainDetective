@@ -28,9 +28,5 @@ Use this section to move from “how do I analyze a domain?” to “how do I bu
 ## DnsClientX DNS Toolkit
 
 - [DnsClientX Toolkit](/docs/dnsclientx/) - Start from the library/module overview and choose the right surface
-- [DNS Query Playground](/tools/dns-query-playground/) - Explore raw DNS responses in-browser and copy equivalent code
-- [DnsClientX Product Overview](/products/dnsclientx/) - See where DnsClientX fits within the DomainDetective site
 - [DnsClientX for .NET](/docs/dnsclientx/csharp/) - Build direct DNS queries and typed record workflows in C#
 - [DnsClientX for PowerShell](/docs/dnsclientx/powershell/) - Use the DnsClientX module for resolver comparison and response inspection
-- [DnsClientX C# API Reference](/api/dnsclientx/) - Browse the generated .NET reference
-- [DnsClientX PowerShell API Reference](/api/dnsclientx-powershell/) - Browse the generated cmdlet reference
