@@ -755,21 +755,18 @@ a:hover { color: var(--dd-accent-light); }
     border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.category-secondary-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
+.category-tool-link-secondary {
     color: var(--dd-accent);
-    font-size: 0.9rem;
     font-weight: 600;
 }
 
-.category-secondary-link::before {
+.category-tool-link-secondary::before {
     content: "↗";
     color: var(--dd-accent);
+    font-weight: 600;
 }
 
-.category-secondary-link:hover {
+.category-tool-link-secondary:hover {
     color: var(--dd-accent-light);
 }
 
