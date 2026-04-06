@@ -749,27 +749,6 @@ a:hover { color: var(--dd-accent-light); }
     gap: 0.375rem;
 }
 
-.category-card-footer {
-    margin-top: 1rem;
-    padding-top: 0.875rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.category-tool-link-secondary {
-    color: var(--dd-accent);
-    font-weight: 600;
-}
-
-.category-tool-link-secondary::before {
-    content: "↗";
-    color: var(--dd-accent);
-    font-weight: 600;
-}
-
-.category-tool-link-secondary:hover {
-    color: var(--dd-accent-light);
-}
-
 .category-tool-link {
     display: flex;
     align-items: center;
@@ -2731,3 +2710,4 @@ a:hover { color: var(--dd-accent-light); }
 .tool-availability-dot-browser { background: var(--dd-success, #22c55e); }
 .tool-availability-dot-partial { background: var(--dd-warning, #f59e0b); }
 .tool-availability-dot-local { background: var(--dd-accent2, #5b8cff); }
+

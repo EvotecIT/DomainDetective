@@ -19,14 +19,15 @@
                         <span class="category-tool-name">@tool.Name</span>
                     </a>
                 }
-            </div>
-            @if (category == ToolCategory.Dns) {
-                <div class="category-card-footer">
-                    <a href="/tools/dns-query-playground/" class="category-tool-link category-tool-link-secondary">
-                        <span class="category-tool-name">Raw DNS query playground</span>
+                @if (category == ToolCategory.Dns) {
+                    <a href="/tools/dns-query-playground/" class="category-tool-link">
+                        @if (DeploymentMode == ToolsDeploymentMode.StaticOnly) {
+                            <span class="tool-availability-dot tool-availability-dot-browser"></span>
+                        }
+                        <span class="category-tool-name">Raw DNS Query</span>
                     </a>
-                </div>
-            }
+                }
+            </div>
         </div>
     }
 </div>
