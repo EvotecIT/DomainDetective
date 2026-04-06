@@ -5,19 +5,27 @@ namespace DomainDetective.Website.Tests;
 
 public sealed class ToolCategoryGridComponentTests : TestContext {
     [Fact]
-    public void PreservesDomainAndGuidedLocallyBadgeForHostedOnlyTools() {
+    public void UsesSimpleToolLinksAndAvailabilityDotsInStaticMode() {
         var tools = new[] {
+            CreateTool("dns-lookup", ToolCategory.Dns, browserCompatible: true),
+            CreateTool("mx-lookup", ToolCategory.EmailSecurity, browserCompatible: false, liteCompatible: true),
             CreateTool("ct-subdomains", ToolCategory.Subdomain, browserCompatible: false, hostedCompatible: true)
         };
 
         var cut = RenderComponent<ToolCategoryGrid>(parameters => parameters
             .Add(component => component.Tools, tools)
-            .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly)
-            .Add(component => component.CurrentDomain, "contoso.com"));
+            .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly));
 
-        var link = cut.Find("a.category-tool-link");
-        Assert.Equal("/tools/ct-subdomains/?q=contoso.com", link.GetAttribute("href"));
-        Assert.Contains("Guided locally", link.TextContent);
+        var links = cut.FindAll("a.category-tool-link");
+        Assert.Contains(links, link => link.GetAttribute("href") == "/tools/dns-lookup/");
+        Assert.Contains(links, link => link.GetAttribute("href") == "/tools/mx-lookup/");
+        Assert.Contains(links, link => link.GetAttribute("href") == "/tools/ct-subdomains/");
+
+        Assert.Contains("tool-availability-dot-browser", cut.Markup);
+        Assert.Contains("tool-availability-dot-partial", cut.Markup);
+        Assert.Contains("tool-availability-dot-local", cut.Markup);
+        Assert.DoesNotContain("Guided locally", cut.Markup);
+        Assert.DoesNotContain("Adaptive", cut.Markup);
     }
 
     private static ToolDefinition CreateTool(string slug, ToolCategory category, bool browserCompatible = true, bool hostedCompatible = false, bool liteCompatible = false) {
