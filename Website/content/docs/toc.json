@@ -1,13 +1,44 @@
 [
-  { "title": "Getting Started", "href": "/docs/" },
-  { "title": "Quick Start", "href": "/docs/quickstart/" },
-  { "title": "Online Tools Hosting", "href": "/docs/online-tools-hosting/" },
-  { "title": "C# API Guide", "href": "/docs/csharp-api/" },
-  { "title": "PowerShell Cmdlets", "href": "/docs/powershell-cmdlets/" },
-  { "title": "CLI Usage", "href": "/docs/cli-usage/" },
-  { "title": "Configuration", "href": "/docs/configuration/" },
-  { "title": "DnsClientX Toolkit", "href": "/docs/dnsclientx/" },
-  { "title": "DNS Resolvers", "href": "/docs/dns-resolvers/" },
-  { "title": "DnsClientX for .NET", "href": "/docs/dnsclientx/csharp/" },
-  { "title": "DnsClientX for PowerShell", "href": "/docs/dnsclientx/powershell/" }
+  {
+    "title": "DomainDetective",
+    "items": [
+      { "title": "Documentation Home", "href": "/docs/" },
+      { "title": "Quick Start", "href": "/docs/quickstart/" },
+      { "title": "Online Tools Hosting", "href": "/docs/online-tools-hosting/" },
+      { "title": "Configuration", "href": "/docs/configuration/" },
+      { "title": "DNS Resolvers", "href": "/docs/dns-resolvers/" }
+    ]
+  },
+  {
+    "title": "DomainDetective Interfaces",
+    "items": [
+      { "title": "C# API Guide", "href": "/docs/csharp-api/" },
+      { "title": "PowerShell Cmdlets", "href": "/docs/powershell-cmdlets/" },
+      { "title": "CLI Usage", "href": "/docs/cli-usage/" },
+      { "title": "DomainDetective C# API Reference", "href": "/api/" },
+      { "title": "DomainDetective PowerShell API Reference", "href": "/api/powershell/" }
+    ]
+  },
+  {
+    "title": "DnsClientX",
+    "items": [
+      { "title": "Toolkit Overview", "href": "/docs/dnsclientx/" },
+      { "title": "DNS Query Playground", "href": "/tools/dns-query-playground/" },
+      { "title": "Product Overview", "href": "/products/dnsclientx/" }
+    ]
+  },
+  {
+    "title": "DnsClientX for .NET",
+    "items": [
+      { "title": ".NET Guide", "href": "/docs/dnsclientx/csharp/" },
+      { "title": ".NET API Reference", "href": "/api/dnsclientx/" }
+    ]
+  },
+  {
+    "title": "DnsClientX PowerShell",
+    "items": [
+      { "title": "PowerShell Guide", "href": "/docs/dnsclientx/powershell/" },
+      { "title": "DnsClientX PowerShell API Reference", "href": "/api/dnsclientx-powershell/" }
+    ]
+  }
 ]

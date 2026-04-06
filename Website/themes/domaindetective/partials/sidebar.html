@@ -2,7 +2,6 @@
 {{~ current_url = "/" + (current_path | string.replace "index.html" "") ~}}
 {{~ if current_url == "//" ~}}{{~ current_url = "/" ~}}{{~ end ~}}
 {{~ docs_surface = null ~}}
-{{~ api_menu_item = null ~}}
 {{~ if navigation.surfaces && navigation.surfaces.size > 0 ~}}
   {{~ for surface in navigation.surfaces ~}}
     {{~ if surface.name == "docs" ~}}
@@ -10,54 +9,32 @@
     {{~ end ~}}
   {{~ end ~}}
 {{~ end ~}}
-{{~ if navigation.menus && navigation.menus.size > 0 ~}}
-  {{~ for menu in navigation.menus ~}}
-    {{~ if menu.name == "main" && menu.items && menu.items.size > 0 ~}}
-      {{~ for item in menu.items ~}}
-        {{~ if item.items && item.items.size > 0 && (item.url == "/api/" || item.title == "API") ~}}
-          {{~ api_menu_item = item ~}}
-        {{~ end ~}}
-      {{~ end ~}}
-    {{~ end ~}}
-  {{~ end ~}}
-{{~ end ~}}
 <nav class="docs-nav" aria-label="Documentation navigation">
   {{ if docs_surface && docs_surface.sidebar && docs_surface.sidebar.items && docs_surface.sidebar.items.size > 0 }}
+    {{ for group in docs_surface.sidebar.items }}
   <div class="docs-nav-section">
-    <div class="docs-nav-title">Documentation</div>
-    {{ for link in docs_surface.sidebar.items }}
-      {{ if link.url }}
-        {{~ link_active = current_url == link.url || (link.url != "/" && (current_url | string.starts_with link.url)) ~}}
+    <div class="docs-nav-title">{{ group.title }}</div>
+      {{ if group.items && group.items.size > 0 }}
+        {{ for link in group.items }}
+          {{ if link.url }}
+            {{~ link_active = current_url == link.url || (link.url != "/" && (current_url | string.starts_with link.url)) ~}}
         <a href="{{ link.url }}"{{ if link_active }} class="active"{{ end }}>{{ link.title }}</a>
-        {{ if link.items && link.items.size > 0 }}
+            {{ if link.items && link.items.size > 0 }}
         <div class="docs-nav-children">
-          {{ for child in link.items }}
-            {{ if child.url }}
-              {{~ child_active = current_url == child.url || (child.url != "/" && (current_url | string.starts_with child.url)) ~}}
-              <a href="{{ child.url }}"{{ if child_active }} class="active"{{ end }}>{{ child.title }}</a>
+              {{ for child in link.items }}
+                {{ if child.url }}
+                  {{~ child_active = current_url == child.url || (child.url != "/" && (current_url | string.starts_with child.url)) ~}}
+          <a href="{{ child.url }}"{{ if child_active }} class="active"{{ end }}>{{ child.title }}</a>
+                {{ end }}
+              {{ end }}
+        </div>
             {{ end }}
           {{ end }}
-        </div>
         {{ end }}
       {{ end }}
-    {{ end }}
   </div>
+    {{ end }}
   {{ end }}
-
-  <div class="docs-nav-section">
-    <div class="docs-nav-title">API Reference</div>
-    {{ if api_menu_item && api_menu_item.items && api_menu_item.items.size > 0 }}
-      {{ for link in api_menu_item.items }}
-        {{ if link.url }}
-          {{~ link_active = current_url == link.url || (link.url != "/" && (current_url | string.starts_with link.url)) ~}}
-          <a href="{{ link.url }}"{{ if link_active }} class="active"{{ end }}>{{ link.title }}</a>
-        {{ end }}
-      {{ end }}
-    {{ else }}
-      <a href="/api/"{{ if current_url == "/api/" || ((current_url | string.starts_with "/api/") && !(current_url | string.starts_with "/api/powershell/")) }} class="active"{{ end }}>C# API Reference</a>
-      <a href="/api/powershell/"{{ if current_url == "/api/powershell/" || (current_url | string.starts_with "/api/powershell/") }} class="active"{{ end }}>PowerShell API Reference</a>
-    {{ end }}
-  </div>
 
   <div class="docs-nav-section">
     <div class="docs-nav-title">Resources</div>
