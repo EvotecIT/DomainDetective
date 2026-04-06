@@ -1,26 +1,26 @@
 (function () {
-  const form = document.getElementById("dns-playground-form");
+  var form = document.getElementById("dns-playground-form");
   if (!form) {
     return;
   }
 
-  const root = document.querySelector(".dns-playground");
-  const nameInput = document.getElementById("dns-name");
-  const typeInput = document.getElementById("dns-type");
-  const providerInput = document.getElementById("dns-provider");
-  const ecsInput = document.getElementById("dns-ecs");
-  const disableValidationInput = document.getElementById("dns-disable-validation");
-  const showDnssecInput = document.getElementById("dns-show-dnssec");
-  const directLink = document.getElementById("dns-direct-link");
-  const note = document.getElementById("dns-playground-note");
-  const status = document.getElementById("dns-playground-status");
-  const summary = document.getElementById("dns-playground-summary");
-  const records = document.getElementById("dns-playground-records");
-  const csharpCode = document.getElementById("dns-csharp-code");
-  const powershellCode = document.getElementById("dns-powershell-code");
-  const jsonCode = document.getElementById("dns-json-code");
+  var root = document.querySelector(".dns-playground");
+  var nameInput = document.getElementById("dns-name");
+  var typeInput = document.getElementById("dns-type");
+  var providerInput = document.getElementById("dns-provider");
+  var ecsInput = document.getElementById("dns-ecs");
+  var disableValidationInput = document.getElementById("dns-disable-validation");
+  var showDnssecInput = document.getElementById("dns-show-dnssec");
+  var directLink = document.getElementById("dns-direct-link");
+  var note = document.getElementById("dns-playground-note");
+  var status = document.getElementById("dns-playground-status");
+  var summary = document.getElementById("dns-playground-summary");
+  var records = document.getElementById("dns-playground-records");
+  var csharpCode = document.getElementById("dns-csharp-code");
+  var powershellCode = document.getElementById("dns-powershell-code");
+  var jsonCode = document.getElementById("dns-json-code");
 
-  const recordTypeMap = {
+  var recordTypeMap = {
     0: "Reserved",
     1: "A",
     2: "NS",
@@ -43,7 +43,7 @@
     257: "CAA"
   };
 
-  const rcodeMap = {
+  var rcodeMap = {
     0: "NOERROR",
     1: "FORMERR",
     2: "SERVFAIL",
@@ -52,7 +52,7 @@
     5: "REFUSED"
   };
 
-  const providers = {
+  var providers = {
     google: {
       label: "Google Public DNS",
       endpoint: "DnsEndpoint.Google",

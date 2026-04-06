@@ -14,16 +14,16 @@ DnsClientX is the lower-level DNS library and PowerShell module that powers Doma
 | --- | --- | --- |
 | .NET library | Services, apps, diagnostics, reusable DNS logic | [DnsClientX for .NET](/docs/dnsclientx/csharp/) |
 | PowerShell module | Scripts, CI, operations automation, ad-hoc investigations | [DnsClientX for PowerShell](/docs/dnsclientx/powershell/) |
-| Browser exploration | Testing record types and provider responses before coding | [DnsClientX DNS Playground](/products/dnsclientx/playground/) |
+| Browser exploration | Testing record types and provider responses before coding | [DNS Query Playground](/tools/dns-query-playground/) |
 
 ## DNS Lane In DomainDetective
 
 Use the DomainDetective-hosted DNS lane when you want to move between browser exploration, resolver guidance, and direct code examples without leaving the site.
 
-- [DNS Playground](/products/dnsclientx/playground/) for interactive record lookup and response inspection
-- [DnsClientX DNS Workspace](/docs/dns-workspace/) for browser workflow guidance
-- [DNS Examples](/docs/dns-examples/) for copy-ready PowerShell, C#, and CLI snippets
+- [DNS Query Playground](/tools/dns-query-playground/) for interactive record lookup and response inspection
 - [DNS Resolvers](/docs/dns-resolvers/) for provider behavior and resolver strategy guidance
+- [PowerShell Cmdlets](/docs/powershell-cmdlets/) for module-oriented DNS workflows inside DomainDetective
+- [C# API Guide](/docs/csharp-api/) for higher-level DomainDetective integration patterns
 
 ## Generated Reference
 
@@ -48,8 +48,6 @@ Install-Module DnsClientX -Scope CurrentUser
 
 ## Related DomainDetective Docs
 
-- [DnsClientX DNS Workspace](/docs/dns-workspace/)
-- [DNS Examples](/docs/dns-examples/)
 - [DNS Resolvers](/docs/dns-resolvers/)
 - [C# API Guide](/docs/csharp-api/)
 - [PowerShell Cmdlets](/docs/powershell-cmdlets/)

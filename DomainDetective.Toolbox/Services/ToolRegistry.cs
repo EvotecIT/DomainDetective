@@ -121,7 +121,7 @@ public sealed class ToolRegistry {
         new ToolDefinition {
             Name = "DNS Lookup",
             Slug = "dns-lookup",
-            Description = "Query DNS records of any type (A, AAAA, CNAME, TXT, etc.)",
+            Description = "Inspect a domain's DNS inventory, providers, and common record coverage",
             Category = ToolCategory.Dns,
             Icon = "search",
             InputPlaceholder = "example.com",

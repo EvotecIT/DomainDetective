@@ -123,6 +123,7 @@
       { "Name": "dns-playground", "Css": ["/css/app.css", "/css/prism-theme.css", "/css/dns-playground.css"], "Js": ["/js/site.js", "/js/dns-playground.js"] }
     ],
     "RouteBundles": [
+      { "Match": "/tools/dns-query-playground/**", "Bundles": ["dns-playground"] },
       { "Match": "/products/dnsclientx/playground/**", "Bundles": ["dns-playground"] },
       { "Match": "/products/**", "Bundles": ["product"] },
       { "Match": "/api/**", "Bundles": ["api"] },
@@ -214,7 +215,7 @@
           { "Title": "DnsClientX Toolkit", "Url": "/docs/dnsclientx/" },
           { "Title": "C# API Reference", "Url": "/api/" },
           { "Title": "PowerShell API Reference", "Url": "/api/powershell/" },
-          { "Title": "DnsClientX Product", "Url": "/products/dnsclientx/" },
+          { "Title": "DNS Query Playground", "Url": "/tools/dns-query-playground/" },
           { "Title": "DnsClientX Docs", "Url": "/docs/dnsclientx/" },
           { "Title": "CLI Usage", "Url": "/docs/cli-usage/" },
           { "Title": "FAQ", "Url": "/faq/" },

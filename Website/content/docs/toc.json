@@ -6,8 +6,7 @@
   { "title": "PowerShell Cmdlets", "href": "/docs/powershell-cmdlets/" },
   { "title": "CLI Usage", "href": "/docs/cli-usage/" },
   { "title": "Configuration", "href": "/docs/configuration/" },
-  { "title": "DnsClientX DNS Workspace", "href": "/docs/dns-workspace/" },
-  { "title": "DNS Examples", "href": "/docs/dns-examples/" },
+  { "title": "DnsClientX Toolkit", "href": "/docs/dnsclientx/" },
   { "title": "DNS Resolvers", "href": "/docs/dns-resolvers/" },
   { "title": "DnsClientX for .NET", "href": "/docs/dnsclientx/csharp/" },
   { "title": "DnsClientX for PowerShell", "href": "/docs/dnsclientx/powershell/" }

@@ -43,6 +43,7 @@ Use the DnsClientX lane when you want a DNS-first workflow instead of the broade
 ## DNS Client Library
 
 - [DnsClientX Product](/products/dnsclientx/) - Direct DNS library and module behind DomainDetective resolver workflows
+- [DNS Query Playground](/tools/dns-query-playground/) - Browser tool for raw record lookup, JSON inspection, and copy-ready DnsClientX examples
 - [DnsClientX Docs](/docs/dnsclientx/) - Choose the right DnsClientX entry point for .NET, PowerShell, or browser exploration
 - [DnsClientX C# API](/api/dnsclientx/) - Generated reference for the standalone DNS library
 - [DnsClientX PowerShell API](/api/dnsclientx-powershell/) - Generated cmdlet reference for the DnsClientX module

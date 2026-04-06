@@ -10,7 +10,7 @@ layout: page
 
 | Product | Focus | Start here |
 | --- | --- | --- |
-| [DnsClientX](/products/dnsclientx/) | Direct DNS querying for .NET, PowerShell, and browser-driven exploration | [Overview](/products/dnsclientx/) |
+| [DnsClientX](/products/dnsclientx/) | Direct DNS querying for .NET, PowerShell, and generated DNS API guidance | [Overview](/products/dnsclientx/) |
 
 ## Why It Lives Here
 

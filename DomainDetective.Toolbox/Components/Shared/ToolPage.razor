@@ -23,6 +23,13 @@
     @if (!CanRunOnline(Definition)) {
         <ToolNotAvailable Tool="Definition" />
     } else {
+        @if (Definition.Slug == "dns-lookup") {
+            <div class="tool-callout tool-callout-inline">
+                <strong>Need raw record-by-record queries?</strong>
+                <p>Use <a href="/tools/dns-query-playground/">DNS Query Playground</a> when you want to choose record types, inspect live JSON answers, and copy equivalent DnsClientX code for C# or PowerShell.</p>
+            </div>
+        }
+
         @if (Availability.IsStaticOnly && SupportsLiteTool(Definition)) {
             <div class="tool-callout tool-callout-inline">
                 <strong>@GetStaticEditionTitle(Definition)</strong>

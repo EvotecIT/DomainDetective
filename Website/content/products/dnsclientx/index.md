@@ -1,6 +1,6 @@
 ---
 title: DnsClientX
-description: Modern DNS client for .NET and PowerShell, now documented inside DomainDetective.dev with generated API reference and a browser playground.
+description: Modern DNS client for .NET and PowerShell, documented inside DomainDetective.dev with generated API reference and direct DNS tooling.
 slug: dnsclientx
 collection: products
 layout: page
@@ -14,7 +14,7 @@ DnsClientX is the DNS engine behind large parts of DomainDetective. If you want 
 | --- | --- | --- |
 | DnsClientX for .NET | App code, services, diagnostics, CLI tools, reusable DNS workflows | [C# guide](/docs/dnsclientx/csharp/) |
 | DnsClientX for PowerShell | Scripts, GitHub Actions, CI checks, incident response, operations automation | [PowerShell guide](/docs/dnsclientx/powershell/) |
-| Browser playground | Exploring records interactively before writing code | [DNS playground](/products/dnsclientx/playground/) |
+| DNS query playground | Exploring records interactively before writing code | [Open tool](/tools/dns-query-playground/) |
 
 ## Install
 
@@ -69,5 +69,5 @@ Resolve-Dns -Name 'evotec.pl' -Type MX -DnsProvider Cloudflare,Google -ResolverS
 - [DnsClientX overview](/docs/dnsclientx/)
 - [C# guide](/docs/dnsclientx/csharp/)
 - [PowerShell guide](/docs/dnsclientx/powershell/)
-- [DNS playground](/products/dnsclientx/playground/)
+- [DNS query playground](/tools/dns-query-playground/)
 - [DnsClientX source repository](https://github.com/EvotecIT/DnsClientX)
