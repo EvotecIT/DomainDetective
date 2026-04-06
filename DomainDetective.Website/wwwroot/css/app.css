@@ -749,6 +749,30 @@ a:hover { color: var(--dd-accent-light); }
     gap: 0.375rem;
 }
 
+.category-card-footer {
+    margin-top: 1rem;
+    padding-top: 0.875rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.category-secondary-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--dd-accent);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.category-secondary-link::before {
+    content: "↗";
+    color: var(--dd-accent);
+}
+
+.category-secondary-link:hover {
+    color: var(--dd-accent-light);
+}
+
 .category-tool-link {
     display: flex;
     align-items: center;

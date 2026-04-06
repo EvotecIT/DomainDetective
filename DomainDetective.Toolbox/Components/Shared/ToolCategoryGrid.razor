@@ -20,6 +20,11 @@
                     </a>
                 }
             </div>
+            @if (category == ToolCategory.Dns) {
+                <div class="category-card-footer">
+                    <a href="/tools/dns-query-playground/" class="category-secondary-link">Raw DNS query playground</a>
+                </div>
+            }
         </div>
     }
 </div>

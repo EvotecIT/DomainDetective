@@ -182,9 +182,9 @@
   function updateProviderNote(state) {
     const provider = providers[state.providerId] || providers.google;
     if (provider.supportsEcs) {
-      note.textContent = "Google preview supports EDNS client subnet and DNSSEC detail flags in the browser. The generated snippets show the closest DnsClientX equivalent.";
+      note.textContent = "Leave EDNS client subnet empty unless you want to simulate answers for a specific client network. Google preview supports EDNS client subnet and DNSSEC detail flags in the browser. The generated snippets show the closest DnsClientX equivalent.";
     } else {
-      note.textContent = "Cloudflare preview ignores EDNS client subnet. The generated DnsClientX examples still show the selected record type and DNSSEC intent.";
+      note.textContent = "Leave EDNS client subnet empty unless you want to simulate answers for a specific client network. Cloudflare preview ignores EDNS client subnet. The generated DnsClientX examples still show the selected record type and DNSSEC intent.";
     }
   }
 
@@ -237,20 +237,32 @@
         return '<section class="dns-playground__table-wrap"><h3 class="dns-playground__table-title">' + escapeHtml(section.title) + '</h3><div class="dns-playground__empty">' + escapeHtml(section.empty) + "</div></section>";
       }
 
-      return '<section class="dns-playground__table-wrap">' +
-        '<h3 class="dns-playground__table-title">' + escapeHtml(section.title) + "</h3>" +
-        '<div class="dns-playground__table-scroll"><table class="dns-playground__table">' +
-        "<thead><tr><th>Name</th><th>Type</th><th>TTL</th><th>Data</th></tr></thead>" +
-        "<tbody>" +
-        section.rows.map(function (row) {
+      const isQuestionSection = section.title === "Question";
+      const headerHtml = isQuestionSection
+        ? "<thead><tr><th>Name</th><th>Type</th></tr></thead>"
+        : "<thead><tr><th>Name</th><th>Type</th><th>TTL</th><th>Data</th></tr></thead>";
+
+      const rowsHtml = section.rows.map(function (row) {
+        if (isQuestionSection) {
           return "<tr>" +
             "<td><code>" + escapeHtml(row.name || row.Name || "") + "</code></td>" +
             "<td>" + escapeHtml(getTypeLabel(row.type || row.Type || "")) + "</td>" +
-            "<td>" + escapeHtml(row.TTL ?? row.ttl ?? "") + "</td>" +
-            "<td><code>" + escapeHtml(row.data || row.Data || "") + "</code></td>" +
             "</tr>";
-        }).join("") +
-        "</tbody></table></div></section>";
+        }
+
+        return "<tr>" +
+          "<td><code>" + escapeHtml(row.name || row.Name || "") + "</code></td>" +
+          "<td>" + escapeHtml(getTypeLabel(row.type || row.Type || "")) + "</td>" +
+          "<td>" + escapeHtml(row.TTL ?? row.ttl ?? "") + "</td>" +
+          "<td><code>" + escapeHtml(row.data || row.Data || "") + "</code></td>" +
+          "</tr>";
+      }).join("");
+
+      return '<section class="dns-playground__table-wrap">' +
+        '<h3 class="dns-playground__table-title">' + escapeHtml(section.title) + "</h3>" +
+        '<div class="dns-playground__table-scroll"><table class="dns-playground__table">' +
+        headerHtml +
+        "<tbody>" + rowsHtml + "</tbody></table></div></section>";
     }).join("");
   }
 

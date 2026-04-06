@@ -45,7 +45,7 @@
       </label>
 
       <label class="dns-playground__field">
-        <span>EDNS client subnet</span>
+        <span>EDNS client subnet (optional)</span>
         <input id="dns-ecs" name="ecs" type="text" value="" placeholder="203.0.113.0/24" autocomplete="off" />
       </label>
 
@@ -64,7 +64,7 @@
         <a id="dns-direct-link" class="dd-button dd-button-ghost" href="https://dns.google/resolve?name=evotec.pl&amp;type=A" target="_blank" rel="noopener">Open direct JSON query</a>
       </div>
 
-      <p id="dns-playground-note" class="dns-playground__note">Google preview supports EDNS client subnet and DNSSEC detail flags in the browser. Cloudflare preview ignores unsupported parameters but the generated DnsClientX examples remain useful.</p>
+      <p id="dns-playground-note" class="dns-playground__note">Leave EDNS client subnet empty unless you want to simulate answers from a specific client network. Google preview supports EDNS client subnet and DNSSEC detail flags in the browser. Cloudflare preview ignores unsupported parameters but the generated DnsClientX examples remain useful.</p>
     </form>
   </section>
 
