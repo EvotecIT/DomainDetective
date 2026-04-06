@@ -89,6 +89,11 @@
     private IReadOnlyList<ToolDefinition> _filteredAllTools = Array.Empty<ToolDefinition>();
 
     protected override async Task OnParametersSetAsync() {
+        if (string.Equals(ToolSlug, "dns-query-playground", StringComparison.OrdinalIgnoreCase)) {
+            Navigation.NavigateTo("/dns-query-playground/", forceLoad: true, replace: true);
+            return;
+        }
+
         if (string.IsNullOrEmpty(ToolSlug) && !string.IsNullOrWhiteSpace(DomainQuery)) {
             var target = "/tools/domain-overview/?q=" + Uri.EscapeDataString(DomainQuery.Trim());
             Navigation.NavigateTo(target, replace: true);
