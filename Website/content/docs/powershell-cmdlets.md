@@ -1,6 +1,6 @@
 ---
-title: PowerShell Cmdlets
-description: Using DomainDetective from PowerShell.
+title: PowerShell Guide
+description: Use DomainDetective from PowerShell for automation, inspection, and domain workflows.
 slug: powershell-cmdlets
 collection: docs
 layout: docs

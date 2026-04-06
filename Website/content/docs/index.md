@@ -1,39 +1,36 @@
 ---
 title: Documentation
-description: DomainDetective documentation - guides, configuration, and API reference.
+description: DomainDetective documentation for setup, SDKs, tools hosting, and the DnsClientX DNS toolkit.
 slug: index
 collection: docs
 layout: docs
 ---
 
-Welcome to the DomainDetective documentation.
+Use this section to move from “how do I analyze a domain?” to “how do I build DNS workflows directly?” without having to infer which docs belong to which product surface.
 
-## DomainDetective Core
+## Start Here
 
-- [Quick Start](/docs/quickstart/) - Get up and running in minutes
-- [Online Tools Hosting](/docs/online-tools-hosting/) - Build and host the website with the online analysis API
-- [C# API Guide](/docs/csharp-api/) - Use DomainDetective in your .NET applications
-- [PowerShell Cmdlets](/docs/powershell-cmdlets/) - Domain analysis from PowerShell
-- [CLI Usage](/docs/cli-usage/) - Command-line interface guide
+- [Quick Start](/docs/quickstart/) - Install DomainDetective and run your first checks
+- [Documentation Overview](/docs/) - Understand how the docs are split across DomainDetective and DnsClientX
 
-## DomainDetective Configuration
+## DomainDetective Workflows
 
-- [Configuration Options](/docs/configuration/) - Customize analysis behavior
-- [DNS Resolvers](/docs/dns-resolvers/) - Configure custom DNS resolvers
+- [.NET SDK Guide](/docs/csharp-api/) - Embed DomainDetective into .NET services, tools, and diagnostics
+- [PowerShell Guide](/docs/powershell-cmdlets/) - Run domain analysis and targeted checks from PowerShell
+- [CLI Guide](/docs/cli-usage/) - Script DomainDetective in local shells and CI pipelines
 
-## DomainDetective API Reference
+## Hosting And Resolver Strategy
 
-- [C# API Reference](/api/) - Full generated reference for the .NET library
-- [PowerShell API Reference](/api/powershell/) - Full generated reference for the PowerShell module
-- [PowerShell Cmdlets](/docs/powershell-cmdlets/) - Module-focused examples and command usage
-- [CLI Usage](/docs/cli-usage/) - Command-line workflows and batch processing
+- [Hosted Web Tools](/docs/online-tools-hosting/) - Build and host the website, tools app, and same-origin API
+- [Runtime Configuration](/docs/configuration/) - Tune behavior, defaults, and execution settings
+- [Resolver Strategy](/docs/dns-resolvers/) - Understand how resolver choice affects browser and server-side checks
 
-## DnsClientX Toolkit
+## DnsClientX DNS Toolkit
 
-- [DnsClientX Product](/products/dnsclientx/) - Direct DNS library and module behind DomainDetective resolver workflows
-- [DNS Query Playground](/tools/dns-query-playground/) - Browser tool for raw record lookup, JSON inspection, and copy-ready DnsClientX examples
-- [DnsClientX Docs](/docs/dnsclientx/) - Choose the right DnsClientX entry point for .NET, PowerShell, or browser exploration
-- [DnsClientX for .NET](/docs/dnsclientx/csharp/) - C# usage patterns for direct DNS querying
-- [DnsClientX for PowerShell](/docs/dnsclientx/powershell/) - PowerShell workflows for resolver comparison and response inspection
-- [DnsClientX C# API](/api/dnsclientx/) - Generated reference for the standalone DNS library
-- [DnsClientX PowerShell API](/api/dnsclientx-powershell/) - Generated cmdlet reference for the DnsClientX module
+- [DnsClientX Toolkit](/docs/dnsclientx/) - Start from the library/module overview and choose the right surface
+- [DNS Query Playground](/tools/dns-query-playground/) - Explore raw DNS responses in-browser and copy equivalent code
+- [DnsClientX Product Overview](/products/dnsclientx/) - See where DnsClientX fits within the DomainDetective site
+- [DnsClientX for .NET](/docs/dnsclientx/csharp/) - Build direct DNS queries and typed record workflows in C#
+- [DnsClientX for PowerShell](/docs/dnsclientx/powershell/) - Use the DnsClientX module for resolver comparison and response inspection
+- [DnsClientX C# API Reference](/api/dnsclientx/) - Browse the generated .NET reference
+- [DnsClientX PowerShell API Reference](/api/dnsclientx-powershell/) - Browse the generated cmdlet reference

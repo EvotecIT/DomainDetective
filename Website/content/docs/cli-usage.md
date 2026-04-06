@@ -1,6 +1,6 @@
 ---
-title: CLI Usage
-description: Using the DomainDetective command-line interface.
+title: CLI Guide
+description: Use the DomainDetective CLI for scripted checks, automation, and batch workflows.
 slug: cli-usage
 collection: docs
 layout: docs

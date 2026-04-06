@@ -1,6 +1,6 @@
 ---
-title: DNS Resolvers
-description: Configuring DNS resolvers for DomainDetective.
+title: Resolver Strategy
+description: Choose and configure DNS resolvers for DomainDetective and DnsClientX-backed workflows.
 slug: dns-resolvers
 collection: docs
 layout: docs

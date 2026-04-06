@@ -1,5 +1,5 @@
 ---
-title: DnsClientX
+title: DnsClientX Toolkit
 description: Use DnsClientX directly when you need DNS resolution primitives, provider selection, typed records, and DNSSEC-aware flows outside the higher-level DomainDetective analysis model.
 slug: dnsclientx
 collection: docs

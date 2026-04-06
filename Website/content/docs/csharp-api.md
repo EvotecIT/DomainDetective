@@ -1,6 +1,6 @@
 ---
-title: C# API Guide
-description: Using DomainDetective in your .NET applications.
+title: .NET SDK Guide
+description: Build DomainDetective into your .NET applications and analysis workflows.
 slug: csharp-api
 collection: docs
 layout: docs
