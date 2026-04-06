@@ -119,13 +119,9 @@
       { "Name": "global", "Css": ["/css/app.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
       { "Name": "docs", "Css": ["/css/app.css", "/css/docs.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
       { "Name": "api", "Css": ["/css/app.css", "/css/api.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
-      { "Name": "product", "Css": ["/css/app.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
-      { "Name": "dns-playground", "Css": ["/css/app.css", "/css/prism-theme.css", "/css/dns-playground.css"], "Js": ["/js/site.js", "/js/dns-playground.js"] }
+      { "Name": "product", "Css": ["/css/app.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] }
     ],
     "RouteBundles": [
-      { "Match": "/dns-query-playground/**", "Bundles": ["dns-playground"] },
-      { "Match": "/tools/dns-query-playground/**", "Bundles": ["dns-playground"] },
-      { "Match": "/products/dnsclientx/playground/**", "Bundles": ["dns-playground"] },
       { "Match": "/products/**", "Bundles": ["product"] },
       { "Match": "/api/**", "Bundles": ["api"] },
       { "Match": "/docs/**", "Bundles": ["docs"] },
@@ -216,7 +212,7 @@
           { "Title": "DnsClientX Toolkit", "Url": "/docs/dnsclientx/" },
           { "Title": "C# API Reference", "Url": "/api/" },
           { "Title": "PowerShell API Reference", "Url": "/api/powershell/" },
-          { "Title": "DNS Query Playground", "Url": "/dns-query-playground/" },
+          { "Title": "Raw DNS Query", "Url": "/tools/raw-dns-query/" },
           { "Title": "DnsClientX Docs", "Url": "/docs/dnsclientx/" },
           { "Title": "CLI Usage", "Url": "/docs/cli-usage/" },
           { "Title": "FAQ", "Url": "/faq/" },

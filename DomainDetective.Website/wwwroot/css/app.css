@@ -1928,6 +1928,222 @@ a:hover { color: var(--dd-accent-light); }
     margin-top: 1rem;
 }
 
+/* ── Raw DNS Query ─────────────────────────────────────────────── */
+
+.raw-dns-query {
+    display: grid;
+    gap: 1.25rem;
+}
+
+.raw-dns-query-panel,
+.raw-dns-query-section,
+.raw-dns-query-code-card {
+    margin-bottom: 0;
+}
+
+.raw-dns-query-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.raw-dns-query-field,
+.raw-dns-query-toggle {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.raw-dns-query-field-wide {
+    grid-column: 1 / -1;
+}
+
+.raw-dns-query-field span,
+.raw-dns-query-toggle span {
+    color: var(--dd-muted);
+    font-size: 0.9rem;
+}
+
+.raw-dns-query-field input,
+.raw-dns-query-field select {
+    width: 100%;
+    min-height: 48px;
+    padding: 0.8rem 0.95rem;
+    color: var(--dd-ink);
+    background: rgba(16, 24, 39, 0.74);
+    border: 1px solid var(--dd-border);
+    border-radius: var(--dd-radius-sm);
+    font: inherit;
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.raw-dns-query-field input:focus,
+.raw-dns-query-field select:focus {
+    border-color: var(--dd-accent);
+    background: rgba(16, 24, 39, 0.92);
+    box-shadow: 0 0 0 3px var(--dd-glow);
+}
+
+.raw-dns-query-field input::placeholder {
+    color: var(--dd-muted);
+}
+
+.raw-dns-query-toggle {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--dd-border);
+    border-radius: var(--dd-radius-sm);
+    background: linear-gradient(180deg, rgba(13, 21, 48, 0.74), rgba(13, 21, 48, 0.54));
+}
+
+.raw-dns-query-toggle input {
+    width: 18px;
+    height: 18px;
+    margin-top: 0.05rem;
+}
+
+.raw-dns-query-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    grid-column: 1 / -1;
+}
+
+.raw-dns-query-actions .tool-run-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.raw-dns-query-note,
+.raw-dns-query-status {
+    grid-column: 1 / -1;
+    color: var(--dd-muted);
+}
+
+.raw-dns-query-status {
+    min-height: 1.5rem;
+    font-size: 0.95rem;
+}
+
+.raw-dns-query-status[data-state="success"] {
+    color: var(--dd-success);
+}
+
+.raw-dns-query-status[data-state="error"] {
+    color: var(--dd-danger);
+}
+
+.raw-dns-query-status[data-state="loading"] {
+    color: var(--dd-accent-light);
+}
+
+.raw-dns-query-summary {
+    margin-bottom: 0;
+}
+
+.raw-dns-query-summary-card .tool-summary-note {
+    margin-top: 0;
+}
+
+.raw-dns-query-flags {
+    margin-top: 0.25rem;
+}
+
+.raw-dns-query-sections,
+.raw-dns-query-code-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.raw-dns-query-section-title,
+.raw-dns-query-code-header h2 {
+    font-family: var(--dd-font-display);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--dd-ink-strong);
+}
+
+.raw-dns-query-section-title {
+    margin-bottom: 0.9rem;
+}
+
+.raw-dns-query-table-scroll {
+    overflow-x: auto;
+}
+
+.raw-dns-query-table code {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.raw-dns-query-empty {
+    padding: 1rem 1.1rem;
+    border: 1px dashed var(--dd-border-light);
+    border-radius: var(--dd-radius-sm);
+    color: var(--dd-muted);
+}
+
+.raw-dns-query-code-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--dd-border);
+}
+
+.raw-dns-query-code-header p {
+    color: var(--dd-muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-top: 0.35rem;
+}
+
+[data-theme="light"] .raw-dns-query-field input,
+[data-theme="light"] .raw-dns-query-field select {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(100, 116, 139, 0.22);
+    box-shadow: 0 10px 24px rgba(148, 163, 184, 0.08);
+}
+
+[data-theme="light"] .raw-dns-query-field input:focus,
+[data-theme="light"] .raw-dns-query-field select:focus {
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 0 0 3px rgba(15, 143, 176, 0.12), 0 16px 30px rgba(148, 163, 184, 0.12);
+}
+
+[data-theme="light"] .raw-dns-query-toggle {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 255, 0.92));
+    border-color: rgba(100, 116, 139, 0.22);
+}
+
+@media (max-width: 767px) {
+    .raw-dns-query-form {
+        grid-template-columns: 1fr;
+    }
+
+    .raw-dns-query-field-wide {
+        grid-column: auto;
+    }
+
+    .raw-dns-query-actions {
+        flex-direction: column;
+    }
+
+    .raw-dns-query-actions .tool-run-btn,
+    .raw-dns-query-actions .tool-run-btn-secondary {
+        width: 100%;
+    }
+
+    .raw-dns-query-code-header {
+        flex-direction: column;
+    }
+}
+
 .tool-meta-row {
     display: flex;
     flex-wrap: wrap;

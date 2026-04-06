@@ -176,6 +176,15 @@ public sealed class ToolRegistry {
             PowerShellExample = "Test-DDDnsPropagation -DomainName 'example.com' -RecordType A",
             CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsPropagationAsync(\"example.com\");"
         },
+        new ToolDefinition {
+            Name = "Raw DNS Query",
+            Slug = "raw-dns-query",
+            Description = "Resolve one record type at a time, inspect the raw JSON response, and copy equivalent DnsClientX code",
+            Category = ToolCategory.Dns,
+            Icon = "terminal",
+            InputPlaceholder = "example.com",
+            BrowserCompatible = true
+        },
 
         // TLS & Certificates
         new ToolDefinition {

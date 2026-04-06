@@ -90,7 +90,9 @@
 
     protected override async Task OnParametersSetAsync() {
         if (string.Equals(ToolSlug, "dns-query-playground", StringComparison.OrdinalIgnoreCase)) {
-            Navigation.NavigateTo("/dns-query-playground/", forceLoad: true, replace: true);
+            var currentUri = new Uri(Navigation.Uri);
+            var suffix = $"{currentUri.Query}{currentUri.Fragment}";
+            Navigation.NavigateTo($"/tools/raw-dns-query/{suffix}", replace: true);
             return;
         }
 

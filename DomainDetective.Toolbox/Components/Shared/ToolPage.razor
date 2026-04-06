@@ -22,11 +22,17 @@
 
     @if (!CanRunOnline(Definition)) {
         <ToolNotAvailable Tool="Definition" />
+    } else if (UsesCustomToolLayout(Definition)) {
+        @switch (Definition.Slug) {
+            case "raw-dns-query":
+                <DomainDetective.Toolbox.Components.Tools.Dns.RawDnsQueryTool />
+                break;
+        }
     } else {
         @if (Definition.Slug == "dns-lookup") {
             <div class="tool-callout tool-callout-inline">
                 <strong>Need raw record-by-record queries?</strong>
-                <p>Use <a href="/dns-query-playground/">DNS Query Playground</a> when you want to choose record types, inspect live JSON answers, and copy equivalent DnsClientX code for C# or PowerShell.</p>
+                <p>Use <a href="/tools/raw-dns-query/">Raw DNS Query</a> when you want to choose record types, inspect live JSON answers, and copy equivalent DnsClientX code for C# or PowerShell.</p>
             </div>
         }
 
@@ -195,7 +201,9 @@
         }
     }
 
-    <ToolUsageExamples Definition="Definition" />
+    @if (!UsesCustomToolLayout(Definition)) {
+        <ToolUsageExamples Definition="Definition" />
+    }
 </div>
 
 @code {
@@ -524,6 +532,10 @@
 
     private bool CanRunOnline(ToolDefinition definition) {
         return Availability.CanRun(definition);
+    }
+
+    private static bool UsesCustomToolLayout(ToolDefinition definition) {
+        return definition.Slug == "raw-dns-query";
     }
 
     private static bool SupportsHostedCache(ToolDefinition definition) {

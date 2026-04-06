@@ -19,14 +19,6 @@
                         <span class="category-tool-name">@tool.Name</span>
                     </a>
                 }
-                @if (category == ToolCategory.Dns) {
-                    <a href="/dns-query-playground/" class="category-tool-link">
-                        @if (DeploymentMode == ToolsDeploymentMode.StaticOnly) {
-                            <span class="tool-availability-dot tool-availability-dot-browser"></span>
-                        }
-                        <span class="category-tool-name">Raw DNS Query</span>
-                    </a>
-                }
             </div>
         </div>
     }

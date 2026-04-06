@@ -1,7 +1,20 @@
 ---
 title: DNS Query Playground
-description: Choose a record type, inspect live DNS answers in the browser, and copy the equivalent DnsClientX code for C# and PowerShell.
+description: Redirecting to Raw DNS Query.
 slug: dns-query-playground
 collection: pages
-layout: dns-playground
+layout: page
 ---
+
+<script>
+  (function () {
+    var target = '/tools/raw-dns-query/' + (window.location.search || '') + (window.location.hash || '');
+    window.location.replace(target);
+  })();
+</script>
+
+<noscript>
+  <p>DNS Query Playground moved to <a href="/tools/raw-dns-query/">/tools/raw-dns-query/</a>.</p>
+</noscript>
+
+<p>Redirecting to Raw DNS Query...</p>

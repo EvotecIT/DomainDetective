@@ -1,0 +1,136 @@
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="tool-callout tool-callout-inline">
+    <strong>Resolve records like a public DNS tool, then copy the DnsClientX equivalent</strong>
+    <p>Choose a single record type, preview a public resolver, optionally simulate EDNS client subnet, and inspect the raw JSON response without leaving the normal tools flow.</p>
+</div>
+
+<div class="raw-dns-query" @ref="_rootElement">
+    <div class="result-card raw-dns-query-panel">
+        <form class="raw-dns-query-form js-dns-query-form">
+            <label class="raw-dns-query-field raw-dns-query-field-wide">
+                <span>DNS name</span>
+                <input class="js-dns-name" name="name" type="text" value="evotec.pl" placeholder="example.com" autocomplete="off" />
+            </label>
+
+            <label class="raw-dns-query-field">
+                <span>RR type</span>
+                <select class="js-dns-type" name="type">
+                    <option value="A">A</option>
+                    <option value="AAAA">AAAA</option>
+                    <option value="CNAME">CNAME</option>
+                    <option value="MX">MX</option>
+                    <option value="TXT">TXT</option>
+                    <option value="NS">NS</option>
+                    <option value="CAA">CAA</option>
+                    <option value="SRV">SRV</option>
+                    <option value="PTR">PTR</option>
+                    <option value="SOA">SOA</option>
+                    <option value="DS">DS</option>
+                    <option value="DNSKEY">DNSKEY</option>
+                    <option value="RRSIG">RRSIG</option>
+                    <option value="NSEC">NSEC</option>
+                    <option value="NSEC3">NSEC3</option>
+                    <option value="TLSA">TLSA</option>
+                    <option value="HTTPS">HTTPS</option>
+                    <option value="SVCB">SVCB</option>
+                </select>
+            </label>
+
+            <label class="raw-dns-query-field">
+                <span>Resolver preview</span>
+                <select class="js-dns-provider" name="provider">
+                    <option value="google">Google Public DNS</option>
+                    <option value="cloudflare">Cloudflare DNS JSON</option>
+                </select>
+            </label>
+
+            <label class="raw-dns-query-field">
+                <span>EDNS client subnet (optional)</span>
+                <input class="js-dns-ecs" name="ecs" type="text" value="" placeholder="203.0.113.0/24" autocomplete="off" />
+            </label>
+
+            <label class="raw-dns-query-toggle">
+                <input class="js-dns-disable-validation" name="disableValidation" type="checkbox" />
+                <span>Disable DNSSEC validation</span>
+            </label>
+
+            <label class="raw-dns-query-toggle">
+                <input class="js-dns-show-dnssec" name="showDnssec" type="checkbox" />
+                <span>Show DNSSEC detail</span>
+            </label>
+
+            <div class="raw-dns-query-actions">
+                <button class="tool-run-btn" type="submit">Resolve</button>
+                <a class="tool-run-btn tool-run-btn-secondary js-dns-direct-link" href="https://dns.google/resolve?name=evotec.pl&amp;type=A" target="_blank" rel="noopener">Open direct JSON query</a>
+            </div>
+
+            <p class="raw-dns-query-note js-dns-note">Leave EDNS client subnet empty unless you want to simulate answers from a specific client network. The browser preview uses public DNS JSON endpoints that support CORS, while the generated snippets show the closest DnsClientX equivalent.</p>
+            <div class="raw-dns-query-status js-dns-status" aria-live="polite"></div>
+        </form>
+    </div>
+
+    <section class="tool-summary-grid raw-dns-query-summary js-dns-summary"></section>
+    <section class="raw-dns-query-sections js-dns-records"></section>
+
+    <section class="raw-dns-query-code-grid">
+        <div class="result-card raw-dns-query-code-card">
+            <div class="raw-dns-query-code-header">
+                <div>
+                    <h2>C#</h2>
+                    <p>Equivalent DnsClientX usage in application code.</p>
+                </div>
+                <button type="button" class="tool-usage-copy-btn js-dns-copy-btn" data-copy-target=".js-dns-csharp-code">Copy</button>
+            </div>
+            <pre class="tool-usage-code language-csharp"><code class="language-csharp js-dns-csharp-code"></code></pre>
+        </div>
+
+        <div class="result-card raw-dns-query-code-card">
+            <div class="raw-dns-query-code-header">
+                <div>
+                    <h2>PowerShell</h2>
+                    <p>Equivalent DnsClientX cmdlet usage for scripts and automation.</p>
+                </div>
+                <button type="button" class="tool-usage-copy-btn js-dns-copy-btn" data-copy-target=".js-dns-powershell-code">Copy</button>
+            </div>
+            <pre class="tool-usage-code language-powershell"><code class="language-powershell js-dns-powershell-code"></code></pre>
+        </div>
+
+        <div class="result-card raw-dns-query-code-card">
+            <div class="raw-dns-query-code-header">
+                <div>
+                    <h2>JSON</h2>
+                    <p>Raw response from the browser preview resolver.</p>
+                </div>
+                <button type="button" class="tool-usage-copy-btn js-dns-copy-btn" data-copy-target=".js-dns-json-code">Copy</button>
+            </div>
+            <pre class="tool-usage-code language-json"><code class="language-json js-dns-json-code"></code></pre>
+        </div>
+    </section>
+</div>
+
+@code {
+    private ElementReference _rootElement;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender) {
+            return;
+        }
+
+        try {
+            await JS.InvokeVoidAsync("domainDetectiveTools.initRawDnsQueryTool", _rootElement);
+        } catch {
+            // JavaScript enhancements should not break the rest of the tool shell.
+        }
+    }
+
+    public async ValueTask DisposeAsync() {
+        try {
+            await JS.InvokeVoidAsync("domainDetectiveTools.disposeRawDnsQueryTool", _rootElement);
+        } catch {
+            // The component may be gone before JS cleanup can run.
+        }
+    }
+}
