@@ -2,6 +2,7 @@
     'use strict';
 
     var controllers = new WeakMap();
+    var nextRequestSequence = 0;
 
     var recordTypeMap = {
         0: 'Reserved',
@@ -73,6 +74,10 @@
         return String(type == null ? '' : type);
     }
 
+    function getEffectiveName(name) {
+        return name ? name : 'example.com';
+    }
+
     function buildSummaryCard(label, value, meta) {
         return '<article class="tool-summary-card raw-dns-query-summary-card">' +
             '<span class="tool-summary-label">' + escapeHtml(label) + '</span>' +
@@ -96,7 +101,7 @@
             buildSummaryCard('Status', rcodeMap[payload.Status] || String(payload.Status == null ? 'n/a' : payload.Status), provider.label),
             buildSummaryCard('Answers', String(answers.length), authority.length + ' authority'),
             buildSummaryCard('Additional', String(additional.length), payload.Comment || 'No comment'),
-            buildSummaryCard('Question', state.type, state.name)
+            buildSummaryCard('Question', state.type, getEffectiveName(state.name))
         ].join('');
 
         if (flags.length > 0) {
@@ -164,23 +169,21 @@
         var requestDnsSec = state.showDnssec;
         var validateDnsSec = state.showDnssec && !state.disableValidation;
         var resolveArguments = [];
+        var dnsName = getEffectiveName(state.name);
 
         if (requestDnsSec) {
             resolveArguments.push('requestDnsSec: true');
-        }
-
-        if (requestDnsSec) {
             resolveArguments.push('validateDnsSec: ' + String(validateDnsSec).toLowerCase());
         }
 
-        var resolveInvocation = 'DnsResponse response = await client.Resolve("' + state.name + '", DnsRecordType.' + state.type;
+        var resolveInvocation = 'DnsResponse response = await client.Resolve("' + dnsName + '", DnsRecordType.' + state.type;
         if (resolveArguments.length > 0) {
             resolveInvocation += ',\n    ' + resolveArguments.join(',\n    ');
         }
 
         resolveInvocation += ');';
 
-        if (state.ecs) {
+        if (state.ecs && provider.supportsEcs) {
             return [
                 'using DnsClientX;',
                 '',
@@ -214,8 +217,9 @@
 
     function buildPowerShellSnippet(state) {
         var provider = providers[state.providerId] || providers.google;
+        var dnsName = getEffectiveName(state.name);
         var argumentsList = [
-            "-Name '" + state.name + "'",
+            "-Name '" + dnsName + "'",
             '-Type ' + state.type,
             '-DnsProvider ' + provider.powershellProvider
         ];
@@ -237,11 +241,21 @@
     }
 
     function updateCodeNotes(state, elements) {
-        if (state.ecs) {
+        var provider = providers[state.providerId] || providers.google;
+
+        if (state.ecs && provider.supportsEcs) {
             elements.csharpNote.hidden = false;
             elements.csharpNote.textContent = 'The .NET example switches to ClientXBuilder because EDNS client subnet is configured through EdnsOptions.';
             elements.powershellNote.hidden = false;
             elements.powershellNote.textContent = 'Resolve-Dns does not currently expose EDNS client subnet directly. The PowerShell snippet shows the closest available query, while the C# snippet shows the full ECS-aware setup.';
+            return;
+        }
+
+        if (state.ecs && !provider.supportsEcs) {
+            elements.csharpNote.hidden = false;
+            elements.csharpNote.textContent = provider.label + ' ignores EDNS client subnet in the browser preview, so the generated snippets stay aligned with that resolver behavior.';
+            elements.powershellNote.hidden = true;
+            elements.powershellNote.textContent = '';
             return;
         }
 
@@ -319,6 +333,9 @@
             return false;
         }
 
+        var activeAbortController = null;
+        var latestRequestSequence = 0;
+
         function readStateFromUrl() {
             var url = new URL(window.location.href);
             var providerId = url.searchParams.get('provider');
@@ -392,11 +409,12 @@
         function buildRequest(state) {
             var provider = providers[state.providerId] || providers.google;
             var url = new URL(provider.baseUrl);
+            var effectiveName = getEffectiveName(state.name);
 
-            url.searchParams.set('name', state.name);
+            url.searchParams.set('name', effectiveName);
             url.searchParams.set('type', state.type);
 
-            if (state.disableValidation) {
+            if (state.showDnssec && state.disableValidation) {
                 url.searchParams.set('cd', '1');
             }
 
@@ -464,8 +482,18 @@
             await highlight(root);
         }
 
+        function cancelActiveRequest() {
+            if (!activeAbortController) {
+                return;
+            }
+
+            activeAbortController.abort();
+            activeAbortController = null;
+        }
+
         async function resolveDns(state) {
             if (!state.name) {
+                cancelActiveRequest();
                 elements.status.dataset.state = 'error';
                 elements.status.textContent = 'Enter a DNS name before resolving.';
                 elements.summary.innerHTML = '';
@@ -480,19 +508,32 @@
             elements.resolveButton.disabled = true;
 
             var request = updatePreviewArtifacts(state);
+            var requestSequence = ++nextRequestSequence;
+            latestRequestSequence = requestSequence;
+            cancelActiveRequest();
+            activeAbortController = new AbortController();
             elements.jsonCode.textContent = '';
             await highlight(root);
 
             try {
                 var response = await fetch(request.url.toString(), {
-                    headers: request.provider.headers
+                    headers: request.provider.headers,
+                    signal: activeAbortController.signal
                 });
+
+                if (requestSequence !== latestRequestSequence) {
+                    return;
+                }
 
                 if (!response.ok) {
                     throw new Error('Resolver returned HTTP ' + response.status + '.');
                 }
 
                 var payload = await response.json();
+                if (requestSequence !== latestRequestSequence) {
+                    return;
+                }
+
                 elements.status.dataset.state = 'success';
                 elements.status.textContent = 'Resolved via ' + request.provider.label + '.';
 
@@ -501,13 +542,24 @@
                 elements.jsonCode.textContent = JSON.stringify(payload, null, 2);
                 await highlight(root);
             } catch (error) {
+                if (requestSequence !== latestRequestSequence) {
+                    return;
+                }
+
+                if (error && error.name === 'AbortError') {
+                    return;
+                }
+
                 elements.summary.innerHTML = '';
                 elements.records.innerHTML = '';
                 elements.jsonCode.textContent = '';
                 elements.status.dataset.state = 'error';
                 elements.status.textContent = error instanceof Error ? error.message : 'Failed to resolve DNS.';
             } finally {
-                elements.resolveButton.disabled = false;
+                if (requestSequence === latestRequestSequence) {
+                    elements.resolveButton.disabled = false;
+                    activeAbortController = null;
+                }
             }
         }
 
@@ -557,7 +609,11 @@
 
         readStateFromUrl();
         void refreshPreviewState();
-        void resolveDns(getState());
+
+        var initialState = getState();
+        if (initialState.name) {
+            void resolveDns(initialState);
+        }
 
         controllers.set(root, {
             form: elements.form,
@@ -570,7 +626,8 @@
             handleSubmit: handleSubmit,
             handleProviderChange: handleProviderChange,
             handleStateInput: handleStateInput,
-            handleRootClick: handleRootClick
+            handleRootClick: handleRootClick,
+            cancelActiveRequest: cancelActiveRequest
         });
 
         return true;
@@ -594,6 +651,7 @@
         controller.disableValidationInput.removeEventListener('change', controller.handleStateInput);
         controller.showDnssecInput.removeEventListener('change', controller.handleStateInput);
         root.removeEventListener('click', controller.handleRootClick);
+        controller.cancelActiveRequest();
         controllers.delete(root);
         return true;
     }

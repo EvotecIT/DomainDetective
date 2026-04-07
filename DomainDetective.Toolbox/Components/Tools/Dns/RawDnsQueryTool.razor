@@ -12,7 +12,7 @@
         <form class="raw-dns-query-form js-dns-query-form">
             <label class="raw-dns-query-field raw-dns-query-field-wide">
                 <span>DNS name</span>
-                <input class="js-dns-name" name="name" type="text" value="evotec.pl" placeholder="example.com" autocomplete="off" />
+                <input class="js-dns-name" name="name" type="text" value="" placeholder="example.com" autocomplete="off" />
             </label>
 
             <label class="raw-dns-query-field">
@@ -64,7 +64,7 @@
 
             <div class="raw-dns-query-actions">
                 <button class="tool-run-btn" type="submit">Resolve</button>
-                <a class="tool-run-btn tool-run-btn-secondary js-dns-direct-link" href="https://dns.google/resolve?name=evotec.pl&amp;type=A" target="_blank" rel="noopener">Open direct JSON query</a>
+                <a class="tool-run-btn tool-run-btn-secondary js-dns-direct-link" href="https://dns.google/resolve?name=example.com&amp;type=A" target="_blank" rel="noopener">Open direct JSON query</a>
             </div>
 
             <p class="raw-dns-query-note js-dns-note">Leave EDNS client subnet empty unless you want to simulate answers from a specific client network. The browser preview uses public DNS JSON endpoints that support CORS, while the generated snippets show the closest DnsClientX equivalent.</p>
@@ -123,7 +123,7 @@
 
         try {
             await JS.InvokeVoidAsync("domainDetectiveTools.initRawDnsQueryTool", _rootElement);
-        } catch {
+        } catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException) {
             // JavaScript enhancements should not break the rest of the tool shell.
         }
     }
@@ -131,7 +131,7 @@
     public async ValueTask DisposeAsync() {
         try {
             await JS.InvokeVoidAsync("domainDetectiveTools.disposeRawDnsQueryTool", _rootElement);
-        } catch {
+        } catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException) {
             // The component may be gone before JS cleanup can run.
         }
     }

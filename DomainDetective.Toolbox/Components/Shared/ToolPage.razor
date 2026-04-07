@@ -156,7 +156,11 @@
                     <DomainDetective.Toolbox.Components.Tools.EmailSecurity.BimiTool HealthCheck="_healthCheck" Info="_bimiInfo" Domain="@_domain" />
                     break;
                 case "dns-lookup":
-                    <DomainDetective.Toolbox.Components.Tools.Dns.DnsLookupTool HealthCheck="_healthCheck" Domain="@_domain" />
+                    <DomainDetective.Toolbox.Components.Tools.Dns.DnsLookupTool HealthCheck="_healthCheck"
+                                                                                Domain="@_domain"
+                                                                                RequestedTypes="@_dnsRequestedTypes"
+                                                                                HostLabel="@_dnsHostLabel"
+                                                                                BrowserResolverName="@_dnsBrowserResolverName" />
                     break;
                 case "dnssec":
                     <DomainDetective.Toolbox.Components.Tools.Dns.DnssecTool HealthCheck="_healthCheck" Domain="@_domain" />
@@ -236,12 +240,16 @@
     private DomainDetective.Views.SubdomainsInfo? _subdomainsInfo;
     private DomainDetective.Views.Microsoft365OverviewInfo? _microsoft365OverviewInfo;
     private DomainDetective.Views.DomainOverviewInfo? _domainOverviewInfo;
+    private string? _dnsRequestedTypes;
+    private string? _dnsHostLabel;
+    private string? _dnsBrowserResolverName;
 
     protected override void OnInitialized() {
         Navigation.LocationChanged += HandleLocationChanged;
     }
 
     protected override async Task OnParametersSetAsync() {
+        await Availability.InitializeAsync();
         await SyncWithCurrentUriAsync();
     }
 
@@ -282,7 +290,7 @@
         _subdomainsInfo = null;
         _microsoft365OverviewInfo = null;
         _domainOverviewInfo = null;
-        _lastRunKey = BuildRunKey(_domain, _secondaryInput);
+        _lastRunKey = BuildRunKey(_domain, _secondaryInput, _dnsHostLabel, _dnsBrowserResolverName);
         UpdateBrowserUrl();
         var analysisVersion = ++_analysisVersion;
         StateHasChanged();
@@ -473,7 +481,10 @@
         var query = ParseQuery(new Uri(Navigation.Uri).Query);
         var domain = GetQueryValue(query, "q");
         var secondaryInput = GetQueryValue(query, "s");
-        var runKey = BuildRunKey(domain, secondaryInput);
+        _dnsRequestedTypes = Definition.Slug == "dns-lookup" ? secondaryInput : null;
+        _dnsHostLabel = Definition.Slug == "dns-lookup" ? GetQueryValue(query, "h") : null;
+        _dnsBrowserResolverName = Definition.Slug == "dns-lookup" ? GetQueryValue(query, "r") : null;
+        var runKey = BuildRunKey(domain, secondaryInput, _dnsHostLabel, _dnsBrowserResolverName);
 
         if (!string.IsNullOrWhiteSpace(domain)) {
             _domain = domain;
@@ -517,6 +528,9 @@
         _subdomainsInfo = null;
         _microsoft365OverviewInfo = null;
         _domainOverviewInfo = null;
+        _dnsRequestedTypes = null;
+        _dnsHostLabel = null;
+        _dnsBrowserResolverName = null;
     }
 
     private async Task RunFreshAnalysis() {
@@ -691,12 +705,12 @@
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
-    private static string? BuildRunKey(string? domain, string? secondaryInput) {
+    private static string? BuildRunKey(string? domain, string? secondaryInput, string? hostLabel, string? browserResolverName) {
         if (string.IsNullOrWhiteSpace(domain)) {
             return null;
         }
 
-        return $"{domain.Trim().ToLowerInvariant()}::{secondaryInput?.Trim().ToLowerInvariant() ?? string.Empty}";
+        return $"{domain.Trim().ToLowerInvariant()}::{secondaryInput?.Trim().ToLowerInvariant() ?? string.Empty}::{hostLabel?.Trim().ToLowerInvariant() ?? string.Empty}::{browserResolverName?.Trim().ToLowerInvariant() ?? string.Empty}";
     }
 
     private string BuildToolUrl(string? domain, string? secondaryInput) {
@@ -713,6 +727,23 @@
             query.Remove("s");
         } else {
             query["s"] = secondaryInput.Trim();
+        }
+
+        if (Definition.Slug == "dns-lookup") {
+            if (string.IsNullOrWhiteSpace(_dnsHostLabel)) {
+                query.Remove("h");
+            } else {
+                query["h"] = _dnsHostLabel.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(_dnsBrowserResolverName)) {
+                query.Remove("r");
+            } else {
+                query["r"] = _dnsBrowserResolverName.Trim();
+            }
+        } else {
+            query.Remove("h");
+            query.Remove("r");
         }
 
         var queryString = BuildQueryString(query);

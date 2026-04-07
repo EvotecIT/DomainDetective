@@ -52,7 +52,7 @@ PS&gt; @Definition.PowerShellExample</code></pre>
                 <div class="tool-usage-panel">
                     <div class="tool-usage-panel-header">
                         <span class="tool-usage-panel-label">NuGet package</span>
-                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync(Definition.CSharpExample))">
+                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync(BuildCSharpExample()))">
                             @(_copied ? "Copied" : "Copy")
                         </button>
                     </div>
@@ -93,7 +93,7 @@ PS&gt; @Definition.PowerShellExample</code></pre>
 
         try {
             await JS.InvokeVoidAsync("domainDetectiveTools.highlightCodeBlocks", _examplesElement);
-        } catch {
+        } catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException) {
             // Syntax highlighting is an enhancement and should not break the page.
         }
     }
@@ -122,15 +122,22 @@ PS&gt; @Definition.PowerShellExample</code></pre>
         _shouldHighlightCode = true;
     }
 
+    private string BuildCSharpExample() {
+        return $"using DomainDetective;{Environment.NewLine}{Environment.NewLine}{Definition.CSharpExample}";
+    }
+
     private async Task CopyAsync(string text) {
         try {
-            await JS.InvokeVoidAsync("domainDetectiveTools.copyText", text);
-            _copied = true;
+            _copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", text);
             StateHasChanged();
+            if (!_copied) {
+                return;
+            }
+
             await Task.Delay(1400);
             _copied = false;
             StateHasChanged();
-        } catch {
+        } catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException) {
             // clipboard API may not be available
         }
     }

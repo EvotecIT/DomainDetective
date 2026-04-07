@@ -4,7 +4,7 @@
     <div class="tool-not-available-eyebrow">Run locally</div>
     <h3>@Tool.Name</h3>
     <p class="tool-not-available-copy">
-        @Tool.Description.
+        @BuildDescriptionPrefix()
         This check relies on network capabilities that browser sandboxing limits. Use the CLI or PowerShell module for the full experience.
     </p>
 
@@ -19,4 +19,8 @@
 
 @code {
     [Parameter] public required ToolDefinition Tool { get; set; }
+
+    private string BuildDescriptionPrefix() {
+        return (Tool.Description ?? string.Empty).TrimEnd('.', ' ') + ".";
+    }
 }

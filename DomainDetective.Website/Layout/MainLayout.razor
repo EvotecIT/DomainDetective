@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject DomainDetective.Website.Services.SiteNavigationService SiteNavigationService
@@ -232,6 +233,7 @@
     private bool _mobileNavOpen;
 
     protected override async Task OnInitializedAsync() {
+        Navigation.LocationChanged += HandleLocationChanged;
         var navigation = await SiteNavigationService.GetNavigationAsync();
         if (navigation == null) {
             return;
@@ -270,6 +272,11 @@
     private void CloseMenus() {
         _openDropdownHref = null;
         _mobileNavOpen = false;
+    }
+
+    private void HandleLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) {
+        CloseMenus();
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private async Task ToggleThemeAsync() {
@@ -346,6 +353,7 @@
     private static string GetHref(string? href) => string.IsNullOrWhiteSpace(href) ? "/" : href;
 
     private static MarkupString RenderIcon(string? iconHtml) {
+        // Icons come from the trusted site navigation manifest generated with the website.
         return new MarkupString(iconHtml ?? string.Empty);
     }
 
@@ -392,5 +400,9 @@
         }
 
         return action.External ? "_blank" : null;
+    }
+
+    public void Dispose() {
+        Navigation.LocationChanged -= HandleLocationChanged;
     }
 }
