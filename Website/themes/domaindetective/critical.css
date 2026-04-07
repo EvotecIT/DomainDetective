@@ -211,7 +211,7 @@ body {
 }
 
 .dd-nav-links {
-  gap: 0.5rem;
+  gap: 0.125rem;
 }
 
 .dd-nav-actions {
@@ -228,12 +228,11 @@ body {
   justify-content: center;
   gap: 0.35rem;
   min-height: 2.5rem;
-  padding: 0.5rem 0.8rem;
-  height: 2.5rem;
+  padding: 0.5rem 0.75rem;
   color: var(--pf-muted);
   text-decoration: none;
   border-radius: var(--pf-radius-sm);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 500;
   white-space: nowrap;
   box-sizing: border-box;
@@ -243,6 +242,15 @@ body {
 .nav-dropdown {
   display: flex;
   align-items: center;
+}
+
+.dd-nav-link.is-active,
+.dd-nav-link.is-ancestor,
+.dd-nav-links > a.is-active,
+.dd-nav-links > a.is-ancestor,
+.dd-nav-dropdown-trigger.is-active {
+  color: var(--pf-accent);
+  background: rgba(0, 217, 255, 0.08);
 }
 
 .nav-icon {
