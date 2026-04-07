@@ -27,6 +27,9 @@
             case "raw-dns-query":
                 <DomainDetective.Toolbox.Components.Tools.Dns.RawDnsQueryTool />
                 break;
+            default:
+                <ToolNotAvailable Tool="Definition" />
+                break;
         }
     } else {
         @if (Definition.Slug == "dns-lookup") {
@@ -46,7 +49,12 @@
         <form class="tool-input-form" @onsubmit="RunAnalysis" @onsubmit:preventDefault>
             <input type="text" @bind="_domain" placeholder="@(Definition.InputPlaceholder ?? "example.com")" />
             @if (Definition.SecondaryInputLabel is not null) {
-                <input type="text" @bind="_secondaryInput" placeholder="@(Definition.SecondaryInputPlaceholder ?? "")" class="tool-input-secondary" />
+                <input type="text"
+                       @bind="_secondaryInput"
+                       placeholder="@(Definition.SecondaryInputPlaceholder ?? "")"
+                       aria-label="@Definition.SecondaryInputLabel"
+                       title="@Definition.SecondaryInputLabel"
+                       class="tool-input-secondary" />
             }
             <button type="submit" class="tool-run-btn" disabled="@_isLoading">
                 @(_isLoading ? "Analyzing..." : "Analyze")

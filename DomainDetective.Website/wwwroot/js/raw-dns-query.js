@@ -2,7 +2,6 @@
     'use strict';
 
     var controllers = new WeakMap();
-    var nextRequestSequence = 0;
 
     var recordTypeMap = {
         0: 'Reserved',
@@ -334,7 +333,31 @@
         }
 
         var activeAbortController = null;
+        var nextRequestSequence = 0;
         var latestRequestSequence = 0;
+
+        function isValidEcsSubnet(value) {
+            if (!value) {
+                return true;
+            }
+
+            var match = /^(\d{1,3})(?:\.(\d{1,3})){3}\/(\d{1,2})$/.exec(value);
+            if (!match) {
+                return false;
+            }
+
+            var parts = value.split('/');
+            var octets = parts[0].split('.');
+            var prefixLength = Number(parts[1]);
+            if (!Number.isInteger(prefixLength) || prefixLength < 0 || prefixLength > 32) {
+                return false;
+            }
+
+            return octets.every(function (part) {
+                var octet = Number(part);
+                return Number.isInteger(octet) && octet >= 0 && octet <= 255;
+            });
+        }
 
         function readStateFromUrl() {
             var url = new URL(window.location.href);
@@ -496,6 +519,16 @@
                 cancelActiveRequest();
                 elements.status.dataset.state = 'error';
                 elements.status.textContent = 'Enter a DNS name before resolving.';
+                elements.summary.innerHTML = '';
+                elements.records.innerHTML = '';
+                elements.jsonCode.textContent = '';
+                return;
+            }
+
+            if (!isValidEcsSubnet(state.ecs)) {
+                cancelActiveRequest();
+                elements.status.dataset.state = 'error';
+                elements.status.textContent = 'Use EDNS client subnet in IPv4 CIDR form, for example 203.0.113.0/24.';
                 elements.summary.innerHTML = '';
                 elements.records.innerHTML = '';
                 elements.jsonCode.textContent = '';

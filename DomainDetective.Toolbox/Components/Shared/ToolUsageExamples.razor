@@ -1,5 +1,6 @@
 @using DomainDetective.Toolbox.Models
 @using Microsoft.JSInterop
+@implements IDisposable
 @inject IJSRuntime JS
 
 @if (HasAnyExample()) {
@@ -25,8 +26,8 @@
                 <div class="tool-usage-panel">
                     <div class="tool-usage-panel-header">
                         <span class="tool-usage-panel-label">Install &amp; run</span>
-                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync($"dotnet tool install -g DomainDetective.CLI\n{Definition.CliExample}"))">
-                            @(_copied ? "Copied" : "Copy")
+                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync("cli", $"dotnet tool install -g DomainDetective.CLI\n{Definition.CliExample}"))">
+                            @(IsCopied("cli") ? "Copied" : "Copy")
                         </button>
                     </div>
                     <pre class="tool-usage-code language-bash"><code class="language-bash">$ dotnet tool install -g DomainDetective.CLI
@@ -38,8 +39,8 @@ $ @Definition.CliExample</code></pre>
                 <div class="tool-usage-panel">
                     <div class="tool-usage-panel-header">
                         <span class="tool-usage-panel-label">Install module &amp; run</span>
-                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync($"Install-Module DomainDetective -Scope CurrentUser\nImport-Module DomainDetective\n{Definition.PowerShellExample}"))">
-                            @(_copied ? "Copied" : "Copy")
+                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync("ps", $"Install-Module DomainDetective -Scope CurrentUser\nImport-Module DomainDetective\n{Definition.PowerShellExample}"))">
+                            @(IsCopied("ps") ? "Copied" : "Copy")
                         </button>
                     </div>
                     <pre class="tool-usage-code language-powershell"><code class="language-powershell">PS&gt; Install-Module DomainDetective -Scope CurrentUser
@@ -52,8 +53,8 @@ PS&gt; @Definition.PowerShellExample</code></pre>
                 <div class="tool-usage-panel">
                     <div class="tool-usage-panel-header">
                         <span class="tool-usage-panel-label">NuGet package</span>
-                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync(BuildCSharpExample()))">
-                            @(_copied ? "Copied" : "Copy")
+                        <button type="button" class="tool-usage-copy-btn" @onclick="@(() => CopyAsync("cs", BuildCSharpExample()))">
+                            @(IsCopied("cs") ? "Copied" : "Copy")
                         </button>
                     </div>
                     <pre class="tool-usage-code language-csharp"><code class="language-csharp">using DomainDetective;
@@ -70,7 +71,8 @@ PS&gt; @Definition.PowerShellExample</code></pre>
     [Parameter] public bool StartOpen { get; set; }
 
     private string _activeTab = "cli";
-    private bool _copied;
+    private string? _copiedTab;
+    private CancellationTokenSource? _copyResetCancellationTokenSource;
     private bool _shouldHighlightCode;
     private ElementReference _examplesElement;
 
@@ -118,27 +120,61 @@ PS&gt; @Definition.PowerShellExample</code></pre>
         }
 
         _activeTab = tab;
-        _copied = false;
+        ClearCopiedState();
         _shouldHighlightCode = true;
+    }
+
+    private bool IsCopied(string tab) {
+        return string.Equals(_copiedTab, tab, StringComparison.Ordinal);
     }
 
     private string BuildCSharpExample() {
         return $"using DomainDetective;{Environment.NewLine}{Environment.NewLine}{Definition.CSharpExample}";
     }
 
-    private async Task CopyAsync(string text) {
+    private async Task CopyAsync(string tab, string text) {
+        CancelCopyReset();
+
         try {
-            _copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", text);
+            var copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", text);
+            _copiedTab = copied ? tab : null;
             StateHasChanged();
-            if (!_copied) {
+            if (!copied) {
                 return;
             }
 
-            await Task.Delay(1400);
-            _copied = false;
+            _copyResetCancellationTokenSource = new CancellationTokenSource();
+            await Task.Delay(1400, _copyResetCancellationTokenSource.Token);
+            _copiedTab = null;
             StateHasChanged();
+        } catch (OperationCanceledException) {
+            // A newer copy action replaced the previous reset timer.
         } catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException) {
             // clipboard API may not be available
         }
+    }
+
+    private void ClearCopiedState() {
+        CancelCopyReset();
+        _copiedTab = null;
+    }
+
+    private void CancelCopyReset() {
+        if (_copyResetCancellationTokenSource is null) {
+            return;
+        }
+
+        try {
+            _copyResetCancellationTokenSource.Cancel();
+        } catch (ObjectDisposedException) {
+            // Best effort only.
+        }
+
+        _copyResetCancellationTokenSource.Dispose();
+        _copyResetCancellationTokenSource = null;
+    }
+
+    public void Dispose() {
+        CancelCopyReset();
     }
 }
