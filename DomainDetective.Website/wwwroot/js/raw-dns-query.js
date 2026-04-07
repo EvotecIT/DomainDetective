@@ -272,6 +272,17 @@
         }
     }
 
+    function syncDnssecControls(elements) {
+        var dnssecEnabled = elements.showDnssecInput.checked;
+
+        if (!dnssecEnabled) {
+            elements.disableValidationInput.checked = false;
+        }
+
+        elements.disableValidationInput.disabled = !dnssecEnabled;
+        elements.disableValidationInput.setAttribute('aria-disabled', dnssecEnabled ? 'false' : 'true');
+    }
+
     function initRawDnsQueryTool(root) {
         if (!root || typeof root.querySelector !== 'function') {
             return false;
@@ -329,6 +340,7 @@
 
             elements.disableValidationInput.checked = url.searchParams.get('disableValidation') === '1';
             elements.showDnssecInput.checked = url.searchParams.get('showDnssec') === '1';
+            syncDnssecControls(elements);
         }
 
         function getState() {
@@ -489,6 +501,7 @@
         }
 
         function handleStateInput() {
+            syncDnssecControls(elements);
             void refreshPreviewState();
         }
 
