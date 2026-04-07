@@ -269,8 +269,7 @@ a:hover { color: var(--dd-accent-light); }
 .dd-nav-link-active,
 .dd-nav-link.is-active,
 .dd-nav-link.is-ancestor {
-    color: var(--dd-accent);
-    background: rgba(0, 217, 255, 0.08);
+    color: var(--dd-ink-strong);
 }
 
 .dd-nav-dropdown {
