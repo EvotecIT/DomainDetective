@@ -33,7 +33,7 @@ public sealed class SiteNavigationService {
             try {
                 _cachedNavigation = await _httpClient.GetFromJsonAsync<SiteNavigationData>("/data/site-nav.json", cancellationToken);
                 _attemptedFetch = true;
-            } catch (TaskCanceledException) {
+            } catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) {
                 return _cachedNavigation;
             } catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException or NotSupportedException) {
                 _attemptedFetch = true;

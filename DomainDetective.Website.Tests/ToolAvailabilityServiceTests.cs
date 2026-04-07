@@ -69,6 +69,25 @@ public sealed class ToolAvailabilityServiceTests {
         Assert.Equal(ToolsDeploymentMode.HostedOnline, service.Mode);
     }
 
+    [Fact]
+    public async Task InitializeAsyncPropagatesCallerCancellationDuringRuntimeManifestProbe() {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> {
+                ["Tools:Mode"] = "Auto"
+            })
+            .Build();
+        using var httpClient = new HttpClient(new CancelAwareHttpMessageHandler()) {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var service = new ToolAvailabilityService(configuration, httpClient);
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        var initializationTask = service.InitializeAsync(cancellationTokenSource.Token);
+        cancellationTokenSource.CancelAfter(TimeSpan.FromMilliseconds(20));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await initializationTask);
+    }
+
     private sealed class StubHttpMessageHandler : HttpMessageHandler {
         private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;
 
@@ -78,6 +97,13 @@ public sealed class ToolAvailabilityServiceTests {
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
             return Task.FromResult(_responseFactory(request));
+        }
+    }
+
+    private sealed class CancelAwareHttpMessageHandler : HttpMessageHandler {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
         }
     }
 }

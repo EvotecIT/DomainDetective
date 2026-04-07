@@ -159,6 +159,8 @@ public class TestEdnsSupportAnalysis {
                     // ignore cleanup failures
                 } catch (ObjectDisposedException) {
                     // ignore cleanup failures
+                } catch (OperationCanceledException) {
+                    // ignore cleanup failures
                 }
             }
 
@@ -170,6 +172,8 @@ public class TestEdnsSupportAnalysis {
                 } catch (ObjectDisposedException) {
                     // ignore cleanup failures
                 } catch (IOException) {
+                    // ignore cleanup failures
+                } catch (OperationCanceledException) {
                     // ignore cleanup failures
                 }
             }
@@ -228,6 +232,8 @@ public class TestEdnsSupportAnalysis {
             } catch (ObjectDisposedException) {
                 // ignore cleanup failures from the loopback probe task
             } catch (IOException) {
+                // ignore cleanup failures from the loopback probe task
+            } catch (OperationCanceledException) {
                 // ignore cleanup failures from the loopback probe task
             }
 

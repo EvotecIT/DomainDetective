@@ -139,7 +139,7 @@ public sealed class ToolAvailabilityService {
                 : null;
         } catch (HttpRequestException) {
             return null;
-        } catch (TaskCanceledException) {
+        } catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) {
             return null;
         } catch (InvalidOperationException) {
             return null;
