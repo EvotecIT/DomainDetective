@@ -213,9 +213,14 @@ public class TestEdnsSupportAnalysis {
             Assert.Equal("contoso.example", queryName);
         }
         finally {
+            try {
+                await udpTask;
+            } catch {
+                // ignore cleanup failures from the loopback probe task
+            }
+
             udpServer.Dispose();
             PortHelper.ReleasePort(port);
-            await udpTask;
         }
     }
 
