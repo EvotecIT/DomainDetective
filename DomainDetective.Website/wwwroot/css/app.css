@@ -230,7 +230,7 @@ a:hover { color: var(--dd-accent-light); }
 
 .dd-nav-links {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.125rem;
 }
 
 .dd-nav-link {
