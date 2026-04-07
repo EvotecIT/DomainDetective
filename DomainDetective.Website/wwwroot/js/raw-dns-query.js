@@ -372,6 +372,15 @@
             return { provider: provider, url: url };
         }
 
+        function updatePreviewArtifacts(state) {
+            var request = buildRequest(state);
+            elements.directLink.href = request.url.toString();
+            elements.directLink.textContent = 'Open ' + request.provider.label;
+            updateProviderNote(state, elements.note);
+            updateCodeBlocks(state);
+            return request;
+        }
+
         async function highlight(rootElement) {
             if (window.domainDetectiveTools && typeof window.domainDetectiveTools.highlightCodeBlocks === 'function') {
                 await window.domainDetectiveTools.highlightCodeBlocks(rootElement);
@@ -391,6 +400,12 @@
             elements.powershellCode.textContent = buildPowerShellSnippet(state);
         }
 
+        async function refreshPreviewState() {
+            var state = getState();
+            updatePreviewArtifacts(state);
+            await highlight(root);
+        }
+
         async function resolveDns(state) {
             if (!state.name) {
                 elements.status.dataset.state = 'error';
@@ -402,15 +417,11 @@
             }
 
             writeStateToUrl(state);
-            updateProviderNote(state, elements.note);
             elements.status.dataset.state = 'loading';
             elements.status.textContent = 'Resolving ' + state.name + ' ' + state.type + '...';
             elements.resolveButton.disabled = true;
 
-            var request = buildRequest(state);
-            elements.directLink.href = request.url.toString();
-            elements.directLink.textContent = 'Open ' + request.provider.label;
-            updateCodeBlocks(state);
+            var request = updatePreviewArtifacts(state);
             elements.jsonCode.textContent = '';
             await highlight(root);
 
@@ -448,7 +459,11 @@
         }
 
         function handleProviderChange() {
-            updateProviderNote(getState(), elements.note);
+            void refreshPreviewState();
+        }
+
+        function handleStateInput() {
+            void refreshPreviewState();
         }
 
         function handleRootClick(event) {
@@ -474,17 +489,28 @@
 
         elements.form.addEventListener('submit', handleSubmit);
         elements.providerInput.addEventListener('change', handleProviderChange);
+        elements.nameInput.addEventListener('input', handleStateInput);
+        elements.typeInput.addEventListener('change', handleStateInput);
+        elements.ecsInput.addEventListener('input', handleStateInput);
+        elements.disableValidationInput.addEventListener('change', handleStateInput);
+        elements.showDnssecInput.addEventListener('change', handleStateInput);
         root.addEventListener('click', handleRootClick);
 
         readStateFromUrl();
-        updateProviderNote(getState(), elements.note);
+        void refreshPreviewState();
         void resolveDns(getState());
 
         controllers.set(root, {
             form: elements.form,
             providerInput: elements.providerInput,
+            nameInput: elements.nameInput,
+            typeInput: elements.typeInput,
+            ecsInput: elements.ecsInput,
+            disableValidationInput: elements.disableValidationInput,
+            showDnssecInput: elements.showDnssecInput,
             handleSubmit: handleSubmit,
             handleProviderChange: handleProviderChange,
+            handleStateInput: handleStateInput,
             handleRootClick: handleRootClick
         });
 
@@ -503,6 +529,11 @@
 
         controller.form.removeEventListener('submit', controller.handleSubmit);
         controller.providerInput.removeEventListener('change', controller.handleProviderChange);
+        controller.nameInput.removeEventListener('input', controller.handleStateInput);
+        controller.typeInput.removeEventListener('change', controller.handleStateInput);
+        controller.ecsInput.removeEventListener('input', controller.handleStateInput);
+        controller.disableValidationInput.removeEventListener('change', controller.handleStateInput);
+        controller.showDnssecInput.removeEventListener('change', controller.handleStateInput);
         root.removeEventListener('click', controller.handleRootClick);
         controllers.delete(root);
         return true;
