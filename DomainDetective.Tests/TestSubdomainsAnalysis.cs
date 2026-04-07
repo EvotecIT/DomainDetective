@@ -387,6 +387,109 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
+    public async Task PassiveCtClient_DoesNotCooldownSourceAfterPerHostTimeout()
+    {
+        var requestSequence = 0;
+        var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
+        {
+            var handlers = new List<Task>();
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask)
+                    {
+                        break;
+                    }
+
+                    handlers.Add(Task.Run(async () =>
+                    {
+                        using var client = await clientTask;
+                        int currentRequest = Interlocked.Increment(ref requestSequence);
+                        using NetworkStream stream = client.GetStream();
+                        using var reader = new StreamReader(stream);
+                        using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                        string? line;
+                        do
+                        {
+                            line = await reader.ReadLineAsync();
+                        } while (!string.IsNullOrEmpty(line));
+
+                        if (currentRequest == 1)
+                        {
+                            await Task.Delay(TimeSpan.FromMilliseconds(250), token);
+                            return;
+                        }
+
+                        const string payload = @"[{ ""dns_names"": [""api.example.com""] }]";
+                        await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                        await writer.WriteLineAsync("Content-Type: application/json");
+                        await writer.WriteLineAsync($"Content-Length: {payload.Length}");
+                        await writer.WriteLineAsync();
+                        await writer.WriteAsync(payload);
+                    }, token));
+                }
+            }
+            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            {
+            }
+            catch (SocketException) when (token.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                await Task.WhenAll(handlers).ConfigureAwait(false);
+            }
+        }, token));
+        await server.InitializeAsync();
+
+        try
+        {
+            var client = new PassiveCtSourceClient();
+            var requests = new[]
+            {
+                new PassiveCtSourceClient.SourceRequest
+                {
+                    SourceName = "crt.sh",
+                    Url = $"http://127.0.0.1:{server.Port}/"
+                }
+            };
+            var options = new PassiveCtSourceClient.QueryOptions
+            {
+                RequestTimeout = TimeSpan.FromMilliseconds(100),
+                RetryCount = 0,
+                SourceCooldown = TimeSpan.FromSeconds(30)
+            };
+
+            PassiveCtSourceClient.QueryResult first = await client.QueryAsync(
+                requests,
+                options,
+                null,
+                new InternalLogger(),
+                CancellationToken.None);
+            await Task.Delay(TimeSpan.FromMilliseconds(300));
+            PassiveCtSourceClient.QueryResult second = await client.QueryAsync(
+                requests,
+                options,
+                null,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.True(first.RetrySuggested);
+            Assert.DoesNotContain(first.Warnings, warning => warning.Contains("Next retry after", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(first.Diagnostics, diagnostic => diagnostic.CooldownUntilUtc.HasValue);
+            Assert.DoesNotContain(second.Warnings, warning => warning.Contains("cooling down", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(second.Diagnostics, diagnostic => string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            await server.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task PassiveCtClient_DoesNotRetryOrCooldownSourceAfterHttp404()
     {
         var requestCount = 0;
@@ -468,6 +571,193 @@ public class TestSubdomainsAnalysis
             Assert.DoesNotContain(first.Diagnostics, diagnostic => diagnostic.CooldownUntilUtc.HasValue);
             Assert.DoesNotContain(second.Diagnostics, diagnostic => string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase));
             Assert.Equal(2, requestCount);
+        }
+        finally
+        {
+            await server.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task PassiveCtClient_RespectsConfiguredPerSourceMinimumSpacing()
+    {
+        var requestOffsets = new List<long>();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
+        {
+            var handlers = new List<Task>();
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask)
+                    {
+                        break;
+                    }
+
+                    handlers.Add(Task.Run(async () =>
+                    {
+                        using var client = await clientTask;
+                        lock (requestOffsets)
+                        {
+                            requestOffsets.Add(stopwatch.ElapsedMilliseconds);
+                        }
+
+                        using NetworkStream stream = client.GetStream();
+                        using var reader = new StreamReader(stream);
+                        using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                        string? line;
+                        do
+                        {
+                            line = await reader.ReadLineAsync();
+                        } while (!string.IsNullOrEmpty(line));
+
+                        const string payload = @"[{ ""name_value"": ""api.example.com"" }]";
+                        await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                        await writer.WriteLineAsync("Content-Type: application/json");
+                        await writer.WriteLineAsync($"Content-Length: {payload.Length}");
+                        await writer.WriteLineAsync();
+                        await writer.WriteAsync(payload);
+                    }, token));
+                }
+            }
+            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            {
+            }
+            catch (SocketException) when (token.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                await Task.WhenAll(handlers).ConfigureAwait(false);
+            }
+        }, token));
+        await server.InitializeAsync();
+
+        try
+        {
+            var client = new PassiveCtSourceClient();
+            var requests = new[]
+            {
+                new PassiveCtSourceClient.SourceRequest
+                {
+                    SourceName = "crt.sh",
+                    Url = $"http://127.0.0.1:{server.Port}/"
+                }
+            };
+            var options = new PassiveCtSourceClient.QueryOptions
+            {
+                RetryCount = 0,
+                CrtShMinimumSpacing = TimeSpan.FromMilliseconds(150)
+            };
+
+            PassiveCtSourceClient.QueryResult first = await client.QueryAsync(
+                requests,
+                options,
+                null,
+                new InternalLogger(),
+                CancellationToken.None);
+            PassiveCtSourceClient.QueryResult second = await client.QueryAsync(
+                requests,
+                options,
+                null,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.False(first.RetrySuggested);
+            Assert.False(second.RetrySuggested);
+            Assert.Equal(2, requestOffsets.Count);
+            Assert.True(requestOffsets[1] - requestOffsets[0] >= 125);
+        }
+        finally
+        {
+            await server.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task PassiveCtClient_StopsUsingSourceAfterConfiguredPerRunBudget()
+    {
+        var requestCount = 0;
+        var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
+        {
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask)
+                    {
+                        break;
+                    }
+
+                    using var client = await clientTask;
+                    Interlocked.Increment(ref requestCount);
+                    using NetworkStream stream = client.GetStream();
+                    using var reader = new StreamReader(stream);
+                    using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                    string? line;
+                    do
+                    {
+                        line = await reader.ReadLineAsync();
+                    } while (!string.IsNullOrEmpty(line));
+
+                    const string payload = @"[{ ""name_value"": ""api.example.com"" }]";
+                    await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                    await writer.WriteLineAsync("Content-Type: application/json");
+                    await writer.WriteLineAsync($"Content-Length: {payload.Length}");
+                    await writer.WriteLineAsync();
+                    await writer.WriteAsync(payload);
+                }
+            }
+            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            {
+            }
+            catch (SocketException) when (token.IsCancellationRequested)
+            {
+            }
+        }, token));
+        await server.InitializeAsync();
+
+        try
+        {
+            var client = new PassiveCtSourceClient();
+            var requests = new[]
+            {
+                new PassiveCtSourceClient.SourceRequest
+                {
+                    SourceName = "certspotter",
+                    Url = $"http://127.0.0.1:{server.Port}/"
+                }
+            };
+            var options = new PassiveCtSourceClient.QueryOptions
+            {
+                RetryCount = 0,
+                SourceCooldown = TimeSpan.FromSeconds(30),
+                CertSpotterMaximumRequestsPerRun = 1
+            };
+
+            PassiveCtSourceClient.QueryResult first = await client.QueryAsync(
+                requests,
+                options,
+                null,
+                new InternalLogger(),
+                CancellationToken.None);
+            PassiveCtSourceClient.QueryResult second = await client.QueryAsync(
+                requests,
+                options,
+                null,
+                new InternalLogger(),
+                CancellationToken.None);
+
+            Assert.Single(first.Payloads);
+            Assert.Empty(second.Payloads);
+            Assert.Contains(second.Warnings, warning => warning.Contains("request budget for this run", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(second.Diagnostics, diagnostic => string.Equals(diagnostic.State, "BudgetExhausted", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(1, requestCount);
         }
         finally
         {

@@ -830,6 +830,7 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         return string.Equals(diagnostic.State, "CoolingDown", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(diagnostic.State, "BudgetExhausted", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(diagnostic.State, "RateLimited", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(diagnostic.State, "TemporarilyUnavailable", StringComparison.OrdinalIgnoreCase);
     }
@@ -840,6 +841,9 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         string state = string.IsNullOrWhiteSpace(diagnostic.State) ? "unavailable" : diagnostic.State;
+        if (string.Equals(state, "BudgetExhausted", StringComparison.OrdinalIgnoreCase)) {
+            return "request budget is exhausted for this run";
+        }
         if (diagnostic.CooldownUntilUtc.HasValue) {
             return "is " +
                    state +

@@ -136,6 +136,30 @@ public sealed class CertificateInventoryCaptureOptions {
     public TimeSpan PassiveCtSourceCooldown { get; set; } = TimeSpan.FromSeconds(60);
 
     /// <summary>
+    /// Minimum spacing between public crt.sh requests when passive/public CT fallback is active.
+    /// This helps exact-host rescue and fallback discovery stay within respectful shared-source pacing.
+    /// </summary>
+    public TimeSpan PassiveCtCrtShMinimumSpacing { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Minimum spacing between Cert Spotter requests when passive/public CT fallback is active.
+    /// This is anti-burst pacing only; the main safety rail is the run-local request budget below.
+    /// </summary>
+    public TimeSpan PassiveCtCertSpotterMinimumSpacing { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Maximum number of public crt.sh exact-host metadata requests issued during a single passive CT run.
+    /// Zero means uncapped.
+    /// </summary>
+    public int PassiveCtCrtShMaximumRequestsPerRun { get; set; } = 8;
+
+    /// <summary>
+    /// Maximum number of Cert Spotter exact-host metadata requests issued during a single passive CT run.
+    /// Zero means uncapped. The default stays conservative for unauthenticated public-plan access.
+    /// </summary>
+    public int PassiveCtCertSpotterMaximumRequestsPerRun { get; set; } = 1;
+
+    /// <summary>
     /// Maximum number of concurrent passive/public CT network queries issued at once.
     /// This is intentionally separate from <see cref="DiscoveryParallelism"/> so DNS/native CT work
     /// can remain wide while rate-limited passive CT providers are queried more gently.
@@ -689,6 +713,18 @@ public sealed partial class CertificateInventoryCapture {
         }
         if (options.PassiveCtSourceCooldown < TimeSpan.Zero) {
             throw new ArgumentOutOfRangeException(nameof(options.PassiveCtSourceCooldown), "PassiveCtSourceCooldown must be non-negative.");
+        }
+        if (options.PassiveCtCrtShMinimumSpacing < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtCrtShMinimumSpacing), "PassiveCtCrtShMinimumSpacing must be non-negative.");
+        }
+        if (options.PassiveCtCertSpotterMinimumSpacing < TimeSpan.Zero) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtCertSpotterMinimumSpacing), "PassiveCtCertSpotterMinimumSpacing must be non-negative.");
+        }
+        if (options.PassiveCtCrtShMaximumRequestsPerRun < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtCrtShMaximumRequestsPerRun), "PassiveCtCrtShMaximumRequestsPerRun must be non-negative.");
+        }
+        if (options.PassiveCtCertSpotterMaximumRequestsPerRun < 0) {
+            throw new ArgumentOutOfRangeException(nameof(options.PassiveCtCertSpotterMaximumRequestsPerRun), "PassiveCtCertSpotterMaximumRequestsPerRun must be non-negative.");
         }
         if (options.PassiveCtParallelism < 1) {
             throw new ArgumentOutOfRangeException(nameof(options.PassiveCtParallelism), "PassiveCtParallelism must be at least 1.");

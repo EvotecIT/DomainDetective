@@ -17,6 +17,7 @@ internal sealed class PassiveCtSourceClient
         public int ConsecutiveFailures { get; set; }
         public DateTimeOffset LastSuccessUtc { get; set; }
         public DateTimeOffset LastCooldownAnnouncementUtc { get; set; }
+        public DateTimeOffset NextEligibleRequestStartUtc { get; set; }
     }
 
     internal readonly record struct SourceHealthSnapshot(
@@ -52,6 +53,10 @@ internal sealed class PassiveCtSourceClient
         public TimeSpan RetryBaseDelay { get; init; } = TimeSpan.FromMilliseconds(750);
         public TimeSpan RetryMaxDelay { get; init; } = TimeSpan.FromSeconds(15);
         public TimeSpan SourceCooldown { get; init; } = TimeSpan.FromSeconds(60);
+        public TimeSpan CrtShMinimumSpacing { get; init; } = TimeSpan.Zero;
+        public TimeSpan CertSpotterMinimumSpacing { get; init; } = TimeSpan.Zero;
+        public int CrtShMaximumRequestsPerRun { get; init; }
+        public int CertSpotterMaximumRequestsPerRun { get; init; }
         public bool QueryAllSources { get; init; }
         public bool PreserveRequestOrder { get; init; } = true;
         public Func<string, string?>? PayloadValidator { get; init; }
@@ -63,11 +68,14 @@ internal sealed class PassiveCtSourceClient
         public string? Failure { get; init; }
         public bool RetrySuggested { get; init; }
         public TimeSpan? RetryAfter { get; init; }
+        public bool ApplySharedCooldown { get; init; }
     }
 
     private static readonly ConcurrentDictionary<string, SourceState> SharedSourceStates = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> SharedSourceGates = new(StringComparer.OrdinalIgnoreCase);
     private static int _rotationCursor = -1;
+    private readonly object _querySessionBudgetLock = new();
+    private readonly Dictionary<string, int> _querySessionRequestCounts = new(StringComparer.OrdinalIgnoreCase);
 
     public async Task<QueryResult> QueryAsync(
         IReadOnlyList<SourceRequest> requests,
@@ -130,6 +138,42 @@ internal sealed class PassiveCtSourceClient
                     {
                         logger?.WriteVerbose("{0}", cooldownMessage);
                     }
+                    continue;
+                }
+
+                if (useSharedSourceState)
+                {
+                    await WaitForMinimumSpacingAsync(
+                            request.SourceName,
+                            effectiveOptions,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                if (!TryReserveQuerySessionBudget(
+                        request.SourceName,
+                        effectiveOptions,
+                        out int configuredBudget,
+                        out int consumedRequests))
+                {
+                    result.RetrySuggested = true;
+                    string budgetMessage =
+                        "Passive CT source '" +
+                        request.SourceName +
+                        "' exhausted its request budget for this run (" +
+                        configuredBudget.ToString() +
+                        "); let the next monitoring cycle retry.";
+                    result.Warnings.Add(budgetMessage);
+                    result.Diagnostics.Add(new PassiveCtDiagnosticEntry
+                    {
+                        SourceName = request.SourceName,
+                        RequestUrl = request.Url,
+                        State = "BudgetExhausted",
+                        RetrySuggested = true,
+                        RetryAfterSeconds = null,
+                        Failure = "Per-run request budget exhausted after " + consumedRequests.ToString() + " request(s)."
+                    });
+                    logger?.WriteVerbose("{0}", budgetMessage);
                     continue;
                 }
 
@@ -204,7 +248,7 @@ internal sealed class PassiveCtSourceClient
                         warning += ": " + outcome.Failure;
                     }
 
-                    if (useSharedSourceState)
+                    if (useSharedSourceState && outcome.ApplySharedCooldown)
                     {
                         DateTimeOffset retryUtc = MarkTransientFailure(request.SourceName, cooldown);
                         warning += ". Next retry after " + retryUtc.ToString("u") + ".";
@@ -251,7 +295,7 @@ internal sealed class PassiveCtSourceClient
 
         if (result.Payloads.Count == 0 && result.RetrySuggested)
         {
-            result.Warnings.Add("Passive CT sources were temporarily unavailable or rate-limited; check later or let the next monitoring cycle retry.");
+            result.Warnings.Add("Passive CT sources were temporarily unavailable, rate-limited, or exhausted for this run; check later or let the next monitoring cycle retry.");
         }
 
         return result;
@@ -288,6 +332,18 @@ internal sealed class PassiveCtSourceClient
             sourceCooldown = TimeSpan.Zero;
         }
 
+        TimeSpan crtShMinimumSpacing = options?.CrtShMinimumSpacing ?? TimeSpan.Zero;
+        if (crtShMinimumSpacing < TimeSpan.Zero)
+        {
+            crtShMinimumSpacing = TimeSpan.Zero;
+        }
+
+        TimeSpan certSpotterMinimumSpacing = options?.CertSpotterMinimumSpacing ?? TimeSpan.Zero;
+        if (certSpotterMinimumSpacing < TimeSpan.Zero)
+        {
+            certSpotterMinimumSpacing = TimeSpan.Zero;
+        }
+
         return new QueryOptions
         {
             RequestTimeout = requestTimeout,
@@ -295,6 +351,10 @@ internal sealed class PassiveCtSourceClient
             RetryBaseDelay = retryBaseDelay,
             RetryMaxDelay = retryMaxDelay,
             SourceCooldown = sourceCooldown,
+            CrtShMinimumSpacing = crtShMinimumSpacing,
+            CertSpotterMinimumSpacing = certSpotterMinimumSpacing,
+            CrtShMaximumRequestsPerRun = Math.Max(0, options?.CrtShMaximumRequestsPerRun ?? 0),
+            CertSpotterMaximumRequestsPerRun = Math.Max(0, options?.CertSpotterMaximumRequestsPerRun ?? 0),
             QueryAllSources = options?.QueryAllSources ?? false,
             PreserveRequestOrder = options?.PreserveRequestOrder ?? true,
             PayloadValidator = options?.PayloadValidator
@@ -358,6 +418,94 @@ internal sealed class PassiveCtSourceClient
     private static DateTimeOffset? TryGetSourceCooldownUtc(string sourceName)
     {
         return TryGetCooldown(sourceName, out DateTimeOffset cooldownUntilUtc) ? cooldownUntilUtc : null;
+    }
+
+    private static async Task WaitForMinimumSpacingAsync(
+        string sourceName,
+        QueryOptions options,
+        CancellationToken cancellationToken)
+    {
+        TimeSpan minimumSpacing = ResolveMinimumSpacing(sourceName, options);
+        if (minimumSpacing <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        SourceState state = SharedSourceStates.GetOrAdd(sourceName, static _ => new SourceState());
+        TimeSpan delay = TimeSpan.Zero;
+        lock (state)
+        {
+            DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+            if (state.NextEligibleRequestStartUtc > nowUtc)
+            {
+                delay = state.NextEligibleRequestStartUtc - nowUtc;
+                nowUtc = state.NextEligibleRequestStartUtc;
+            }
+
+            state.NextEligibleRequestStartUtc = nowUtc + minimumSpacing;
+        }
+
+        if (delay > TimeSpan.Zero)
+        {
+            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static TimeSpan ResolveMinimumSpacing(string sourceName, QueryOptions options)
+    {
+        if (string.Equals(sourceName, "crt.sh", StringComparison.OrdinalIgnoreCase))
+        {
+            return options.CrtShMinimumSpacing;
+        }
+
+        if (string.Equals(sourceName, "certspotter", StringComparison.OrdinalIgnoreCase))
+        {
+            return options.CertSpotterMinimumSpacing;
+        }
+
+        return TimeSpan.Zero;
+    }
+
+    private int ResolveMaximumRequestsPerRun(string sourceName, QueryOptions options)
+    {
+        if (string.Equals(sourceName, "crt.sh", StringComparison.OrdinalIgnoreCase))
+        {
+            return options.CrtShMaximumRequestsPerRun;
+        }
+
+        if (string.Equals(sourceName, "certspotter", StringComparison.OrdinalIgnoreCase))
+        {
+            return options.CertSpotterMaximumRequestsPerRun;
+        }
+
+        return 0;
+    }
+
+    private bool TryReserveQuerySessionBudget(
+        string sourceName,
+        QueryOptions options,
+        out int configuredBudget,
+        out int consumedRequests)
+    {
+        configuredBudget = ResolveMaximumRequestsPerRun(sourceName, options);
+        consumedRequests = 0;
+        if (configuredBudget <= 0)
+        {
+            return true;
+        }
+
+        lock (_querySessionBudgetLock)
+        {
+            _querySessionRequestCounts.TryGetValue(sourceName, out consumedRequests);
+            if (consumedRequests >= configuredBudget)
+            {
+                return false;
+            }
+
+            consumedRequests++;
+            _querySessionRequestCounts[sourceName] = consumedRequests;
+            return true;
+        }
     }
 
     private static bool IsRateLimitedFailure(string? failure, TimeSpan? retryAfter)
@@ -608,7 +756,8 @@ internal sealed class PassiveCtSourceClient
                     {
                         Failure = ex.Message,
                         RetrySuggested = true,
-                        RetryAfter = retryAfter
+                        RetryAfter = retryAfter,
+                        ApplySharedCooldown = ShouldApplySharedCooldown(ex, retryAfter)
                     };
                 }
 
@@ -712,6 +861,32 @@ internal sealed class PassiveCtSourceClient
             }
 
             return false;
+        }
+
+        return false;
+    }
+
+    private static bool ShouldApplySharedCooldown(Exception ex, TimeSpan? retryAfter)
+    {
+        if (retryAfter.HasValue && retryAfter.Value > TimeSpan.Zero)
+        {
+            return true;
+        }
+
+        if (ex is HttpRequestException httpEx)
+        {
+            int? statusCode = TryGetHttpStatusCode(httpEx);
+            if (!statusCode.HasValue)
+            {
+                return false;
+            }
+
+            if ((HttpStatusCode)statusCode.Value == HttpStatusCode.RequestTimeout)
+            {
+                return false;
+            }
+
+            return ShouldRetryStatusCode((HttpStatusCode)statusCode.Value);
         }
 
         return false;

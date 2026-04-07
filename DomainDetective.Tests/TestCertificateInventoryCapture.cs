@@ -2195,6 +2195,20 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public void BuildPassiveCtMetadataSourceRequests_PrefersCertSpotterWildcardAwareExactHostQuery() {
+        IReadOnlyList<PassiveCtSourceClient.SourceRequest> requests =
+            CertificateInventoryCapture.BuildPassiveCtMetadataSourceRequests("access.tchibo.com");
+
+        Assert.Equal(2, requests.Count);
+        Assert.Equal("certspotter", requests[0].SourceName);
+        Assert.Contains("domain=access.tchibo.com", requests[0].Url, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("match_wildcards=true", requests[0].Url, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("include_subdomains=true", requests[0].Url, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("crt.sh", requests[1].SourceName);
+        Assert.Contains("q=access.tchibo.com", requests[1].Url, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task TryHydrateExactCtMetadataThumbprintFromCrtShCertificateAsync_AcceptsWildcardSubjectAlternativeNames() {
         const string hostName = "mail.emmasguesthouse.co.za";
         using RSA rsa = RSA.Create(2048);
