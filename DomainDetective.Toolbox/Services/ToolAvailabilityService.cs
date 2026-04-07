@@ -1,11 +1,15 @@
 using DomainDetective.Toolbox.Models;
 using Microsoft.Extensions.Configuration;
+using System.Net.Http.Json;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
 
 namespace DomainDetective.Toolbox.Services;
 
 public sealed class ToolAvailabilityService {
     private static readonly TimeSpan DetectionTimeout = TimeSpan.FromSeconds(2);
-
+    private const string RuntimeConfigPath = "data/tools-runtime.json";
     private readonly ToolsDeploymentMode? _configuredMode;
     private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
@@ -96,13 +100,13 @@ public sealed class ToolAvailabilityService {
             : $"{definition.Name} is not available in this web edition yet.";
     }
 
-    private Task<ToolsDeploymentMode> DetectModeAsync(CancellationToken cancellationToken) {
-        return DetectHostedModeAsync(cancellationToken);
-    }
+    private async Task<ToolsDeploymentMode> DetectModeAsync(CancellationToken cancellationToken) {
+        var configuredRuntimeMode = await TryReadRuntimeModeAsync(cancellationToken).ConfigureAwait(false);
+        if (configuredRuntimeMode.HasValue) {
+            return configuredRuntimeMode.Value;
+        }
 
-    private async Task<ToolsDeploymentMode> DetectHostedModeAsync(CancellationToken cancellationToken) {
         cancellationToken.ThrowIfCancellationRequested();
-
         using var detectionCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         detectionCancellationTokenSource.CancelAfter(DetectionTimeout);
 
@@ -118,5 +122,35 @@ public sealed class ToolAvailabilityService {
         } catch (InvalidOperationException) {
             return ToolsDeploymentMode.StaticOnly;
         }
+    }
+
+    private async Task<ToolsDeploymentMode?> TryReadRuntimeModeAsync(CancellationToken cancellationToken) {
+        try {
+            var runtimeConfiguration = await _httpClient
+                .GetFromJsonAsync<ToolRuntimeConfiguration>(RuntimeConfigPath, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (runtimeConfiguration == null || string.IsNullOrWhiteSpace(runtimeConfiguration.Mode)) {
+                return null;
+            }
+
+            return Enum.TryParse(runtimeConfiguration.Mode, ignoreCase: true, out ToolsDeploymentMode parsedMode)
+                ? parsedMode
+                : null;
+        } catch (HttpRequestException) {
+            return null;
+        } catch (TaskCanceledException) {
+            return null;
+        } catch (InvalidOperationException) {
+            return null;
+        } catch (JsonException) {
+            return null;
+        } catch (NotSupportedException) {
+            return null;
+        }
+    }
+
+    private sealed class ToolRuntimeConfiguration {
+        public string? Mode { get; set; }
     }
 }
