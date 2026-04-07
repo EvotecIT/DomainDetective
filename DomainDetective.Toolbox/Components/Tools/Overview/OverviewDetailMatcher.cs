@@ -30,6 +30,10 @@ internal static class OverviewDetailMatcher {
             return null;
         }
 
+        if (string.IsNullOrWhiteSpace(control.Title)) {
+            return null;
+        }
+
         if (ControlToDetailTitleMap.TryGetValue(control.Title, out string? expectedTitle)) {
             return details.FirstOrDefault(detail => string.Equals(detail.Title, expectedTitle, StringComparison.OrdinalIgnoreCase));
         }

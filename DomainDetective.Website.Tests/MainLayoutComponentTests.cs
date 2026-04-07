@@ -57,6 +57,25 @@ public sealed class MainLayoutComponentTests : TestContext {
 
         var apiTrigger = cut.Find("button.dd-nav-dropdown-trigger");
         Assert.Contains("is-active", apiTrigger.ClassList);
+        Assert.DoesNotContain("open", cut.Find("div.dd-nav-dropdown").ClassList);
+    }
+
+    [Fact]
+    public void LayoutPreservesActiveDomainForToolLinks() {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("http://localhost/tools/dns-lookup/?q=contoso.com");
+        RenderFragment body = builder => builder.AddMarkupContent(0, "<p>Body</p>");
+
+        var cut = RenderComponent<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
+            .Add(component => component.Body, body));
+
+        var toolsLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Trim() == "Tools");
+        var allToolsLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Trim() == "All Tools");
+        var dnsLookupLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Trim() == "DNS Lookup");
+
+        Assert.Equal("http://localhost/tools/?q=contoso.com", toolsLink.GetAttribute("href"));
+        Assert.Equal("http://localhost/tools/?q=contoso.com", allToolsLink.GetAttribute("href"));
+        Assert.Equal("http://localhost/tools/dns-lookup/?q=contoso.com", dnsLookupLink.GetAttribute("href"));
     }
 
     private sealed class StaticHttpMessageHandler : HttpMessageHandler {

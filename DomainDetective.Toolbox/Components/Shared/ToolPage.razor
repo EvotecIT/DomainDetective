@@ -557,6 +557,7 @@
     private async Task RunRecentAsync(RecentToolRun item) {
         _domain = item.Domain;
         _secondaryInput = item.SecondaryInput;
+        _dnsRequestedTypes = Definition.Slug == "dns-lookup" ? item.SecondaryInput : null;
         _dnsHostLabel = item.DnsHost;
         _dnsBrowserResolverName = NormalizeDnsBrowserResolverName(item.DnsResolver);
         await RunAnalysis();

@@ -87,15 +87,22 @@
         prismLoadPromise = loadScript('assets/prism/prism-core.min.js')
             .then(function (coreLoaded) {
                 if (!coreLoaded) {
+                    prismLoadPromise = null;
                     return false;
                 }
 
                 return loadScript('assets/prism/prism-autoloader.min.js');
             })
             .then(function (autoloadLoaded) {
-                return !!autoloadLoaded;
+                if (!autoloadLoaded) {
+                    prismLoadPromise = null;
+                    return false;
+                }
+
+                return true;
             })
             .catch(function () {
+                prismLoadPromise = null;
                 return false;
             });
 

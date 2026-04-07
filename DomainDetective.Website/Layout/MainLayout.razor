@@ -288,7 +288,7 @@
     }
 
     private string GetDropdownClass(string href, bool isItemActive) {
-        return IsDropdownOpen(href) || isItemActive ? "open" : string.Empty;
+        return IsDropdownOpen(href) ? "open" : string.Empty;
     }
 
     private string GetNavLinkClass(DomainDetective.Website.Models.SiteNavigationItem item) {
@@ -350,7 +350,64 @@
         };
     }
 
-    private static string GetHref(string? href) => string.IsNullOrWhiteSpace(href) ? "/" : href;
+    private string GetHref(string? href) {
+        if (string.IsNullOrWhiteSpace(href)) {
+            return "/";
+        }
+
+        var currentUri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var currentQuery = ParseQuery(currentUri.Query);
+        if (!currentQuery.TryGetValue("q", out var currentDomain) || string.IsNullOrWhiteSpace(currentDomain)) {
+            return href;
+        }
+
+        if (!href.StartsWith("/tools/", StringComparison.OrdinalIgnoreCase)) {
+            return href;
+        }
+
+        var targetUri = Navigation.ToAbsoluteUri(href);
+        var query = ParseQuery(targetUri.Query);
+
+        if (string.IsNullOrWhiteSpace(query.GetValueOrDefault("q"))) {
+            query["q"] = currentDomain;
+        }
+
+        var queryString = BuildQueryString(query);
+        return string.IsNullOrWhiteSpace(queryString)
+            ? targetUri.GetLeftPart(UriPartial.Path)
+            : $"{targetUri.GetLeftPart(UriPartial.Path)}?{queryString}";
+    }
+
+    private static Dictionary<string, string> ParseQuery(string? query) {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(query)) {
+            return result;
+        }
+
+        var trimmed = query.TrimStart('?');
+        if (string.IsNullOrWhiteSpace(trimmed)) {
+            return result;
+        }
+
+        foreach (var pair in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries)) {
+            var parts = pair.Split('=', 2);
+            var key = Uri.UnescapeDataString(parts[0]);
+            if (string.IsNullOrWhiteSpace(key)) {
+                continue;
+            }
+
+            var value = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
+            result[key] = value;
+        }
+
+        return result;
+    }
+
+    private static string BuildQueryString(IReadOnlyDictionary<string, string> query) {
+        return string.Join("&", query
+            .Where(static pair => !string.IsNullOrWhiteSpace(pair.Key))
+            .Select(static pair => $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value ?? string.Empty)}"));
+    }
 
     private static MarkupString RenderIcon(string? iconHtml) {
         // Icons come from the trusted site navigation manifest generated with the website.
