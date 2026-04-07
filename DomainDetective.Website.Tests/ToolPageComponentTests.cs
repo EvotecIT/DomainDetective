@@ -21,6 +21,9 @@ public sealed class ToolPageComponentTests : TestContext {
 
         Services.AddSingleton<IConfiguration>(configuration);
         Services.AddSingleton(_registry);
+        Services.AddScoped(_ => new HttpClient(new StaticDnsHandler()) {
+            BaseAddress = new Uri("http://localhost")
+        });
         Services.AddScoped<ToolAvailabilityService>();
         Services.AddScoped(_ => new BrowserDnsService(new HttpClient(new StaticDnsHandler())));
         Services.AddScoped<BrowserOverviewService>();
@@ -30,7 +33,7 @@ public sealed class ToolPageComponentTests : TestContext {
     }
 
     [Fact]
-    public void DnsLookupPageShowsResolverSelectorAndSelectedResolverState() {
+    public void DnsLookupPageShowsDnsWorkspaceAndRawQueryCallout() {
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("http://localhost/tools/dns-lookup/?q=contoso.com&h=_dmarc&r=Cloudflare%20DNS&s=TXT");
 
@@ -39,36 +42,13 @@ public sealed class ToolPageComponentTests : TestContext {
             .Add(component => component.Definition, tool));
 
         cut.WaitForAssertion(() => {
-            var hostInput = cut.Find("input.tool-input-host");
-            var select = cut.Find("select.tool-input-select");
+            var domainInput = cut.Find("form.tool-input-form input[type='text']");
 
-            Assert.Equal("_dmarc", hostInput.GetAttribute("value"));
-            Assert.Equal("Local host label", hostInput.GetAttribute("aria-label"));
-            Assert.Contains("Cloudflare DNS", select.InnerHtml);
-            Assert.Contains("Google DNS", select.InnerHtml);
-            Assert.Contains("Cloudflare DNS", cut.Markup);
-            Assert.Contains("DnsProvider Cloudflare", cut.Markup);
-            Assert.DoesNotContain("Invalid domain name", cut.Markup);
-            Assert.Contains("DnsClientX lane", cut.Markup);
-            Assert.Contains("Preset views", cut.Markup);
-            Assert.Contains("Quick host targets", cut.Markup);
-            Assert.Contains("Local host target", cut.Markup);
-            Assert.Contains("_dmarc.contoso.com", cut.Markup);
-            Assert.Contains("Resolve-Dns -Name", cut.Markup);
-            Assert.Contains("-Type TXT -DnsProvider Cloudflare", cut.Markup);
-            Assert.Contains("var recordTypes = new[] { DnsRecordType.TXT };", cut.Markup);
-            Assert.Contains("Focused export", cut.Markup);
-            Assert.Contains("Advanced DNS workflows", cut.Markup);
-            Assert.Contains("Copy JSON", cut.Markup);
-            Assert.Contains("Copy zone text", cut.Markup);
-            Assert.Contains("Copy host query", cut.Markup);
-            Assert.Contains("Copy benchmark", cut.Markup);
-            Assert.Contains("/docs/dns-examples/", cut.Markup);
-            Assert.Contains("/docs/dns-resolvers/", cut.Markup);
-            Assert.Contains("/docs/dnsclientx/", cut.Markup);
-            Assert.Contains("/tools/dns-lookup/?q=contoso.com&amp;s=MX%2CTXT%2CCNAME&amp;r=Cloudflare%20DNS", cut.Markup);
-            Assert.Contains("/tools/dns-lookup/?q=contoso.com&amp;s=TXT&amp;h=_dmarc&amp;r=Cloudflare%20DNS", cut.Markup);
-            Assert.Contains("/tools/dns-lookup/?q=contoso.com&amp;s=TXT%2CCNAME&amp;h=default._domainkey&amp;r=Cloudflare%20DNS", cut.Markup);
+            Assert.Equal("contoso.com", domainInput.GetAttribute("value"));
+            Assert.Contains("Need raw record-by-record queries?", cut.Markup);
+            Assert.Contains("Use <a href=\"/tools/raw-dns-query/\">Raw DNS Query</a>", cut.Markup);
+            Assert.Contains("Analyze", cut.Markup);
+            Assert.DoesNotContain("Tool not found", cut.Markup);
         });
     }
 

@@ -42,7 +42,8 @@
             powershellProvider: 'Google',
             baseUrl: 'https://dns.google/resolve',
             headers: {},
-            supportsEcs: true
+            supportsEcs: true,
+            supportsDirectLink: true
         },
         cloudflare: {
             label: 'Cloudflare DNS JSON',
@@ -50,7 +51,8 @@
             powershellProvider: 'Cloudflare',
             baseUrl: 'https://cloudflare-dns.com/dns-query',
             headers: { Accept: 'application/dns-json' },
-            supportsEcs: false
+            supportsEcs: false,
+            supportsDirectLink: false
         }
     };
 
@@ -411,8 +413,26 @@
 
         function updatePreviewArtifacts(state) {
             var request = buildRequest(state);
-            elements.directLink.href = request.url.toString();
-            elements.directLink.textContent = 'Open ' + request.provider.label;
+            if (request.provider.supportsDirectLink) {
+                elements.directLink.href = request.url.toString();
+                elements.directLink.target = '_blank';
+                elements.directLink.rel = 'noopener';
+                elements.directLink.removeAttribute('aria-disabled');
+                elements.directLink.removeAttribute('tabindex');
+                elements.directLink.classList.remove('is-disabled');
+                elements.directLink.textContent = 'Open ' + request.provider.label;
+                elements.directLink.title = '';
+            } else {
+                elements.directLink.removeAttribute('href');
+                elements.directLink.removeAttribute('target');
+                elements.directLink.removeAttribute('rel');
+                elements.directLink.setAttribute('aria-disabled', 'true');
+                elements.directLink.setAttribute('tabindex', '-1');
+                elements.directLink.classList.add('is-disabled');
+                elements.directLink.textContent = 'Direct JSON link unavailable';
+                elements.directLink.title = 'Cloudflare preview requires an Accept header, so use the in-page resolver preview instead.';
+            }
+
             updateProviderNote(state, elements.note);
             updateCodeBlocks(state);
             return request;

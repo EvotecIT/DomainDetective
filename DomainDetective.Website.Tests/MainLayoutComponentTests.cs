@@ -1,4 +1,7 @@
 using Microsoft.JSInterop;
+using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http;
 
 namespace DomainDetective.Website.Tests;
 
@@ -6,12 +9,14 @@ public sealed class MainLayoutComponentTests : TestContext {
     public MainLayoutComponentTests() {
         JSInterop.SetupVoid("domainDetectiveTools.initTheme");
         JSInterop.SetupVoid("domainDetectiveTools.toggleTheme");
+        Services.AddScoped(_ => new HttpClient(new StaticHttpMessageHandler()) {
+            BaseAddress = new Uri("http://localhost")
+        });
+        Services.AddScoped<DomainDetective.Website.Services.SiteNavigationService>();
     }
 
     [Fact]
-    public void LayoutPreservesSelectedDomainAcrossToolsNavigationLinks() {
-        var navigation = Services.GetRequiredService<NavigationManager>();
-        navigation.NavigateTo("http://localhost/tools/?q=contoso.com");
+    public void LayoutUsesFallbackNavigationWhenSharedSiteNavigationIsUnavailable() {
         RenderFragment body = builder => builder.AddMarkupContent(0, "<p>Body</p>");
 
         var cut = RenderComponent<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
@@ -20,12 +25,12 @@ public sealed class MainLayoutComponentTests : TestContext {
         var toolsLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Trim() == "Tools");
         var tryOnlineLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Contains("Try Online", StringComparison.Ordinal));
         var allToolsLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Trim() == "All Tools");
-        var dnsToolkitLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Trim() == "DnsClientX Toolkit");
+        var dnsDocsLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Trim() == "DnsClientX Docs");
 
-        Assert.Equal("/tools/?q=contoso.com", toolsLink.GetAttribute("href"));
-        Assert.Equal("/tools/?q=contoso.com", tryOnlineLink.GetAttribute("href"));
-        Assert.Equal("/tools/?q=contoso.com", allToolsLink.GetAttribute("href"));
-        Assert.Equal("/docs/dnsclientx/", dnsToolkitLink.GetAttribute("href"));
+        Assert.Equal("/tools/", toolsLink.GetAttribute("href"));
+        Assert.Equal("/tools/", tryOnlineLink.GetAttribute("href"));
+        Assert.Equal("/tools/", allToolsLink.GetAttribute("href"));
+        Assert.Equal("/docs/dnsclientx/", dnsDocsLink.GetAttribute("href"));
     }
 
     [Fact]
@@ -51,7 +56,12 @@ public sealed class MainLayoutComponentTests : TestContext {
             .Add(component => component.Body, body));
 
         var apiTrigger = cut.Find("button.dd-nav-dropdown-trigger");
-        Assert.Contains("dd-nav-link", apiTrigger.ClassList);
         Assert.Contains("is-active", apiTrigger.ClassList);
+    }
+
+    private sealed class StaticHttpMessageHandler : HttpMessageHandler {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
     }
 }

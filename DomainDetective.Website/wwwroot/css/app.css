@@ -957,6 +957,14 @@ a:hover { color: var(--dd-accent-light); }
     box-shadow: 0 10px 24px rgba(0, 217, 255, 0.12);
 }
 
+.tool-run-btn-secondary.is-disabled,
+.tool-run-btn-secondary[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+    pointer-events: none;
+}
+
 [data-theme="light"] .tool-run-btn {
     color: #ffffff;
     box-shadow: 0 14px 28px rgba(15, 143, 176, 0.18);
@@ -975,6 +983,11 @@ a:hover { color: var(--dd-accent-light); }
 
 [data-theme="light"] .tool-run-btn-secondary:hover {
     box-shadow: 0 14px 28px rgba(148, 163, 184, 0.12);
+}
+
+[data-theme="light"] .tool-run-btn-secondary.is-disabled,
+[data-theme="light"] .tool-run-btn-secondary[aria-disabled="true"] {
+    box-shadow: none;
 }
 
 /* ── Results ────────────────────────────────────────────────────── */

@@ -10,6 +10,13 @@ public sealed class SiteNavigationData {
 
 public sealed class SiteNavigationItem {
     public string? Href { get; set; }
+
+    [JsonPropertyName("url")]
+    public string? Url {
+        get => Href;
+        set => Href = value;
+    }
+
     public string? Text { get; set; }
     public string? Title { get; set; }
     public bool External { get; set; }
@@ -32,6 +39,13 @@ public sealed class SiteNavigationAction {
     public string? IconHtml { get; set; }
     public string? Text { get; set; }
     public string? Href { get; set; }
+
+    [JsonPropertyName("url")]
+    public string? Url {
+        get => Href;
+        set => Href = value;
+    }
+
     public bool External { get; set; }
     public string? Target { get; set; }
     public string? Rel { get; set; }
