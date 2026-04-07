@@ -362,6 +362,46 @@ public sealed class CertificateInventoryCaptureOptions {
     public bool PersistSnapshot { get; set; } = true;
 
     /// <summary>
+    /// Configures the capture for CT discovery only.
+    /// This keeps the run focused on discovering names and CT-backed metadata without
+    /// widening into HTTPS, MX, or mail probing in the same pass.
+    /// </summary>
+    public CertificateInventoryCaptureOptions ApplyCtDiscoveryOnlyProfile() {
+        IncludeApexHttps = false;
+        IncludeWwwHttps = false;
+        IncludeCtDiscoveredSubdomains = true;
+        VerifyCtDiscoveredSubdomains = false;
+        PromoteCtDiscoveredSubdomainsToHttpsProbes = false;
+        IncludeMxHosts = false;
+        IncludeMxHttps = false;
+        IncludeSmtpStartTls = false;
+        IncludeSubmissionStartTls = false;
+        IncludeImapTls = false;
+        IncludePop3Tls = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the capture for exact-host CT evidence refresh.
+    /// This keeps the run focused on apex or explicit host probes plus CT metadata hydration,
+    /// without reopening broader CT discovery or MX/mail expansion.
+    /// </summary>
+    public CertificateInventoryCaptureOptions ApplyCtEvidenceRefreshProfile() {
+        IncludeApexHttps = true;
+        IncludeWwwHttps = false;
+        IncludeCtDiscoveredSubdomains = false;
+        VerifyCtDiscoveredSubdomains = false;
+        PromoteCtDiscoveredSubdomainsToHttpsProbes = false;
+        IncludeMxHosts = false;
+        IncludeMxHttps = false;
+        IncludeSmtpStartTls = false;
+        IncludeSubmissionStartTls = false;
+        IncludeImapTls = false;
+        IncludePop3Tls = false;
+        return this;
+    }
+
+    /// <summary>
     /// Additional endpoints to probe.
     /// Supported forms:
     /// - https://host[:port], http://host[:port]

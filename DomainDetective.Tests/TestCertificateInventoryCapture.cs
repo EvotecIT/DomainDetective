@@ -3853,6 +3853,73 @@ public class TestCertificateInventoryCapture {
             message => message.Contains("skipping exact passive CT metadata", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void ApplyCtDiscoveryOnlyProfile_DisablesProbeExpansionAndKeepsCtDiscoveryEnabled()
+    {
+        var options = new CertificateInventoryCaptureOptions
+        {
+            IncludeApexHttps = true,
+            IncludeWwwHttps = true,
+            IncludeCtDiscoveredSubdomains = false,
+            PromoteCtDiscoveredSubdomainsToHttpsProbes = true,
+            IncludeMxHosts = true,
+            IncludeMxHttps = true,
+            IncludeSmtpStartTls = true,
+            IncludeSubmissionStartTls = true,
+            IncludeImapTls = true,
+            IncludePop3Tls = true
+        };
+
+        CertificateInventoryCaptureOptions returned = options.ApplyCtDiscoveryOnlyProfile();
+
+        Assert.Same(options, returned);
+        Assert.False(options.IncludeApexHttps);
+        Assert.False(options.IncludeWwwHttps);
+        Assert.True(options.IncludeCtDiscoveredSubdomains);
+        Assert.False(options.VerifyCtDiscoveredSubdomains);
+        Assert.False(options.PromoteCtDiscoveredSubdomainsToHttpsProbes);
+        Assert.False(options.IncludeMxHosts);
+        Assert.False(options.IncludeMxHttps);
+        Assert.False(options.IncludeSmtpStartTls);
+        Assert.False(options.IncludeSubmissionStartTls);
+        Assert.False(options.IncludeImapTls);
+        Assert.False(options.IncludePop3Tls);
+    }
+
+    [Fact]
+    public void ApplyCtEvidenceRefreshProfile_DisablesCtDiscoveryAndMailExpansion()
+    {
+        var options = new CertificateInventoryCaptureOptions
+        {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = true,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = true,
+            PromoteCtDiscoveredSubdomainsToHttpsProbes = true,
+            IncludeMxHosts = true,
+            IncludeMxHttps = true,
+            IncludeSmtpStartTls = true,
+            IncludeSubmissionStartTls = true,
+            IncludeImapTls = true,
+            IncludePop3Tls = true
+        };
+
+        CertificateInventoryCaptureOptions returned = options.ApplyCtEvidenceRefreshProfile();
+
+        Assert.Same(options, returned);
+        Assert.True(options.IncludeApexHttps);
+        Assert.False(options.IncludeWwwHttps);
+        Assert.False(options.IncludeCtDiscoveredSubdomains);
+        Assert.False(options.VerifyCtDiscoveredSubdomains);
+        Assert.False(options.PromoteCtDiscoveredSubdomainsToHttpsProbes);
+        Assert.False(options.IncludeMxHosts);
+        Assert.False(options.IncludeMxHttps);
+        Assert.False(options.IncludeSmtpStartTls);
+        Assert.False(options.IncludeSubmissionStartTls);
+        Assert.False(options.IncludeImapTls);
+        Assert.False(options.IncludePop3Tls);
+    }
+
     private static CertificateMonitor.Entry CreateHttpsEntry(string url, X509Certificate2 certificate) {
         var uri = new Uri(url);
         var analysis = new CertificateAnalysis {
