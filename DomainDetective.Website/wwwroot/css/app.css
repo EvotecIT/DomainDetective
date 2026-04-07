@@ -198,9 +198,12 @@ a:hover { color: var(--dd-accent-light); }
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 1.25rem;
     width: 100%;
     max-width: var(--dd-max-width);
     margin: 0 auto;
+    padding: 0 1.5rem;
+    min-height: 64px;
 }
 
 .dd-brand {
@@ -227,20 +230,20 @@ a:hover { color: var(--dd-accent-light); }
 
 .dd-nav-links {
     display: flex;
-    gap: 0.125rem;
+    gap: 0.5rem;
 }
 
 .dd-nav-link {
     display: inline-flex;
     align-items: center;
+    gap: 0.35rem;
     position: relative;
     color: var(--dd-muted);
     font-size: 0.875rem;
     font-weight: 500;
-    line-height: 1.4;
     transition: color 0.2s, background 0.2s;
     padding: 0.5rem 0.75rem;
-    min-height: 2.4rem;
+    min-height: 2.5rem;
     border-radius: var(--dd-radius-sm);
     white-space: nowrap;
 }
@@ -269,7 +272,8 @@ a:hover { color: var(--dd-accent-light); }
 .dd-nav-link-active,
 .dd-nav-link.is-active,
 .dd-nav-link.is-ancestor {
-    color: var(--dd-ink-strong);
+    color: var(--dd-accent);
+    background: rgba(0, 217, 255, 0.08);
 }
 
 .dd-nav-dropdown {
@@ -281,8 +285,7 @@ a:hover { color: var(--dd-accent-light); }
     align-items: center;
     gap: 0.25rem;
     padding: 0.5rem 0.75rem;
-    min-height: 2.4rem;
-    line-height: 1.4;
+    min-height: 2.5rem;
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--dd-muted);
@@ -361,7 +364,7 @@ a:hover { color: var(--dd-accent-light); }
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-left: 1rem;
+    margin-left: 0.75rem;
 }
 
 .dd-nav-toggle {
