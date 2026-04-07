@@ -54,6 +54,24 @@ public sealed class ToolPageComponentTests : TestContext {
         });
     }
 
+    [Fact]
+    public void DnsLookupPageNormalizesUnknownResolverQueryToDefaultResolver() {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("http://localhost/tools/dns-lookup/?q=contoso.com&h=_dmarc&r=Cloudflaer&s=TXT");
+
+        var tool = _registry.GetBySlug("dns-lookup")!;
+        var cut = RenderComponent<ToolPage>(parameters => parameters
+            .Add(component => component.Definition, tool));
+
+        cut.WaitForAssertion(() => {
+            Assert.Contains(_dnsHandler.RequestUris, uri => uri.Host.Equals("dns.google", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain("Cloudflaer", cut.Markup);
+            Assert.Contains("/tools/dns-lookup/?q=contoso.com", navigation.Uri, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("r=Google%20DNS", navigation.Uri, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Cloudflaer", navigation.Uri, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
     private sealed class RecordingDnsHandler : HttpMessageHandler {
         public List<Uri> RequestUris { get; } = new();
 

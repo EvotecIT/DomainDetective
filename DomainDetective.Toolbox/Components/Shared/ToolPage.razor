@@ -491,7 +491,7 @@
         var secondaryInput = GetQueryValue(query, "s");
         _dnsRequestedTypes = Definition.Slug == "dns-lookup" ? secondaryInput : null;
         _dnsHostLabel = Definition.Slug == "dns-lookup" ? GetQueryValue(query, "h") : null;
-        _dnsBrowserResolverName = Definition.Slug == "dns-lookup" ? GetQueryValue(query, "r") : null;
+        _dnsBrowserResolverName = Definition.Slug == "dns-lookup" ? NormalizeDnsBrowserResolverName(GetQueryValue(query, "r")) : null;
         var runKey = BuildRunKey(domain, secondaryInput, _dnsHostLabel, _dnsBrowserResolverName);
 
         if (!string.IsNullOrWhiteSpace(domain)) {
@@ -550,7 +550,7 @@
         _domain = item.Domain;
         _secondaryInput = item.SecondaryInput;
         _dnsHostLabel = item.DnsHost;
-        _dnsBrowserResolverName = item.DnsResolver;
+        _dnsBrowserResolverName = NormalizeDnsBrowserResolverName(item.DnsResolver);
         await RunAnalysis();
     }
 
@@ -568,6 +568,14 @@
 
     private static bool IsOverviewTool(ToolDefinition definition) {
         return definition.Slug == "m365-overview" || definition.Slug == "domain-overview";
+    }
+
+    private static string? NormalizeDnsBrowserResolverName(string? resolverName) {
+        if (string.IsNullOrWhiteSpace(resolverName)) {
+            return null;
+        }
+
+        return BrowserDnsService.GetResolverProfile(resolverName).Name;
     }
 
     private static bool SupportsLiteTool(ToolDefinition definition) {
