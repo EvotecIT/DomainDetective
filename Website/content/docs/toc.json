@@ -14,7 +14,9 @@
       { "title": "CLI Guide", "href": "/docs/cli-usage/" },
       { "title": "Hosted Web Tools", "href": "/docs/online-tools-hosting/" },
       { "title": "Runtime Configuration", "href": "/docs/configuration/" },
-      { "title": "Resolver Strategy", "href": "/docs/dns-resolvers/" }
+      { "title": "Resolver Strategy", "href": "/docs/dns-resolvers/" },
+      { "title": "DNS Workspace Guide", "href": "/docs/dns-workspace/" },
+      { "title": "DNS Examples", "href": "/docs/dns-examples/" }
     ]
   },
   {
