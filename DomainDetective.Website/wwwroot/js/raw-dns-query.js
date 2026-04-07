@@ -161,6 +161,22 @@
         var provider = providers[state.providerId] || providers.google;
         var requestDnsSec = state.showDnssec;
         var validateDnsSec = state.showDnssec && !state.disableValidation;
+        var resolveArguments = [];
+
+        if (requestDnsSec) {
+            resolveArguments.push('requestDnsSec: true');
+        }
+
+        if (requestDnsSec) {
+            resolveArguments.push('validateDnsSec: ' + String(validateDnsSec).toLowerCase());
+        }
+
+        var resolveInvocation = 'DnsResponse response = await client.Resolve("' + state.name + '", DnsRecordType.' + state.type;
+        if (resolveArguments.length > 0) {
+            resolveInvocation += ',\n    ' + resolveArguments.join(',\n    ');
+        }
+
+        resolveInvocation += ');';
 
         if (state.ecs) {
             return [
@@ -174,9 +190,7 @@
                 '    })',
                 '    .Build();',
                 '',
-                'DnsResponse response = await client.Resolve("' + state.name + '", DnsRecordType.' + state.type + ',',
-                '    requestDnsSec: ' + String(requestDnsSec).toLowerCase() + ',',
-                '    validateDnsSec: ' + String(validateDnsSec).toLowerCase() + ');',
+                resolveInvocation,
                 '',
                 'foreach (var answer in response.Answers) {',
                 '    Console.WriteLine($"{answer.Type}: {answer.Data}");',
@@ -188,9 +202,7 @@
             'using DnsClientX;',
             '',
             'using var client = new ClientX(' + provider.endpoint + ');',
-            'DnsResponse response = await client.Resolve("' + state.name + '", DnsRecordType.' + state.type + ',',
-            '    requestDnsSec: ' + String(requestDnsSec).toLowerCase() + ',',
-            '    validateDnsSec: ' + String(validateDnsSec).toLowerCase() + ');',
+            resolveInvocation,
             '',
             'foreach (var answer in response.Answers) {',
             '    Console.WriteLine($"{answer.Type}: {answer.Data}");',
@@ -219,11 +231,22 @@
             '$response | Format-Table'
         ];
 
+        return lines.join('\n');
+    }
+
+    function updateCodeNotes(state, elements) {
         if (state.ecs) {
-            lines.unshift('# EDNS client subnet is currently shown in the browser preview and the C# builder example.');
+            elements.csharpNote.hidden = false;
+            elements.csharpNote.textContent = 'The .NET example switches to ClientXBuilder because EDNS client subnet is configured through EdnsOptions.';
+            elements.powershellNote.hidden = false;
+            elements.powershellNote.textContent = 'Resolve-Dns does not currently expose EDNS client subnet directly. The PowerShell snippet shows the closest available query, while the C# snippet shows the full ECS-aware setup.';
+            return;
         }
 
-        return lines.join('\n');
+        elements.csharpNote.hidden = true;
+        elements.csharpNote.textContent = '';
+        elements.powershellNote.hidden = true;
+        elements.powershellNote.textContent = '';
     }
 
     function setCopyButtonState(button, copied) {
@@ -272,12 +295,14 @@
             summary: root.querySelector('.js-dns-summary'),
             records: root.querySelector('.js-dns-records'),
             csharpCode: root.querySelector('.js-dns-csharp-code'),
+            csharpNote: root.querySelector('.js-dns-csharp-note'),
             powershellCode: root.querySelector('.js-dns-powershell-code'),
+            powershellNote: root.querySelector('.js-dns-powershell-note'),
             jsonCode: root.querySelector('.js-dns-json-code'),
             resolveButton: root.querySelector('.js-dns-query-form button[type="submit"]')
         };
 
-        if (!elements.form || !elements.nameInput || !elements.typeInput || !elements.providerInput || !elements.ecsInput || !elements.disableValidationInput || !elements.showDnssecInput || !elements.directLink || !elements.note || !elements.status || !elements.summary || !elements.records || !elements.csharpCode || !elements.powershellCode || !elements.jsonCode || !elements.resolveButton) {
+        if (!elements.form || !elements.nameInput || !elements.typeInput || !elements.providerInput || !elements.ecsInput || !elements.disableValidationInput || !elements.showDnssecInput || !elements.directLink || !elements.note || !elements.status || !elements.summary || !elements.records || !elements.csharpCode || !elements.csharpNote || !elements.powershellCode || !elements.powershellNote || !elements.jsonCode || !elements.resolveButton) {
             return false;
         }
 
@@ -398,6 +423,7 @@
         function updateCodeBlocks(state) {
             elements.csharpCode.textContent = buildCSharpSnippet(state);
             elements.powershellCode.textContent = buildPowerShellSnippet(state);
+            updateCodeNotes(state, elements);
         }
 
         async function refreshPreviewState() {

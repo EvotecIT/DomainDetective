@@ -2103,6 +2103,17 @@ a:hover { color: var(--dd-accent-light); }
     margin-top: 0.35rem;
 }
 
+.raw-dns-query-code-note {
+    margin-top: 0.85rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--dd-border);
+    border-radius: var(--dd-radius-sm);
+    color: var(--dd-muted);
+    background: rgba(16, 24, 39, 0.5);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
 [data-theme="light"] .raw-dns-query-field input,
 [data-theme="light"] .raw-dns-query-field select {
     background: rgba(255, 255, 255, 0.9);
