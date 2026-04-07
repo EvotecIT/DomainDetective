@@ -53,6 +53,10 @@ app.MapGet("/tool-api/health", () => TypedResults.Ok(new {
     siteRootExists = siteRoot != null && Directory.Exists(siteRoot)
 }));
 
+app.MapGet("/tools/data/tools-runtime.json", () => TypedResults.Ok(new {
+    mode = "HostedOnline"
+}));
+
 app.MapPost("/tool-api/http-headers", AnalyzeHttpHeadersAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/security-txt", AnalyzeSecurityTxtAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/cert-check", AnalyzeCertificateAsync).RequireRateLimiting("tool-api");

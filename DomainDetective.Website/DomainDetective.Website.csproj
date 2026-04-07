@@ -16,4 +16,9 @@
         <ProjectReference Include="..\DomainDetective.Toolbox\DomainDetective.Toolbox.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Content Include="..\Website\static\css\prism-theme.css" Link="wwwroot\css\prism-theme.css" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="..\Website\static\assets\prism\**\*" Link="wwwroot\assets\prism\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

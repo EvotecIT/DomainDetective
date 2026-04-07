@@ -64,7 +64,7 @@ internal static class DomainOverviewPresentation
 
         if (lines.Count < 5)
         {
-            lines.AddRange(info.Summary.Hints.Take(5 - lines.Count));
+            if (info.Summary?.Hints != null) lines.AddRange(info.Summary.Hints.Take(5 - lines.Count));
         }
 
         return lines
@@ -171,7 +171,7 @@ internal static class DomainOverviewPresentation
 
     private static DomainOverviewDetailCardView BuildExposureSnapshotCard(DomainOverviewInfo info)
     {
-        var samples = info.SubdomainSample
+        var samples = (info.SubdomainSample ?? Array.Empty<string>())
             .Take(3)
             .ToArray();
 
@@ -197,7 +197,7 @@ internal static class DomainOverviewPresentation
             samples.Add("Registrar: " + info.Rdap.Registrar);
         }
 
-        samples.AddRange(info.Summary.Hints.Take(2));
+        if (info.Summary?.Hints != null) samples.AddRange(info.Summary.Hints.Take(2));
 
         return new DomainOverviewDetailCardView
         {
@@ -206,7 +206,7 @@ internal static class DomainOverviewPresentation
             Summary = "Registration timing, registrar context, and DD hinting combine here to summarize the registration and lifecycle posture.",
             Tags = new[]
             {
-                "Hints: " + info.Summary.Hints.Count,
+                "Hints: " + (info.Summary?.Hints?.Count ?? 0),
                 info.DaysUntilExpiration.HasValue ? "Days remaining: " + info.DaysUntilExpiration.Value : "Expiry not observed"
             },
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToArray()
@@ -314,7 +314,7 @@ internal static class DomainOverviewPresentation
             samples.Add("Web posture: grade " + info.HttpGrade);
         }
 
-        samples.AddRange(info.Summary.Hints.Take(3));
+        if (info.Summary?.Hints != null) samples.AddRange(info.Summary.Hints.Take(3));
 
         if (info.Rdap != null && !string.IsNullOrWhiteSpace(info.Rdap.Registrar))
         {
@@ -352,10 +352,10 @@ internal static class DomainOverviewPresentation
         var samples = new List<string>();
         if (subdomains != null)
         {
-            samples.AddRange(subdomains.Highlights.Take(3));
+            if (subdomains.Highlights != null) samples.AddRange(subdomains.Highlights.Take(3));
         }
 
-        if (samples.Count < 4)
+        if (samples.Count < 4 && info.SubdomainSample != null)
         {
             samples.AddRange(info.SubdomainSample.Take(4 - samples.Count));
         }
@@ -453,8 +453,8 @@ internal static class DomainOverviewPresentation
             samples.Add(Truncate(info.SpfRecord, 120));
         }
 
-        samples.AddRange(info.Highlights.Take(2));
-        if (samples.Count < 3)
+        if (info.Highlights != null) samples.AddRange(info.Highlights.Take(2));
+        if (samples.Count < 3 && info.ResolvedIncludeRecords != null)
         {
             samples.AddRange(info.ResolvedIncludeRecords.Take(2).Select(static value => "Include: " + value));
         }
@@ -529,8 +529,8 @@ internal static class DomainOverviewPresentation
             samples.Add(Truncate(info.DmarcRecord, 120));
         }
 
-        samples.AddRange(info.Highlights.Take(2));
-        samples.AddRange(info.MailtoRua.Take(2).Select(static value => "rua: " + value));
+        if (info.Highlights != null) samples.AddRange(info.Highlights.Take(2));
+        if (info.MailtoRua != null) samples.AddRange(info.MailtoRua.Take(2).Select(static value => "rua: " + value));
 
         return new DomainOverviewDetailCardView
         {
@@ -969,12 +969,15 @@ internal static class DomainOverviewPresentation
     private static DomainOverviewDetailCardView BuildRegistrationEvidenceCard(RdapInfo info)
     {
         var samples = new List<string>();
-        samples.AddRange(info.NameServers.Take(3).Select(static value => "NS: " + value));
-        samples.AddRange(info.StatusValues.Take(2).Select(static value => "Status: " + value));
-        samples.AddRange(info.EventSummaries
-            .Where(static item => !string.IsNullOrWhiteSpace(item.Action) && !string.IsNullOrWhiteSpace(item.Date))
-            .Take(2)
-            .Select(static item => item.Action + ": " + item.Date));
+        if (info.NameServers != null)
+            samples.AddRange(info.NameServers.Take(3).Select(static value => "NS: " + value));
+        if (info.StatusValues != null)
+            samples.AddRange(info.StatusValues.Take(2).Select(static value => "Status: " + value));
+        if (info.EventSummaries != null)
+            samples.AddRange(info.EventSummaries
+                .Where(static item => !string.IsNullOrWhiteSpace(item.Action) && !string.IsNullOrWhiteSpace(item.Date))
+                .Take(2)
+                .Select(static item => item.Action + ": " + item.Date));
 
         return new DomainOverviewDetailCardView
         {
@@ -1055,9 +1058,10 @@ internal static class DomainOverviewPresentation
         tags.Add(info.HstsPresent ? "HSTS on" : "HSTS missing");
         tags.Add(info.Http2Supported ? "HTTP/2" : "No HTTP/2");
 
-        if (info.MissingSecurityHeaders.Count > 0)
+        var missingCount = info.MissingSecurityHeaders?.Count ?? 0;
+        if (missingCount > 0)
         {
-            tags.Add(info.MissingSecurityHeaders.Count + " missing headers");
+            tags.Add(missingCount + " missing headers");
         }
 
         var samples = new List<string>();
@@ -1071,8 +1075,9 @@ internal static class DomainOverviewPresentation
             samples.Add("Referrer-Policy: " + info.ReferrerPolicy);
         }
 
-        samples.AddRange(info.Highlights.Take(2));
-        if (samples.Count == 0)
+        if (info.Highlights != null)
+            samples.AddRange(info.Highlights.Take(2));
+        if (samples.Count == 0 && info.Details != null)
         {
             samples.AddRange(info.Details.Take(2));
         }
@@ -1082,7 +1087,7 @@ internal static class DomainOverviewPresentation
             Title = "HTTP headers",
             ValueLabel = info.IsReachable ? "Grade " + info.Grade : "Offline",
             Summary = info.IsReachable
-                ? $"Reachable over {(string.IsNullOrWhiteSpace(info.ProtocolVersion) ? "HTTP" : info.ProtocolVersion)} with {(info.HstsPresent ? "HSTS enabled" : "no HSTS")} and {info.MissingSecurityHeaders.Count} missing security header(s)."
+                ? $"Reachable over {(string.IsNullOrWhiteSpace(info.ProtocolVersion) ? "HTTP" : info.ProtocolVersion)} with {(info.HstsPresent ? "HSTS enabled" : "no HSTS")} and {missingCount} missing security header(s)."
                 : (string.IsNullOrWhiteSpace(info.FailureReason) ? "HTTP endpoint was not reachable during the DD run." : info.FailureReason),
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
@@ -1128,7 +1133,8 @@ internal static class DomainOverviewPresentation
             samples.Add("Subject: " + info.CertificateSubject);
         }
 
-        samples.AddRange(info.Highlights.Take(2));
+        if (info.Highlights != null)
+            samples.AddRange(info.Highlights.Take(2));
 
         return new DomainOverviewDetailCardView
         {
@@ -1165,16 +1171,20 @@ internal static class DomainOverviewPresentation
         }
 
         var samples = new List<string>();
-        samples.AddRange(info.ContactEmail.Take(2).Select(static value => "Contact email: " + value));
-        samples.AddRange(info.ContactWebsite.Take(1).Select(static value => "Contact URL: " + value));
-        samples.AddRange(info.Highlights.Take(2));
+        if (info.ContactEmail != null)
+            samples.AddRange(info.ContactEmail.Take(2).Select(static value => "Contact email: " + value));
+        if (info.ContactWebsite != null)
+            samples.AddRange(info.ContactWebsite.Take(1).Select(static value => "Contact URL: " + value));
+        if (info.Highlights != null)
+            samples.AddRange(info.Highlights.Take(2));
 
+        var contactCount = (info.ContactEmail?.Count ?? 0) + (info.ContactWebsite?.Count ?? 0);
         return new DomainOverviewDetailCardView
         {
             Title = "Security.txt",
             ValueLabel = info.RecordPresent ? "Published" : "Missing",
             Summary = info.RecordPresent
-                ? $"Disclosure file is {(info.RecordValid ? "valid" : "present but needs attention")} with {info.ContactEmail.Count + info.ContactWebsite.Count} contact route(s)."
+                ? $"Disclosure file is {(info.RecordValid ? "valid" : "present but needs attention")} with {contactCount} contact route(s)."
                 : "No security.txt disclosure policy was found.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
@@ -1199,27 +1209,30 @@ internal static class DomainOverviewPresentation
             tags.Add("Contact entity");
         }
 
-        if (info.NameServers.Count > 0)
+        var nsCount = info.NameServers?.Count ?? 0;
+        if (nsCount > 0)
         {
-            tags.Add(info.NameServers.Count + " NS");
+            tags.Add(nsCount + " NS");
         }
 
         var samples = new List<string>();
-        samples.AddRange(info.EventSummaries
-            .Where(static item => !string.IsNullOrWhiteSpace(item.Action) && !string.IsNullOrWhiteSpace(item.Date))
-            .Take(2)
-            .Select(static item => item.Action + ": " + item.Date));
-        samples.AddRange(info.EntitySummaries
-            .Where(static item => !string.IsNullOrWhiteSpace(item.Handle))
-            .Take(2)
-            .Select(static item => "Entity: " + item.Handle));
+        if (info.EventSummaries != null)
+            samples.AddRange(info.EventSummaries
+                .Where(static item => !string.IsNullOrWhiteSpace(item.Action) && !string.IsNullOrWhiteSpace(item.Date))
+                .Take(2)
+                .Select(static item => item.Action + ": " + item.Date));
+        if (info.EntitySummaries != null)
+            samples.AddRange(info.EntitySummaries
+                .Where(static item => !string.IsNullOrWhiteSpace(item.Handle))
+                .Take(2)
+                .Select(static item => "Entity: " + item.Handle));
 
         return new DomainOverviewDetailCardView
         {
             Title = "Registration",
             ValueLabel = info.RecordAvailable ? FormatDays(info.DaysUntilExpiration, "Available") : "Unavailable",
             Summary = info.RecordAvailable
-                ? $"Registration data is available from {(string.IsNullOrWhiteSpace(info.Registrar) ? "the registrar" : info.Registrar)} with {info.StatusValues.Count} status value(s)."
+                ? $"Registration data is available from {(string.IsNullOrWhiteSpace(info.Registrar) ? "the registrar" : info.Registrar)} with {(info.StatusValues?.Count ?? 0)} status value(s)."
                 : "Registration data was not available during the DD run.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
@@ -1230,8 +1243,8 @@ internal static class DomainOverviewPresentation
     {
         var tags = new List<string>
         {
-            info.Pathways.Count + " pathway(s)",
-            info.Targets.Count + " target(s)"
+            (info.Pathways?.Count ?? 0) + " pathway(s)",
+            (info.Targets?.Count ?? 0) + " target(s)"
         };
 
         if (info.ProvidersWithListings > 0)
@@ -1240,8 +1253,9 @@ internal static class DomainOverviewPresentation
         }
 
         var samples = new List<string>();
-        samples.AddRange(info.Listings.Take(3).Select(static item => item.Target + " via " + item.Provider));
-        if (samples.Count == 0)
+        if (info.Listings != null)
+            samples.AddRange(info.Listings.Take(3).Select(static item => item.Target + " via " + item.Provider));
+        if (samples.Count == 0 && info.Pathways != null)
         {
             samples.AddRange(info.Pathways.Take(2).Select(static item => item.Label + ": " + item.TargetsChecked + " checked"));
         }

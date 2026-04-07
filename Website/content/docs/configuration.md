@@ -1,6 +1,6 @@
 ---
-title: Configuration
-description: Configuring DomainDetective behavior.
+title: Runtime Configuration
+description: Configure DomainDetective behavior, defaults, and execution settings.
 slug: configuration
 collection: docs
 layout: docs

@@ -1,6 +1,6 @@
 ---
-title: Online Tools Hosting
-description: Build and host the DomainDetective website and online tools together.
+title: Hosted Web Tools
+description: Build and host the DomainDetective website, tools app, and companion API together.
 slug: online-tools-hosting
 collection: docs
 layout: docs

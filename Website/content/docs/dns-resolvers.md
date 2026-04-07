@@ -1,6 +1,6 @@
 ---
-title: DNS Resolvers
-description: Configuring DNS resolvers for DomainDetective.
+title: Resolver Strategy
+description: Choose and configure DNS resolvers for DomainDetective and DnsClientX-backed workflows.
 slug: dns-resolvers
 collection: docs
 layout: docs
@@ -16,7 +16,7 @@ layout: docs
 
 ## Overview
 
-DomainDetective uses the [DnsClientX](https://github.com/EvotecIT/DnsClientX) library for DNS resolution. You can configure which DNS resolvers to use for all queries.
+DomainDetective uses the [DnsClientX library](https://github.com/EvotecIT/DnsClientX) for DNS resolution. You can configure which DNS resolvers to use for all queries, or drop down to the dedicated [DnsClientX product docs](/products/dnsclientx/) when you need direct DNS workflows outside the full DomainDetective analysis model.
 
 ## Default Behavior
 

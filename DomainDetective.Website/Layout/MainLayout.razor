@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject DomainDetective.Website.Services.SiteNavigationService SiteNavigationService
 
 <div class="dd-app" @onclick="CloseMenus">
     <header class="dd-header">
@@ -27,46 +28,60 @@
 
             <nav class="dd-nav @(GetNavClass())" aria-label="Main navigation" @onclick:stopPropagation="true">
                 <div class="dd-nav-links">
-                    <a href="/" class="@GetNavLinkClass("/")" aria-current="@(IsActivePath("/") ? "page" : null)">Home</a>
-                    <a href="@GetToolsHref()" class="@GetNavLinkClass("/tools/")" aria-current="@(IsActivePath("/tools/") ? "page" : null)">Tools</a>
-                    <a href="/docs/" class="@GetNavLinkClass("/docs/")" aria-current="@(IsActivePath("/docs/") ? "page" : null)">Docs</a>
-                    <div class="dd-nav-dropdown @GetApiMenuClass()">
-                        <button class="@GetApiTriggerClass()"
-                                type="button"
-                                aria-expanded="@(_apiMenuOpen ? "true" : "false")"
-                                aria-haspopup="true"
-                                @onclick="ToggleApiMenu">
-                            <span class="dd-nav-dropdown-label">API</span>
-                            <svg class="dd-nav-dropdown-arrow" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                <path d="M3 5l3 3 3-3" />
-                            </svg>
-                        </button>
-                        <div class="dd-nav-dropdown-menu">
-                            <a href="/api/">C# API Reference</a>
-                            <a href="/api/powershell/">PowerShell API Reference</a>
-                        </div>
-                    </div>
-                    <a href="/blog/" class="@GetNavLinkClass("/blog/")" aria-current="@(IsActivePath("/blog/") ? "page" : null)">Blog</a>
-                    <a href="/downloads/" class="@GetNavLinkClass("/downloads/")" aria-current="@(IsActivePath("/downloads/") ? "page" : null)">Downloads</a>
+                    @foreach (var item in PrimaryNavigation) {
+                        if (item.Items.Count > 0) {
+                            var itemLabel = item.Label;
+                            var itemHref = item.Href ?? "/";
+                            var isDropdownOpen = IsDropdownOpen(itemHref);
+                            var isItemActive = IsItemActive(item);
+                            <div class="dd-nav-dropdown @(GetDropdownClass(itemHref, isItemActive))">
+                                <button class="dd-nav-dropdown-trigger @(isDropdownOpen || isItemActive ? "is-active" : string.Empty)"
+                                        type="button"
+                                        aria-expanded="@(isDropdownOpen ? "true" : "false")"
+                                        aria-haspopup="true"
+                                        @onclick="@(() => ToggleDropdown(itemHref))">
+                                    @itemLabel
+                                    <svg class="dd-nav-dropdown-arrow" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                        <path d="M3 5l3 3 3-3" />
+                                    </svg>
+                                </button>
+                                <div class="dd-nav-dropdown-menu">
+                                    @foreach (var child in item.Items) {
+                                        <a href="@GetHref(child.Href)"
+                                           target="@GetTarget(child)"
+                                           rel="@GetRel(child)">@child.Label</a>
+                                    }
+                                </div>
+                            </div>
+                        } else {
+                            <a href="@GetHref(item.Href)"
+                               class="@GetNavLinkClass(item)"
+                               aria-current="@(IsItemActive(item) ? "page" : null)"
+                               target="@GetTarget(item)"
+                               rel="@GetRel(item)">@item.Label</a>
+                        }
+                    }
                 </div>
 
                 <div class="dd-nav-actions">
-                    <button type="button" class="nav-icon theme-cycle-btn" title="Toggle theme" aria-label="Toggle theme" @onclick="ToggleThemeAsync">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
-                            <circle cx="12" cy="12" r="5" />
-                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                        </svg>
-                    </button>
-                    <a href="https://github.com/EvotecIT/DomainDetective" target="_blank" rel="noopener" class="nav-icon" aria-label="DomainDetective on GitHub">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" /></svg>
-                    </a>
-                    <a href="@GetToolsHref()" class="nav-cta" title="Try Online" aria-label="Try Domain Detective Online">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-cta-icon" aria-hidden="true" focusable="false">
-                            <circle cx="11" cy="11" r="8" />
-                            <path d="m21 21-4.35-4.35" />
-                        </svg>
-                        Try Online
-                    </a>
+                    @foreach (var action in NavigationActions) {
+                        if (string.Equals(action.Kind, "button", StringComparison.OrdinalIgnoreCase)) {
+                            <button type="button"
+                                    class="@action.CssClass"
+                                    title="@action.Title"
+                                    aria-label="@GetActionAriaLabel(action)"
+                                    @onclick="ToggleThemeAsync">@RenderIcon(action.IconHtml)</button>
+                        } else {
+                            <a href="@GetHref(action.Href)"
+                               class="@action.CssClass"
+                               target="@GetTarget(action)"
+                               rel="@GetRel(action)"
+                               title="@action.Title"
+                               aria-label="@GetActionAriaLabel(action)">
+                                @RenderIcon(action.IconHtml)@GetActionText(action)
+                            </a>
+                        }
+                    }
                 </div>
             </nav>
         </div>
@@ -104,7 +119,7 @@
                     <p class="dd-footer-heading">Tools</p>
                     <ul>
                         @foreach (var link in FooterTools) {
-                            <li><a href="@GetFooterLinkUrl(link)">@link.Title</a></li>
+                            <li><a href="@GetHref(link.Href)">@link.Label</a></li>
                         }
                     </ul>
                 </div>
@@ -114,7 +129,7 @@
                     <ul>
                         @foreach (var link in FooterResources) {
                             <li>
-                                <a href="@link.Url" target="@GetTarget(link)" rel="@GetRel(link)">@link.Title</a>
+                                <a href="@GetHref(link.Href)" target="@GetTarget(link)" rel="@GetRel(link)">@link.Label</a>
                             </li>
                         }
                     </ul>
@@ -125,7 +140,7 @@
                     <ul>
                         @foreach (var link in FooterCompany) {
                             <li>
-                                <a href="@link.Url" target="@GetTarget(link)" rel="@GetRel(link)">@link.Title</a>
+                                <a href="@GetHref(link.Href)" target="@GetTarget(link)" rel="@GetRel(link)">@link.Label</a>
                             </li>
                         }
                     </ul>
@@ -141,37 +156,100 @@
 </div>
 
 @code {
-    private static readonly FooterLink[] FooterTools = new[] {
-        new FooterLink("SPF Lookup", "/tools/spf/"),
-        new FooterLink("DKIM Lookup", "/tools/dkim/"),
-        new FooterLink("DMARC Lookup", "/tools/dmarc/"),
-        new FooterLink("DNS Lookup", "/tools/dns-lookup/"),
-        new FooterLink("DNSBL Check", "/tools/dnsbl/"),
-        new FooterLink("All Tools", "/tools/")
+    private static readonly IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> FallbackPrimaryNavigation = new[] {
+        CreateItem("/", "Home"),
+        CreateItem("/tools/", "Tools"),
+        CreateItem("/docs/", "Docs"),
+        CreateItem("/api/", "API", new[] {
+            CreateItem("/api/", "DomainDetective C# API"),
+            CreateItem("/api/powershell/", "DomainDetective PowerShell API"),
+            CreateItem("/api/dnsclientx/", "DnsClientX C# API"),
+            CreateItem("/api/dnsclientx-powershell/", "DnsClientX PowerShell API")
+        }),
+        CreateItem("/blog/", "Blog"),
+        CreateItem("/downloads/", "Downloads")
     };
 
-    private static readonly FooterLink[] FooterResources = new[] {
-        new FooterLink("Quick Start", "/docs/quickstart/"),
-        new FooterLink("DnsClientX Toolkit", "/docs/dnsclientx/"),
-        new FooterLink("C# API Reference", "/api/"),
-        new FooterLink("PowerShell API Reference", "/api/powershell/"),
-        new FooterLink("CLI Usage", "/docs/cli-usage/"),
-        new FooterLink("FAQ", "/faq/"),
-        new FooterLink("GitHub Repository", "https://github.com/EvotecIT/DomainDetective", true)
+    private static readonly IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> FallbackFooterTools = new[] {
+        CreateItem("/tools/spf/", "SPF Lookup"),
+        CreateItem("/tools/dkim/", "DKIM Lookup"),
+        CreateItem("/tools/dmarc/", "DMARC Lookup"),
+        CreateItem("/tools/dns-lookup/", "DNS Lookup"),
+        CreateItem("/tools/dnsbl/", "DNSBL Check"),
+        CreateItem("/tools/", "All Tools")
     };
 
-    private static readonly FooterLink[] FooterCompany = new[] {
-        new FooterLink("Evotec Services", "https://evotec.xyz", true),
-        new FooterLink("Blog", "/blog/"),
-        new FooterLink("Privacy Policy", "/privacy/"),
-        new FooterLink("Changelog", "/changelog/")
+    private static readonly IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> FallbackFooterResources = new[] {
+        CreateItem("/docs/quickstart/", "Quick Start"),
+        CreateItem("/api/", "C# API Reference"),
+        CreateItem("/api/powershell/", "PowerShell API Reference"),
+        CreateItem("/tools/raw-dns-query/", "Raw DNS Query"),
+        CreateItem("/docs/dnsclientx/", "DnsClientX Docs"),
+        CreateItem("/docs/cli-usage/", "CLI Usage"),
+        CreateItem("/faq/", "FAQ"),
+        CreateItem("https://github.com/EvotecIT/DomainDetective", "GitHub Repository", external: true)
     };
 
-    private bool _apiMenuOpen;
+    private static readonly IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> FallbackFooterCompany = new[] {
+        CreateItem("https://evotec.xyz", "Evotec Services", external: true),
+        CreateItem("/blog/", "Blog"),
+        CreateItem("/privacy/", "Privacy Policy"),
+        CreateItem("/changelog/", "Changelog")
+    };
+
+    private static readonly IReadOnlyList<DomainDetective.Website.Models.SiteNavigationAction> FallbackNavigationActions = new[] {
+        new DomainDetective.Website.Models.SiteNavigationAction {
+            Title = "Toggle theme",
+            AriaLabel = "Toggle theme",
+            Kind = "button",
+            CssClass = "nav-icon theme-cycle-btn",
+            IconHtml = "<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='2' aria-hidden='true' focusable='false'><circle cx='12' cy='12' r='5'/><path d='M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42'/></svg>"
+        },
+        new DomainDetective.Website.Models.SiteNavigationAction {
+            Title = "DomainDetective on GitHub",
+            AriaLabel = "DomainDetective on GitHub",
+            Href = "https://github.com/EvotecIT/DomainDetective",
+            External = true,
+            CssClass = "nav-icon",
+            IconHtml = "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true' focusable='false'><path d='M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z'/></svg>"
+        },
+        new DomainDetective.Website.Models.SiteNavigationAction {
+            Title = "Try Online",
+            AriaLabel = "Try Domain Detective Online",
+            Href = "/tools/",
+            CssClass = "nav-cta",
+            IconHtml = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' class='nav-cta-icon' aria-hidden='true' focusable='false'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.35-4.35'/></svg>",
+            Text = "Try Online"
+        }
+    };
+
+    private IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> PrimaryNavigation { get; set; } = FallbackPrimaryNavigation;
+    private IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> FooterTools { get; set; } = FallbackFooterTools;
+    private IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> FooterResources { get; set; } = FallbackFooterResources;
+    private IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> FooterCompany { get; set; } = FallbackFooterCompany;
+    private IReadOnlyList<DomainDetective.Website.Models.SiteNavigationAction> NavigationActions { get; set; } = FallbackNavigationActions;
+
+    private string? _openDropdownHref;
     private bool _mobileNavOpen;
 
-    protected override void OnInitialized() {
+    protected override async Task OnInitializedAsync() {
         Navigation.LocationChanged += HandleLocationChanged;
+        var navigation = await SiteNavigationService.GetNavigationAsync();
+        if (navigation == null) {
+            return;
+        }
+
+        if (navigation.Primary.Count > 0) {
+            PrimaryNavigation = navigation.Primary;
+        }
+
+        FooterTools = GetMenuOrFallback(navigation, "footer-tools", FallbackFooterTools);
+        FooterResources = GetMenuOrFallback(navigation, "footer-resources", FallbackFooterResources);
+        FooterCompany = GetMenuOrFallback(navigation, "footer-company", FallbackFooterCompany);
+
+        if (navigation.Actions.Count > 0) {
+            NavigationActions = navigation.Actions;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -180,23 +258,23 @@
         }
     }
 
-    private void ToggleApiMenu() {
-        _apiMenuOpen = !_apiMenuOpen;
+    private void ToggleDropdown(string href) {
+        _openDropdownHref = string.Equals(_openDropdownHref, href, StringComparison.OrdinalIgnoreCase) ? null : href;
     }
 
     private void ToggleMobileNav() {
         _mobileNavOpen = !_mobileNavOpen;
         if (!_mobileNavOpen) {
-            _apiMenuOpen = false;
+            _openDropdownHref = null;
         }
     }
 
     private void CloseMenus() {
-        _apiMenuOpen = false;
+        _openDropdownHref = null;
         _mobileNavOpen = false;
     }
 
-    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e) {
+    private void HandleLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) {
         CloseMenus();
         _ = InvokeAsync(StateHasChanged);
     }
@@ -205,29 +283,34 @@
         await JS.InvokeVoidAsync("domainDetectiveTools.toggleTheme");
     }
 
-    private string GetApiMenuClass() {
-        return _apiMenuOpen ? "open" : string.Empty;
-    }
-
-    private string GetApiTriggerClass() {
-        var classes = new List<string> {
-            "dd-nav-link",
-            "dd-nav-dropdown-trigger"
-        };
-
-        if (_apiMenuOpen || IsActivePath("/api/")) {
-            classes.Add("is-active");
-        }
-
-        return string.Join(" ", classes);
-    }
-
     private string GetNavClass() {
         return _mobileNavOpen ? "open" : string.Empty;
     }
 
-    private string GetNavLinkClass(string href) {
-        return IsActivePath(href) ? "dd-nav-link is-active" : "dd-nav-link";
+    private string GetDropdownClass(string href, bool isItemActive) {
+        return IsDropdownOpen(href) ? "open" : string.Empty;
+    }
+
+    private string GetNavLinkClass(DomainDetective.Website.Models.SiteNavigationItem item) {
+        return IsItemActive(item) ? "dd-nav-link is-active" : "dd-nav-link";
+    }
+
+    private bool IsDropdownOpen(string href) {
+        return string.Equals(_openDropdownHref, href, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsItemActive(DomainDetective.Website.Models.SiteNavigationItem item) {
+        if (!string.IsNullOrWhiteSpace(item.Href) && IsActivePath(item.Href)) {
+            return true;
+        }
+
+        foreach (var child in item.Items.Where(static child => !string.IsNullOrWhiteSpace(child.Href))) {
+            if (IsActivePath(child.Href!)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool IsActivePath(string href) {
@@ -253,30 +336,46 @@
         return normalized.EndsWith("/", StringComparison.Ordinal) ? normalized : normalized + "/";
     }
 
-    private static string? GetRel(FooterLink link) => link.External ? "noopener" : null;
-
-    private static string? GetTarget(FooterLink link) => link.External ? "_blank" : null;
-
-    private string GetFooterLinkUrl(FooterLink link) {
-        return link.External ? link.Url : GetToolsAwareUrl(link.Url);
+    private static IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> GetMenuOrFallback(DomainDetective.Website.Models.SiteNavigationData navigation, string menuName, IReadOnlyList<DomainDetective.Website.Models.SiteNavigationItem> fallback) {
+        return navigation.Menus.TryGetValue(menuName, out var menuItems) && menuItems.Count > 0 ? menuItems : fallback;
     }
 
-    private string GetToolsHref() {
-        return GetToolsAwareUrl("/tools/");
+    private static DomainDetective.Website.Models.SiteNavigationItem CreateItem(string href, string text, IEnumerable<DomainDetective.Website.Models.SiteNavigationItem>? items = null, bool external = false) {
+        return new DomainDetective.Website.Models.SiteNavigationItem {
+            Href = href,
+            Text = text,
+            Title = text,
+            External = external,
+            Items = items?.ToList() ?? new List<DomainDetective.Website.Models.SiteNavigationItem>()
+        };
     }
 
-    private string GetToolsAwareUrl(string href) {
+    private string GetHref(string? href) {
+        if (string.IsNullOrWhiteSpace(href)) {
+            return "/";
+        }
+
+        var currentUri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var currentQuery = ParseQuery(currentUri.Query);
+        if (!currentQuery.TryGetValue("q", out var currentDomain) || string.IsNullOrWhiteSpace(currentDomain)) {
+            return href;
+        }
+
         if (!href.StartsWith("/tools/", StringComparison.OrdinalIgnoreCase)) {
             return href;
         }
 
-        var query = ParseQuery(new Uri(Navigation.Uri).Query);
-        if (!query.TryGetValue("q", out var domain) || string.IsNullOrWhiteSpace(domain)) {
-            return href;
+        var targetUri = Navigation.ToAbsoluteUri(href);
+        var query = ParseQuery(targetUri.Query);
+
+        if (string.IsNullOrWhiteSpace(query.GetValueOrDefault("q"))) {
+            query["q"] = currentDomain;
         }
 
-        var separator = href.Contains('?', StringComparison.Ordinal) ? "&" : "?";
-        return $"{href}{separator}q={Uri.EscapeDataString(domain.Trim())}";
+        var queryString = BuildQueryString(query);
+        return string.IsNullOrWhiteSpace(queryString)
+            ? targetUri.GetLeftPart(UriPartial.Path)
+            : $"{targetUri.GetLeftPart(UriPartial.Path)}?{queryString}";
     }
 
     private static Dictionary<string, string> ParseQuery(string? query) {
@@ -285,29 +384,82 @@
             return result;
         }
 
-        var trimmed = query[0] == '?' ? query[1..] : query;
-        if (trimmed.Length == 0) {
+        var trimmed = query.TrimStart('?');
+        if (string.IsNullOrWhiteSpace(trimmed)) {
             return result;
         }
 
         foreach (var pair in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries)) {
-            var separatorIndex = pair.IndexOf('=');
-            if (separatorIndex < 0) {
-                result[Uri.UnescapeDataString(pair)] = string.Empty;
+            var parts = pair.Split('=', 2);
+            var key = Uri.UnescapeDataString(parts[0]);
+            if (string.IsNullOrWhiteSpace(key)) {
                 continue;
             }
 
-            var key = Uri.UnescapeDataString(pair[..separatorIndex]);
-            var value = Uri.UnescapeDataString(pair[(separatorIndex + 1)..]);
+            var value = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
             result[key] = value;
         }
 
         return result;
     }
 
+    private static string BuildQueryString(IReadOnlyDictionary<string, string> query) {
+        return string.Join("&", query
+            .Where(static pair => !string.IsNullOrWhiteSpace(pair.Key))
+            .Select(static pair => $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value ?? string.Empty)}"));
+    }
+
+    private static MarkupString RenderIcon(string? iconHtml) {
+        // Icons come from the trusted site navigation manifest generated with the website.
+        return new MarkupString(iconHtml ?? string.Empty);
+    }
+
+    private static string? GetActionText(DomainDetective.Website.Models.SiteNavigationAction action) {
+        if (!string.IsNullOrWhiteSpace(action.CssClass) && action.CssClass.Contains("nav-icon", StringComparison.OrdinalIgnoreCase)) {
+            return null;
+        }
+
+        var text = string.IsNullOrWhiteSpace(action.Text) ? action.Title : action.Text;
+        return string.IsNullOrWhiteSpace(text) ? null : $" {text}";
+    }
+
+    private static string? GetActionAriaLabel(DomainDetective.Website.Models.SiteNavigationAction action) {
+        return string.IsNullOrWhiteSpace(action.AriaLabel) ? action.Title : action.AriaLabel;
+    }
+
+    private static string? GetRel(DomainDetective.Website.Models.SiteNavigationItem item) {
+        if (!string.IsNullOrWhiteSpace(item.Rel)) {
+            return item.Rel;
+        }
+
+        return item.External ? "noopener" : null;
+    }
+
+    private static string? GetTarget(DomainDetective.Website.Models.SiteNavigationItem item) {
+        if (!string.IsNullOrWhiteSpace(item.Target)) {
+            return item.Target;
+        }
+
+        return item.External ? "_blank" : null;
+    }
+
+    private static string? GetRel(DomainDetective.Website.Models.SiteNavigationAction action) {
+        if (!string.IsNullOrWhiteSpace(action.Rel)) {
+            return action.Rel;
+        }
+
+        return action.External ? "noopener" : null;
+    }
+
+    private static string? GetTarget(DomainDetective.Website.Models.SiteNavigationAction action) {
+        if (!string.IsNullOrWhiteSpace(action.Target)) {
+            return action.Target;
+        }
+
+        return action.External ? "_blank" : null;
+    }
+
     public void Dispose() {
         Navigation.LocationChanged -= HandleLocationChanged;
     }
-
-    private sealed record FooterLink(string Title, string Url, bool External = false);
 }

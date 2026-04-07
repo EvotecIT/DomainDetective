@@ -1,13 +1,40 @@
 [
-  { "title": "Getting Started", "href": "/docs/" },
-  { "title": "Quick Start", "href": "/docs/quickstart/" },
-  { "title": "Online Tools Hosting", "href": "/docs/online-tools-hosting/" },
-  { "title": "C# API Guide", "href": "/docs/csharp-api/" },
-  { "title": "PowerShell Cmdlets", "href": "/docs/powershell-cmdlets/" },
-  { "title": "CLI Usage", "href": "/docs/cli-usage/" },
-  { "title": "DnsClientX Toolkit", "href": "/docs/dnsclientx/" },
-  { "title": "Configuration", "href": "/docs/configuration/" },
-  { "title": "DnsClientX DNS Workspace", "href": "/docs/dns-workspace/" },
-  { "title": "DNS Examples", "href": "/docs/dns-examples/" },
-  { "title": "DNS Resolvers", "href": "/docs/dns-resolvers/" }
+  {
+    "title": "Start Here",
+    "items": [
+      { "title": "Documentation Overview", "href": "/docs/" },
+      { "title": "Quick Start", "href": "/docs/quickstart/" }
+    ]
+  },
+  {
+    "title": "DomainDetective",
+    "items": [
+      { "title": ".NET SDK Guide", "href": "/docs/csharp-api/" },
+      { "title": "PowerShell Guide", "href": "/docs/powershell-cmdlets/" },
+      { "title": "CLI Guide", "href": "/docs/cli-usage/" },
+      { "title": "Hosted Web Tools", "href": "/docs/online-tools-hosting/" },
+      { "title": "Runtime Configuration", "href": "/docs/configuration/" },
+      { "title": "Resolver Strategy", "href": "/docs/dns-resolvers/" },
+      { "title": "DNS Workspace Guide", "href": "/docs/dns-workspace/" },
+      { "title": "DNS Examples", "href": "/docs/dns-examples/" }
+    ]
+  },
+  {
+    "title": "DnsClientX",
+    "items": [
+      { "title": "Toolkit Overview", "href": "/docs/dnsclientx/" }
+    ]
+  },
+  {
+    "title": "DnsClientX for .NET",
+    "items": [
+      { "title": ".NET Developer Guide", "href": "/docs/dnsclientx/csharp/" }
+    ]
+  },
+  {
+    "title": "DnsClientX PowerShell",
+    "items": [
+      { "title": "PowerShell Module Guide", "href": "/docs/dnsclientx/powershell/" }
+    ]
+  }
 ]

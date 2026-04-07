@@ -1,41 +1,32 @@
 ---
 title: Documentation
-description: DomainDetective documentation - guides, configuration, and API reference.
+description: DomainDetective documentation for setup, SDKs, tools hosting, and the DnsClientX DNS toolkit.
 slug: index
 collection: docs
 layout: docs
 ---
 
-Welcome to the DomainDetective documentation.
+Use this section to move from “how do I analyze a domain?” to “how do I build DNS workflows directly?” without having to infer which docs belong to which product surface.
 
-## Getting Started
+## Start Here
 
-- [Quick Start](/docs/quickstart/) - Get up and running in minutes
-- [Online Tools Hosting](/docs/online-tools-hosting/) - Build and host the website with the online analysis API
-- [C# API Guide](/docs/csharp-api/) - Use DomainDetective in your .NET applications
-- [PowerShell Cmdlets](/docs/powershell-cmdlets/) - Domain analysis from PowerShell
-- [CLI Usage](/docs/cli-usage/) - Command-line interface guide
+- [Quick Start](/docs/quickstart/) - Install DomainDetective and run your first checks
+- [Documentation Overview](/docs/) - Understand how the docs are split across DomainDetective and DnsClientX
 
-## Configuration
+## DomainDetective Workflows
 
-- [DnsClientX Toolkit](/docs/dnsclientx/) - DNS entry points for the browser workspace, PowerShell, and C#
-- [Configuration Options](/docs/configuration/) - Customize analysis behavior
-- [DnsClientX DNS Workspace](/docs/dns-workspace/) - Use the web DNS tool as a focused DnsClientX lane
-- [DNS Examples](/docs/dns-examples/) - Copy-ready PowerShell, C#, and CLI DNS workflows
-- [DNS Resolvers](/docs/dns-resolvers/) - Configure custom DNS resolvers
+- [.NET SDK Guide](/docs/csharp-api/) - Embed DomainDetective into .NET services, tools, and diagnostics
+- [PowerShell Guide](/docs/powershell-cmdlets/) - Run domain analysis and targeted checks from PowerShell
+- [CLI Guide](/docs/cli-usage/) - Script DomainDetective in local shells and CI pipelines
 
-## DNS With DnsClientX
+## Hosting And Resolver Strategy
 
-Use the DnsClientX lane when you want a DNS-first workflow instead of the broader domain posture tools.
+- [Hosted Web Tools](/docs/online-tools-hosting/) - Build and host the website, tools app, and same-origin API
+- [Runtime Configuration](/docs/configuration/) - Tune behavior, defaults, and execution settings
+- [Resolver Strategy](/docs/dns-resolvers/) - Understand how resolver choice affects browser and server-side checks
 
-- [DnsClientX Toolkit](/docs/dnsclientx/) - Main DNS entry page across browser, PowerShell, and C#
-- [DnsClientX DNS Workspace](/docs/dns-workspace/) - Browser DNS workflow with resolver choice, presets, host targets, and focused export
-- [DNS Examples](/docs/dns-examples/) - Concrete DnsClientX and DomainDetective DNS commands and snippets
-- [DNS Resolvers](/docs/dns-resolvers/) - Resolver behavior and provider guidance
+## DnsClientX DNS Toolkit
 
-## API Reference
-
-- [C# API Reference](/api/) - Full generated reference for the .NET library
-- [PowerShell API Reference](/api/powershell/) - Full generated reference for the PowerShell module
-- [PowerShell Cmdlets](/docs/powershell-cmdlets/) - Module-focused examples and command usage
-- [CLI Usage](/docs/cli-usage/) - Command-line workflows and batch processing
+- [DnsClientX Toolkit](/docs/dnsclientx/) - Start from the library/module overview and choose the right surface
+- [DnsClientX for .NET](/docs/dnsclientx/csharp/) - Build direct DNS queries and typed record workflows in C#
+- [DnsClientX for PowerShell](/docs/dnsclientx/powershell/) - Use the DnsClientX module for resolver comparison and response inspection

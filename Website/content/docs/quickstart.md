@@ -51,7 +51,7 @@ foreach (var mx in healthCheck.MXAnalysis.MxRecords) {
 Import-Module DomainDetective
 
 # Run a comprehensive check
-$check = Get-DomainHealthCheck -Domain "example.com"
+$check = Test-DomainHealth -DomainName "example.com"
 
 # View results
 $check.SpfAnalysis

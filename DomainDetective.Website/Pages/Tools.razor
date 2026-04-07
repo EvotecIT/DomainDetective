@@ -19,101 +19,26 @@
             <h1>Domain Analysis Tools</h1>
             <p>@Availability.GetHomeDescription()</p>
             <ToolSearch OnSearch="HandleSearch" />
-            <ToolLaunchPlanner Tools="GetPlannerTools()"
-                               Domain="@_selectedDomain"
-                               DomainChanged="HandlePlannerDomainChanged"
-                               DeploymentMode="Availability.Mode" />
         </div>
 
         @if (Availability.IsStaticOnly) {
-            <div class="tools-edition-guide">
-                <div class="tools-edition-guide-header">
-                    <h2>How the catalog works in this web edition</h2>
-                    <p>
-                        GitHub Pages keeps the browser-ready DNS, mail, and lighter overview tools live here.
-                        The deeper web-response, certificate, registration, and larger discovery checks still stay clickable,
-                        but those pages now explain the limits clearly and show the CLI, PowerShell, and C# workflows you can run today.
-                    </p>
-                </div>
-
-                <div class="tools-edition-guide-grid">
-                    <article class="tools-edition-guide-card tools-edition-guide-card-available">
-                        <span class="tools-edition-guide-kicker">Available now</span>
-                        <strong>@GetAvailableNowCount() browser-ready tools</strong>
-                        <p>Runs fully in this web edition using live DD checks that work directly in the browser.</p>
-                    </article>
-
-                    <article class="tools-edition-guide-card tools-edition-guide-card-partial">
-                        <span class="tools-edition-guide-kicker">Adaptive web mode</span>
-                        <strong>@GetBrowserSafePartialCount() adaptive tools</strong>
-                        <p>Same tool page, with web-ready sections live and the deeper online path clearly marked.</p>
-                    </article>
-
-                    <article class="tools-edition-guide-card tools-edition-guide-card-hosted">
-                        <span class="tools-edition-guide-kicker">Guided local workflow</span>
-                        <strong>@_hostedPreviewTools.Count deeper tools</strong>
-                        <p>Still clickable here, with manual DD workflows and future hosted guidance instead of broken pages.</p>
-                    </article>
-                </div>
+            <div class="tools-availability-legend">
+                <span class="legend-item"><span class="legend-dot legend-dot-browser"></span> Runs in browser</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-partial"></span> Partial browser support</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-local"></span> Run locally (CLI / PowerShell)</span>
             </div>
-
-            <div class="tools-edition-summary">
-                <span class="tools-edition-pill">Available now: @GetAvailableNowCount()</span>
-                <span class="tools-edition-pill">Adaptive web tools: @GetBrowserSafePartialCount()</span>
-                <span class="tools-edition-pill">Guided workflows: @_hostedPreviewTools.Count</span>
-            </div>
-
-            @if (GetDnsLookupTool() is not null) {
-                <div class="tools-edition-note">
-                    <strong>DnsClientX-powered DNS workspace</strong>
-                    <p>
-                        <a href="@BuildToolUrl(GetDnsLookupTool()!)">DNS Lookup</a> is the cleanest DnsClientX entry point in the web edition today.
-                        The new <a href="/docs/dnsclientx/">DnsClientX toolkit page</a> and <a href="/docs/dns-workspace/">DNS workspace guide</a> explain how that browser tool maps to direct PowerShell and C# usage without changing the current tool flow.
-                    </p>
-                    <div class="tool-link-row tool-link-row-left">
-                        <a href="@BuildToolUrl(GetDnsLookupTool()!)" class="tool-inline-link">Open DNS Lookup</a>
-                        <a href="/docs/dnsclientx/" class="tool-inline-link">DnsClientX toolkit</a>
-                        <a href="/docs/dns-workspace/" class="tool-inline-link">Workspace guide</a>
-                        <a href="/docs/dns-examples/" class="tool-inline-link">DNS examples</a>
-                        <a href="/docs/dns-resolvers/" class="tool-inline-link">Resolver guide</a>
-                        <a href="/docs/csharp-api/" class="tool-inline-link">C# guide</a>
-                    </div>
-                </div>
-            }
         }
 
         @if (!string.IsNullOrEmpty(_searchQuery)) {
-            if (_filteredTools is not null && _filteredTools.Count > 0) {
-                <ToolCategoryGrid Tools="_filteredTools" DeploymentMode="Availability.Mode" CurrentDomain="@_selectedDomain" />
-            }
-
-            @if (Availability.IsStaticOnly && _filteredHostedPreviewTools.Count > 0) {
-                <div class="tools-edition-panel">
-                    <div class="tools-edition-header">
-                        <h2>Guided Workflow Matches</h2>
-                        <p>These matches go deeper than the browser-only edition, but the pages stay useful here with local CLI, PowerShell, and C# guidance.</p>
-                    </div>
-                    <ToolCategoryGrid Tools="_filteredHostedPreviewTools" DeploymentMode="Availability.Mode" CurrentDomain="@_selectedDomain" />
-                </div>
-            }
-
-            @if ((_filteredTools is null || _filteredTools.Count == 0) && _filteredHostedPreviewTools.Count == 0) {
+            @if (_filteredAllTools.Count > 0) {
+                <ToolCategoryGrid Tools="_filteredAllTools" DeploymentMode="Availability.Mode" />
+            } else {
                 <div class="tools-empty">
                     <p>No tools match "<strong>@_searchQuery</strong>"</p>
                 </div>
             }
         } else {
-            <ToolCategoryGrid Tools="_availableTools" DeploymentMode="Availability.Mode" CurrentDomain="@_selectedDomain" />
-
-            @if (Availability.IsStaticOnly && _hostedPreviewTools.Count > 0) {
-                <div class="tools-edition-panel">
-                    <div class="tools-edition-header">
-                        <h2>Guided Local Workflows</h2>
-                        <p>These deeper checks still stay clickable here. Each page explains what the web edition can show, what the fuller hosted path adds, and how to run the same analysis locally today.</p>
-                    </div>
-                    <ToolCategoryGrid Tools="_hostedPreviewTools" DeploymentMode="Availability.Mode" CurrentDomain="@_selectedDomain" />
-                </div>
-            }
+            <ToolCategoryGrid Tools="_allTools" DeploymentMode="Availability.Mode" />
         }
     </div>
 } else {
@@ -121,12 +46,12 @@
     if (tool is null) {
         <div class="tool-not-found">
             <h2>Tool not found</h2>
-            <p>No tool matches "<strong>@ToolSlug</strong>". <a href="@BuildCatalogUrl()">Browse all tools</a></p>
+            <p>No tool matches "<strong>@ToolSlug</strong>". <a href="/tools/">Browse all tools</a></p>
         </div>
-    } else if (Availability.IsStaticOnly && tool.HostedCompatible && !Availability.CanRun(tool)) {
+    } else if (Availability.IsStaticOnly && tool.HostedCompatible && !tool.BrowserCompatible && !tool.LiteCompatible) {
         <div class="tool-page">
             <div class="tool-breadcrumb">
-                <a href="@BuildCatalogUrl()">Tools</a> / @ToolRegistry.GetCategoryDisplayName(tool.Category) / @tool.Name
+                <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(tool.Category) / @tool.Name
             </div>
 
             <div class="tool-page-header">
@@ -134,12 +59,20 @@
                 <p>@tool.Description</p>
             </div>
 
-            <HostedFeaturePreview Tool="tool" CurrentDomain="@_selectedDomain" />
+            <HostedFeaturePreview Tool="tool" />
         </div>
     } else if (!Availability.CanRun(tool)) {
-        <div class="tool-not-found">
-            <h2>Tool not available online</h2>
-            <p>@Availability.GetUnavailableMessage(tool) <a href="@BuildCatalogUrl()">Browse available tools</a></p>
+        <div class="tool-page">
+            <div class="tool-breadcrumb">
+                <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(tool.Category) / @tool.Name
+            </div>
+
+            <div class="tool-page-header">
+                <h1>@tool.Name</h1>
+                <p>@tool.Description</p>
+            </div>
+
+            <ToolNotAvailable Tool="tool" />
         </div>
     } else {
         <ToolPage Definition="tool" />
@@ -148,169 +81,45 @@
 
 @code {
     [Parameter] public string? ToolSlug { get; set; }
+    [SupplyParameterFromQuery(Name = "domain")] public string? DomainQuery { get; set; }
 
     private bool _isReady;
     private string? _searchQuery;
-    private string? _selectedDomain;
-    private IReadOnlyList<ToolDefinition> _availableTools = Array.Empty<ToolDefinition>();
-    private IReadOnlyList<ToolDefinition> _hostedPreviewTools = Array.Empty<ToolDefinition>();
-    private IReadOnlyList<ToolDefinition>? _filteredTools;
-    private IReadOnlyList<ToolDefinition> _filteredHostedPreviewTools = Array.Empty<ToolDefinition>();
+    private IReadOnlyList<ToolDefinition> _allTools = Array.Empty<ToolDefinition>();
+    private IReadOnlyList<ToolDefinition> _filteredAllTools = Array.Empty<ToolDefinition>();
 
     protected override async Task OnParametersSetAsync() {
-        var query = ParseQuery(new Uri(Navigation.Uri).Query);
-        _selectedDomain = GetQueryValue(query, "q");
-
-        await Availability.InitializeAsync();
-        _availableTools = Availability.FilterVisible(Registry.GetAll());
-        _hostedPreviewTools = Availability.IsStaticOnly
-            ? Registry.GetAll()
-                .Where(static tool => tool.HostedCompatible && !tool.BrowserCompatible)
-                .Where(tool => !_availableTools.Any(available => string.Equals(available.Slug, tool.Slug, StringComparison.OrdinalIgnoreCase)))
-                .ToList()
-            : Array.Empty<ToolDefinition>();
-        if (string.IsNullOrWhiteSpace(_searchQuery)) {
-            _filteredTools = null;
-            _filteredHostedPreviewTools = Array.Empty<ToolDefinition>();
-        } else {
-            var matches = Registry.Search(_searchQuery);
-            _filteredTools = Availability.FilterVisible(matches);
-            _filteredHostedPreviewTools = Availability.IsStaticOnly
-                ? matches
-                    .Where(static tool => tool.HostedCompatible && !tool.BrowserCompatible)
-                    .Where(tool => !_availableTools.Any(available => string.Equals(available.Slug, tool.Slug, StringComparison.OrdinalIgnoreCase)))
-                    .ToList()
-                : Array.Empty<ToolDefinition>();
+        if (string.Equals(ToolSlug, "dns-query-playground", StringComparison.OrdinalIgnoreCase)) {
+            var currentUri = new Uri(Navigation.Uri);
+            var suffix = $"{currentUri.Query}{currentUri.Fragment}";
+            Navigation.NavigateTo($"/tools/raw-dns-query/{suffix}", replace: true);
+            return;
         }
 
+        if (string.IsNullOrEmpty(ToolSlug) && !string.IsNullOrWhiteSpace(DomainQuery)) {
+            var target = "/tools/domain-overview/?q=" + Uri.EscapeDataString(DomainQuery.Trim());
+            Navigation.NavigateTo(target, replace: true);
+            return;
+        }
+
+        await Availability.InitializeAsync();
+        _allTools = Registry.GetAll();
+        if (!string.IsNullOrWhiteSpace(_searchQuery)) {
+            _filteredAllTools = Registry.Search(_searchQuery);
+        }
         _isReady = true;
     }
 
     private void HandleSearch(string query) {
         _searchQuery = query;
-        if (string.IsNullOrWhiteSpace(query)) {
-            _filteredTools = null;
-            _filteredHostedPreviewTools = Array.Empty<ToolDefinition>();
-            return;
-        }
-
-        var matches = Registry.Search(query);
-        _filteredTools = Availability.FilterVisible(matches);
-        _filteredHostedPreviewTools = Availability.IsStaticOnly
-            ? matches
-                .Where(static tool => tool.HostedCompatible && !tool.BrowserCompatible)
-                .Where(tool => !_availableTools.Any(available => string.Equals(available.Slug, tool.Slug, StringComparison.OrdinalIgnoreCase)))
-                .ToList()
-            : Array.Empty<ToolDefinition>();
-    }
-
-    private Task HandlePlannerDomainChanged(string? domain) {
-        var normalizedDomain = ToolPlannerPresentation.NormalizeDomain(domain);
-        if (string.Equals(_selectedDomain, normalizedDomain, StringComparison.Ordinal)) {
-            return Task.CompletedTask;
-        }
-
-        _selectedDomain = normalizedDomain;
-
-        var targetUrl = BuildCatalogUrl();
-        if (!string.Equals(GetCurrentCatalogUrl(), targetUrl, StringComparison.Ordinal)) {
-            Navigation.NavigateTo(targetUrl, replace: true);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    private IReadOnlyList<ToolDefinition> GetPlannerTools() {
-        return _availableTools
-            .Concat(_hostedPreviewTools)
-            .GroupBy(static tool => tool.Slug, StringComparer.OrdinalIgnoreCase)
-            .Select(static group => group.First())
-            .ToArray();
-    }
-
-    private int GetBrowserSafePartialCount() {
-        return _availableTools.Count(static tool => tool.HostedCompatible && !tool.BrowserCompatible);
-    }
-
-    private int GetAvailableNowCount() {
-        return _availableTools.Count(static tool => tool.BrowserCompatible);
+        _filteredAllTools = string.IsNullOrWhiteSpace(query)
+            ? Array.Empty<ToolDefinition>()
+            : Registry.Search(query);
     }
 
     private string GetPageTitle() {
-        if (!_isReady) return "Tools | Domain Detective";
-        if (string.IsNullOrEmpty(ToolSlug)) return "Tools | Domain Detective";
+        if (!_isReady || string.IsNullOrEmpty(ToolSlug)) return "Tools | Domain Detective";
         var tool = Registry.GetBySlug(ToolSlug);
-        if (tool is null || !Availability.CanRun(tool)) {
-            return tool is not null ? $"{tool.Name} | Domain Detective" : "Tool Not Available | Domain Detective";
-        }
-
-        return $"{tool.Name} | Domain Detective";
-    }
-
-    private string BuildCatalogUrl() {
-        return ToolPlannerPresentation.BuildCatalogUrl(_selectedDomain);
-    }
-
-    private string BuildToolUrl(ToolDefinition tool) {
-        return ToolPlannerPresentation.BuildToolUrl(tool, _selectedDomain);
-    }
-
-    private ToolDefinition? GetDnsLookupTool() {
-        return Registry.GetBySlug("dns-lookup");
-    }
-
-    private string GetCurrentCatalogUrl() {
-        var currentUri = new Uri(Navigation.Uri);
-        var currentPath = NormalizeCatalogPath(currentUri.AbsolutePath);
-        return string.IsNullOrWhiteSpace(currentUri.Query)
-            ? currentPath
-            : $"{currentPath}{currentUri.Query}";
-    }
-
-    private static string? GetQueryValue(Dictionary<string, string> query, string key) {
-        if (!query.TryGetValue(key, out var value)) {
-            return null;
-        }
-
-        return string.IsNullOrWhiteSpace(value) ? null : value;
-    }
-
-    private static Dictionary<string, string> ParseQuery(string? query) {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (string.IsNullOrWhiteSpace(query)) {
-            return result;
-        }
-
-        var trimmed = query[0] == '?' ? query[1..] : query;
-        if (trimmed.Length == 0) {
-            return result;
-        }
-
-        foreach (var pair in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries)) {
-            var separatorIndex = pair.IndexOf('=');
-            if (separatorIndex < 0) {
-                result[Uri.UnescapeDataString(pair)] = string.Empty;
-                continue;
-            }
-
-            var key = Uri.UnescapeDataString(pair[..separatorIndex]);
-            var value = Uri.UnescapeDataString(pair[(separatorIndex + 1)..]);
-            result[key] = value;
-        }
-
-        return result;
-    }
-
-    private static string NormalizeCatalogPath(string path) {
-        if (string.IsNullOrWhiteSpace(path)) {
-            return "/tools/";
-        }
-
-        var normalized = path.Replace('\\', '/').Trim();
-        if (!normalized.StartsWith("/", StringComparison.Ordinal)) {
-            normalized = "/" + normalized;
-        }
-
-        return normalized.EndsWith("/", StringComparison.Ordinal) ? normalized : normalized + "/";
+        return tool is not null ? $"{tool.Name} | Domain Detective" : "Tool Not Available | Domain Detective";
     }
 }

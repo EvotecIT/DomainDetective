@@ -5,19 +5,21 @@ namespace DomainDetective.Website.Tests;
 
 public sealed class ToolCategoryGridComponentTests : TestContext {
     [Fact]
-    public void PreservesDomainAndGuidedLocallyBadgeForHostedOnlyTools() {
+    public void ShowsStaticOnlyAvailabilityDotForHostedOnlyTools() {
         var tools = new[] {
             CreateTool("ct-subdomains", ToolCategory.Subdomain, browserCompatible: false, hostedCompatible: true)
         };
 
         var cut = RenderComponent<ToolCategoryGrid>(parameters => parameters
             .Add(component => component.Tools, tools)
-            .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly)
-            .Add(component => component.CurrentDomain, "contoso.com"));
+            .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly));
 
         var link = cut.Find("a.category-tool-link");
-        Assert.Equal("/tools/ct-subdomains/?q=contoso.com", link.GetAttribute("href"));
-        Assert.Contains("Guided locally", link.TextContent);
+        var dot = cut.Find(".tool-availability-dot");
+
+        Assert.Equal("/tools/ct-subdomains/", link.GetAttribute("href"));
+        Assert.Contains("tool-availability-dot-local", dot.ClassName);
+        Assert.Contains("ct-subdomains", link.TextContent);
     }
 
     private static ToolDefinition CreateTool(string slug, ToolCategory category, bool browserCompatible = true, bool hostedCompatible = false, bool liteCompatible = false) {

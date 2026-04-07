@@ -1,6 +1,6 @@
 ---
-title: CLI Usage
-description: Using the DomainDetective command-line interface.
+title: CLI Guide
+description: Use the DomainDetective CLI for scripted checks, automation, and batch workflows.
 slug: cli-usage
 collection: docs
 layout: docs
@@ -19,28 +19,31 @@ dotnet tool install -g DomainDetective.CLI
 domaindetective check example.com
 
 # Specific checks
-domaindetective check example.com --spf --dmarc --dkim
+domaindetective check example.com --checks SPF,DMARC,DKIM
 
-# All checks
-domaindetective check example.com --all
+# Summarize the default check set
+domaindetective check example.com --summary
+```
+
+## Focused Commands
+
+```bash
+# RDAP registration details
+domaindetective TestRDAP example.com
+
+# DNS propagation snapshot
+domaindetective DnsPropagation --domain example.com --record-type A
+
+# Certificate inventory capture
+domaindetective cert-inventory-capture example.com --include-ct-subdomains
 ```
 
 ## Output Formats
 
 ```bash
 # JSON output
-domaindetective check example.com --format json
+domaindetective check example.com --json
 
-# Table output (default)
-domaindetective check example.com --format table
-```
-
-## Batch Processing
-
-```bash
-# From a file
-domaindetective batch domains.txt --spf --dmarc
-
-# From stdin
-echo "example.com" | domaindetective batch --spf
+# Multiple domains
+domaindetective check example.com contoso.com --summary
 ```

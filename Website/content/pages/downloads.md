@@ -36,3 +36,19 @@ No installation needed! Visit the [online tools](/tools/) to analyze domains dir
 - **PowerShell Module**: PowerShell 5.1+ or PowerShell 7.0+
 - **CLI Tool**: .NET 8.0+ runtime
 - **Browser Tools**: Any modern browser with JavaScript enabled
+
+## Related DNS Client Package
+
+If you only need direct DNS querying instead of full DomainDetective analysis, use DnsClientX:
+
+```bash
+dotnet add package DnsClientX
+```
+
+```powershell
+Install-Module DnsClientX -Scope CurrentUser
+```
+
+- [DnsClientX product page](/products/dnsclientx/)
+- [DnsClientX .NET API](/api/dnsclientx/)
+- [DnsClientX PowerShell API](/api/dnsclientx-powershell/)

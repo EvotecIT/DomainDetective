@@ -1,4 +1,6 @@
 _site/
 _temp/
 _reports/
+projects/
 node_modules/
+.powerforge/git-sync-manifest.json

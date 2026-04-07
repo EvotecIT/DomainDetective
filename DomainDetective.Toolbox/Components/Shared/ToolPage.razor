@@ -12,7 +12,7 @@
 
 <div class="tool-page @(IsOverviewTool(Definition) ? "tool-page-overview" : string.Empty)">
     <div class="tool-breadcrumb">
-        <a href="@BuildCatalogUrl()">Tools</a> / @ToolRegistry.GetCategoryDisplayName(Definition.Category) / @Definition.Name
+        <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(Definition.Category) / @Definition.Name
     </div>
 
     <div class="tool-page-header">
@@ -21,13 +21,24 @@
     </div>
 
     @if (!CanRunOnline(Definition)) {
-        <ToolNotAvailable ToolName="@Definition.Name"
-                          Description="@Definition.Description"
-                          CliCommand="@Definition.Slug"
-                          PowerShellCommand="@GetPowerShellCommand()"
-                          Tool="Definition"
-                          CurrentDomain="@_domain" />
+        <ToolNotAvailable Tool="Definition" />
+    } else if (UsesCustomToolLayout(Definition)) {
+        @switch (Definition.Slug) {
+            case "raw-dns-query":
+                <DomainDetective.Toolbox.Components.Tools.Dns.RawDnsQueryTool />
+                break;
+            default:
+                <ToolNotAvailable Tool="Definition" />
+                break;
+        }
     } else {
+        @if (Definition.Slug == "dns-lookup") {
+            <div class="tool-callout tool-callout-inline">
+                <strong>Need raw record-by-record queries?</strong>
+                <p>Use <a href="/tools/raw-dns-query/">Raw DNS Query</a> when you want to choose record types, inspect live JSON answers, and copy equivalent DnsClientX code for C# or PowerShell.</p>
+            </div>
+        }
+
         @if (Availability.IsStaticOnly && SupportsLiteTool(Definition)) {
             <div class="tool-callout tool-callout-inline">
                 <strong>@GetStaticEditionTitle(Definition)</strong>
@@ -35,27 +46,8 @@
             </div>
         }
 
-        <details class="tool-workflow-disclosure">
-            <summary class="tool-workflow-disclosure-summary">Run this with CLI, PowerShell, or C#</summary>
-            <div class="tool-workflow-disclosure-body">
-                <ToolWorkflowGuidance Tool="Definition"
-                                      Domain="@_domain"
-                                      DnsResolver="@_dnsResolver"
-                                      DnsHost="@_dnsHost"
-                                      DnsRequestedTypes="@_secondaryInput" />
-            </div>
-        </details>
-
         <form class="tool-input-form" @onsubmit="RunAnalysis" @onsubmit:preventDefault>
             <input type="text" @bind="_domain" placeholder="@(Definition.InputPlaceholder ?? "example.com")" />
-            @if (SupportsDnsHostSelection(Definition)) {
-                <input type="text"
-                       @bind="_dnsHost"
-                       placeholder="Local host label (optional): _dmarc, _mta-sts, default._domainkey"
-                       aria-label="Local host label"
-                       title="Local host label"
-                       class="tool-input-secondary tool-input-host" />
-            }
             @if (Definition.SecondaryInputLabel is not null) {
                 <input type="text"
                        @bind="_secondaryInput"
@@ -63,16 +55,6 @@
                        aria-label="@Definition.SecondaryInputLabel"
                        title="@Definition.SecondaryInputLabel"
                        class="tool-input-secondary" />
-            }
-            @if (SupportsDnsResolverSelection(Definition)) {
-                <select @bind="_dnsResolver"
-                        aria-label="Browser resolver"
-                        title="Browser resolver"
-                        class="tool-input-select">
-                    @foreach (var resolver in GetDnsResolvers()) {
-                        <option value="@resolver.Name">@resolver.Name</option>
-                    }
-                </select>
             }
             <button type="submit" class="tool-run-btn" disabled="@_isLoading">
                 @(_isLoading ? "Analyzing..." : "Analyze")
@@ -93,10 +75,10 @@
                         @if (!string.IsNullOrWhiteSpace(item.SecondaryInput)) {
                             <span class="tool-history-chip-muted">@item.SecondaryInput</span>
                         }
-                        @if (!string.IsNullOrWhiteSpace(item.DnsHost) && SupportsDnsHostSelection(Definition)) {
+                        @if (!string.IsNullOrWhiteSpace(item.DnsHost)) {
                             <span class="tool-history-chip-muted">@item.DnsHost</span>
                         }
-                        @if (!string.IsNullOrWhiteSpace(item.DnsResolver) && SupportsDnsResolverSelection(Definition)) {
+                        @if (!string.IsNullOrWhiteSpace(item.DnsResolver)) {
                             <span class="tool-history-chip-muted">@item.DnsResolver</span>
                         }
                     </button>
@@ -190,9 +172,9 @@
                 case "dns-lookup":
                     <DomainDetective.Toolbox.Components.Tools.Dns.DnsLookupTool HealthCheck="_healthCheck"
                                                                                 Domain="@_domain"
-                                                                                HostLabel="@_dnsHost"
-                                                                                RequestedTypes="@_secondaryInput"
-                                                                                BrowserResolverName="@GetSelectedDnsResolverName()" />
+                                                                                RequestedTypes="@_dnsRequestedTypes"
+                                                                                HostLabel="@_dnsHostLabel"
+                                                                                BrowserResolverName="@_dnsBrowserResolverName" />
                     break;
                 case "dnssec":
                     <DomainDetective.Toolbox.Components.Tools.Dns.DnssecTool HealthCheck="_healthCheck" Domain="@_domain" />
@@ -236,15 +218,17 @@
             }
         }
     }
+
+    @if (!UsesCustomToolLayout(Definition)) {
+        <ToolUsageExamples Definition="Definition" />
+    }
 </div>
 
 @code {
     [Parameter] public required ToolDefinition Definition { get; set; }
 
     private string _domain = "";
-    private string? _dnsHost;
     private string? _secondaryInput;
-    private string? _dnsResolver = BrowserDnsService.GetDefaultResolverName();
     private bool _isLoading;
     private bool _forceHostedRefresh;
     private bool _isHydratingDeep;
@@ -270,6 +254,9 @@
     private DomainDetective.Views.SubdomainsInfo? _subdomainsInfo;
     private DomainDetective.Views.Microsoft365OverviewInfo? _microsoft365OverviewInfo;
     private DomainDetective.Views.DomainOverviewInfo? _domainOverviewInfo;
+    private string? _dnsRequestedTypes;
+    private string? _dnsHostLabel;
+    private string? _dnsBrowserResolverName;
 
     protected override void OnInitialized() {
         Navigation.LocationChanged += HandleLocationChanged;
@@ -317,13 +304,15 @@
         _subdomainsInfo = null;
         _microsoft365OverviewInfo = null;
         _domainOverviewInfo = null;
-        _lastRunKey = BuildRunKey(_domain, _secondaryInput, SupportsDnsHostSelection(Definition) ? _dnsHost : null, SupportsDnsResolverSelection(Definition) ? _dnsResolver : null);
+        _lastRunKey = BuildRunKey(_domain, _secondaryInput, _dnsHostLabel, _dnsBrowserResolverName);
         UpdateBrowserUrl();
         var analysisVersion = ++_analysisVersion;
         StateHasChanged();
 
         try {
-            var hc = DnsService.CreateHealthCheck(SupportsDnsResolverSelection(Definition) ? GetSelectedDnsResolverName() : null);
+            var hc = Definition.Slug == "dns-lookup"
+                ? DnsService.CreateHealthCheck(_dnsBrowserResolverName)
+                : DnsService.CreateHealthCheck();
 
             switch (Definition.Slug) {
                 case "m365-overview":
@@ -507,16 +496,15 @@
     private async Task SyncWithCurrentUriAsync() {
         var query = ParseQuery(new Uri(Navigation.Uri).Query);
         var domain = GetQueryValue(query, "q");
-        var dnsHost = GetQueryValue(query, "h");
         var secondaryInput = GetQueryValue(query, "s");
-        var dnsResolver = GetQueryValue(query, "r");
-        var runKey = BuildRunKey(domain, secondaryInput, SupportsDnsHostSelection(Definition) ? dnsHost : null, SupportsDnsResolverSelection(Definition) ? dnsResolver : null);
+        _dnsRequestedTypes = Definition.Slug == "dns-lookup" ? secondaryInput : null;
+        _dnsHostLabel = Definition.Slug == "dns-lookup" ? GetQueryValue(query, "h") : null;
+        _dnsBrowserResolverName = Definition.Slug == "dns-lookup" ? NormalizeDnsBrowserResolverName(GetQueryValue(query, "r")) : null;
+        var runKey = BuildRunKey(domain, secondaryInput, _dnsHostLabel, _dnsBrowserResolverName);
 
         if (!string.IsNullOrWhiteSpace(domain)) {
             _domain = domain;
-            _dnsHost = SupportsDnsHostSelection(Definition) ? dnsHost : null;
             _secondaryInput = secondaryInput;
-            _dnsResolver = SupportsDnsResolverSelection(Definition) ? NormalizeDnsResolver(dnsResolver) : BrowserDnsService.GetDefaultResolverName();
 
             if (!string.Equals(_lastRunKey, runKey, StringComparison.OrdinalIgnoreCase) && !_isLoading) {
                 _lastRunKey = runKey;
@@ -536,9 +524,7 @@
         CancelOverviewHydration();
         _lastRunKey = null;
         _domain = string.Empty;
-        _dnsHost = null;
         _secondaryInput = null;
-        _dnsResolver = BrowserDnsService.GetDefaultResolverName();
         _isLoading = false;
         _isHydratingDeep = false;
         _forceHostedRefresh = false;
@@ -558,6 +544,9 @@
         _subdomainsInfo = null;
         _microsoft365OverviewInfo = null;
         _domainOverviewInfo = null;
+        _dnsRequestedTypes = null;
+        _dnsHostLabel = null;
+        _dnsBrowserResolverName = null;
     }
 
     private async Task RunFreshAnalysis() {
@@ -567,14 +556,19 @@
 
     private async Task RunRecentAsync(RecentToolRun item) {
         _domain = item.Domain;
-        _dnsHost = SupportsDnsHostSelection(Definition) ? item.DnsHost : null;
         _secondaryInput = item.SecondaryInput;
-        _dnsResolver = SupportsDnsResolverSelection(Definition) ? NormalizeDnsResolver(item.DnsResolver) : BrowserDnsService.GetDefaultResolverName();
+        _dnsRequestedTypes = Definition.Slug == "dns-lookup" ? item.SecondaryInput : null;
+        _dnsHostLabel = item.DnsHost;
+        _dnsBrowserResolverName = NormalizeDnsBrowserResolverName(item.DnsResolver);
         await RunAnalysis();
     }
 
     private bool CanRunOnline(ToolDefinition definition) {
         return Availability.CanRun(definition);
+    }
+
+    private static bool UsesCustomToolLayout(ToolDefinition definition) {
+        return definition.Slug == "raw-dns-query";
     }
 
     private static bool SupportsHostedCache(ToolDefinition definition) {
@@ -583,6 +577,14 @@
 
     private static bool IsOverviewTool(ToolDefinition definition) {
         return definition.Slug == "m365-overview" || definition.Slug == "domain-overview";
+    }
+
+    private static string? NormalizeDnsBrowserResolverName(string? resolverName) {
+        if (string.IsNullOrWhiteSpace(resolverName)) {
+            return null;
+        }
+
+        return BrowserDnsService.GetResolverProfile(resolverName).Name;
     }
 
     private static bool SupportsLiteTool(ToolDefinition definition) {
@@ -621,9 +623,9 @@
 
         var item = new RecentToolRun {
             Domain = _domain.Trim(),
-            DnsHost = SupportsDnsHostSelection(Definition) && !string.IsNullOrWhiteSpace(_dnsHost) ? _dnsHost.Trim() : null,
             SecondaryInput = string.IsNullOrWhiteSpace(_secondaryInput) ? null : _secondaryInput.Trim(),
-            DnsResolver = SupportsDnsResolverSelection(Definition) ? GetSelectedDnsResolverName() : null,
+            DnsHost = string.IsNullOrWhiteSpace(_dnsHostLabel) ? null : _dnsHostLabel.Trim(),
+            DnsResolver = string.IsNullOrWhiteSpace(_dnsBrowserResolverName) ? null : _dnsBrowserResolverName.Trim(),
             SavedAtUtc = DateTimeOffset.UtcNow
         };
 
@@ -632,18 +634,12 @@
     }
 
     private void UpdateBrowserUrl() {
-        var url = BuildToolUrl(_domain, _secondaryInput, SupportsDnsHostSelection(Definition) ? _dnsHost : null, SupportsDnsResolverSelection(Definition) ? _dnsResolver : null);
+        var url = BuildToolUrl(_domain, _secondaryInput);
         Navigation.NavigateTo(url, replace: true);
     }
 
     private string BuildPermalinkUrl() {
-        return BuildToolUrl(_domain, _secondaryInput, SupportsDnsHostSelection(Definition) ? _dnsHost : null, SupportsDnsResolverSelection(Definition) ? _dnsResolver : null);
-    }
-
-    private string BuildCatalogUrl() {
-        return string.IsNullOrWhiteSpace(_domain)
-            ? "/tools/"
-            : $"/tools/?q={Uri.EscapeDataString(_domain.Trim())}";
+        return BuildToolUrl(_domain, _secondaryInput);
     }
 
     private IReadOnlyList<string> GetPendingSections() {
@@ -738,35 +734,15 @@
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
-    private static bool SupportsDnsResolverSelection(ToolDefinition definition) {
-        return definition.Slug == "dns-lookup";
-    }
-
-    private static bool SupportsDnsHostSelection(ToolDefinition definition) {
-        return definition.Slug == "dns-lookup";
-    }
-
-    private static IReadOnlyList<BrowserDnsService.DohResolverProfile> GetDnsResolvers() {
-        return BrowserDnsService.GetSupportedResolvers();
-    }
-
-    private string GetSelectedDnsResolverName() {
-        return NormalizeDnsResolver(_dnsResolver);
-    }
-
-    private static string NormalizeDnsResolver(string? resolverName) {
-        return BrowserDnsService.GetResolverProfile(resolverName).Name;
-    }
-
-    private static string? BuildRunKey(string? domain, string? secondaryInput, string? dnsHost, string? dnsResolver) {
+    private static string? BuildRunKey(string? domain, string? secondaryInput, string? hostLabel, string? browserResolverName) {
         if (string.IsNullOrWhiteSpace(domain)) {
             return null;
         }
 
-        return $"{domain.Trim().ToLowerInvariant()}::{dnsHost?.Trim().ToLowerInvariant() ?? string.Empty}::{secondaryInput?.Trim().ToLowerInvariant() ?? string.Empty}::{NormalizeDnsResolver(dnsResolver).ToLowerInvariant()}";
+        return $"{domain.Trim().ToLowerInvariant()}::{secondaryInput?.Trim().ToLowerInvariant() ?? string.Empty}::{hostLabel?.Trim().ToLowerInvariant() ?? string.Empty}::{browserResolverName?.Trim().ToLowerInvariant() ?? string.Empty}";
     }
 
-    private string BuildToolUrl(string? domain, string? secondaryInput, string? dnsHost, string? dnsResolver) {
+    private string BuildToolUrl(string? domain, string? secondaryInput) {
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         var query = ParseQuery(uri.Query);
 
@@ -782,24 +758,20 @@
             query["s"] = secondaryInput.Trim();
         }
 
-        if (SupportsDnsHostSelection(Definition)) {
-            if (string.IsNullOrWhiteSpace(dnsHost)) {
+        if (Definition.Slug == "dns-lookup") {
+            if (string.IsNullOrWhiteSpace(_dnsHostLabel)) {
                 query.Remove("h");
             } else {
-                query["h"] = dnsHost.Trim();
+                query["h"] = _dnsHostLabel.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(_dnsBrowserResolverName)) {
+                query.Remove("r");
+            } else {
+                query["r"] = _dnsBrowserResolverName.Trim();
             }
         } else {
             query.Remove("h");
-        }
-
-        if (SupportsDnsResolverSelection(Definition)) {
-            var normalizedResolver = NormalizeDnsResolver(dnsResolver);
-            if (string.Equals(normalizedResolver, BrowserDnsService.GetDefaultResolverName(), StringComparison.OrdinalIgnoreCase)) {
-                query.Remove("r");
-            } else {
-                query["r"] = normalizedResolver;
-            }
-        } else {
             query.Remove("r");
         }
 
@@ -856,12 +828,6 @@
             .ToArray();
     }
 
-    private string GetPowerShellCommand() => Definition.Slug switch {
-        "cert-check" => "Get-DomainCertificate -Domain example.com",
-        "dane" => "Get-DomainDANE -Domain example.com",
-        _ => $"Get-DomainHealthCheck -Domain example.com"
-    };
-
     private static string FormatTimestamp(DateTimeOffset? timestamp) {
         return timestamp.HasValue ? timestamp.Value.ToString("HH:mm:ss") : "pending";
     }
@@ -873,8 +839,8 @@
 
     private sealed class RecentToolRun {
         public string Domain { get; set; } = string.Empty;
-        public string? DnsHost { get; set; }
         public string? SecondaryInput { get; set; }
+        public string? DnsHost { get; set; }
         public string? DnsResolver { get; set; }
         public DateTimeOffset SavedAtUtc { get; set; }
     }

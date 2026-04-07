@@ -17,11 +17,123 @@
             }
         })();
     </script>
+    <style>
+        :root,
+        [data-theme="dark"] {
+            --dd-bg: #0a0f1c;
+            --dd-ink: #e5edf7;
+            --dd-ink-strong: #ffffff;
+            --dd-muted: #93a4b8;
+            --dd-accent: #00d9ff;
+            --dd-accent2: #5b8cff;
+            --dd-border: rgba(148, 163, 184, 0.16);
+            --dd-header-bg: rgba(10, 15, 28, 0.86);
+            --dd-radius-sm: 8px;
+            --dd-font-body: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --dd-font-display: "Space Grotesk", Inter, system-ui, sans-serif;
+        }
+
+        [data-theme="light"] {
+            --dd-bg: #f6f8fc;
+            --dd-ink: #163047;
+            --dd-ink-strong: #0f172a;
+            --dd-muted: #5e7288;
+            --dd-accent: #0ea5c4;
+            --dd-accent2: #3b82f6;
+            --dd-border: rgba(148, 163, 184, 0.28);
+            --dd-header-bg: rgba(246, 248, 252, 0.92);
+        }
+
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            overflow-x: hidden;
+            background: var(--dd-bg);
+            color: var(--dd-ink);
+            font-family: var(--dd-font-body);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .loading-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            gap: 1.1rem;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            background:
+                radial-gradient(circle at 20% 0%, rgba(0, 217, 255, 0.08), transparent 32%),
+                radial-gradient(circle at 82% 10%, rgba(91, 140, 255, 0.07), transparent 36%),
+                var(--dd-bg);
+            color: var(--dd-muted);
+        }
+
+        .loading-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--dd-ink-strong);
+            font-family: var(--dd-font-display);
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .loading-logo {
+            color: var(--dd-accent);
+        }
+
+        .loading-copy {
+            display: grid;
+            gap: 0.4rem;
+            max-width: 30rem;
+        }
+
+        .loading-title {
+            color: var(--dd-ink-strong);
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+
+        .loading-text {
+            color: var(--dd-muted);
+            margin: 0;
+        }
+
+        .loading-bar {
+            position: relative;
+            width: min(240px, 70vw);
+            height: 6px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.14);
+        }
+
+        .loading-bar::after {
+            content: '';
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 42%;
+            border-radius: inherit;
+            background: linear-gradient(135deg, var(--dd-accent), var(--dd-accent2));
+            animation: loadingSlide 1.35s ease-in-out infinite;
+        }
+
+        @keyframes loadingSlide {
+            0% { transform: translateX(-100%); }
+            50% { transform: translateX(140%); }
+            100% { transform: translateX(280%); }
+        }
+    </style>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=optional" />
     <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/prism-theme.css" />
     <link rel="stylesheet" href="DomainDetective.Website.styles.css" />
 </head>
 <body>
@@ -49,6 +161,7 @@
     </div>
 
     <script src="js/app.js"></script>
+    <script src="js/raw-dns-query.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
 </body>
 </html>

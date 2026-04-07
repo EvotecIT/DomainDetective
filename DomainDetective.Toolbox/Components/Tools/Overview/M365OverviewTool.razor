@@ -299,16 +299,9 @@
 <ResultCard Title="Mail and DNS controls" Status="ResultCard.ResultStatus.Info">
     <div class="overview-status-strip">
         @foreach (var card in mailControlCards) {
-            <OverviewControlCard Card="card" CalloutClass="@($"tool-callout tool-callout-control {card.StateClass}")" Compact="true" />
+            <OverviewPairedCard Control="card" Detail="OverviewDetailMatcher.FindMatchingDetail(card, mailCards)" />
         }
     </div>
-    @if (mailCards.Count > 0) {
-        <div class="tool-section-grid mt-3">
-            @foreach (var card in mailCards) {
-                <OverviewDetailCard Card="card" />
-            }
-        </div>
-    }
 </ResultCard>
 }
 </div>

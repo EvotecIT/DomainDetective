@@ -30,7 +30,7 @@ Failed messages are rejected outright. This is the recommended end state for max
 ## Analyzing DMARC with DomainDetective
 
 ```powershell
-$results = Get-DomainHealthCheck -Domain "example.com"
+$results = Test-DomainHealth -DomainName "example.com" -HealthCheckType DMARC
 $dmarc = $results.DmarcAnalysis
 
 # Check current policy

@@ -1,0 +1,20 @@
+---
+title: DnsClientX DNS Playground
+description: Redirecting to Raw DNS Query.
+slug: playground
+collection: products
+layout: page
+---
+
+<script>
+  (function () {
+    var target = '/tools/raw-dns-query/' + (window.location.search || '') + (window.location.hash || '');
+    window.location.replace(target);
+  })();
+</script>
+
+<noscript>
+  <p>DNS Query Playground moved to <a href="/tools/raw-dns-query/">/tools/raw-dns-query/</a>.</p>
+</noscript>
+
+<p>Redirecting to Raw DNS Query...</p>
