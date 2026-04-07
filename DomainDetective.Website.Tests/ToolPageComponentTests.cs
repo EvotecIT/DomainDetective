@@ -9,6 +9,7 @@ namespace DomainDetective.Website.Tests;
 
 public sealed class ToolPageComponentTests : TestContext {
     private readonly ToolRegistry _registry = new();
+    private readonly RecordingDnsHandler _dnsHandler = new();
 
     public ToolPageComponentTests() {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -21,13 +22,13 @@ public sealed class ToolPageComponentTests : TestContext {
 
         Services.AddSingleton<IConfiguration>(configuration);
         Services.AddSingleton(_registry);
-        Services.AddScoped(_ => new HttpClient(new StaticDnsHandler()) {
+        Services.AddScoped(_ => new HttpClient(_dnsHandler) {
             BaseAddress = new Uri("http://localhost")
         });
         Services.AddScoped<ToolAvailabilityService>();
-        Services.AddScoped(_ => new BrowserDnsService(new HttpClient(new StaticDnsHandler())));
+        Services.AddScoped(_ => new BrowserDnsService(new HttpClient(_dnsHandler)));
         Services.AddScoped<BrowserOverviewService>();
-        Services.AddScoped(_ => new HostedAnalysisService(new HttpClient(new StaticDnsHandler()) {
+        Services.AddScoped(_ => new HostedAnalysisService(new HttpClient(_dnsHandler) {
             BaseAddress = new Uri("http://localhost")
         }));
     }
@@ -49,11 +50,18 @@ public sealed class ToolPageComponentTests : TestContext {
             Assert.Contains("Use <a href=\"/tools/raw-dns-query/\">Raw DNS Query</a>", cut.Markup);
             Assert.Contains("Analyze", cut.Markup);
             Assert.DoesNotContain("Tool not found", cut.Markup);
+            Assert.Contains(_dnsHandler.RequestUris, uri => uri.Host.Equals("cloudflare-dns.com", StringComparison.OrdinalIgnoreCase));
         });
     }
 
-    private sealed class StaticDnsHandler : HttpMessageHandler {
+    private sealed class RecordingDnsHandler : HttpMessageHandler {
+        public List<Uri> RequestUris { get; } = new();
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+            if (request.RequestUri != null) {
+                RequestUris.Add(request.RequestUri);
+            }
+
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
                 Content = new StringContent("{\"Status\":0,\"AD\":false,\"Answer\":[],\"Authority\":[]}")
             });

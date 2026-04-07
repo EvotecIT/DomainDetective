@@ -304,8 +304,8 @@
             return true;
         }
 
-        foreach (var child in item.Items) {
-            if (!string.IsNullOrWhiteSpace(child.Href) && IsActivePath(child.Href)) {
+        foreach (var child in item.Items.Where(static child => !string.IsNullOrWhiteSpace(child.Href))) {
+            if (IsActivePath(child.Href!)) {
                 return true;
             }
         }

@@ -61,7 +61,11 @@ public sealed class MainLayoutComponentTests : TestContext {
 
     private sealed class StaticHttpMessageHandler : HttpMessageHandler {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            return Task.FromResult(CreateNotFoundResponse());
+        }
+
+        private static HttpResponseMessage CreateNotFoundResponse() {
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
         }
     }
 }

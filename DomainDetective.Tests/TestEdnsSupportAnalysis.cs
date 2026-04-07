@@ -141,7 +141,9 @@ public class TestEdnsSupportAnalysis {
         finally {
             try {
                 tcpListener?.Stop();
-            } catch {
+            } catch (SocketException) {
+                // ignore cleanup failures
+            } catch (ObjectDisposedException) {
                 // ignore cleanup failures
             }
 
@@ -153,7 +155,9 @@ public class TestEdnsSupportAnalysis {
             if (udpTask != null) {
                 try {
                     await udpTask;
-                } catch {
+                } catch (SocketException) {
+                    // ignore cleanup failures
+                } catch (ObjectDisposedException) {
                     // ignore cleanup failures
                 }
             }
@@ -161,7 +165,11 @@ public class TestEdnsSupportAnalysis {
             if (tcpTask != null) {
                 try {
                     await tcpTask;
-                } catch {
+                } catch (SocketException) {
+                    // ignore cleanup failures
+                } catch (ObjectDisposedException) {
+                    // ignore cleanup failures
+                } catch (IOException) {
                     // ignore cleanup failures
                 }
             }
@@ -215,7 +223,11 @@ public class TestEdnsSupportAnalysis {
         finally {
             try {
                 await udpTask;
-            } catch {
+            } catch (SocketException) {
+                // ignore cleanup failures from the loopback probe task
+            } catch (ObjectDisposedException) {
+                // ignore cleanup failures from the loopback probe task
+            } catch (IOException) {
                 // ignore cleanup failures from the loopback probe task
             }
 
