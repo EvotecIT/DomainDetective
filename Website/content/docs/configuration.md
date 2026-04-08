@@ -24,6 +24,10 @@ Available endpoints:
 - `DnsEndpoint.Cloudflare` - Cloudflare DoH (JSON)
 - `DnsEndpoint.Google` - Google Public DNS
 - `DnsEndpoint.Quad9` - Quad9 DNS
+- `DnsEndpoint.Quad9Http3` - Quad9 DoH3 on .NET 8+
+- `DnsEndpoint.Quad9Quic` - Quad9 DoQ on .NET 8+ when QUIC is supported
+
+For browser-hosted DomainDetective pages, keep using browser-safe DoH resolver choices. The broader transport list applies to local DnsClientX usage in PowerShell, CLI, and C#.
 
 ### Multiple Resolvers
 
