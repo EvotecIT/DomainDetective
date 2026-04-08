@@ -3861,6 +3861,11 @@ public class TestCertificateInventoryCapture {
             IncludeApexHttps = true,
             IncludeWwwHttps = true,
             IncludeCtDiscoveredSubdomains = false,
+            EnableNativeCtLogSubdomainSource = false,
+            EnablePassiveCtFallback = false,
+            NativeCtLogOnly = true,
+            VerifyCtDiscoveredSubdomains = true,
+            BackfillMissingCtCertificateMetadata = false,
             PromoteCtDiscoveredSubdomainsToHttpsProbes = true,
             IncludeMxHosts = true,
             IncludeMxHttps = true,
@@ -3876,7 +3881,11 @@ public class TestCertificateInventoryCapture {
         Assert.False(options.IncludeApexHttps);
         Assert.False(options.IncludeWwwHttps);
         Assert.True(options.IncludeCtDiscoveredSubdomains);
+        Assert.True(options.EnableNativeCtLogSubdomainSource);
+        Assert.True(options.EnablePassiveCtFallback);
+        Assert.False(options.NativeCtLogOnly);
         Assert.False(options.VerifyCtDiscoveredSubdomains);
+        Assert.True(options.BackfillMissingCtCertificateMetadata);
         Assert.False(options.PromoteCtDiscoveredSubdomainsToHttpsProbes);
         Assert.False(options.IncludeMxHosts);
         Assert.False(options.IncludeMxHttps);
@@ -3895,6 +3904,7 @@ public class TestCertificateInventoryCapture {
             IncludeWwwHttps = true,
             IncludeCtDiscoveredSubdomains = true,
             VerifyCtDiscoveredSubdomains = true,
+            BackfillMissingCtCertificateMetadata = false,
             PromoteCtDiscoveredSubdomainsToHttpsProbes = true,
             IncludeMxHosts = true,
             IncludeMxHttps = true,
@@ -3911,6 +3921,7 @@ public class TestCertificateInventoryCapture {
         Assert.False(options.IncludeWwwHttps);
         Assert.False(options.IncludeCtDiscoveredSubdomains);
         Assert.False(options.VerifyCtDiscoveredSubdomains);
+        Assert.True(options.BackfillMissingCtCertificateMetadata);
         Assert.False(options.PromoteCtDiscoveredSubdomainsToHttpsProbes);
         Assert.False(options.IncludeMxHosts);
         Assert.False(options.IncludeMxHttps);

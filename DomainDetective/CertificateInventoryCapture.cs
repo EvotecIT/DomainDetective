@@ -370,8 +370,13 @@ public sealed class CertificateInventoryCaptureOptions {
         IncludeApexHttps = false;
         IncludeWwwHttps = false;
         IncludeCtDiscoveredSubdomains = true;
+        EnableNativeCtLogSubdomainSource = true;
+        EnablePassiveCtFallback = true;
+        NativeCtLogOnly = false;
         VerifyCtDiscoveredSubdomains = false;
+        BackfillMissingCtCertificateMetadata = true;
         PromoteCtDiscoveredSubdomainsToHttpsProbes = false;
+        // Disable all non-CT probe expansion in the discovery-only lane.
         IncludeMxHosts = false;
         IncludeMxHttps = false;
         IncludeSmtpStartTls = false;
@@ -384,14 +389,17 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>
     /// Configures the capture for exact-host CT evidence refresh.
     /// This keeps the run focused on apex or explicit host probes plus CT metadata hydration,
-    /// without reopening broader CT discovery or MX/mail expansion.
+    /// without reopening broader CT discovery or MX/mail expansion. CT metadata hydration stays
+    /// enabled for exact-host seeds and explicit CT metadata targets rather than discovered-host expansion.
     /// </summary>
     public CertificateInventoryCaptureOptions ApplyCtEvidenceRefreshProfile() {
         IncludeApexHttps = true;
         IncludeWwwHttps = false;
         IncludeCtDiscoveredSubdomains = false;
         VerifyCtDiscoveredSubdomains = false;
+        BackfillMissingCtCertificateMetadata = true;
         PromoteCtDiscoveredSubdomainsToHttpsProbes = false;
+        // Disable all non-CT probe expansion in the evidence-refresh lane.
         IncludeMxHosts = false;
         IncludeMxHttps = false;
         IncludeSmtpStartTls = false;
