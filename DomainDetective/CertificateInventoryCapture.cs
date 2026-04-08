@@ -410,6 +410,9 @@ public sealed class CertificateInventoryCaptureOptions {
         IncludeApexHttps = true;
         IncludeWwwHttps = false;
         IncludeCtDiscoveredSubdomains = false;
+        EnableNativeCtLogSubdomainSource = false;
+        EnablePassiveCtFallback = false;
+        NativeCtLogOnly = false;
         VerifyCtDiscoveredSubdomains = false;
         BackfillMissingCtCertificateMetadata = true;
         PromoteCtDiscoveredSubdomainsToHttpsProbes = false;
