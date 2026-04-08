@@ -2057,6 +2057,12 @@ public class TestCertificateInventoryCapture {
             HashAlgorithmName.SHA256,
             RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(
+            new X509EnhancedKeyUsageExtension(
+                new OidCollection {
+                    new(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid)
+                },
+                critical: false));
+        request.CertificateExtensions.Add(
             new X509BasicConstraintsExtension(false, false, 0, false));
         request.CertificateExtensions.Add(
             new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
@@ -2103,6 +2109,10 @@ public class TestCertificateInventoryCapture {
             cancellationToken: CancellationToken.None);
 
         Assert.Equal(certificate.Thumbprint, hydrated.LatestCertificateThumbprint);
+        Assert.True(hydrated.LatestCertificateHasServerAuthentication);
+        Assert.False(hydrated.LatestCertificateHasClientAuthentication);
+        Assert.False(hydrated.LatestCertificateHasSecureEmail);
+        Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAuthOnly, hydrated.LatestCertificateAuthenticationProfile);
     }
 
     [Fact]
@@ -2834,6 +2844,7 @@ public class TestCertificateInventoryCapture {
         var notBefore = new DateTimeOffset(2022, 7, 11, 0, 0, 0, TimeSpan.Zero);
         var notAfter = new DateTimeOffset(2023, 8, 11, 23, 59, 59, TimeSpan.Zero);
         var passiveQueries = new List<string>();
+        const string thumbprint = "AA11BB22CC33DD44EE55FF6677889900AA11BB22";
 
         var capture = new CertificateInventoryCapture {
             CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
@@ -2852,18 +2863,23 @@ public class TestCertificateInventoryCapture {
             CtPassiveMetadataBackfillOverride = (domains, options, logger, cancellationToken) => {
                 string target = Assert.Single(domains);
                 passiveQueries.Add(target);
-                IReadOnlyList<SubdomainDiscoveryEntry> discovered = string.Equals(target, "airtoxics.eurofins.com", StringComparison.OrdinalIgnoreCase)
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = string.Equals(target, "eurofins.com", StringComparison.OrdinalIgnoreCase)
                     ? new[] {
                         new SubdomainDiscoveryEntry {
                             Name = "airtoxics.eurofins.com",
                             FirstSeenUtc = passiveCtEntryTimestamp,
                             LastSeenUtc = passiveCtEntryTimestamp,
                             LatestCertificateCtEntryTimestampUtc = passiveCtEntryTimestamp,
+                            LatestCertificateThumbprint = thumbprint,
                             LatestCertificateSubject = "CN=airtoxics.eurofins.com",
                             LatestCertificateIssuer = "CN=Sectigo RSA Domain Validation Secure Server CA, O=Sectigo Limited, C=GB",
                             LatestCertificateSerialNumber = "0CE4A3C00C1DD4890B9EBA4223FE917F",
                             LatestCertificateNotBeforeUtc = notBefore,
                             LatestCertificateNotAfterUtc = notAfter,
+                            LatestCertificateHasServerAuthentication = true,
+                            LatestCertificateHasClientAuthentication = false,
+                            LatestCertificateHasSecureEmail = false,
+                            LatestCertificateAuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
                             CtSources = new[] { "crt.sh" },
                             CertificateObservationCount = 1,
                             ResolutionStatus = SubdomainResolutionStatus.Resolves
@@ -2916,7 +2932,7 @@ public class TestCertificateInventoryCapture {
 
         var result = await capture.CaptureAsync(new[] { "eurofins.com", "airtoxics.eurofins.com" }, options, cancellationToken: CancellationToken.None);
 
-        Assert.Equal(new[] { "airtoxics.eurofins.com" }, passiveQueries);
+        Assert.Equal(new[] { "eurofins.com" }, passiveQueries);
         Assert.Equal(1, result.CtDiscoveredSubdomainCount);
         Assert.Equal(0, result.CtPromotedHttpsCount);
         Assert.Equal(1, result.CtSkippedHttpsPromotionCount);
@@ -2929,6 +2945,189 @@ public class TestCertificateInventoryCapture {
         Assert.Equal("live-probe", endpoint.CaptureDisposition);
         Assert.Equal("CN=airtoxics.eurofins.com", endpoint.CertificateSubject);
         Assert.Equal(passiveCtEntryTimestamp, endpoint.CtLatestCertificateEntryTimestampUtc);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ExactHostPassiveBackfillRunsWhenCtDiscoveryOnlyHasIdentityMetadata() {
+        var ctFirstSeen = new DateTimeOffset(2026, 3, 5, 10, 21, 27, TimeSpan.Zero);
+        var ctLastSeen = new DateTimeOffset(2026, 3, 5, 15, 42, 37, TimeSpan.Zero);
+        var passiveCtEntryTimestamp = new DateTimeOffset(2022, 7, 11, 15, 36, 47, TimeSpan.Zero);
+        var notBefore = new DateTimeOffset(2022, 7, 11, 0, 0, 0, TimeSpan.Zero);
+        var notAfter = new DateTimeOffset(2023, 8, 11, 23, 59, 59, TimeSpan.Zero);
+        var passiveQueries = new List<string>();
+        const string thumbprint = "AA11BB22CC33DD44EE55FF6677889900AA11BB22";
+
+        var capture = new CertificateInventoryCapture {
+            CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
+                    new SubdomainDiscoveryEntry {
+                        Name = "airtoxics.eurofins.com",
+                        FirstSeenUtc = ctFirstSeen,
+                        LastSeenUtc = ctLastSeen,
+                        LatestCertificateCtEntryTimestampUtc = passiveCtEntryTimestamp,
+                        LatestCertificateSubject = "CN=airtoxics.eurofins.com",
+                        LatestCertificateIssuer = "CN=Identity Only Issuer",
+                        LatestCertificateSerialNumber = "IDENTITY-ONLY-123",
+                        LatestCertificateNotBeforeUtc = notBefore,
+                        LatestCertificateNotAfterUtc = notAfter,
+                        CtSources = new[] { "native-ct" },
+                        CertificateObservationCount = 2,
+                        ResolutionStatus = SubdomainResolutionStatus.Resolves
+                    }
+                };
+                return Task.FromResult(discovered);
+            },
+            CtPassiveMetadataBackfillOverride = (domains, options, logger, cancellationToken) => {
+                string target = Assert.Single(domains);
+                passiveQueries.Add(target);
+                IReadOnlyList<SubdomainDiscoveryEntry> discovered = string.Equals(target, "airtoxics.eurofins.com", StringComparison.OrdinalIgnoreCase)
+                    ? new[] {
+                        new SubdomainDiscoveryEntry {
+                            Name = "airtoxics.eurofins.com",
+                            FirstSeenUtc = passiveCtEntryTimestamp,
+                            LastSeenUtc = passiveCtEntryTimestamp,
+                            LatestCertificateCtEntryTimestampUtc = passiveCtEntryTimestamp,
+                            LatestCertificateThumbprint = thumbprint,
+                            LatestCertificateSubject = "CN=airtoxics.eurofins.com",
+                            LatestCertificateIssuer = "CN=Sectigo RSA Domain Validation Secure Server CA, O=Sectigo Limited, C=GB",
+                            LatestCertificateSerialNumber = "0CE4A3C00C1DD4890B9EBA4223FE917F",
+                            LatestCertificateNotBeforeUtc = notBefore,
+                            LatestCertificateNotAfterUtc = notAfter,
+                            LatestCertificateHasServerAuthentication = true,
+                            LatestCertificateHasClientAuthentication = false,
+                            LatestCertificateHasSecureEmail = false,
+                            LatestCertificateAuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CtSources = new[] { "crt.sh" },
+                            CertificateObservationCount = 1,
+                            ResolutionStatus = SubdomainResolutionStatus.Resolves
+                        }
+                    }
+                    : Array.Empty<SubdomainDiscoveryEntry>();
+                return Task.FromResult(discovered);
+            },
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    var uri = new Uri(target);
+                    entries.Add(new CertificateMonitor.Entry {
+                        Host = uri.Host,
+                        ResolvedHost = uri.Host,
+                        Url = target,
+                        Scheme = uri.Scheme,
+                        Port = uri.Port,
+                        Service = "HTTPS",
+                        Valid = false,
+                        Expired = false,
+                        ChainComplete = false,
+                        Protocol = SslProtocols.None,
+                        Analysis = new CertificateAnalysis {
+                            Url = target,
+                            IsReachable = false
+                        }
+                    });
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = true,
+            IncludeWwwHttps = false,
+            IncludeCtDiscoveredSubdomains = true,
+            VerifyCtDiscoveredSubdomains = false,
+            EnablePassiveCtFallback = true,
+            EnablePassiveCtMetadataFallback = true,
+            IncludeMxHosts = false,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = false,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            BackfillMissingCtCertificateMetadata = true,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "eurofins.com", "airtoxics.eurofins.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.Equal(new[] { "eurofins.com", "airtoxics.eurofins.com" }, passiveQueries);
+        var discovered = Assert.Single(result.CtDiscoveredSubdomainEntries, entry => entry.Name.Equals("airtoxics.eurofins.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(thumbprint, discovered.LatestCertificateThumbprint);
+        Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAuthOnly, discovered.LatestCertificateAuthenticationProfile);
+        var endpoint = Assert.Single(result.Snapshot.Entries, entry => entry.Host.Equals("airtoxics.eurofins.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(thumbprint, endpoint.CertificateThumbprint);
+        Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAuthOnly, endpoint.AuthenticationProfile);
+    }
+
+    [IntegrationFact]
+    public async Task CaptureAsync_CtEvidenceRefreshProfile_HydratesExactHostFromLiveCtSources() {
+        const string hostName = "api.github.com";
+
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    var uri = new Uri(target);
+                    entries.Add(new CertificateMonitor.Entry {
+                        Host = uri.Host,
+                        ResolvedHost = uri.Host,
+                        Url = target,
+                        Scheme = uri.Scheme,
+                        Port = uri.Port,
+                        Service = "HTTPS",
+                        Valid = false,
+                        Expired = false,
+                        ChainComplete = false,
+                        Protocol = SslProtocols.None,
+                        Analysis = new CertificateAnalysis {
+                            Url = target,
+                            IsReachable = false
+                        }
+                    });
+                }
+
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            EnablePassiveCtMetadataFallback = true,
+            EnableCrtShPostgreSqlMetadataFallback = true,
+            BackfillMissingCtCertificateMetadata = true,
+            PersistSnapshot = false,
+            CrtShPostgreSqlCommandTimeoutSeconds = 20,
+            PassiveCtRequestTimeout = TimeSpan.FromSeconds(20)
+        }.ApplyCtEvidenceRefreshProfile();
+
+        var result = await capture.CaptureAsync(new[] { hostName }, options, cancellationToken: CancellationToken.None);
+
+        var endpoint = Assert.Single(result.Snapshot.Entries, entry => entry.Host.Equals(hostName, StringComparison.OrdinalIgnoreCase));
+        Assert.False(endpoint.IsReachable);
+        Assert.True(endpoint.PresentInCtLogs);
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.CertificateThumbprint));
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.CertificateSubject));
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.CertificateIssuer));
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.CertificateSerialNumber));
+        Assert.True(endpoint.NotBeforeUtc.HasValue);
+        Assert.True(endpoint.NotAfterUtc.HasValue);
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.AuthenticationProfile));
+        Assert.Contains(
+            endpoint.CtDiscoverySources,
+            source => source.Equals("crt.sh", StringComparison.OrdinalIgnoreCase) ||
+                      source.Equals("crt.sh-db", StringComparison.OrdinalIgnoreCase) ||
+                      source.Equals("certspotter", StringComparison.OrdinalIgnoreCase));
+
+        Console.WriteLine($"Host={endpoint.Host}");
+        Console.WriteLine($"Reachable={endpoint.IsReachable}");
+        Console.WriteLine($"PresentInCtLogs={endpoint.PresentInCtLogs}");
+        Console.WriteLine($"Thumbprint={endpoint.CertificateThumbprint}");
+        Console.WriteLine($"Subject={endpoint.CertificateSubject}");
+        Console.WriteLine($"Issuer={endpoint.CertificateIssuer}");
+        Console.WriteLine($"Serial={endpoint.CertificateSerialNumber}");
+        Console.WriteLine($"NotBeforeUtc={endpoint.NotBeforeUtc:O}");
+        Console.WriteLine($"NotAfterUtc={endpoint.NotAfterUtc:O}");
+        Console.WriteLine($"AuthenticationProfile={endpoint.AuthenticationProfile}");
+        Console.WriteLine($"AllowsServerAuthentication={endpoint.AllowsServerAuthentication}");
+        Console.WriteLine($"CtSources={string.Join(", ", endpoint.CtDiscoverySources)}");
     }
 
     [Fact]
@@ -3266,14 +3465,17 @@ public class TestCertificateInventoryCapture {
     }
 
     [Theory]
-    [InlineData(16, 4, 40, true, 4)]
-    [InlineData(3, 8, 40, true, 3)]
-    [InlineData(16, 4, 5, true, 4)]
-    [InlineData(16, 4, 3, true, 3)]
-    [InlineData(16, 4, 40, false, 16)]
+    [InlineData(16, 4, 2, 40, true, 4)]
+    [InlineData(3, 8, 2, 40, true, 3)]
+    [InlineData(16, 4, 2, 5, true, 4)]
+    [InlineData(16, 4, 2, 3, true, 3)]
+    [InlineData(16, 4, 2, 40, false, 2)]
+    [InlineData(16, 4, 5, 40, false, 5)]
+    [InlineData(3, 8, 2, 40, false, 2)]
     public void ResolveExactPassiveCtMetadataBackfillParallelism_UsesBoundedConcurrency(
         int configuredDiscoveryParallelism,
         int configuredPassiveCtParallelism,
+        int configuredCrtShPostgreSqlMaximumConcurrentRequests,
         int hostCount,
         bool usePassiveNetworkQueries,
         int expected)
@@ -3281,6 +3483,7 @@ public class TestCertificateInventoryCapture {
         int result = CertificateInventoryCapture.ResolveExactPassiveCtMetadataBackfillParallelism(
             configuredDiscoveryParallelism,
             configuredPassiveCtParallelism,
+            configuredCrtShPostgreSqlMaximumConcurrentRequests,
             hostCount,
             usePassiveNetworkQueries);
 

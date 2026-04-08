@@ -51,6 +51,29 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     /// <summary>Cooldown applied to passive/public CT sources after transient failures or rate limits.</summary>
     public TimeSpan PassiveCtSourceCooldown { get; set; } = TimeSpan.FromSeconds(60);
 
+    /// <summary>
+    /// Minimum spacing between public crt.sh requests when passive/public CT fallback is active.
+    /// crt.sh publishes conservative shared limits, so the default stays intentionally gentle.
+    /// </summary>
+    public TimeSpan PassiveCtCrtShMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Minimum spacing between Cert Spotter requests when passive/public CT fallback is active.
+    /// </summary>
+    public TimeSpan PassiveCtCertSpotterMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Maximum number of public crt.sh requests issued during one passive CT run.
+    /// Zero means uncapped.
+    /// </summary>
+    public int PassiveCtCrtShMaximumRequestsPerRun { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum number of Cert Spotter requests issued during one passive CT run.
+    /// Zero means uncapped.
+    /// </summary>
+    public int PassiveCtCertSpotterMaximumRequestsPerRun { get; set; } = 1;
+
     /// <summary>When true, uses direct RFC6962 CT log polling as primary subdomain discovery source.</summary>
     public bool EnableNativeCtLogSource { get; set; }
 

@@ -120,6 +120,13 @@ public sealed class CertificateInventoryCaptureOptions {
     /// </summary>
     public int CrtShPostgreSqlCommandTimeoutSeconds { get; set; } = 15;
 
+    /// <summary>
+    /// Maximum number of concurrent exact-host crt.sh PostgreSQL metadata rescue queries.
+    /// Keep this conservative for the public guest replica to avoid exhausting shared
+    /// connection budgets during large capture runs.
+    /// </summary>
+    public int CrtShPostgreSqlMaximumConcurrentRequests { get; set; } = 2;
+
     /// <summary>Per-request timeout for passive/public CT HTTP calls.</summary>
     public TimeSpan PassiveCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
@@ -139,19 +146,19 @@ public sealed class CertificateInventoryCaptureOptions {
     /// Minimum spacing between public crt.sh requests when passive/public CT fallback is active.
     /// This helps exact-host rescue and fallback discovery stay within respectful shared-source pacing.
     /// </summary>
-    public TimeSpan PassiveCtCrtShMinimumSpacing { get; set; } = TimeSpan.FromSeconds(5);
+    public TimeSpan PassiveCtCrtShMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// Minimum spacing between Cert Spotter requests when passive/public CT fallback is active.
     /// This is anti-burst pacing only; the main safety rail is the run-local request budget below.
     /// </summary>
-    public TimeSpan PassiveCtCertSpotterMinimumSpacing { get; set; } = TimeSpan.FromSeconds(5);
+    public TimeSpan PassiveCtCertSpotterMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// Maximum number of public crt.sh exact-host metadata requests issued during a single passive CT run.
     /// Zero means uncapped.
     /// </summary>
-    public int PassiveCtCrtShMaximumRequestsPerRun { get; set; } = 8;
+    public int PassiveCtCrtShMaximumRequestsPerRun { get; set; } = 5;
 
     /// <summary>
     /// Maximum number of Cert Spotter exact-host metadata requests issued during a single passive CT run.
@@ -818,7 +825,11 @@ public sealed partial class CertificateInventoryCapture {
         var normalizedDomains = NormalizeDomains(domains, warnings);
         var seeds = BuildSeeds(normalizedDomains);
         var normalizedCtDiscoveryDomains = options.CtDiscoveryDomains.Count == 0
-            ? normalizedDomains
+            ? seeds
+                .Where(static seed => seed != null && !seed.IsExactHostSeed && !string.IsNullOrWhiteSpace(seed.Name))
+                .Select(static seed => seed.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
             : NormalizeDomains(options.CtDiscoveryDomains, warnings);
         var ctDiscoverySeeds = BuildSeeds(normalizedCtDiscoveryDomains);
         logger.WriteVerbose("Certificate inventory capture started for {0} normalized domain(s).", normalizedDomains.Count);
