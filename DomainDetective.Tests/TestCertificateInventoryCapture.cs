@@ -3903,6 +3903,9 @@ public class TestCertificateInventoryCapture {
             IncludeApexHttps = false,
             IncludeWwwHttps = true,
             IncludeCtDiscoveredSubdomains = true,
+            EnableNativeCtLogSubdomainSource = true,
+            EnablePassiveCtFallback = true,
+            NativeCtLogOnly = true,
             VerifyCtDiscoveredSubdomains = true,
             BackfillMissingCtCertificateMetadata = false,
             PromoteCtDiscoveredSubdomainsToHttpsProbes = true,
@@ -3920,6 +3923,9 @@ public class TestCertificateInventoryCapture {
         Assert.True(options.IncludeApexHttps);
         Assert.False(options.IncludeWwwHttps);
         Assert.False(options.IncludeCtDiscoveredSubdomains);
+        Assert.False(options.EnableNativeCtLogSubdomainSource);
+        Assert.False(options.EnablePassiveCtFallback);
+        Assert.False(options.NativeCtLogOnly);
         Assert.False(options.VerifyCtDiscoveredSubdomains);
         Assert.True(options.BackfillMissingCtCertificateMetadata);
         Assert.False(options.PromoteCtDiscoveredSubdomainsToHttpsProbes);
