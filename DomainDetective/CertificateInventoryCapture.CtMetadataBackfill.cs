@@ -381,11 +381,13 @@ public sealed partial class CertificateInventoryCapture {
             return true;
         }
 
-        return string.IsNullOrWhiteSpace(entry.LatestCertificateSubject) &&
-               string.IsNullOrWhiteSpace(entry.LatestCertificateIssuer) &&
-               string.IsNullOrWhiteSpace(entry.LatestCertificateSerialNumber) &&
-               !entry.LatestCertificateNotBeforeUtc.HasValue &&
-               !entry.LatestCertificateNotAfterUtc.HasValue;
+        return string.IsNullOrWhiteSpace(entry.LatestCertificateSubject) ||
+               string.IsNullOrWhiteSpace(entry.LatestCertificateIssuer) ||
+               string.IsNullOrWhiteSpace(entry.LatestCertificateSerialNumber) ||
+               !entry.LatestCertificateNotBeforeUtc.HasValue ||
+               !entry.LatestCertificateNotAfterUtc.HasValue ||
+               string.IsNullOrWhiteSpace(entry.LatestCertificateThumbprint) ||
+               string.IsNullOrWhiteSpace(entry.LatestCertificateAuthenticationProfile);
     }
 
     private static bool HasCtCertificateMetadata(
@@ -472,6 +474,7 @@ public sealed partial class CertificateInventoryCapture {
             int exactNetworkParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
                 options.DiscoveryParallelism,
                 options.PassiveCtParallelism,
+                options.CrtShPostgreSqlMaximumConcurrentRequests,
                 remainingHostNames.Count,
                 usePassiveNetworkQueries: true);
             int scheduledHosts = 0;
@@ -605,6 +608,7 @@ public sealed partial class CertificateInventoryCapture {
         int exactParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
             options.DiscoveryParallelism,
             options.PassiveCtParallelism,
+            options.CrtShPostgreSqlMaximumConcurrentRequests,
             hostNames.Count,
             usePassiveNetworkQueries: false);
         using var gate = new SemaphoreSlim(exactParallelism, exactParallelism);
@@ -862,6 +866,7 @@ public sealed partial class CertificateInventoryCapture {
     internal static int ResolveExactPassiveCtMetadataBackfillParallelism(
         int configuredDiscoveryParallelism,
         int configuredPassiveCtParallelism,
+        int configuredCrtShPostgreSqlMaximumConcurrentRequests,
         int hostCount,
         bool usePassiveNetworkQueries) {
         int configuredParallelism = Math.Max(1, configuredDiscoveryParallelism);
@@ -869,7 +874,9 @@ public sealed partial class CertificateInventoryCapture {
             ? Math.Min(
                 Math.Min(configuredParallelism, Math.Max(1, configuredPassiveCtParallelism)),
                 4)
-            : configuredParallelism;
+            : Math.Min(
+                configuredParallelism,
+                Math.Max(1, configuredCrtShPostgreSqlMaximumConcurrentRequests));
         return Math.Min(Math.Max(1, hostCount), effectiveParallelism);
     }
 
@@ -1015,6 +1022,19 @@ public sealed partial class CertificateInventoryCapture {
             return entry;
         }
 
+        CertificateExtendedKeyUsageInfo eku = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
+        string? signatureOid = certificate.SignatureAlgorithm?.Value;
+        int keySize = GetPublicKeySize(certificate);
+        bool isSelfSigned = IsSelfSigned(certificate);
+        bool weakKey = keySize > 0 && keySize < 2048;
+        bool sha1Signature = IsSha1Signature(signatureOid);
+        bool hasServerAuthentication = eku.AllowsServerAuthentication;
+        bool hasClientAuthentication = eku.AllowsClientAuthentication;
+        bool hasSecureEmail = eku.AllowsSecureEmail;
+        string authenticationProfile = string.IsNullOrWhiteSpace(eku.AuthenticationProfile)
+            ? CertificateAuthenticationProfileClassifier.Classify(eku)
+            : eku.AuthenticationProfile;
+
         SubdomainDiscoveryEntry hydratedEntry = CloneSubdomainEntry(entry);
         hydratedEntry = new SubdomainDiscoveryEntry {
             Name = hydratedEntry.Name,
@@ -1028,13 +1048,15 @@ public sealed partial class CertificateInventoryCapture {
             LatestCertificateNotBeforeUtc = hydratedEntry.LatestCertificateNotBeforeUtc ?? new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
             LatestCertificateNotAfterUtc = hydratedEntry.LatestCertificateNotAfterUtc ?? new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
             LatestCertificateSubjectAlternativeNames = hydratedEntry.LatestCertificateSubjectAlternativeNames == null ? Array.Empty<string>() : hydratedEntry.LatestCertificateSubjectAlternativeNames.ToList(),
-            LatestCertificateIsSelfSigned = hydratedEntry.LatestCertificateIsSelfSigned,
-            LatestCertificateWeakKey = hydratedEntry.LatestCertificateWeakKey,
-            LatestCertificateSha1Signature = hydratedEntry.LatestCertificateSha1Signature,
-            LatestCertificateHasServerAuthentication = hydratedEntry.LatestCertificateHasServerAuthentication,
-            LatestCertificateHasClientAuthentication = hydratedEntry.LatestCertificateHasClientAuthentication,
-            LatestCertificateHasSecureEmail = hydratedEntry.LatestCertificateHasSecureEmail,
-            LatestCertificateAuthenticationProfile = hydratedEntry.LatestCertificateAuthenticationProfile,
+            LatestCertificateIsSelfSigned = hydratedEntry.LatestCertificateIsSelfSigned ?? isSelfSigned,
+            LatestCertificateWeakKey = hydratedEntry.LatestCertificateWeakKey ?? weakKey,
+            LatestCertificateSha1Signature = hydratedEntry.LatestCertificateSha1Signature ?? sha1Signature,
+            LatestCertificateHasServerAuthentication = hydratedEntry.LatestCertificateHasServerAuthentication ?? hasServerAuthentication,
+            LatestCertificateHasClientAuthentication = hydratedEntry.LatestCertificateHasClientAuthentication ?? hasClientAuthentication,
+            LatestCertificateHasSecureEmail = hydratedEntry.LatestCertificateHasSecureEmail ?? hasSecureEmail,
+            LatestCertificateAuthenticationProfile = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateAuthenticationProfile)
+                ? authenticationProfile
+                : hydratedEntry.LatestCertificateAuthenticationProfile,
             CtSources = hydratedEntry.CtSources == null ? Array.Empty<string>() : hydratedEntry.CtSources.ToList(),
             CertificateObservationCount = hydratedEntry.CertificateObservationCount,
             ResolutionStatus = hydratedEntry.ResolutionStatus,

@@ -51,6 +51,18 @@ public class SubdomainEnumeration
     /// <summary>Cooldown applied to passive/public CT sources after transient failures or rate limits.</summary>
     public TimeSpan PassiveCtSourceCooldown { get; set; } = TimeSpan.FromSeconds(60);
 
+    /// <summary>Minimum spacing between public crt.sh requests when passive/public CT fallback is active.</summary>
+    public TimeSpan PassiveCtCrtShMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Minimum spacing between Cert Spotter requests when passive/public CT fallback is active.</summary>
+    public TimeSpan PassiveCtCertSpotterMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Maximum number of public crt.sh requests issued during one passive enumeration run.</summary>
+    public int PassiveCtCrtShMaximumRequestsPerRun { get; set; } = 5;
+
+    /// <summary>Maximum number of Cert Spotter requests issued during one passive enumeration run.</summary>
+    public int PassiveCtCertSpotterMaximumRequestsPerRun { get; set; } = 1;
+
     /// <summary>List of subdomains discovered via brute force.</summary>
     public List<string> BruteForceResults { get; private set; } = new();
 
@@ -102,6 +114,10 @@ public class SubdomainEnumeration
                 RetryBaseDelay = PassiveCtRetryBaseDelay,
                 RetryMaxDelay = PassiveCtRetryMaxDelay,
                 SourceCooldown = PassiveCtSourceCooldown,
+                CrtShMinimumSpacing = PassiveCtCrtShMinimumSpacing,
+                CertSpotterMinimumSpacing = PassiveCtCertSpotterMinimumSpacing,
+                CrtShMaximumRequestsPerRun = PassiveCtCrtShMaximumRequestsPerRun,
+                CertSpotterMaximumRequestsPerRun = PassiveCtCertSpotterMaximumRequestsPerRun,
                 PayloadValidator = ValidatePassiveCtArrayPayload
             },
             PassiveHttpGetOverride,

@@ -134,6 +134,10 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 RetryBaseDelay = PassiveCtRetryBaseDelay,
                 RetryMaxDelay = PassiveCtRetryMaxDelay,
                 SourceCooldown = PassiveCtSourceCooldown,
+                CrtShMinimumSpacing = PassiveCtCrtShMinimumSpacing,
+                CertSpotterMinimumSpacing = PassiveCtCertSpotterMinimumSpacing,
+                CrtShMaximumRequestsPerRun = PassiveCtCrtShMaximumRequestsPerRun,
+                CertSpotterMaximumRequestsPerRun = PassiveCtCertSpotterMaximumRequestsPerRun,
                 PayloadValidator = ValidatePassiveCtArrayPayload
             },
             QueryOverride,
