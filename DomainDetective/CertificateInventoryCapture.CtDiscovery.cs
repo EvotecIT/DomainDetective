@@ -120,6 +120,10 @@ public sealed partial class CertificateInventoryCapture {
                         PassiveCtRetryBaseDelay = options.PassiveCtRetryBaseDelay,
                         PassiveCtRetryMaxDelay = options.PassiveCtRetryMaxDelay,
                         PassiveCtSourceCooldown = options.PassiveCtSourceCooldown,
+                        PassiveCtCrtShMinimumSpacing = options.PassiveCtCrtShMinimumSpacing,
+                        PassiveCtCertSpotterMinimumSpacing = options.PassiveCtCertSpotterMinimumSpacing,
+                        PassiveCtCrtShMaximumRequestsPerRun = options.PassiveCtCrtShMaximumRequestsPerRun,
+                        PassiveCtCertSpotterMaximumRequestsPerRun = options.PassiveCtCertSpotterMaximumRequestsPerRun,
                         EnableNativeCtLogSource = options.EnableNativeCtLogSubdomainSource,
                         NativeCtLogOnly = options.NativeCtLogOnly || !allowPassiveCtFallback,
                         NativeCtLogListUrl = options.NativeCtLogListUrl,
@@ -487,6 +491,10 @@ public sealed partial class CertificateInventoryCapture {
                         PassiveCtRetryBaseDelay = options.PassiveCtRetryBaseDelay,
                         PassiveCtRetryMaxDelay = options.PassiveCtRetryMaxDelay,
                         PassiveCtSourceCooldown = options.PassiveCtSourceCooldown,
+                        PassiveCtCrtShMinimumSpacing = options.PassiveCtCrtShMinimumSpacing,
+                        PassiveCtCertSpotterMinimumSpacing = options.PassiveCtCertSpotterMinimumSpacing,
+                        PassiveCtCrtShMaximumRequestsPerRun = options.PassiveCtCrtShMaximumRequestsPerRun,
+                        PassiveCtCertSpotterMaximumRequestsPerRun = options.PassiveCtCertSpotterMaximumRequestsPerRun,
                         EnableNativeCtLogSource = false,
                         NativeCtLogOnly = false
                     };
