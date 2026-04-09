@@ -137,6 +137,7 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
+        bool domainPostgreSqlLookupFailed = false;
         if (ShouldUseCrtShPostgreSqlMetadataFallback(options)) {
             logger.WriteVerbose(
                 "CT metadata backfill: querying domain-batched crt.sh PostgreSQL metadata for {0} domain(s) covering {1} remaining subdomain(s).",
@@ -159,11 +160,13 @@ public sealed partial class CertificateInventoryCapture {
                                 cancellationToken)
                             .ConfigureAwait(false);
                 } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
+                    domainPostgreSqlLookupFailed = true;
                     string warning = $"CT metadata backfill domain PostgreSQL lookup timed out for {pair.Key}.";
                     warnings.Add(warning);
                     logger.WriteVerbose(warning);
                     continue;
                 } catch (Exception ex) {
+                    domainPostgreSqlLookupFailed = true;
                     string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {pair.Key}: {ex.Message}";
                     warnings.Add(warning);
                     logger.WriteVerbose(warning);
@@ -193,14 +196,18 @@ public sealed partial class CertificateInventoryCapture {
             .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (remainingMissingNames.Count > 0 && suppressedHosts.Count > 0) {
-            int originalCount = remainingMissingNames.Count;
-            remainingMissingNames = remainingMissingNames
-                .Where(name => !suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()))
-                .ToList();
-            int suppressedCount = originalCount - remainingMissingNames.Count;
-            if (suppressedCount > 0) {
+            int suppressedCount = remainingMissingNames.Count(name =>
+                suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()));
+            if (suppressedCount > 0 && !domainPostgreSqlLookupFailed) {
+                remainingMissingNames = remainingMissingNames
+                    .Where(name => !suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()))
+                    .ToList();
                 logger.WriteVerbose(
                     "CT metadata backfill: skipping exact passive CT metadata for {0} remaining host(s) because the caller already supplied suppression state.",
+                    suppressedCount);
+            } else if (suppressedCount > 0) {
+                logger.WriteVerbose(
+                    "CT metadata backfill: retaining {0} remaining host(s) for exact passive CT metadata because domain-batched crt.sh PostgreSQL lookup failed in this pass.",
                     suppressedCount);
             }
         }

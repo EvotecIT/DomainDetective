@@ -3804,6 +3804,109 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task BackfillMissingCtCertificateMetadataAsync_RetainsExactPassiveFallbackWhenDomainPostgreSqlLookupFails()
+    {
+        var verboseMessages = new List<string>();
+        var overrideBatches = new List<IReadOnlyList<string>>();
+        var capture = new CertificateInventoryCapture
+        {
+            CtPassiveMetadataBackfillOverride = (hosts, _, _, _) =>
+            {
+                overrideBatches.Add(hosts.ToList());
+
+                if (hosts.Count == 1 &&
+                    string.Equals(hosts[0], "api.example.com", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult<IReadOnlyList<SubdomainDiscoveryEntry>>(
+                    [
+                        new SubdomainDiscoveryEntry
+                        {
+                            Name = "api.example.com",
+                            LatestCertificateThumbprint = "EXACT-FALLBACK-THUMBPRINT-001",
+                            LatestCertificateSubjectAlternativeNames = new[] { "api.example.com" },
+                            CtSources = new[] { "crt.sh" }
+                        }
+                    ]);
+                }
+
+                return Task.FromResult<IReadOnlyList<SubdomainDiscoveryEntry>>(Array.Empty<SubdomainDiscoveryEntry>());
+            },
+            CtExactMetadataPostgreSqlOverride = static (_, _, _, _) =>
+                Task.FromResult<SubdomainDiscoveryEntry?>(null)
+        };
+
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "BackfillMissingCtCertificateMetadataAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(method);
+
+        var warnings = new List<string>();
+        var options = new CertificateInventoryCaptureOptions
+        {
+            EnablePassiveCtFallback = true,
+            EnablePassiveCtMetadataFallback = true,
+            EnableCrtShPostgreSqlMetadataFallback = true,
+            CrtShPostgreSqlConnectionString = "Host=127.0.0.1;Port=1;Database=certwatch;Username=guest;SSL Mode=Disable;Timeout=1;Command Timeout=1",
+            CrtShPostgreSqlCommandTimeoutSeconds = 1,
+            CrtShPostgreSqlMaximumConcurrentRequests = 1
+        };
+        options.ExactHostSeedCtMetadataSuppressedHosts.Add("api.example.com");
+
+        var logger = new InternalLogger(false);
+        logger.OnVerboseMessage += (_, args) =>
+        {
+            if (!string.IsNullOrWhiteSpace(args.Message))
+            {
+                verboseMessages.Add(args.Message);
+            }
+        };
+
+        Task<IReadOnlyList<SubdomainDiscoveryEntry>> task =
+            (Task<IReadOnlyList<SubdomainDiscoveryEntry>>)method!.Invoke(
+                capture,
+                new object[]
+                {
+                    new[] { "example.com" },
+                    new[]
+                    {
+                        new SubdomainDiscoveryEntry
+                        {
+                            Name = "api.example.com"
+                        }
+                    },
+                    options,
+                    warnings,
+                    new List<PassiveCtDiagnosticEntry>(),
+                    logger,
+                    CancellationToken.None
+                })!;
+
+        IReadOnlyList<SubdomainDiscoveryEntry> result = await task;
+
+        SubdomainDiscoveryEntry entry = Assert.Single(result);
+        Assert.Equal("api.example.com", entry.Name);
+        Assert.Equal("EXACT-FALLBACK-THUMBPRINT-001", entry.LatestCertificateThumbprint);
+        Assert.Contains(
+            warnings,
+            warning => warning.Contains("domain PostgreSQL lookup failed", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            overrideBatches,
+            hosts => hosts.Count == 1 &&
+                     string.Equals(hosts[0], "example.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            overrideBatches,
+            hosts => hosts.Count == 1 &&
+                     string.Equals(hosts[0], "api.example.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            verboseMessages,
+            message => message.Contains("retaining 1 remaining host(s) for exact passive CT metadata", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            verboseMessages,
+            message => message.Contains("skipping exact passive CT metadata", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task CaptureAsync_DoesNotAnnounceExactPassiveMetadataQueryWhenSharedCooldownAlreadyBlocksRun()
     {
         PassiveCtSourceClient.ResetSharedStateForTesting();
