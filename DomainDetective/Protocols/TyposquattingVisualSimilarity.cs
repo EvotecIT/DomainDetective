@@ -420,8 +420,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
 
         if (!string.IsNullOrWhiteSpace(artifact.FingerprintHex))
         {
-            var trimmedFingerprint = artifact.FingerprintHex.Trim();
-            return (trimmedFingerprint, artifact.Width, artifact.Height);
+            return (artifact.FingerprintHex, artifact.Width, artifact.Height);
         }
 
         if (artifact.ImageBytes == null || artifact.ImageBytes.Length == 0)
@@ -435,7 +434,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
             return null;
         }
 
-        return (fingerprint.Value.FingerprintHex.Trim(), fingerprint.Value.Width, fingerprint.Value.Height);
+        return (fingerprint.Value.FingerprintHex, fingerprint.Value.Width, fingerprint.Value.Height);
     }
 
     private static int ComputeHammingDistance(string left, string right)

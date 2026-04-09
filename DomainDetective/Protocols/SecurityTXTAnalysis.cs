@@ -138,7 +138,7 @@ public class SecurityTXTAnalysis : IHasAssessments {
                 PGPSigned = true;
                 if (!string.IsNullOrEmpty(pgpPublicKey)) {
                     try {
-                        if (DomainDetectiveOptionalFeatures.TryVerifySecurityTxtSignature(txt, pgpPublicKey!, out bool isVerified, out string verifiedClearText)) {
+                        if (DomainDetectiveOptionalFeatures.TryVerifySecurityTxtSignature(txt, pgpPublicKey, out bool isVerified, out string verifiedClearText)) {
                             if (!isVerified) {
                                 Logger.WriteWarningCode(SecurityTxtCodes.SignatureVerifyFailed, "PGP signature verification failed");
                             }

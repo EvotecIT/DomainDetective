@@ -90,15 +90,12 @@ internal static class DomainDetectiveVisualProvider
     {
         try
         {
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            linkedCts.CancelAfter(options.BrowserCaptureTimeout);
-
             using var playwright = await Playwright.CreateAsync().ConfigureAwait(false);
             await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = true
             }).ConfigureAwait(false);
-            var context = await browser.NewContextAsync(new BrowserNewContextOptions
+            await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
             {
                 ViewportSize = new ViewportSize
                 {
