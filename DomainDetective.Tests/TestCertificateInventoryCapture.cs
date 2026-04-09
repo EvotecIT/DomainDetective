@@ -4288,6 +4288,7 @@ public class TestCertificateInventoryCapture {
             IncludeCtDiscoveredSubdomains = true,
             EnableNativeCtLogSubdomainSource = true,
             EnablePassiveCtFallback = true,
+            EnablePassiveCtMetadataFallback = false,
             NativeCtLogOnly = true,
             VerifyCtDiscoveredSubdomains = true,
             BackfillMissingCtCertificateMetadata = false,
@@ -4308,6 +4309,7 @@ public class TestCertificateInventoryCapture {
         Assert.False(options.IncludeCtDiscoveredSubdomains);
         Assert.False(options.EnableNativeCtLogSubdomainSource);
         Assert.False(options.EnablePassiveCtFallback);
+        Assert.True(options.EnablePassiveCtMetadataFallback);
         Assert.False(options.NativeCtLogOnly);
         Assert.False(options.VerifyCtDiscoveredSubdomains);
         Assert.True(options.BackfillMissingCtCertificateMetadata);
