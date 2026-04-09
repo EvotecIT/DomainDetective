@@ -670,6 +670,49 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_PrefersHttpsOverMail_WhenOnlyOneTargetIsAllowed() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        var observedHttpsTargets = new List<string>();
+        var capture = new CertificateInventoryCapture {
+            MxLookupOverride = (domain, dnsConfiguration, maxMxHostsPerDomain, cancellationToken) =>
+                Task.FromResult<IReadOnlyList<string>>(new[] { "mx.invalid" }),
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                observedHttpsTargets.AddRange(httpsTargets);
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    entries.Add(CreateHttpsEntry(target, certificate));
+                }
+
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = true,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = true,
+            IncludeMxHttps = false,
+            IncludeSmtpStartTls = true,
+            IncludeSubmissionStartTls = false,
+            IncludeImapTls = false,
+            IncludePop3Tls = false,
+            MaxTargets = 1,
+            PersistSnapshot = false
+        };
+
+        var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
+
+        Assert.Single(observedHttpsTargets);
+        Assert.Contains(observedHttpsTargets, target => target.Contains("example.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(1, result.HttpsEndpointCount);
+        Assert.Equal(0, result.MailEndpointCount);
+        Assert.Equal(1, result.HttpsTargetCountBeforeLimit);
+        Assert.Equal(1, result.MailTargetCountBeforeLimit);
+        Assert.Equal(0, result.HttpsTargetCountDroppedByLimit);
+        Assert.Equal(1, result.MailTargetCountDroppedByLimit);
+    }
+
+    [Fact]
     public async Task CaptureAsync_ReusesRecentStableFailureSnapshotEntries_WhenEnabled() {
         var cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-ci-cache-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(cacheDirectory);
@@ -2201,6 +2244,17 @@ public class TestCertificateInventoryCapture {
         Assert.Contains("identities(c.certificate)", query, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("x509_altnames(c.certificate)", query, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("encode(x509_serialNumber(c.certificate), 'hex')", query, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("certificate_identity", query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BuildCrtShPostgreSqlDomainMetadataQuery_UsesHostArraysAndWildcardAwareMatching() {
+        string query = CertificateInventoryCapture.BuildCrtShPostgreSqlDomainMetadataQuery();
+
+        Assert.Contains("identities(c.certificate)", query, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("candidate_name = ANY(@hosts)", query, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("candidate_name = ANY(@wildcardHosts)", query, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LIMIT @limit", query, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("certificate_identity", query, StringComparison.OrdinalIgnoreCase);
     }
 

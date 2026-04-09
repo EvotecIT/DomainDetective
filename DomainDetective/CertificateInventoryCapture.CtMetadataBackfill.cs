@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Helpers;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace DomainDetective;
 
@@ -131,6 +132,50 @@ public sealed partial class CertificateInventoryCapture {
                         hydrated != null &&
                         !IsCtCertificateMetadataMissing(hydrated)) {
                         targetNames.Remove(normalizedName);
+                    }
+                }
+            }
+        }
+
+        if (ShouldUseCrtShPostgreSqlMetadataFallback(options)) {
+            logger.WriteVerbose(
+                "CT metadata backfill: querying domain-batched crt.sh PostgreSQL metadata for {0} domain(s) covering {1} remaining subdomain(s).",
+                missingByDomain.Count(static pair => pair.Value.Count > 0),
+                missingByDomain.Sum(static pair => pair.Value.Count));
+
+            foreach (KeyValuePair<string, HashSet<string>> pair in missingByDomain
+                         .Where(static pair => pair.Value.Count > 0)
+                         .OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                Dictionary<string, SubdomainDiscoveryEntry> domainHydrated;
+                try {
+                    domainHydrated =
+                        await QueryCrtShPostgreSqlMetadataByDomainAsync(
+                                pair.Key,
+                                pair.Value,
+                                options,
+                                logger,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
+                    string warning = $"CT metadata backfill domain PostgreSQL lookup timed out for {pair.Key}.";
+                    warnings.Add(warning);
+                    logger.WriteVerbose(warning);
+                    continue;
+                } catch (Exception ex) {
+                    string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {pair.Key}: {ex.Message}";
+                    warnings.Add(warning);
+                    logger.WriteVerbose(warning);
+                    continue;
+                }
+
+                foreach (KeyValuePair<string, SubdomainDiscoveryEntry> hydratedPair in domainHydrated) {
+                    MergeCtSubdomainEntry(merged, hydratedPair.Value);
+                    if (merged.TryGetValue(hydratedPair.Key, out SubdomainDiscoveryEntry? hydrated) &&
+                        hydrated != null &&
+                        !IsCtCertificateMetadataMissing(hydrated)) {
+                        pair.Value.Remove(hydratedPair.Key);
                     }
                 }
             }
@@ -694,6 +739,87 @@ public sealed partial class CertificateInventoryCapture {
         return entry;
     }
 
+    private async Task<Dictionary<string, SubdomainDiscoveryEntry>> QueryCrtShPostgreSqlMetadataByDomainAsync(
+        string domain,
+        IReadOnlyCollection<string> hostNames,
+        CertificateInventoryCaptureOptions options,
+        InternalLogger logger,
+        CancellationToken cancellationToken) {
+        var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(domain) || hostNames == null || hostNames.Count == 0 || options == null) {
+            return results;
+        }
+
+        List<string> normalizedHosts = hostNames
+            .Where(static host => !string.IsNullOrWhiteSpace(host))
+            .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (normalizedHosts.Count == 0) {
+            return results;
+        }
+
+        string normalizedDomain = domain.Trim().TrimEnd('.').ToLowerInvariant();
+        string connectionString = BuildCrtShPostgreSqlConnectionString(options);
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        using var command = connection.CreateCommand();
+        command.CommandTimeout = Math.Max(1, options.CrtShPostgreSqlCommandTimeoutSeconds);
+        command.CommandText = BuildCrtShPostgreSqlDomainMetadataQuery();
+        command.Parameters.AddWithValue("domain", normalizedDomain);
+        command.Parameters.Add(new NpgsqlParameter<string[]>("hosts", NpgsqlDbType.Array | NpgsqlDbType.Text)
+        {
+            TypedValue = normalizedHosts.ToArray()
+        });
+        command.Parameters.Add(new NpgsqlParameter<string[]>("wildcardHosts", NpgsqlDbType.Array | NpgsqlDbType.Text)
+        {
+            TypedValue = normalizedHosts.Select(BuildWildcardCandidateHost).ToArray()
+        });
+        command.Parameters.AddWithValue("limit", Math.Max(32, normalizedHosts.Count * 8));
+
+        var rows = new List<CrtShPostgreSqlExactMetadataRow>();
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) {
+            rows.Add(new CrtShPostgreSqlExactMetadataRow
+            {
+                CertificateDer = reader.IsDBNull(0) ? null : (byte[])reader.GetValue(0),
+                EntryTimestampUtc = reader.IsDBNull(1) ? null : ReadDateTimeOffset(reader.GetValue(1)),
+                CommonName = reader.IsDBNull(2) ? null : reader.GetString(2),
+                IssuerName = reader.IsDBNull(3) ? null : reader.GetString(3),
+                SerialNumber = reader.IsDBNull(4) ? null : reader.GetString(4),
+                NotBeforeUtc = reader.IsDBNull(5) ? null : ReadDateTimeOffset(reader.GetValue(5)),
+                NotAfterUtc = reader.IsDBNull(6) ? null : ReadDateTimeOffset(reader.GetValue(6)),
+                CandidateNames = reader.IsDBNull(7)
+                    ? Array.Empty<string>()
+                    : ((string[])reader.GetValue(7))
+                        .Select(static name => NormalizeCtMetadataCandidate(name, preserveWildcard: true))
+                        .Where(static name => !string.IsNullOrWhiteSpace(name))
+                        .Select(static name => name!)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+            });
+        }
+
+        foreach (string normalizedHost in normalizedHosts) {
+            SubdomainDiscoveryEntry? entry = TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(normalizedHost, rows);
+            if (entry == null || string.IsNullOrWhiteSpace(entry.Name)) {
+                continue;
+            }
+
+            results[normalizedHost] = entry;
+        }
+
+        if (results.Count > 0) {
+            logger.WriteVerbose(
+                "CT metadata backfill domain PostgreSQL lookup matched {0} host(s) for {1} from {2} candidate certificate row(s).",
+                results.Count,
+                normalizedDomain,
+                rows.Count);
+        }
+
+        return results;
+    }
+
     internal static string BuildCrtShPostgreSqlExactMetadataQuery() {
         return
             """
@@ -741,6 +867,54 @@ public sealed partial class CertificateInventoryCapture {
             ORDER BY entry_timestamp DESC NULLS LAST,
                      x509_notBefore(c.certificate) DESC NULLS LAST
             LIMIT 16;
+            """;
+    }
+
+    internal static string BuildCrtShPostgreSqlDomainMetadataQuery() {
+        return
+            """
+            SELECT
+                c.certificate,
+                COALESCE(
+                    (
+                        SELECT MAX(ctle.entry_timestamp)
+                        FROM ct_log_entry ctle
+                        WHERE ctle.certificate_id = c.id
+                    ),
+                    NULL
+                ) AS entry_timestamp,
+                x509_commonName(c.certificate) AS common_name,
+                x509_issuerName(c.certificate) AS issuer_name,
+                encode(x509_serialNumber(c.certificate), 'hex') AS serial_number,
+                x509_notBefore(c.certificate) AS not_before,
+                x509_notAfter(c.certificate) AS not_after,
+                ARRAY(
+                    SELECT candidate_name
+                    FROM (
+                        SELECT x509_commonName(c.certificate) AS candidate_name
+                        UNION
+                        SELECT alt_name
+                        FROM x509_altnames(c.certificate) AS alt_name
+                    ) AS candidate_names
+                    WHERE candidate_name IS NOT NULL
+                    ORDER BY lower(candidate_name)
+                ) AS dns_names
+            FROM certificate c
+            WHERE identities(c.certificate) @@ plainto_tsquery('simple', @domain)
+              AND EXISTS (
+                    SELECT 1
+                    FROM (
+                        SELECT lower(COALESCE(x509_commonName(c.certificate), '')) AS candidate_name
+                        UNION
+                        SELECT lower(alt_name)
+                        FROM x509_altnames(c.certificate) AS alt_name
+                    ) AS candidate_names
+                    WHERE candidate_name = ANY(@hosts)
+                       OR candidate_name = ANY(@wildcardHosts)
+                )
+            ORDER BY entry_timestamp DESC NULLS LAST,
+                     x509_notBefore(c.certificate) DESC NULLS LAST
+            LIMIT @limit;
             """;
     }
 
