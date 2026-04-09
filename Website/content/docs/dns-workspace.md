@@ -70,6 +70,18 @@ Switch to DnsClientX locally when you want:
 - Batch DNS workflows
 - Benchmarking multiple resolvers
 - System DNS, DoH, DoT, or other provider choices
+- DoH3 or DoQ on .NET 8 and later
+- Explicit resolver endpoint strings such as `doq@dns.quad9.net:853`
+
+## Transport Boundaries
+
+The browser workspace is intentionally narrower than the local library:
+
+- Browser: browser-safe DoH resolvers only
+- Local DnsClientX: UDP, TCP, DoH, DoT, and built-in resolver families
+- Local DnsClientX on .NET 8+: DoH3 and DoQ in the core package
+
+That split keeps the site behavior honest while preserving the fuller transport surface in PowerShell, CLI, and C#.
 
 ## C# Quick Start
 

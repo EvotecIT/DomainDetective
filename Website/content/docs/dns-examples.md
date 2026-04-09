@@ -57,6 +57,14 @@ Test-DnsBenchmark -Name 'contoso.com' -DnsProvider Cloudflare, Google, Quad9 -At
     Sort-Object Rank | Format-Table Target, SuccessPercent, AverageMs, Rank, IsRecommended
 ```
 
+Use modern explicit endpoints on .NET 8+:
+
+```powershell
+Resolve-Dns -Name 'contoso.com' -Type A `
+    -ResolverEndpoint 'doq@dns.quad9.net:853','doh3@https://dns.quad9.net/dns-query' `
+    -ResolverStrategy FirstSuccess | Format-Table
+```
+
 ## C# Examples
 
 Install the package:
@@ -90,6 +98,20 @@ foreach (var recordType in recordTypes) {
 }
 ```
 
+Query through a modern explicit endpoint set on .NET 8+:
+
+```csharp
+using DnsClientX;
+
+var responses = await ClientX.QueryDns(
+    new ResolveDnsRequest {
+        Names = new[] { "contoso.com" },
+        RecordTypes = new[] { DnsRecordType.A, DnsRecordType.AAAA },
+        ResolverEndpoints = new[] { "doh3@https://dns.quad9.net/dns-query", "doq@dns.quad9.net:853" },
+        ResolverStrategy = MultiResolverStrategy.FirstSuccess
+    });
+```
+
 Use the DomainDetective DNS inventory:
 
 ```csharp
@@ -115,7 +137,7 @@ domaindetective check contoso.com --checks DNSINVENTORY
 ## When To Use Which Path
 
 - Use [DNS Lookup](/tools/dns-lookup/) for a quick browser-safe answer view
-- Use DnsClientX PowerShell or C# when you need specific hostnames, typed records, or repeatable DNS automation
+- Use DnsClientX PowerShell or C# when you need specific hostnames, typed records, repeatable DNS automation, or modern local transports
 - Use the wider DomainDetective API or CLI when you want DNS as part of full domain posture analysis
 
 ## Related Reading

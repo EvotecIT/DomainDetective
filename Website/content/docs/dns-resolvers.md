@@ -22,6 +22,13 @@ DomainDetective uses the [DnsClientX](https://github.com/EvotecIT/DnsClientX) li
 
 By default, DomainDetective uses the system DNS resolver. For browser-based tools, it uses browser-safe DNS-over-HTTPS resolver paths instead of raw UDP or TCP DNS.
 
+For local DnsClientX usage, the transport surface is broader:
+
+- `System` and `SystemTcp` cover classic resolver paths.
+- DoH, DoT, and explicit endpoint strings are available locally.
+- On .NET 8 and later, DoH3 and DoQ stay in the core package with no extra transport package required.
+- The browser workspace still stays on DoH because browsers do not expose raw UDP, TCP, DoT, or DoQ sockets to the site.
+
 ## Configuring a Single Resolver
 
 ```csharp
@@ -31,15 +38,30 @@ healthCheck.DnsEndpoint = DnsEndpoint.CloudflareWireFormat;
 
 ## Available Resolvers
 
-| Endpoint | Protocol | Provider |
-|----------|----------|----------|
-| `System` | UDP/TCP | OS default |
-| `SystemTcp` | TCP | OS default |
-| `CloudflareWireFormat` | DoH (wire) | Cloudflare |
-| `Cloudflare` | DoH (JSON) | Cloudflare |
-| `Google` | DoH | Google |
-| `Quad9` | DoH | Quad9 |
+| Endpoint | Protocol | Local | Browser workspace |
+|----------|----------|-------|-------------------|
+| `System` | UDP/TCP fallback | Yes | No |
+| `SystemTcp` | TCP | Yes | No |
+| `CloudflareWireFormat` | DoH (wire) | Yes | No |
+| `Cloudflare` | DoH (JSON) | Yes | Yes |
+| `Google` | DoH | Yes | Yes |
+| `Quad9` | DoH | Yes | No |
+| `CloudflareQuic` | DoQ | Yes on .NET 8+ | No |
+| `GoogleQuic` | DoQ | Yes on .NET 8+ | No |
+| `Quad9Http3` | DoH3 | Yes on .NET 8+ | No |
+| `Quad9Quic` | DoQ | Yes on .NET 8+ | No |
+
+## Explicit Endpoint Syntax
+
+Local DnsClientX workflows also accept explicit endpoint strings:
+
+- `udp@1.1.1.1:53`
+- `tcp@9.9.9.9:53`
+- `dot@dns.quad9.net:853`
+- `doh@https://dns.google/dns-query`
+- `doh3@https://dns.quad9.net/dns-query`
+- `doq@dns.quad9.net:853`
 
 ## Browser Compatibility
 
-When running in a browser (Blazor WASM), only DNS-over-HTTPS endpoints work because browsers cannot make raw UDP/TCP DNS queries. The DomainDetective website currently keeps the browser-safe DNS workspace focused on `Google DNS` and `Cloudflare DNS`, while fuller resolver choice stays in the local DnsClientX workflows.
+When running in a browser (Blazor WASM), only DNS-over-HTTPS endpoints work because browsers cannot make raw UDP, TCP, DoT, or DoQ DNS queries. The DomainDetective website currently keeps the browser-safe DNS workspace focused on `Google DNS` and `Cloudflare DNS`, while fuller resolver choice stays in the local DnsClientX workflows.
