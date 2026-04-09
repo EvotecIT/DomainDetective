@@ -1,4 +1,6 @@
 using DomainDetective;
+using DomainDetective.Pgp;
+using DomainDetective.Visual;
 using System;
 using System.Globalization;
 using System.Linq;
@@ -9,6 +11,9 @@ namespace DomainDetective.Example;
 
 public static partial class Program {
     public static async Task Main(string[] args) {
+        DomainDetectivePgpRegistration.Register();
+        DomainDetectiveVisualRegistration.Register();
+
         if (args.Length > 0 && args.Any(a => !a.StartsWith("-"))) {
             var outputJson = args.Contains("--json");
             var domain = args.First(a => !a.StartsWith("-"));

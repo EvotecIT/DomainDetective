@@ -1,5 +1,3 @@
-using PgpCore;
-using PgpCore.Models;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -140,13 +138,14 @@ public class SecurityTXTAnalysis : IHasAssessments {
                 PGPSigned = true;
                 if (!string.IsNullOrEmpty(pgpPublicKey)) {
                     try {
-                        var keys = new EncryptionKeys(pgpPublicKey);
-                        var pgp = new PGP(keys);
-                        VerificationResult result = pgp.VerifyAndReadClearArmoredString(txt);
-                        if (!result.IsVerified) {
-                            Logger.WriteWarningCode(SecurityTxtCodes.SignatureVerifyFailed, "PGP signature verification failed");
+                        if (DomainDetectiveOptionalFeatures.TryVerifySecurityTxtSignature(txt, pgpPublicKey!, out bool isVerified, out string verifiedClearText)) {
+                            if (!isVerified) {
+                                Logger.WriteWarningCode(SecurityTxtCodes.SignatureVerifyFailed, "PGP signature verification failed");
+                            }
+                            txt = verifiedClearText;
+                        } else {
+                            txt = ExtractClearText(txt);
                         }
-                        txt = result.ClearText;
                     } catch (Exception ex) {
                         Logger.WriteWarningCode(SecurityTxtCodes.SignatureVerifyFailed, $"PGP signature verification failed: {ex.Message}");
                         txt = ExtractClearText(txt);

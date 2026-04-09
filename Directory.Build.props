@@ -9,34 +9,64 @@
     <Company>Evotec</Company>
     <PackageTags>domain;dns;email;security</PackageTags>
   </PropertyGroup>
+  <ItemGroup Condition="'$(PackageReadmeFile)' != '' and Exists('$(MSBuildProjectDirectory)\$(PackageReadmeFile)')">
+    <None Include="$(MSBuildProjectDirectory)\$(PackageReadmeFile)" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective'">
     <PackageId>DomainDetective</PackageId>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
     <Description>Domain, DNS, email, web, and certificate security analysis toolkit for .NET.</Description>
     <PackageTags>domain;dns;email;security;dmarc;spf;dkim;rdap;rpki</PackageTags>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports'">
     <PackageId>DomainDetective.Reports</PackageId>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
     <Description>Shared reporting abstractions and dispatch for DomainDetective outputs.</Description>
     <PackageTags>domain;dns;email;security;reporting</PackageTags>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports.Html'">
     <PackageId>DomainDetective.Reports.Html</PackageId>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
     <Description>HTML reporting components for DomainDetective.</Description>
     <PackageTags>domain;dns;email;security;html;reporting</PackageTags>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports.Markdown'">
     <PackageId>DomainDetective.Reports.Markdown</PackageId>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
     <Description>Markdown and MarkdownHtml reporting components for DomainDetective.</Description>
     <PackageTags>domain;dns;email;security;markdown;reporting</PackageTags>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports.Office'">
     <PackageId>DomainDetective.Reports.Office</PackageId>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
     <Description>Word and Excel reporting components for DomainDetective.</Description>
     <PackageTags>domain;dns;email;security;word;excel;reporting</PackageTags>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports.Pdf'">
     <PackageId>DomainDetective.Reports.Pdf</PackageId>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
     <Description>PDF reporting components for DomainDetective.</Description>
     <PackageTags>domain;dns;email;security;pdf;reporting</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Visual'">
+    <PackageId>DomainDetective.Visual</PackageId>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
+    <Description>Optional browser capture and visual fingerprinting components for DomainDetective.</Description>
+    <PackageTags>domain;dns;email;security;visual;playwright;images</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Pgp'">
+    <PackageId>DomainDetective.Pgp</PackageId>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
+    <Description>Optional PGP signature verification components for DomainDetective.</Description>
+    <PackageTags>domain;dns;email;security;pgp;securitytxt</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.CtSql'">
+    <PackageId>DomainDetective.CtSql</PackageId>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
+    <Description>Prepared package shell for future CT SQL components in DomainDetective.</Description>
+    <PackageTags>domain;dns;email;security;ct;sql</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.PowerShell'">
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
   </PropertyGroup>
 </Project>

@@ -36,6 +36,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
+        <ProjectReference Include="..\DomainDetective.Visual\DomainDetective.Visual.csproj" />
+        <ProjectReference Include="..\DomainDetective.Pgp\DomainDetective.Pgp.csproj" />
         <ProjectReference Include="..\DomainDetective.PowerShell\DomainDetective.PowerShell.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports\DomainDetective.Reports.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports.Office\DomainDetective.Reports.Office.csproj" />

@@ -586,8 +586,9 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private bool ShouldUseCrtShPostgreSqlMetadataFallback(CertificateInventoryCaptureOptions options) {
+        var exactMetadataProvider = CtExactMetadataPostgreSqlOverride ?? DomainDetectiveOptionalFeatures.GetCtSqlExactMetadataProvider();
         return options != null &&
-               (options.EnableCrtShPostgreSqlMetadataFallback || CtExactMetadataPostgreSqlOverride != null);
+               (options.EnableCrtShPostgreSqlMetadataFallback || exactMetadataProvider != null);
     }
 
     private async Task<Dictionary<string, SubdomainDiscoveryEntry>> QueryCrtShPostgreSqlExactMetadataAsync(
@@ -600,6 +601,7 @@ public sealed partial class CertificateInventoryCapture {
             return results;
         }
 
+        var exactMetadataProvider = CtExactMetadataPostgreSqlOverride ?? DomainDetectiveOptionalFeatures.GetCtSqlExactMetadataProvider();
         int exactParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
             options.DiscoveryParallelism,
             options.PassiveCtParallelism,
@@ -611,8 +613,8 @@ public sealed partial class CertificateInventoryCapture {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             tasks.Add(Task.Run(async () => {
                 try {
-                    SubdomainDiscoveryEntry? entry = CtExactMetadataPostgreSqlOverride != null
-                        ? await CtExactMetadataPostgreSqlOverride(hostName, options, logger, cancellationToken).ConfigureAwait(false)
+                    SubdomainDiscoveryEntry? entry = exactMetadataProvider != null
+                        ? await exactMetadataProvider(hostName, options, logger, cancellationToken).ConfigureAwait(false)
                         : await QueryCrtShPostgreSqlMetadataExactAsync(hostName, options, logger, cancellationToken).ConfigureAwait(false);
                     if (entry == null || string.IsNullOrWhiteSpace(entry.Name)) {
                         return;

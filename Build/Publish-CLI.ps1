@@ -33,26 +33,34 @@ if (-not $config.CliRuntimes -or $config.CliRuntimes.Count -eq 0) {
 }
 
 if ($Plan) {
-    Write-Host "CLI publish plan"
-    Write-Host "  Root path       : $rootPath"
-    Write-Host "  Solution path   : $solutionPath"
-    Write-Host "  CLI project     : $cliProjectPath"
-    Write-Host "  Configuration   : $effectiveConfiguration"
-    Write-Host "  Output path     : $cliRootPath"
-    Write-Host "  Version         : $effectiveVersion"
-    Write-Host "  Skip restore    : $($SkipRestore.IsPresent)"
-    Write-Host "  Skip build      : $($SkipBuild.IsPresent)"
-    Write-Host "  Create zip      : $createZip"
+    $runtimePlans = [System.Collections.Generic.List[object]]::new()
     foreach ($runtime in $config.CliRuntimes) {
-        Write-Host "  Runtime         : $runtime"
+        $aliases = @()
         $aliasesProperty = $config.CliAliasMap.PSObject.Properties[$runtime]
         if ($aliasesProperty) {
-            foreach ($aliasName in $aliasesProperty.Value) {
-                Write-Host "    Alias         : $aliasName"
-            }
+            $aliases = @($aliasesProperty.Value)
         }
+
+        $runtimePlans.Add([pscustomobject] @{
+                Runtime = [string] $runtime
+                Aliases = $aliases
+            })
     }
-    exit 0
+
+    [pscustomobject] @{
+        Type = 'CLI'
+        RootPath = $rootPath
+        SolutionPath = $solutionPath
+        CliProject = $cliProjectPath
+        Configuration = $effectiveConfiguration
+        OutputPath = $cliRootPath
+        Version = $effectiveVersion
+        SkipRestore = $SkipRestore.IsPresent
+        SkipBuild = $SkipBuild.IsPresent
+        CreateZip = $createZip
+        Runtimes = $runtimePlans
+    }
+    return
 }
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {

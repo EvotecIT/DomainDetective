@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Management.Automation;
 using System.Reflection;
+using DomainDetective.Pgp;
+using DomainDetective.Visual;
 
 /// <summary>
 /// OnModuleImportAndRemove is a class that implements the IModuleAssemblyInitializer and IModuleAssemblyCleanup interfaces.
@@ -14,6 +16,9 @@ public class OnModuleImportAndRemove : IModuleAssemblyInitializer, IModuleAssemb
     /// OnImport is called when the module is imported.
     /// </summary>
     public void OnImport() {
+        DomainDetectivePgpRegistration.Register();
+        DomainDetectiveVisualRegistration.Register();
+
         if (IsNetFramework()) {
             AppDomain.CurrentDomain.AssemblyResolve += MyResolveEventHandler;
         }

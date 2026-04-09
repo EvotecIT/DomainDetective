@@ -3,11 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-#if NET8_0_OR_GREATER
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
-#endif
 
 namespace DomainDetective;
 
@@ -434,43 +429,13 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
             return null;
         }
 
-#if NET8_0_OR_GREATER
-        try
-        {
-            using var image = Image.Load<Rgba32>(artifact.ImageBytes);
-            image.Mutate(ctx => ctx.Resize(new ResizeOptions
-            {
-                Size = new Size(9, 8),
-                Mode = ResizeMode.Stretch,
-                Sampler = KnownResamplers.Bicubic
-            }).Grayscale());
-
-            ulong hash = 0;
-            var bit = 0;
-            for (var y = 0; y < 8; y++)
-            {
-                for (var x = 0; x < 8; x++)
-                {
-                    var left = image[x, y].R;
-                    var right = image[x + 1, y].R;
-                    if (left > right)
-                    {
-                        hash |= 1UL << bit;
-                    }
-
-                    bit++;
-                }
-            }
-
-            return (hash.ToString("x16"), image.Width, image.Height);
-        }
-        catch
+        var fingerprint = DomainDetectiveOptionalFeatures.BuildTyposquattingFingerprint(artifact);
+        if (fingerprint == null || string.IsNullOrWhiteSpace(fingerprint.Value.FingerprintHex))
         {
             return null;
         }
-#else
-        return null;
-#endif
+
+        return (fingerprint.Value.FingerprintHex.Trim(), fingerprint.Value.Width, fingerprint.Value.Height);
     }
 
     private static int ComputeHammingDistance(string left, string right)
