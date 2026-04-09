@@ -390,7 +390,8 @@ public sealed class CertificateInventoryCaptureOptions {
     /// Configures the capture for exact-host CT evidence refresh.
     /// This keeps the run focused on apex or explicit host probes plus CT metadata hydration,
     /// without reopening broader CT discovery or MX/mail expansion. CT metadata hydration stays
-    /// enabled for exact-host seeds and explicit CT metadata targets rather than discovered-host expansion.
+    /// enabled for exact-host seeds and explicit CT metadata targets via passive metadata fallback
+    /// rather than discovered-host expansion.
     /// </summary>
     public CertificateInventoryCaptureOptions ApplyCtEvidenceRefreshProfile() {
         IncludeApexHttps = true;
@@ -398,6 +399,7 @@ public sealed class CertificateInventoryCaptureOptions {
         IncludeCtDiscoveredSubdomains = false;
         EnableNativeCtLogSubdomainSource = false;
         EnablePassiveCtFallback = false;
+        EnablePassiveCtMetadataFallback = true;
         NativeCtLogOnly = false;
         VerifyCtDiscoveredSubdomains = false;
         BackfillMissingCtCertificateMetadata = true;
