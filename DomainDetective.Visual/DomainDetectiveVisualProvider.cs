@@ -1,4 +1,5 @@
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System;
@@ -27,6 +28,8 @@ internal static class DomainDetectiveVisualProvider
         try
         {
             using var image = Image.Load<Rgba32>(artifact.ImageBytes);
+            var originalWidth = image.Width;
+            var originalHeight = image.Height;
             image.Mutate(ctx => ctx.Resize(new ResizeOptions
             {
                 Size = new Size(9, 8),
@@ -51,20 +54,40 @@ internal static class DomainDetectiveVisualProvider
                 }
             }
 
-            return (hash.ToString("x16"), image.Width, image.Height);
+            return (hash.ToString("x16"), originalWidth, originalHeight);
         }
-        catch
+        catch (UnknownImageFormatException)
+        {
+            return null;
+        }
+        catch (InvalidImageContentException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
         {
             return null;
         }
     }
 
-    public static async Task<TyposquattingVisualArtifact?> CaptureBrowserArtifactAsync(
+    public static Task<TyposquattingVisualArtifact?> CaptureBrowserArtifactAsync(
         string url,
         TyposquattingVisualSimilarityOptions options,
         CancellationToken cancellationToken)
     {
 #if NET8_0_OR_GREATER
+        return CaptureBrowserArtifactCoreAsync(url, options, cancellationToken);
+#else
+        return Task.FromResult<TyposquattingVisualArtifact?>(null);
+#endif
+    }
+
+#if NET8_0_OR_GREATER
+    private static async Task<TyposquattingVisualArtifact?> CaptureBrowserArtifactCoreAsync(
+        string url,
+        TyposquattingVisualSimilarityOptions options,
+        CancellationToken cancellationToken)
+    {
         try
         {
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -115,13 +138,14 @@ internal static class DomainDetectiveVisualProvider
                 SourceUrl = pageUrl
             };
         }
-        catch
+        catch (PlaywrightException)
         {
             return null;
         }
-#else
-        await Task.CompletedTask.ConfigureAwait(false);
-        return null;
-#endif
+        catch (TimeoutException)
+        {
+            return null;
+        }
     }
+#endif
 }

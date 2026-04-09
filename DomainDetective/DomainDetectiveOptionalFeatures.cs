@@ -9,10 +9,10 @@ namespace DomainDetective;
 /// </summary>
 public static class DomainDetectiveOptionalFeatures
 {
-    private static Func<string, string, (bool IsVerified, string ClearText)>? _securityTxtPgpVerifier;
-    private static Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?>? _typosquattingVisualFingerprintBuilder;
-    private static Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>>? _typosquattingBrowserCapture;
-    private static Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? _ctSqlExactMetadataProvider;
+    private static volatile Func<string, string, (bool IsVerified, string ClearText)>? _securityTxtPgpVerifier;
+    private static volatile Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?>? _typosquattingVisualFingerprintBuilder;
+    private static volatile Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>>? _typosquattingBrowserCapture;
+    private static volatile Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? _ctSqlExactMetadataProvider;
 
     /// <summary>
     /// Indicates whether an optional PGP verifier has been registered.
@@ -22,7 +22,7 @@ public static class DomainDetectiveOptionalFeatures
     /// <summary>
     /// Indicates whether optional visual providers have been registered.
     /// </summary>
-    public static bool HasVisualProvider => _typosquattingVisualFingerprintBuilder != null || _typosquattingBrowserCapture != null;
+    public static bool HasVisualProvider => _typosquattingVisualFingerprintBuilder != null && _typosquattingBrowserCapture != null;
 
     /// <summary>
     /// Indicates whether an optional CT SQL exact-metadata provider has been registered.
