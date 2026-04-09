@@ -662,6 +662,15 @@ public sealed partial class CertificateInventoryCapture {
             return;
         }
 
+        // When a run is only allowed to probe one endpoint, prefer the direct HTTPS
+        // target over auxiliary mail expansion. This keeps apex/root website checks
+        // from being starved by MX-derived targets during tightly bounded passes.
+        if (maxTargets == 1) {
+            allowedHttps = 1;
+            allowedMail = 0;
+            return;
+        }
+
         var total = normalizedHttps + normalizedMail;
         var desiredHttps = (int)Math.Round(
             maxTargets * (double)normalizedHttps / total,
