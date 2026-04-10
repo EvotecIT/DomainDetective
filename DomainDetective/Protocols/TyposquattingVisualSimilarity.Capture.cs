@@ -95,6 +95,10 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
         {
             return await DomainDetectiveOptionalFeatures.CaptureTyposquattingBrowserArtifactAsync(url, options, cancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch
         {
             return null;

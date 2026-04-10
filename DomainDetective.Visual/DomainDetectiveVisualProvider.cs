@@ -88,13 +88,17 @@ internal static class DomainDetectiveVisualProvider
         TyposquattingVisualSimilarityOptions options,
         CancellationToken cancellationToken)
     {
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        linkedCts.CancelAfter(options.BrowserCaptureTimeout);
         try
         {
-            using var playwright = await Playwright.CreateAsync().ConfigureAwait(false);
+            using var playwright = await Playwright.CreateAsync()
+                .WaitAsync(linkedCts.Token)
+                .ConfigureAwait(false);
             await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = true
-            }).ConfigureAwait(false);
+            }).WaitAsync(linkedCts.Token).ConfigureAwait(false);
             await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
             {
                 ViewportSize = new ViewportSize
@@ -103,24 +107,26 @@ internal static class DomainDetectiveVisualProvider
                     Height = Math.Max(240, options.BrowserViewportHeight)
                 },
                 IgnoreHTTPSErrors = options.HttpRequestOptions.DisableTlsValidation
-            }).ConfigureAwait(false);
-            var page = await context.NewPageAsync().ConfigureAwait(false);
+            }).WaitAsync(linkedCts.Token).ConfigureAwait(false);
+            var page = await context.NewPageAsync().WaitAsync(linkedCts.Token).ConfigureAwait(false);
             await page.GotoAsync(url, new PageGotoOptions
             {
                 WaitUntil = WaitUntilState.NetworkIdle,
                 Timeout = (float)options.BrowserCaptureTimeout.TotalMilliseconds
-            }).ConfigureAwait(false);
+            }).WaitAsync(linkedCts.Token).ConfigureAwait(false);
 
             if (options.BrowserPostLoadDelay > TimeSpan.Zero)
             {
-                await page.WaitForTimeoutAsync((float)options.BrowserPostLoadDelay.TotalMilliseconds).ConfigureAwait(false);
+                await page.WaitForTimeoutAsync((float)options.BrowserPostLoadDelay.TotalMilliseconds)
+                    .WaitAsync(linkedCts.Token)
+                    .ConfigureAwait(false);
             }
 
             var bytes = await page.ScreenshotAsync(new PageScreenshotOptions
             {
                 FullPage = options.BrowserFullPageScreenshot,
                 Type = ScreenshotType.Png
-            }).ConfigureAwait(false);
+            }).WaitAsync(linkedCts.Token).ConfigureAwait(false);
             if (bytes == null || bytes.Length == 0)
             {
                 return null;
@@ -136,6 +142,10 @@ internal static class DomainDetectiveVisualProvider
             };
         }
         catch (PlaywrightException)
+        {
+            return null;
+        }
+        catch (OperationCanceledException) when (linkedCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             return null;
         }
