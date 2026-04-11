@@ -30,7 +30,8 @@ public static class CtProviderProfiles
             ProviderId = CrtShHttpProviderId,
             DisplayName = "crt.sh HTTPS",
             Capabilities = CtProviderCapabilities.SubdomainExpansion |
-                           CtProviderCapabilities.ExactHostLookup,
+                           CtProviderCapabilities.ExactHostLookup |
+                           CtProviderCapabilities.CertificateHydration,
             RateLimit = new CtProviderRateLimitProfile
             {
                 MaxRequestsPerMinute = 5,

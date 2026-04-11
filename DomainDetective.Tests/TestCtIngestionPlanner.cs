@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using DomainDetective;
 using Xunit;
@@ -16,6 +17,7 @@ public class TestCtIngestionPlanner
         Assert.Equal(5, profile.RateLimit.MaxRequestsPerMinute);
         Assert.Equal(1, profile.RateLimit.MaxConcurrentRequests);
         Assert.True(profile.RateLimit.MinimumRequestSpacing >= TimeSpan.FromSeconds(12));
+        Assert.True(profile.Supports(CtProviderCapabilities.CertificateHydration));
         Assert.True(CtIngestionPlanner.SupportsOperation(
             profile,
             CtIngestionOperation.DiscoverSubdomains,
@@ -195,6 +197,13 @@ public class TestCtIngestionPlanner
         Assert.NotNull(record.NotBeforeUtc);
         Assert.NotNull(record.NotAfterUtc);
         Assert.NotEmpty(record.CertificateDer!);
+        Assert.NotNull(record.IsSelfSigned);
+        Assert.NotNull(record.WeakKey);
+        Assert.NotNull(record.Sha1Signature);
+        Assert.NotNull(record.AllowsServerAuthentication);
+        Assert.NotNull(record.AllowsClientAuthentication);
+        Assert.NotNull(record.AllowsSecureEmail);
+        Assert.False(string.IsNullOrWhiteSpace(record.AuthenticationProfile));
     }
 
     [Fact]
@@ -252,6 +261,59 @@ public class TestCtIngestionPlanner
         Assert.Equal(1, state.SuccessfulRequestCount);
         Assert.Equal(now, state.LastSuccessUtc);
         Assert.Equal(250d, state.LastObservedLatencyMilliseconds);
+    }
+
+    [Fact]
+    public void PlanProvidersChoosesSqlForFullCertificateHistory()
+    {
+        CtProviderProfile http = CtProviderProfiles.CreateCrtShHttp();
+        CtProviderProfile sql = CtProviderProfiles.CreateCrtShPostgreSql();
+        var workload = new CtIngestionWorkloadRequest
+        {
+            HostCount = 10,
+            Operations = CtIngestionOperation.GetCertificateHistory,
+            RequireFullCertificate = true
+        };
+
+        IReadOnlyList<CtProviderWorkPlan> plans = CtIngestionPlanner.PlanProviders(
+            new[] { http, sql },
+            workload);
+        CtProviderWorkPlan? selected = CtIngestionPlanner.ChooseFirstReadyProvider(plans);
+
+        Assert.Equal(CtProviderPlanStatus.Unsupported, plans[0].Status);
+        Assert.Equal(CtProviderPlanStatus.Ready, plans[1].Status);
+        Assert.NotNull(selected);
+        Assert.Equal(CtProviderProfiles.CrtShPostgreSqlProviderId, selected!.ProviderId);
+    }
+
+    [Fact]
+    public void PlanProvidersDefersProviderInCooldown()
+    {
+        CtProviderProfile http = CtProviderProfiles.CreateCrtShHttp();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var workload = new CtIngestionWorkloadRequest
+        {
+            DomainCount = 1,
+            Operations = CtIngestionOperation.DiscoverSubdomains
+        };
+        var states = new Dictionary<string, CtProviderRuntimeState>(StringComparer.OrdinalIgnoreCase)
+        {
+            [http.ProviderId] = new CtProviderRuntimeState
+            {
+                ProviderId = http.ProviderId,
+                CooldownUntilUtc = now.AddMinutes(5)
+            }
+        };
+
+        IReadOnlyList<CtProviderWorkPlan> plans = CtIngestionPlanner.PlanProviders(
+            new[] { http },
+            workload,
+            states,
+            now);
+
+        Assert.Single(plans);
+        Assert.Equal(CtProviderPlanStatus.Deferred, plans[0].Status);
+        Assert.Equal(now.AddMinutes(5), plans[0].Decision?.DeferUntilUtc);
     }
 
     private static byte[] LoadPemCertificateDer(string fileName)

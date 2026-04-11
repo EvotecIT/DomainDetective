@@ -26,15 +26,18 @@ public enum CtProviderCapabilities
     /// <summary>The provider can return the full certificate DER bytes.</summary>
     FullCertificateDer = 16,
 
+    /// <summary>The provider can hydrate a metadata row into full certificate DER using a follow-up request.</summary>
+    CertificateHydration = 32,
+
     /// <summary>The provider supports paging or cursor-based continuation.</summary>
-    Pagination = 32,
+    Pagination = 64,
 
     /// <summary>The provider supports durable cursor-based ingestion.</summary>
-    DurableCursor = 64,
+    DurableCursor = 128,
 
     /// <summary>The provider is a direct CT log ingestion source rather than a domain index.</summary>
-    NativeLogIngestion = 128,
+    NativeLogIngestion = 256,
 
     /// <summary>The provider usually requires authentication for reliable production-scale use.</summary>
-    AuthenticationRecommended = 256
+    AuthenticationRecommended = 512
 }

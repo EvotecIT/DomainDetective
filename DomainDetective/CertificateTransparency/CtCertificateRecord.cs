@@ -50,6 +50,27 @@ public sealed class CtCertificateRecord
     /// <summary>Subject alternative DNS names and common name candidates observed on the certificate.</summary>
     public IReadOnlyList<string> DnsNames { get; init; } = Array.Empty<string>();
 
+    /// <summary>True when the certificate subject and issuer match.</summary>
+    public bool? IsSelfSigned { get; init; }
+
+    /// <summary>True when the public key is considered weak for modern TLS use.</summary>
+    public bool? WeakKey { get; init; }
+
+    /// <summary>True when the certificate signature algorithm uses SHA-1.</summary>
+    public bool? Sha1Signature { get; init; }
+
+    /// <summary>True when the certificate can be used for TLS server authentication.</summary>
+    public bool? AllowsServerAuthentication { get; init; }
+
+    /// <summary>True when the certificate can be used for TLS client authentication.</summary>
+    public bool? AllowsClientAuthentication { get; init; }
+
+    /// <summary>True when the certificate can be used for secure email.</summary>
+    public bool? AllowsSecureEmail { get; init; }
+
+    /// <summary>Normalized authentication profile derived from Extended Key Usage.</summary>
+    public string? AuthenticationProfile { get; init; }
+
     /// <summary>DER-encoded X.509 certificate or precertificate bytes.</summary>
     public byte[]? CertificateDer { get; init; }
 
@@ -92,6 +113,9 @@ public sealed class CtCertificateRecord
 
         byte[] rawData = certificateDer.ToArray();
         using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(rawData);
+        CertificateExtendedKeyUsageInfo eku = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
+        string? signatureOid = certificate.SignatureAlgorithm?.Value;
+        int keySize = GetPublicKeySize(certificate);
         byte[] sha256Bytes;
         using (SHA256 sha256 = SHA256.Create())
         {
@@ -112,6 +136,15 @@ public sealed class CtCertificateRecord
             NotBeforeUtc = new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
             NotAfterUtc = new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
             DnsNames = ExtractDnsNames(certificate),
+            IsSelfSigned = IsSelfSignedCertificate(certificate),
+            WeakKey = keySize > 0 && keySize < 2048,
+            Sha1Signature = IsSha1Signature(signatureOid),
+            AllowsServerAuthentication = eku.AllowsServerAuthentication,
+            AllowsClientAuthentication = eku.AllowsClientAuthentication,
+            AllowsSecureEmail = eku.AllowsSecureEmail,
+            AuthenticationProfile = string.IsNullOrWhiteSpace(eku.AuthenticationProfile)
+                ? CertificateAuthenticationProfileClassifier.Classify(eku)
+                : eku.AuthenticationProfile,
             CertificateDer = rawData,
             IsPrecertificate = isPrecertificate
         };
@@ -214,6 +247,65 @@ public sealed class CtCertificateRecord
         }
 
         return new string(value!.Where(Uri.IsHexDigit).ToArray()).ToUpperInvariant();
+    }
+
+    private static bool IsSelfSignedCertificate(X509Certificate2 certificate)
+    {
+        return !string.IsNullOrWhiteSpace(certificate.Subject) &&
+               string.Equals(certificate.Subject, certificate.Issuer, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSha1Signature(string? oid)
+    {
+        return oid == "1.2.840.113549.1.1.5" ||
+               oid == "1.2.840.10040.4.3" ||
+               oid == "1.3.14.3.2.29";
+    }
+
+    private static int GetPublicKeySize(X509Certificate2 certificate)
+    {
+        if (certificate == null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            using RSA? rsa = certificate.GetRSAPublicKey();
+            if (rsa != null)
+            {
+                return rsa.KeySize;
+            }
+        }
+        catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
+        {
+        }
+
+        try
+        {
+            using ECDsa? ecdsa = certificate.GetECDsaPublicKey();
+            if (ecdsa != null)
+            {
+                return ecdsa.KeySize;
+            }
+        }
+        catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
+        {
+        }
+
+        try
+        {
+            using DSA? dsa = certificate.GetDSAPublicKey();
+            if (dsa != null)
+            {
+                return dsa.KeySize;
+            }
+        }
+        catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
+        {
+        }
+
+        return 0;
     }
 
     private static string ToHex(byte[] bytes)

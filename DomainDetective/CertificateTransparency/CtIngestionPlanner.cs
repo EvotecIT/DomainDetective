@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective;
 
@@ -69,10 +71,7 @@ public static class CtIngestionPlanner
         int hostRequests = EstimateHostRequests(normalized);
         int hydrationRequests = EstimateHydrationRequests(profile, normalized);
         int totalRequests = domainRequests + hostRequests + hydrationRequests;
-        bool supportsWorkload = SupportsOperation(
-            profile,
-            normalized.Operations,
-            normalized.RequireFullCertificate && hydrationRequests == 0);
+        bool supportsWorkload = SupportsWorkload(profile, normalized, hydrationRequests);
 
         return new CtIngestionWorkloadEstimate
         {
@@ -85,6 +84,123 @@ public static class CtIngestionPlanner
             Capacity = EstimateCapacity(profile, totalRequests, nowUtc),
             Note = BuildWorkloadNote(profile, normalized, supportsWorkload, hydrationRequests)
         };
+    }
+
+    /// <summary>
+    /// Plans a CT workload for a single provider using capabilities, estimates, and runtime state.
+    /// </summary>
+    /// <param name="profile">Provider profile to evaluate.</param>
+    /// <param name="workload">Workload requested by the caller.</param>
+    /// <param name="state">Optional provider runtime state.</param>
+    /// <param name="nowUtc">Optional current time used for planning.</param>
+    public static CtProviderWorkPlan PlanProvider(
+        CtProviderProfile profile,
+        CtIngestionWorkloadRequest workload,
+        CtProviderRuntimeState? state = null,
+        DateTimeOffset? nowUtc = null)
+    {
+        if (profile == null)
+        {
+            throw new ArgumentNullException(nameof(profile));
+        }
+
+        if (workload == null)
+        {
+            throw new ArgumentNullException(nameof(workload));
+        }
+
+        CtIngestionWorkloadEstimate estimate = EstimateWorkload(profile, workload, nowUtc);
+        if (!estimate.ProviderSupportsWorkload)
+        {
+            return new CtProviderWorkPlan
+            {
+                ProviderId = profile.ProviderId,
+                Status = CtProviderPlanStatus.Unsupported,
+                Estimate = estimate,
+                Decision = null,
+                Reason = estimate.Note ?? "Provider does not support the requested CT workload."
+            };
+        }
+
+        CtProviderExecutionDecision decision = Decide(profile, state, nowUtc);
+        if (!decision.CanRunNow)
+        {
+            return new CtProviderWorkPlan
+            {
+                ProviderId = profile.ProviderId,
+                Status = CtProviderPlanStatus.Deferred,
+                Estimate = estimate,
+                Decision = decision,
+                Reason = decision.Reason
+            };
+        }
+
+        return new CtProviderWorkPlan
+        {
+            ProviderId = profile.ProviderId,
+            Status = CtProviderPlanStatus.Ready,
+            Estimate = estimate,
+            Decision = decision,
+            Reason = estimate.Note ?? decision.Reason
+        };
+    }
+
+    /// <summary>
+    /// Plans a CT workload across multiple providers in caller-supplied preference order.
+    /// </summary>
+    /// <param name="profiles">Provider profiles to evaluate.</param>
+    /// <param name="workload">Workload requested by the caller.</param>
+    /// <param name="states">Optional provider states keyed by provider identifier.</param>
+    /// <param name="nowUtc">Optional current time used for planning.</param>
+    public static IReadOnlyList<CtProviderWorkPlan> PlanProviders(
+        IEnumerable<CtProviderProfile> profiles,
+        CtIngestionWorkloadRequest workload,
+        IReadOnlyDictionary<string, CtProviderRuntimeState>? states = null,
+        DateTimeOffset? nowUtc = null)
+    {
+        if (profiles == null)
+        {
+            throw new ArgumentNullException(nameof(profiles));
+        }
+
+        if (workload == null)
+        {
+            throw new ArgumentNullException(nameof(workload));
+        }
+
+        var output = new List<CtProviderWorkPlan>();
+        foreach (CtProviderProfile profile in profiles)
+        {
+            if (profile == null)
+            {
+                continue;
+            }
+
+            CtProviderRuntimeState? state = null;
+            if (states != null &&
+                !string.IsNullOrWhiteSpace(profile.ProviderId))
+            {
+                states.TryGetValue(profile.ProviderId, out state);
+            }
+
+            output.Add(PlanProvider(profile, workload, state, nowUtc));
+        }
+
+        return output;
+    }
+
+    /// <summary>
+    /// Chooses the first provider that is ready in the supplied work plans.
+    /// </summary>
+    /// <param name="plans">Provider work plans in preference order.</param>
+    public static CtProviderWorkPlan? ChooseFirstReadyProvider(IEnumerable<CtProviderWorkPlan> plans)
+    {
+        if (plans == null)
+        {
+            throw new ArgumentNullException(nameof(plans));
+        }
+
+        return plans.FirstOrDefault(plan => plan != null && plan.Status == CtProviderPlanStatus.Ready);
     }
 
     /// <summary>
@@ -192,6 +308,26 @@ public static class CtIngestionPlanner
         return profile.Supports(required);
     }
 
+    private static bool SupportsWorkload(
+        CtProviderProfile profile,
+        CtIngestionWorkloadRequest workload,
+        int hydrationRequests)
+    {
+        bool requiresFullCertificateMaterial = RequiresFullCertificateMaterial(workload);
+        bool requiresFullCertificateFromProvider = requiresFullCertificateMaterial && hydrationRequests == 0;
+        if (!SupportsOperation(profile, workload.Operations, requiresFullCertificateFromProvider))
+        {
+            return false;
+        }
+
+        if (!requiresFullCertificateMaterial || profile.Supports(CtProviderCapabilities.FullCertificateDer))
+        {
+            return true;
+        }
+
+        return hydrationRequests > 0 && profile.Supports(CtProviderCapabilities.CertificateHydration);
+    }
+
     private static TimeSpan ResolveEffectiveRequestSpacing(CtProviderRateLimitProfile rateLimit)
     {
         TimeSpan spacing = rateLimit.MinimumRequestSpacing;
@@ -230,15 +366,28 @@ public static class CtIngestionPlanner
 
     private static int EstimateHydrationRequests(CtProviderProfile profile, CtIngestionWorkloadRequest workload)
     {
-        if (!workload.RequireFullCertificate ||
+        if (!RequiresFullCertificateMaterial(workload) ||
             workload.EstimatedCertificatesToHydrate <= 0 ||
             workload.HydrationRequestsPerCertificate <= 0 ||
-            profile.Supports(CtProviderCapabilities.FullCertificateDer))
+            profile.Supports(CtProviderCapabilities.FullCertificateDer) ||
+            !profile.Supports(CtProviderCapabilities.CertificateHydration))
         {
             return 0;
         }
 
         return workload.EstimatedCertificatesToHydrate * workload.HydrationRequestsPerCertificate;
+    }
+
+    private static bool RequiresFullCertificateMaterial(CtIngestionWorkloadRequest workload)
+    {
+        if (!workload.RequireFullCertificate)
+        {
+            return false;
+        }
+
+        return (workload.Operations & CtIngestionOperation.GetLatestCertificate) != 0 ||
+               (workload.Operations & CtIngestionOperation.GetCertificateHistory) != 0 ||
+               (workload.Operations & CtIngestionOperation.GetDomainTreeCertificates) != 0;
     }
 
     private static string BuildWorkloadNote(
