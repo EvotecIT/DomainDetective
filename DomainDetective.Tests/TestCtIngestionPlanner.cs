@@ -60,6 +60,9 @@ public class TestCtIngestionPlanner
         Assert.Null(estimate.MaximumRequestsPerRun);
         Assert.Equal(1, estimate.EstimatedRunCount);
         Assert.Equal(20_000, estimate.FirstRunRequestCount);
+        Assert.Equal(0, estimate.RemainingRequestCount);
+        Assert.Equal(estimate.EstimatedMinimumDuration, estimate.EstimatedFirstRunDuration);
+        Assert.Equal(estimate.EstimatedCompletionUtc, estimate.EstimatedFirstRunCompletionUtc);
         Assert.False(estimate.ExceedsRunBudget);
         Assert.True(estimate.IsRateLimited);
         Assert.False(estimate.IsConcurrencyLimited);
@@ -98,6 +101,8 @@ public class TestCtIngestionPlanner
         Assert.Equal(100, estimate.MaximumRequestsPerRun);
         Assert.Equal(3, estimate.EstimatedRunCount);
         Assert.Equal(100, estimate.FirstRunRequestCount);
+        Assert.Equal(150, estimate.RemainingRequestCount);
+        Assert.Equal(TimeSpan.FromSeconds(15 * 99 + 5), estimate.EstimatedFirstRunDuration);
         Assert.True(estimate.ExceedsRunBudget);
     }
 

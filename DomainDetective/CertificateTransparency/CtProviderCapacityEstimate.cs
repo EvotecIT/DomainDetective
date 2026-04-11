@@ -37,6 +37,15 @@ public sealed class CtProviderCapacityEstimate
     /// <summary>Estimated request count in the first logical run after applying the run budget.</summary>
     public int FirstRunRequestCount { get; init; }
 
+    /// <summary>Estimated request count remaining after the first logical run.</summary>
+    public int RemainingRequestCount { get; init; }
+
+    /// <summary>Estimated wall-clock duration for the first logical run.</summary>
+    public TimeSpan EstimatedFirstRunDuration { get; init; }
+
+    /// <summary>Estimated completion time for the first logical run.</summary>
+    public DateTimeOffset EstimatedFirstRunCompletionUtc { get; init; }
+
     /// <summary>Number of request waves needed under the configured concurrency limit.</summary>
     public int ConcurrencyWaveCount { get; init; }
 

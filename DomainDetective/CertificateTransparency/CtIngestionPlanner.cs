@@ -35,6 +35,7 @@ public static class CtIngestionPlanner
         int estimatedRunCount = EstimateRunCount(
             normalizedRequestCount,
             rateLimit.MaximumRequestsPerRun);
+        int remainingRequestCount = Math.Max(0, normalizedRequestCount - firstRunRequestCount);
         TimeSpan spacingDuration = EstimateSpacingDuration(
             normalizedRequestCount,
             effectiveSpacing,
@@ -42,6 +43,11 @@ public static class CtIngestionPlanner
         int concurrencyWaveCount = EstimateConcurrencyWaveCount(normalizedRequestCount, maxConcurrentRequests);
         TimeSpan concurrencyDuration = MultiplyTimeSpan(rateLimit.EstimatedRequestDuration, concurrencyWaveCount);
         TimeSpan estimatedDuration = MaxTimeSpan(spacingDuration, concurrencyDuration);
+        TimeSpan estimatedFirstRunDuration = EstimateDuration(
+            firstRunRequestCount,
+            effectiveSpacing,
+            rateLimit.EstimatedRequestDuration,
+            maxConcurrentRequests);
         DateTimeOffset startUtc = nowUtc ?? DateTimeOffset.UtcNow;
 
         return new CtProviderCapacityEstimate
@@ -56,6 +62,9 @@ public static class CtIngestionPlanner
             MaximumRequestsPerRun = rateLimit.MaximumRequestsPerRun,
             EstimatedRunCount = estimatedRunCount,
             FirstRunRequestCount = firstRunRequestCount,
+            RemainingRequestCount = remainingRequestCount,
+            EstimatedFirstRunDuration = estimatedFirstRunDuration,
+            EstimatedFirstRunCompletionUtc = startUtc + estimatedFirstRunDuration,
             ConcurrencyWaveCount = concurrencyWaveCount,
             IsRateLimited = effectiveSpacing > TimeSpan.Zero,
             ExceedsRunBudget = estimatedRunCount > 1,
@@ -380,6 +389,21 @@ public static class CtIngestionPlanner
 
         TimeSpan startSpacingDuration = MultiplyTimeSpan(effectiveSpacing, requestCount - 1);
         return AddTimeSpan(startSpacingDuration, estimatedRequestDuration);
+    }
+
+    private static TimeSpan EstimateDuration(
+        int requestCount,
+        TimeSpan effectiveSpacing,
+        TimeSpan estimatedRequestDuration,
+        int maxConcurrentRequests)
+    {
+        TimeSpan spacingDuration = EstimateSpacingDuration(
+            requestCount,
+            effectiveSpacing,
+            estimatedRequestDuration);
+        int concurrencyWaveCount = EstimateConcurrencyWaveCount(requestCount, maxConcurrentRequests);
+        TimeSpan concurrencyDuration = MultiplyTimeSpan(estimatedRequestDuration, concurrencyWaveCount);
+        return MaxTimeSpan(spacingDuration, concurrencyDuration);
     }
 
     private static int EstimateConcurrencyWaveCount(int requestCount, int maxConcurrentRequests)
