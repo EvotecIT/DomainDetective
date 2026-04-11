@@ -34,16 +34,38 @@ public sealed class CtIngestionWorkloadRequest
     /// <summary>Returns a normalized copy of this workload request.</summary>
     public CtIngestionWorkloadRequest Normalize()
     {
+        int domainCount = Math.Max(0, DomainCount);
+        int hostCount = Math.Max(0, HostCount);
         return new CtIngestionWorkloadRequest
         {
-            DomainCount = Math.Max(0, DomainCount),
-            HostCount = Math.Max(0, HostCount),
-            Operations = Operations,
+            DomainCount = domainCount,
+            HostCount = hostCount,
+            Operations = Operations == CtIngestionOperation.None
+                ? ResolveDefaultOperations(domainCount, hostCount)
+                : Operations,
             RequireFullCertificate = RequireFullCertificate,
             RequestsPerDomain = Math.Max(1, RequestsPerDomain),
             RequestsPerHost = Math.Max(1, RequestsPerHost),
             HydrationRequestsPerCertificate = Math.Max(0, HydrationRequestsPerCertificate),
             EstimatedCertificatesToHydrate = Math.Max(0, EstimatedCertificatesToHydrate)
         };
+    }
+
+    private static CtIngestionOperation ResolveDefaultOperations(int domainCount, int hostCount)
+    {
+        CtIngestionOperation operations = CtIngestionOperation.None;
+        if (domainCount > 0)
+        {
+            operations |= CtIngestionOperation.DiscoverSubdomains;
+        }
+
+        if (hostCount > 0)
+        {
+            operations |= CtIngestionOperation.GetLatestCertificate;
+        }
+
+        return operations == CtIngestionOperation.None
+            ? CtIngestionOperation.GetLatestCertificate
+            : operations;
     }
 }

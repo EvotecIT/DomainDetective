@@ -190,6 +190,25 @@ public class TestCtIngestionPlanner
     }
 
     [Fact]
+    public void WorkloadEstimateDefaultsEmptyOperationsFromCounts()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        var workload = new CtIngestionWorkloadRequest
+        {
+            DomainCount = 2,
+            HostCount = 3,
+            Operations = CtIngestionOperation.None
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload);
+
+        Assert.True(estimate.ProviderSupportsWorkload);
+        Assert.Equal(2, estimate.EstimatedDomainRequests);
+        Assert.Equal(3, estimate.EstimatedHostRequests);
+        Assert.Equal(5, estimate.EstimatedRequestCount);
+    }
+
+    [Fact]
     public void DecideDefersProviderWhenCooldownIsActive()
     {
         CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
@@ -638,7 +657,9 @@ public class TestCtIngestionPlanner
 
     private static byte[] LoadPemCertificateDer(string fileName)
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "Data", Path.GetFileName(fileName));
+        string safeFileName = Path.GetFileName(fileName);
+        Assert.Equal(fileName, safeFileName);
+        string path = Path.Combine(AppContext.BaseDirectory, "Data", safeFileName);
         string pem = File.ReadAllText(path);
         const string begin = "-----BEGIN CERTIFICATE-----";
         const string end = "-----END CERTIFICATE-----";

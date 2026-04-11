@@ -218,13 +218,11 @@ public sealed class CtCertificateRecord
         }
 
         foreach (string trimmed in SplitDistinguishedNameParts(subject!)
-            .Select(part => part.Trim()))
+            .Select(part => part.Trim())
+            .Where(part => part.StartsWith("CN=", StringComparison.OrdinalIgnoreCase)))
         {
-            if (trimmed.StartsWith("CN=", StringComparison.OrdinalIgnoreCase))
-            {
-                string value = UnescapeDistinguishedNameValue(trimmed.Substring(3).Trim());
-                return value.Length == 0 ? null : value;
-            }
+            string value = UnescapeDistinguishedNameValue(trimmed.Substring(3).Trim());
+            return value.Length == 0 ? null : value;
         }
 
         return null;
@@ -356,12 +354,9 @@ public sealed class CtCertificateRecord
 
         char[] output = new char[value!.Length];
         int count = 0;
-        foreach (char character in value)
+        foreach (char character in value.Where(IsHexDigit))
         {
-            if (IsHexDigit(character))
-            {
-                output[count++] = char.ToUpperInvariant(character);
-            }
+            output[count++] = char.ToUpperInvariant(character);
         }
 
         return new string(output, 0, count);
@@ -382,9 +377,10 @@ public sealed class CtCertificateRecord
 
     private static bool IsHexDigit(char character)
     {
-        return (character >= '0' && character <= '9') ||
-               (character >= 'a' && character <= 'f') ||
-               (character >= 'A' && character <= 'F');
+        bool isDecimalDigit = character >= '0' && character <= '9';
+        bool isLowerHexLetter = character >= 'a' && character <= 'f';
+        bool isUpperHexLetter = character >= 'A' && character <= 'F';
+        return isDecimalDigit || isLowerHexLetter || isUpperHexLetter;
     }
 
     private static bool IsWeakPublicKey(X509Certificate2 certificate)
