@@ -44,6 +44,50 @@ public static class CtIngestionPlanner
     }
 
     /// <summary>
+    /// Estimates a CT workload against a single provider profile.
+    /// </summary>
+    /// <param name="profile">Provider profile that supplies capabilities and rate limits.</param>
+    /// <param name="workload">Workload to estimate.</param>
+    /// <param name="nowUtc">Optional current time used for the completion estimate.</param>
+    public static CtIngestionWorkloadEstimate EstimateWorkload(
+        CtProviderProfile profile,
+        CtIngestionWorkloadRequest workload,
+        DateTimeOffset? nowUtc = null)
+    {
+        if (profile == null)
+        {
+            throw new ArgumentNullException(nameof(profile));
+        }
+
+        if (workload == null)
+        {
+            throw new ArgumentNullException(nameof(workload));
+        }
+
+        CtIngestionWorkloadRequest normalized = workload.Normalize();
+        int domainRequests = EstimateDomainRequests(normalized);
+        int hostRequests = EstimateHostRequests(normalized);
+        int hydrationRequests = EstimateHydrationRequests(profile, normalized);
+        int totalRequests = domainRequests + hostRequests + hydrationRequests;
+        bool supportsWorkload = SupportsOperation(
+            profile,
+            normalized.Operations,
+            normalized.RequireFullCertificate && hydrationRequests == 0);
+
+        return new CtIngestionWorkloadEstimate
+        {
+            ProviderId = profile.ProviderId,
+            ProviderSupportsWorkload = supportsWorkload,
+            EstimatedRequestCount = totalRequests,
+            EstimatedDomainRequests = domainRequests,
+            EstimatedHostRequests = hostRequests,
+            EstimatedHydrationRequests = hydrationRequests,
+            Capacity = EstimateCapacity(profile, totalRequests, nowUtc),
+            Note = BuildWorkloadNote(profile, normalized, supportsWorkload, hydrationRequests)
+        };
+    }
+
+    /// <summary>
     /// Determines whether a provider should run now or be deferred.
     /// </summary>
     /// <param name="profile">Provider profile that supplies safety settings.</param>
@@ -162,5 +206,63 @@ public static class CtIngestionPlanner
         }
 
         return spacing;
+    }
+
+    private static int EstimateDomainRequests(CtIngestionWorkloadRequest workload)
+    {
+        bool usesDomainOperation =
+            (workload.Operations & CtIngestionOperation.DiscoverSubdomains) != 0 ||
+            (workload.Operations & CtIngestionOperation.GetDomainTreeCertificates) != 0;
+        return usesDomainOperation
+            ? workload.DomainCount * workload.RequestsPerDomain
+            : 0;
+    }
+
+    private static int EstimateHostRequests(CtIngestionWorkloadRequest workload)
+    {
+        bool usesHostOperation =
+            (workload.Operations & CtIngestionOperation.GetLatestCertificate) != 0 ||
+            (workload.Operations & CtIngestionOperation.GetCertificateHistory) != 0;
+        return usesHostOperation
+            ? workload.HostCount * workload.RequestsPerHost
+            : 0;
+    }
+
+    private static int EstimateHydrationRequests(CtProviderProfile profile, CtIngestionWorkloadRequest workload)
+    {
+        if (!workload.RequireFullCertificate ||
+            workload.EstimatedCertificatesToHydrate <= 0 ||
+            workload.HydrationRequestsPerCertificate <= 0 ||
+            profile.Supports(CtProviderCapabilities.FullCertificateDer))
+        {
+            return 0;
+        }
+
+        return workload.EstimatedCertificatesToHydrate * workload.HydrationRequestsPerCertificate;
+    }
+
+    private static string BuildWorkloadNote(
+        CtProviderProfile profile,
+        CtIngestionWorkloadRequest workload,
+        bool supportsWorkload,
+        int hydrationRequests)
+    {
+        if (!supportsWorkload)
+        {
+            return "Provider does not advertise all requested CT capabilities.";
+        }
+
+        if (hydrationRequests > 0)
+        {
+            return "Provider requires additional certificate hydration requests to satisfy full-certificate output.";
+        }
+
+        if (workload.RequireFullCertificate &&
+            profile.Supports(CtProviderCapabilities.FullCertificateDer))
+        {
+            return "Provider can return full certificate material for the requested workload.";
+        }
+
+        return "Provider can be used for the requested workload under the configured rate profile.";
     }
 }

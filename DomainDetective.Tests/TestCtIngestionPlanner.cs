@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using DomainDetective;
 using Xunit;
 
@@ -133,5 +134,82 @@ public class TestCtIngestionPlanner
         Assert.Equal(TimeSpan.FromSeconds(20), sql.RateLimit.RequestTimeout);
         Assert.Equal(4, native.RateLimit.MaxConcurrentRequests);
         Assert.Equal(TimeSpan.FromMilliseconds(250), native.RateLimit.MinimumRequestSpacing);
+    }
+
+    [Fact]
+    public void WorkloadEstimateIncludesHydrationRequestsWhenProviderIsMetadataOnly()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        var workload = new CtIngestionWorkloadRequest
+        {
+            HostCount = 100,
+            Operations = CtIngestionOperation.GetLatestCertificate,
+            RequireFullCertificate = true,
+            RequestsPerHost = 1,
+            EstimatedCertificatesToHydrate = 100,
+            HydrationRequestsPerCertificate = 1
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload);
+
+        Assert.True(estimate.ProviderSupportsWorkload);
+        Assert.Equal(100, estimate.EstimatedHostRequests);
+        Assert.Equal(100, estimate.EstimatedHydrationRequests);
+        Assert.Equal(200, estimate.EstimatedRequestCount);
+    }
+
+    [Fact]
+    public void WorkloadEstimateRejectsFullCertificateWhenProviderCannotHydrate()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        var workload = new CtIngestionWorkloadRequest
+        {
+            HostCount = 100,
+            Operations = CtIngestionOperation.GetLatestCertificate,
+            RequireFullCertificate = true
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload);
+
+        Assert.False(estimate.ProviderSupportsWorkload);
+        Assert.Equal(100, estimate.EstimatedRequestCount);
+    }
+
+    [Fact]
+    public void CtCertificateRecordCanBeCreatedFromDer()
+    {
+        byte[] der = LoadPemCertificateDer("multi.pem");
+
+        CtCertificateRecord record = CtCertificateRecord.FromDer(
+            CtProviderProfiles.CertSpotterProviderId,
+            der,
+            providerCertificateId: "cert-1");
+
+        Assert.True(record.HasFullCertificate);
+        Assert.Equal(CtProviderProfiles.CertSpotterProviderId, record.ProviderId);
+        Assert.Equal("cert-1", record.ProviderCertificateId);
+        Assert.NotEmpty(record.Sha256Fingerprint!);
+        Assert.NotEmpty(record.Sha1Fingerprint!);
+        Assert.NotEmpty(record.Subject!);
+        Assert.NotEmpty(record.Issuer!);
+        Assert.NotNull(record.NotBeforeUtc);
+        Assert.NotNull(record.NotAfterUtc);
+        Assert.NotEmpty(record.CertificateDer!);
+    }
+
+    private static byte[] LoadPemCertificateDer(string fileName)
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Data", fileName);
+        string pem = File.ReadAllText(path);
+        const string begin = "-----BEGIN CERTIFICATE-----";
+        const string end = "-----END CERTIFICATE-----";
+        int start = pem.IndexOf(begin, StringComparison.Ordinal);
+        int finish = pem.IndexOf(end, StringComparison.Ordinal);
+        Assert.True(start >= 0 && finish > start, "Expected PEM certificate fixture.");
+        string base64 = pem.Substring(start + begin.Length, finish - start - begin.Length)
+            .Replace("\r", string.Empty)
+            .Replace("\n", string.Empty)
+            .Trim();
+        return Convert.FromBase64String(base64);
     }
 }
