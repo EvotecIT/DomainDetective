@@ -144,6 +144,9 @@ public class SecurityTXTAnalysis : IHasAssessments {
                             }
                             txt = verifiedClearText;
                         } else {
+                            Logger.WriteWarningCode(
+                                SecurityTxtCodes.SignatureVerifyFailed,
+                                "PGP signature found but no verifier is registered. Install DomainDetective.Pgp and call DomainDetectivePgpRegistration.Register().");
                             txt = ExtractClearText(txt);
                         }
                     } catch (Exception ex) {
@@ -151,6 +154,7 @@ public class SecurityTXTAnalysis : IHasAssessments {
                         txt = ExtractClearText(txt);
                     }
                 } else {
+                    Logger.WriteWarningCode(SecurityTxtCodes.SignatureVerifyFailed, "PGP signature found but no public key was provided for verification.");
                     txt = ExtractClearText(txt);
                 }
             }
