@@ -21,6 +21,11 @@ public class TestSubdomainsAnalysis
         PassiveCtSourceClient.ResetSharedStateForTesting();
     }
 
+    private static void AssertExpectedListenerCancellation(Exception exception, CancellationToken token)
+    {
+        Assert.True(token.IsCancellationRequested, exception.Message);
+    }
+
     [Fact]
     public async Task ParsesCtAndAggregatesSubdomains()
     {
@@ -274,11 +279,13 @@ public class TestSubdomainsAnalysis
                     await writer.WriteAsync("{}");
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
         }, token));
         await server.InitializeAsync();
@@ -433,11 +440,13 @@ public class TestSubdomainsAnalysis
                     }, token));
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
             finally
             {
@@ -624,11 +633,13 @@ public class TestSubdomainsAnalysis
                     }, token));
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
             finally
             {
@@ -723,11 +734,13 @@ public class TestSubdomainsAnalysis
                     }, token));
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
             finally
             {
