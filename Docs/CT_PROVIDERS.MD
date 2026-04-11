@@ -27,7 +27,7 @@ Use native CT logs for cursor-based ingestion into a local index. Direct logs ar
 | --- | --- | --- | --- |
 | Cert Spotter | Current exact host | Yes, via `expand=cert_der` | Separate exact/full-domain budgets |
 | Cert Spotter | Subdomain expansion | Yes, if expanded | Full-domain budget is small |
-| crt.sh SQL FTS | Historical backfill | Yes, certificate table DER | Shared public DB is fragile |
+| crt.sh PostgreSQL (SQL FTS) | Historical backfill | Yes, certificate table DER | PostgreSQL interface; use certificate-table FTS query style |
 | crt.sh HTTPS | Fallback hydration | Yes, via `?d=<id>` | Slow, 503s are common |
 | Native CT logs | Local ingestion | Yes, from log entries | Needs cursors/local index |
 
@@ -37,13 +37,14 @@ These observations came from an ad-hoc live smoke test against a representative 
 
 | Path | Observed Time | Observed Result | Service Guidance |
 | --- | --- | --- | --- |
-| Live TLS probe for the apex host | 468 ms | Returned the live Amazon RSA 2048 M02 certificate, expiring 2026-06-11 | Best current-state source when the endpoint is reachable |
-| Cert Spotter exact-host DER query | 514 ms | Returned 4 rows, latest unexpired CT certificate expiring 2026-05-25 | Good for latest known public issuance when endpoint reachability is not guaranteed |
-| Cert Spotter domain expansion through DomainDetective | 2.37 s | Processed 100 CT observations and produced 397 subdomains; expansion did not include full DER because it used `expand=dns_names` | Good expansion source; follow with exact-host queries for full latest certificates |
-| crt.sh HTTPS exact query with DER hydration | 74.8 s | Eventually returned certificate material, but was much slower than Cert Spotter | Fallback/manual path only |
-| crt.sh HTTPS expansion through DomainDetective | 40 s | Failed with HTTP 503 | Do not rely on this for service-scale expansion |
-| Native CT limited tail scan | 13 s | No entries for the representative domain were found in the small scanned window | Useful only with persisted cursors/local indexing, not ad-hoc domain lookup |
-| crt.sh PostgreSQL public DB rich query | Not comparable | DomainDetective-style query was canceled by the public replica due recovery conflict; simpler FTS probes against `certificate` worked | Best-effort historical/backfill path with strict timeout and cooldown |
+| Live TLS probe for the apex host | 118 ms | Returned the live Google Trust Services WE1 certificate, expiring 2026-07-04 | Best current-state source when the endpoint is reachable |
+| Cert Spotter exact-host DER query | 1.62 s | Returned 7 rows, all with DER; latest CT certificate matched the live certificate and expired 2026-07-04 | Good for latest known public issuance when endpoint reachability is not guaranteed |
+| Cert Spotter domain expansion through DomainDetective-equivalent request | 354 ms | Processed 7 CT observations and produced 3 unique DNS names; expansion did not include full DER because it used `expand=dns_names` | Good expansion source; follow with exact-host queries for full latest certificates |
+| crt.sh HTTPS exact query with DER hydration | 3.23 s | Returned 495 JSON rows and hydrated certificate ID `25432709504`; latest certificate matched the live certificate | Works when healthy, but still treat as fallback because public rate limits and 502/503s are common |
+| crt.sh HTTPS wildcard expansion | 3.28 s | Returned 495 JSON rows and 51 unique names | Useful for manual checks, but not preferred for service-scale expansion |
+| crt.sh PostgreSQL exact FTS | 4.15 s | Returned 5 typed row mappings from the `certificate` table; first row had 932 DER bytes and matched the latest live/CT certificate | Best-effort historical/backfill path with strict timeout and cooldown |
+| crt.sh PostgreSQL domain FTS sample | 1.86 s | Returned a capped 20-name sample from certificate-table FTS | Useful for SQL-backed backfill/analysis, not a separate provider from crt.sh PostgreSQL |
+| Native CT limited tail fetch | 1.24 s | Fetched a small tail range from one Google Argon CT log; this was not a domain lookup and did not decode certificates | Useful only with persisted cursors/local indexing, not ad-hoc domain lookup |
 
 ## Cert Spotter Budgets
 
@@ -96,7 +97,7 @@ https://api.certspotter.com/v1/issuances?domain=<domain>&include_subdomains=true
 
 ## crt.sh SQL FTS
 
-crt.sh SQL FTS is the supported PostgreSQL query style against the public crt.sh database. It is still "crt.sh SQL"; the FTS part means the query searches the full-text index exposed by `identities(c.certificate)` on the `certificate` table:
+crt.sh SQL FTS is not a separate provider from crt.sh PostgreSQL. It is the supported query style to use through the public crt.sh PostgreSQL interface. The FTS part means the query searches the full-text index exposed by `identities(c.certificate)` on the `certificate` table:
 
 ```sql
 WHERE identities(c.certificate) @@ plainto_tsquery('simple', @host)
