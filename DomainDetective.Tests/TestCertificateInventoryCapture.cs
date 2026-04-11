@@ -1430,6 +1430,7 @@ public class TestCertificateInventoryCapture {
             IncludeCtDiscoveredSubdomains = true,
             VerifyCtDiscoveredSubdomains = false,
             EnablePassiveCtFallback = true,
+            BackfillMissingCtCertificateMetadata = false,
             IncludeMxHosts = false,
             IncludeMxHttps = false,
             IncludeSmtpStartTls = false,
@@ -2573,6 +2574,7 @@ public class TestCertificateInventoryCapture {
             ReuseRecentSnapshotEntries = true,
             RecentSnapshotTtl = TimeSpan.FromDays(365),
             BackfillMissingCtCertificateMetadata = true,
+            CtDiscoveryDomains = { "eurofins.com" },
             PersistSnapshot = false
         };
 
