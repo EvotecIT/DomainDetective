@@ -93,6 +93,26 @@ public class TestCtIngestionPlanner
     }
 
     [Fact]
+    public void EstimateCapacityCombinesSpacingAndConcurrencyLimits()
+    {
+        var profile = new CtProviderProfile
+        {
+            ProviderId = "combined-limits",
+            RateLimit = new CtProviderRateLimitProfile
+            {
+                MaxConcurrentRequests = 4,
+                MinimumRequestSpacing = TimeSpan.FromMilliseconds(250),
+                EstimatedRequestDuration = TimeSpan.FromSeconds(2)
+            }
+        };
+
+        CtProviderCapacityEstimate estimate = CtIngestionPlanner.EstimateCapacity(profile, 20);
+
+        Assert.Equal(TimeSpan.FromMilliseconds(10_750), estimate.EstimatedMinimumDuration);
+        Assert.Equal(TimeSpan.FromMilliseconds(10_750), estimate.EstimatedFirstRunDuration);
+    }
+
+    [Fact]
     public void EstimateCapacityReportsRunBudgetSlices()
     {
         CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp(new CertificateInventoryCaptureOptions
