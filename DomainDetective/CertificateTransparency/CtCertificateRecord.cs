@@ -153,9 +153,8 @@ public sealed class CtCertificateRecord
     private static IReadOnlyList<string> ExtractDnsNames(X509Certificate2 certificate)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        AddIfNotEmpty(names, SafeGetNameInfo(certificate, X509NameType.DnsName));
-        AddIfNotEmpty(names, SafeGetNameInfo(certificate, X509NameType.SimpleName));
-        AddIfNotEmpty(names, TryExtractCommonName(certificate.Subject));
+        AddDnsNameIfCandidate(names, SafeGetNameInfo(certificate, X509NameType.DnsName));
+        AddDnsNameIfCandidate(names, TryExtractCommonName(certificate.Subject));
 
         try
         {
@@ -166,21 +165,22 @@ public sealed class CtCertificateRecord
                 var sanExtension = new X509SubjectAlternativeNameExtension(san.RawData, san.Critical);
                 foreach (string dnsName in sanExtension.EnumerateDnsNames())
                 {
-                    AddIfNotEmpty(names, dnsName);
+                    AddDnsNameIfCandidate(names, dnsName);
                 }
 #else
                 int sanNameCount = 0;
                 foreach (string dnsName in ParseDnsNamesFromSanExtension(san.RawData))
                 {
                     sanNameCount++;
-                    AddIfNotEmpty(names, dnsName);
+                    AddDnsNameIfCandidate(names, dnsName);
                 }
 
                 if (sanNameCount == 0)
                 {
+                    // Last-resort fallback for unusual pre-net8 certificates; the raw parser above avoids relying on localized Format() text in normal cases.
                     foreach (string dnsName in ParseDnsNamesFromSanText(san.Format(false)))
                     {
-                        AddIfNotEmpty(names, dnsName);
+                        AddDnsNameIfCandidate(names, dnsName);
                     }
                 }
 #endif
@@ -215,12 +215,12 @@ public sealed class CtCertificateRecord
             return null;
         }
 
-        foreach (string part in subject!.Split(','))
+        foreach (string trimmed in SplitDistinguishedNameParts(subject!)
+            .Select(part => part.Trim()))
         {
-            string trimmed = part.Trim();
             if (trimmed.StartsWith("CN=", StringComparison.OrdinalIgnoreCase))
             {
-                string value = trimmed.Substring(3).Trim();
+                string value = UnescapeDistinguishedNameValue(trimmed.Substring(3).Trim());
                 return value.Length == 0 ? null : value;
             }
         }
@@ -228,12 +228,93 @@ public sealed class CtCertificateRecord
         return null;
     }
 
-    private static void AddIfNotEmpty(HashSet<string> names, string? name)
+    private static IEnumerable<string> SplitDistinguishedNameParts(string subject)
     {
-        if (!string.IsNullOrWhiteSpace(name))
+        var builder = new StringBuilder();
+        bool escaped = false;
+        foreach (char character in subject)
         {
-            names.Add(name!.Trim());
+            if (escaped)
+            {
+                builder.Append('\\');
+                builder.Append(character);
+                escaped = false;
+                continue;
+            }
+
+            if (character == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (character == ',')
+            {
+                yield return builder.ToString();
+                builder.Clear();
+                continue;
+            }
+
+            builder.Append(character);
         }
+
+        if (escaped)
+        {
+            builder.Append('\\');
+        }
+
+        yield return builder.ToString();
+    }
+
+    private static string UnescapeDistinguishedNameValue(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        bool escaped = false;
+        foreach (char character in value)
+        {
+            if (escaped)
+            {
+                builder.Append(character);
+                escaped = false;
+                continue;
+            }
+
+            if (character == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            builder.Append(character);
+        }
+
+        if (escaped)
+        {
+            builder.Append('\\');
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private static void AddDnsNameIfCandidate(HashSet<string> names, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        string value = name!.Trim();
+        string hostCandidate = value.StartsWith("*.", StringComparison.Ordinal)
+            ? value.Substring(2)
+            : value;
+        if (hostCandidate.Length == 0 ||
+            hostCandidate.IndexOfAny(new[] { ' ', '/', '@', ',' }) >= 0 ||
+            Uri.CheckHostName(hostCandidate) != UriHostNameType.Dns)
+        {
+            return;
+        }
+
+        names.Add(value);
     }
 
     private static string? NormalizeHex(string? value)
@@ -275,6 +356,7 @@ public sealed class CtCertificateRecord
         }
         catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
         {
+            // Some platform providers throw for unsupported key algorithms; fall through to the next algorithm probe.
         }
 
         try
@@ -287,6 +369,7 @@ public sealed class CtCertificateRecord
         }
         catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
         {
+            // Some platform providers throw for unsupported key algorithms; fall through to the next algorithm probe.
         }
 
         try
@@ -299,6 +382,7 @@ public sealed class CtCertificateRecord
         }
         catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
         {
+            // Some platform providers throw for unsupported key algorithms; treat unknown algorithms as not weak.
         }
 
         return false;
@@ -311,9 +395,10 @@ public sealed class CtCertificateRecord
             yield break;
         }
 
-        foreach (string part in formattedSan!.Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        foreach (string item in formattedSan!
+            .Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Trim()))
         {
-            string item = part.Trim();
             const string dnsNamePrefix = "DNS Name=";
             const string dnsShortPrefix = "DNS:";
 

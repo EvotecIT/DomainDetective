@@ -372,7 +372,8 @@ public static class CtIngestionPlanner
         int hydrationRequests)
     {
         bool requiresFullCertificateMaterial = RequiresFullCertificateMaterial(workload);
-        bool requiresFullCertificateFromProvider = requiresFullCertificateMaterial && hydrationRequests == 0;
+        bool canHydrateCertificates = profile.Supports(CtProviderCapabilities.CertificateHydration);
+        bool requiresFullCertificateFromProvider = requiresFullCertificateMaterial && !canHydrateCertificates;
         if (!SupportsOperation(profile, workload.Operations, requiresFullCertificateFromProvider))
         {
             return false;
@@ -383,7 +384,7 @@ public static class CtIngestionPlanner
             return true;
         }
 
-        return hydrationRequests > 0 && profile.Supports(CtProviderCapabilities.CertificateHydration);
+        return canHydrateCertificates;
     }
 
     private static TimeSpan ResolveEffectiveRequestSpacing(CtProviderRateLimitProfile rateLimit)
@@ -613,6 +614,13 @@ public static class CtIngestionPlanner
         if (hydrationRequests > 0)
         {
             return "Provider requires additional certificate hydration requests to satisfy full-certificate output.";
+        }
+
+        if (workload.RequireFullCertificate &&
+            !profile.Supports(CtProviderCapabilities.FullCertificateDer) &&
+            profile.Supports(CtProviderCapabilities.CertificateHydration))
+        {
+            return "Provider can hydrate full certificate material, but the workload estimate does not include a hydration count.";
         }
 
         if (capacity.ExceedsRunBudget)

@@ -109,6 +109,20 @@ public class TestCtIngestionPlanner
     }
 
     [Fact]
+    public void EstimateCapacityHandlesZeroRequests()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+
+        CtProviderCapacityEstimate estimate = CtIngestionPlanner.EstimateCapacity(profile, 0);
+
+        Assert.Equal(0, estimate.RequestCount);
+        Assert.Equal(0, estimate.EstimatedRunCount);
+        Assert.Equal(0, estimate.FirstRunRequestCount);
+        Assert.Equal(TimeSpan.Zero, estimate.EstimatedMinimumDuration);
+        Assert.Equal(TimeSpan.Zero, estimate.EstimatedFirstRunDuration);
+    }
+
+    [Fact]
     public void WorkloadEstimateReportsWhenProviderRunBudgetIsExceeded()
     {
         CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp(new CertificateInventoryCaptureOptions
@@ -236,7 +250,11 @@ public class TestCtIngestionPlanner
     [Fact]
     public void WorkloadEstimateRejectsFullCertificateWhenProviderCannotHydrate()
     {
-        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        var profile = new CtProviderProfile
+        {
+            ProviderId = "metadata-only",
+            Capabilities = CtProviderCapabilities.ExactHostLookup
+        };
         var workload = new CtIngestionWorkloadRequest
         {
             HostCount = 100,
@@ -248,6 +266,24 @@ public class TestCtIngestionPlanner
 
         Assert.False(estimate.ProviderSupportsWorkload);
         Assert.Equal(100, estimate.EstimatedRequestCount);
+    }
+
+    [Fact]
+    public void WorkloadEstimateSupportsHydrationCapableProviderWithoutKnownHydrationCount()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        var workload = new CtIngestionWorkloadRequest
+        {
+            HostCount = 100,
+            Operations = CtIngestionOperation.GetLatestCertificate,
+            RequireFullCertificate = true
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload);
+
+        Assert.True(estimate.ProviderSupportsWorkload);
+        Assert.Equal(0, estimate.EstimatedHydrationRequests);
+        Assert.Contains("hydrate full certificate", estimate.Note, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -344,7 +380,7 @@ public class TestCtIngestionPlanner
         Assert.Equal(1, state.ConsecutiveFailures);
         Assert.Equal(1, state.TotalRequestCount);
         Assert.Equal(1, state.RateLimitedCount);
-        Assert.Equal(1d, state.TransientFailureRatio);
+        Assert.Equal(0d, state.TransientFailureRatio);
         Assert.Equal(429, state.LastHttpStatusCode);
     }
 
@@ -510,7 +546,7 @@ public class TestCtIngestionPlanner
 
     private static byte[] LoadPemCertificateDer(string fileName)
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "Data", fileName);
+        string path = Path.Combine(AppContext.BaseDirectory, "Data", Path.GetFileName(fileName));
         string pem = File.ReadAllText(path);
         const string begin = "-----BEGIN CERTIFICATE-----";
         const string end = "-----END CERTIFICATE-----";

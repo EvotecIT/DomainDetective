@@ -32,17 +32,16 @@ public static class CtProviderRuntimeStateUpdater
         CtProviderRateLimitProfile rateLimit = (profile.RateLimit ?? new CtProviderRateLimitProfile()).Normalize();
         bool success = outcome.OutcomeKind == CtProviderOutcomeKind.Success;
         bool transientFailure = outcome.OutcomeKind == CtProviderOutcomeKind.TransientFailure ||
-                                outcome.OutcomeKind == CtProviderOutcomeKind.RateLimited ||
                                 outcome.OutcomeKind == CtProviderOutcomeKind.Timeout;
         bool rateLimited = outcome.OutcomeKind == CtProviderOutcomeKind.RateLimited;
         bool timeout = outcome.OutcomeKind == CtProviderOutcomeKind.Timeout;
         bool permanentFailure = outcome.OutcomeKind == CtProviderOutcomeKind.PermanentFailure;
         long totalRequestCount = checked((previous?.TotalRequestCount ?? 0L) + 1L);
-        long successfulRequestCount = (previous?.SuccessfulRequestCount ?? 0L) + (success ? 1L : 0L);
-        long transientFailureCount = (previous?.TransientFailureCount ?? 0L) + (transientFailure ? 1L : 0L);
-        long rateLimitedCount = (previous?.RateLimitedCount ?? 0L) + (rateLimited ? 1L : 0L);
-        long timeoutCount = (previous?.TimeoutCount ?? 0L) + (timeout ? 1L : 0L);
-        int consecutiveFailures = success ? 0 : (previous?.ConsecutiveFailures ?? 0) + 1;
+        long successfulRequestCount = checked((previous?.SuccessfulRequestCount ?? 0L) + (success ? 1L : 0L));
+        long transientFailureCount = checked((previous?.TransientFailureCount ?? 0L) + (transientFailure ? 1L : 0L));
+        long rateLimitedCount = checked((previous?.RateLimitedCount ?? 0L) + (rateLimited ? 1L : 0L));
+        long timeoutCount = checked((previous?.TimeoutCount ?? 0L) + (timeout ? 1L : 0L));
+        int consecutiveFailures = success ? 0 : checked((previous?.ConsecutiveFailures ?? 0) + 1);
 
         DateTimeOffset? cooldownUntilUtc = ResolveCooldownUntilUtc(previous, rateLimit, outcome, occurredAtUtc);
         return new CtProviderRuntimeState
@@ -50,7 +49,7 @@ public static class CtProviderRuntimeStateUpdater
             ProviderId = string.IsNullOrWhiteSpace(outcome.ProviderId) ? profile.ProviderId : outcome.ProviderId,
             CooldownUntilUtc = cooldownUntilUtc,
             ConsecutiveFailures = consecutiveFailures,
-            IsPermanentlyFailed = success ? false : permanentFailure || previous?.IsPermanentlyFailed == true,
+            IsPermanentlyFailed = !success && (permanentFailure || previous?.IsPermanentlyFailed == true),
             LastSuccessUtc = success ? occurredAtUtc : previous?.LastSuccessUtc,
             LastFailureUtc = success ? previous?.LastFailureUtc : occurredAtUtc,
             ObservedP95LatencyMilliseconds = previous?.ObservedP95LatencyMilliseconds,
