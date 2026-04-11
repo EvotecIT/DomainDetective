@@ -16,7 +16,7 @@ public sealed class CtProviderRuntimeState
     /// <summary>Number of consecutive provider failures observed by the caller.</summary>
     public int ConsecutiveFailures { get; init; }
 
-    /// <summary>True when the provider reached a non-retryable failure; a later successful request clears this flag.</summary>
+    /// <summary>True when the provider reached a non-retryable failure; non-success outcomes preserve it, and a later successful request clears it.</summary>
     public bool IsPermanentlyFailed { get; init; }
 
     /// <summary>Last successful provider request time.</summary>
@@ -28,7 +28,7 @@ public sealed class CtProviderRuntimeState
     /// <summary>Observed request latency percentile in milliseconds, when tracked by the caller.</summary>
     public double? ObservedP95LatencyMilliseconds { get; init; }
 
-    /// <summary>Rolling transient failure ratio from zero to one, when tracked by the caller.</summary>
+    /// <summary>Rolling transient failure ratio from zero to one, excluding rate-limit responses that carry explicit cooldown state.</summary>
     public double? TransientFailureRatio { get; init; }
 
     /// <summary>Total provider requests observed by the caller.</summary>

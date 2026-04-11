@@ -307,7 +307,9 @@ public static class CtIngestionPlanner
             state.LastFailureUtc.HasValue &&
             (!state.LastSuccessUtc.HasValue || state.LastSuccessUtc.Value < state.LastFailureUtc.Value))
         {
-            DateTimeOffset deferUntilUtc = state.LastFailureUtc.Value + rateLimit.CooldownAfterRateLimit;
+            DateTimeOffset deferUntilUtc = AddTimeSpanSaturating(
+                state.LastFailureUtc.Value,
+                rateLimit.CooldownAfterRateLimit);
             if (deferUntilUtc > effectiveNowUtc)
             {
                 return new CtProviderExecutionDecision

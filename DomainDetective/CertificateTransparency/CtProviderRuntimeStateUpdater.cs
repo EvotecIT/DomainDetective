@@ -81,22 +81,44 @@ public static class CtProviderRuntimeStateUpdater
             TimeSpan cooldown = outcome.RetryAfter.HasValue && outcome.RetryAfter.Value > TimeSpan.Zero
                 ? outcome.RetryAfter.Value
                 : rateLimit.CooldownAfterRateLimit;
-            return Max(previous?.CooldownUntilUtc, occurredAtUtc + cooldown);
+            return Max(previous?.CooldownUntilUtc, AddTimeSpanSaturating(occurredAtUtc, cooldown));
         }
 
         if (outcome.OutcomeKind == CtProviderOutcomeKind.TransientFailure &&
             outcome.CooldownOnTransientFailure)
         {
-            return Max(previous?.CooldownUntilUtc, occurredAtUtc + rateLimit.CooldownAfterRateLimit);
+            return Max(previous?.CooldownUntilUtc, AddTimeSpanSaturating(occurredAtUtc, rateLimit.CooldownAfterRateLimit));
         }
 
         if (outcome.OutcomeKind == CtProviderOutcomeKind.Timeout &&
             outcome.CooldownOnTransientFailure)
         {
-            return Max(previous?.CooldownUntilUtc, occurredAtUtc + rateLimit.CooldownAfterRateLimit);
+            return Max(previous?.CooldownUntilUtc, AddTimeSpanSaturating(occurredAtUtc, rateLimit.CooldownAfterRateLimit));
         }
 
         return previous?.CooldownUntilUtc;
+    }
+
+    private static DateTimeOffset AddTimeSpanSaturating(DateTimeOffset startUtc, TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero)
+        {
+            return startUtc;
+        }
+
+        if (duration == TimeSpan.MaxValue)
+        {
+            return DateTimeOffset.MaxValue;
+        }
+
+        try
+        {
+            return startUtc + duration;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return DateTimeOffset.MaxValue;
+        }
     }
 
     private static DateTimeOffset? Max(DateTimeOffset? left, DateTimeOffset right)

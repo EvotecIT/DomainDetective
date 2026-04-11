@@ -458,6 +458,31 @@ public class TestCtIngestionPlanner
     }
 
     [Fact]
+    public void RuntimeStateUpdaterClampsLargeTransientCooldown()
+    {
+        var profile = new CtProviderProfile
+        {
+            ProviderId = "slow",
+            RateLimit = new CtProviderRateLimitProfile
+            {
+                CooldownAfterRateLimit = TimeSpan.MaxValue
+            }
+        };
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var outcome = new CtProviderRequestOutcome
+        {
+            ProviderId = profile.ProviderId,
+            OutcomeKind = CtProviderOutcomeKind.Timeout,
+            OccurredAtUtc = now,
+            CooldownOnTransientFailure = true
+        };
+
+        CtProviderRuntimeState state = CtProviderRuntimeStateUpdater.Apply(null, profile, outcome);
+
+        Assert.Equal(DateTimeOffset.MaxValue, state.CooldownUntilUtc);
+    }
+
+    [Fact]
     public void RuntimeStateUpdaterClearsCooldownAfterSuccess()
     {
         CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
@@ -587,6 +612,33 @@ public class TestCtIngestionPlanner
 
         Assert.True(decision.CanRunNow);
         Assert.Null(decision.DeferUntilUtc);
+    }
+
+    [Fact]
+    public void DecideClampsLargeFailureRatioCooldown()
+    {
+        var profile = new CtProviderProfile
+        {
+            ProviderId = "slow",
+            RateLimit = new CtProviderRateLimitProfile
+            {
+                CooldownAfterRateLimit = TimeSpan.MaxValue
+            }
+        };
+        var state = new CtProviderRuntimeState
+        {
+            ProviderId = profile.ProviderId,
+            LastFailureUtc = DateTimeOffset.MaxValue.AddDays(-1),
+            TransientFailureRatio = 1d
+        };
+
+        CtProviderExecutionDecision decision = CtIngestionPlanner.Decide(
+            profile,
+            state,
+            new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero));
+
+        Assert.False(decision.CanRunNow);
+        Assert.Equal(DateTimeOffset.MaxValue, decision.DeferUntilUtc);
     }
 
     [Fact]
