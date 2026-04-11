@@ -1,12 +1,25 @@
 # DomainDetective.CtSql
 
-`DomainDetective.CtSql` is the prepared package shell for the future Certificate Transparency SQL extraction.
+`DomainDetective.CtSql` contains the optional crt.sh PostgreSQL Certificate Transparency metadata provider.
 
-The current PostgreSQL-backed CT implementation still lives in the base `DomainDetective` package. This package exists so the eventual move can happen with a stable package identity and registration surface.
+Use it when you want CT metadata enrichment from the public crt.sh PostgreSQL replica without adding PostgreSQL dependencies to the base `DomainDetective` package.
 
-This package does not activate a built-in provider yet. If you call `DomainDetectiveCtSqlRegistration.Register(...)` in this release, pass your own exact-host metadata provider delegate; the bundled implementation will move here in a future release.
+```csharp
+using DomainDetective;
+using DomainDetective.CtSql;
 
-Future crt.sh PostgreSQL implementation should use crt.sh SQL FTS on the `certificate` table:
+DomainDetectiveCtSqlRegistration.Register();
+
+var options = new CertificateInventoryCaptureOptions {
+    EnableCrtShPostgreSqlMetadataFallback = true,
+    CrtShPostgreSqlCommandTimeoutSeconds = 15,
+    CrtShPostgreSqlMaximumConcurrentRequests = 2
+};
+```
+
+The provider uses DbaClientX for typed PostgreSQL query execution and keeps the supported crt.sh full-text search path (`identities(c.certificate)`) rather than the superseded `certificate_identity` table.
+
+The crt.sh PostgreSQL implementation uses crt.sh SQL FTS on the `certificate` table:
 
 ```sql
 WHERE identities(c.certificate) @@ plainto_tsquery('simple', @host)

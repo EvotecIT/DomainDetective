@@ -14,7 +14,6 @@
 
     <ItemGroup>
         <PackageReference Include="DnsClientX" Version="1.0.7" />
-        <PackageReference Include="Npgsql" Version="8.0.6" />
     </ItemGroup>
 
     <ItemGroup>
@@ -43,6 +42,9 @@
     <ItemGroup>
         <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
             <_Parameter1>DomainDetective.Tests</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>DomainDetective.CtSql</_Parameter1>
         </AssemblyAttribute>
     </ItemGroup>
     <ItemGroup>

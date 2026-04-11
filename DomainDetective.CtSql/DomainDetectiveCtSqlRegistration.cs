@@ -6,10 +6,19 @@ using DomainDetective;
 namespace DomainDetective.CtSql;
 
 /// <summary>
-/// Prepared registration entry point for future CT SQL extraction.
+/// Registers the optional CT SQL provider for DomainDetective certificate inventory enrichment.
 /// </summary>
 public static class DomainDetectiveCtSqlRegistration
 {
+    /// <summary>
+    /// Registers the bundled DbaClientX-backed crt.sh PostgreSQL provider.
+    /// </summary>
+    /// <remarks>Call this once during application startup before running CT metadata capture that enables <see cref="CertificateInventoryCaptureOptions.EnableCrtShPostgreSqlMetadataFallback"/>.</remarks>
+    public static void Register()
+    {
+        DomainDetectiveOptionalFeatures.RegisterCtSqlMetadataProvider(new CrtShPostgreSqlMetadataProvider());
+    }
+
     /// <summary>
     /// Registers a caller-supplied CT SQL exact metadata provider, replacing any provider already registered.
     /// </summary>
