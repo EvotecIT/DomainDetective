@@ -9,6 +9,12 @@ namespace DomainDetective;
 /// </summary>
 public static class CtIngestionPlanner
 {
+    private const CtIngestionOperation KnownOperations =
+        CtIngestionOperation.DiscoverSubdomains |
+        CtIngestionOperation.GetLatestCertificate |
+        CtIngestionOperation.GetCertificateHistory |
+        CtIngestionOperation.GetDomainTreeCertificates;
+
     /// <summary>
     /// Estimates the minimum duration for a number of provider requests.
     /// </summary>
@@ -57,14 +63,14 @@ public static class CtIngestionPlanner
             EffectiveRequestSpacing = effectiveSpacing,
             EstimatedRequestDuration = rateLimit.EstimatedRequestDuration,
             EstimatedMinimumDuration = estimatedDuration,
-            EstimatedCompletionUtc = startUtc + estimatedDuration,
+            EstimatedCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedDuration),
             MaxConcurrentRequests = maxConcurrentRequests,
             MaximumRequestsPerRun = rateLimit.MaximumRequestsPerRun,
             EstimatedRunCount = estimatedRunCount,
             FirstRunRequestCount = firstRunRequestCount,
             RemainingRequestCount = remainingRequestCount,
             EstimatedFirstRunDuration = estimatedFirstRunDuration,
-            EstimatedFirstRunCompletionUtc = startUtc + estimatedFirstRunDuration,
+            EstimatedFirstRunCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedFirstRunDuration),
             ConcurrencyWaveCount = concurrencyWaveCount,
             IsRateLimited = effectiveSpacing > TimeSpan.Zero,
             ExceedsRunBudget = estimatedRunCount > 1,
@@ -338,6 +344,11 @@ public static class CtIngestionPlanner
         }
 
         CtProviderCapabilities required = CtProviderCapabilities.None;
+        if ((operation & ~KnownOperations) != 0)
+        {
+            return false;
+        }
+
         if ((operation & CtIngestionOperation.DiscoverSubdomains) != 0)
         {
             required |= CtProviderCapabilities.SubdomainExpansion;
@@ -508,6 +519,28 @@ public static class CtIngestionPlanner
         }
 
         return left + right;
+    }
+
+    private static DateTimeOffset AddTimeSpanSaturating(DateTimeOffset startUtc, TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero)
+        {
+            return startUtc;
+        }
+
+        if (duration == TimeSpan.MaxValue)
+        {
+            return DateTimeOffset.MaxValue;
+        }
+
+        try
+        {
+            return startUtc + duration;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return DateTimeOffset.MaxValue;
+        }
     }
 
     private static TimeSpan MaxTimeSpan(TimeSpan left, TimeSpan right)

@@ -28,6 +28,10 @@ public class TestCtIngestionPlanner
             profile,
             CtIngestionOperation.GetCertificateHistory,
             requireFullCertificate: true));
+        Assert.False(CtIngestionPlanner.SupportsOperation(
+            profile,
+            (CtIngestionOperation)16,
+            requireFullCertificate: false));
     }
 
     [Fact]
@@ -120,6 +124,26 @@ public class TestCtIngestionPlanner
         Assert.Equal(0, estimate.FirstRunRequestCount);
         Assert.Equal(TimeSpan.Zero, estimate.EstimatedMinimumDuration);
         Assert.Equal(TimeSpan.Zero, estimate.EstimatedFirstRunDuration);
+    }
+
+    [Fact]
+    public void EstimateCapacityClampsSaturatedCompletionTimestamps()
+    {
+        var profile = new CtProviderProfile
+        {
+            ProviderId = "slow-provider",
+            RateLimit = new CtProviderRateLimitProfile
+            {
+                MinimumRequestSpacing = TimeSpan.MaxValue
+            }
+        };
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+
+        CtProviderCapacityEstimate estimate = CtIngestionPlanner.EstimateCapacity(profile, 2, now);
+
+        Assert.Equal(TimeSpan.MaxValue, estimate.EstimatedMinimumDuration);
+        Assert.Equal(DateTimeOffset.MaxValue, estimate.EstimatedCompletionUtc);
+        Assert.Equal(DateTimeOffset.MaxValue, estimate.EstimatedFirstRunCompletionUtc);
     }
 
     [Fact]
