@@ -53,7 +53,10 @@ public static class CtProviderRuntimeStateUpdater
             LastSuccessUtc = success ? occurredAtUtc : previous?.LastSuccessUtc,
             LastFailureUtc = success ? previous?.LastFailureUtc : occurredAtUtc,
             ObservedP95LatencyMilliseconds = previous?.ObservedP95LatencyMilliseconds,
-            TransientFailureRatio = (double)transientFailureCount / totalRequestCount,
+            TransientFailureRatio = CalculateTransientFailureRatio(
+                transientFailureCount,
+                totalRequestCount,
+                rateLimitedCount),
             TotalRequestCount = totalRequestCount,
             SuccessfulRequestCount = successfulRequestCount,
             TransientFailureCount = transientFailureCount,
@@ -119,6 +122,20 @@ public static class CtProviderRuntimeStateUpdater
         {
             return DateTimeOffset.MaxValue;
         }
+    }
+
+    private static double CalculateTransientFailureRatio(
+        long transientFailureCount,
+        long totalRequestCount,
+        long rateLimitedCount)
+    {
+        long nonRateLimitedRequestCount = Math.Max(0L, totalRequestCount - rateLimitedCount);
+        if (nonRateLimitedRequestCount == 0L)
+        {
+            return 0d;
+        }
+
+        return (double)transientFailureCount / nonRateLimitedRequestCount;
     }
 
     private static DateTimeOffset? Max(DateTimeOffset? left, DateTimeOffset right)

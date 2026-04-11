@@ -152,8 +152,48 @@ public class TestCtIngestionPlanner
         Assert.Equal(TimeSpan.FromSeconds(36), estimate.HostCapacity.EffectiveRequestSpacing);
         Assert.Equal(TimeSpan.FromMinutes(6), estimate.Capacity.EffectiveRequestSpacing);
         Assert.Equal(TimeSpan.FromSeconds(36 * 99 + 3), estimate.HostCapacity.EstimatedMinimumDuration);
-        Assert.Equal(estimate.HostCapacity.EstimatedMinimumDuration, estimate.Capacity.EstimatedMinimumDuration);
+        Assert.Equal(
+            estimate.DomainCapacity.EstimatedMinimumDuration + estimate.HostCapacity.EstimatedMinimumDuration,
+            estimate.Capacity.EstimatedMinimumDuration);
         Assert.Equal(101, estimate.Capacity.FirstRunRequestCount);
+    }
+
+    [Fact]
+    public void EstimateWorkloadRecomputesAggregateRunBudgetFromCombinedRequests()
+    {
+        var profile = new CtProviderProfile
+        {
+            ProviderId = "combined-run-budget",
+            Capabilities = CtProviderCapabilities.SubdomainExpansion |
+                           CtProviderCapabilities.ExactHostLookup |
+                           CtProviderCapabilities.FullCertificateDer,
+            RateLimit = new CtProviderRateLimitProfile
+            {
+                MaximumRequestsPerRun = 100,
+                MaxConcurrentRequests = 1,
+                MaxFullDomainQueriesPerHour = 1_000,
+                MaxSingleHostnameQueriesPerHour = 1_000,
+                EstimatedRequestDuration = TimeSpan.FromSeconds(1)
+            }
+        };
+        var workload = new CtIngestionWorkloadRequest
+        {
+            DomainCount = 80,
+            HostCount = 80,
+            Operations = CtIngestionOperation.DiscoverSubdomains | CtIngestionOperation.GetLatestCertificate,
+            RequireFullCertificate = false
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload);
+
+        Assert.Equal(160, estimate.Capacity.RequestCount);
+        Assert.Equal(2, estimate.Capacity.EstimatedRunCount);
+        Assert.Equal(100, estimate.Capacity.FirstRunRequestCount);
+        Assert.Equal(60, estimate.Capacity.RemainingRequestCount);
+        Assert.True(estimate.Capacity.ExceedsRunBudget);
+        Assert.Equal(
+            estimate.DomainCapacity.EstimatedMinimumDuration + estimate.HostCapacity.EstimatedMinimumDuration,
+            estimate.Capacity.EstimatedMinimumDuration);
     }
 
     [Fact]
@@ -540,6 +580,33 @@ public class TestCtIngestionPlanner
     }
 
     [Fact]
+    public void RuntimeStateUpdaterExcludesRateLimitsFromTransientFailureRatio()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var previous = new CtProviderRuntimeState
+        {
+            ProviderId = profile.ProviderId,
+            TotalRequestCount = 3,
+            TransientFailureCount = 1,
+            RateLimitedCount = 2
+        };
+        var outcome = new CtProviderRequestOutcome
+        {
+            ProviderId = profile.ProviderId,
+            OutcomeKind = CtProviderOutcomeKind.Timeout,
+            OccurredAtUtc = now
+        };
+
+        CtProviderRuntimeState state = CtProviderRuntimeStateUpdater.Apply(previous, profile, outcome);
+
+        Assert.Equal(4, state.TotalRequestCount);
+        Assert.Equal(2, state.TransientFailureCount);
+        Assert.Equal(2, state.RateLimitedCount);
+        Assert.Equal(1d, state.TransientFailureRatio);
+    }
+
+    [Fact]
     public void RuntimeStateUpdaterClampsLargeTransientCooldown()
     {
         var profile = new CtProviderProfile
@@ -793,7 +860,11 @@ public class TestCtIngestionPlanner
     {
         string safeFileName = Path.GetFileName(fileName);
         Assert.Equal(fileName, safeFileName);
-        string path = Path.Combine(AppContext.BaseDirectory, "Data", safeFileName);
+        Assert.False(Path.IsPathRooted(safeFileName));
+        string dataDirectory = Path.Combine(AppContext.BaseDirectory, "Data");
+        string path = dataDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                      Path.DirectorySeparatorChar +
+                      safeFileName;
         string pem = File.ReadAllText(path);
         const string begin = "-----BEGIN CERTIFICATE-----";
         const string end = "-----END CERTIFICATE-----";

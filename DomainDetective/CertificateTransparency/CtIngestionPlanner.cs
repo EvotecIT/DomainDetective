@@ -420,23 +420,27 @@ public static class CtIngestionPlanner
 
         DateTimeOffset startUtc = nowUtc ?? DateTimeOffset.UtcNow;
         var capacities = new[] { domainCapacity, hostCapacity, hydrationCapacity };
+        int normalizedTotalRequests = Math.Max(0, totalRequests);
         TimeSpan estimatedMinimumDuration = capacities
             .Select(static estimate => estimate.EstimatedMinimumDuration)
-            .Aggregate(TimeSpan.Zero, MaxTimeSpan);
+            .Aggregate(TimeSpan.Zero, AddTimeSpan);
         TimeSpan estimatedFirstRunDuration = capacities
             .Select(static estimate => estimate.EstimatedFirstRunDuration)
-            .Aggregate(TimeSpan.Zero, MaxTimeSpan);
-        int firstRunRequestCount = SumSaturating(
-            capacities.Select(static estimate => Math.Max(0, estimate.FirstRunRequestCount)));
-        int remainingRequestCount = SumSaturating(
-            capacities.Select(static estimate => Math.Max(0, estimate.RemainingRequestCount)));
+            .Aggregate(TimeSpan.Zero, AddTimeSpan);
+        int firstRunRequestCount = EstimateFirstRunRequestCount(
+            normalizedTotalRequests,
+            rateLimit.MaximumRequestsPerRun);
+        int remainingRequestCount = Math.Max(0, normalizedTotalRequests - firstRunRequestCount);
+        int estimatedRunCount = EstimateRunCount(
+            normalizedTotalRequests,
+            rateLimit.MaximumRequestsPerRun);
         int concurrencyWaveCount = SumSaturating(
             capacities.Select(static estimate => Math.Max(0, estimate.ConcurrencyWaveCount)));
 
         return new CtProviderCapacityEstimate
         {
             ProviderId = profile.ProviderId,
-            RequestCount = Math.Max(0, totalRequests),
+            RequestCount = normalizedTotalRequests,
             EffectiveRequestSpacing = capacities
                 .Select(static estimate => estimate.EffectiveRequestSpacing)
                 .Aggregate(TimeSpan.Zero, MaxTimeSpan),
@@ -447,14 +451,15 @@ public static class CtIngestionPlanner
             EstimatedCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedMinimumDuration),
             MaxConcurrentRequests = rateLimit.MaxConcurrentRequests.GetValueOrDefault(1),
             MaximumRequestsPerRun = rateLimit.MaximumRequestsPerRun,
-            EstimatedRunCount = capacities.Max(static estimate => Math.Max(0, estimate.EstimatedRunCount)),
+            EstimatedRunCount = estimatedRunCount,
             FirstRunRequestCount = firstRunRequestCount,
             RemainingRequestCount = remainingRequestCount,
             EstimatedFirstRunDuration = estimatedFirstRunDuration,
             EstimatedFirstRunCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedFirstRunDuration),
             ConcurrencyWaveCount = concurrencyWaveCount,
             IsRateLimited = capacities.Any(static estimate => estimate.IsRateLimited),
-            ExceedsRunBudget = capacities.Any(static estimate => estimate.ExceedsRunBudget),
+            ExceedsRunBudget = estimatedRunCount > 1 ||
+                               capacities.Any(static estimate => estimate.ExceedsRunBudget),
             IsConcurrencyLimited = capacities.Any(static estimate => estimate.IsConcurrencyLimited)
         };
     }

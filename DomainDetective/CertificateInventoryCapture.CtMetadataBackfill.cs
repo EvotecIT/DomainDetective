@@ -152,14 +152,38 @@ public sealed partial class CertificateInventoryCapture {
 
                 Dictionary<string, SubdomainDiscoveryEntry> domainHydrated;
                 try {
-                    domainHydrated =
-                        await QueryCrtShPostgreSqlMetadataByDomainAsync(
+                    ICtSqlMetadataProvider? domainSqlMetadataProvider =
+                        DomainDetectiveOptionalFeatures.GetCtSqlMetadataProvider();
+                    var exactSqlMetadataProvider =
+                        CtExactMetadataPostgreSqlOverride ?? DomainDetectiveOptionalFeatures.GetCtSqlExactMetadataProvider();
+                    if (domainSqlMetadataProvider != null) {
+                        domainHydrated = await QueryCrtShPostgreSqlMetadataByDomainAsync(
                                 pair.Key,
                                 pair.Value,
                                 options,
                                 logger,
                                 cancellationToken)
                             .ConfigureAwait(false);
+                    } else if (exactSqlMetadataProvider != null) {
+                        domainPostgreSqlLookupFailed = true;
+                        logger.WriteVerbose(
+                            "CT metadata backfill domain PostgreSQL lookup skipped for {0} because only exact PostgreSQL metadata lookup is available.",
+                            pair.Key);
+                        domainHydrated = await QueryCrtShPostgreSqlExactMetadataAsync(
+                                pair.Value
+                                    .OrderBy(static host => host, StringComparer.OrdinalIgnoreCase)
+                                    .ToList(),
+                                options,
+                                logger,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    } else {
+                        domainPostgreSqlLookupFailed = true;
+                        logger.WriteVerbose(
+                            "CT metadata backfill domain PostgreSQL lookup skipped for {0} because DomainDetective.CtSql is not registered.",
+                            pair.Key);
+                        continue;
+                    }
                 } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                     throw;
                 } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
