@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Threading;
@@ -166,7 +168,31 @@ public sealed partial class CertificateInventoryCapture {
                     warnings.Add(warning);
                     logger.WriteVerbose(warning);
                     continue;
-                } catch (Exception ex) {
+                } catch (NpgsqlException ex) {
+                    domainPostgreSqlLookupFailed = true;
+                    string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {pair.Key}: {ex.Message}";
+                    warnings.Add(warning);
+                    logger.WriteVerbose(warning);
+                    continue;
+                } catch (TimeoutException ex) {
+                    domainPostgreSqlLookupFailed = true;
+                    string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {pair.Key}: {ex.Message}";
+                    warnings.Add(warning);
+                    logger.WriteVerbose(warning);
+                    continue;
+                } catch (InvalidOperationException ex) {
+                    domainPostgreSqlLookupFailed = true;
+                    string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {pair.Key}: {ex.Message}";
+                    warnings.Add(warning);
+                    logger.WriteVerbose(warning);
+                    continue;
+                } catch (IOException ex) {
+                    domainPostgreSqlLookupFailed = true;
+                    string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {pair.Key}: {ex.Message}";
+                    warnings.Add(warning);
+                    logger.WriteVerbose(warning);
+                    continue;
+                } catch (CryptographicException ex) {
                     domainPostgreSqlLookupFailed = true;
                     string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {pair.Key}: {ex.Message}";
                     warnings.Add(warning);
@@ -756,11 +782,38 @@ public sealed partial class CertificateInventoryCapture {
                 MergeCtSubdomainEntry(results, entry);
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                 throw;
-            } catch (Exception ex) {
-                logger?.WriteVerbose(
-                    "CT metadata backfill exact PostgreSQL lookup failed for {0}: {1}",
-                    normalizedHost,
-                    ex.Message);
+            } catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested) {
+                LogCrtShPostgreSqlExactMetadataSequentialFailure(logger, normalizedHost, ex);
+                if (connection.FullState == System.Data.ConnectionState.Broken ||
+                    connection.FullState == System.Data.ConnectionState.Closed) {
+                    break;
+                }
+            } catch (NpgsqlException ex) {
+                LogCrtShPostgreSqlExactMetadataSequentialFailure(logger, normalizedHost, ex);
+                if (connection.FullState == System.Data.ConnectionState.Broken ||
+                    connection.FullState == System.Data.ConnectionState.Closed) {
+                    break;
+                }
+            } catch (TimeoutException ex) {
+                LogCrtShPostgreSqlExactMetadataSequentialFailure(logger, normalizedHost, ex);
+                if (connection.FullState == System.Data.ConnectionState.Broken ||
+                    connection.FullState == System.Data.ConnectionState.Closed) {
+                    break;
+                }
+            } catch (InvalidOperationException ex) {
+                LogCrtShPostgreSqlExactMetadataSequentialFailure(logger, normalizedHost, ex);
+                if (connection.FullState == System.Data.ConnectionState.Broken ||
+                    connection.FullState == System.Data.ConnectionState.Closed) {
+                    break;
+                }
+            } catch (IOException ex) {
+                LogCrtShPostgreSqlExactMetadataSequentialFailure(logger, normalizedHost, ex);
+                if (connection.FullState == System.Data.ConnectionState.Broken ||
+                    connection.FullState == System.Data.ConnectionState.Closed) {
+                    break;
+                }
+            } catch (CryptographicException ex) {
+                LogCrtShPostgreSqlExactMetadataSequentialFailure(logger, normalizedHost, ex);
                 if (connection.FullState == System.Data.ConnectionState.Broken ||
                     connection.FullState == System.Data.ConnectionState.Closed) {
                     break;
@@ -769,6 +822,16 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         return results;
+    }
+
+    private static void LogCrtShPostgreSqlExactMetadataSequentialFailure(
+        InternalLogger? logger,
+        string normalizedHost,
+        Exception ex) {
+        logger?.WriteVerbose(
+            "CT metadata backfill exact PostgreSQL lookup failed for {0}: {1}",
+            normalizedHost,
+            ex.Message);
     }
 
     private static HashSet<string> BuildTargetedCtMetadataThumbprintSet(CertificateInventoryCaptureOptions? options) {
