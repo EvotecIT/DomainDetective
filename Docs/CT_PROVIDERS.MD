@@ -31,18 +31,18 @@ Use native CT logs for cursor-based ingestion into a local index. Direct logs ar
 | crt.sh HTTPS | Fallback hydration | Yes, via `?d=<id>` | Slow, 503s are common |
 | Native CT logs | Local ingestion | Yes, from log entries | Needs cursors/local index |
 
-## eurofins.com Smoke-Test Observations
+## Representative Smoke-Test Observations
 
-These observations came from an ad-hoc live smoke test against `eurofins.com`. Treat them as directional evidence for service design, not as provider SLAs.
+These observations came from an ad-hoc live smoke test against a representative domain. Treat them as directional evidence for service design, not as provider SLAs.
 
 | Path | Observed Time | Observed Result | Service Guidance |
 | --- | --- | --- | --- |
-| Live TLS probe for `eurofins.com` | 468 ms | Returned the live Amazon RSA 2048 M02 certificate, expiring 2026-06-11 | Best current-state source when the endpoint is reachable |
+| Live TLS probe for the apex host | 468 ms | Returned the live Amazon RSA 2048 M02 certificate, expiring 2026-06-11 | Best current-state source when the endpoint is reachable |
 | Cert Spotter exact-host DER query | 514 ms | Returned 4 rows, latest unexpired CT certificate expiring 2026-05-25 | Good for latest known public issuance when endpoint reachability is not guaranteed |
 | Cert Spotter domain expansion through DomainDetective | 2.37 s | Processed 100 CT observations and produced 397 subdomains; expansion did not include full DER because it used `expand=dns_names` | Good expansion source; follow with exact-host queries for full latest certificates |
 | crt.sh HTTPS exact query with DER hydration | 74.8 s | Eventually returned certificate material, but was much slower than Cert Spotter | Fallback/manual path only |
 | crt.sh HTTPS expansion through DomainDetective | 40 s | Failed with HTTP 503 | Do not rely on this for service-scale expansion |
-| Native CT limited tail scan | 13 s | No `eurofins.com` entries found in the small scanned window | Useful only with persisted cursors/local indexing, not ad-hoc domain lookup |
+| Native CT limited tail scan | 13 s | No entries for the representative domain were found in the small scanned window | Useful only with persisted cursors/local indexing, not ad-hoc domain lookup |
 | crt.sh PostgreSQL public DB rich query | Not comparable | DomainDetective-style query was canceled by the public replica due recovery conflict; simpler FTS probes against `certificate` worked | Best-effort historical/backfill path with strict timeout and cooldown |
 
 ## Cert Spotter Budgets
