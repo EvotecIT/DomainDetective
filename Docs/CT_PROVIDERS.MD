@@ -4,11 +4,20 @@ DomainDetective has several CT paths. They do not have the same cost, coverage, 
 
 ## Recommended Service Usage
 
-Use Cert Spotter CT Search API for current/unexpired certificate monitoring when you have an API key and a configured budget. Use exact-host queries for monitored assets, and reserve full-domain queries for controlled subdomain expansion.
+Use DomainDetective entry points first:
+
+| Scenario | PowerShell | CLI | C# |
+| --- | --- | --- | --- |
+| Live certificate inventory with optional CT evidence | `Invoke-DDCertificateInventory` | `DomainDetective.CLI CertificateInventoryCapture` | `CertificateInventoryCapture.CaptureAsync(...)` |
+| Add CT-observed subdomains to the monitored target set | `Invoke-DDCertificateInventory -IncludeCtSubdomains` | `CertificateInventoryCapture --include-ct-subdomains` | `CertificateInventoryCaptureOptions.IncludeCtDiscoveredSubdomains = true` |
+| Use native CT logs instead of passive public APIs | `Invoke-DDCertificateInventory -EnableNativeCtLogSubdomains -NativeCtLogOnly` | `CertificateInventoryCapture --enable-native-ct-logs --native-ct-log-only` | `CertificateInventoryCaptureOptions.EnableNativeCtLogSubdomainSource = true; NativeCtLogOnly = true` |
+| Reuse existing provider planning in a service | Use the cmdlet until a dedicated CT cmdlet exists | Use the CLI until a dedicated CT command exists | `CtIngestionPlanner`, `CtCertificateQuery`, `ICtCertificateTransparencyProvider` |
+
+Use Cert Spotter through the DomainDetective CT provider abstractions for current/unexpired certificate monitoring when you have an API key and a configured budget. Use exact-host queries for monitored assets, and reserve full-domain queries for controlled subdomain expansion.
 
 Use crt.sh PostgreSQL as a best-effort historical/backfill source. The public database can return full DER certificates and historical rows, but it is a shared PostgreSQL replica and may cancel even small queries under load.
 
-Use crt.sh HTTPS only as a fallback or manual investigation path. It can hydrate a certificate by ID (`?d=`), but the public HTTPS service is slow and frequently rate-limited or unavailable.
+Use crt.sh HTTPS only through the existing DomainDetective passive CT fallback or for manual maintainer investigation. It can hydrate a certificate by ID (`?d=`), but the public HTTPS service is slow and frequently rate-limited or unavailable.
 
 Use native CT logs for cursor-based ingestion into a local index. Direct logs are not a good ad-hoc "find everything for this domain" API because logs are append-only streams, not domain indexes.
 
@@ -38,18 +47,6 @@ Single-hostname means `include_subdomains=false`. Use it for `GetLatestCertifica
 
 Full-domain means `include_subdomains=true`. Use it for `DiscoverSubdomains` or domain-tree refreshes such as expanding `example.com` into observed names.
 
-For exact-host full certificate queries, use:
-
-```text
-https://api.certspotter.com/v1/issuances?domain=<host>&include_subdomains=false&match_wildcards=true&expand=dns_names&expand=issuer&expand=cert_der
-```
-
-For controlled domain expansion, use:
-
-```text
-https://api.certspotter.com/v1/issuances?domain=<domain>&include_subdomains=true&expand=dns_names
-```
-
 Only add `expand=cert_der` to full-domain expansion when the caller deliberately wants to spend the full-domain budget on certificate hydration during discovery.
 
 ## Query API Shape
@@ -66,6 +63,22 @@ Use the `CtCertificateQuery` factories when building service workflows. They kee
 Use `ICtCertificateTransparencyProvider.QueryPagesAsync(...)` for provider calls that may return continuation tokens. The helper carries the provider runtime state forward and stops when the provider reports no more pages, returns an empty token, repeats the same token, or reaches the caller's `maxPages` safety cap.
 
 For DD Next ingestion, the safer default is a two-phase flow: run `ForDomainExpansion(domain)` to discover names, then enqueue `ForExactHostLatest(host)` for each accepted host. Only use `ForDomainTreeCertificates(domain)` when the provider is explicitly configured for broad historical collection and the caller expects the larger budget impact.
+
+## Provider HTTP Shape
+
+This section is for maintainers implementing or debugging providers. Consumer code should use DomainDetective cmdlets, CLI commands, or C# APIs rather than constructing provider URLs directly.
+
+For Cert Spotter exact-host full certificate queries, the provider implementation should build a request equivalent to:
+
+```text
+https://api.certspotter.com/v1/issuances?domain=<host>&include_subdomains=false&match_wildcards=true&expand=dns_names&expand=issuer&expand=cert_der
+```
+
+For controlled Cert Spotter domain expansion, the provider implementation should build a request equivalent to:
+
+```text
+https://api.certspotter.com/v1/issuances?domain=<domain>&include_subdomains=true&expand=dns_names
+```
 
 ## crt.sh SQL FTS
 
