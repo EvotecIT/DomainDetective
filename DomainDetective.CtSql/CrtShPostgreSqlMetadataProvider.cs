@@ -129,6 +129,7 @@ internal sealed class CrtShPostgreSqlMetadataProvider : ICtSqlMetadataProvider {
         }
 
         int timeoutSeconds = Math.Max(1, options?.CrtShPostgreSqlCommandTimeoutSeconds ?? 15);
+        // DBAClientX forwards the connection string to its PostgreSQL driver, so these Npgsql timeout keys remain effective.
         return PostgreSql.BuildConnectionString(
             host: "crt.sh",
             database: "certwatch",

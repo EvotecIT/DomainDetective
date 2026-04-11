@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using DomainDetective;
 using Xunit;
 
@@ -28,6 +31,36 @@ public class TestCtCertificateQuery
         Assert.Equal("next-page", normalized.ContinuationToken);
         Assert.Null(normalized.PageSize);
         Assert.Null(normalized.Timeout);
+    }
+
+    [Fact]
+    public void NormalizeDropsWhitespaceContinuationToken()
+    {
+        var query = new CtCertificateQuery
+        {
+            Name = "www.example.com",
+            ContinuationToken = "   "
+        };
+
+        CtCertificateQuery normalized = query.Normalize();
+
+        Assert.Null(normalized.ContinuationToken);
+    }
+
+    [Fact]
+    public async Task QueryPagesStopsWhenProviderRepeatsContinuationToken()
+    {
+        var provider = new RepeatingTokenProvider();
+        var results = new List<CtCertificateQueryResult>();
+
+        await foreach (CtCertificateQueryResult result in provider.QueryPagesAsync(
+                           CtCertificateQuery.ForExactHostHistory("www.example.com")))
+        {
+            results.Add(result);
+        }
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(2, provider.CallCount);
     }
 
     [Theory]
@@ -81,5 +114,33 @@ public class TestCtCertificateQuery
 
         Assert.Equal(CtCertificateQueryKind.DomainTreeCertificates, normalized.QueryKind);
         Assert.Equal(CtIngestionOperation.GetDomainTreeCertificates, normalized.Operations);
+    }
+
+    private sealed class RepeatingTokenProvider : ICtCertificateTransparencyProvider
+    {
+        public int CallCount { get; private set; }
+
+        public string ProviderId => "repeat-token";
+
+        public CtProviderProfile Profile { get; } = new()
+        {
+            ProviderId = "repeat-token",
+            Capabilities = CtProviderCapabilities.ExactHostLookup |
+                           CtProviderCapabilities.CertificateHistory
+        };
+
+        public Task<CtCertificateQueryResult> QueryAsync(
+            CtCertificateQuery query,
+            CtProviderRuntimeState? runtimeState = null,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(new CtCertificateQueryResult
+            {
+                ProviderId = ProviderId,
+                HasMore = true,
+                ContinuationToken = "repeat-token"
+            });
+        }
     }
 }

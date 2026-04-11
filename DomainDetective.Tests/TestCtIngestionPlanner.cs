@@ -632,6 +632,24 @@ public class TestCtIngestionPlanner
     }
 
     [Fact]
+    public void RuntimeStateUpdaterAppliesTransientFailureCooldown()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var outcome = new CtProviderRequestOutcome
+        {
+            ProviderId = profile.ProviderId,
+            OutcomeKind = CtProviderOutcomeKind.Timeout,
+            OccurredAtUtc = now,
+            CooldownOnTransientFailure = true
+        };
+
+        CtProviderRuntimeState state = CtProviderRuntimeStateUpdater.Apply(null, profile, outcome);
+
+        Assert.Equal(now + profile.RateLimit.CooldownAfterRateLimit, state.CooldownUntilUtc);
+    }
+
+    [Fact]
     public void RuntimeStateUpdaterClearsCooldownAfterSuccess()
     {
         CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
@@ -854,6 +872,24 @@ public class TestCtIngestionPlanner
         Assert.Single(plans);
         Assert.Equal(CtProviderPlanStatus.Deferred, plans[0].Status);
         Assert.Equal(now.AddMinutes(5), plans[0].Decision?.DeferUntilUtc);
+    }
+
+    [Fact]
+    public void PlanProvidersSkipsNullProfiles()
+    {
+        CtProviderProfile http = CtProviderProfiles.CreateCrtShHttp();
+        var workload = new CtIngestionWorkloadRequest
+        {
+            DomainCount = 1,
+            Operations = CtIngestionOperation.DiscoverSubdomains
+        };
+
+        IReadOnlyList<CtProviderWorkPlan> plans = CtIngestionPlanner.PlanProviders(
+            new[] { null!, http },
+            workload);
+
+        CtProviderWorkPlan plan = Assert.Single(plans);
+        Assert.Equal(http.ProviderId, plan.ProviderId);
     }
 
     private static byte[] LoadPemCertificateDer(string fileName)

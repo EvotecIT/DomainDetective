@@ -66,18 +66,4 @@ public static class CtCertificateTransparencyProviderExtensions
             currentQuery = currentQuery.WithContinuationToken(continuationToken);
         }
     }
-
-    private static CtCertificateQuery WithContinuationToken(this CtCertificateQuery query, string continuationToken)
-    {
-        return new CtCertificateQuery
-        {
-            Name = query.Name,
-            QueryKind = query.QueryKind,
-            Operations = query.Operations,
-            RequireFullCertificate = query.RequireFullCertificate,
-            ContinuationToken = continuationToken,
-            PageSize = query.PageSize,
-            Timeout = query.Timeout
-        };
-    }
 }

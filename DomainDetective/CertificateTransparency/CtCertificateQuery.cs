@@ -97,15 +97,9 @@ public sealed class CtCertificateQuery
     /// </summary>
     public CtCertificateQuery Normalize()
     {
-        string? continuationToken = ContinuationToken;
-        string? normalizedContinuationToken = continuationToken == null
+        string? normalizedContinuationToken = string.IsNullOrWhiteSpace(ContinuationToken)
             ? null
-            : continuationToken.Trim();
-        if (normalizedContinuationToken != null &&
-            normalizedContinuationToken.Length == 0)
-        {
-            normalizedContinuationToken = null;
-        }
+            : ContinuationToken!.Trim();
 
         CtIngestionOperation operations = Operations == CtIngestionOperation.None
             ? ResolveOperations(QueryKind)
@@ -130,6 +124,20 @@ public sealed class CtCertificateQuery
             Timeout = Timeout.HasValue && Timeout.Value > TimeSpan.Zero
                 ? Timeout.Value
                 : null
+        };
+    }
+
+    internal CtCertificateQuery WithContinuationToken(string continuationToken)
+    {
+        return new CtCertificateQuery
+        {
+            Name = Name,
+            QueryKind = QueryKind,
+            Operations = Operations,
+            RequireFullCertificate = RequireFullCertificate,
+            ContinuationToken = continuationToken,
+            PageSize = PageSize,
+            Timeout = Timeout
         };
     }
 

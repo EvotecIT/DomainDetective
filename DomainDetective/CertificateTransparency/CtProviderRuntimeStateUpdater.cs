@@ -52,6 +52,7 @@ public static class CtProviderRuntimeStateUpdater
             IsPermanentlyFailed = !success && (permanentFailure || previous?.IsPermanentlyFailed == true),
             LastSuccessUtc = success ? occurredAtUtc : previous?.LastSuccessUtc,
             LastFailureUtc = success ? previous?.LastFailureUtc : occurredAtUtc,
+            // Percentiles require a sample window; callers with latency history can persist that aggregate separately.
             ObservedP95LatencyMilliseconds = previous?.ObservedP95LatencyMilliseconds,
             TransientFailureRatio = CalculateTransientFailureRatio(
                 transientFailureCount,
