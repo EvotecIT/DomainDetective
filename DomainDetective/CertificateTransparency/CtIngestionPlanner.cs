@@ -95,10 +95,19 @@ public static class CtIngestionPlanner
         }
 
         CtIngestionWorkloadRequest normalized = workload.Normalize();
-        int domainRequests = EstimateDomainRequests(normalized);
-        int hostRequests = EstimateHostRequests(normalized);
-        int hydrationRequests = EstimateHydrationRequests(profile, normalized);
-        int totalRequests = domainRequests + hostRequests + hydrationRequests;
+        int domainRequests = EstimateDomainRequests(normalized, out bool domainRequestsSaturated);
+        int hostRequests = EstimateHostRequests(normalized, out bool hostRequestsSaturated);
+        int hydrationRequests = EstimateHydrationRequests(profile, normalized, out bool hydrationRequestsSaturated);
+        int totalRequests = SaturatingAdd(
+            SaturatingAdd(domainRequests, hostRequests, out bool hostTotalSaturated),
+            hydrationRequests,
+            out bool totalSaturated);
+        bool requestCountSaturated =
+            domainRequestsSaturated ||
+            hostRequestsSaturated ||
+            hydrationRequestsSaturated ||
+            hostTotalSaturated ||
+            totalSaturated;
         bool supportsWorkload = SupportsWorkload(profile, normalized, hydrationRequests);
         CtProviderCapacityEstimate capacity = EstimateCapacity(profile, totalRequests, nowUtc);
 
@@ -110,8 +119,15 @@ public static class CtIngestionPlanner
             EstimatedDomainRequests = domainRequests,
             EstimatedHostRequests = hostRequests,
             EstimatedHydrationRequests = hydrationRequests,
+            IsRequestCountSaturated = requestCountSaturated,
             Capacity = capacity,
-            Note = BuildWorkloadNote(profile, normalized, supportsWorkload, hydrationRequests, capacity)
+            Note = BuildWorkloadNote(
+                profile,
+                normalized,
+                supportsWorkload,
+                hydrationRequests,
+                capacity,
+                requestCountSaturated)
         };
     }
 
@@ -487,27 +503,30 @@ public static class CtIngestionPlanner
             : right;
     }
 
-    private static int EstimateDomainRequests(CtIngestionWorkloadRequest workload)
+    private static int EstimateDomainRequests(CtIngestionWorkloadRequest workload, out bool saturated)
     {
         bool usesDomainOperation =
             (workload.Operations & CtIngestionOperation.DiscoverSubdomains) != 0 ||
             (workload.Operations & CtIngestionOperation.GetDomainTreeCertificates) != 0;
         return usesDomainOperation
-            ? workload.DomainCount * workload.RequestsPerDomain
-            : 0;
+            ? SaturatingMultiply(workload.DomainCount, workload.RequestsPerDomain, out saturated)
+            : NoEstimatedRequests(out saturated);
     }
 
-    private static int EstimateHostRequests(CtIngestionWorkloadRequest workload)
+    private static int EstimateHostRequests(CtIngestionWorkloadRequest workload, out bool saturated)
     {
         bool usesHostOperation =
             (workload.Operations & CtIngestionOperation.GetLatestCertificate) != 0 ||
             (workload.Operations & CtIngestionOperation.GetCertificateHistory) != 0;
         return usesHostOperation
-            ? workload.HostCount * workload.RequestsPerHost
-            : 0;
+            ? SaturatingMultiply(workload.HostCount, workload.RequestsPerHost, out saturated)
+            : NoEstimatedRequests(out saturated);
     }
 
-    private static int EstimateHydrationRequests(CtProviderProfile profile, CtIngestionWorkloadRequest workload)
+    private static int EstimateHydrationRequests(
+        CtProviderProfile profile,
+        CtIngestionWorkloadRequest workload,
+        out bool saturated)
     {
         if (!RequiresFullCertificateMaterial(workload) ||
             workload.EstimatedCertificatesToHydrate <= 0 ||
@@ -515,10 +534,37 @@ public static class CtIngestionPlanner
             profile.Supports(CtProviderCapabilities.FullCertificateDer) ||
             !profile.Supports(CtProviderCapabilities.CertificateHydration))
         {
-            return 0;
+            return NoEstimatedRequests(out saturated);
         }
 
-        return workload.EstimatedCertificatesToHydrate * workload.HydrationRequestsPerCertificate;
+        return SaturatingMultiply(
+            workload.EstimatedCertificatesToHydrate,
+            workload.HydrationRequestsPerCertificate,
+            out saturated);
+    }
+
+    private static int NoEstimatedRequests(out bool saturated)
+    {
+        saturated = false;
+        return 0;
+    }
+
+    private static int SaturatingMultiply(int left, int right, out bool saturated)
+    {
+        long value = (long)Math.Max(0, left) * Math.Max(0, right);
+        saturated = value > int.MaxValue;
+        return saturated
+            ? int.MaxValue
+            : (int)value;
+    }
+
+    private static int SaturatingAdd(int left, int right, out bool saturated)
+    {
+        long value = (long)Math.Max(0, left) + Math.Max(0, right);
+        saturated = value > int.MaxValue;
+        return saturated
+            ? int.MaxValue
+            : (int)value;
     }
 
     private static bool RequiresFullCertificateMaterial(CtIngestionWorkloadRequest workload)
@@ -538,11 +584,17 @@ public static class CtIngestionPlanner
         CtIngestionWorkloadRequest workload,
         bool supportsWorkload,
         int hydrationRequests,
-        CtProviderCapacityEstimate capacity)
+        CtProviderCapacityEstimate capacity,
+        bool requestCountSaturated)
     {
         if (!supportsWorkload)
         {
             return "Provider does not advertise all requested CT capabilities.";
+        }
+
+        if (requestCountSaturated)
+        {
+            return "Provider can be used, but the estimated request count was capped and the workload should be split into smaller batches before execution.";
         }
 
         if (hydrationRequests > 0)

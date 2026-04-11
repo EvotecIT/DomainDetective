@@ -25,6 +25,9 @@ public sealed class CtIngestionWorkloadEstimate
     /// <summary>Estimated follow-up certificate hydration provider requests.</summary>
     public int EstimatedHydrationRequests { get; init; }
 
+    /// <summary>True when estimated request counts were capped at <see cref="int.MaxValue"/>.</summary>
+    public bool IsRequestCountSaturated { get; init; }
+
     /// <summary>Provider capacity estimate for the total request count.</summary>
     public CtProviderCapacityEstimate Capacity { get; init; } = new();
 

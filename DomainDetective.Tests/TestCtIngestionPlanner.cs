@@ -228,6 +228,7 @@ public class TestCtIngestionPlanner
         Assert.Equal(100, estimate.EstimatedHostRequests);
         Assert.Equal(100, estimate.EstimatedHydrationRequests);
         Assert.Equal(200, estimate.EstimatedRequestCount);
+        Assert.False(estimate.IsRequestCountSaturated);
     }
 
     [Fact]
@@ -245,6 +246,26 @@ public class TestCtIngestionPlanner
 
         Assert.False(estimate.ProviderSupportsWorkload);
         Assert.Equal(100, estimate.EstimatedRequestCount);
+    }
+
+    [Fact]
+    public void WorkloadEstimateSaturatesLargeRequestCounts()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShPostgreSql();
+        var workload = new CtIngestionWorkloadRequest
+        {
+            HostCount = int.MaxValue,
+            Operations = CtIngestionOperation.GetCertificateHistory,
+            RequireFullCertificate = true,
+            RequestsPerHost = 2
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload);
+
+        Assert.True(estimate.IsRequestCountSaturated);
+        Assert.Equal(int.MaxValue, estimate.EstimatedHostRequests);
+        Assert.Equal(int.MaxValue, estimate.EstimatedRequestCount);
+        Assert.Contains("capped", estimate.Note, StringComparison.Ordinal);
     }
 
     [Fact]
