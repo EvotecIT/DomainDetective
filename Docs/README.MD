@@ -23,13 +23,16 @@ Certificate transparency timeline (issuance velocity, issuer diversity, validity
 ### 7. [SUBDOMAINS.MD](SUBDOMAINS.MD)
 CT-backed subdomain discovery (bounded + optional DNS verification).
 
-### 8. [DNS_PROPAGATION.MD](DNS_PROPAGATION.MD)
+### 8. [CT_PROVIDERS.MD](CT_PROVIDERS.MD)
+Certificate transparency provider selection, budgets, and crt.sh SQL FTS guidance.
+
+### 9. [DNS_PROPAGATION.MD](DNS_PROPAGATION.MD)
 Multi-resolver DNS propagation visibility with map visualization and rollups.
 
-### 9. [DESIRED_STATE.MD](DESIRED_STATE.MD)
+### 10. [DESIRED_STATE.MD](DESIRED_STATE.MD)
 Custom baselines (desired state configuration) for drift/non-conformance detection.
 
-### 10. [CERTIFICATE_INVENTORY.MD](CERTIFICATE_INVENTORY.MD)
+### 11. [CERTIFICATE_INVENTORY.MD](CERTIFICATE_INVENTORY.MD)
 End-to-end certificate inventory/discovery usage (live capture, snapshots, risk/drift/policy) with PowerShell and C# examples.
 
 ## Main TODO

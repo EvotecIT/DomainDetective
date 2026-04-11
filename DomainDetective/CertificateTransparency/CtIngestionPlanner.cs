@@ -26,61 +26,7 @@ public static class CtIngestionPlanner
         int requestCount,
         DateTimeOffset? nowUtc = null)
     {
-        if (profile == null)
-        {
-            throw new ArgumentNullException(nameof(profile));
-        }
-
-        int normalizedRequestCount = Math.Max(0, requestCount);
-        CtProviderRateLimitProfile rateLimit = (profile.RateLimit ?? new CtProviderRateLimitProfile()).Normalize();
-        int maxConcurrentRequests = rateLimit.MaxConcurrentRequests.GetValueOrDefault(1);
-        TimeSpan effectiveSpacing = ResolveEffectiveRequestSpacing(rateLimit);
-        int firstRunRequestCount = EstimateFirstRunRequestCount(
-            normalizedRequestCount,
-            rateLimit.MaximumRequestsPerRun);
-        int estimatedRunCount = EstimateRunCount(
-            normalizedRequestCount,
-            rateLimit.MaximumRequestsPerRun);
-        int remainingRequestCount = Math.Max(0, normalizedRequestCount - firstRunRequestCount);
-        TimeSpan spacingDuration = EstimateSpacingDuration(
-            normalizedRequestCount,
-            effectiveSpacing,
-            rateLimit.EstimatedRequestDuration);
-        int concurrencyWaveCount = EstimateConcurrencyWaveCount(normalizedRequestCount, maxConcurrentRequests);
-        TimeSpan concurrencyDuration = MultiplyTimeSpan(rateLimit.EstimatedRequestDuration, concurrencyWaveCount);
-        TimeSpan estimatedDuration = EstimateScheduledDuration(
-            normalizedRequestCount,
-            effectiveSpacing,
-            rateLimit.EstimatedRequestDuration,
-            maxConcurrentRequests);
-        TimeSpan estimatedFirstRunDuration = EstimateDuration(
-            firstRunRequestCount,
-            effectiveSpacing,
-            rateLimit.EstimatedRequestDuration,
-            maxConcurrentRequests);
-        DateTimeOffset startUtc = nowUtc ?? DateTimeOffset.UtcNow;
-
-        return new CtProviderCapacityEstimate
-        {
-            ProviderId = profile.ProviderId,
-            RequestCount = normalizedRequestCount,
-            EffectiveRequestSpacing = effectiveSpacing,
-            EstimatedRequestDuration = rateLimit.EstimatedRequestDuration,
-            EstimatedMinimumDuration = estimatedDuration,
-            EstimatedCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedDuration),
-            MaxConcurrentRequests = maxConcurrentRequests,
-            MaximumRequestsPerRun = rateLimit.MaximumRequestsPerRun,
-            EstimatedRunCount = estimatedRunCount,
-            FirstRunRequestCount = firstRunRequestCount,
-            RemainingRequestCount = remainingRequestCount,
-            EstimatedFirstRunDuration = estimatedFirstRunDuration,
-            EstimatedFirstRunCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedFirstRunDuration),
-            ConcurrencyWaveCount = concurrencyWaveCount,
-            IsRateLimited = effectiveSpacing > TimeSpan.Zero,
-            ExceedsRunBudget = estimatedRunCount > 1,
-            IsConcurrencyLimited = normalizedRequestCount > maxConcurrentRequests &&
-                concurrencyDuration >= spacingDuration
-        };
+        return EstimateCapacity(profile, requestCount, operations: null, nowUtc);
     }
 
     /// <summary>
@@ -119,7 +65,29 @@ public static class CtIngestionPlanner
             hostTotalSaturated ||
             totalSaturated;
         bool supportsWorkload = SupportsWorkload(profile, normalized, hydrationRequests);
-        CtProviderCapacityEstimate capacity = EstimateCapacity(profile, totalRequests, nowUtc);
+        CtProviderCapacityEstimate domainCapacity = EstimateCapacity(
+            profile,
+            domainRequests,
+            ResolveDomainCapacityOperation(normalized.Operations),
+            nowUtc);
+        CtProviderCapacityEstimate hostCapacity = EstimateCapacity(
+            profile,
+            hostRequests,
+            ResolveHostCapacityOperation(normalized.Operations),
+            nowUtc);
+        CtProviderCapacityEstimate hydrationCapacity = EstimateCapacity(
+            profile,
+            hydrationRequests,
+            operations: null,
+            nowUtc);
+        CtProviderCapacityEstimate capacity = ResolveAggregateWorkloadCapacity(
+            profile,
+            totalRequests,
+            normalized.Operations,
+            domainCapacity,
+            hostCapacity,
+            hydrationCapacity,
+            nowUtc);
 
         return new CtIngestionWorkloadEstimate
         {
@@ -131,6 +99,9 @@ public static class CtIngestionPlanner
             EstimatedHydrationRequests = hydrationRequests,
             IsRequestCountSaturated = requestCountSaturated,
             Capacity = capacity,
+            DomainCapacity = domainCapacity,
+            HostCapacity = hostCapacity,
+            HydrationCapacity = hydrationCapacity,
             Note = BuildWorkloadNote(
                 profile,
                 normalized,
@@ -406,18 +377,218 @@ public static class CtIngestionPlanner
 
     private static TimeSpan ResolveEffectiveRequestSpacing(CtProviderRateLimitProfile rateLimit)
     {
+        return ResolveEffectiveRequestSpacing(rateLimit, null);
+    }
+
+    private static TimeSpan ResolveEffectiveRequestSpacing(
+        CtProviderRateLimitProfile rateLimit,
+        CtIngestionOperation? operations)
+    {
         TimeSpan spacing = rateLimit.MinimumRequestSpacing;
+        spacing = MaxTimeSpan(spacing, ResolveSpacingFromLimit(TimeSpan.FromSeconds(1), rateLimit.MaxRequestsPerSecond));
         if (rateLimit.MaxRequestsPerMinute.HasValue && rateLimit.MaxRequestsPerMinute.Value > 0)
         {
-            long ticks = TimeSpan.FromMinutes(1).Ticks / rateLimit.MaxRequestsPerMinute.Value;
-            var rateLimitSpacing = TimeSpan.FromTicks(ticks);
-            if (rateLimitSpacing > spacing)
-            {
-                spacing = rateLimitSpacing;
-            }
+            spacing = MaxTimeSpan(spacing, ResolveSpacingFromLimit(TimeSpan.FromMinutes(1), rateLimit.MaxRequestsPerMinute));
+        }
+
+        spacing = MaxTimeSpan(spacing, ResolveSpacingFromLimit(TimeSpan.FromHours(1), rateLimit.MaxRequestsPerHour));
+        if (operations.HasValue)
+        {
+            spacing = ResolveOperationSpecificRequestSpacing(rateLimit, operations.Value, spacing);
         }
 
         return spacing;
+    }
+
+    private static CtProviderCapacityEstimate ResolveAggregateWorkloadCapacity(
+        CtProviderProfile profile,
+        int totalRequests,
+        CtIngestionOperation operations,
+        CtProviderCapacityEstimate domainCapacity,
+        CtProviderCapacityEstimate hostCapacity,
+        CtProviderCapacityEstimate hydrationCapacity,
+        DateTimeOffset? nowUtc)
+    {
+        CtProviderRateLimitProfile rateLimit = (profile.RateLimit ?? new CtProviderRateLimitProfile()).Normalize();
+        bool hasOperationSpecificBudgets =
+            rateLimit.MaxSingleHostnameQueriesPerHour.HasValue ||
+            rateLimit.MaxFullDomainQueriesPerHour.HasValue;
+        if (!hasOperationSpecificBudgets)
+        {
+            return EstimateCapacity(profile, totalRequests, operations, nowUtc);
+        }
+
+        DateTimeOffset startUtc = nowUtc ?? DateTimeOffset.UtcNow;
+        var capacities = new[] { domainCapacity, hostCapacity, hydrationCapacity };
+        TimeSpan estimatedMinimumDuration = capacities
+            .Select(static estimate => estimate.EstimatedMinimumDuration)
+            .Aggregate(TimeSpan.Zero, MaxTimeSpan);
+        TimeSpan estimatedFirstRunDuration = capacities
+            .Select(static estimate => estimate.EstimatedFirstRunDuration)
+            .Aggregate(TimeSpan.Zero, MaxTimeSpan);
+        int firstRunRequestCount = SumSaturating(
+            capacities.Select(static estimate => Math.Max(0, estimate.FirstRunRequestCount)));
+        int remainingRequestCount = SumSaturating(
+            capacities.Select(static estimate => Math.Max(0, estimate.RemainingRequestCount)));
+        int concurrencyWaveCount = SumSaturating(
+            capacities.Select(static estimate => Math.Max(0, estimate.ConcurrencyWaveCount)));
+
+        return new CtProviderCapacityEstimate
+        {
+            ProviderId = profile.ProviderId,
+            RequestCount = Math.Max(0, totalRequests),
+            EffectiveRequestSpacing = capacities
+                .Select(static estimate => estimate.EffectiveRequestSpacing)
+                .Aggregate(TimeSpan.Zero, MaxTimeSpan),
+            EstimatedRequestDuration = capacities
+                .Select(static estimate => estimate.EstimatedRequestDuration)
+                .Aggregate(TimeSpan.Zero, MaxTimeSpan),
+            EstimatedMinimumDuration = estimatedMinimumDuration,
+            EstimatedCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedMinimumDuration),
+            MaxConcurrentRequests = rateLimit.MaxConcurrentRequests.GetValueOrDefault(1),
+            MaximumRequestsPerRun = rateLimit.MaximumRequestsPerRun,
+            EstimatedRunCount = capacities.Max(static estimate => Math.Max(0, estimate.EstimatedRunCount)),
+            FirstRunRequestCount = firstRunRequestCount,
+            RemainingRequestCount = remainingRequestCount,
+            EstimatedFirstRunDuration = estimatedFirstRunDuration,
+            EstimatedFirstRunCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedFirstRunDuration),
+            ConcurrencyWaveCount = concurrencyWaveCount,
+            IsRateLimited = capacities.Any(static estimate => estimate.IsRateLimited),
+            ExceedsRunBudget = capacities.Any(static estimate => estimate.ExceedsRunBudget),
+            IsConcurrencyLimited = capacities.Any(static estimate => estimate.IsConcurrencyLimited)
+        };
+    }
+
+    private static CtProviderCapacityEstimate EstimateCapacity(
+        CtProviderProfile profile,
+        int requestCount,
+        CtIngestionOperation? operations,
+        DateTimeOffset? nowUtc)
+    {
+        if (profile == null)
+        {
+            throw new ArgumentNullException(nameof(profile));
+        }
+
+        int normalizedRequestCount = Math.Max(0, requestCount);
+        CtProviderRateLimitProfile rateLimit = (profile.RateLimit ?? new CtProviderRateLimitProfile()).Normalize();
+        int maxConcurrentRequests = rateLimit.MaxConcurrentRequests.GetValueOrDefault(1);
+        TimeSpan effectiveSpacing = ResolveEffectiveRequestSpacing(rateLimit, operations);
+        int firstRunRequestCount = EstimateFirstRunRequestCount(
+            normalizedRequestCount,
+            rateLimit.MaximumRequestsPerRun);
+        int estimatedRunCount = EstimateRunCount(
+            normalizedRequestCount,
+            rateLimit.MaximumRequestsPerRun);
+        int remainingRequestCount = Math.Max(0, normalizedRequestCount - firstRunRequestCount);
+        TimeSpan spacingDuration = EstimateSpacingDuration(
+            normalizedRequestCount,
+            effectiveSpacing,
+            rateLimit.EstimatedRequestDuration);
+        int concurrencyWaveCount = EstimateConcurrencyWaveCount(normalizedRequestCount, maxConcurrentRequests);
+        TimeSpan concurrencyDuration = MultiplyTimeSpan(rateLimit.EstimatedRequestDuration, concurrencyWaveCount);
+        TimeSpan estimatedDuration = EstimateScheduledDuration(
+            normalizedRequestCount,
+            effectiveSpacing,
+            rateLimit.EstimatedRequestDuration,
+            maxConcurrentRequests);
+        TimeSpan estimatedFirstRunDuration = EstimateDuration(
+            firstRunRequestCount,
+            effectiveSpacing,
+            rateLimit.EstimatedRequestDuration,
+            maxConcurrentRequests);
+        DateTimeOffset startUtc = nowUtc ?? DateTimeOffset.UtcNow;
+
+        return new CtProviderCapacityEstimate
+        {
+            ProviderId = profile.ProviderId,
+            RequestCount = normalizedRequestCount,
+            EffectiveRequestSpacing = effectiveSpacing,
+            EstimatedRequestDuration = rateLimit.EstimatedRequestDuration,
+            EstimatedMinimumDuration = estimatedDuration,
+            EstimatedCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedDuration),
+            MaxConcurrentRequests = maxConcurrentRequests,
+            MaximumRequestsPerRun = rateLimit.MaximumRequestsPerRun,
+            EstimatedRunCount = estimatedRunCount,
+            FirstRunRequestCount = firstRunRequestCount,
+            RemainingRequestCount = remainingRequestCount,
+            EstimatedFirstRunDuration = estimatedFirstRunDuration,
+            EstimatedFirstRunCompletionUtc = AddTimeSpanSaturating(startUtc, estimatedFirstRunDuration),
+            ConcurrencyWaveCount = concurrencyWaveCount,
+            IsRateLimited = effectiveSpacing > TimeSpan.Zero,
+            ExceedsRunBudget = estimatedRunCount > 1,
+            IsConcurrencyLimited = normalizedRequestCount > maxConcurrentRequests &&
+                concurrencyDuration >= spacingDuration
+        };
+    }
+
+    private static TimeSpan ResolveOperationSpecificRequestSpacing(
+        CtProviderRateLimitProfile rateLimit,
+        CtIngestionOperation operations,
+        TimeSpan spacing)
+    {
+        bool includesFullDomainQuery =
+            (operations & CtIngestionOperation.DiscoverSubdomains) != 0 ||
+            (operations & CtIngestionOperation.GetDomainTreeCertificates) != 0;
+        bool includesSingleHostnameQuery =
+            (operations & CtIngestionOperation.GetLatestCertificate) != 0 ||
+            (operations & CtIngestionOperation.GetCertificateHistory) != 0;
+        if (includesFullDomainQuery)
+        {
+            spacing = MaxTimeSpan(
+                spacing,
+                ResolveSpacingFromLimit(TimeSpan.FromHours(1), rateLimit.MaxFullDomainQueriesPerHour));
+        }
+
+        if (includesSingleHostnameQuery)
+        {
+            spacing = MaxTimeSpan(
+                spacing,
+                ResolveSpacingFromLimit(TimeSpan.FromHours(1), rateLimit.MaxSingleHostnameQueriesPerHour));
+        }
+
+        return spacing;
+    }
+
+    private static TimeSpan ResolveSpacingFromLimit(TimeSpan window, int? requestLimit)
+    {
+        if (!requestLimit.HasValue || requestLimit.Value <= 0)
+        {
+            return TimeSpan.Zero;
+        }
+
+        long ticks = window.Ticks / requestLimit.Value;
+        return TimeSpan.FromTicks(Math.Max(1, ticks));
+    }
+
+    private static CtIngestionOperation? ResolveDomainCapacityOperation(CtIngestionOperation operations)
+    {
+        if ((operations & CtIngestionOperation.GetDomainTreeCertificates) != 0)
+        {
+            return CtIngestionOperation.GetDomainTreeCertificates;
+        }
+
+        if ((operations & CtIngestionOperation.DiscoverSubdomains) != 0)
+        {
+            return CtIngestionOperation.DiscoverSubdomains;
+        }
+
+        return null;
+    }
+
+    private static CtIngestionOperation? ResolveHostCapacityOperation(CtIngestionOperation operations)
+    {
+        if ((operations & CtIngestionOperation.GetCertificateHistory) != 0)
+        {
+            return CtIngestionOperation.GetCertificateHistory;
+        }
+
+        if ((operations & CtIngestionOperation.GetLatestCertificate) != 0)
+        {
+            return CtIngestionOperation.GetLatestCertificate;
+        }
+
+        return null;
     }
 
     private static TimeSpan EstimateSpacingDuration(
@@ -641,6 +812,26 @@ public static class CtIngestionPlanner
         return saturated
             ? int.MaxValue
             : (int)value;
+    }
+
+    private static int SumSaturating(IEnumerable<int> values)
+    {
+        if (values == null)
+        {
+            return 0;
+        }
+
+        long total = 0;
+        foreach (int value in values)
+        {
+            total += Math.Max(0, value);
+            if (total >= int.MaxValue)
+            {
+                return int.MaxValue;
+            }
+        }
+
+        return (int)total;
     }
 
     private static bool RequiresFullCertificateMaterial(CtIngestionWorkloadRequest workload)

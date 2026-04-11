@@ -31,6 +31,15 @@ public sealed class CtIngestionWorkloadEstimate
     /// <summary>Provider capacity estimate for the total request count.</summary>
     public CtProviderCapacityEstimate Capacity { get; init; } = new();
 
+    /// <summary>Provider capacity estimate for domain-level expansion requests.</summary>
+    public CtProviderCapacityEstimate DomainCapacity { get; init; } = new();
+
+    /// <summary>Provider capacity estimate for exact-host requests.</summary>
+    public CtProviderCapacityEstimate HostCapacity { get; init; } = new();
+
+    /// <summary>Provider capacity estimate for follow-up certificate hydration requests.</summary>
+    public CtProviderCapacityEstimate HydrationCapacity { get; init; } = new();
+
     /// <summary>Human-readable planning note.</summary>
     public string? Note { get; init; }
 }

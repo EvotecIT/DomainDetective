@@ -10,6 +10,18 @@ public sealed class CtProviderRateLimitProfile
     /// <summary>Maximum requests allowed per minute for the provider, when known.</summary>
     public int? MaxRequestsPerMinute { get; init; }
 
+    /// <summary>Maximum requests allowed per second for the provider, when known.</summary>
+    public int? MaxRequestsPerSecond { get; init; }
+
+    /// <summary>Maximum requests allowed per hour for the provider, when known.</summary>
+    public int? MaxRequestsPerHour { get; init; }
+
+    /// <summary>Maximum exact-host CT queries allowed per hour for the provider, when known.</summary>
+    public int? MaxSingleHostnameQueriesPerHour { get; init; }
+
+    /// <summary>Maximum domain-tree or subdomain-expansion CT queries allowed per hour for the provider, when known.</summary>
+    public int? MaxFullDomainQueriesPerHour { get; init; }
+
     /// <summary>Maximum concurrent requests or connections for the provider, when known.</summary>
     public int? MaxConcurrentRequests { get; init; }
 
@@ -42,6 +54,18 @@ public sealed class CtProviderRateLimitProfile
     {
         int? maxRequestsPerMinute = MaxRequestsPerMinute.HasValue
             ? Math.Max(1, MaxRequestsPerMinute.Value)
+            : null;
+        int? maxRequestsPerSecond = MaxRequestsPerSecond.HasValue
+            ? Math.Max(1, MaxRequestsPerSecond.Value)
+            : null;
+        int? maxRequestsPerHour = MaxRequestsPerHour.HasValue
+            ? Math.Max(1, MaxRequestsPerHour.Value)
+            : null;
+        int? maxSingleHostnameQueriesPerHour = MaxSingleHostnameQueriesPerHour.HasValue
+            ? Math.Max(1, MaxSingleHostnameQueriesPerHour.Value)
+            : null;
+        int? maxFullDomainQueriesPerHour = MaxFullDomainQueriesPerHour.HasValue
+            ? Math.Max(1, MaxFullDomainQueriesPerHour.Value)
             : null;
         int? maxConcurrentRequests = MaxConcurrentRequests.HasValue
             ? Math.Max(1, MaxConcurrentRequests.Value)
@@ -83,6 +107,10 @@ public sealed class CtProviderRateLimitProfile
         return new CtProviderRateLimitProfile
         {
             MaxRequestsPerMinute = maxRequestsPerMinute,
+            MaxRequestsPerSecond = maxRequestsPerSecond,
+            MaxRequestsPerHour = maxRequestsPerHour,
+            MaxSingleHostnameQueriesPerHour = maxSingleHostnameQueriesPerHour,
+            MaxFullDomainQueriesPerHour = maxFullDomainQueriesPerHour,
             MaxConcurrentRequests = maxConcurrentRequests,
             MinimumRequestSpacing = minimumRequestSpacing,
             RequestTimeout = requestTimeout,

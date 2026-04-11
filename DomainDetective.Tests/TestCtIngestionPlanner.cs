@@ -52,6 +52,27 @@ public class TestCtIngestionPlanner
     }
 
     [Fact]
+    public void CertSpotterDefaultModelsSeparateSmallPlanBudgets()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCertSpotter();
+
+        Assert.Equal(CtProviderProfiles.CertSpotterProviderId, profile.ProviderId);
+        Assert.Equal(5, profile.RateLimit.MaxRequestsPerSecond);
+        Assert.Equal(75, profile.RateLimit.MaxRequestsPerMinute);
+        Assert.Equal(100, profile.RateLimit.MaxSingleHostnameQueriesPerHour);
+        Assert.Equal(10, profile.RateLimit.MaxFullDomainQueriesPerHour);
+        Assert.Equal(TimeSpan.FromSeconds(15), profile.RateLimit.RequestTimeout);
+        Assert.True(CtIngestionPlanner.SupportsOperation(
+            profile,
+            CtIngestionOperation.GetLatestCertificate,
+            requireFullCertificate: true));
+        Assert.False(CtIngestionPlanner.SupportsOperation(
+            profile,
+            CtIngestionOperation.GetCertificateHistory,
+            requireFullCertificate: true));
+    }
+
+    [Fact]
     public void EstimateCapacityUsesMostConservativeSpacing()
     {
         CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
@@ -72,6 +93,67 @@ public class TestCtIngestionPlanner
         Assert.False(estimate.ExceedsRunBudget);
         Assert.True(estimate.IsRateLimited);
         Assert.False(estimate.IsConcurrencyLimited);
+    }
+
+    [Fact]
+    public void EstimateWorkloadUsesCertSpotterSingleHostnameBudget()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCertSpotter();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var workload = new CtIngestionWorkloadRequest
+        {
+            HostCount = 2,
+            Operations = CtIngestionOperation.GetLatestCertificate,
+            RequireFullCertificate = true
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload, now);
+
+        Assert.Equal(TimeSpan.FromSeconds(36), estimate.Capacity.EffectiveRequestSpacing);
+        Assert.Equal(TimeSpan.FromSeconds(39), estimate.Capacity.EstimatedMinimumDuration);
+    }
+
+    [Fact]
+    public void EstimateWorkloadUsesCertSpotterFullDomainBudgetForExpansion()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCertSpotter();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var workload = new CtIngestionWorkloadRequest
+        {
+            DomainCount = 2,
+            Operations = CtIngestionOperation.DiscoverSubdomains,
+            RequireFullCertificate = false
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload, now);
+
+        Assert.Equal(TimeSpan.FromMinutes(6), estimate.Capacity.EffectiveRequestSpacing);
+        Assert.Equal(TimeSpan.FromMinutes(6) + TimeSpan.FromSeconds(3), estimate.Capacity.EstimatedMinimumDuration);
+    }
+
+    [Fact]
+    public void EstimateWorkloadKeepsCertSpotterExactHostAndFullDomainBudgetsSeparate()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCertSpotter();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var workload = new CtIngestionWorkloadRequest
+        {
+            DomainCount = 1,
+            HostCount = 100,
+            Operations = CtIngestionOperation.DiscoverSubdomains | CtIngestionOperation.GetLatestCertificate,
+            RequireFullCertificate = false
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload, now);
+
+        Assert.Equal(1, estimate.EstimatedDomainRequests);
+        Assert.Equal(100, estimate.EstimatedHostRequests);
+        Assert.Equal(TimeSpan.FromMinutes(6), estimate.DomainCapacity.EffectiveRequestSpacing);
+        Assert.Equal(TimeSpan.FromSeconds(36), estimate.HostCapacity.EffectiveRequestSpacing);
+        Assert.Equal(TimeSpan.FromMinutes(6), estimate.Capacity.EffectiveRequestSpacing);
+        Assert.Equal(TimeSpan.FromSeconds(36 * 99 + 3), estimate.HostCapacity.EstimatedMinimumDuration);
+        Assert.Equal(estimate.HostCapacity.EstimatedMinimumDuration, estimate.Capacity.EstimatedMinimumDuration);
+        Assert.Equal(101, estimate.Capacity.FirstRunRequestCount);
     }
 
     [Fact]

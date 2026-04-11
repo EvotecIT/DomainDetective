@@ -155,15 +155,19 @@ public static class CtProviderProfiles
                            CtProviderCapabilities.AuthenticationRecommended,
             RateLimit = new CtProviderRateLimitProfile
             {
+                MaxRequestsPerSecond = 5,
+                MaxRequestsPerMinute = 75,
+                MaxSingleHostnameQueriesPerHour = 100,
+                MaxFullDomainQueriesPerHour = 10,
                 MaxConcurrentRequests = 1,
                 MinimumRequestSpacing = TimeSpan.FromSeconds(15),
-                RequestTimeout = TimeSpan.FromSeconds(30),
+                RequestTimeout = TimeSpan.FromSeconds(15),
                 EstimatedRequestDuration = TimeSpan.FromSeconds(3),
                 RetryBaseDelay = TimeSpan.FromSeconds(2),
                 RetryMaxDelay = TimeSpan.FromSeconds(30),
                 CooldownAfterRateLimit = TimeSpan.FromMinutes(5)
             },
-            Notes = "CertSpotter supports paging and cert_der expansion; production use should provide an API token and configured budget."
+            Notes = "CertSpotter supports paging and cert_der expansion. The default profile models the Small CT Search API budget: exact-host queries and full-domain expansion have separate hourly limits."
         };
     }
 
@@ -186,6 +190,10 @@ public static class CtProviderProfiles
             Capabilities = defaults.Capabilities,
             RateLimit = new CtProviderRateLimitProfile
             {
+                MaxRequestsPerSecond = defaults.RateLimit.MaxRequestsPerSecond,
+                MaxRequestsPerMinute = defaults.RateLimit.MaxRequestsPerMinute,
+                MaxSingleHostnameQueriesPerHour = defaults.RateLimit.MaxSingleHostnameQueriesPerHour,
+                MaxFullDomainQueriesPerHour = defaults.RateLimit.MaxFullDomainQueriesPerHour,
                 MaxConcurrentRequests = defaults.RateLimit.MaxConcurrentRequests,
                 MinimumRequestSpacing = options.PassiveCtCertSpotterMinimumSpacing,
                 RequestTimeout = options.PassiveCtRequestTimeout,
