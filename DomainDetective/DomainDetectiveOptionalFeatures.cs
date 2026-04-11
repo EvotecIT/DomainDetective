@@ -7,6 +7,7 @@ namespace DomainDetective;
 /// <summary>
 /// Registers optional dependency-backed feature providers without changing the main analysis API.
 /// </summary>
+/// <remarks>Provider registration is last-write-wins so host applications can intentionally replace startup defaults.</remarks>
 public static class DomainDetectiveOptionalFeatures
 {
     private static volatile Func<string, string, (bool IsVerified, string ClearText)>? _securityTxtPgpVerifier;
@@ -46,6 +47,7 @@ public static class DomainDetectiveOptionalFeatures
     /// <summary>
     /// Registers PGP-backed security.txt clear-signature verification.
     /// </summary>
+    /// <remarks>Calling this method again replaces the previously registered verifier.</remarks>
     public static void RegisterPgpVerifier(Func<string, string, (bool IsVerified, string ClearText)> verifier)
     {
         _securityTxtPgpVerifier = verifier ?? throw new ArgumentNullException(nameof(verifier));
@@ -54,6 +56,7 @@ public static class DomainDetectiveOptionalFeatures
     /// <summary>
     /// Registers visual fingerprinting and browser capture helpers used by typosquatting analysis.
     /// </summary>
+    /// <remarks>Calling this method again replaces the previously registered visual provider pair.</remarks>
     public static void RegisterVisualProvider(
         Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?> fingerprintBuilder,
         Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>> browserCapture)
@@ -66,6 +69,7 @@ public static class DomainDetectiveOptionalFeatures
     /// <summary>
     /// Registers a caller-supplied exact-host CT metadata provider for the future CtSql package split.
     /// </summary>
+    /// <remarks>Calling this method again replaces the previously registered CT SQL provider.</remarks>
     public static void RegisterCtSqlExactMetadataProvider(
         Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>> provider)
     {

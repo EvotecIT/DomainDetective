@@ -7,6 +7,9 @@ namespace DomainDetective.Visual;
 /// </summary>
 public static class DomainDetectiveVisualRegistration
 {
+    /// <summary>
+    /// Registers the DomainDetective.Visual provider pair, replacing any visual provider already registered.
+    /// </summary>
     public static void Register()
     {
         DomainDetectiveOptionalFeatures.RegisterVisualProvider(
