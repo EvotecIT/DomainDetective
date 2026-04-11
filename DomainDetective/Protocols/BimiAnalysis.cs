@@ -26,6 +26,7 @@ namespace DomainDetective {
 public partial class BimiAnalysis : IHasAssessments {
         private const int SvgRequiredDimension = 64;
         private const string SvgRequiredViewBox = "0 0 64 64";
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Gets the concatenated BIMI record text.</summary>
         public string? BimiRecord { get; private set; }

@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static TtlInfo Convert(DnsTtlAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -39,29 +40,53 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides ttl info functionality.</summary>
 public class TtlInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the dnssec signed value.</summary>
     public bool DnssecSigned { get; set; }
+    /// <summary>Gets or sets the a ttls value.</summary>
     public IReadOnlyList<int> ATtls { get; set; } = null!;
+    /// <summary>Gets or sets the aaaa ttls value.</summary>
     public IReadOnlyList<int> AaaaTtls { get; set; } = null!;
+    /// <summary>Gets or sets the mx ttls value.</summary>
     public IReadOnlyList<int> MxTtls { get; set; } = null!;
+    /// <summary>Gets or sets the ns ttls value.</summary>
     public IReadOnlyList<int> NsTtls { get; set; } = null!;
+    /// <summary>Gets or sets the soa ttl value.</summary>
     public int SoaTtl { get; set; }
+    /// <summary>Gets or sets the spf txt ttls value.</summary>
     public IReadOnlyList<int> SpfTxtTtls { get; set; } = null!;
+    /// <summary>Gets or sets the dmarc txt ttls value.</summary>
     public IReadOnlyList<int> DmarcTxtTtls { get; set; } = null!;
+    /// <summary>Gets or sets the mtasts txt ttls value.</summary>
     public IReadOnlyList<int> MtastsTxtTtls { get; set; } = null!;
+    /// <summary>Gets or sets the tls rpt txt ttls value.</summary>
     public IReadOnlyList<int> TlsRptTxtTtls { get; set; } = null!;
+    /// <summary>Gets or sets the dkim txt ttls value.</summary>
     public Dictionary<string, IReadOnlyList<int>> DkimTxtTtls { get; set; } = null!;
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = null!;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = null!;
+    /// <summary>Gets or sets the raw value.</summary>
     public DnsTtlAnalysis Raw { get; set; } = null!;
 }

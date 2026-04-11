@@ -15,13 +15,21 @@ public class SmtpRecipientAcceptanceAnalysis : IHasAssessments
     /// <summary>Result of a single SMTP recipient acceptance probe.</summary>
     public sealed class RecipientAcceptanceResult
     {
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; init; } = string.Empty;
+        /// <summary>Gets or sets the port value.</summary>
         public int Port { get; init; }
+        /// <summary>Gets or sets the recipient value.</summary>
         public string Recipient { get; init; } = string.Empty;
+        /// <summary>Gets or sets the accepted value.</summary>
         public bool Accepted { get; init; }
+        /// <summary>Gets or sets the mail from status code value.</summary>
         public int? MailFromStatusCode { get; init; }
+        /// <summary>Gets or sets the recipient status code value.</summary>
         public int? RecipientStatusCode { get; init; }
+        /// <summary>Gets or sets the mail from response value.</summary>
         public string MailFromResponse { get; init; } = string.Empty;
+        /// <summary>Gets or sets the recipient response value.</summary>
         public string RecipientResponse { get; init; } = string.Empty;
     }
 
@@ -43,6 +51,7 @@ public class SmtpRecipientAcceptanceAnalysis : IHasAssessments
     /// <summary>Structured assessments captured during the analysis.</summary>
     public List<Assessment> Assessments { get; } = new();
 
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>Checks a set of SMTP servers for recipient acceptance.</summary>

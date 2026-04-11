@@ -19,6 +19,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
 public partial class DomainHealthCheck {
+        /// <summary>Represents the default checks value.</summary>
         public static readonly HealthCheckType[] DefaultChecks = new[] {
             HealthCheckType.DMARC,
             HealthCheckType.SPF,

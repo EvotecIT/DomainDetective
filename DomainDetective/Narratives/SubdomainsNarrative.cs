@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides subdomains narrative functionality.</summary>
 public static class SubdomainsNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(SubdomainsAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
         var title = "Subdomain Discovery Report";

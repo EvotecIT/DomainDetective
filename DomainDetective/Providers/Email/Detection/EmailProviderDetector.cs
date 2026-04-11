@@ -5,8 +5,10 @@ using DomainDetective.Helpers;
 
 namespace DomainDetective.Providers.Email;
 
+/// <summary>Provides email provider detector functionality.</summary>
 public static class EmailProviderDetector
 {
+    /// <summary>Executes the detect operation.</summary>
     public static ProviderMatch Detect(IEnumerable<string> mxHosts, IEnumerable<string>? spfTokens = null, IEnumerable<string>? dkimTargets = null)
     {
         var hosts = (mxHosts ?? Array.Empty<string>()).Select(h => h.Trim('.')).Where(h => !string.IsNullOrWhiteSpace(h)).ToList();

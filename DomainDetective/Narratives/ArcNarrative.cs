@@ -4,10 +4,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides arc narrative functionality.</summary>
 public static class ArcNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(ARCAnalysis arc)
     {
         var title = "ARC Report";

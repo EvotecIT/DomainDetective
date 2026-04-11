@@ -88,6 +88,7 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during banner checks.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         private static readonly Regex _versionLeakRegex = new(

@@ -15,6 +15,7 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class ThreatIntelAnalysis : IHasAssessments
 {
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
     /// <summary>Override Safe Browsing query.</summary>
     public Func<string, Task<string>>? GoogleSafeBrowsingOverride { private get; set; }
@@ -58,25 +59,39 @@ public class ThreatIntelAnalysis : IHasAssessments
     }
 
     // Provider toggles and simple in-memory caching
+    /// <summary>Gets or sets the enable url haus value.</summary>
     public bool EnableUrlHaus { get; set; } = true;
+    /// <summary>Gets or sets the enable open phish value.</summary>
     public bool EnableOpenPhish { get; set; } = false; // requires feed access; override supported
+    /// <summary>Gets or sets the cache ttl value.</summary>
     public TimeSpan CacheTtl { get; set; } = TimeSpan.FromMinutes(30);
     private readonly Dictionary<string, (DateTime ts, bool listed)> _cacheUrlHaus = new();
     private readonly Dictionary<string, (DateTime ts, bool listed)> _cacheOpenPhish = new();
 
     // Scoring weights (configurable)
+    /// <summary>Gets or sets the weight google safe browsing value.</summary>
     public int WeightGoogleSafeBrowsing { get; set; } = 40;
+    /// <summary>Gets or sets the weight phish tank value.</summary>
     public int WeightPhishTank { get; set; } = 25;
+    /// <summary>Gets or sets the weight url haus value.</summary>
     public int WeightUrlHaus { get; set; } = 20;
+    /// <summary>Gets or sets the weight open phish value.</summary>
     public int WeightOpenPhish { get; set; } = 25;
+    /// <summary>Gets or sets the weight virus total listed value.</summary>
     public int WeightVirusTotalListed { get; set; } = 10;
+    /// <summary>Gets or sets the weight virus total reputation value.</summary>
     public int WeightVirusTotalReputation { get; set; } = 30;
 
     // Recency decay configuration
+    /// <summary>Gets or sets the fresh window value.</summary>
     public TimeSpan FreshWindow { get; set; } = TimeSpan.FromDays(7);
+    /// <summary>Gets or sets the recent window value.</summary>
     public TimeSpan RecentWindow { get; set; } = TimeSpan.FromDays(30);
+    /// <summary>Gets or sets the medium window value.</summary>
     public TimeSpan MediumWindow { get; set; } = TimeSpan.FromDays(90);
+    /// <summary>Gets or sets the stale window value.</summary>
     public TimeSpan StaleWindow { get; set; } = TimeSpan.FromDays(180);
+    /// <summary>Gets or sets the unknown recency factor value.</summary>
     public double UnknownRecencyFactor { get; set; } = 1.0;
 
     private static async Task<string> ReadAsStringAsync(HttpResponseMessage resp)
@@ -331,7 +346,9 @@ public class ThreatIntelAnalysis : IHasAssessments
         }
     }
 
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     private void ComputeComposite(string domain, bool gsb, bool phish, bool vt, bool urlHaus, bool openPhish, int? risk)

@@ -4,6 +4,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static MailClassificationInfo Convert(MailDomainClassificationResult result)
     {
         int warn = 0, err = 0; string status = "OK";
@@ -56,28 +57,50 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides mail classification info functionality.</summary>
 public sealed class MailClassificationInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; set; } = null!;
+    /// <summary>Gets or sets the classification value.</summary>
     public string Classification { get; set; } = null!;
+    /// <summary>Gets or sets the confidence value.</summary>
     public string Confidence { get; set; } = null!;
+    /// <summary>Gets or sets the receiving signals value.</summary>
     public IReadOnlyList<string> ReceivingSignals { get; set; } = null!;
+    /// <summary>Gets or sets the sending signals value.</summary>
     public IReadOnlyList<string> SendingSignals { get; set; } = null!;
+    /// <summary>Gets or sets the score value.</summary>
     public double Score { get; set; }
+    /// <summary>Gets or sets the score breakdown value.</summary>
     public IReadOnlyDictionary<string, double> ScoreBreakdown { get; set; } = null!;
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = null!;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = null!;
+    /// <summary>Gets or sets the raw value.</summary>
     public MailDomainClassificationResult Raw { get; set; } = null!;
+    /// <summary>Gets or sets the provider primary value.</summary>
     public string? ProviderPrimary { get; set; }
+    /// <summary>Gets or sets the provider gateways value.</summary>
     public IReadOnlyList<string> ProviderGateways { get; set; } = null!;
+    /// <summary>Gets or sets the provider outbound value.</summary>
     public IReadOnlyList<string> ProviderOutbound { get; set; } = null!;
 }
 

@@ -8,12 +8,19 @@ namespace DomainDetective {
     /// Certificate reuse summary over persisted certificate inventory snapshots.
     /// </summary>
     public sealed class CertificateInventoryReuseSummary {
+        /// <summary>Gets or sets the snapshot count value.</summary>
         public int SnapshotCount { get; set; }
+        /// <summary>Gets or sets the endpoint count value.</summary>
         public int EndpointCount { get; set; }
+        /// <summary>Gets or sets the certificate count value.</summary>
         public int CertificateCount { get; set; }
+        /// <summary>Gets or sets the multi endpoint certificate count value.</summary>
         public int MultiEndpointCertificateCount { get; set; }
+        /// <summary>Gets or sets the cross service certificate count value.</summary>
         public int CrossServiceCertificateCount { get; set; }
+        /// <summary>Gets or sets the wildcard certificate count value.</summary>
         public int WildcardCertificateCount { get; set; }
+        /// <summary>Gets or sets the certificates value.</summary>
         public List<CertificateInventoryCertificateReuse> Certificates { get; set; } = new();
     }
 
@@ -21,19 +28,33 @@ namespace DomainDetective {
     /// Reuse details for one certificate identity.
     /// </summary>
     public sealed class CertificateInventoryCertificateReuse {
+        /// <summary>Gets or sets the certificate id value.</summary>
         public string CertificateId { get; set; } = string.Empty;
+        /// <summary>Gets or sets the thumbprint value.</summary>
         public string? Thumbprint { get; set; }
+        /// <summary>Gets or sets the subject value.</summary>
         public string Subject { get; set; } = string.Empty;
+        /// <summary>Gets or sets the issuer value.</summary>
         public string Issuer { get; set; } = string.Empty;
+        /// <summary>Gets or sets the root issuer value.</summary>
         public string RootIssuer { get; set; } = string.Empty;
+        /// <summary>Gets or sets the not after utc value.</summary>
         public DateTimeOffset? NotAfterUtc { get; set; }
+        /// <summary>Gets or sets the is known certificate authority value.</summary>
         public bool IsKnownCertificateAuthority { get; set; }
+        /// <summary>Gets or sets the has wildcard san value.</summary>
         public bool HasWildcardSan { get; set; }
+        /// <summary>Gets or sets the allows server authentication value.</summary>
         public bool AllowsServerAuthentication { get; set; }
+        /// <summary>Gets or sets the allows client authentication value.</summary>
         public bool AllowsClientAuthentication { get; set; }
+        /// <summary>Gets or sets the endpoint count value.</summary>
         public int EndpointCount { get; set; }
+        /// <summary>Gets or sets the distinct service count value.</summary>
         public int DistinctServiceCount { get; set; }
+        /// <summary>Gets or sets the distinct port count value.</summary>
         public int DistinctPortCount { get; set; }
+        /// <summary>Gets or sets the endpoints value.</summary>
         public List<CertificateInventoryEndpointReference> Endpoints { get; set; } = new();
     }
 
@@ -41,9 +62,13 @@ namespace DomainDetective {
     /// Endpoint reference for certificate reuse reports.
     /// </summary>
     public sealed class CertificateInventoryEndpointReference {
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = string.Empty;
+        /// <summary>Gets or sets the port value.</summary>
         public int Port { get; set; }
+        /// <summary>Gets or sets the service value.</summary>
         public string Service { get; set; } = string.Empty;
+        /// <summary>Gets or sets the last observed utc value.</summary>
         public DateTimeOffset LastObservedUtc { get; set; }
     }
 
@@ -56,6 +81,7 @@ namespace DomainDetective {
             public CertificateInventoryEntry Entry { get; init; } = null!;
         }
 
+        /// <summary>Builds reuse.</summary>
         public static CertificateInventoryReuseSummary BuildReuse(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             bool includeSingleEndpointCertificates = false,

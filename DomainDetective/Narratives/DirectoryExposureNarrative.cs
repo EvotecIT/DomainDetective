@@ -5,10 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides directory exposure narrative functionality.</summary>
 public static class DirectoryExposureNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(DirectoryExposureAnalysis analysis)
     {
         var subjCandidate = analysis.Subject;

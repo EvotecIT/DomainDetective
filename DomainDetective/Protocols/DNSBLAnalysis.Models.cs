@@ -90,8 +90,10 @@ namespace DomainDetective {
         /// <summary>Gets or sets the DNS port to use for queries.</summary>
         public int Port { get; set; } = 53;
 
+        /// <summary>Initializes a new instance of the DnsblEntry class.</summary>
         public DnsblEntry() { }
 
+        /// <summary>Initializes a new instance of the DnsblEntry class.</summary>
         public DnsblEntry(string domain, bool enabled = true, string? comment = null, int port = 53) {
             Domain = domain;
             Enabled = enabled;

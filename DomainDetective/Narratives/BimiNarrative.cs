@@ -5,10 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides bimi narrative functionality.</summary>
 public static class BimiNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(BimiAnalysis bimi)
     {
         var subj = bimi.Subject;

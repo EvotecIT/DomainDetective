@@ -20,6 +20,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public partial class SpfAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         internal DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
@@ -32,51 +33,91 @@ namespace DomainDetective {
 
         /// <summary>Combined SPF record text.</summary>
         public string SpfRecord { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the spf records value.</summary>
         public List<string> SpfRecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the spf record exists value.</summary>
         public bool SpfRecordExists { get; private set; } // should be true
+        /// <summary>Gets or sets the multiple spf records value.</summary>
         public bool MultipleSpfRecords { get; private set; } // should be false
+        /// <summary>Gets or sets the starts correctly value.</summary>
         public bool StartsCorrectly { get; private set; } // should be true
+        /// <summary>Gets or sets the exceeds total character limit value.</summary>
         public bool ExceedsTotalCharacterLimit { get; private set; } // should be false
+        /// <summary>Gets or sets the exceeds character limit value.</summary>
         public bool ExceedsCharacterLimit { get; private set; } // should be false
+        /// <summary>Gets or sets the dns lookups value.</summary>
         public List<string> DnsLookups { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the dns lookups count value.</summary>
         public int DnsLookupsCount { get; private set; }
+        /// <summary>Gets or sets the exceeds dns lookups value.</summary>
         public bool ExceedsDnsLookups { get; private set; } // should be false
+        /// <summary>Gets or sets the multiple all mechanisms value.</summary>
         public bool MultipleAllMechanisms { get; private set; } // should be false
+        /// <summary>Gets or sets the contains characters after all value.</summary>
         public bool ContainsCharactersAfterAll { get; private set; }
+        /// <summary>Gets or sets the has ptr type value.</summary>
         public bool HasPtrType { get; private set; }
+        /// <summary>Gets or sets the has null lookups value.</summary>
         public bool HasNullLookups { get; private set; }
+        /// <summary>Gets or sets the has redirect value.</summary>
         public bool HasRedirect { get; private set; }
+        /// <summary>Gets or sets the has exp value.</summary>
         public bool HasExp { get; private set; }
+        /// <summary>Gets or sets the invalid ip syntax value.</summary>
         public bool InvalidIpSyntax { get; private set; }
         /// <summary>True when the SPF policy appears to deny all sending (e.g., <c>v=spf1 -all</c> with no allow mechanisms).</summary>
         public bool DenyAll { get; private set; }
+        /// <summary>Gets or sets the a records value.</summary>
         public List<string> ARecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the ipv4 records value.</summary>
         public List<string> Ipv4Records { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the ipv6 records value.</summary>
         public List<string> Ipv6Records { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the mx records value.</summary>
         public List<string> MxRecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the ptr records value.</summary>
         public List<string> PtrRecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the include records value.</summary>
         public List<string> IncludeRecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the exists records value.</summary>
         public List<string> ExistsRecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the exp value value.</summary>
         public string? ExpValue { get; private set; }
+        /// <summary>Gets or sets the redirect value value.</summary>
         public string? RedirectValue { get; private set; }
+        /// <summary>Gets or sets the all mechanism value.</summary>
         public string? AllMechanism { get; private set; }
 
+        /// <summary>Gets or sets the resolved a records value.</summary>
         public List<string> ResolvedARecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the resolved ipv4 records value.</summary>
         public List<string> ResolvedIpv4Records { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the resolved ipv6 records value.</summary>
         public List<string> ResolvedIpv6Records { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the resolved mx records value.</summary>
         public List<string> ResolvedMxRecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the resolved ptr records value.</summary>
         public List<string> ResolvedPtrRecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the resolved include records value.</summary>
         public List<string> ResolvedIncludeRecords { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the resolved exists records value.</summary>
         public List<string> ResolvedExistsRecords { get; private set; } = new List<string>();
 
+        /// <summary>Gets or sets the unknown mechanisms value.</summary>
         public List<string> UnknownMechanisms { get; private set; } = new List<string>();
 
+        /// <summary>Gets or sets the flattened ip analysis value.</summary>
         public FlattenedSpfResult FlattenedIpAnalysis { get; private set; } = new FlattenedSpfResult();
 
+        /// <summary>Gets the test spf records value.</summary>
         public Dictionary<string, string> TestSpfRecords { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the cycle detected value.</summary>
         public bool CycleDetected { get; private set; }
+        /// <summary>Gets or sets the cycle path value.</summary>
         public string? CyclePath { get; private set; }
+        /// <summary>Gets or sets the perm error value.</summary>
         public bool PermError { get; private set; }
+        /// <summary>Gets or sets the redirect visited domains value.</summary>
         public List<string> RedirectVisitedDomains { get; private set; } = new List<string>();
         private HashSet<string> _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -84,18 +125,27 @@ namespace DomainDetective {
         public string Advisory { get; private set; } = string.Empty;
 
 
+        /// <summary>Gets or sets the spf part analyses value.</summary>
         public List<SpfPartAnalysis> SpfPartAnalyses { get; private set; } = new List<SpfPartAnalysis>();
+        /// <summary>Gets or sets the spf test results value.</summary>
         public List<SpfTestResult> SpfTestResults { get; private set; } = new List<SpfTestResult>();
+        /// <summary>Represents the query dns override value.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
         private const int MaxDnsLookups = 10;
+        /// <summary>Gets or sets the exp dns lookups count value.</summary>
         public int ExpDnsLookupsCount { get; private set; }
+        /// <summary>Gets or sets the exp exceeds dns lookups value.</summary>
         public bool ExpExceedsDnsLookups { get; private set; }
         private readonly List<string> _warnings = new();
+        /// <summary>Represents the warnings value.</summary>
         public IReadOnlyList<string> Warnings => _warnings;
         // Debug visibility of tokenizer output
+        /// <summary>Gets or sets the debug tokens value.</summary>
         public IReadOnlyList<string> DebugTokens { get; private set; } = Array.Empty<string>();
+        /// <summary>Gets or sets the debug all after parts value.</summary>
         public string DebugAllAfterParts { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the debug all after fallback value.</summary>
         public string DebugAllAfterFallback { get; private set; } = string.Empty;
 
         /// <summary>Structured assessments captured during SPF analysis.</summary>
@@ -120,6 +170,7 @@ namespace DomainDetective {
 
         private static bool DebugSpf => Environment.GetEnvironmentVariable("DD_DEBUG_SPF") == "1";
 
+        /// <summary>Executes the reset operation.</summary>
         public void Reset() {
             SpfRecord = string.Empty;
             SpfRecords = new List<string>();
@@ -174,6 +225,7 @@ namespace DomainDetective {
             EffectiveSpfSends = false;
         }
 
+        /// <summary>Analyzes spf records.</summary>
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: Subject);
             Reset();
@@ -335,11 +387,17 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SpfPartAnalysis {
+        /// <summary>Gets or sets the prefix value.</summary>
         public string Prefix { get; set; } = string.Empty;
+        /// <summary>Gets or sets the type value.</summary>
         public string Type { get; set; } = string.Empty;
+        /// <summary>Gets or sets the value value.</summary>
         public string Value { get; set; } = string.Empty;
+        /// <summary>Gets or sets the prefix desc value.</summary>
         public string PrefixDesc { get; set; } = string.Empty;
+        /// <summary>Gets or sets the description value.</summary>
         public string Description { get; set; } = string.Empty;
+        /// <summary>Gets or sets the provider value.</summary>
         public string? Provider { get; set; }
         /// <summary>Domain record where the token was found (top-level or included).</summary>
         public string? SourceDomain { get; set; }
@@ -384,8 +442,11 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SpfTestResult {
+        /// <summary>Gets or sets the test value.</summary>
         public string Test { get; set; } = string.Empty;
+        /// <summary>Gets or sets the result value.</summary>
         public string Result { get; set; } = string.Empty;
+        /// <summary>Gets or sets the assessment value.</summary>
         public string Assessment { get; set; } = string.Empty;
     }
 
@@ -394,10 +455,15 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class FlattenedSpfResult {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
+        /// <summary>Gets or sets the tokens value.</summary>
         public List<string> Tokens { get; set; } = new List<string>();
+        /// <summary>Gets or sets the token ip map value.</summary>
         public Dictionary<string, List<string>> TokenIpMap { get; set; } = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the unique ips value.</summary>
         public List<string> UniqueIps { get; set; } = new List<string>();
+        /// <summary>Gets or sets the duplicate ips value.</summary>
         public List<string> DuplicateIps { get; set; } = new List<string>();
     }
 }

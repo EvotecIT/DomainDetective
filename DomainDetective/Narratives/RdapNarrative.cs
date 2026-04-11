@@ -3,10 +3,13 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides rdap narrative functionality.</summary>
 public static class RdapNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(RdapAnalysis rdap)
     {
         var subj = string.IsNullOrWhiteSpace(rdap.DomainName) ? "(domain)" : rdap.DomainName;

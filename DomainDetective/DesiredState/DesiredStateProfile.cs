@@ -7,24 +7,32 @@ using DomainDetective.Definitions;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state override functionality.</summary>
 public sealed class DesiredStateOverride {
+    /// <summary>Gets or sets the match value.</summary>
     [JsonPropertyName("match")]
     public DesiredStateMatch Match { get; set; } = new DesiredStateMatch();
 
+    /// <summary>Gets or sets the profile value.</summary>
     [JsonPropertyName("profile")]
     public DesiredStateProfile Profile { get; set; } = new DesiredStateProfile();
 
+    /// <summary>Executes the matches operation.</summary>
     public bool Matches(string domain, MailDomainClassificationCategory? classification)
         => Match != null && Match.Matches(domain, classification);
 }
 
+/// <summary>Provides desired state match functionality.</summary>
 public sealed class DesiredStateMatch {
+    /// <summary>Gets or sets the domain patterns value.</summary>
     [JsonPropertyName("domainPatterns")]
     public string[]? DomainPatterns { get; set; }
 
+    /// <summary>Gets or sets the classifications value.</summary>
     [JsonPropertyName("classifications")]
     public MailDomainClassificationCategory[]? Classifications { get; set; }
 
+    /// <summary>Executes the matches operation.</summary>
     public bool Matches(string domain, MailDomainClassificationCategory? classification) {
         if (string.IsNullOrWhiteSpace(domain)) return false;
 
@@ -43,130 +51,173 @@ public sealed class DesiredStateMatch {
     }
 }
 
+/// <summary>Provides desired state profile functionality.</summary>
 public sealed class DesiredStateProfile {
+    /// <summary>Gets or sets the checks value.</summary>
     [JsonPropertyName("checks")]
     public HealthCheckType[]? Checks { get; set; }
 
+    /// <summary>Gets or sets the assessment policy value.</summary>
     [JsonPropertyName("assessmentPolicy")]
     public DesiredStateAssessmentPolicy? AssessmentPolicy { get; set; }
 
+    /// <summary>Gets or sets the dmarc value.</summary>
     [JsonPropertyName("dmarc")]
     public DesiredStateDmarcPolicy? Dmarc { get; set; }
 
+    /// <summary>Gets or sets the spf value.</summary>
     [JsonPropertyName("spf")]
     public DesiredStateSpfPolicy? Spf { get; set; }
 
+    /// <summary>Gets or sets the dkim value.</summary>
     [JsonPropertyName("dkim")]
     public DesiredStateDkimPolicy? Dkim { get; set; }
 
+    /// <summary>Gets or sets the mtasts value.</summary>
     [JsonPropertyName("mtasts")]
     public DesiredStateMtastsPolicy? Mtasts { get; set; }
 
+    /// <summary>Gets or sets the tls rpt value.</summary>
     [JsonPropertyName("tlsrpt")]
     public DesiredStateTlsRptPolicy? TlsRpt { get; set; }
 
+    /// <summary>Gets or sets the bimi value.</summary>
     [JsonPropertyName("bimi")]
     public DesiredStateBimiPolicy? Bimi { get; set; }
 
+    /// <summary>Gets or sets the mx value.</summary>
     [JsonPropertyName("mx")]
     public DesiredStateMxPolicy? Mx { get; set; }
 
+    /// <summary>Gets or sets the start tls value.</summary>
     [JsonPropertyName("startTls")]
     public DesiredStateStartTlsPolicy? StartTls { get; set; }
 
+    /// <summary>Gets or sets the smtp tls value.</summary>
     [JsonPropertyName("smtpTls")]
     public DesiredStateMailTlsPolicy? SmtpTls { get; set; }
 
+    /// <summary>Gets or sets the imap tls value.</summary>
     [JsonPropertyName("imapTls")]
     public DesiredStateMailTlsPolicy? ImapTls { get; set; }
 
+    /// <summary>Gets or sets the pop3 tls value.</summary>
     [JsonPropertyName("pop3Tls")]
     public DesiredStateMailTlsPolicy? Pop3Tls { get; set; }
 
+    /// <summary>Gets or sets the smtp banner value.</summary>
     [JsonPropertyName("smtpBanner")]
     public DesiredStateSmtpBannerPolicy? SmtpBanner { get; set; }
 
+    /// <summary>Gets or sets the smtp auth value.</summary>
     [JsonPropertyName("smtpAuth")]
     public DesiredStateSmtpAuthPolicy? SmtpAuth { get; set; }
 
+    /// <summary>Gets or sets the open relay value.</summary>
     [JsonPropertyName("openRelay")]
     public DesiredStateOpenRelayPolicy? OpenRelay { get; set; }
 
+    /// <summary>Gets or sets the open resolver value.</summary>
     [JsonPropertyName("openResolver")]
     public DesiredStateOpenResolverPolicy? OpenResolver { get; set; }
 
+    /// <summary>Gets or sets the mail latency value.</summary>
     [JsonPropertyName("mailLatency")]
     public DesiredStateMailLatencyPolicy? MailLatency { get; set; }
 
+    /// <summary>Gets or sets the autodiscover value.</summary>
     [JsonPropertyName("autodiscover")]
     public DesiredStateAutodiscoverPolicy? Autodiscover { get; set; }
 
+    /// <summary>Gets or sets the reverse dns value.</summary>
     [JsonPropertyName("reverseDns")]
     public DesiredStateReverseDnsPolicy? ReverseDns { get; set; }
 
+    /// <summary>Gets or sets the fcr dns value.</summary>
     [JsonPropertyName("fcrDns")]
     public DesiredStateFcrDnsPolicy? FcrDns { get; set; }
 
+    /// <summary>Gets or sets the ns value.</summary>
     [JsonPropertyName("ns")]
     public DesiredStateNsPolicy? Ns { get; set; }
 
+    /// <summary>Gets or sets the dangling cname value.</summary>
     [JsonPropertyName("danglingCname")]
     public DesiredStateDanglingCnamePolicy? DanglingCname { get; set; }
 
+    /// <summary>Gets or sets the caa value.</summary>
     [JsonPropertyName("caa")]
     public DesiredStateCaaPolicy? Caa { get; set; }
 
+    /// <summary>Gets or sets the dns sec value.</summary>
     [JsonPropertyName("dnssec")]
     public DesiredStateDnssecPolicy? DnsSec { get; set; }
 
+    /// <summary>Gets or sets the soa value.</summary>
     [JsonPropertyName("soa")]
     public DesiredStateSoaPolicy? Soa { get; set; }
 
+    /// <summary>Gets or sets the dane value.</summary>
     [JsonPropertyName("dane")]
     public DesiredStateDanePolicy? Dane { get; set; }
 
+    /// <summary>Gets or sets the dnsbl value.</summary>
     [JsonPropertyName("dnsbl")]
     public DesiredStateDnsblPolicy? Dnsbl { get; set; }
 
+    /// <summary>Gets or sets the dns health value.</summary>
     [JsonPropertyName("dnsHealth")]
     public DesiredStateDnsHealthPolicy? DnsHealth { get; set; }
 
+    /// <summary>Gets or sets the apex address value.</summary>
     [JsonPropertyName("apexAddress")]
     public DesiredStateApexAddressPolicy? ApexAddress { get; set; }
 
+    /// <summary>Gets or sets the rpki value.</summary>
     [JsonPropertyName("rpki")]
     public DesiredStateRpkiPolicy? Rpki { get; set; }
 
+    /// <summary>Gets or sets the edns support value.</summary>
     [JsonPropertyName("ednsSupport")]
     public DesiredStateEdnsSupportPolicy? EdnsSupport { get; set; }
 
+    /// <summary>Gets or sets the dns over tls value.</summary>
     [JsonPropertyName("dnsOverTls")]
     public DesiredStateDnsOverTlsPolicy? DnsOverTls { get; set; }
 
+    /// <summary>Gets or sets the flattening service value.</summary>
     [JsonPropertyName("flatteningService")]
     public DesiredStateFlatteningServicePolicy? FlatteningService { get; set; }
 
+    /// <summary>Gets or sets the delegation value.</summary>
     [JsonPropertyName("delegation")]
     public DesiredStateDelegationPolicy? Delegation { get; set; }
 
+    /// <summary>Gets or sets the zone transfer value.</summary>
     [JsonPropertyName("zoneTransfer")]
     public DesiredStateZoneTransferPolicy? ZoneTransfer { get; set; }
 
+    /// <summary>Gets or sets the wildcard dns value.</summary>
     [JsonPropertyName("wildcardDns")]
     public DesiredStateWildcardDnsPolicy? WildcardDns { get; set; }
 
+    /// <summary>Gets or sets the ttl value.</summary>
     [JsonPropertyName("ttl")]
     public DesiredStateTtlPolicy? Ttl { get; set; }
 
+    /// <summary>Gets or sets the security txt value.</summary>
     [JsonPropertyName("securityTxt")]
     public DesiredStateSecurityTxtPolicy? SecurityTxt { get; set; }
 
+    /// <summary>Gets or sets the robots value.</summary>
     [JsonPropertyName("robots")]
     public DesiredStateRobotsPolicy? Robots { get; set; }
 
+    /// <summary>Gets or sets the certificate inventory value.</summary>
     [JsonPropertyName("certificateInventory")]
     public DesiredStateCertificateInventoryPolicy? CertificateInventory { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateProfile Clone() {
         return new DesiredStateProfile {
             Checks = Checks?.ToArray(),
@@ -213,6 +264,7 @@ public sealed class DesiredStateProfile {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateProfile? overlay) {
         if (overlay == null) return;
 
@@ -421,6 +473,7 @@ public sealed class DesiredStateProfile {
         }
     }
 
+    /// <summary>Executes the normalize operation.</summary>
     public void Normalize() {
         Dmarc?.NormalizeDefaults();
         Spf?.NormalizeDefaults();

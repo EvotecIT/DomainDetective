@@ -12,35 +12,61 @@ public partial class WebStaticScanAnalysis
     {
         /// <summary>Stable grouping id used to assign requests to waterfall lanes.</summary>
         public int GroupId { get; set; }
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = null!;
+        /// <summary>Gets or sets the registrable domain value.</summary>
         public string? RegistrableDomain { get; set; }
+        /// <summary>Gets the ip addresses value.</summary>
         public List<string> IpAddresses { get; } = new();
+        /// <summary>Gets or sets the cidr value.</summary>
         public string? Cidr { get; set; }
+        /// <summary>Gets or sets the asn value.</summary>
         public int? Asn { get; set; }
+        /// <summary>Gets or sets the as name value.</summary>
         public string? AsName { get; set; }
+        /// <summary>Gets or sets the country value.</summary>
         public string? Country { get; set; }
+        /// <summary>Gets or sets the tls value.</summary>
         public TlsProbe.Result? Tls { get; set; }
         /// <summary>Negotiated TLS protocol string for the host (from probe).</summary>
         public string? TlsProtocolSummary { get; set; }
         /// <summary>Negotiated TLS cipher suite for the host (from probe).</summary>
         public string? TlsCipherSuiteSummary { get; set; }
+        /// <summary>Gets or sets the request count value.</summary>
         public int RequestCount { get; set; }
+        /// <summary>Gets or sets the bytes value.</summary>
         public long Bytes { get; set; }
+        /// <summary>Gets or sets the first party value.</summary>
         public bool FirstParty { get; set; }
+        /// <summary>Gets the bytes by type value.</summary>
         public Dictionary<string, long> BytesByType { get; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the has i pv6 value.</summary>
         public bool HasIPv6 { get; set; }
+        /// <summary>Gets or sets the a ttl min value.</summary>
         public int? ATtlMin { get; set; }
+        /// <summary>Gets or sets the a ttl max value.</summary>
         public int? ATtlMax { get; set; }
+        /// <summary>Gets or sets the aaaa ttl min value.</summary>
         public int? AAAATtlMin { get; set; }
+        /// <summary>Gets or sets the aaaa ttl max value.</summary>
         public int? AAAATtlMax { get; set; }
+        /// <summary>Gets or sets the edge provider value.</summary>
         public string? EdgeProvider { get; set; }
+        /// <summary>Gets or sets the edge pop value.</summary>
         public string? EdgePop { get; set; }
+        /// <summary>Gets or sets the edge cache status value.</summary>
         public string? EdgeCacheStatus { get; set; }
+        /// <summary>Gets or sets the edge pop city value.</summary>
         public string? EdgePopCity { get; set; }
+        /// <summary>Gets or sets the edge pop country value.</summary>
         public string? EdgePopCountry { get; set; }
+        /// <summary>Gets or sets the edge pop region value.</summary>
         public string? EdgePopRegion { get; set; }
+        /// <summary>Gets or sets the server header value.</summary>
         public string? ServerHeader { get; set; }
+        /// <summary>Gets or sets the host hsts present value.</summary>
         public bool HostHstsPresent { get; set; }
+        /// <summary>Gets or sets the cors any origin value.</summary>
         public bool CorsAnyOrigin { get; set; }
         /// <summary>Count of responses considered cacheable (no no-store).</summary>
         public int CacheableResponses { get; set; }

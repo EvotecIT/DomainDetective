@@ -4,15 +4,21 @@ using System.Linq;
 
 namespace DomainDetective.Providers.Email;
 
+/// <summary>Provides mail provider kind detector functionality.</summary>
 public static class MailProviderKindDetector
 {
+    /// <summary>Provides match functionality.</summary>
     public sealed class Match
     {
+        /// <summary>Gets or sets the provider value.</summary>
         public MailProviderKind Provider { get; init; }
+        /// <summary>Gets or sets the score value.</summary>
         public int Score { get; init; }
+        /// <summary>Gets or sets the evidence value.</summary>
         public IReadOnlyList<string> Evidence { get; init; } = Array.Empty<string>();
     }
 
+    /// <summary>Executes the detect from mx hosts operation.</summary>
     public static Match DetectFromMxHosts(IEnumerable<string>? mxHosts)
     {
         var hosts = (mxHosts ?? Array.Empty<string>())

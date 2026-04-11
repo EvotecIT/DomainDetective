@@ -7,6 +7,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static class TlsRptHtmlSectionWriter
 {
+    /// <summary>Writes the HTML report section.</summary>
     public static void Write(IHtmlComposer html, DomainDetective.Views.TlsRptInfo tlsrpt, string domain, Reports.ReportScope scope)
     {
         if (html == null) throw new ArgumentNullException(nameof(html));

@@ -30,6 +30,7 @@ namespace DomainDetective {
     /// system trust store.
     /// </remarks>
     public partial class CertificateAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Gets or sets the URL that was checked.</summary>
         public string Url { get; set; } = string.Empty;
@@ -103,6 +104,7 @@ namespace DomainDetective {
         /// <summary>Indicates if the certificate contains the Any EKU OID value.</summary>
         public bool HasAnyExtendedKeyUsageOid { get; private set; }
 
+        /// <summary>Represents the has any extended key usage value.</summary>
         [Obsolete("Use HasAnyExtendedKeyUsageOid.")]
         [EditorBrowsable(EditorBrowsableState.Never)]
         public bool HasAnyExtendedKeyUsage {

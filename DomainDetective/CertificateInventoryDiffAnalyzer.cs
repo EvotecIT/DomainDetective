@@ -8,17 +8,29 @@ namespace DomainDetective {
     /// Point-in-time diff summary between two certificate inventory snapshots.
     /// </summary>
     public sealed class CertificateInventoryDiffSummary {
+        /// <summary>Gets or sets the requested previous captured at utc value.</summary>
         public DateTimeOffset? RequestedPreviousCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the requested current captured at utc value.</summary>
         public DateTimeOffset? RequestedCurrentCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the previous captured at utc value.</summary>
         public DateTimeOffset? PreviousCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the current captured at utc value.</summary>
         public DateTimeOffset? CurrentCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the previous endpoint count value.</summary>
         public int PreviousEndpointCount { get; set; }
+        /// <summary>Gets or sets the current endpoint count value.</summary>
         public int CurrentEndpointCount { get; set; }
+        /// <summary>Gets or sets the added count value.</summary>
         public int AddedCount { get; set; }
+        /// <summary>Gets or sets the removed count value.</summary>
         public int RemovedCount { get; set; }
+        /// <summary>Gets or sets the changed count value.</summary>
         public int ChangedCount { get; set; }
+        /// <summary>Gets or sets the unchanged count value.</summary>
         public int UnchangedCount { get; set; }
+        /// <summary>Gets or sets the warnings value.</summary>
         public List<string> Warnings { get; set; } = new();
+        /// <summary>Gets or sets the endpoints value.</summary>
         public List<CertificateInventoryEndpointDiff> Endpoints { get; set; } = new();
     }
 
@@ -26,25 +38,45 @@ namespace DomainDetective {
     /// Endpoint-level diff details.
     /// </summary>
     public sealed class CertificateInventoryEndpointDiff {
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = string.Empty;
+        /// <summary>Gets or sets the port value.</summary>
         public int Port { get; set; }
+        /// <summary>Gets or sets the status value.</summary>
         public string Status { get; set; } = "Unchanged";
+        /// <summary>Gets or sets the previous service value.</summary>
         public string? PreviousService { get; set; }
+        /// <summary>Gets or sets the current service value.</summary>
         public string? CurrentService { get; set; }
+        /// <summary>Gets or sets the previous issuer value.</summary>
         public string? PreviousIssuer { get; set; }
+        /// <summary>Gets or sets the current issuer value.</summary>
         public string? CurrentIssuer { get; set; }
+        /// <summary>Gets or sets the previous root value.</summary>
         public string? PreviousRoot { get; set; }
+        /// <summary>Gets or sets the current root value.</summary>
         public string? CurrentRoot { get; set; }
+        /// <summary>Gets or sets the previous thumbprint value.</summary>
         public string? PreviousThumbprint { get; set; }
+        /// <summary>Gets or sets the current thumbprint value.</summary>
         public string? CurrentThumbprint { get; set; }
+        /// <summary>Gets or sets the previous not after utc value.</summary>
         public DateTimeOffset? PreviousNotAfterUtc { get; set; }
+        /// <summary>Gets or sets the current not after utc value.</summary>
         public DateTimeOffset? CurrentNotAfterUtc { get; set; }
+        /// <summary>Gets or sets the previous valid value.</summary>
         public bool? PreviousValid { get; set; }
+        /// <summary>Gets or sets the current valid value.</summary>
         public bool? CurrentValid { get; set; }
+        /// <summary>Gets or sets the previous chain complete value.</summary>
         public bool? PreviousChainComplete { get; set; }
+        /// <summary>Gets or sets the current chain complete value.</summary>
         public bool? CurrentChainComplete { get; set; }
+        /// <summary>Gets or sets the previous hostname match value.</summary>
         public bool? PreviousHostnameMatch { get; set; }
+        /// <summary>Gets or sets the current hostname match value.</summary>
         public bool? CurrentHostnameMatch { get; set; }
+        /// <summary>Gets or sets the change reasons value.</summary>
         public List<string> ChangeReasons { get; set; } = new();
     }
 
@@ -52,6 +84,7 @@ namespace DomainDetective {
     /// Builds endpoint-level diffs between selected certificate inventory snapshots.
     /// </summary>
     public static class CertificateInventoryDiffAnalyzer {
+        /// <summary>Builds diff.</summary>
         public static CertificateInventoryDiffSummary BuildDiff(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             DateTimeOffset? previousCapturedAtUtc = null,

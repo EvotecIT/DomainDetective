@@ -2,13 +2,17 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state security txt policy functionality.</summary>
 public sealed class DesiredStateSecurityTxtPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require record value.</summary>
     [JsonPropertyName("requireRecord")]
     public bool? RequireRecord { get; set; }
 
+    /// <summary>Gets or sets the require valid value.</summary>
     [JsonPropertyName("requireValid")]
     public bool? RequireValid { get; set; }
 
@@ -16,9 +20,11 @@ public sealed class DesiredStateSecurityTxtPolicy {
     [JsonPropertyName("disallowFallback")]
     public bool? DisallowFallback { get; set; }
 
+    /// <summary>Gets or sets the require pgp signed value.</summary>
     [JsonPropertyName("requirePgpSigned")]
     public bool? RequirePgpSigned { get; set; }
 
+    /// <summary>Gets or sets the require contact email value.</summary>
     [JsonPropertyName("requireContactEmail")]
     public bool? RequireContactEmail { get; set; }
 
@@ -26,6 +32,7 @@ public sealed class DesiredStateSecurityTxtPolicy {
     [JsonPropertyName("allowedContactEmailDomainSuffixes")]
     public string[]? AllowedContactEmailDomainSuffixes { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateSecurityTxtPolicy Clone() {
         return new DesiredStateSecurityTxtPolicy {
             Enabled = Enabled,
@@ -38,6 +45,7 @@ public sealed class DesiredStateSecurityTxtPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateSecurityTxtPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

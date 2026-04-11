@@ -4,15 +4,21 @@ using System.Linq;
 
 namespace DomainDetective.Providers.Dns;
 
+/// <summary>Provides dns provider detector functionality.</summary>
 public static class DnsProviderDetector
 {
+    /// <summary>Provides match functionality.</summary>
     public sealed class Match
     {
+        /// <summary>Gets or sets the provider value.</summary>
         public DnsProvider Provider { get; init; }
+        /// <summary>Gets or sets the score value.</summary>
         public int Score { get; init; }
+        /// <summary>Gets or sets the evidence value.</summary>
         public IReadOnlyList<string> Evidence { get; init; } = Array.Empty<string>();
     }
 
+    /// <summary>Executes the detect operation.</summary>
     public static Match Detect(IEnumerable<string>? nameServers, string? soaPrimaryNameServer = null)
     {
         var nsHosts = (nameServers ?? Array.Empty<string>())

@@ -3,10 +3,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides ip enrichment narrative functionality.</summary>
 public static class IpEnrichmentNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(IpEnrichmentAnalysis? analysis)
     {
         var subj = !string.IsNullOrWhiteSpace(analysis?.Subject) ? analysis!.Subject! : "(domain)";

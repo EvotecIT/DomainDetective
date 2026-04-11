@@ -6,6 +6,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static MxInfo Convert(MXAnalysis analysis)
     {
         // MXAnalysis doesn't emit assessments yet; summarize will return OK/0/0
@@ -250,7 +251,9 @@ public class MxInfo
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
     /// <summary>Short summary text used in executive reports.</summary>
     public string Summary { get; set; } = string.Empty;
@@ -287,14 +290,23 @@ public class MxInfo
 /// </summary>
 public sealed class ProviderHelpLinks
 {
+    /// <summary>Gets or sets the provider name value.</summary>
     public string ProviderName { get; set; } = string.Empty;
+    /// <summary>Gets or sets the dmarc value.</summary>
     public string? Dmarc { get; set; }
+    /// <summary>Gets or sets the spf value.</summary>
     public string? Spf { get; set; }
+    /// <summary>Gets or sets the dkim value.</summary>
     public string? Dkim { get; set; }
+    /// <summary>Gets or sets the mta sts value.</summary>
     public string? MtaSts { get; set; }
+    /// <summary>Gets or sets the tls rpt value.</summary>
     public string? TlsRpt { get; set; }
+    /// <summary>Gets or sets the deliverability value.</summary>
     public string? Deliverability { get; set; }
+    /// <summary>Gets or sets the topics value.</summary>
     public List<ProviderHelpTopic> Topics { get; set; } = new();
+    /// <summary>Represents the has any value.</summary>
     public bool HasAny => Topics?.Any(t => !string.IsNullOrWhiteSpace(t?.Url)) == true ||
                           !string.IsNullOrWhiteSpace(Dmarc) || !string.IsNullOrWhiteSpace(Spf) || !string.IsNullOrWhiteSpace(Dkim) || !string.IsNullOrWhiteSpace(MtaSts) || !string.IsNullOrWhiteSpace(TlsRpt) || !string.IsNullOrWhiteSpace(Deliverability);
 }
@@ -304,9 +316,14 @@ public sealed class ProviderHelpLinks
 /// </summary>
 public sealed class MxHostInfo
 {
+    /// <summary>Gets or sets the priority value.</summary>
     public int? Priority { get; set; }
+    /// <summary>Gets or sets the host value.</summary>
     public string Host { get; set; } = string.Empty;
+    /// <summary>Gets or sets the ttl value.</summary>
     public int? Ttl { get; set; }
+    /// <summary>Gets or sets the is null mx value.</summary>
     public bool IsNullMx { get; set; }
+    /// <summary>Gets or sets the is localhost value.</summary>
     public bool IsLocalhost { get; set; }
 }

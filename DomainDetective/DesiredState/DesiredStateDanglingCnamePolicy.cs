@@ -2,7 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state dangling cname policy functionality.</summary>
 public sealed class DesiredStateDanglingCnamePolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -14,6 +16,7 @@ public sealed class DesiredStateDanglingCnamePolicy {
     [JsonPropertyName("disallowUnclaimedService")]
     public bool? DisallowUnclaimedService { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateDanglingCnamePolicy Clone() {
         return new DesiredStateDanglingCnamePolicy {
             Enabled = Enabled,
@@ -22,6 +25,7 @@ public sealed class DesiredStateDanglingCnamePolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateDanglingCnamePolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

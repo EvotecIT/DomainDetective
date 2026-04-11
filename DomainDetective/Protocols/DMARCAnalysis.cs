@@ -27,6 +27,7 @@ namespace DomainDetective {
     /// https://datatracker.ietf.org/doc/html/draft-ietf-dmarcbis-base
     /// </remarks>
     public class DmarcAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>DNS TTL (seconds) of the DMARC TXT record as returned by DNS.</summary>
         public int? DnsRecordTtl { get; private set; }
@@ -50,29 +51,51 @@ namespace DomainDetective {
         private const string TagPublicSuffixPolicy = "psd";
         private const string TagReportFeedback = "rfb";
         private const string TagReportFormat = "rf"; // deprecated in DMARCbis draft (draft-ietf-dmarcbis-base)
+        /// <summary>Gets or sets the dns configuration value.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
+        /// <summary>Represents the query dns override value.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+        /// <summary>Gets or sets the external report authorization value.</summary>
         public Dictionary<string, bool> ExternalReportAuthorization { get; private set; } = new();
+        /// <summary>Gets or sets the dmarc record value.</summary>
         public string DmarcRecord { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the dmarc record exists value.</summary>
         public bool DmarcRecordExists { get; private set; } // should be true
+        /// <summary>Gets or sets the multiple records value.</summary>
         public bool MultipleRecords { get; private set; }
+        /// <summary>Gets or sets the starts correctly value.</summary>
         public bool StartsCorrectly { get; private set; } // should be true
+        /// <summary>Gets or sets the exceeds character limit value.</summary>
         public bool ExceedsCharacterLimit { get; private set; } // should be false
+        /// <summary>Gets or sets the has mandatory tags value.</summary>
         public bool HasMandatoryTags { get; private set; }
+        /// <summary>Gets or sets the is policy valid value.</summary>
         public bool IsPolicyValid { get; private set; }
 
+        /// <summary>Represents the policy value.</summary>
         public string Policy => TranslatePolicy(PolicyShort);
+        /// <summary>Represents the sub policy value.</summary>
         public string SubPolicy => TranslateSubPolicy();
+        /// <summary>Represents the reporting interval value.</summary>
         public string ReportingInterval => TranslateReportingInterval(ReportingIntervalShort);
+        /// <summary>Represents the percent value.</summary>
         public string Percent => TranslatePercentage();
+        /// <summary>Represents the spf alignment value.</summary>
         public string SpfAlignment => TranslateAlignment(SpfAShort);
+        /// <summary>Represents the dkim alignment value.</summary>
         public string DkimAlignment => TranslateAlignment(DkimAShort);
+        /// <summary>Represents the failure reporting options value.</summary>
         public string FailureReportingOptions => TranslateFailureReportingOptions(FoShort);
+        /// <summary>Represents the nonexistent policy value.</summary>
         public string NonexistentPolicy => TranslatePolicy(NonexistentPolicyShort);
+        /// <summary>Represents the public suffix policy value.</summary>
         public string PublicSuffixPolicy => TranslatePolicy(PublicSuffixPolicyShort);
+        /// <summary>Represents the report feedback value.</summary>
         public string ReportFeedback => RfbShort;
 
+        /// <summary>Gets or sets the valid dkim alignment value.</summary>
         public bool ValidDkimAlignment { get; private set; }
+        /// <summary>Gets or sets the valid spf alignment value.</summary>
         public bool ValidSpfAlignment { get; private set; }
 
         /// <summary>True when <c>p=none</c> or <c>sp=none</c> is detected.</summary>
@@ -89,38 +112,62 @@ namespace DomainDetective {
         /// <summary>Indicates whether the DKIM domain aligns with the policy.</summary>
         public bool DkimAligned { get; private set; }
 
+        /// <summary>Gets or sets the invalid report uri value.</summary>
         public bool InvalidReportUri { get; private set; }
 
+        /// <summary>Gets or sets the rua value.</summary>
         public string Rua { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the mailto rua value.</summary>
         public List<string> MailtoRua { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the http rua value.</summary>
         public List<string> HttpRua { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the ruf value.</summary>
         public string Ruf { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the mailto ruf value.</summary>
         public List<string> MailtoRuf { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the http ruf value.</summary>
         public List<string> HttpRuf { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the ruf size limits value.</summary>
         public List<long?> RufSizeLimits { get; private set; } = new List<long?>();
+        /// <summary>Gets or sets the unknown tags value.</summary>
         public List<string> UnknownTags { get; private set; } = new List<string>();
+        /// <summary>Gets or sets the deprecated tags value.</summary>
         public List<string> DeprecatedTags { get; private set; } = new List<string>();
 
         // short versions of the tags
+        /// <summary>Gets or sets the sub policy short value.</summary>
         public string SubPolicyShort { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the policy short value.</summary>
         public string PolicyShort { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the fo short value.</summary>
         public string FoShort { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the dkim a short value.</summary>
         public string DkimAShort { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the spf a short value.</summary>
         public string SpfAShort { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the nonexistent policy short value.</summary>
         public string NonexistentPolicyShort { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the public suffix policy short value.</summary>
         public string PublicSuffixPolicyShort { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the rfb short value.</summary>
         public string RfbShort { get; private set; } = string.Empty;
+        /// <summary>Gets or sets the pct value.</summary>
         public int? Pct { get; private set; }
+        /// <summary>Gets or sets the original pct value.</summary>
         public int? OriginalPct { get; private set; }
+        /// <summary>Gets or sets the is pct valid value.</summary>
         public bool IsPctValid { get; private set; }
+        /// <summary>Gets or sets the reporting interval short value.</summary>
         public string ReportingIntervalShort { get; private set; } = string.Empty;
 
         private const int DefaultReportingInterval = 86400;
 
         /// <summary>Structured assessments observed during DMARC analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
+        /// <summary>Analyzes dmarc records.</summary>
         public async Task AnalyzeDmarcRecords(
             IEnumerable<DnsAnswer> dnsResults,
             InternalLogger logger,

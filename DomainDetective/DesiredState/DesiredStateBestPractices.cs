@@ -1,6 +1,8 @@
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state best practices functionality.</summary>
 public static class DesiredStateBestPractices {
+    /// <summary>Represents the recommended checks value.</summary>
     public static readonly HealthCheckType[] RecommendedChecks = new[] {
         HealthCheckType.DMARC,
         HealthCheckType.SPF,
@@ -34,6 +36,7 @@ public static class DesiredStateBestPractices {
         HealthCheckType.OPENRESOLVER
     };
 
+    /// <summary>Represents the active mail checks value.</summary>
     public static readonly HealthCheckType[] ActiveMailChecks = new[] {
         HealthCheckType.STARTTLS,
         HealthCheckType.SMTPTLS,

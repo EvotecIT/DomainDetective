@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides reverse dns narrative functionality.</summary>
 public static class ReverseDnsNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(ReverseDnsAnalysis rdns)
     {
         var subj = string.IsNullOrWhiteSpace(rdns.Subject) ? "(domain)" : rdns.Subject;

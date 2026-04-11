@@ -92,6 +92,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the write progress operation.</summary>
         public void WriteProgress(string activity, string currentOperation, double percentCompleted, int? currentSteps = null, int? totalSteps = null) {
             lock (_lock) {
                 var roundedPercent = (int)Math.Round(percentCompleted);
@@ -121,6 +122,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the write error operation.</summary>
         public void WriteError(string message) {
             lock (_lock) {
                 if (!_loggedMessages.Add(message)) {
@@ -133,6 +135,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the write error operation.</summary>
         public void WriteError(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
@@ -162,6 +165,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the write warning operation.</summary>
         public void WriteWarning(string message) {
             lock (_lock) {
                 if (!_loggedMessages.Add(message)) {
@@ -174,6 +178,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the write warning operation.</summary>
         public void WriteWarning(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
@@ -203,6 +208,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the write verbose operation.</summary>
         public void WriteVerbose(string message) {
             lock (_lock) {
                 if (!_loggedMessages.Add(message)) {
@@ -215,6 +221,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the write verbose operation.</summary>
         public void WriteVerbose(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
@@ -228,6 +235,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the write debug operation.</summary>
         public void WriteDebug(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
@@ -241,6 +249,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the write information operation.</summary>
         public void WriteInformation(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
@@ -313,19 +322,23 @@ namespace DomainDetective {
         /// </summary>
         public string Message { get; set; } = string.Empty;
 
+        /// <summary>Gets or sets the args value.</summary>
         public object[] Args { get; set; } = Array.Empty<object>();
 
+        /// <summary>Initializes a new instance of the LogEventArgs class.</summary>
         public LogEventArgs(string message, object[] args) {
             Message = message;
             Args = args;
             FullMessage = string.Format(message, args);
         }
 
+        /// <summary>Initializes a new instance of the LogEventArgs class.</summary>
         public LogEventArgs(string message) {
             Message = message;
             FullMessage = message;
         }
 
+        /// <summary>Initializes a new instance of the LogEventArgs class.</summary>
         public LogEventArgs(string activity, string currentOperation, int? currentSteps, int? totalSteps, int? percentage) {
             ProgressActivity = activity;
             ProgressCurrentOperation = currentOperation;

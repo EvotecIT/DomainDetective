@@ -4,6 +4,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static NsInfo Convert(NSAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -84,7 +85,9 @@ public class NsInfo
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
     /// <summary>Short summary text for executive reports.</summary>
     public string Summary { get; set; } = string.Empty;

@@ -3,10 +3,13 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state spf policy functionality.</summary>
 public sealed class DesiredStateSpfPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require record value.</summary>
     [JsonPropertyName("requireRecord")]
     public bool? RequireRecord { get; set; }
 
@@ -30,9 +33,11 @@ public sealed class DesiredStateSpfPolicy {
     [JsonPropertyName("requireAllMechanism")]
     public bool? RequireAllMechanism { get; set; }
 
+    /// <summary>Gets or sets the max dns lookups value.</summary>
     [JsonPropertyName("maxDnsLookups")]
     public int? MaxDnsLookups { get; set; }
 
+    /// <summary>Gets or sets the require deny all value.</summary>
     [JsonPropertyName("requireDenyAll")]
     public bool? RequireDenyAll { get; set; }
 
@@ -76,6 +81,7 @@ public sealed class DesiredStateSpfPolicy {
     [JsonPropertyName("allowedRedirectDomainSuffixes")]
     public string[]? AllowedRedirectDomainSuffixes { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateSpfPolicy Clone() {
         return new DesiredStateSpfPolicy {
             Enabled = Enabled,
@@ -100,6 +106,7 @@ public sealed class DesiredStateSpfPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateSpfPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

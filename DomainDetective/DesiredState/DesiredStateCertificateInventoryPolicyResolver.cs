@@ -10,6 +10,7 @@ namespace DomainDetective.DesiredState;
 /// Resolves desired-state certificate inventory posture settings to executable policy inputs.
 /// </summary>
 public static class DesiredStateCertificateInventoryPolicyResolver {
+    /// <summary>Executes the resolve operation.</summary>
     public static ResolvedDesiredStateCertificateInventoryPolicy Resolve(
         string domain,
         DesiredStateConfiguration configuration,
@@ -59,6 +60,7 @@ public static class DesiredStateCertificateInventoryPolicyResolver {
         };
     }
 
+    /// <summary>Executes the evaluate operation.</summary>
     public static CertificateInventoryPolicySummary Evaluate(
         IEnumerable<CertificateInventorySnapshot>? snapshots,
         ResolvedDesiredStateCertificateInventoryPolicy resolved,
@@ -124,21 +126,30 @@ public static class DesiredStateCertificateInventoryPolicyResolver {
 /// Fully resolved desired-state certificate inventory posture settings.
 /// </summary>
 public sealed class ResolvedDesiredStateCertificateInventoryPolicy {
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the mail classification value.</summary>
     public MailDomainClassificationCategory? MailClassification { get; set; }
 
+    /// <summary>Gets or sets the enabled value.</summary>
     public bool Enabled { get; set; }
 
+    /// <summary>Gets or sets the baseline profile value.</summary>
     public string BaselineProfile { get; set; } = "Balanced";
 
+    /// <summary>Gets or sets the include compliant value.</summary>
     public bool IncludeCompliant { get; set; }
 
+    /// <summary>Gets or sets the max endpoints value.</summary>
     public int MaxEndpoints { get; set; } = 300;
 
+    /// <summary>Gets or sets the policy overrides path value.</summary>
     public string? PolicyOverridesPath { get; set; }
 
+    /// <summary>Gets or sets the resolved policy overrides path value.</summary>
     public string? ResolvedPolicyOverridesPath { get; set; }
 
+    /// <summary>Gets or sets the policy overrides value.</summary>
     public CertificateInventoryPolicyOverrides? PolicyOverrides { get; set; }
 }

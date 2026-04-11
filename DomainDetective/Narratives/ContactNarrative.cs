@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides contact narrative functionality.</summary>
 public static class ContactNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(ContactInfoAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
         var s = analysis?.Subject;

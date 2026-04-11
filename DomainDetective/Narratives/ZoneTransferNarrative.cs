@@ -5,10 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides zone transfer narrative functionality.</summary>
 public static class ZoneTransferNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(ZoneTransferAnalysis analysis, IEnumerable<Assessment>? assessments = null, InternalLogger? logger = null)
     {
         var s = analysis?.Subject;

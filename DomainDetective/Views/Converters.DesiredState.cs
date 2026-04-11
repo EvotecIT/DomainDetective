@@ -6,6 +6,7 @@ using DomainDetective.Definitions;
 namespace DomainDetective.Views;
 
 public static partial class Converters {
+    /// <summary>Executes the convert operation.</summary>
     public static DesiredStateInfo Convert(DesiredStateAnalysis analysis, DesiredStateProfile? profile = null, DesiredStateMode mode = DesiredStateMode.HybridSplit) {
         if (analysis == null) {
             throw new System.ArgumentNullException(nameof(analysis));
@@ -57,46 +58,68 @@ public static partial class Converters {
     }
 }
 
+/// <summary>Provides desired state info functionality.</summary>
 public sealed class DesiredStateInfo {
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
 
+    /// <summary>Gets or sets the mail classification value.</summary>
     public MailDomainClassificationCategory MailClassification { get; set; }
 
+    /// <summary>Gets or sets the mode value.</summary>
     public DesiredStateMode Mode { get; set; } = DesiredStateMode.HybridSplit;
 
+    /// <summary>Gets or sets the conforms value.</summary>
     public bool Conforms { get; set; }
 
+    /// <summary>Gets or sets the total assessments value.</summary>
     public int TotalAssessments { get; set; }
 
+    /// <summary>Gets or sets the info count value.</summary>
     public int InfoCount { get; set; }
 
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
 
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
 
+    /// <summary>Gets or sets the best practice total assessments value.</summary>
     public int BestPracticeTotalAssessments { get; set; }
 
+    /// <summary>Gets or sets the best practice info count value.</summary>
     public int BestPracticeInfoCount { get; set; }
 
+    /// <summary>Gets or sets the best practice warning count value.</summary>
     public int BestPracticeWarningCount { get; set; }
 
+    /// <summary>Gets or sets the best practice error count value.</summary>
     public int BestPracticeErrorCount { get; set; }
 
+    /// <summary>Gets or sets the desired assessments value.</summary>
     public System.Collections.Generic.IReadOnlyList<Assessment> DesiredAssessments { get; set; } = System.Array.Empty<Assessment>();
 
+    /// <summary>Gets or sets the best practice assessments value.</summary>
     public System.Collections.Generic.IReadOnlyList<Assessment> BestPracticeAssessments { get; set; } = System.Array.Empty<Assessment>();
 
+    /// <summary>Gets or sets the recommendations value.</summary>
     public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
 
+    /// <summary>Gets or sets the positives value.</summary>
     public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
 
+    /// <summary>Gets or sets the best practice recommendations value.</summary>
     public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> BestPracticeRecommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
 
+    /// <summary>Gets or sets the best practice positives value.</summary>
     public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> BestPracticePositives { get; set; } = System.Array.Empty<RecommendationAdvice>();
 
+    /// <summary>Gets or sets the references value.</summary>
     public System.Collections.Generic.IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
 
+    /// <summary>Gets or sets the section key value.</summary>
     public string SectionKey { get; set; } = "Desired State";
 
+    /// <summary>Gets or sets the raw value.</summary>
     public DesiredStateAnalysis Raw { get; set; } = null!;
 }

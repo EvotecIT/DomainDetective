@@ -7,17 +7,23 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.TimeSeries.DmarcAggregate;
 
+/// <summary>Provides dmarc aggregate ingest result functionality.</summary>
 public sealed class DmarcAggregateIngestResult
 {
+    /// <summary>Gets the snapshots value.</summary>
     public List<DmarcAggregateSnapshot> Snapshots { get; } = new();
+    /// <summary>Gets the snapshot paths value.</summary>
     public List<string> SnapshotPaths { get; } = new();
+    /// <summary>Gets the errors value.</summary>
     public List<string> Errors { get; } = new();
 }
 
+/// <summary>Provides dmarc aggregate ingestion functionality.</summary>
 public static class DmarcAggregateIngestion
 {
     private static readonly string[] Extensions = { ".xml", ".gz", ".gzip", ".zip" };
 
+    /// <summary>Executes the ingest from path operation.</summary>
     public static DmarcAggregateIngestResult IngestFromPath(string path, DmarcAggregateTimeSeriesStore store, bool deduplicate = true)
     {
         if (store == null) throw new ArgumentNullException(nameof(store));
@@ -54,6 +60,7 @@ public static class DmarcAggregateIngestion
         return result;
     }
 
+    /// <summary>Executes the ingest from imap async operation.</summary>
     public static async Task<DmarcAggregateIngestResult> IngestFromImapAsync(ImapAttachmentIngestOptions options, DmarcAggregateTimeSeriesStore store, bool deduplicate = true, CancellationToken cancellationToken = default)
     {
         if (options == null) throw new ArgumentNullException(nameof(options));

@@ -3,13 +3,17 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state caa policy functionality.</summary>
 public sealed class DesiredStateCaaPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require record value.</summary>
     [JsonPropertyName("requireRecord")]
     public bool? RequireRecord { get; set; }
 
+    /// <summary>Gets or sets the require valid value.</summary>
     [JsonPropertyName("requireValid")]
     public bool? RequireValid { get; set; }
 
@@ -29,6 +33,7 @@ public sealed class DesiredStateCaaPolicy {
     [JsonPropertyName("allowedIodefDomainSuffixes")]
     public string[]? AllowedIodefDomainSuffixes { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateCaaPolicy Clone() {
         return new DesiredStateCaaPolicy {
             Enabled = Enabled,
@@ -41,6 +46,7 @@ public sealed class DesiredStateCaaPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateCaaPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

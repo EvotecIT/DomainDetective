@@ -12,19 +12,33 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SOAAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
+        /// <summary>Gets or sets the domain name value.</summary>
         public string? DomainName { get; private set; }
+        /// <summary>Gets or sets the primary name server value.</summary>
         public string? PrimaryNameServer { get; private set; }
+        /// <summary>Gets or sets the responsible mailbox value.</summary>
         public string? ResponsibleMailbox { get; private set; }
+        /// <summary>Gets or sets the serial number value.</summary>
         public long SerialNumber { get; private set; }
+        /// <summary>Gets or sets the serial format valid value.</summary>
         public bool SerialFormatValid { get; private set; }
+        /// <summary>Gets or sets the serial format suggestion value.</summary>
         public string? SerialFormatSuggestion { get; private set; }
+        /// <summary>Gets or sets the refresh value.</summary>
         public int Refresh { get; private set; }
+        /// <summary>Gets or sets the retry value.</summary>
         public int Retry { get; private set; }
+        /// <summary>Gets or sets the expire value.</summary>
         public int Expire { get; private set; }
+        /// <summary>Gets or sets the minimum value.</summary>
         public int Minimum { get; private set; }
+        /// <summary>Gets or sets the negative cache ttl value.</summary>
         public int NegativeCacheTtl { get; private set; }
+        /// <summary>Gets or sets the record exists value.</summary>
         public bool RecordExists { get; private set; }
+        /// <summary>Gets the assessments value.</summary>
         public List<Assessment> Assessments { get; } = new();
 
         /// <summary>

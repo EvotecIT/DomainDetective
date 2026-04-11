@@ -4,6 +4,7 @@ using System.Linq;
 
 namespace DomainDetective;
 
+/// <summary>Provides assessment split functionality.</summary>
 public static class AssessmentSplit
 {
     /// <summary>

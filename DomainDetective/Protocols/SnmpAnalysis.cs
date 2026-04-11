@@ -27,6 +27,7 @@ public class SnmpAnalysis : IHasAssessments
 
     /// <summary>Structured assessments captured during SNMP analysis.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>Tests a single server for SNMP responses.</summary>

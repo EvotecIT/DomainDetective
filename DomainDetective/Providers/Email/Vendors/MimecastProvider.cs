@@ -3,12 +3,17 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Providers.Email.Vendors;
 
+/// <summary>Provides mimecast provider functionality.</summary>
 public sealed class MimecastProvider : IMailProvider
 {
+    /// <summary>Represents the id value.</summary>
     public string Id => "mimecast";
+    /// <summary>Represents the display name value.</summary>
     public string DisplayName => "Mimecast";
+    /// <summary>Represents the capabilities value.</summary>
     public ProviderCapability Capabilities => ProviderCapability.Gateway | ProviderCapability.DkimSigning | ProviderCapability.SpfPublish;
 
+    /// <summary>Represents the mx host patterns value.</summary>
     public IEnumerable<string> MxHostPatterns => new[]
     {
         "*.mimecast.com",
@@ -17,17 +22,25 @@ public sealed class MimecastProvider : IMailProvider
         "us-smtp-inbound-*.mimecast.com"
     };
 
+    /// <summary>Represents the spf required tokens value.</summary>
     public IEnumerable<string> SpfRequiredTokens => Array.Empty<string>();
 
+    /// <summary>Represents the dkim selector hints value.</summary>
     public IEnumerable<string> DkimSelectorHints => Array.Empty<string>();
+    /// <summary>Represents the dkim cname suffixes value.</summary>
     public IEnumerable<string> DkimCnameSuffixes => new[] { "mimecast.com" };
 
+    /// <summary>Represents the single mx ok value.</summary>
     public bool SingleMxOk => false;
+    /// <summary>Represents the recommended min mx records value.</summary>
     public int RecommendedMinMxRecords => 2;
+    /// <summary>Represents the minimum dkim selectors to pass value.</summary>
     public int MinimumDkimSelectorsToPass => 0;
+    /// <summary>Represents the subdomain policy recommendation value.</summary>
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
     // Documentation (source of truth)
 
+    /// <summary>Represents the docs value.</summary>
     public ProviderDocumentation Docs => new ProviderDocumentation {
         Provider = DisplayName,
         Arc = new ProviderDocLink { Url = "https://mimecastsupport.zendesk.com/hc/en-us/articles/34000321250579-Email-Security-Cloud-Integrated-Trusted-ARC-Sealer-Mar-2024", Title = "Trusted ARC Sealer (Cloud Integrated)", Summary = "Configure Mimecast as a Trusted ARC Sealer in Microsoft 365.", Notes = "Ensures auth results survive processing; some integrations add ARC trust automatically.", IsPublic = true, IsThirdParty = false, LastVerified = new System.DateTime(2025, 9, 9) },

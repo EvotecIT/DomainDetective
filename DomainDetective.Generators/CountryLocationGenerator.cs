@@ -91,47 +91,65 @@ public sealed class CountryLocationGenerator : IIncrementalGenerator {
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("#nullable enable");
         sb.AppendLine("namespace DomainDetective;");
+        sb.AppendLine("/// <summary>Identifies a country known to the DomainDetective public DNS catalog.</summary>");
         sb.AppendLine("public enum CountryId { ");
         foreach (var id in model.CountryMap.Keys.OrderBy(static key => key, StringComparer.Ordinal)) {
+            sb.AppendLine($"    /// <summary>{EscapeXml(model.CountryMap[id])}.</summary>");
             sb.AppendLine($"    {id},");
         }
         sb.AppendLine("}");
+        sb.AppendLine("/// <summary>Identifies a location known to the DomainDetective public DNS catalog.</summary>");
         sb.AppendLine("public enum LocationId { ");
         foreach (var id in model.LocationMap.Keys.OrderBy(static key => key, StringComparer.Ordinal)) {
+            sb.AppendLine($"    /// <summary>{EscapeXml(model.LocationMap[id])}.</summary>");
             sb.AppendLine($"    {id},");
         }
         sb.AppendLine("}");
+        sb.AppendLine("/// <summary>Provides display-name conversion helpers for <see cref=\"CountryId\"/> values.</summary>");
         sb.AppendLine("public static partial class CountryIdExtensions {");
         sb.AppendLine("    private static readonly Dictionary<string, CountryId> _map = new(StringComparer.OrdinalIgnoreCase) {");
         foreach (var kvp in model.CountryMap) {
             sb.AppendLine($"        [\"{kvp.Value}\"] = CountryId.{kvp.Key},");
         }
         sb.AppendLine("    };\n");
+        sb.AppendLine("    /// <summary>Returns the public DNS catalog country name for the specified country identifier.</summary>");
         sb.AppendLine("    public static string ToName(this CountryId id) => id switch {");
         foreach (var kvp in model.CountryMap) {
             sb.AppendLine($"        CountryId.{kvp.Key} => \"{kvp.Value}\",");
         }
         sb.AppendLine("        _ => string.Empty");
         sb.AppendLine("    };\n");
+        sb.AppendLine("    /// <summary>Attempts to parse a public DNS catalog country name into a country identifier.</summary>");
         sb.AppendLine("    public static bool TryParse(string? name, out CountryId id) {");
         sb.AppendLine("        if (name != null && !string.IsNullOrWhiteSpace(name) && _map.TryGetValue(name.Trim(), out id)) { return true; }\n        id = default; return false; }");
         sb.AppendLine("}");
+        sb.AppendLine("/// <summary>Provides display-name conversion helpers for <see cref=\"LocationId\"/> values.</summary>");
         sb.AppendLine("public static partial class LocationIdExtensions {");
         sb.AppendLine("    private static readonly Dictionary<string, LocationId> _map = new(StringComparer.OrdinalIgnoreCase) {");
         foreach (var kvp in model.LocationMap) {
             sb.AppendLine($"        [\"{kvp.Value}\"] = LocationId.{kvp.Key},");
         }
         sb.AppendLine("    };\n");
+        sb.AppendLine("    /// <summary>Returns the public DNS catalog location name for the specified location identifier.</summary>");
         sb.AppendLine("    public static string ToName(this LocationId id) => id switch {");
         foreach (var kvp in model.LocationMap) {
             sb.AppendLine($"        LocationId.{kvp.Key} => \"{kvp.Value}\",");
         }
         sb.AppendLine("        _ => string.Empty");
         sb.AppendLine("    };\n");
+        sb.AppendLine("    /// <summary>Attempts to parse a public DNS catalog location name into a location identifier.</summary>");
         sb.AppendLine("    public static bool TryParse(string? name, out LocationId id) {");
         sb.AppendLine("        if (name != null && !string.IsNullOrWhiteSpace(name) && _map.TryGetValue(name.Trim(), out id)) { return true; }\n        id = default; return false; }");
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    private static string EscapeXml(string value) {
+        return value
+            .Replace("&", "&amp;")
+            .Replace("<", "&lt;")
+            .Replace(">", "&gt;")
+            .Replace("\"", "&quot;");
     }
 
     private static Dictionary<string, string> BuildMap(IEnumerable<string> names) {

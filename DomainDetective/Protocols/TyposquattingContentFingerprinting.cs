@@ -11,9 +11,13 @@ namespace DomainDetective;
 /// </summary>
 public sealed class TyposquattingPageContentFingerprint
 {
+    /// <summary>Gets or sets the sim hash value.</summary>
     public ulong SimHash { get; init; }
+    /// <summary>Gets or sets the token count value.</summary>
     public int TokenCount { get; init; }
+    /// <summary>Gets or sets the feature count value.</summary>
     public int FeatureCount { get; init; }
+    /// <summary>Represents the has value value.</summary>
     public bool HasValue => TokenCount > 0 && FeatureCount > 0;
 }
 
@@ -22,8 +26,11 @@ public sealed class TyposquattingPageContentFingerprint
 /// </summary>
 public sealed class TyposquattingPageContentSimilarity
 {
+    /// <summary>Gets or sets the similarity percent value.</summary>
     public int SimilarityPercent { get; init; }
+    /// <summary>Gets or sets the hamming distance value.</summary>
     public int HammingDistance { get; init; }
+    /// <summary>Represents the is meaningful value.</summary>
     public bool IsMeaningful => SimilarityPercent > 0;
 }
 
@@ -37,6 +44,7 @@ public static class TyposquattingContentFingerprinting
     private static readonly Regex TagRegex = new(@"<[^>]+>", RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex TokenRegex = new(@"[\p{L}\p{N}]{2,}", RegexOptions.Compiled);
 
+    /// <summary>Executes the build operation.</summary>
     public static TyposquattingPageContentFingerprint? Build(string? body)
     {
         if (string.IsNullOrWhiteSpace(body))
@@ -70,6 +78,7 @@ public static class TyposquattingContentFingerprinting
         };
     }
 
+    /// <summary>Executes the compare operation.</summary>
     public static TyposquattingPageContentSimilarity Compare(
         TyposquattingPageContentFingerprint? source,
         TyposquattingPageContentFingerprint? candidate)

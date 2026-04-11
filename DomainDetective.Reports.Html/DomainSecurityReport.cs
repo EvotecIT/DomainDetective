@@ -16,12 +16,14 @@ public class DomainSecurityReport {
     private readonly SecurityScore _score;
     private readonly string _domain;
 
+    /// <summary>Initializes a new instance of the DomainSecurityReport class.</summary>
     public DomainSecurityReport(DomainHealthCheck healthCheck, string domain) {
         _healthCheck = healthCheck;
         _domain = domain;
         _score = CalculateSecurityScore();
     }
 
+    /// <summary>Generates the HTML report.</summary>
     public void GenerateReport(string outputPath, bool openInBrowser = true) {
         using var document = new Document {
             Head = {

@@ -4,8 +4,10 @@ using System.Linq;
 
 namespace DomainDetective.TimeSeries.Registration;
 
+/// <summary>Provides registration drift detector functionality.</summary>
 public static class RegistrationDriftDetector
 {
+    /// <summary>Executes the compute operation.</summary>
     public static RegistrationDrift Compute(RegistrationSnapshot previous, RegistrationSnapshot current)
     {
         if (previous == null) throw new ArgumentNullException(nameof(previous));

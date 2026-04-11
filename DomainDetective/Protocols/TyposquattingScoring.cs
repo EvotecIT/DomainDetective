@@ -9,36 +9,67 @@ namespace DomainDetective;
 /// </summary>
 public sealed class TyposquattingScoringOptions
 {
+    /// <summary>Gets or sets the active score value.</summary>
     public int ActiveScore { get; set; } = 35;
+    /// <summary>Gets or sets the registered score value.</summary>
     public int RegisteredScore { get; set; } = 18;
+    /// <summary>Gets or sets the delegated score value.</summary>
     public int DelegatedScore { get; set; } = 5;
+    /// <summary>Gets or sets the distance one score value.</summary>
     public int DistanceOneScore { get; set; } = 12;
+    /// <summary>Gets or sets the distance two score value.</summary>
     public int DistanceTwoScore { get; set; } = 6;
+    /// <summary>Gets or sets the homoglyph score value.</summary>
     public int HomoglyphScore { get; set; } = 14;
+    /// <summary>Gets or sets the common mutation score value.</summary>
     public int CommonMutationScore { get; set; } = 8;
+    /// <summary>Gets or sets the brand like score value.</summary>
     public int BrandLikeScore { get; set; } = 10;
+    /// <summary>Gets or sets the http reachable score value.</summary>
     public int HttpReachableScore { get; set; } = 10;
+    /// <summary>Gets or sets the http healthy score value.</summary>
     public int HttpHealthyScore { get; set; } = 5;
+    /// <summary>Gets or sets the threat listed score value.</summary>
     public int ThreatListedScore { get; set; } = 25;
+    /// <summary>Gets or sets the threat severity boost value.</summary>
     public int ThreatSeverityBoost { get; set; } = 10;
+    /// <summary>Gets or sets the web technology score value.</summary>
     public int WebTechnologyScore { get; set; } = 4;
+    /// <summary>Gets or sets the enriched ip score value.</summary>
     public int EnrichedIpScore { get; set; } = 3;
+    /// <summary>Gets or sets the registrar known score value.</summary>
     public int RegistrarKnownScore { get; set; } = 2;
+    /// <summary>Gets or sets the responsive mail infrastructure score value.</summary>
     public int ResponsiveMailInfrastructureScore { get; set; } = 12;
+    /// <summary>Gets or sets the mail interception score value.</summary>
     public int MailInterceptionScore { get; set; } = 18;
+    /// <summary>Gets or sets the likely owned penalty value.</summary>
     public int LikelyOwnedPenalty { get; set; } = 35;
+    /// <summary>Gets or sets the likely external boost value.</summary>
     public int LikelyExternalBoost { get; set; } = 18;
+    /// <summary>Gets or sets the multi candidate cluster boost value.</summary>
     public int MultiCandidateClusterBoost { get; set; } = 8;
+    /// <summary>Gets or sets the strong content similarity boost value.</summary>
     public int StrongContentSimilarityBoost { get; set; } = 22;
+    /// <summary>Gets or sets the moderate content similarity boost value.</summary>
     public int ModerateContentSimilarityBoost { get; set; } = 10;
+    /// <summary>Gets or sets the strong screenshot visual similarity boost value.</summary>
     public int StrongScreenshotVisualSimilarityBoost { get; set; } = 22;
+    /// <summary>Gets or sets the strong social visual similarity boost value.</summary>
     public int StrongSocialVisualSimilarityBoost { get; set; } = 18;
+    /// <summary>Gets or sets the strong icon visual similarity boost value.</summary>
     public int StrongIconVisualSimilarityBoost { get; set; } = 12;
+    /// <summary>Gets or sets the moderate screenshot visual similarity boost value.</summary>
     public int ModerateScreenshotVisualSimilarityBoost { get; set; } = 10;
+    /// <summary>Gets or sets the moderate social visual similarity boost value.</summary>
     public int ModerateSocialVisualSimilarityBoost { get; set; } = 8;
+    /// <summary>Gets or sets the moderate icon visual similarity boost value.</summary>
     public int ModerateIconVisualSimilarityBoost { get; set; } = 5;
+    /// <summary>Gets or sets the medium threshold value.</summary>
     public int MediumThreshold { get; set; } = 30;
+    /// <summary>Gets or sets the high threshold value.</summary>
     public int HighThreshold { get; set; } = 55;
+    /// <summary>Gets or sets the critical threshold value.</summary>
     public int CriticalThreshold { get; set; } = 75;
 }
 
@@ -47,6 +78,7 @@ public sealed class TyposquattingScoringOptions
 /// </summary>
 public static class TyposquattingCandidateScorer
 {
+    /// <summary>Executes the score candidates operation.</summary>
     public static void ScoreCandidates(IReadOnlyList<TyposquattingCandidate>? candidates, TyposquattingScoringOptions? options = null)
     {
         if (candidates == null || candidates.Count == 0)
@@ -61,6 +93,7 @@ public static class TyposquattingCandidateScorer
         }
     }
 
+    /// <summary>Executes the score candidate operation.</summary>
     public static void ScoreCandidate(TyposquattingCandidate candidate, TyposquattingScoringOptions? options = null)
     {
         if (candidate == null)

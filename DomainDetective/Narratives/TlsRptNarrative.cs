@@ -4,10 +4,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides tls rpt narrative functionality.</summary>
 public static class TlsRptNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(TLSRPTAnalysis analysis, InternalLogger? logger = null)
     {
         var subj = string.IsNullOrWhiteSpace(analysis.Subject) ? "(domain)" : analysis.Subject;

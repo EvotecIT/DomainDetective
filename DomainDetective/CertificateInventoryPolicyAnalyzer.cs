@@ -7,24 +7,43 @@ namespace DomainDetective {
     /// Explicit violation codes returned by <see cref="CertificateInventoryPolicyAnalyzer"/>.
     /// </summary>
     public static class CertificateInventoryPolicyViolationCodes {
+        /// <summary>Represents the endpoint unreachable value.</summary>
         public const string EndpointUnreachable = "Policy.Endpoint.Unreachable";
+        /// <summary>Represents the certificate not yet valid value.</summary>
         public const string CertificateNotYetValid = "Policy.Certificate.NotYetValid";
+        /// <summary>Represents the certificate expired value.</summary>
         public const string CertificateExpired = "Policy.Certificate.Expired";
+        /// <summary>Represents the certificate expiring soon value.</summary>
         public const string CertificateExpiringSoon = "Policy.Certificate.ExpiringSoon";
+        /// <summary>Represents the certificate validation failed value.</summary>
         public const string CertificateValidationFailed = "Policy.Certificate.ValidationFailed";
+        /// <summary>Represents the chain incomplete value.</summary>
         public const string ChainIncomplete = "Policy.Certificate.ChainIncomplete";
+        /// <summary>Represents the hostname mismatch value.</summary>
         public const string HostnameMismatch = "Policy.Certificate.HostnameMismatch";
+        /// <summary>Represents the missing server auth eku value.</summary>
         public const string MissingServerAuthEku = "Policy.Certificate.MissingServerAuthEku";
+        /// <summary>Represents the client auth eku present value.</summary>
         public const string ClientAuthEkuPresent = "Policy.Certificate.ClientAuthEkuPresent";
+        /// <summary>Represents the secure email eku present value.</summary>
         public const string SecureEmailEkuPresent = "Policy.Certificate.SecureEmailEkuPresent";
+        /// <summary>Represents the self signed certificate value.</summary>
         public const string SelfSignedCertificate = "Policy.Certificate.SelfSigned";
+        /// <summary>Represents the weak key value.</summary>
         public const string WeakKey = "Policy.Certificate.WeakKey";
+        /// <summary>Represents the sha1 signature value.</summary>
         public const string Sha1Signature = "Policy.Certificate.Sha1Signature";
+        /// <summary>Represents the unknown authority value.</summary>
         public const string UnknownAuthority = "Policy.Certificate.UnknownAuthority";
+        /// <summary>Represents the unknown root authority value.</summary>
         public const string UnknownRootAuthority = "Policy.Certificate.UnknownRootAuthority";
+        /// <summary>Represents the ct not observed value.</summary>
         public const string CtNotObserved = "Policy.Certificate.CtNotObserved";
+        /// <summary>Represents the reuse endpoint fanout value.</summary>
         public const string ReuseEndpointFanout = "Policy.Certificate.Reuse.EndpointFanout";
+        /// <summary>Represents the reuse cross service value.</summary>
         public const string ReuseCrossService = "Policy.Certificate.Reuse.CrossService";
+        /// <summary>Represents the reuse cross port value.</summary>
         public const string ReuseCrossPort = "Policy.Certificate.Reuse.CrossPort";
     }
 
@@ -32,8 +51,11 @@ namespace DomainDetective {
     /// Policy posture summary over persisted certificate inventory snapshots.
     /// </summary>
     public sealed class CertificateInventoryPolicySummary {
+        /// <summary>Gets or sets the baseline profile value.</summary>
         public string BaselineProfile { get; set; } = "Balanced";
+        /// <summary>Gets or sets the snapshot count value.</summary>
         public int SnapshotCount { get; set; }
+        /// <summary>Gets or sets the endpoint count value.</summary>
         public int EndpointCount { get; set; }
         /// <summary>Number of endpoint rows matching include/exclude filters before max-endpoint limiting.</summary>
         public int MatchedEndpointCount { get; set; }
@@ -41,14 +63,23 @@ namespace DomainDetective {
         public int EndpointsTruncatedByMaxEndpoints { get; set; }
         /// <summary>True when matched endpoint rows were truncated by max-endpoint limiting.</summary>
         public bool Truncated { get; set; }
+        /// <summary>Gets or sets the violation endpoint count value.</summary>
         public int ViolationEndpointCount { get; set; }
+        /// <summary>Gets or sets the compliant endpoint count value.</summary>
         public int CompliantEndpointCount { get; set; }
+        /// <summary>Gets or sets the total violation count value.</summary>
         public int TotalViolationCount { get; set; }
+        /// <summary>Gets or sets the critical violation count value.</summary>
         public int CriticalViolationCount { get; set; }
+        /// <summary>Gets or sets the high violation count value.</summary>
         public int HighViolationCount { get; set; }
+        /// <summary>Gets or sets the medium violation count value.</summary>
         public int MediumViolationCount { get; set; }
+        /// <summary>Gets or sets the low violation count value.</summary>
         public int LowViolationCount { get; set; }
+        /// <summary>Gets or sets the violation code counts value.</summary>
         public Dictionary<string, int> ViolationCodeCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the endpoints value.</summary>
         public List<CertificateInventoryEndpointPolicy> Endpoints { get; set; } = new();
     }
 
@@ -56,45 +87,85 @@ namespace DomainDetective {
     /// Endpoint-level policy details.
     /// </summary>
     public sealed class CertificateInventoryEndpointPolicy {
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = string.Empty;
+        /// <summary>Gets or sets the port value.</summary>
         public int Port { get; set; }
+        /// <summary>Gets or sets the service value.</summary>
         public string Service { get; set; } = string.Empty;
+        /// <summary>Gets or sets the issuer value.</summary>
         public string Issuer { get; set; } = string.Empty;
+        /// <summary>Gets or sets the root issuer value.</summary>
         public string RootIssuer { get; set; } = string.Empty;
+        /// <summary>Gets or sets the not before utc value.</summary>
         public DateTimeOffset? NotBeforeUtc { get; set; }
+        /// <summary>Gets or sets the not after utc value.</summary>
         public DateTimeOffset? NotAfterUtc { get; set; }
+        /// <summary>Gets or sets the days until valid value.</summary>
         public int? DaysUntilValid { get; set; }
+        /// <summary>Gets or sets the days to expire value.</summary>
         public int? DaysToExpire { get; set; }
+        /// <summary>Gets or sets the risk score value.</summary>
         public int RiskScore { get; set; }
+        /// <summary>Gets or sets the risk severity value.</summary>
         public string RiskSeverity { get; set; } = "None";
+        /// <summary>Gets or sets the valid value.</summary>
         public bool Valid { get; set; }
+        /// <summary>Gets or sets the expired value.</summary>
         public bool Expired { get; set; }
+        /// <summary>Gets or sets the not yet valid value.</summary>
         public bool NotYetValid { get; set; }
+        /// <summary>Gets or sets the chain complete value.</summary>
         public bool ChainComplete { get; set; }
+        /// <summary>Gets or sets the hostname match value.</summary>
         public bool HostnameMatch { get; set; }
+        /// <summary>Gets or sets the is reachable value.</summary>
         public bool IsReachable { get; set; }
+        /// <summary>Gets or sets the is self signed value.</summary>
         public bool IsSelfSigned { get; set; }
+        /// <summary>Gets or sets the is known certificate authority value.</summary>
         public bool IsKnownCertificateAuthority { get; set; }
+        /// <summary>Gets or sets the is known root certificate authority value.</summary>
         public bool IsKnownRootCertificateAuthority { get; set; }
+        /// <summary>Gets or sets the present in ct logs value.</summary>
         public bool PresentInCtLogs { get; set; }
+        /// <summary>Gets or sets the weak key value.</summary>
         public bool WeakKey { get; set; }
+        /// <summary>Gets or sets the sha1 signature value.</summary>
         public bool Sha1Signature { get; set; }
+        /// <summary>Gets or sets the allows server authentication value.</summary>
         public bool AllowsServerAuthentication { get; set; }
+        /// <summary>Gets or sets the allows client authentication value.</summary>
         public bool AllowsClientAuthentication { get; set; }
+        /// <summary>Gets or sets the allows secure email value.</summary>
         public bool AllowsSecureEmail { get; set; }
+        /// <summary>Gets or sets the authentication profile value.</summary>
         public string AuthenticationProfile { get; set; } = string.Empty;
+        /// <summary>Gets or sets the certificate reuse endpoint count value.</summary>
         public int CertificateReuseEndpointCount { get; set; }
+        /// <summary>Gets or sets the certificate reuse distinct service count value.</summary>
         public int CertificateReuseDistinctServiceCount { get; set; }
+        /// <summary>Gets or sets the certificate reuse distinct port count value.</summary>
         public int CertificateReuseDistinctPortCount { get; set; }
+        /// <summary>Gets or sets the reuse policy scope value.</summary>
         public string ReusePolicyScope { get; set; } = "PublicAuthority";
+        /// <summary>Gets or sets the effective max reuse endpoint count value.</summary>
         public int EffectiveMaxReuseEndpointCount { get; set; }
+        /// <summary>Gets or sets the effective baseline profile value.</summary>
         public string EffectiveBaselineProfile { get; set; } = "Balanced";
+        /// <summary>Gets or sets the suppressed violation codes value.</summary>
         public List<string> SuppressedViolationCodes { get; set; } = new();
+        /// <summary>Gets or sets the applied policy override rules value.</summary>
         public List<string> AppliedPolicyOverrideRules { get; set; } = new();
+        /// <summary>Gets or sets the compliant value.</summary>
         public bool Compliant { get; set; }
+        /// <summary>Gets or sets the violation count value.</summary>
         public int ViolationCount { get; set; }
+        /// <summary>Gets or sets the max violation severity value.</summary>
         public string MaxViolationSeverity { get; set; } = "None";
+        /// <summary>Gets or sets the risk reasons value.</summary>
         public List<string> RiskReasons { get; set; } = new();
+        /// <summary>Gets or sets the violations value.</summary>
         public List<CertificateInventoryPolicyViolation> Violations { get; set; } = new();
     }
 
@@ -102,8 +173,11 @@ namespace DomainDetective {
     /// A single policy violation for one endpoint.
     /// </summary>
     public sealed class CertificateInventoryPolicyViolation {
+        /// <summary>Gets or sets the code value.</summary>
         public string Code { get; set; } = string.Empty;
+        /// <summary>Gets or sets the severity value.</summary>
         public string Severity { get; set; } = "Low";
+        /// <summary>Gets or sets the message value.</summary>
         public string Message { get; set; } = string.Empty;
     }
 
@@ -191,6 +265,7 @@ namespace DomainDetective {
                 ["Critical"] = 4
             };
 
+        /// <summary>Represents the baseline profile accepted values value.</summary>
         public static readonly string BaselineProfileAcceptedValues =
             string.Join(", ", BaselineProfileNames);
 

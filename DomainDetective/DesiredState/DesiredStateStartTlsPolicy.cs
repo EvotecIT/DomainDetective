@@ -2,7 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state start tls policy functionality.</summary>
 public sealed class DesiredStateStartTlsPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -22,6 +24,7 @@ public sealed class DesiredStateStartTlsPolicy {
     [JsonPropertyName("disallowDowngradeDetected")]
     public bool? DisallowDowngradeDetected { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateStartTlsPolicy Clone() {
         return new DesiredStateStartTlsPolicy {
             Enabled = Enabled,
@@ -32,6 +35,7 @@ public sealed class DesiredStateStartTlsPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateStartTlsPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

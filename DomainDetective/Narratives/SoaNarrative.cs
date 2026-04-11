@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives
 {
+    /// <summary>Provides soa narrative functionality.</summary>
     public static class SoaNarrative
     {
+        /// <summary>Provides sections functionality.</summary>
         public sealed class Sections : NarrativeSections { }
 
+        /// <summary>Executes the build operation.</summary>
         public static Sections Build(SOAAnalysis soa)
         {
             var subj = string.IsNullOrWhiteSpace(soa.Subject) ? "(domain)" : soa.Subject;

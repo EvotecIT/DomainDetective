@@ -3,6 +3,7 @@ using DomainDetective.Providers.Email;
 
 namespace DomainDetective;
 
+/// <summary>Provides email smtp provider policy resolver functionality.</summary>
 public static class EmailSmtpProviderPolicyResolver {
     private static readonly IReadOnlyDictionary<MailProviderKind, EmailSmtpProviderPolicy> _defaults =
         new Dictionary<MailProviderKind, EmailSmtpProviderPolicy> {
@@ -17,6 +18,7 @@ public static class EmailSmtpProviderPolicyResolver {
             { MailProviderKind.ProtonMail, new EmailSmtpProviderPolicy { Provider = MailProviderKind.ProtonMail, DisableCatchAll = true } }
         };
 
+    /// <summary>Executes the resolve operation.</summary>
     public static EmailSmtpProviderPolicy? Resolve(MailProviderKind provider, EmailAddressValidationOptions options) {
         if (provider == MailProviderKind.Unknown || options == null) {
             return null;

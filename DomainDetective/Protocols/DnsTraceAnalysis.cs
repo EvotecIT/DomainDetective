@@ -579,45 +579,75 @@ public sealed class DnsTraceAnalysis : IHasAssessments
     };
 }
 
+/// <summary>Defines values for dns trace query status.</summary>
 public enum DnsTraceQueryStatus
 {
+    /// <summary>Defines values for dns trace step kind.</summary>
     Success = 0,
+    /// <summary>Defines values for dns trace step kind.</summary>
     NoData = 1,
+    /// <summary>Defines values for dns trace step kind.</summary>
     Failed = 2,
+    /// <summary>Defines values for dns trace step kind.</summary>
     Capped = 3
 }
 
+/// <summary>Defines values for dns trace step kind.</summary>
 public enum DnsTraceStepKind
 {
+    /// <summary>Provides dns trace step functionality.</summary>
     Query = 0,
+    /// <summary>Provides dns trace step functionality.</summary>
     NameServerLookup = 1
 }
 
+/// <summary>Provides dns trace step functionality.</summary>
 public sealed class DnsTraceStep
 {
+    /// <summary>Gets or sets the kind value.</summary>
     public DnsTraceStepKind Kind { get; init; }
+    /// <summary>Gets or sets the depth value.</summary>
     public int Depth { get; init; }
+    /// <summary>Gets or sets the server value.</summary>
     public string Server { get; init; } = string.Empty;
+    /// <summary>Gets or sets the query name value.</summary>
     public string QueryName { get; init; } = string.Empty;
+    /// <summary>Gets or sets the record type value.</summary>
     public DnsRecordType RecordType { get; init; }
+    /// <summary>Gets or sets the response status value.</summary>
     public DnsResponseCode ResponseStatus { get; init; }
+    /// <summary>Gets or sets the answer count value.</summary>
     public int AnswerCount { get; init; }
+    /// <summary>Gets or sets the authority count value.</summary>
     public int AuthorityCount { get; init; }
+    /// <summary>Gets or sets the additional count value.</summary>
     public int AdditionalCount { get; init; }
+    /// <summary>Gets or sets the round trip time ms value.</summary>
     public int RoundTripTimeMs { get; init; }
+    /// <summary>Gets or sets the cname target value.</summary>
     public string? CnameTarget { get; init; }
+    /// <summary>Gets or sets the referral name servers value.</summary>
     public IReadOnlyList<string> ReferralNameServers { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the next servers value.</summary>
     public IReadOnlyList<string> NextServers { get; init; } = Array.Empty<string>();
 }
 
+/// <summary>Provides dns trace query functionality.</summary>
 public sealed class DnsTraceQuery
 {
+    /// <summary>Gets or sets the record type value.</summary>
     public DnsRecordType RecordType { get; init; }
+    /// <summary>Gets or sets the original name value.</summary>
     public string OriginalName { get; init; } = string.Empty;
+    /// <summary>Gets or sets the final name value.</summary>
     public string FinalName { get; internal set; } = string.Empty;
+    /// <summary>Gets or sets the final response status value.</summary>
     public DnsResponseCode FinalResponseStatus { get; internal set; }
+    /// <summary>Gets or sets the status value.</summary>
     public DnsTraceQueryStatus Status { get; internal set; }
+    /// <summary>Gets or sets the failure reason value.</summary>
     public string? FailureReason { get; internal set; }
+    /// <summary>Gets the steps value.</summary>
     public List<DnsTraceStep> Steps { get; } = new();
 
     /// <summary>Captured CNAME targets followed during trace (best-effort).</summary>

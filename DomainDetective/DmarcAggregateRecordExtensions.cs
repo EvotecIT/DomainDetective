@@ -45,20 +45,27 @@ public static class DmarcAggregateRecordExtensions {
 
     /// <summary>Reporter summary for failed records.</summary>
     public sealed class ReporterSummary {
+        /// <summary>Gets or sets the org name value.</summary>
         public string? OrgName { get; set; }
+        /// <summary>Gets or sets the email value.</summary>
         public string? Email { get; set; }
+        /// <summary>Gets or sets the count value.</summary>
         public int Count { get; set; }
     }
 
     /// <summary>Autonomous system summary for failed records.</summary>
     public sealed class AsnSummary {
+        /// <summary>Gets or sets the asn value.</summary>
         public int? Asn { get; set; }
+        /// <summary>Gets or sets the count value.</summary>
         public int Count { get; set; }
     }
 
     /// <summary>Country summary for failed records.</summary>
     public sealed class CountrySummary {
+        /// <summary>Gets or sets the country value.</summary>
         public string? Country { get; set; }
+        /// <summary>Gets or sets the count value.</summary>
         public int Count { get; set; }
     }
 

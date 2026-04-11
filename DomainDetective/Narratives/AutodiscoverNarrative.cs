@@ -4,11 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides autodiscover narrative functionality.</summary>
 public static class AutodiscoverNarrative
 {
     /// <summary>Structured narrative sections for Autodiscover analysis.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(AutodiscoverAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
         var s = analysis?.Subject;

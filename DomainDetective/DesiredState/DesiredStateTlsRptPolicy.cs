@@ -3,10 +3,13 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state tls rpt policy functionality.</summary>
 public sealed class DesiredStateTlsRptPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require record value.</summary>
     [JsonPropertyName("requireRecord")]
     public bool? RequireRecord { get; set; }
 
@@ -14,6 +17,7 @@ public sealed class DesiredStateTlsRptPolicy {
     [JsonPropertyName("requireSingleRecord")]
     public bool? RequireSingleRecord { get; set; }
 
+    /// <summary>Gets or sets the require rua value.</summary>
     [JsonPropertyName("requireRua")]
     public bool? RequireRua { get; set; }
 
@@ -21,6 +25,7 @@ public sealed class DesiredStateTlsRptPolicy {
     [JsonPropertyName("requireMailtoRua")]
     public bool? RequireMailtoRua { get; set; }
 
+    /// <summary>Gets or sets the require valid policy value.</summary>
     [JsonPropertyName("requireValidPolicy")]
     public bool? RequireValidPolicy { get; set; }
 
@@ -44,6 +49,7 @@ public sealed class DesiredStateTlsRptPolicy {
     [JsonPropertyName("allowedReportDomainSuffixes")]
     public string[]? AllowedReportDomainSuffixes { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateTlsRptPolicy Clone() {
         return new DesiredStateTlsRptPolicy {
             Enabled = Enabled,
@@ -60,6 +66,7 @@ public sealed class DesiredStateTlsRptPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateTlsRptPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

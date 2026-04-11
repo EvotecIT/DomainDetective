@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static WhoisInfo Convert(WhoisAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -43,29 +44,53 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides whois info functionality.</summary>
 public class WhoisInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; set; } = null!;
+    /// <summary>Gets or sets the whois server value.</summary>
     public string? WhoisServer { get; set; }
+    /// <summary>Gets or sets the lookup source value.</summary>
     public string? LookupSource { get; set; }
+    /// <summary>Gets or sets the registrar value.</summary>
     public string? Registrar { get; set; }
+    /// <summary>Gets or sets the registrar id value.</summary>
     public string? RegistrarId { get; set; }
+    /// <summary>Gets or sets the expiry date value.</summary>
     public string? ExpiryDate { get; set; }
+    /// <summary>Gets or sets the days until expiration value.</summary>
     public int? DaysUntilExpiration { get; set; }
+    /// <summary>Gets or sets the expires soon value.</summary>
     public bool ExpiresSoon { get; set; }
+    /// <summary>Gets or sets the is expired value.</summary>
     public bool IsExpired { get; set; }
+    /// <summary>Gets or sets the registrar locked value.</summary>
     public bool RegistrarLocked { get; set; }
+    /// <summary>Gets or sets the privacy protected value.</summary>
     public bool PrivacyProtected { get; set; }
+    /// <summary>Gets or sets the name servers value.</summary>
     public IReadOnlyList<string> NameServers { get; set; } = null!;
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = null!;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = null!;
+    /// <summary>Gets or sets the raw value.</summary>
     public WhoisAnalysis Raw { get; set; } = null!;
 }

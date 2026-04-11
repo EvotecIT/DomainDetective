@@ -2,8 +2,10 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides tls rpt reports narrative functionality.</summary>
 public static class TlsRptReportsNarrative
 {
+    /// <summary>Executes the build operation.</summary>
     public static NarrativeSections Build(string? subject)
     {
         var subj = string.IsNullOrWhiteSpace(subject) ? "Domain" : subject!;

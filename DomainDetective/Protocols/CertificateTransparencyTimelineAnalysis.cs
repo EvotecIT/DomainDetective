@@ -709,20 +709,29 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
 /// <summary>Validity status for a CT-observed certificate.</summary>
 public enum CtCertificateValidityStatus
 {
+    /// <summary>Provides ct timeline bucket functionality.</summary>
     Unknown = 0,
+    /// <summary>Provides ct timeline bucket functionality.</summary>
     Active = 1,
+    /// <summary>Provides ct timeline bucket functionality.</summary>
     Expired = 2,
+    /// <summary>Provides ct timeline bucket functionality.</summary>
     NotYetValid = 3
 }
 
 /// <summary>Monthly bucket for CT entries.</summary>
 public sealed class CtTimelineBucket
 {
+    /// <summary>Gets or sets the year value.</summary>
     public int Year { get; init; }
+    /// <summary>Gets or sets the month value.</summary>
     public int Month { get; init; }
+    /// <summary>Gets or sets the unique certificates value.</summary>
     public int UniqueCertificates { get; init; }
+    /// <summary>Gets or sets the distinct issuers value.</summary>
     public int DistinctIssuers { get; init; }
 
+    /// <summary>Converts this value to string.</summary>
     public override string ToString()
     {
         if (Year <= 0 || Month <= 0) return "-";
@@ -733,10 +742,16 @@ public sealed class CtTimelineBucket
 /// <summary>Sample row for recent CT certificates.</summary>
 public sealed class CtCertificateSample
 {
+    /// <summary>Gets or sets the entry timestamp utc value.</summary>
     public DateTimeOffset? EntryTimestampUtc { get; init; }
+    /// <summary>Gets or sets the not after utc value.</summary>
     public DateTimeOffset? NotAfterUtc { get; init; }
+    /// <summary>Gets or sets the issuer name value.</summary>
     public string IssuerName { get; init; } = string.Empty;
+    /// <summary>Gets or sets the common name value.</summary>
     public string CommonName { get; init; } = string.Empty;
+    /// <summary>Gets or sets the validity status value.</summary>
     public CtCertificateValidityStatus ValidityStatus { get; init; }
+    /// <summary>Gets or sets the wildcard value.</summary>
     public bool Wildcard { get; init; }
 }

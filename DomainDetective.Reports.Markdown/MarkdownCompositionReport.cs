@@ -13,6 +13,9 @@ namespace DomainDetective.Reports.Markdown;
 /// </summary>
 public static partial class MarkdownCompositionReport
 {
+    /// <summary>
+    /// Generates a composed Markdown report for the supplied report items.
+    /// </summary>
     public static void Generate(
         string path,
         IReadOnlyList<object> items,
@@ -36,6 +39,9 @@ public static partial class MarkdownCompositionReport
         File.WriteAllText(path, text, Encoding.UTF8);
     }
 
+    /// <summary>
+    /// Generates a composed Markdown report and saves an HTML rendering beside it.
+    /// </summary>
     public static void GenerateMarkdownHtml(
         string htmlPath,
         IReadOnlyList<object> items,

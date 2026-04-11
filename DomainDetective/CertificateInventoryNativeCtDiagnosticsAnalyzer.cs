@@ -51,7 +51,9 @@ namespace DomainDetective {
     /// One observed native CT diagnostic entry with snapshot timestamp context.
     /// </summary>
     public sealed class CertificateInventoryNativeCtDiagnosticObservedEntry {
+        /// <summary>Gets or sets the captured at utc value.</summary>
         public DateTimeOffset CapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the entry value.</summary>
         public NativeCtLogDiagnosticEntry Entry { get; set; } = new();
     }
 
@@ -59,18 +61,31 @@ namespace DomainDetective {
     /// Query result for native CT diagnostics across persisted snapshots.
     /// </summary>
     public sealed class CertificateInventoryNativeCtDiagnosticsResult {
+        /// <summary>Gets or sets the since utc value.</summary>
         public DateTimeOffset? SinceUtc { get; set; }
+        /// <summary>Gets or sets the until utc value.</summary>
         public DateTimeOffset? UntilUtc { get; set; }
+        /// <summary>Gets or sets the loaded snapshot count value.</summary>
         public int LoadedSnapshotCount { get; set; }
+        /// <summary>Gets or sets the skipped snapshot count by until utc value.</summary>
         public int SkippedSnapshotCountByUntilUtc { get; set; }
+        /// <summary>Gets or sets the scanned snapshot count value.</summary>
         public int ScannedSnapshotCount { get; set; }
+        /// <summary>Gets or sets the scanned diagnostic count value.</summary>
         public int ScannedDiagnosticCount { get; set; }
+        /// <summary>Gets or sets the matched diagnostic count value.</summary>
         public int MatchedDiagnosticCount { get; set; }
+        /// <summary>Gets or sets the matched lag after max value.</summary>
         public long? MatchedLagAfterMax { get; set; }
+        /// <summary>Gets or sets the entries truncated by max results value.</summary>
         public int EntriesTruncatedByMaxResults { get; set; }
+        /// <summary>Gets or sets the truncated value.</summary>
         public bool Truncated { get; set; }
+        /// <summary>Gets or sets the alert evaluation value.</summary>
         public CertificateInventoryNativeCtDiagnosticsAlertEvaluation? AlertEvaluation { get; set; }
+        /// <summary>Gets the matched by state value.</summary>
         public Dictionary<string, int> MatchedByState { get; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets the entries value.</summary>
         public List<CertificateInventoryNativeCtDiagnosticObservedEntry> Entries { get; } = new();
     }
 
@@ -78,6 +93,7 @@ namespace DomainDetective {
     /// Analyzer for native CT diagnostics persisted with certificate inventory snapshots.
     /// </summary>
     public static class CertificateInventoryNativeCtDiagnosticsAnalyzer {
+        /// <summary>Executes the query operation.</summary>
         public static CertificateInventoryNativeCtDiagnosticsResult Query(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             CertificateInventoryNativeCtDiagnosticsQuery? query = null) {

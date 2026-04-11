@@ -4,12 +4,19 @@ using System.Linq;
 
 namespace DomainDetective;
 
+/// <summary>Provides recommendation view functionality.</summary>
 public sealed class RecommendationView {
+    /// <summary>Gets or sets the code value.</summary>
     public string Code { get; init; } = string.Empty;
+    /// <summary>Gets or sets the advice value.</summary>
     public RecommendationAdvice Advice { get; init; } = new RecommendationAdvice();
+    /// <summary>Gets or sets the max severity value.</summary>
     public AssessmentSeverity MaxSeverity { get; init; }
+    /// <summary>Gets or sets the category value.</summary>
     public string Category { get; init; } = string.Empty;
+    /// <summary>Gets or sets the targets value.</summary>
     public IReadOnlyCollection<string> Targets { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the instances value.</summary>
     public IReadOnlyList<Assessment> Instances { get; init; } = Array.Empty<Assessment>();
 }
 

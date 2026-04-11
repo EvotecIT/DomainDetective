@@ -5,14 +5,19 @@ using DomainDetective.Helpers;
 
 namespace DomainDetective.Providers.Dns;
 
+/// <summary>Provides dns caa issuer detector functionality.</summary>
 public static class DnsCaaIssuerDetector
 {
+    /// <summary>Provides match functionality.</summary>
     public sealed class Match
     {
+        /// <summary>Gets or sets the issuers value.</summary>
         public DnsCaaIssuers Issuers { get; init; }
+        /// <summary>Gets or sets the evidence value.</summary>
         public IReadOnlyList<string> Evidence { get; init; } = Array.Empty<string>();
     }
 
+    /// <summary>Executes the detect operation.</summary>
     public static Match Detect(IEnumerable<string>? caaValues)
     {
         var values = (caaValues ?? Array.Empty<string>())
@@ -182,21 +187,36 @@ public static class DnsCaaIssuerDetector
     }
 }
 
+/// <summary>Defines values for dns caa issuers.</summary>
 [Flags]
 public enum DnsCaaIssuers
 {
+    /// <summary>Represents the none value.</summary>
     None = 0,
+    /// <summary>Represents the lets encrypt value.</summary>
     LetsEncrypt = 1,
+    /// <summary>Represents the digi cert value.</summary>
     DigiCert = 2,
+    /// <summary>Represents the sectigo value.</summary>
     Sectigo = 4,
+    /// <summary>Represents the global sign value.</summary>
     GlobalSign = 8,
+    /// <summary>Represents the google trust services value.</summary>
     GoogleTrustServices = 16,
+    /// <summary>Represents the amazon trust services value.</summary>
     AmazonTrustServices = 32,
+    /// <summary>Represents the cloudflare value.</summary>
     Cloudflare = 64,
+    /// <summary>Represents the microsoft value.</summary>
     Microsoft = 128,
+    /// <summary>Represents the go daddy value.</summary>
     GoDaddy = 256,
+    /// <summary>Represents the zero ssl value.</summary>
     ZeroSsl = 512,
+    /// <summary>Represents the buypass value.</summary>
     Buypass = 1024,
+    /// <summary>Represents the entrust value.</summary>
     Entrust = 2048,
+    /// <summary>Represents the ssl dot com value.</summary>
     SslDotCom = 4096
 }

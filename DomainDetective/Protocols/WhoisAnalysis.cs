@@ -84,9 +84,13 @@ public partial class WhoisAnalysis : IHasAssessments {
 
     /// <summary>Registrar licence identifier.</summary>
     public string? RegistrarLicense { get; set; }
+    /// <summary>Gets or sets the registrar email value.</summary>
     public string? RegistrarEmail { get; set; }
+    /// <summary>Gets or sets the registrar abuse email value.</summary>
     public string? RegistrarAbuseEmail { get; set; }
+    /// <summary>Gets or sets the registrar abuse phone value.</summary>
     public string? RegistrarAbusePhone { get; set; }
+    /// <summary>Gets or sets the whois data value.</summary>
     public string WhoisData { get; set; } = string.Empty;
     /// <summary>When true, follows Registrar WHOIS referrals for gTLDs when available.</summary>
     public bool FollowReferral { get; set; } = false;
@@ -94,16 +98,27 @@ public partial class WhoisAnalysis : IHasAssessments {
     public int MaxReferralDepth { get; set; } = 2;
     /// <summary>WHOIS servers visited via referral (in order).</summary>
     public List<string> ReferralChain { get; private set; } = new List<string>();
+    /// <summary>Gets or sets the expires soon value.</summary>
     public bool ExpiresSoon { get; private set; }
+    /// <summary>Gets or sets the is expired value.</summary>
     public bool IsExpired { get; private set; }
+    /// <summary>Gets or sets the days until expiration value.</summary>
     public int? DaysUntilExpiration { get; private set; }
+    /// <summary>Gets or sets the registrar locked value.</summary>
     public bool RegistrarLocked { get; private set; }
+    /// <summary>Gets or sets the privacy protected value.</summary>
     public bool PrivacyProtected { get; private set; }
+    /// <summary>Gets or sets the expiration warning threshold value.</summary>
     public TimeSpan ExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(30);
+    /// <summary>Gets or sets the expiration long term threshold value.</summary>
     public TimeSpan ExpirationLongTermThreshold { get; set; } = TimeSpan.FromDays(365);
+    /// <summary>Gets or sets the snapshot directory value.</summary>
     public string? SnapshotDirectory { get; set; }
+    /// <summary>Gets or sets the registrar id value.</summary>
     public string? RegistrarId { get; private set; }
+    /// <summary>Represents the iana query override value.</summary>
     public Func<string, Task<string>>? IanaQueryOverride { private get; set; }
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
 
     /// <summary>Maximum number of WHOIS TCP connect/query retries on transient failures.</summary>
@@ -441,6 +456,7 @@ public partial class WhoisAnalysis : IHasAssessments {
         {"za.com","whois.centralnic.com"}
     };
 
+    /// <summary>Initializes a new instance of the WhoisAnalysis class.</summary>
     public WhoisAnalysis() { }
 
     private async Task<string?> GetWhoisServer(string domain) {

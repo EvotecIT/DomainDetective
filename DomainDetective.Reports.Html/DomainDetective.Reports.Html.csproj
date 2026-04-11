@@ -10,7 +10,6 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <UseLocalHtmlForgeX Condition="'$(UseLocalHtmlForgeX)' == ''">false</UseLocalHtmlForgeX>
   </PropertyGroup>
 

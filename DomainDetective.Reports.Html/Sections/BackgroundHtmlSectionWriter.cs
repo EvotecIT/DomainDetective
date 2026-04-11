@@ -4,8 +4,10 @@ using System.Linq;
 
 namespace DomainDetective.Reports.Html;
 
+/// <summary>Provides background html section writer functionality.</summary>
 public static class BackgroundHtmlSectionWriter
 {
+    /// <summary>Writes the HTML report section.</summary>
     public static void Write(IHtmlComposer html, IReadOnlyList<object> items)
     {
         if (html == null) throw new ArgumentNullException(nameof(html));

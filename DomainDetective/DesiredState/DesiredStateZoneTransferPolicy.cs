@@ -2,7 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state zone transfer policy functionality.</summary>
 public sealed class DesiredStateZoneTransferPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -10,6 +12,7 @@ public sealed class DesiredStateZoneTransferPolicy {
     [JsonPropertyName("disallowUnauthenticatedAxfr")]
     public bool? DisallowUnauthenticatedAxfr { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateZoneTransferPolicy Clone() {
         return new DesiredStateZoneTransferPolicy {
             Enabled = Enabled,
@@ -17,6 +20,7 @@ public sealed class DesiredStateZoneTransferPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateZoneTransferPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

@@ -13,6 +13,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class NSAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Configuration used for DNS queries.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -25,33 +26,53 @@ namespace DomainDetective {
 
         /// <summary>Optional override for recursion testing logic.</summary>
         public Func<string, Task<bool>>? RecursionTestOverride { private get; set; }
+        /// <summary>Gets or sets the ns records value.</summary>
         public List<string> NsRecords { get; private set; } = new();
+        /// <summary>Gets or sets the ns record exists value.</summary>
         public bool NsRecordExists { get; private set; }
+        /// <summary>Gets or sets the has duplicates value.</summary>
         public bool HasDuplicates { get; private set; }
+        /// <summary>Gets or sets the at least two records value.</summary>
         public bool AtLeastTwoRecords { get; private set; }
+        /// <summary>Gets or sets the all have a or aaaa value.</summary>
         public bool AllHaveAOrAaaa { get; private set; }
+        /// <summary>Gets or sets the points to cname value.</summary>
         public bool PointsToCname { get; private set; }
+        /// <summary>Gets or sets the has diverse locations value.</summary>
         public bool HasDiverseLocations { get; private set; }
+        /// <summary>Gets or sets the parent ns records value.</summary>
         public List<string> ParentNsRecords { get; private set; } = new();
+        /// <summary>Gets or sets the delegation matches value.</summary>
         public bool DelegationMatches { get; private set; }
+        /// <summary>Gets or sets the glue records complete value.</summary>
         public bool GlueRecordsComplete { get; private set; }
+        /// <summary>Gets or sets the glue records consistent value.</summary>
         public bool GlueRecordsConsistent { get; private set; }
 
+        /// <summary>Gets or sets the root server responses value.</summary>
         public Dictionary<string, bool> RootServerResponses { get; private set; } = new();
+        /// <summary>Gets or sets the recursion enabled value.</summary>
         public Dictionary<string, bool> RecursionEnabled { get; private set; } = new();
 
         // CHAOS TXT fingerprinting (best-effort)
+        /// <summary>Gets or sets the enable chaos fingerprinting value.</summary>
         public bool EnableChaosFingerprinting { get; set; } = true;
+        /// <summary>Gets or sets the chaos query timeout ms value.</summary>
         public int ChaosQueryTimeoutMs { get; set; } = 2500;
+        /// <summary>Gets or sets the chaos max server ips to query value.</summary>
         public int ChaosMaxServerIpsToQuery { get; set; } = 10;
+        /// <summary>Gets or sets the chaos version by server value.</summary>
         public Dictionary<string, string> ChaosVersionByServer { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the chaos hostname by server value.</summary>
         public Dictionary<string, string> ChaosHostnameByServer { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Optional override for raw UDP DNS queries (tests/offline).</summary>
         public Func<IPAddress, byte[], CancellationToken, Task<byte[]?>>? QueryUdpOverride { get; set; }
 
         // ASN diversity (provider diversity)
+        /// <summary>Gets or sets the asn by ip value.</summary>
         public Dictionary<string, int> AsnByIp { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the asn distinct count value.</summary>
         public int AsnDistinctCount { get; private set; }
 
         /// <summary>Override for ASN lookup in tests.</summary>
@@ -60,6 +81,7 @@ namespace DomainDetective {
         /// <summary>Timeout (ms) for best-effort ASN lookups when no override is set.</summary>
         public int AsnLookupTimeoutMs { get; set; } = 5000;
 
+        /// <summary>Gets the assessments value.</summary>
         public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
@@ -340,6 +362,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the query root servers operation.</summary>
         public async Task QueryRootServers(InternalLogger logger) {
             RootServerResponses = new Dictionary<string, bool>();
             var roots = await QueryDns(".", DnsRecordType.NS);
@@ -361,6 +384,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Executes the test recursion operation.</summary>
         public async Task TestRecursion(InternalLogger logger) {
             RecursionEnabled = new Dictionary<string, bool>();
             foreach (var ns in NsRecords) {

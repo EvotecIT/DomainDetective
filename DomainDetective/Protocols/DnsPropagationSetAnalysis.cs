@@ -18,8 +18,10 @@ public sealed class DnsPropagationSetAnalysis : IHasAssessments
     /// <summary>Aggregated assessments from all <see cref="Items"/>.</summary>
     public List<Assessment> Assessments { get; } = new();
 
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
+    /// <summary>Executes the reset operation.</summary>
     public void Reset(string? subject = null)
     {
         Subject = subject;
@@ -27,6 +29,7 @@ public sealed class DnsPropagationSetAnalysis : IHasAssessments
         Assessments.Clear();
     }
 
+    /// <summary>Executes the add operation.</summary>
     public void Add(DnsPropagationReportAnalysis analysis)
     {
         if (analysis == null) throw new ArgumentNullException(nameof(analysis));

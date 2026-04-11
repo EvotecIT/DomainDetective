@@ -13,6 +13,7 @@ using PeriodicTimer = System.Threading.PeriodicTimer;
 
 namespace DomainDetective {
     public partial class CertificateMonitor {
+        /// <summary>Builds inventory risk.</summary>
         public CertificateInventoryRiskSummary BuildInventoryRisk(
             DateTimeOffset? sinceUtc = null,
             bool includeNoRisk = false,

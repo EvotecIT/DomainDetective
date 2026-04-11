@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static SmtpAuthInfo Convert(SmtpAuthAnalysis analysis)
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
@@ -47,26 +48,44 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides smtp auth info functionality.</summary>
 public class SmtpAuthInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the servers value.</summary>
     public IReadOnlyList<SmtpAuthServerInfo> Servers { get; set; } = null!;
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = null!;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = null!;
+    /// <summary>Gets or sets the raw value.</summary>
     public SmtpAuthAnalysis Raw { get; set; } = null!;
 }
 
+/// <summary>Provides smtp auth server info functionality.</summary>
 public class SmtpAuthServerInfo
 {
+    /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = null!;
+    /// <summary>Gets or sets the mechanisms value.</summary>
     public IReadOnlyList<string> Mechanisms { get; set; } = null!;
+    /// <summary>Gets or sets the capabilities value.</summary>
     public IReadOnlyList<string> Capabilities { get; set; } = null!;
 }

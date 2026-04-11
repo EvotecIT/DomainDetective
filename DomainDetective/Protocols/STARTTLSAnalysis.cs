@@ -13,14 +13,20 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
 public class STARTTLSAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
+        /// <summary>Gets or sets the server results value.</summary>
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
+        /// <summary>Gets or sets the downgrade detected value.</summary>
         public Dictionary<string, bool> DowngradeDetected { get; private set; } = new();
+        /// <summary>Gets or sets the server details value.</summary>
         public Dictionary<string, STARTTLSResult> ServerDetails { get; private set; } = new();
+        /// <summary>Gets or sets the timeout value.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>Structured assessments during STARTTLS probe.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>
@@ -250,27 +256,49 @@ public class STARTTLSAnalysis : IHasAssessments {
 
     /// <summary>Detailed STARTTLS probe result per server.</summary>
     public sealed class STARTTLSResult {
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = string.Empty;
+        /// <summary>Gets or sets the port value.</summary>
         public int Port { get; set; }
+        /// <summary>Gets or sets the banner value.</summary>
         public string Banner { get; set; } = string.Empty;
+        /// <summary>Gets or sets the ehlo lines value.</summary>
         public List<string> EhloLines { get; set; } = new List<string>();
+        /// <summary>Gets or sets the capabilities value.</summary>
         public List<string> Capabilities { get; set; } = new List<string>();
+        /// <summary>Gets or sets the start tls advertised value.</summary>
         public bool StartTlsAdvertised { get; set; }
+        /// <summary>Gets or sets the downgrade detected value.</summary>
         public bool DowngradeDetected { get; set; }
+        /// <summary>Gets or sets the start tls attempted value.</summary>
         public bool StartTlsAttempted { get; set; }
+        /// <summary>Gets or sets the tls negotiated value.</summary>
         public bool TlsNegotiated { get; set; }
+        /// <summary>Gets or sets the tls protocol value.</summary>
         public string? TlsProtocol { get; set; }
+        /// <summary>Gets or sets the cipher algorithm value.</summary>
         public string? CipherAlgorithm { get; set; }
+        /// <summary>Gets or sets the cipher strength value.</summary>
         public int? CipherStrength { get; set; }
+        /// <summary>Gets or sets the hash algorithm value.</summary>
         public string? HashAlgorithm { get; set; }
+        /// <summary>Gets or sets the hash strength value.</summary>
         public int? HashStrength { get; set; }
+        /// <summary>Gets or sets the key exchange algorithm value.</summary>
         public string? KeyExchangeAlgorithm { get; set; }
+        /// <summary>Gets or sets the key exchange strength value.</summary>
         public int? KeyExchangeStrength { get; set; }
+        /// <summary>Gets or sets the alpn protocol value.</summary>
         public string? AlpnProtocol { get; set; }
+        /// <summary>Gets or sets the certificate subject value.</summary>
         public string? CertificateSubject { get; set; }
+        /// <summary>Gets or sets the certificate issuer value.</summary>
         public string? CertificateIssuer { get; set; }
+        /// <summary>Gets or sets the certificate not before value.</summary>
         public DateTime? CertificateNotBefore { get; set; }
+        /// <summary>Gets or sets the certificate not after value.</summary>
         public DateTime? CertificateNotAfter { get; set; }
+        /// <summary>Gets or sets the certificate thumbprint value.</summary>
         public string? CertificateThumbprint { get; set; }
     }
 }

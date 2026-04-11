@@ -4,6 +4,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static PortAvailabilityInfo Convert(PortAvailabilityAnalysis analysis)
     {
         int total = analysis.ServerResults != null ? analysis.ServerResults.Count : 0;
@@ -33,13 +34,21 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides port availability info functionality.</summary>
 public class PortAvailabilityInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the total checked value.</summary>
     public int TotalChecked { get; set; }
+    /// <summary>Gets or sets the open count value.</summary>
     public int OpenCount { get; set; }
+    /// <summary>Gets or sets the results value.</summary>
     public IReadOnlyDictionary<string, PortAvailabilityAnalysis.PortResult> Results { get; set; } = null!;
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
 }

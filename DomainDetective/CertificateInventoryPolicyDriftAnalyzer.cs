@@ -7,30 +7,55 @@ namespace DomainDetective {
     /// Point-in-time policy drift summary between two certificate inventory snapshots.
     /// </summary>
     public sealed class CertificateInventoryPolicyDriftSummary {
+        /// <summary>Gets or sets the baseline profile value.</summary>
         public string BaselineProfile { get; set; } = "Balanced";
+        /// <summary>Gets or sets the snapshot count value.</summary>
         public int SnapshotCount { get; set; }
+        /// <summary>Gets or sets the requested previous captured at utc value.</summary>
         public DateTimeOffset? RequestedPreviousCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the requested current captured at utc value.</summary>
         public DateTimeOffset? RequestedCurrentCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the previous captured at utc value.</summary>
         public DateTimeOffset? PreviousCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the current captured at utc value.</summary>
         public DateTimeOffset? CurrentCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the previous endpoint count value.</summary>
         public int PreviousEndpointCount { get; set; }
+        /// <summary>Gets or sets the current endpoint count value.</summary>
         public int CurrentEndpointCount { get; set; }
+        /// <summary>Gets or sets the endpoint count value.</summary>
         public int EndpointCount { get; set; }
+        /// <summary>Gets or sets the previous violation endpoint count value.</summary>
         public int PreviousViolationEndpointCount { get; set; }
+        /// <summary>Gets or sets the current violation endpoint count value.</summary>
         public int CurrentViolationEndpointCount { get; set; }
+        /// <summary>Gets or sets the added violation endpoint count value.</summary>
         public int AddedViolationEndpointCount { get; set; }
+        /// <summary>Gets or sets the resolved violation endpoint count value.</summary>
         public int ResolvedViolationEndpointCount { get; set; }
+        /// <summary>Gets or sets the increased violation endpoint count value.</summary>
         public int IncreasedViolationEndpointCount { get; set; }
+        /// <summary>Gets or sets the decreased violation endpoint count value.</summary>
         public int DecreasedViolationEndpointCount { get; set; }
+        /// <summary>Gets or sets the unchanged violation endpoint count value.</summary>
         public int UnchangedViolationEndpointCount { get; set; }
+        /// <summary>Gets or sets the endpoints with any policy change value.</summary>
         public int EndpointsWithAnyPolicyChange { get; set; }
+        /// <summary>Gets or sets the endpoints matching filters value.</summary>
         public int EndpointsMatchingFilters { get; set; }
+        /// <summary>Gets or sets the endpoints excluded by changed only value.</summary>
         public int EndpointsExcludedByChangedOnly { get; set; }
+        /// <summary>Gets or sets the endpoints truncated by max endpoints value.</summary>
         public int EndpointsTruncatedByMaxEndpoints { get; set; }
+        /// <summary>Gets or sets the truncated value.</summary>
         public bool Truncated { get; set; }
+        /// <summary>Gets or sets the warnings value.</summary>
         public List<string> Warnings { get; set; } = new();
+        /// <summary>Gets or sets the new violation code counts value.</summary>
         public Dictionary<string, int> NewViolationCodeCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the resolved violation code counts value.</summary>
         public Dictionary<string, int> ResolvedViolationCodeCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the endpoints value.</summary>
         public List<CertificateInventoryEndpointPolicyDrift> Endpoints { get; set; } = new();
     }
 
@@ -38,27 +63,49 @@ namespace DomainDetective {
     /// Endpoint-level policy drift details.
     /// </summary>
     public sealed class CertificateInventoryEndpointPolicyDrift {
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = string.Empty;
+        /// <summary>Gets or sets the port value.</summary>
         public int Port { get; set; }
+        /// <summary>Gets or sets the status value.</summary>
         public string Status { get; set; } = "Unchanged";
+        /// <summary>Gets or sets the previous compliant value.</summary>
         public bool? PreviousCompliant { get; set; }
+        /// <summary>Gets or sets the current compliant value.</summary>
         public bool? CurrentCompliant { get; set; }
+        /// <summary>Gets or sets the previous violation count value.</summary>
         public int PreviousViolationCount { get; set; }
+        /// <summary>Gets or sets the current violation count value.</summary>
         public int CurrentViolationCount { get; set; }
+        /// <summary>Gets or sets the previous max violation severity value.</summary>
         public string PreviousMaxViolationSeverity { get; set; } = "None";
+        /// <summary>Gets or sets the current max violation severity value.</summary>
         public string CurrentMaxViolationSeverity { get; set; } = "None";
+        /// <summary>Gets or sets the previous risk score value.</summary>
         public int PreviousRiskScore { get; set; }
+        /// <summary>Gets or sets the current risk score value.</summary>
         public int CurrentRiskScore { get; set; }
+        /// <summary>Gets or sets the previous risk severity value.</summary>
         public string PreviousRiskSeverity { get; set; } = "None";
+        /// <summary>Gets or sets the current risk severity value.</summary>
         public string CurrentRiskSeverity { get; set; } = "None";
+        /// <summary>Gets or sets the previous issuer value.</summary>
         public string? PreviousIssuer { get; set; }
+        /// <summary>Gets or sets the current issuer value.</summary>
         public string? CurrentIssuer { get; set; }
+        /// <summary>Gets or sets the previous not after utc value.</summary>
         public DateTimeOffset? PreviousNotAfterUtc { get; set; }
+        /// <summary>Gets or sets the current not after utc value.</summary>
         public DateTimeOffset? CurrentNotAfterUtc { get; set; }
+        /// <summary>Gets or sets the previous violation codes value.</summary>
         public List<string> PreviousViolationCodes { get; set; } = new();
+        /// <summary>Gets or sets the current violation codes value.</summary>
         public List<string> CurrentViolationCodes { get; set; } = new();
+        /// <summary>Gets or sets the new violation codes value.</summary>
         public List<string> NewViolationCodes { get; set; } = new();
+        /// <summary>Gets or sets the resolved violation codes value.</summary>
         public List<string> ResolvedViolationCodes { get; set; } = new();
+        /// <summary>Gets or sets the change kinds value.</summary>
         public List<string> ChangeKinds { get; set; } = new();
     }
 
@@ -75,6 +122,7 @@ namespace DomainDetective {
                 ["Critical"] = 4
             };
 
+        /// <summary>Builds drift.</summary>
         public static CertificateInventoryPolicyDriftSummary BuildDrift(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             string? baselineProfile = "Balanced",

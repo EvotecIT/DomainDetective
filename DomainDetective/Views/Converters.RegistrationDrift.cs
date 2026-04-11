@@ -8,6 +8,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static RegistrationDriftInfo Convert(IReadOnlyList<RegistrationSnapshot> snapshots, string? subjectOverride = null)
     {
         var list = (snapshots ?? Array.Empty<RegistrationSnapshot>())
@@ -331,24 +332,41 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides registration drift info functionality.</summary>
 public sealed class RegistrationDriftInfo
 {
+    /// <summary>Gets or sets the section key value.</summary>
     public string SectionKey { get; set; } = "Registration";
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the snapshot count value.</summary>
     public int SnapshotCount { get; set; }
+    /// <summary>Gets or sets the current value.</summary>
     public RegistrationSnapshot? Current { get; set; }
+    /// <summary>Gets or sets the previous value.</summary>
     public RegistrationSnapshot? Previous { get; set; }
+    /// <summary>Gets or sets the drift value.</summary>
     public RegistrationDrift? Drift { get; set; }
+    /// <summary>Gets or sets the snapshots value.</summary>
     public IReadOnlyList<RegistrationSnapshot> Snapshots { get; set; } = Array.Empty<RegistrationSnapshot>();
 
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = "OK";
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = Array.Empty<string>();
 }

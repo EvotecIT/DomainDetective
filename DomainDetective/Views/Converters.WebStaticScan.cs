@@ -3,6 +3,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static WebStaticScanInfo Convert(WebStaticScanAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -103,38 +104,71 @@ public static partial class Converters
 /// </summary>
 public sealed class WebStaticScanInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the title value.</summary>
     public string? Title { get; set; }
+    /// <summary>Gets or sets the page value.</summary>
     public HttpInfo? Page { get; set; }
+    /// <summary>Gets or sets the resource count value.</summary>
     public int ResourceCount { get; set; }
+    /// <summary>Gets or sets the host count value.</summary>
     public int HostCount { get; set; }
+    /// <summary>Gets or sets the bytes by type value.</summary>
     public System.Collections.Generic.Dictionary<string, long> BytesByType { get; set; } = new();
+    /// <summary>Gets or sets the first party host count value.</summary>
     public int FirstPartyHostCount { get; set; }
+    /// <summary>Gets or sets the third party host count value.</summary>
     public int ThirdPartyHostCount { get; set; }
+    /// <summary>Gets or sets the tech value.</summary>
     public string[] Tech { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the trackers value.</summary>
     public string[] Trackers { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the top hosts by bytes value.</summary>
     public WebStaticScanHostBrief[] TopHostsByBytes { get; set; } = System.Array.Empty<WebStaticScanHostBrief>();
+    /// <summary>Gets or sets the top third party by bytes value.</summary>
     public WebStaticScanHostBrief[] TopThirdPartyByBytes { get; set; } = System.Array.Empty<WebStaticScanHostBrief>();
+    /// <summary>Gets or sets the tech details value.</summary>
     public TechDetectionDetail[] TechDetails { get; set; } = System.Array.Empty<TechDetectionDetail>();
+    /// <summary>Gets or sets the https percent value.</summary>
     public int HttpsPercent { get; set; }
+    /// <summary>Gets or sets the ipv6 percent value.</summary>
     public int Ipv6Percent { get; set; }
+    /// <summary>Gets or sets the domain count value.</summary>
     public int DomainCount { get; set; }
+    /// <summary>Gets or sets the subdomain count value.</summary>
     public int SubdomainCount { get; set; }
+    /// <summary>Gets or sets the ip count value.</summary>
     public int IpCount { get; set; }
+    /// <summary>Gets or sets the country count value.</summary>
     public int CountryCount { get; set; }
+    /// <summary>Gets or sets the transfer bytes value.</summary>
     public long TransferBytes { get; set; }
+    /// <summary>Gets or sets the cookies set value.</summary>
     public int CookiesSet { get; set; }
+    /// <summary>Gets or sets the broken links total value.</summary>
     public int BrokenLinksTotal { get; set; }
+    /// <summary>Gets or sets the broken links first party value.</summary>
     public int BrokenLinksFirstParty { get; set; }
+    /// <summary>Gets or sets the assessments value.</summary>
     public System.Collections.Generic.IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the recommendations value.</summary>
     public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the positives value.</summary>
     public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the references value.</summary>
     public System.Collections.Generic.IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the raw value.</summary>
     public WebStaticScanAnalysis Raw { get; set; } = new WebStaticScanAnalysis();
 }
 
@@ -143,9 +177,14 @@ public sealed class WebStaticScanInfo
 /// </summary>
 public sealed class WebStaticScanHostBrief
 {
+    /// <summary>Gets or sets the host value.</summary>
     public string Host { get; set; } = string.Empty;
+    /// <summary>Gets or sets the bytes value.</summary>
     public long Bytes { get; set; }
+    /// <summary>Gets or sets the first party value.</summary>
     public bool FirstParty { get; set; }
+    /// <summary>Gets or sets the requests value.</summary>
     public int Requests { get; set; }
+    /// <summary>Gets or sets the bytes by type value.</summary>
     public System.Collections.Generic.Dictionary<string, long> BytesByType { get; set; } = new();
 }

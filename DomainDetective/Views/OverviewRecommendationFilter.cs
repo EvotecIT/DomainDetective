@@ -4,11 +4,14 @@ using System.Linq;
 
 namespace DomainDetective.Views;
 
+/// <summary>Provides overview recommendation filter functionality.</summary>
 public static class OverviewRecommendationFilter {
+    /// <summary>Executes the for problems operation.</summary>
     public static IReadOnlyList<RecommendationAdvice> ForProblems(IEnumerable<Assessment> assessments) {
         return RecommendationEngine.FromProblems(assessments ?? Array.Empty<Assessment>());
     }
 
+    /// <summary>Executes the for positives operation.</summary>
     public static IReadOnlyList<RecommendationAdvice> ForPositives(IEnumerable<Assessment> assessments) {
         var grouped = RecommendationEngine.GroupByCode(
             assessments?.Where(static assessment => assessment != null && assessment.Severity == AssessmentSeverity.Info)

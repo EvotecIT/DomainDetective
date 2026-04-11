@@ -2,10 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state mtasts policy functionality.</summary>
 public sealed class DesiredStateMtastsPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require record value.</summary>
     [JsonPropertyName("requireRecord")]
     public bool? RequireRecord { get; set; }
 
@@ -25,6 +28,7 @@ public sealed class DesiredStateMtastsPolicy {
     [JsonPropertyName("disallowDuplicateFields")]
     public bool? DisallowDuplicateFields { get; set; }
 
+    /// <summary>Gets or sets the require enforce value.</summary>
     [JsonPropertyName("requireEnforce")]
     public bool? RequireEnforce { get; set; }
 
@@ -32,9 +36,11 @@ public sealed class DesiredStateMtastsPolicy {
     [JsonPropertyName("minMaxAge")]
     public int? MinMaxAge { get; set; }
 
+    /// <summary>Gets or sets the require mx aligned value.</summary>
     [JsonPropertyName("requireMxAligned")]
     public bool? RequireMxAligned { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateMtastsPolicy Clone() {
         return new DesiredStateMtastsPolicy {
             Enabled = Enabled,
@@ -49,6 +55,7 @@ public sealed class DesiredStateMtastsPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateMtastsPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

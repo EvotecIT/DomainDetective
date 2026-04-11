@@ -80,11 +80,17 @@ public sealed class TyposquattingVisualSimilarityOptions
 /// </summary>
 public enum TyposquattingVisualArtifactKind
 {
+    /// <summary>Provides typosquatting visual artifact functionality.</summary>
     Unknown = 0,
+    /// <summary>Provides typosquatting visual artifact functionality.</summary>
     Favicon = 1,
+    /// <summary>Provides typosquatting visual artifact functionality.</summary>
     AppleTouchIcon = 2,
+    /// <summary>Provides typosquatting visual artifact functionality.</summary>
     OpenGraphImage = 3,
+    /// <summary>Provides typosquatting visual artifact functionality.</summary>
     TwitterImage = 4,
+    /// <summary>Provides typosquatting visual artifact functionality.</summary>
     Screenshot = 5
 }
 
@@ -93,12 +99,19 @@ public enum TyposquattingVisualArtifactKind
 /// </summary>
 public sealed class TyposquattingVisualArtifact
 {
+    /// <summary>Gets or sets the image bytes value.</summary>
     public byte[]? ImageBytes { get; init; }
+    /// <summary>Gets or sets the mime type value.</summary>
     public string? MimeType { get; init; }
+    /// <summary>Gets or sets the fingerprint hex value.</summary>
     public string FingerprintHex { get; init; } = string.Empty;
+    /// <summary>Gets or sets the width value.</summary>
     public int? Width { get; init; }
+    /// <summary>Gets or sets the height value.</summary>
     public int? Height { get; init; }
+    /// <summary>Gets or sets the kind value.</summary>
     public TyposquattingVisualArtifactKind Kind { get; init; }
+    /// <summary>Gets or sets the source url value.</summary>
     public string SourceUrl { get; init; } = string.Empty;
 }
 
@@ -107,10 +120,15 @@ public sealed class TyposquattingVisualArtifact
 /// </summary>
 public sealed class TyposquattingSourceVisualSignal
 {
+    /// <summary>Gets or sets the fingerprint hex value.</summary>
     public string FingerprintHex { get; init; } = string.Empty;
+    /// <summary>Gets or sets the width value.</summary>
     public int? Width { get; init; }
+    /// <summary>Gets or sets the height value.</summary>
     public int? Height { get; init; }
+    /// <summary>Gets or sets the kind value.</summary>
     public TyposquattingVisualArtifactKind Kind { get; init; }
+    /// <summary>Gets or sets the source url value.</summary>
     public string SourceUrl { get; init; } = string.Empty;
 }
 
@@ -119,11 +137,17 @@ public sealed class TyposquattingSourceVisualSignal
 /// </summary>
 public sealed class TyposquattingSourceVisualProfile
 {
+    /// <summary>Gets or sets the domain value.</summary>
     public string Domain { get; init; } = string.Empty;
+    /// <summary>Gets or sets the fingerprint hex value.</summary>
     public string FingerprintHex { get; init; } = string.Empty;
+    /// <summary>Gets or sets the width value.</summary>
     public int? Width { get; init; }
+    /// <summary>Gets or sets the height value.</summary>
     public int? Height { get; init; }
+    /// <summary>Gets or sets the signals value.</summary>
     public IReadOnlyList<TyposquattingSourceVisualSignal> Signals { get; init; } = Array.Empty<TyposquattingSourceVisualSignal>();
+    /// <summary>Represents the has any signals value.</summary>
     public bool HasAnySignals => Signals.Count > 0 || !string.IsNullOrWhiteSpace(FingerprintHex);
 }
 
@@ -132,13 +156,21 @@ public sealed class TyposquattingSourceVisualProfile
 /// </summary>
 public sealed class TyposquattingVisualSimilarityMatch
 {
+    /// <summary>Gets or sets the score value.</summary>
     public int Score { get; init; }
+    /// <summary>Gets or sets the hamming distance value.</summary>
     public int HammingDistance { get; init; }
+    /// <summary>Gets or sets the likely clone value.</summary>
     public bool LikelyClone { get; init; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the signals value.</summary>
     public IReadOnlyList<string> Signals { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the matched artifact kind value.</summary>
     public TyposquattingVisualArtifactKind MatchedArtifactKind { get; init; }
+    /// <summary>Gets or sets the matched source url value.</summary>
     public string MatchedSourceUrl { get; init; } = string.Empty;
+    /// <summary>Gets or sets the candidate artifact url value.</summary>
     public string CandidateArtifactUrl { get; init; } = string.Empty;
 }
 
@@ -147,6 +179,7 @@ public sealed class TyposquattingVisualSimilarityMatch
 /// </summary>
 public static partial class TyposquattingVisualSimilarityAnalyzer
 {
+    /// <summary>Builds profile async.</summary>
     public static async Task<TyposquattingSourceVisualProfile?> BuildProfileAsync(
         string domain,
         TyposquattingVisualSimilarityOptions options,
@@ -177,6 +210,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
         };
     }
 
+    /// <summary>Executes the compare candidates async operation.</summary>
     public static async Task CompareCandidatesAsync(
         IReadOnlyList<TyposquattingCandidate>? candidates,
         TyposquattingSourceVisualProfile? profile,
@@ -232,6 +266,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
+    /// <summary>Executes the compare fingerprint operation.</summary>
     public static TyposquattingVisualSimilarityMatch CompareFingerprint(
         string candidateFingerprintHex,
         TyposquattingSourceVisualProfile profile,

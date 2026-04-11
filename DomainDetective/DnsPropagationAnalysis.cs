@@ -416,6 +416,7 @@ namespace DomainDetective {
             return asns[0].GetProperty("asn").GetInt32();
         }
 
+        /// <summary>Validates server asns async.</summary>
         public async Task ValidateServerAsnsAsync(InternalLogger? logger = null, CancellationToken ct = default) {
             List<PublicDnsEntry> snapshot;
             lock (_serversLock) {

@@ -2,11 +2,16 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Providers.Email.Vendors;
 
+/// <summary>Provides cloudflare email routing provider functionality.</summary>
 public sealed class CloudflareEmailRoutingProvider : IMailProvider {
+    /// <summary>Represents the id value.</summary>
     public string Id => "cloudflare-email-routing";
+    /// <summary>Represents the display name value.</summary>
     public string DisplayName => "Cloudflare Email Routing";
+    /// <summary>Represents the capabilities value.</summary>
     public ProviderCapability Capabilities => ProviderCapability.InboundMx;
 
+    /// <summary>Represents the mx host patterns value.</summary>
     public IEnumerable<string> MxHostPatterns => new[]
     {
         "route*.mx.cloudflare.net",
@@ -14,15 +19,23 @@ public sealed class CloudflareEmailRoutingProvider : IMailProvider {
         "*.mailchannels.net"
     };
 
+    /// <summary>Represents the spf required tokens value.</summary>
     public IEnumerable<string> SpfRequiredTokens => new string[0];
+    /// <summary>Represents the dkim selector hints value.</summary>
     public IEnumerable<string> DkimSelectorHints => new string[0];
+    /// <summary>Represents the dkim cname suffixes value.</summary>
     public IEnumerable<string> DkimCnameSuffixes => new string[0];
 
+    /// <summary>Represents the single mx ok value.</summary>
     public bool SingleMxOk => false;
+    /// <summary>Represents the recommended min mx records value.</summary>
     public int RecommendedMinMxRecords => 2;
+    /// <summary>Represents the minimum dkim selectors to pass value.</summary>
     public int MinimumDkimSelectorsToPass => 0;
+    /// <summary>Represents the subdomain policy recommendation value.</summary>
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
     // Documentation (source of truth)
+    /// <summary>Represents the docs value.</summary>
     public ProviderDocumentation Docs => new ProviderDocumentation {
         Provider = DisplayName,
         Arc = new ProviderDocLink {

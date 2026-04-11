@@ -6,6 +6,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static BimiRecordInfo Convert(BimiAnalysis analysis)
     {
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
@@ -76,26 +77,41 @@ public class BimiRecordInfo
     public string Subject { get; set; } = string.Empty;
     /// <summary>Raw BIMI TXT record.</summary>
     public string BimiRecord { get; set; } = string.Empty;
+    /// <summary>Gets or sets the bimi record exists value.</summary>
     public bool BimiRecordExists { get; set; }
+    /// <summary>Gets or sets the starts correctly value.</summary>
     public bool StartsCorrectly { get; set; }
     /// <summary>URL to the SVG indicator (l=).</summary>
     public string Location { get; set; } = string.Empty;
     /// <summary>URL to the VMC certificate (a=).</summary>
     public string Authority { get; set; } = string.Empty;
+    /// <summary>Gets or sets the location uses https value.</summary>
     public bool LocationUsesHttps { get; set; }
+    /// <summary>Gets or sets the authority uses https value.</summary>
     public bool AuthorityUsesHttps { get; set; }
+    /// <summary>Gets or sets the declined to publish value.</summary>
     public bool DeclinedToPublish { get; set; }
+    /// <summary>Gets or sets the invalid location value.</summary>
     public bool InvalidLocation { get; set; }
+    /// <summary>Gets or sets the svg fetched value.</summary>
     public bool SvgFetched { get; set; }
+    /// <summary>Gets or sets the svg valid value.</summary>
     public bool SvgValid { get; set; }
     /// <summary>Why the SVG failed validation (when invalid).</summary>
     public string SvgInvalidReason { get; set; } = string.Empty;
+    /// <summary>Gets or sets the svg size valid value.</summary>
     public bool SvgSizeValid { get; set; }
+    /// <summary>Gets or sets the dimensions valid value.</summary>
     public bool DimensionsValid { get; set; }
+    /// <summary>Gets or sets the view box valid value.</summary>
     public bool ViewBoxValid { get; set; }
+    /// <summary>Gets or sets the svg attributes present value.</summary>
     public bool SvgAttributesPresent { get; set; }
+    /// <summary>Gets or sets the valid vmc value.</summary>
     public bool ValidVmc { get; set; }
+    /// <summary>Gets or sets the vmc signed by known root value.</summary>
     public bool VmcSignedByKnownRoot { get; set; }
+    /// <summary>Gets or sets the vmc contains logo value.</summary>
     public bool VmcContainsLogo { get; set; }
     /// <summary>Failure reason when HTTP requests fail.</summary>
     public string FailureReason { get; set; } = string.Empty;
@@ -103,7 +119,9 @@ public class BimiRecordInfo
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
     /// <summary>Short summary text used in executive reports.</summary>
     public string Summary { get; set; } = string.Empty;

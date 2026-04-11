@@ -36,24 +36,37 @@ public class SecurityTXTAnalysis : IHasAssessments {
 
         /// <summary>URL from which the record was downloaded.</summary>
         public string Url { get; set; } = string.Empty;
+        /// <summary>Gets the duplicate tags value.</summary>
         public HashSet<string> DuplicateTags { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Fields that can appear multiple times as List<string>
+        /// <summary>Gets or sets the contact email value.</summary>
         public List<string> ContactEmail { get; set; } = new List<string>();
+        /// <summary>Gets or sets the contact website value.</summary>
         public List<string> ContactWebsite { get; set; } = new List<string>();
+        /// <summary>Gets or sets the acknowledgments value.</summary>
         public List<string> Acknowledgments { get; set; } = new List<string>();
+        /// <summary>Gets or sets the preferred languages value.</summary>
         public List<string> PreferredLanguages { get; set; } = new List<string>();
+        /// <summary>Gets or sets the encryption value.</summary>
         public List<string> Encryption { get; set; } = new List<string>();
+        /// <summary>Gets or sets the policy value.</summary>
         public List<string> Policy { get; set; } = new List<string>();
+        /// <summary>Gets or sets the hiring value.</summary>
         public List<string> Hiring { get; set; } = new List<string>();
 
         // Fields that should only appear once as string
+        /// <summary>Gets or sets the canonical value.</summary>
         public List<string> Canonical { get; set; } = new List<string>();
+        /// <summary>Gets or sets the expires value.</summary>
         public string Expires { get; set; } = string.Empty;
+        /// <summary>Gets or sets the signature encryption value.</summary>
         public string SignatureEncryption { get; set; } = string.Empty;
 
 
         internal InternalLogger Logger { get; set; } = new InternalLogger();
+        /// <summary>Gets the assessments value.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
 

@@ -3,10 +3,13 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides wildcard narrative functionality.</summary>
 public static class WildcardNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(WildcardDnsAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
         var title = "Wildcard DNS Report";

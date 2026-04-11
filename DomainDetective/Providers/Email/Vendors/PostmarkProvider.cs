@@ -2,24 +2,37 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Providers.Email.Vendors;
 
+/// <summary>Provides postmark provider functionality.</summary>
 public sealed class PostmarkProvider : IMailProvider
 {
+    /// <summary>Represents the id value.</summary>
     public string Id => "postmark";
+    /// <summary>Represents the display name value.</summary>
     public string DisplayName => "Postmark";
+    /// <summary>Represents the capabilities value.</summary>
     public ProviderCapability Capabilities => ProviderCapability.OutboundOnly | ProviderCapability.DkimSigning | ProviderCapability.SpfPublish;
 
+    /// <summary>Represents the mx host patterns value.</summary>
     public IEnumerable<string> MxHostPatterns => new string[0];
 
+    /// <summary>Represents the spf required tokens value.</summary>
     public IEnumerable<string> SpfRequiredTokens => new[] { "include:spf.mtasv.net" };
+    /// <summary>Represents the dkim selector hints value.</summary>
     public IEnumerable<string> DkimSelectorHints => new[] { "pm" };
+    /// <summary>Represents the dkim cname suffixes value.</summary>
     public IEnumerable<string> DkimCnameSuffixes => new[] { "pm.mtasv.net" };
 
+    /// <summary>Represents the single mx ok value.</summary>
     public bool SingleMxOk => false;
+    /// <summary>Represents the recommended min mx records value.</summary>
     public int RecommendedMinMxRecords => 0;
+    /// <summary>Represents the minimum dkim selectors to pass value.</summary>
     public int MinimumDkimSelectorsToPass => 0;
+    /// <summary>Represents the subdomain policy recommendation value.</summary>
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
     // Documentation (source of truth)
 
+    /// <summary>Represents the docs value.</summary>
     public ProviderDocumentation Docs => new ProviderDocumentation {
         Provider = DisplayName,
         Arc = new ProviderDocLink { Url = "https://postmarkapp.com/blog/what-is-arc-or-authenticated-received-chain", Title = "What is ARC?", Summary = "ARC explainer for forwarding scenarios.", Notes = "Postmark does not require sender-domain SPF includes; focus on DKIM alignment.", IsPublic = true, IsThirdParty = false, LastVerified = new System.DateTime(2025, 9, 9) },

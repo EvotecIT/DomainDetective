@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static StartTlsInfo Convert(STARTTLSAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -42,33 +43,58 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides start tls info functionality.</summary>
 public class StartTlsInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the servers value.</summary>
     public IReadOnlyList<StartTlsServerInfo> Servers { get; set; } = null!;
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = null!;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = null!;
+    /// <summary>Gets or sets the raw value.</summary>
     public STARTTLSAnalysis Raw { get; set; } = null!;
 }
 
+/// <summary>Provides start tls server info functionality.</summary>
 public class StartTlsServerInfo
 {
+    /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = null!;
+    /// <summary>Gets or sets the start tls advertised value.</summary>
     public bool StartTlsAdvertised { get; set; }
+    /// <summary>Gets or sets the tls negotiated value.</summary>
     public bool TlsNegotiated { get; set; }
+    /// <summary>Gets or sets the downgrade detected value.</summary>
     public bool DowngradeDetected { get; set; }
+    /// <summary>Gets or sets the tls protocol value.</summary>
     public string? TlsProtocol { get; set; }
+    /// <summary>Gets or sets the cipher algorithm value.</summary>
     public string? CipherAlgorithm { get; set; }
+    /// <summary>Gets or sets the cipher strength value.</summary>
     public int? CipherStrength { get; set; }
+    /// <summary>Gets or sets the certificate subject value.</summary>
     public string? CertificateSubject { get; set; }
+    /// <summary>Gets or sets the certificate issuer value.</summary>
     public string? CertificateIssuer { get; set; }
+    /// <summary>Gets or sets the certificate not after value.</summary>
     public System.DateTime? CertificateNotAfter { get; set; }
 }
