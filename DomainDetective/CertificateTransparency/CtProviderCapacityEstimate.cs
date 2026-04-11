@@ -28,11 +28,23 @@ public sealed class CtProviderCapacityEstimate
     /// <summary>Safe concurrency to use for provider requests.</summary>
     public int MaxConcurrentRequests { get; init; } = 1;
 
+    /// <summary>Optional provider request budget for one logical run.</summary>
+    public int? MaximumRequestsPerRun { get; init; }
+
+    /// <summary>Estimated number of logical runs needed for the requested provider calls.</summary>
+    public int EstimatedRunCount { get; init; }
+
+    /// <summary>Estimated request count in the first logical run after applying the run budget.</summary>
+    public int FirstRunRequestCount { get; init; }
+
     /// <summary>Number of request waves needed under the configured concurrency limit.</summary>
     public int ConcurrencyWaveCount { get; init; }
 
     /// <summary>True when the estimate is dominated by request pacing rather than only concurrency.</summary>
     public bool IsRateLimited { get; init; }
+
+    /// <summary>True when the request count exceeds the provider budget for one logical run.</summary>
+    public bool ExceedsRunBudget { get; init; }
 
     /// <summary>True when request duration and concurrency shape the minimum duration estimate.</summary>
     public bool IsConcurrencyLimited { get; init; }

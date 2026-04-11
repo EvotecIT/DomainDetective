@@ -57,6 +57,10 @@ public class TestCtIngestionPlanner
         Assert.Equal(TimeSpan.FromSeconds(5), estimate.EstimatedRequestDuration);
         Assert.Equal(TimeSpan.FromSeconds(15 * 19_999 + 5), estimate.EstimatedMinimumDuration);
         Assert.Equal(now + TimeSpan.FromSeconds(15 * 19_999 + 5), estimate.EstimatedCompletionUtc);
+        Assert.Null(estimate.MaximumRequestsPerRun);
+        Assert.Equal(1, estimate.EstimatedRunCount);
+        Assert.Equal(20_000, estimate.FirstRunRequestCount);
+        Assert.False(estimate.ExceedsRunBudget);
         Assert.True(estimate.IsRateLimited);
         Assert.False(estimate.IsConcurrencyLimited);
     }
@@ -77,6 +81,24 @@ public class TestCtIngestionPlanner
         Assert.Equal(now + TimeSpan.FromSeconds(100), estimate.EstimatedCompletionUtc);
         Assert.False(estimate.IsRateLimited);
         Assert.True(estimate.IsConcurrencyLimited);
+    }
+
+    [Fact]
+    public void EstimateCapacityReportsRunBudgetSlices()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp(new CertificateInventoryCaptureOptions
+        {
+            PassiveCtCrtShMaximumRequestsPerRun = 100,
+            PassiveCtCrtShMinimumSpacing = TimeSpan.FromSeconds(15),
+            PassiveCtRequestTimeout = TimeSpan.FromSeconds(30)
+        });
+
+        CtProviderCapacityEstimate estimate = CtIngestionPlanner.EstimateCapacity(profile, 250);
+
+        Assert.Equal(100, estimate.MaximumRequestsPerRun);
+        Assert.Equal(3, estimate.EstimatedRunCount);
+        Assert.Equal(100, estimate.FirstRunRequestCount);
+        Assert.True(estimate.ExceedsRunBudget);
     }
 
     [Fact]

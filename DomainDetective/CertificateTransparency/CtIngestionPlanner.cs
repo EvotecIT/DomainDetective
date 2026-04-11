@@ -29,6 +29,12 @@ public static class CtIngestionPlanner
         CtProviderRateLimitProfile rateLimit = (profile.RateLimit ?? new CtProviderRateLimitProfile()).Normalize();
         int maxConcurrentRequests = rateLimit.MaxConcurrentRequests.GetValueOrDefault(1);
         TimeSpan effectiveSpacing = ResolveEffectiveRequestSpacing(rateLimit);
+        int firstRunRequestCount = EstimateFirstRunRequestCount(
+            normalizedRequestCount,
+            rateLimit.MaximumRequestsPerRun);
+        int estimatedRunCount = EstimateRunCount(
+            normalizedRequestCount,
+            rateLimit.MaximumRequestsPerRun);
         TimeSpan spacingDuration = EstimateSpacingDuration(
             normalizedRequestCount,
             effectiveSpacing,
@@ -47,8 +53,12 @@ public static class CtIngestionPlanner
             EstimatedMinimumDuration = estimatedDuration,
             EstimatedCompletionUtc = startUtc + estimatedDuration,
             MaxConcurrentRequests = maxConcurrentRequests,
+            MaximumRequestsPerRun = rateLimit.MaximumRequestsPerRun,
+            EstimatedRunCount = estimatedRunCount,
+            FirstRunRequestCount = firstRunRequestCount,
             ConcurrencyWaveCount = concurrencyWaveCount,
             IsRateLimited = effectiveSpacing > TimeSpan.Zero,
+            ExceedsRunBudget = estimatedRunCount > 1,
             IsConcurrencyLimited = normalizedRequestCount > maxConcurrentRequests &&
                 concurrencyDuration >= spacingDuration
         };
@@ -380,7 +390,43 @@ public static class CtIngestionPlanner
         }
 
         int normalizedConcurrency = Math.Max(1, maxConcurrentRequests);
-        return (requestCount + normalizedConcurrency - 1) / normalizedConcurrency;
+        long waveCount = ((long)requestCount + normalizedConcurrency - 1) / normalizedConcurrency;
+        return waveCount > int.MaxValue
+            ? int.MaxValue
+            : (int)waveCount;
+    }
+
+    private static int EstimateRunCount(int requestCount, int? maximumRequestsPerRun)
+    {
+        if (requestCount <= 0)
+        {
+            return 0;
+        }
+
+        if (!maximumRequestsPerRun.HasValue || maximumRequestsPerRun.Value <= 0)
+        {
+            return 1;
+        }
+
+        long runCount = ((long)requestCount + maximumRequestsPerRun.Value - 1) / maximumRequestsPerRun.Value;
+        return runCount > int.MaxValue
+            ? int.MaxValue
+            : (int)runCount;
+    }
+
+    private static int EstimateFirstRunRequestCount(int requestCount, int? maximumRequestsPerRun)
+    {
+        if (requestCount <= 0)
+        {
+            return 0;
+        }
+
+        if (!maximumRequestsPerRun.HasValue || maximumRequestsPerRun.Value <= 0)
+        {
+            return requestCount;
+        }
+
+        return Math.Min(requestCount, maximumRequestsPerRun.Value);
     }
 
     private static TimeSpan MultiplyTimeSpan(TimeSpan value, int multiplier)
