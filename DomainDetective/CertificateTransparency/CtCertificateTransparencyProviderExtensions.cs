@@ -39,7 +39,7 @@ public static class CtCertificateTransparencyProviderExtensions
         int remainingPages = maxPages.HasValue && maxPages.Value > 0
             ? maxPages.Value
             : int.MaxValue;
-        string? previousContinuationToken = null;
+        var seenContinuationTokens = new HashSet<string>(StringComparer.Ordinal);
         CtCertificateQuery currentQuery = query.Normalize();
         while (remainingPages > 0)
         {
@@ -56,12 +56,11 @@ public static class CtCertificateTransparencyProviderExtensions
                 : result.ContinuationToken!.Trim();
             if (!result.HasMore ||
                 continuationToken == null ||
-                string.Equals(continuationToken, previousContinuationToken, StringComparison.Ordinal))
+                !seenContinuationTokens.Add(continuationToken))
             {
                 yield break;
             }
 
-            previousContinuationToken = continuationToken;
             runtimeState = result.ProviderState ?? runtimeState;
             currentQuery = currentQuery.WithContinuationToken(continuationToken);
         }

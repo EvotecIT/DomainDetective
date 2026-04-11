@@ -194,6 +194,7 @@ public class TestCtIngestionPlanner
         Assert.Equal(
             estimate.DomainCapacity.EstimatedMinimumDuration + estimate.HostCapacity.EstimatedMinimumDuration,
             estimate.Capacity.EstimatedMinimumDuration);
+        Assert.Equal(TimeSpan.FromMilliseconds(354_800), estimate.Capacity.EstimatedFirstRunDuration);
     }
 
     [Fact]

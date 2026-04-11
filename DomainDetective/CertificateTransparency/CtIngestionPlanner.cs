@@ -424,12 +424,12 @@ public static class CtIngestionPlanner
         TimeSpan estimatedMinimumDuration = capacities
             .Select(static estimate => estimate.EstimatedMinimumDuration)
             .Aggregate(TimeSpan.Zero, AddTimeSpan);
-        TimeSpan estimatedFirstRunDuration = capacities
-            .Select(static estimate => estimate.EstimatedFirstRunDuration)
-            .Aggregate(TimeSpan.Zero, AddTimeSpan);
         int firstRunRequestCount = EstimateFirstRunRequestCount(
             normalizedTotalRequests,
             rateLimit.MaximumRequestsPerRun);
+        TimeSpan estimatedFirstRunDuration = EstimateAggregateFirstRunDuration(
+            capacities,
+            firstRunRequestCount);
         int remainingRequestCount = Math.Max(0, normalizedTotalRequests - firstRunRequestCount);
         int estimatedRunCount = EstimateRunCount(
             normalizedTotalRequests,
@@ -462,6 +462,40 @@ public static class CtIngestionPlanner
                                capacities.Any(static estimate => estimate.ExceedsRunBudget),
             IsConcurrencyLimited = capacities.Any(static estimate => estimate.IsConcurrencyLimited)
         };
+    }
+
+    private static TimeSpan EstimateAggregateFirstRunDuration(
+        IReadOnlyList<CtProviderCapacityEstimate> capacities,
+        int firstRunRequestCount)
+    {
+        int remainingFirstRunRequests = Math.Max(0, firstRunRequestCount);
+        TimeSpan estimatedDuration = TimeSpan.Zero;
+        foreach (CtProviderCapacityEstimate capacity in capacities)
+        {
+            if (remainingFirstRunRequests == 0)
+            {
+                break;
+            }
+
+            int segmentRequestCount = Math.Min(
+                Math.Max(0, capacity.RequestCount),
+                remainingFirstRunRequests);
+            if (segmentRequestCount == 0)
+            {
+                continue;
+            }
+
+            estimatedDuration = AddTimeSpan(
+                estimatedDuration,
+                EstimateDuration(
+                    segmentRequestCount,
+                    capacity.EffectiveRequestSpacing,
+                    capacity.EstimatedRequestDuration,
+                    Math.Max(1, capacity.MaxConcurrentRequests)));
+            remainingFirstRunRequests -= segmentRequestCount;
+        }
+
+        return estimatedDuration;
     }
 
     private static CtProviderCapacityEstimate EstimateCapacity(

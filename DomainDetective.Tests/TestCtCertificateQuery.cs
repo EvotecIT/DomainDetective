@@ -48,9 +48,9 @@ public class TestCtCertificateQuery
     }
 
     [Fact]
-    public async Task QueryPagesStopsWhenProviderRepeatsContinuationToken()
+    public async Task QueryPagesStopsWhenProviderRepeatsAnyContinuationToken()
     {
-        var provider = new RepeatingTokenProvider();
+        var provider = new CyclingTokenProvider();
         var results = new List<CtCertificateQueryResult>();
 
         await foreach (CtCertificateQueryResult result in provider.QueryPagesAsync(
@@ -59,8 +59,8 @@ public class TestCtCertificateQuery
             results.Add(result);
         }
 
-        Assert.Equal(2, results.Count);
-        Assert.Equal(2, provider.CallCount);
+        Assert.Equal(3, results.Count);
+        Assert.Equal(3, provider.CallCount);
     }
 
     [Theory]
@@ -116,15 +116,17 @@ public class TestCtCertificateQuery
         Assert.Equal(CtIngestionOperation.GetDomainTreeCertificates, normalized.Operations);
     }
 
-    private sealed class RepeatingTokenProvider : ICtCertificateTransparencyProvider
+    private sealed class CyclingTokenProvider : ICtCertificateTransparencyProvider
     {
+        private readonly string[] _tokens = { "token-a", "token-b", "token-a" };
+
         public int CallCount { get; private set; }
 
-        public string ProviderId => "repeat-token";
+        public string ProviderId => "cycling-token";
 
         public CtProviderProfile Profile { get; } = new()
         {
-            ProviderId = "repeat-token",
+            ProviderId = "cycling-token",
             Capabilities = CtProviderCapabilities.ExactHostLookup |
                            CtProviderCapabilities.CertificateHistory
         };
@@ -134,12 +136,13 @@ public class TestCtCertificateQuery
             CtProviderRuntimeState? runtimeState = null,
             CancellationToken cancellationToken = default)
         {
+            string continuationToken = _tokens[Math.Min(CallCount, _tokens.Length - 1)];
             CallCount++;
             return Task.FromResult(new CtCertificateQueryResult
             {
                 ProviderId = ProviderId,
                 HasMore = true,
-                ContinuationToken = "repeat-token"
+                ContinuationToken = continuationToken
             });
         }
     }
