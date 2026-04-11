@@ -72,6 +72,13 @@ public sealed class CertificateInventoryCaptureOptions {
     /// </summary>
     public List<string> ExactPassiveCtMetadataTargetHosts { get; } = new();
 
+    /// <summary>
+    /// Optional normalized certificate thumbprints that should be preferred when passive CT metadata
+    /// rescue needs provenance for already-identified certificates rather than the newest certificate
+    /// currently associated with a host.
+    /// </summary>
+    public List<string> CtMetadataTargetThumbprints { get; } = new();
+
     /// <summary>When true, uses native RFC6962 CT log polling for subdomain discovery.</summary>
     public bool EnableNativeCtLogSubdomainSource { get; set; }
 

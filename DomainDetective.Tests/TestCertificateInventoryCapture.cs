@@ -2199,6 +2199,66 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public void TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows_PrefersTargetThumbprintOverNewerHostCertificate() {
+        const string hostName = "mail.emmasguesthouse.co.za";
+
+        using RSA olderKey = RSA.Create(2048);
+        var olderRequest = new CertificateRequest(
+            $"CN={hostName}",
+            olderKey,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        olderRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+        olderRequest.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(olderRequest.PublicKey, false));
+        using X509Certificate2 olderCertificate = olderRequest.CreateSelfSigned(
+            new DateTimeOffset(2026, 3, 20, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 6, 20, 0, 0, 0, TimeSpan.Zero));
+
+        using RSA newerKey = RSA.Create(2048);
+        var newerRequest = new CertificateRequest(
+            $"CN={hostName}",
+            newerKey,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        newerRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+        newerRequest.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(newerRequest.PublicKey, false));
+        using X509Certificate2 newerCertificate = newerRequest.CreateSelfSigned(
+            new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero));
+
+        SubdomainDiscoveryEntry? entry = CertificateInventoryCapture.TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(
+            hostName,
+            new[] {
+                new CertificateInventoryCapture.CrtShPostgreSqlExactMetadataRow {
+                    CertificateDer = newerCertificate.Export(X509ContentType.Cert),
+                    EntryTimestampUtc = new DateTimeOffset(2026, 4, 1, 12, 0, 0, TimeSpan.Zero),
+                    CommonName = hostName,
+                    IssuerName = newerCertificate.Issuer,
+                    SerialNumber = newerCertificate.SerialNumber,
+                    NotBeforeUtc = new DateTimeOffset(newerCertificate.NotBefore.ToUniversalTime()),
+                    NotAfterUtc = new DateTimeOffset(newerCertificate.NotAfter.ToUniversalTime()),
+                    CandidateNames = new[] { hostName }
+                },
+                new CertificateInventoryCapture.CrtShPostgreSqlExactMetadataRow {
+                    CertificateDer = olderCertificate.Export(X509ContentType.Cert),
+                    EntryTimestampUtc = new DateTimeOffset(2026, 3, 20, 12, 0, 0, TimeSpan.Zero),
+                    CommonName = hostName,
+                    IssuerName = olderCertificate.Issuer,
+                    SerialNumber = olderCertificate.SerialNumber,
+                    NotBeforeUtc = new DateTimeOffset(olderCertificate.NotBefore.ToUniversalTime()),
+                    NotAfterUtc = new DateTimeOffset(olderCertificate.NotAfter.ToUniversalTime()),
+                    CandidateNames = new[] { hostName }
+                }
+            },
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { olderCertificate.Thumbprint });
+
+        Assert.NotNull(entry);
+        Assert.Equal(olderCertificate.Thumbprint, entry!.LatestCertificateThumbprint);
+        Assert.Equal(olderCertificate.SerialNumber, entry.LatestCertificateSerialNumber);
+        Assert.Contains("crt.sh-db", entry.CtSources, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows_AcceptsWildcardSubjectAlternativeNames() {
         const string hostName = "mail.emmasguesthouse.co.za";
         using RSA rsa = RSA.Create(2048);
@@ -2244,7 +2304,16 @@ public class TestCertificateInventoryCapture {
         Assert.Contains("identities(c.certificate)", query, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("x509_altnames(c.certificate)", query, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("encode(x509_serialNumber(c.certificate), 'hex')", query, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("@wildcardHost", query, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("certificate_identity", query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BuildWildcardCandidateHost_DoesNotBroadenRegistrableRootsToTopLevelWildcards() {
+        Assert.Equal("abclabs.com", CertificateInventoryCapture.BuildWildcardCandidateHost("abclabs.com"));
+        Assert.Equal("eurofins.pl", CertificateInventoryCapture.BuildWildcardCandidateHost("eurofins.pl"));
+        Assert.Equal("*.example.com", CertificateInventoryCapture.BuildWildcardCandidateHost("mail.example.com"));
+        Assert.Equal("*.emmasguesthouse.co.za", CertificateInventoryCapture.BuildWildcardCandidateHost("mail.emmasguesthouse.co.za"));
     }
 
     [Fact]
@@ -3474,6 +3543,61 @@ public class TestCertificateInventoryCapture {
         Assert.DoesNotContain(
             warnings,
             warning => warning.Contains("Passive CT exact metadata backfill skipped", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ExactCtMetadataBackfill_UsesDirectPostgreSqlMetadataWhenPassiveFallbackIsDisabled() {
+        var passiveFallbackCalled = false;
+        var capture = new CertificateInventoryCapture
+        {
+            CtExactMetadataPostgreSqlOverride = (host, options, logger, cancellationToken) =>
+                Task.FromResult<SubdomainDiscoveryEntry?>(new SubdomainDiscoveryEntry
+                {
+                    Name = host,
+                    LatestCertificateThumbprint = "DBONLY11223344556677889900AABBCCDDEEFF",
+                    LatestCertificateSubject = "CN=api.example.com",
+                    LatestCertificateIssuer = "CN=crt.sh-db",
+                    CtSources = new[] { "crt.sh-db" },
+                    CertificateObservationCount = 1
+                }),
+            CtPassiveMetadataBackfillOverride = (_, _, _, _) =>
+            {
+                passiveFallbackCalled = true;
+                return Task.FromResult<IReadOnlyList<SubdomainDiscoveryEntry>>(Array.Empty<SubdomainDiscoveryEntry>());
+            }
+        };
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "BackfillMissingCtCertificateMetadataExactAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(method);
+
+        var options = new CertificateInventoryCaptureOptions
+        {
+            EnablePassiveCtFallback = false,
+            EnablePassiveCtMetadataFallback = false,
+            EnableCrtShPostgreSqlMetadataFallback = true
+        };
+
+        Task<IReadOnlyList<SubdomainDiscoveryEntry>> task =
+            (Task<IReadOnlyList<SubdomainDiscoveryEntry>>)method!.Invoke(
+                capture,
+                new object[]
+                {
+                    new[] { "api.example.com" },
+                    options,
+                    new List<string>(),
+                    new List<PassiveCtDiagnosticEntry>(),
+                    new InternalLogger(false),
+                    CancellationToken.None
+                })!;
+
+        IReadOnlyList<SubdomainDiscoveryEntry> result = await task;
+
+        SubdomainDiscoveryEntry entry = Assert.Single(result);
+        Assert.Equal("api.example.com", entry.Name);
+        Assert.Equal("DBONLY11223344556677889900AABBCCDDEEFF", entry.LatestCertificateThumbprint);
+        Assert.False(passiveFallbackCalled);
     }
 
     [Fact]

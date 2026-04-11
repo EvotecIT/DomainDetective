@@ -52,7 +52,8 @@ public sealed partial class CertificateInventoryCapture {
 
         bool allowPassiveMetadataFallback = options.EnablePassiveCtFallback ||
                                             options.EnablePassiveCtMetadataFallback;
-        if (!allowPassiveMetadataFallback) {
+        bool allowPostgreSqlMetadataFallback = ShouldUseCrtShPostgreSqlMetadataFallback(options);
+        if (!allowPassiveMetadataFallback && !allowPostgreSqlMetadataFallback) {
             return discoveredEntries;
         }
 
@@ -137,7 +138,8 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
-        if (ShouldUseCrtShPostgreSqlMetadataFallback(options)) {
+        bool domainPostgreSqlLookupFailed = false;
+        if (allowPostgreSqlMetadataFallback) {
             logger.WriteVerbose(
                 "CT metadata backfill: querying domain-batched crt.sh PostgreSQL metadata for {0} domain(s) covering {1} remaining subdomain(s).",
                 missingByDomain.Count(static pair => pair.Value.Count > 0),
@@ -159,11 +161,13 @@ public sealed partial class CertificateInventoryCapture {
                                 cancellationToken)
                             .ConfigureAwait(false);
                 } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
+                    domainPostgreSqlLookupFailed = true;
                     string warning = $"CT metadata backfill domain PostgreSQL lookup timed out for {pair.Key}.";
                     warnings.Add(warning);
                     logger.WriteVerbose(warning);
                     continue;
                 } catch (Exception ex) {
+                    domainPostgreSqlLookupFailed = true;
                     string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {pair.Key}: {ex.Message}";
                     warnings.Add(warning);
                     logger.WriteVerbose(warning);
@@ -193,14 +197,18 @@ public sealed partial class CertificateInventoryCapture {
             .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (remainingMissingNames.Count > 0 && suppressedHosts.Count > 0) {
-            int originalCount = remainingMissingNames.Count;
-            remainingMissingNames = remainingMissingNames
-                .Where(name => !suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()))
-                .ToList();
-            int suppressedCount = originalCount - remainingMissingNames.Count;
-            if (suppressedCount > 0) {
+            int suppressedCount = remainingMissingNames.Count(name =>
+                suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()));
+            if (suppressedCount > 0 && !domainPostgreSqlLookupFailed) {
+                remainingMissingNames = remainingMissingNames
+                    .Where(name => !suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()))
+                    .ToList();
                 logger.WriteVerbose(
                     "CT metadata backfill: skipping exact passive CT metadata for {0} remaining host(s) because the caller already supplied suppression state.",
+                    suppressedCount);
+            } else if (suppressedCount > 0) {
+                logger.WriteVerbose(
+                    "CT metadata backfill: retaining {0} remaining host(s) for exact passive CT metadata because domain-batched crt.sh PostgreSQL lookup failed in this pass.",
                     suppressedCount);
             }
         }
@@ -254,7 +262,9 @@ public sealed partial class CertificateInventoryCapture {
 
         if (options.NativeCtLogOnly ||
             !options.BackfillMissingCtCertificateMetadata ||
-            (!options.EnablePassiveCtFallback && !options.EnablePassiveCtMetadataFallback)) {
+            (!options.EnablePassiveCtFallback &&
+             !options.EnablePassiveCtMetadataFallback &&
+             !ShouldUseCrtShPostgreSqlMetadataFallback(options))) {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
@@ -462,7 +472,9 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
-        bool usePassiveNetworkQueries = CtPassiveMetadataBackfillOverride == null;
+        bool allowPassiveMetadataFallback = options.EnablePassiveCtFallback ||
+                                            options.EnablePassiveCtMetadataFallback;
+        bool usePassiveNetworkQueries = allowPassiveMetadataFallback && CtPassiveMetadataBackfillOverride == null;
         List<string> normalizedHostNames = hostNames
             .Where(static hostName => !string.IsNullOrWhiteSpace(hostName))
             .Select(static hostName => hostName.Trim())
@@ -499,6 +511,12 @@ public sealed partial class CertificateInventoryCapture {
                     .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
+        }
+
+        if (!allowPassiveMetadataFallback) {
+            return results.Values
+                .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string suppressionReason)) {
@@ -648,6 +666,14 @@ public sealed partial class CertificateInventoryCapture {
             return results;
         }
 
+        if (CtExactMetadataPostgreSqlOverride == null) {
+            return await QueryCrtShPostgreSqlMetadataExactSequentialAsync(
+                hostNames,
+                options,
+                logger,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         int exactParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
             options.DiscoveryParallelism,
             options.PassiveCtParallelism,
@@ -687,6 +713,78 @@ public sealed partial class CertificateInventoryCapture {
         return results;
     }
 
+    private static async Task<Dictionary<string, SubdomainDiscoveryEntry>> QueryCrtShPostgreSqlMetadataExactSequentialAsync(
+        IReadOnlyList<string> hostNames,
+        CertificateInventoryCaptureOptions options,
+        InternalLogger? logger,
+        CancellationToken cancellationToken) {
+        var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
+        if (hostNames == null || hostNames.Count == 0 || options == null) {
+            return results;
+        }
+
+        List<string> normalizedHosts = hostNames
+            .Where(static host => !string.IsNullOrWhiteSpace(host))
+            .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (normalizedHosts.Count == 0) {
+            return results;
+        }
+
+        string connectionString = BuildCrtShPostgreSqlConnectionString(options);
+        HashSet<string> targetedThumbprints = BuildTargetedCtMetadataThumbprintSet(options);
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        foreach (string normalizedHost in normalizedHosts) {
+            cancellationToken.ThrowIfCancellationRequested();
+            try {
+                SubdomainDiscoveryEntry? entry = await QueryCrtShPostgreSqlMetadataExactAsync(
+                    connection,
+                    normalizedHost,
+                    options,
+                    logger,
+                    targetedThumbprints,
+                    cancellationToken).ConfigureAwait(false);
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Name)) {
+                    continue;
+                }
+
+                MergeCtSubdomainEntry(results, entry);
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                throw;
+            } catch (Exception ex) {
+                logger?.WriteVerbose(
+                    "CT metadata backfill exact PostgreSQL lookup failed for {0}: {1}",
+                    normalizedHost,
+                    ex.Message);
+                if (connection.FullState == System.Data.ConnectionState.Broken ||
+                    connection.FullState == System.Data.ConnectionState.Closed) {
+                    break;
+                }
+            }
+        }
+
+        return results;
+    }
+
+    private static HashSet<string> BuildTargetedCtMetadataThumbprintSet(CertificateInventoryCaptureOptions? options) {
+        if (options == null || options.CtMetadataTargetThumbprints.Count == 0) {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var thumbprints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string rawThumbprint in options.CtMetadataTargetThumbprints) {
+            string? normalizedThumbprint = NormalizeCtMetadataThumbprint(rawThumbprint);
+            if (!string.IsNullOrWhiteSpace(normalizedThumbprint)) {
+                thumbprints.Add(normalizedThumbprint!);
+            }
+        }
+
+        return thumbprints;
+    }
+
     private static async Task<SubdomainDiscoveryEntry?> QueryCrtShPostgreSqlMetadataExactAsync(
         string hostName,
         CertificateInventoryCaptureOptions options,
@@ -700,11 +798,32 @@ public sealed partial class CertificateInventoryCapture {
         string connectionString = BuildCrtShPostgreSqlConnectionString(options);
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await QueryCrtShPostgreSqlMetadataExactAsync(
+            connection,
+            normalizedHost,
+            options,
+            logger,
+            BuildTargetedCtMetadataThumbprintSet(options),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<SubdomainDiscoveryEntry?> QueryCrtShPostgreSqlMetadataExactAsync(
+        NpgsqlConnection connection,
+        string normalizedHost,
+        CertificateInventoryCaptureOptions options,
+        InternalLogger? logger,
+        ISet<string>? targetedThumbprints,
+        CancellationToken cancellationToken) {
+        if (connection == null ||
+            string.IsNullOrWhiteSpace(normalizedHost) ||
+            options == null) {
+            return null;
+        }
+
         using var command = connection.CreateCommand();
         command.CommandTimeout = Math.Max(1, options.CrtShPostgreSqlCommandTimeoutSeconds);
         command.CommandText = BuildCrtShPostgreSqlExactMetadataQuery();
         command.Parameters.AddWithValue("host", normalizedHost);
-        command.Parameters.AddWithValue("wildcardHost", BuildWildcardCandidateHost(normalizedHost));
 
         var rows = new List<CrtShPostgreSqlExactMetadataRow>();
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -728,7 +847,10 @@ public sealed partial class CertificateInventoryCapture {
             });
         }
 
-        SubdomainDiscoveryEntry? entry = TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(normalizedHost, rows);
+        SubdomainDiscoveryEntry? entry = TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(
+            normalizedHost,
+            rows,
+            targetedThumbprints);
         if (entry != null) {
             logger?.WriteVerbose(
                 "CT metadata backfill exact PostgreSQL lookup matched {0} row(s) for {1}.",
@@ -760,6 +882,7 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         string normalizedDomain = domain.Trim().TrimEnd('.').ToLowerInvariant();
+        HashSet<string> targetedThumbprints = BuildTargetedCtMetadataThumbprintSet(options);
         string connectionString = BuildCrtShPostgreSqlConnectionString(options);
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -801,7 +924,10 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         foreach (string normalizedHost in normalizedHosts) {
-            SubdomainDiscoveryEntry? entry = TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(normalizedHost, rows);
+            SubdomainDiscoveryEntry? entry = TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(
+                normalizedHost,
+                rows,
+                targetedThumbprints);
             if (entry == null || string.IsNullOrWhiteSpace(entry.Name)) {
                 continue;
             }
@@ -850,18 +976,13 @@ public sealed partial class CertificateInventoryCapture {
                     ORDER BY lower(candidate_name)
                 ) AS dns_names
             FROM certificate c
-            WHERE (
-                    identities(c.certificate) @@ plainto_tsquery('simple', @host)
-                 OR identities(c.certificate) @@ plainto_tsquery('simple', @wildcardHost)
-                  )
+            WHERE identities(c.certificate) @@ plainto_tsquery('simple', @host)
               AND (
                     lower(COALESCE(x509_commonName(c.certificate), '')) = lower(@host)
-                 OR lower(COALESCE(x509_commonName(c.certificate), '')) = lower(@wildcardHost)
                  OR EXISTS (
                         SELECT 1
                         FROM x509_altnames(c.certificate) AS alt_name
                         WHERE lower(alt_name) = lower(@host)
-                           OR lower(alt_name) = lower(@wildcardHost)
                     )
                   )
             ORDER BY entry_timestamp DESC NULLS LAST,
@@ -920,14 +1041,41 @@ public sealed partial class CertificateInventoryCapture {
 
     internal static SubdomainDiscoveryEntry? TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(
         string normalizedHost,
-        IReadOnlyList<CrtShPostgreSqlExactMetadataRow>? rows) {
+        IReadOnlyList<CrtShPostgreSqlExactMetadataRow>? rows,
+        ISet<string>? targetedThumbprints = null) {
         if (string.IsNullOrWhiteSpace(normalizedHost) || rows == null || rows.Count == 0) {
             return null;
         }
 
-        CrtShPostgreSqlExactMetadataRow? selectedRow = rows
+        List<CrtShPostgreSqlExactMetadataRow> matchingRows = rows
             .Where(row => row != null &&
                           row.CandidateNames.Any(candidate => CtMetadataCandidateMatchesHost(normalizedHost, candidate)))
+            .ToList();
+        if (matchingRows.Count == 0) {
+            return null;
+        }
+
+        var normalizedTargetedThumbprints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (targetedThumbprints != null && targetedThumbprints.Count > 0) {
+            foreach (string rawThumbprint in targetedThumbprints) {
+                string? normalizedThumbprint = NormalizeCtMetadataThumbprint(rawThumbprint);
+                if (!string.IsNullOrWhiteSpace(normalizedThumbprint)) {
+                    normalizedTargetedThumbprints.Add(normalizedThumbprint!);
+                }
+            }
+        }
+
+        IEnumerable<CrtShPostgreSqlExactMetadataRow> candidateRows = matchingRows;
+        if (normalizedTargetedThumbprints.Count > 0) {
+            List<CrtShPostgreSqlExactMetadataRow> targetedRows = matchingRows
+                .Where(row => DoesCrtShPostgreSqlRowMatchTargetThumbprint(row, normalizedTargetedThumbprints))
+                .ToList();
+            if (targetedRows.Count > 0) {
+                candidateRows = targetedRows;
+            }
+        }
+
+        CrtShPostgreSqlExactMetadataRow? selectedRow = candidateRows
             .OrderByDescending(static row => row.EntryTimestampUtc ?? DateTimeOffset.MinValue)
             .ThenByDescending(static row => row.NotBeforeUtc ?? DateTimeOffset.MinValue)
             .FirstOrDefault();
@@ -986,13 +1134,30 @@ public sealed partial class CertificateInventoryCapture {
         };
     }
 
+    private static bool DoesCrtShPostgreSqlRowMatchTargetThumbprint(
+        CrtShPostgreSqlExactMetadataRow? row,
+        ISet<string>? targetedThumbprints) {
+        if (row == null ||
+            targetedThumbprints == null ||
+            targetedThumbprints.Count == 0 ||
+            row.CertificateDer == null ||
+            row.CertificateDer.Length == 0) {
+            return false;
+        }
+
+        using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(row.CertificateDer);
+        string? thumbprint = NormalizeCtMetadataThumbprint(certificate.Thumbprint);
+        return !string.IsNullOrWhiteSpace(thumbprint) &&
+               targetedThumbprints.Contains(thumbprint!);
+    }
+
     private static string BuildCrtShPostgreSqlConnectionString(CertificateInventoryCaptureOptions options) {
         if (!string.IsNullOrWhiteSpace(options?.CrtShPostgreSqlConnectionString)) {
             return options!.CrtShPostgreSqlConnectionString!;
         }
 
         var builder = new NpgsqlConnectionStringBuilder {
-            Host = "crt.sh",
+            Host = "91.199.212.73",
             Port = 5432,
             Database = "certwatch",
             Username = "guest",
@@ -1003,13 +1168,16 @@ public sealed partial class CertificateInventoryCapture {
         return builder.ConnectionString;
     }
 
-    private static string BuildWildcardCandidateHost(string normalizedHost) {
+    internal static string BuildWildcardCandidateHost(string normalizedHost) {
         if (string.IsNullOrWhiteSpace(normalizedHost)) {
             return normalizedHost ?? string.Empty;
         }
 
         int firstDotIndex = normalizedHost.IndexOf('.');
-        return firstDotIndex <= 0 || firstDotIndex >= normalizedHost.Length - 1
+        int lastDotIndex = normalizedHost.LastIndexOf('.');
+        return firstDotIndex <= 0 ||
+               firstDotIndex >= normalizedHost.Length - 1 ||
+               firstDotIndex == lastDotIndex
             ? normalizedHost
             : "*." + normalizedHost.Substring(firstDotIndex + 1);
     }
