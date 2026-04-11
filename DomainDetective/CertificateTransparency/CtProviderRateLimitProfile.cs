@@ -19,6 +19,9 @@ public sealed class CtProviderRateLimitProfile
     /// <summary>Per-request timeout used for provider calls.</summary>
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>Expected wall-clock duration for one provider request when estimating throughput.</summary>
+    public TimeSpan EstimatedRequestDuration { get; init; } = TimeSpan.FromSeconds(1);
+
     /// <summary>Base retry delay used after transient provider failures.</summary>
     public TimeSpan RetryBaseDelay { get; init; } = TimeSpan.FromSeconds(1);
 
@@ -50,6 +53,9 @@ public sealed class CtProviderRateLimitProfile
         TimeSpan requestTimeout = RequestTimeout <= TimeSpan.Zero
             ? TimeSpan.FromSeconds(30)
             : RequestTimeout;
+        TimeSpan estimatedRequestDuration = EstimatedRequestDuration <= TimeSpan.Zero
+            ? TimeSpan.FromSeconds(1)
+            : EstimatedRequestDuration;
         TimeSpan retryBaseDelay = RetryBaseDelay < TimeSpan.Zero
             ? TimeSpan.Zero
             : RetryBaseDelay;
@@ -71,6 +77,7 @@ public sealed class CtProviderRateLimitProfile
             MaxConcurrentRequests = maxConcurrentRequests,
             MinimumRequestSpacing = minimumRequestSpacing,
             RequestTimeout = requestTimeout,
+            EstimatedRequestDuration = estimatedRequestDuration,
             RetryBaseDelay = retryBaseDelay,
             RetryMaxDelay = retryMaxDelay,
             CooldownAfterRateLimit = cooldownAfterRateLimit,

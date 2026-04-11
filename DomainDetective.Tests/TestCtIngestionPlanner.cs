@@ -54,9 +54,29 @@ public class TestCtIngestionPlanner
         CtProviderCapacityEstimate estimate = CtIngestionPlanner.EstimateCapacity(profile, 20_000, now);
 
         Assert.Equal(TimeSpan.FromSeconds(15), estimate.EffectiveRequestSpacing);
-        Assert.Equal(TimeSpan.FromSeconds(15 * 19_999), estimate.EstimatedMinimumDuration);
-        Assert.Equal(now + TimeSpan.FromSeconds(15 * 19_999), estimate.EstimatedCompletionUtc);
+        Assert.Equal(TimeSpan.FromSeconds(5), estimate.EstimatedRequestDuration);
+        Assert.Equal(TimeSpan.FromSeconds(15 * 19_999 + 5), estimate.EstimatedMinimumDuration);
+        Assert.Equal(now + TimeSpan.FromSeconds(15 * 19_999 + 5), estimate.EstimatedCompletionUtc);
         Assert.True(estimate.IsRateLimited);
+        Assert.False(estimate.IsConcurrencyLimited);
+    }
+
+    [Fact]
+    public void EstimateCapacityUsesRequestDurationWhenConcurrencyIsTheLimiter()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShPostgreSql();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+
+        CtProviderCapacityEstimate estimate = CtIngestionPlanner.EstimateCapacity(profile, 20, now);
+
+        Assert.Equal(TimeSpan.Zero, estimate.EffectiveRequestSpacing);
+        Assert.Equal(TimeSpan.FromSeconds(10), estimate.EstimatedRequestDuration);
+        Assert.Equal(2, estimate.MaxConcurrentRequests);
+        Assert.Equal(10, estimate.ConcurrencyWaveCount);
+        Assert.Equal(TimeSpan.FromSeconds(100), estimate.EstimatedMinimumDuration);
+        Assert.Equal(now + TimeSpan.FromSeconds(100), estimate.EstimatedCompletionUtc);
+        Assert.False(estimate.IsRateLimited);
+        Assert.True(estimate.IsConcurrencyLimited);
     }
 
     [Fact]

@@ -38,6 +38,7 @@ public static class CtProviderProfiles
                 MaxConcurrentRequests = 1,
                 MinimumRequestSpacing = TimeSpan.FromSeconds(15),
                 RequestTimeout = TimeSpan.FromSeconds(30),
+                EstimatedRequestDuration = TimeSpan.FromSeconds(5),
                 RetryBaseDelay = TimeSpan.FromSeconds(2),
                 RetryMaxDelay = TimeSpan.FromSeconds(30),
                 CooldownAfterRateLimit = TimeSpan.FromMinutes(5)
@@ -69,6 +70,7 @@ public static class CtProviderProfiles
                 MaxConcurrentRequests = defaults.RateLimit.MaxConcurrentRequests,
                 MinimumRequestSpacing = options.PassiveCtCrtShMinimumSpacing,
                 RequestTimeout = options.PassiveCtRequestTimeout,
+                EstimatedRequestDuration = defaults.RateLimit.EstimatedRequestDuration,
                 RetryBaseDelay = options.PassiveCtRetryBaseDelay,
                 RetryMaxDelay = options.PassiveCtRetryMaxDelay,
                 CooldownAfterRateLimit = options.PassiveCtSourceCooldown,
@@ -98,6 +100,7 @@ public static class CtProviderProfiles
             {
                 MaxConcurrentRequests = 2,
                 RequestTimeout = TimeSpan.FromSeconds(30),
+                EstimatedRequestDuration = TimeSpan.FromSeconds(10),
                 RetryBaseDelay = TimeSpan.FromSeconds(2),
                 RetryMaxDelay = TimeSpan.FromSeconds(30),
                 CooldownAfterRateLimit = TimeSpan.FromMinutes(5)
@@ -127,6 +130,7 @@ public static class CtProviderProfiles
             {
                 MaxConcurrentRequests = Math.Max(1, options.CrtShPostgreSqlMaximumConcurrentRequests),
                 RequestTimeout = TimeSpan.FromSeconds(Math.Max(1, options.CrtShPostgreSqlCommandTimeoutSeconds)),
+                EstimatedRequestDuration = defaults.RateLimit.EstimatedRequestDuration,
                 RetryBaseDelay = defaults.RateLimit.RetryBaseDelay,
                 RetryMaxDelay = defaults.RateLimit.RetryMaxDelay,
                 CooldownAfterRateLimit = defaults.RateLimit.CooldownAfterRateLimit
@@ -154,6 +158,7 @@ public static class CtProviderProfiles
                 MaxConcurrentRequests = 1,
                 MinimumRequestSpacing = TimeSpan.FromSeconds(15),
                 RequestTimeout = TimeSpan.FromSeconds(30),
+                EstimatedRequestDuration = TimeSpan.FromSeconds(3),
                 RetryBaseDelay = TimeSpan.FromSeconds(2),
                 RetryMaxDelay = TimeSpan.FromSeconds(30),
                 CooldownAfterRateLimit = TimeSpan.FromMinutes(5)
@@ -184,6 +189,7 @@ public static class CtProviderProfiles
                 MaxConcurrentRequests = defaults.RateLimit.MaxConcurrentRequests,
                 MinimumRequestSpacing = options.PassiveCtCertSpotterMinimumSpacing,
                 RequestTimeout = options.PassiveCtRequestTimeout,
+                EstimatedRequestDuration = defaults.RateLimit.EstimatedRequestDuration,
                 RetryBaseDelay = options.PassiveCtRetryBaseDelay,
                 RetryMaxDelay = options.PassiveCtRetryMaxDelay,
                 CooldownAfterRateLimit = options.PassiveCtSourceCooldown,
@@ -212,6 +218,7 @@ public static class CtProviderProfiles
             {
                 MaxConcurrentRequests = 4,
                 RequestTimeout = TimeSpan.FromSeconds(30),
+                EstimatedRequestDuration = TimeSpan.FromSeconds(2),
                 RetryBaseDelay = TimeSpan.FromSeconds(1),
                 RetryMaxDelay = TimeSpan.FromSeconds(30),
                 CooldownAfterRateLimit = TimeSpan.FromMinutes(10)
@@ -247,6 +254,7 @@ public static class CtProviderProfiles
                 MaxConcurrentRequests = Math.Max(1, maxConcurrentLogs),
                 MinimumRequestSpacing = options.NativeCtRequestDelay,
                 RequestTimeout = options.NativeCtRequestTimeout,
+                EstimatedRequestDuration = defaults.RateLimit.EstimatedRequestDuration,
                 RetryBaseDelay = options.NativeCtRetryBaseDelay,
                 RetryMaxDelay = options.NativeCtRetryMaxDelay,
                 CooldownAfterRateLimit = options.NativeCtCircuitBreakerDuration
