@@ -251,11 +251,13 @@ public class TestSubdomainsAnalysis
                         {
                             await clientTask;
                         }
-                        catch (ObjectDisposedException) when (token.IsCancellationRequested)
+                        catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
                         {
+                            AssertExpectedListenerCancellation(ex, token);
                         }
-                        catch (SocketException) when (token.IsCancellationRequested)
+                        catch (SocketException ex) when (token.IsCancellationRequested)
                         {
+                            AssertExpectedListenerCancellation(ex, token);
                         }
 
                         break;
@@ -343,11 +345,13 @@ public class TestSubdomainsAnalysis
                     Interlocked.Increment(ref requestCount);
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
         }, token));
         await server.InitializeAsync();
@@ -532,11 +536,13 @@ public class TestSubdomainsAnalysis
                     await writer.WriteLineAsync();
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
         }, token));
         await server.InitializeAsync();
@@ -813,11 +819,13 @@ public class TestSubdomainsAnalysis
                     await writer.WriteAsync(payload);
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
         }, token));
         await server.InitializeAsync();
