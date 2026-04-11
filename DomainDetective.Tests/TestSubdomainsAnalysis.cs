@@ -1126,7 +1126,7 @@ public class TestSubdomainsAnalysis
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
-        return new X509Certificate2(cert.Export(X509ContentType.Cert));
+        return CertificateLoaderCompat.LoadCertificate(cert.Export(X509ContentType.Cert));
     }
 
     private static string BuildCtEntriesResponse(X509Certificate2 certificate, DateTimeOffset timestampUtc)

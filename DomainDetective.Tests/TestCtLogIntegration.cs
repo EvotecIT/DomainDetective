@@ -20,7 +20,7 @@ public class TestCtLogIntegration
     [Fact]
     public async Task CertificateAnalysisExposesEntries()
     {
-        var cert = new X509Certificate2("Data/wildcard.pem");
+        var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
         var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[{\"id\":5}]") };
         await analysis.AnalyzeCertificate(cert);
         Assert.True(analysis.PresentInCtLogs);
@@ -33,7 +33,7 @@ public class TestCtLogIntegration
     [Fact]
     public async Task CertificateAnalysisUsesShodanConnectorAndParsesMatches()
     {
-        var cert = new X509Certificate2("Data/wildcard.pem");
+        var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
         var handler = new SequenceHandler(new[]
         {
             CreateJsonResponse(HttpStatusCode.OK, "{\"matches\":[{\"id\":10}]}")
@@ -60,7 +60,7 @@ public class TestCtLogIntegration
     [Fact]
     public async Task CertificateAnalysisShodanKeyFallsBackToEnvironment()
     {
-        var cert = new X509Certificate2("Data/wildcard.pem");
+        var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
         var handler = new SequenceHandler(new[]
         {
             CreateJsonResponse(HttpStatusCode.OK, "{\"matches\":[]}")
@@ -95,7 +95,7 @@ public class TestCtLogIntegration
     [Fact]
     public async Task CertificateAnalysisCensysCredentialsFallBackToEnvironment()
     {
-        var cert = new X509Certificate2("Data/wildcard.pem");
+        var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
         var handler = new SequenceHandler(new[]
         {
             CreateJsonResponse(HttpStatusCode.OK, "{\"result\":{\"fingerprint\":\"abc\"}}")
@@ -137,7 +137,7 @@ public class TestCtLogIntegration
     [Fact]
     public async Task CertificateAnalysisKeepsTemplateEvidenceWhenCensysFails()
     {
-        var cert = new X509Certificate2("Data/wildcard.pem");
+        var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
         var handler = new SequenceHandler(new[]
         {
             CreateJsonResponse(HttpStatusCode.OK, "[{\"id\":11}]"),
@@ -171,7 +171,7 @@ public class TestCtLogIntegration
     [Fact]
     public async Task CertificateAnalysisExposesCtTemplateFormatErrors()
     {
-        var cert = new X509Certificate2("Data/wildcard.pem");
+        var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
         var analysis = new CertificateAnalysis
         {
             SkipRevocation = true,

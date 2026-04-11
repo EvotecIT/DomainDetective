@@ -35,6 +35,18 @@ namespace DomainDetective.Tests {
         private static byte[] BuildAnswer(ushort id) => BuildMessage(id, 0, 1);
         private static byte[] BuildError(ushort id) => BuildMessage(id, 5, ushort.MaxValue);
 
+        private static async System.Threading.Tasks.Task ReadExactlyAsync(System.Net.Sockets.NetworkStream stream, byte[] buffer, int offset, int count) {
+            while (count > 0) {
+                var read = await stream.ReadAsync(buffer, offset, count);
+                if (read == 0) {
+                    throw new System.IO.EndOfStreamException();
+                }
+
+                offset += read;
+                count -= read;
+            }
+        }
+
         [Fact]
         public async Task DetectOpenZoneTransfer() {
             var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
@@ -44,9 +56,9 @@ namespace DomainDetective.Tests {
                 using var client = await listener.AcceptTcpClientAsync();
                 using var stream = client.GetStream();
                 var buffer = new byte[512];
-                await stream.ReadAsync(buffer, 0, 2);
+                await ReadExactlyAsync(stream, buffer, 0, 2);
                 int len = buffer[0] << 8 | buffer[1];
-                if (len > 0) { await stream.ReadAsync(buffer, 0, len); }
+                if (len > 0) { await ReadExactlyAsync(stream, buffer, 0, len); }
                 ushort id = (ushort)((buffer[0] << 8) | buffer[1]);
                 var start = BuildSoa(id);
                 var end = BuildSoa(id);
@@ -73,9 +85,9 @@ namespace DomainDetective.Tests {
                 using var client = await listener.AcceptTcpClientAsync();
                 using var stream = client.GetStream();
                 var buffer = new byte[512];
-                await stream.ReadAsync(buffer, 0, 2);
+                await ReadExactlyAsync(stream, buffer, 0, 2);
                 int len = buffer[0] << 8 | buffer[1];
-                if (len > 0) { await stream.ReadAsync(buffer, 0, len); }
+                if (len > 0) { await ReadExactlyAsync(stream, buffer, 0, len); }
                 ushort id = (ushort)((buffer[0] << 8) | buffer[1]);
                 var resp = BuildError(id);
                 await stream.WriteAsync(resp, 0, resp.Length);
@@ -100,9 +112,9 @@ namespace DomainDetective.Tests {
                 using var client = await listener.AcceptTcpClientAsync();
                 using var stream = client.GetStream();
                 var buffer = new byte[512];
-                await stream.ReadAsync(buffer, 0, 2);
+                await ReadExactlyAsync(stream, buffer, 0, 2);
                 int len = buffer[0] << 8 | buffer[1];
-                if (len > 0) { await stream.ReadAsync(buffer, 0, len); }
+                if (len > 0) { await ReadExactlyAsync(stream, buffer, 0, len); }
                 ushort id = (ushort)((buffer[0] << 8) | buffer[1]);
                 var start = BuildSoa(id);
                 await stream.WriteAsync(start, 0, start.Length);
@@ -133,9 +145,9 @@ namespace DomainDetective.Tests {
                 using var client = await listener.AcceptTcpClientAsync();
                 using var stream = client.GetStream();
                 var buffer = new byte[512];
-                await stream.ReadAsync(buffer, 0, 2);
+                await ReadExactlyAsync(stream, buffer, 0, 2);
                 int len = buffer[0] << 8 | buffer[1];
-                if (len > 0) { await stream.ReadAsync(buffer, 0, len); }
+                if (len > 0) { await ReadExactlyAsync(stream, buffer, 0, len); }
                 ushort id = (ushort)((buffer[0] << 8) | buffer[1]);
                 var start = BuildSoa(id);
                 var mid = BuildAnswer(id);

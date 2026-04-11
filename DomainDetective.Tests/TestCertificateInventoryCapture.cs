@@ -4642,7 +4642,7 @@ public class TestCertificateInventoryCapture {
         };
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(oids, false));
         var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
-        return new X509Certificate2(certificate.Export(X509ContentType.Cert));
+        return CertificateLoaderCompat.LoadCertificate(certificate.Export(X509ContentType.Cert));
     }
 
     private static void InvokeCtMetadataEnrichment(
