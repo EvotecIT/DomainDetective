@@ -462,6 +462,7 @@ public sealed partial class CertificateInventoryCapture {
             return true;
         }
 
+        // Treat partially populated historical entries as incomplete so one refresh can backfill richer metadata.
         return string.IsNullOrWhiteSpace(entry.LatestCertificateSubject) ||
                string.IsNullOrWhiteSpace(entry.LatestCertificateIssuer) ||
                string.IsNullOrWhiteSpace(entry.LatestCertificateSerialNumber) ||
@@ -963,7 +964,7 @@ public sealed partial class CertificateInventoryCapture {
         {
             TypedValue = normalizedHosts.Select(BuildWildcardCandidateHost).ToArray()
         });
-        command.Parameters.AddWithValue("limit", Math.Max(32, normalizedHosts.Count * 8));
+        command.Parameters.AddWithValue("limit", Math.Min(Math.Max(32, normalizedHosts.Count * 8), 512));
 
         var rows = new List<CrtShPostgreSqlExactMetadataRow>();
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -1222,7 +1223,7 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var builder = new NpgsqlConnectionStringBuilder {
-            Host = "91.199.212.73",
+            Host = "crt.sh",
             Port = 5432,
             Database = "certwatch",
             Username = "guest",
