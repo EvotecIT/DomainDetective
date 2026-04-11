@@ -24,4 +24,36 @@ public sealed class CtCertificateQuery
 
     /// <summary>Maximum wall-clock time to spend on this query.</summary>
     public TimeSpan? Timeout { get; init; }
+
+    /// <summary>
+    /// Returns a normalized copy of the query suitable for provider execution.
+    /// </summary>
+    public CtCertificateQuery Normalize()
+    {
+        string? continuationToken = ContinuationToken;
+        string? normalizedContinuationToken = continuationToken == null
+            ? null
+            : continuationToken.Trim();
+        if (normalizedContinuationToken != null &&
+            normalizedContinuationToken.Length == 0)
+        {
+            normalizedContinuationToken = null;
+        }
+
+        return new CtCertificateQuery
+        {
+            Name = (Name ?? string.Empty).Trim(),
+            Operations = Operations == CtIngestionOperation.None
+                ? CtIngestionOperation.GetLatestCertificate
+                : Operations,
+            RequireFullCertificate = RequireFullCertificate,
+            ContinuationToken = normalizedContinuationToken,
+            PageSize = PageSize.HasValue && PageSize.Value > 0
+                ? PageSize.Value
+                : null,
+            Timeout = Timeout.HasValue && Timeout.Value > TimeSpan.Zero
+                ? Timeout.Value
+                : null
+        };
+    }
 }
