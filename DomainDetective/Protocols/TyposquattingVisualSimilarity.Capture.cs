@@ -99,7 +99,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
         {
             throw;
         }
-        catch
+        catch (Exception)
         {
             return null;
         }

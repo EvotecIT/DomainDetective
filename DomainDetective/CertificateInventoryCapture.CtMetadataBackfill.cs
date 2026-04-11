@@ -1440,38 +1440,36 @@ public sealed partial class CertificateInventoryCapture {
             ? CertificateAuthenticationProfileClassifier.Classify(eku)
             : eku.AuthenticationProfile;
 
-        SubdomainDiscoveryEntry hydratedEntry = CloneSubdomainEntry(entry);
-        hydratedEntry = new SubdomainDiscoveryEntry {
-            Name = hydratedEntry.Name,
-            FirstSeenUtc = hydratedEntry.FirstSeenUtc,
-            LastSeenUtc = hydratedEntry.LastSeenUtc,
-            LatestCertificateCtEntryTimestampUtc = hydratedEntry.LatestCertificateCtEntryTimestampUtc,
+        return new SubdomainDiscoveryEntry {
+            Name = entry.Name,
+            FirstSeenUtc = entry.FirstSeenUtc,
+            LastSeenUtc = entry.LastSeenUtc,
+            LatestCertificateCtEntryTimestampUtc = entry.LatestCertificateCtEntryTimestampUtc,
             LatestCertificateThumbprint = thumbprint,
-            LatestCertificateSubject = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateSubject) ? certificate.Subject : hydratedEntry.LatestCertificateSubject,
-            LatestCertificateIssuer = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateIssuer) ? certificate.Issuer : hydratedEntry.LatestCertificateIssuer,
-            LatestCertificateSerialNumber = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateSerialNumber) ? certificate.SerialNumber : hydratedEntry.LatestCertificateSerialNumber,
-            LatestCertificateNotBeforeUtc = hydratedEntry.LatestCertificateNotBeforeUtc ?? new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
-            LatestCertificateNotAfterUtc = hydratedEntry.LatestCertificateNotAfterUtc ?? new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
-            LatestCertificateSubjectAlternativeNames = hydratedEntry.LatestCertificateSubjectAlternativeNames == null ? Array.Empty<string>() : hydratedEntry.LatestCertificateSubjectAlternativeNames.ToList(),
-            LatestCertificateIsSelfSigned = hydratedEntry.LatestCertificateIsSelfSigned ?? isSelfSigned,
-            LatestCertificateWeakKey = hydratedEntry.LatestCertificateWeakKey ?? weakKey,
-            LatestCertificateSha1Signature = hydratedEntry.LatestCertificateSha1Signature ?? sha1Signature,
-            LatestCertificateHasServerAuthentication = hydratedEntry.LatestCertificateHasServerAuthentication ?? hasServerAuthentication,
-            LatestCertificateHasClientAuthentication = hydratedEntry.LatestCertificateHasClientAuthentication ?? hasClientAuthentication,
-            LatestCertificateHasSecureEmail = hydratedEntry.LatestCertificateHasSecureEmail ?? hasSecureEmail,
-            LatestCertificateAuthenticationProfile = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateAuthenticationProfile)
+            LatestCertificateSubject = string.IsNullOrWhiteSpace(entry.LatestCertificateSubject) ? certificate.Subject : entry.LatestCertificateSubject,
+            LatestCertificateIssuer = string.IsNullOrWhiteSpace(entry.LatestCertificateIssuer) ? certificate.Issuer : entry.LatestCertificateIssuer,
+            LatestCertificateSerialNumber = string.IsNullOrWhiteSpace(entry.LatestCertificateSerialNumber) ? certificate.SerialNumber : entry.LatestCertificateSerialNumber,
+            LatestCertificateNotBeforeUtc = entry.LatestCertificateNotBeforeUtc ?? new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
+            LatestCertificateNotAfterUtc = entry.LatestCertificateNotAfterUtc ?? new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
+            LatestCertificateSubjectAlternativeNames = entry.LatestCertificateSubjectAlternativeNames == null ? Array.Empty<string>() : entry.LatestCertificateSubjectAlternativeNames.ToList(),
+            LatestCertificateIsSelfSigned = entry.LatestCertificateIsSelfSigned ?? isSelfSigned,
+            LatestCertificateWeakKey = entry.LatestCertificateWeakKey ?? weakKey,
+            LatestCertificateSha1Signature = entry.LatestCertificateSha1Signature ?? sha1Signature,
+            LatestCertificateHasServerAuthentication = entry.LatestCertificateHasServerAuthentication ?? hasServerAuthentication,
+            LatestCertificateHasClientAuthentication = entry.LatestCertificateHasClientAuthentication ?? hasClientAuthentication,
+            LatestCertificateHasSecureEmail = entry.LatestCertificateHasSecureEmail ?? hasSecureEmail,
+            LatestCertificateAuthenticationProfile = string.IsNullOrWhiteSpace(entry.LatestCertificateAuthenticationProfile)
                 ? authenticationProfile
-                : hydratedEntry.LatestCertificateAuthenticationProfile,
-            CtSources = hydratedEntry.CtSources == null ? Array.Empty<string>() : hydratedEntry.CtSources.ToList(),
-            CertificateObservationCount = hydratedEntry.CertificateObservationCount,
-            ResolutionStatus = hydratedEntry.ResolutionStatus,
-            ARecords = hydratedEntry.ARecords == null ? Array.Empty<string>() : hydratedEntry.ARecords.ToList(),
-            AaaaRecords = hydratedEntry.AaaaRecords == null ? Array.Empty<string>() : hydratedEntry.AaaaRecords.ToList(),
-            SensitiveRisk = hydratedEntry.SensitiveRisk,
-            SensitiveSignals = hydratedEntry.SensitiveSignals == null ? Array.Empty<string>() : hydratedEntry.SensitiveSignals.ToList(),
-            AiSignals = hydratedEntry.AiSignals == null ? Array.Empty<string>() : hydratedEntry.AiSignals.ToList()
+                : entry.LatestCertificateAuthenticationProfile,
+            CtSources = entry.CtSources == null ? Array.Empty<string>() : entry.CtSources.ToList(),
+            CertificateObservationCount = entry.CertificateObservationCount,
+            ResolutionStatus = entry.ResolutionStatus,
+            ARecords = entry.ARecords == null ? Array.Empty<string>() : entry.ARecords.ToList(),
+            AaaaRecords = entry.AaaaRecords == null ? Array.Empty<string>() : entry.AaaaRecords.ToList(),
+            SensitiveRisk = entry.SensitiveRisk,
+            SensitiveSignals = entry.SensitiveSignals == null ? Array.Empty<string>() : entry.SensitiveSignals.ToList(),
+            AiSignals = entry.AiSignals == null ? Array.Empty<string>() : entry.AiSignals.ToList()
         };
-        return hydratedEntry;
     }
 
     internal static bool CanPersistPassiveCtExactNoRowsDiagnostic(

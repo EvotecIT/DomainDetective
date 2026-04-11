@@ -8,14 +8,24 @@ internal static class DomainDetectivePgpProvider
 {
     public static (bool IsVerified, string ClearText) VerifyClearSignedMessage(string signedText, string publicKey)
     {
-        if (string.IsNullOrWhiteSpace(signedText))
+        if (signedText == null)
         {
             throw new ArgumentNullException(nameof(signedText));
         }
 
-        if (string.IsNullOrWhiteSpace(publicKey))
+        if (string.IsNullOrWhiteSpace(signedText))
+        {
+            throw new ArgumentException("Signed text must not be empty.", nameof(signedText));
+        }
+
+        if (publicKey == null)
         {
             throw new ArgumentNullException(nameof(publicKey));
+        }
+
+        if (string.IsNullOrWhiteSpace(publicKey))
+        {
+            throw new ArgumentException("Public key must not be empty.", nameof(publicKey));
         }
 
         var keys = new EncryptionKeys(publicKey);
