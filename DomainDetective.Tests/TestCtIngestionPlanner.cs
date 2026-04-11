@@ -107,6 +107,29 @@ public class TestCtIngestionPlanner
     }
 
     [Fact]
+    public void WorkloadEstimateReportsWhenProviderRunBudgetIsExceeded()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp(new CertificateInventoryCaptureOptions
+        {
+            PassiveCtCrtShMaximumRequestsPerRun = 10,
+            PassiveCtCrtShMinimumSpacing = TimeSpan.FromSeconds(15),
+            PassiveCtRequestTimeout = TimeSpan.FromSeconds(30)
+        });
+        var workload = new CtIngestionWorkloadRequest
+        {
+            DomainCount = 25,
+            Operations = CtIngestionOperation.DiscoverSubdomains,
+            RequireFullCertificate = false
+        };
+
+        CtIngestionWorkloadEstimate estimate = CtIngestionPlanner.EstimateWorkload(profile, workload);
+
+        Assert.True(estimate.ProviderSupportsWorkload);
+        Assert.True(estimate.Capacity.ExceedsRunBudget);
+        Assert.Contains("multiple logical runs", estimate.Note, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DecideDefersProviderWhenCooldownIsActive()
     {
         CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();

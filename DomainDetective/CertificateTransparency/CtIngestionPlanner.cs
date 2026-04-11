@@ -100,6 +100,7 @@ public static class CtIngestionPlanner
         int hydrationRequests = EstimateHydrationRequests(profile, normalized);
         int totalRequests = domainRequests + hostRequests + hydrationRequests;
         bool supportsWorkload = SupportsWorkload(profile, normalized, hydrationRequests);
+        CtProviderCapacityEstimate capacity = EstimateCapacity(profile, totalRequests, nowUtc);
 
         return new CtIngestionWorkloadEstimate
         {
@@ -109,8 +110,8 @@ public static class CtIngestionPlanner
             EstimatedDomainRequests = domainRequests,
             EstimatedHostRequests = hostRequests,
             EstimatedHydrationRequests = hydrationRequests,
-            Capacity = EstimateCapacity(profile, totalRequests, nowUtc),
-            Note = BuildWorkloadNote(profile, normalized, supportsWorkload, hydrationRequests)
+            Capacity = capacity,
+            Note = BuildWorkloadNote(profile, normalized, supportsWorkload, hydrationRequests, capacity)
         };
     }
 
@@ -536,7 +537,8 @@ public static class CtIngestionPlanner
         CtProviderProfile profile,
         CtIngestionWorkloadRequest workload,
         bool supportsWorkload,
-        int hydrationRequests)
+        int hydrationRequests,
+        CtProviderCapacityEstimate capacity)
     {
         if (!supportsWorkload)
         {
@@ -546,6 +548,11 @@ public static class CtIngestionPlanner
         if (hydrationRequests > 0)
         {
             return "Provider requires additional certificate hydration requests to satisfy full-certificate output.";
+        }
+
+        if (capacity.ExceedsRunBudget)
+        {
+            return "Provider can be used, but the estimated workload exceeds the configured per-run budget and should be split across multiple logical runs.";
         }
 
         if (workload.RequireFullCertificate &&
