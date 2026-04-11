@@ -127,7 +127,10 @@ public static class TlsProbe
         }
         finally
         {
-            result.Protocol = ssl.SslProtocol;
+            if (ssl.IsAuthenticated)
+            {
+                result.Protocol = ssl.SslProtocol;
+            }
         }
 
         return result;
