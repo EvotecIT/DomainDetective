@@ -239,11 +239,17 @@ public static class CtProviderProfiles
         }
 
         CtProviderProfile defaults = CreateNativeCtLogs();
-        int maxConcurrentLogs = options.DiscoveryParallelism <= 0
-            ? 1
-            : (options.NativeCtMaxLogs > 0
-                ? Math.Min(options.DiscoveryParallelism, options.NativeCtMaxLogs)
-                : options.DiscoveryParallelism);
+        int maxConcurrentLogs = options.DiscoveryParallelism;
+        if (maxConcurrentLogs <= 0)
+        {
+            maxConcurrentLogs = 1;
+        }
+
+        if (options.NativeCtMaxLogs > 0)
+        {
+            maxConcurrentLogs = Math.Min(maxConcurrentLogs, options.NativeCtMaxLogs);
+        }
+
         return new CtProviderProfile
         {
             ProviderId = defaults.ProviderId,

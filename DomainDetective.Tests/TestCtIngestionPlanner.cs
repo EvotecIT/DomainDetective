@@ -551,6 +551,19 @@ public class TestCtIngestionPlanner
     }
 
     [Fact]
+    public void RateLimitProfileNormalizePreservesZeroFailureRatioThreshold()
+    {
+        var profile = new CtProviderRateLimitProfile
+        {
+            TransientFailureRatioCooldownThreshold = 0d
+        };
+
+        CtProviderRateLimitProfile normalized = profile.Normalize();
+
+        Assert.Equal(0d, normalized.TransientFailureRatioCooldownThreshold);
+    }
+
+    [Fact]
     public void PlanProvidersChoosesSqlForFullCertificateHistory()
     {
         CtProviderProfile http = CtProviderProfiles.CreateCrtShHttp();

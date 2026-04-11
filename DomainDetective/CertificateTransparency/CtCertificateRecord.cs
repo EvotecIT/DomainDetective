@@ -49,7 +49,7 @@ public sealed class CtCertificateRecord
     /// <summary>Certificate not-after timestamp.</summary>
     public DateTimeOffset? NotAfterUtc { get; init; }
 
-    /// <summary>Subject alternative DNS names and common name candidates observed on the certificate.</summary>
+    /// <summary>Subject alternative DNS names and common name candidates observed on the certificate, sorted case-insensitively.</summary>
     public IReadOnlyList<string> DnsNames { get; init; } = Array.Empty<string>();
 
     /// <summary>True when the certificate subject and issuer match.</summary>
@@ -113,6 +113,7 @@ public sealed class CtCertificateRecord
             throw new ArgumentException("Certificate DER bytes cannot be empty.", nameof(certificateDer));
         }
 
+        // Keep the normalized record immutable even if the caller later mutates their input buffer.
         byte[] rawData = certificateDer.ToArray();
         using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(rawData);
         CertificateExtendedKeyUsageInfo eku = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
@@ -353,7 +354,17 @@ public sealed class CtCertificateRecord
             return null;
         }
 
-        return new string(value!.Where(Uri.IsHexDigit).ToArray()).ToUpperInvariant();
+        char[] output = new char[value!.Length];
+        int count = 0;
+        foreach (char character in value)
+        {
+            if (IsHexDigit(character))
+            {
+                output[count++] = char.ToUpperInvariant(character);
+            }
+        }
+
+        return new string(output, 0, count);
     }
 
     private static bool IsSelfSignedCertificate(X509Certificate2 certificate)
@@ -363,10 +374,17 @@ public sealed class CtCertificateRecord
 
     private static bool IsSha1Signature(string? oid)
     {
-        return oid == "1.2.840.113549.1.1.5" ||
-               oid == "1.2.840.10040.4.3" ||
-               oid == "1.2.840.10045.4.1" ||
-               oid == "1.3.14.3.2.29";
+        return oid == "1.2.840.113549.1.1.5" || // sha1WithRSAEncryption
+               oid == "1.2.840.10040.4.3" ||    // id-dsa-with-sha1
+               oid == "1.2.840.10045.4.1" ||    // ecdsa-with-SHA1
+               oid == "1.3.14.3.2.29";          // legacy sha1WithRSA
+    }
+
+    private static bool IsHexDigit(char character)
+    {
+        return (character >= '0' && character <= '9') ||
+               (character >= 'a' && character <= 'f') ||
+               (character >= 'A' && character <= 'F');
     }
 
     private static bool IsWeakPublicKey(X509Certificate2 certificate)
@@ -539,6 +557,7 @@ public sealed class CtCertificateRecord
         int count = first & 0x7F;
         if (count <= 0 || count > 4 || offset + count > data.Length)
         {
+            // Indefinite or unusually large ASN.1 lengths are treated as unsupported by this pre-net8 fallback parser.
             return false;
         }
 

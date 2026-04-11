@@ -76,7 +76,7 @@ public sealed class CtProviderRateLimitProfile
         double transientFailureRatioCooldownThreshold =
             double.IsNaN(TransientFailureRatioCooldownThreshold) ||
             double.IsInfinity(TransientFailureRatioCooldownThreshold) ||
-            TransientFailureRatioCooldownThreshold <= 0d
+            TransientFailureRatioCooldownThreshold < 0d
                 ? 0.5d
                 : Math.Min(1d, TransientFailureRatioCooldownThreshold);
 
