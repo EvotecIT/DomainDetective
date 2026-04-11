@@ -8,6 +8,7 @@ using Xunit;
 
 namespace DomainDetective.Tests;
 
+[Collection("HttpListener")]
 public class TestMtaStsNarrative
 {
     [Fact]
@@ -16,7 +17,7 @@ public class TestMtaStsNarrative
         Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
         using var listener = new HttpListener();
         var port = PortHelper.GetFreePort();
-        var prefix = $"http://localhost:{port}/";
+        var prefix = $"http://127.0.0.1:{port}/";
         listener.Prefixes.Add(prefix);
         listener.Start();
         const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
