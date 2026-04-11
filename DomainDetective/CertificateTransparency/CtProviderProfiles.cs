@@ -251,7 +251,7 @@ public static class CtProviderProfiles
             Capabilities = defaults.Capabilities,
             RateLimit = new CtProviderRateLimitProfile
             {
-                MaxConcurrentRequests = Math.Max(1, maxConcurrentLogs),
+                MaxConcurrentRequests = maxConcurrentLogs,
                 MinimumRequestSpacing = options.NativeCtRequestDelay,
                 RequestTimeout = options.NativeCtRequestTimeout,
                 EstimatedRequestDuration = defaults.RateLimit.EstimatedRequestDuration,

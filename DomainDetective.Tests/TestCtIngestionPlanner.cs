@@ -335,6 +335,16 @@ public class TestCtIngestionPlanner
         Assert.False(string.IsNullOrWhiteSpace(record.AuthenticationProfile));
     }
 
+    [Fact]
+    public void CtCertificateRecordNormalizesNullProviderIdToEmpty()
+    {
+        byte[] der = LoadPemCertificateDer("multi.pem");
+
+        CtCertificateRecord record = CtCertificateRecord.FromDer(null!, der);
+
+        Assert.Equal(string.Empty, record.ProviderId);
+    }
+
 #if NET8_0_OR_GREATER
     [Fact]
     public void CtCertificateRecordDoesNotMarkP256EcdsaAsWeak()
@@ -416,6 +426,31 @@ public class TestCtIngestionPlanner
         Assert.Equal(1, state.SuccessfulRequestCount);
         Assert.Equal(now, state.LastSuccessUtc);
         Assert.Equal(250d, state.LastObservedLatencyMilliseconds);
+    }
+
+    [Fact]
+    public void RuntimeStateUpdaterClearsPermanentFailedFlagAfterSuccess()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var previous = new CtProviderRuntimeState
+        {
+            ProviderId = profile.ProviderId,
+            IsPermanentlyFailed = true,
+            TotalRequestCount = 1,
+            LastFailureUtc = now.AddMinutes(-1)
+        };
+        var outcome = new CtProviderRequestOutcome
+        {
+            ProviderId = profile.ProviderId,
+            OutcomeKind = CtProviderOutcomeKind.Success,
+            OccurredAtUtc = now
+        };
+
+        CtProviderRuntimeState state = CtProviderRuntimeStateUpdater.Apply(previous, profile, outcome);
+
+        Assert.False(state.IsPermanentlyFailed);
+        Assert.Equal(now, state.LastSuccessUtc);
     }
 
     [Fact]

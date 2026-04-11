@@ -28,7 +28,7 @@ public sealed class CtProviderRateLimitProfile
     /// <summary>Maximum retry delay used after transient provider failures.</summary>
     public TimeSpan RetryMaxDelay { get; init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>Default cooldown after a rate limit or repeated provider failure.</summary>
+    /// <summary>Default cooldown after a rate limit or a high transient-failure ratio.</summary>
     public TimeSpan CooldownAfterRateLimit { get; init; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Transient failure ratio from zero to one at which provider execution should cool down.</summary>

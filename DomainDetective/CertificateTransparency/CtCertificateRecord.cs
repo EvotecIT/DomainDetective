@@ -14,6 +14,7 @@ namespace DomainDetective;
 public sealed class CtCertificateRecord
 {
     private const string SubjectAlternativeNameOid = "2.5.29.17";
+    private static readonly char[] InvalidDnsNameCharacters = { ' ', '/', '@', ',' };
 
     /// <summary>Provider that returned the record.</summary>
     public string ProviderId { get; init; } = string.Empty;
@@ -269,31 +270,59 @@ public sealed class CtCertificateRecord
     private static string UnescapeDistinguishedNameValue(string value)
     {
         var builder = new StringBuilder(value.Length);
-        bool escaped = false;
-        foreach (char character in value)
+        for (int index = 0; index < value.Length; index++)
         {
-            if (escaped)
+            char character = value[index];
+            if (character != '\\')
             {
                 builder.Append(character);
-                escaped = false;
                 continue;
             }
 
-            if (character == '\\')
+            if (TryReadHexEscapedBytes(value, ref index, out string decodedValue))
             {
-                escaped = true;
+                builder.Append(decodedValue);
                 continue;
             }
 
-            builder.Append(character);
-        }
-
-        if (escaped)
-        {
-            builder.Append('\\');
+            if (index + 1 < value.Length)
+            {
+                builder.Append(value[++index]);
+            }
+            else
+            {
+                builder.Append('\\');
+            }
         }
 
         return builder.ToString().Trim();
+    }
+
+    private static bool TryReadHexEscapedBytes(string value, ref int index, out string decodedValue)
+    {
+        decodedValue = string.Empty;
+        if (index + 2 >= value.Length ||
+            !Uri.IsHexDigit(value[index + 1]) ||
+            !Uri.IsHexDigit(value[index + 2]))
+        {
+            return false;
+        }
+
+        var bytes = new List<byte>();
+        int currentIndex = index;
+        while (currentIndex + 2 < value.Length &&
+               value[currentIndex] == '\\' &&
+               Uri.IsHexDigit(value[currentIndex + 1]) &&
+               Uri.IsHexDigit(value[currentIndex + 2]))
+        {
+            string hex = value.Substring(currentIndex + 1, 2);
+            bytes.Add(Convert.ToByte(hex, 16));
+            currentIndex += 3;
+        }
+
+        decodedValue = Encoding.UTF8.GetString(bytes.ToArray());
+        index = currentIndex - 1;
+        return true;
     }
 
     private static void AddDnsNameIfCandidate(HashSet<string> names, string? name)
@@ -308,7 +337,7 @@ public sealed class CtCertificateRecord
             ? value.Substring(2)
             : value;
         if (hostCandidate.Length == 0 ||
-            hostCandidate.IndexOfAny(new[] { ' ', '/', '@', ',' }) >= 0 ||
+            hostCandidate.IndexOfAny(InvalidDnsNameCharacters) >= 0 ||
             Uri.CheckHostName(hostCandidate) != UriHostNameType.Dns)
         {
             return;
@@ -336,6 +365,7 @@ public sealed class CtCertificateRecord
     {
         return oid == "1.2.840.113549.1.1.5" ||
                oid == "1.2.840.10040.4.3" ||
+               oid == "1.2.840.10045.4.1" ||
                oid == "1.3.14.3.2.29";
     }
 
