@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using DomainDetective;
 using Xunit;
 
@@ -297,6 +299,30 @@ public class TestCtIngestionPlanner
         Assert.False(string.IsNullOrWhiteSpace(record.AuthenticationProfile));
     }
 
+#if NET8_0_OR_GREATER
+    [Fact]
+    public void CtCertificateRecordDoesNotMarkP256EcdsaAsWeak()
+    {
+        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var request = new CertificateRequest("CN=ecdsa.example.com", key, HashAlgorithmName.SHA256);
+        var subjectAlternativeNameBuilder = new SubjectAlternativeNameBuilder();
+        subjectAlternativeNameBuilder.AddDnsName("ecdsa.example.com");
+        request.CertificateExtensions.Add(subjectAlternativeNameBuilder.Build());
+
+        using X509Certificate2 certificate = request.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddDays(-1),
+            DateTimeOffset.UtcNow.AddDays(30));
+
+        CtCertificateRecord record = CtCertificateRecord.FromDer(
+            CtProviderProfiles.CertSpotterProviderId,
+            certificate.Export(X509ContentType.Cert));
+
+        Assert.False(record.WeakKey);
+        Assert.True(record.IsSelfSigned);
+        Assert.Contains("ecdsa.example.com", record.DnsNames, StringComparer.OrdinalIgnoreCase);
+    }
+#endif
+
     [Fact]
     public void RuntimeStateUpdaterAppliesRateLimitCooldown()
     {
@@ -332,6 +358,7 @@ public class TestCtIngestionPlanner
             ProviderId = profile.ProviderId,
             CooldownUntilUtc = now.AddMinutes(2),
             ConsecutiveFailures = 3,
+            IsPermanentlyFailed = true,
             TotalRequestCount = 3,
             TransientFailureCount = 3,
             LastFailureUtc = now.AddMinutes(-1)
@@ -348,10 +375,84 @@ public class TestCtIngestionPlanner
 
         Assert.Null(state.CooldownUntilUtc);
         Assert.Equal(0, state.ConsecutiveFailures);
+        Assert.False(state.IsPermanentlyFailed);
         Assert.Equal(4, state.TotalRequestCount);
         Assert.Equal(1, state.SuccessfulRequestCount);
         Assert.Equal(now, state.LastSuccessUtc);
         Assert.Equal(250d, state.LastObservedLatencyMilliseconds);
+    }
+
+    [Fact]
+    public void RuntimeStateUpdaterMarksPermanentFailure()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCertSpotter();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var outcome = new CtProviderRequestOutcome
+        {
+            ProviderId = profile.ProviderId,
+            OutcomeKind = CtProviderOutcomeKind.PermanentFailure,
+            OccurredAtUtc = now,
+            HttpStatusCode = 401,
+            Error = "Invalid API token"
+        };
+
+        CtProviderRuntimeState state = CtProviderRuntimeStateUpdater.Apply(null, profile, outcome);
+        CtProviderExecutionDecision decision = CtIngestionPlanner.Decide(profile, state, now);
+
+        Assert.True(state.IsPermanentlyFailed);
+        Assert.Null(state.CooldownUntilUtc);
+        Assert.Equal(1, state.ConsecutiveFailures);
+        Assert.Equal(0d, state.TransientFailureRatio);
+        Assert.False(decision.CanRunNow);
+        Assert.Contains("permanent failure", decision.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void DecideAllowsProviderAfterRecoverySuccess()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var state = new CtProviderRuntimeState
+        {
+            ProviderId = profile.ProviderId,
+            LastFailureUtc = now.AddMinutes(-1),
+            LastSuccessUtc = now,
+            TransientFailureRatio = 0.5d,
+            TotalRequestCount = 2,
+            SuccessfulRequestCount = 1,
+            TransientFailureCount = 1
+        };
+
+        CtProviderExecutionDecision decision = CtIngestionPlanner.Decide(profile, state, now);
+
+        Assert.True(decision.CanRunNow);
+        Assert.Null(decision.DeferUntilUtc);
+    }
+
+    [Fact]
+    public void DecideUsesConfiguredFailureRatioThreshold()
+    {
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var profile = new CtProviderProfile
+        {
+            ProviderId = "custom",
+            RateLimit = new CtProviderRateLimitProfile
+            {
+                CooldownAfterRateLimit = TimeSpan.FromMinutes(5),
+                TransientFailureRatioCooldownThreshold = 0.75d
+            }
+        };
+        var state = new CtProviderRuntimeState
+        {
+            ProviderId = profile.ProviderId,
+            LastFailureUtc = now,
+            TransientFailureRatio = 0.6d
+        };
+
+        CtProviderExecutionDecision decision = CtIngestionPlanner.Decide(profile, state, now);
+
+        Assert.True(decision.CanRunNow);
+        Assert.Null(decision.DeferUntilUtc);
     }
 
     [Fact]

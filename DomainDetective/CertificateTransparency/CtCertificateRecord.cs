@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using DomainDetective.Helpers;
 
 namespace DomainDetective;
@@ -115,7 +116,6 @@ public sealed class CtCertificateRecord
         using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(rawData);
         CertificateExtendedKeyUsageInfo eku = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
         string? signatureOid = certificate.SignatureAlgorithm?.Value;
-        int keySize = GetPublicKeySize(certificate);
         byte[] sha256Bytes;
         using (SHA256 sha256 = SHA256.Create())
         {
@@ -137,7 +137,7 @@ public sealed class CtCertificateRecord
             NotAfterUtc = new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
             DnsNames = ExtractDnsNames(certificate),
             IsSelfSigned = IsSelfSignedCertificate(certificate),
-            WeakKey = keySize > 0 && keySize < 2048,
+            WeakKey = IsWeakPublicKey(certificate),
             Sha1Signature = IsSha1Signature(signatureOid),
             AllowsServerAuthentication = eku.AllowsServerAuthentication,
             AllowsClientAuthentication = eku.AllowsClientAuthentication,
@@ -169,21 +169,18 @@ public sealed class CtCertificateRecord
                     AddIfNotEmpty(names, dnsName);
                 }
 #else
-                string formatted = san.Format(false);
-                foreach (string part in formatted.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                int sanNameCount = 0;
+                foreach (string dnsName in ParseDnsNamesFromSanExtension(san.RawData))
                 {
-                    string item = part.Trim();
-                    int equalsIndex = item.IndexOf('=');
-                    if (equalsIndex <= 0)
-                    {
-                        continue;
-                    }
+                    sanNameCount++;
+                    AddIfNotEmpty(names, dnsName);
+                }
 
-                    string key = item.Substring(0, equalsIndex).Trim();
-                    if (key.Equals("DNS Name", StringComparison.OrdinalIgnoreCase) ||
-                        key.Equals("DNS", StringComparison.OrdinalIgnoreCase))
+                if (sanNameCount == 0)
+                {
+                    foreach (string dnsName in ParseDnsNamesFromSanText(san.Format(false)))
                     {
-                        AddIfNotEmpty(names, item.Substring(equalsIndex + 1).Trim());
+                        AddIfNotEmpty(names, dnsName);
                     }
                 }
 #endif
@@ -251,8 +248,7 @@ public sealed class CtCertificateRecord
 
     private static bool IsSelfSignedCertificate(X509Certificate2 certificate)
     {
-        return !string.IsNullOrWhiteSpace(certificate.Subject) &&
-               string.Equals(certificate.Subject, certificate.Issuer, StringComparison.OrdinalIgnoreCase);
+        return certificate.SubjectName.RawData.SequenceEqual(certificate.IssuerName.RawData);
     }
 
     private static bool IsSha1Signature(string? oid)
@@ -262,11 +258,11 @@ public sealed class CtCertificateRecord
                oid == "1.3.14.3.2.29";
     }
 
-    private static int GetPublicKeySize(X509Certificate2 certificate)
+    private static bool IsWeakPublicKey(X509Certificate2 certificate)
     {
         if (certificate == null)
         {
-            return 0;
+            return false;
         }
 
         try
@@ -274,7 +270,7 @@ public sealed class CtCertificateRecord
             using RSA? rsa = certificate.GetRSAPublicKey();
             if (rsa != null)
             {
-                return rsa.KeySize;
+                return rsa.KeySize < 2048;
             }
         }
         catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
@@ -286,7 +282,7 @@ public sealed class CtCertificateRecord
             using ECDsa? ecdsa = certificate.GetECDsaPublicKey();
             if (ecdsa != null)
             {
-                return ecdsa.KeySize;
+                return ecdsa.KeySize < 224;
             }
         }
         catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
@@ -298,14 +294,147 @@ public sealed class CtCertificateRecord
             using DSA? dsa = certificate.GetDSAPublicKey();
             if (dsa != null)
             {
-                return dsa.KeySize;
+                return dsa.KeySize < 2048;
             }
         }
         catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
         {
         }
 
-        return 0;
+        return false;
+    }
+
+    private static IEnumerable<string> ParseDnsNamesFromSanText(string? formattedSan)
+    {
+        if (string.IsNullOrWhiteSpace(formattedSan))
+        {
+            yield break;
+        }
+
+        foreach (string part in formattedSan!.Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            string item = part.Trim();
+            const string dnsNamePrefix = "DNS Name=";
+            const string dnsShortPrefix = "DNS:";
+
+            if (item.StartsWith(dnsNamePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                string value = item.Substring(dnsNamePrefix.Length).Trim();
+                if (value.Length > 0)
+                {
+                    yield return value;
+                }
+            }
+            else if (item.StartsWith(dnsShortPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                string value = item.Substring(dnsShortPrefix.Length).Trim();
+                if (value.Length > 0)
+                {
+                    yield return value;
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<string> ParseDnsNamesFromSanExtension(byte[] rawData)
+    {
+        if (rawData == null || rawData.Length == 0)
+        {
+            yield break;
+        }
+
+        int offset = 0;
+        int sequenceLimit = rawData.Length;
+        if (rawData[offset] == 0x04)
+        {
+            if (!TryReadTagAndLength(rawData, ref offset, expectedTag: 0x04, out int octetLength) ||
+                offset + octetLength > rawData.Length)
+            {
+                yield break;
+            }
+
+            sequenceLimit = offset + octetLength;
+        }
+
+        if (!TryReadTagAndLength(rawData, ref offset, expectedTag: 0x30, out int sequenceLength))
+        {
+            yield break;
+        }
+
+        int sequenceEnd = offset + sequenceLength;
+        if (sequenceEnd > sequenceLimit)
+        {
+            yield break;
+        }
+
+        while (offset < sequenceEnd)
+        {
+            byte tag = rawData[offset++];
+            if (!TryReadAsnLength(rawData, ref offset, out int length) ||
+                offset + length > sequenceEnd)
+            {
+                yield break;
+            }
+
+            if (tag == 0x82 && length > 0)
+            {
+                string value = Encoding.ASCII.GetString(rawData, offset, length).Trim();
+                if (value.Length > 0)
+                {
+                    yield return value;
+                }
+            }
+
+            offset += length;
+        }
+    }
+
+    private static bool TryReadTagAndLength(byte[] data, ref int offset, byte expectedTag, out int length)
+    {
+        length = 0;
+        if (data == null || offset < 0 || offset >= data.Length)
+        {
+            return false;
+        }
+
+        byte tag = data[offset++];
+        if (tag != expectedTag)
+        {
+            return false;
+        }
+
+        return TryReadAsnLength(data, ref offset, out length);
+    }
+
+    private static bool TryReadAsnLength(byte[] data, ref int offset, out int length)
+    {
+        length = 0;
+        if (data == null || offset < 0 || offset >= data.Length)
+        {
+            return false;
+        }
+
+        byte first = data[offset++];
+        if ((first & 0x80) == 0)
+        {
+            length = first;
+            return true;
+        }
+
+        int count = first & 0x7F;
+        if (count <= 0 || count > 4 || offset + count > data.Length)
+        {
+            return false;
+        }
+
+        int value = 0;
+        for (int i = 0; i < count; i++)
+        {
+            value = (value << 8) | data[offset++];
+        }
+
+        length = value;
+        return true;
     }
 
     private static string ToHex(byte[] bytes)

@@ -266,6 +266,18 @@ public static class CtIngestionPlanner
 
         DateTimeOffset effectiveNowUtc = nowUtc ?? DateTimeOffset.UtcNow;
         CtProviderRateLimitProfile rateLimit = (profile.RateLimit ?? new CtProviderRateLimitProfile()).Normalize();
+        if (state?.IsPermanentlyFailed == true)
+        {
+            return new CtProviderExecutionDecision
+            {
+                ProviderId = profile.ProviderId,
+                CanRunNow = false,
+                DeferUntilUtc = null,
+                MaxConcurrentRequests = rateLimit.MaxConcurrentRequests.GetValueOrDefault(1),
+                Reason = "Provider has a recorded permanent failure and should not run until the caller resets provider state."
+            };
+        }
+
         if (state?.CooldownUntilUtc.HasValue == true &&
             state.CooldownUntilUtc.Value > effectiveNowUtc)
         {
@@ -281,8 +293,9 @@ public static class CtIngestionPlanner
 
         if (state != null &&
             state.TransientFailureRatio.HasValue &&
-            state.TransientFailureRatio.Value >= 0.5d &&
-            state.LastFailureUtc.HasValue)
+            state.TransientFailureRatio.Value >= rateLimit.TransientFailureRatioCooldownThreshold &&
+            state.LastFailureUtc.HasValue &&
+            (!state.LastSuccessUtc.HasValue || state.LastSuccessUtc.Value < state.LastFailureUtc.Value))
         {
             DateTimeOffset deferUntilUtc = state.LastFailureUtc.Value + rateLimit.CooldownAfterRateLimit;
             if (deferUntilUtc > effectiveNowUtc)

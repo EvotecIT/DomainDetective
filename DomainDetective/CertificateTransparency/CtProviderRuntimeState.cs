@@ -16,6 +16,9 @@ public sealed class CtProviderRuntimeState
     /// <summary>Number of consecutive provider failures observed by the caller.</summary>
     public int ConsecutiveFailures { get; init; }
 
+    /// <summary>True when the provider reached a non-retryable failure and should not be queried until state is reset.</summary>
+    public bool IsPermanentlyFailed { get; init; }
+
     /// <summary>Last successful provider request time.</summary>
     public DateTimeOffset? LastSuccessUtc { get; init; }
 

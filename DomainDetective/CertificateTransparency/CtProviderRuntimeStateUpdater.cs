@@ -36,6 +36,7 @@ public static class CtProviderRuntimeStateUpdater
                                 outcome.OutcomeKind == CtProviderOutcomeKind.Timeout;
         bool rateLimited = outcome.OutcomeKind == CtProviderOutcomeKind.RateLimited;
         bool timeout = outcome.OutcomeKind == CtProviderOutcomeKind.Timeout;
+        bool permanentFailure = outcome.OutcomeKind == CtProviderOutcomeKind.PermanentFailure;
         long totalRequestCount = checked((previous?.TotalRequestCount ?? 0L) + 1L);
         long successfulRequestCount = (previous?.SuccessfulRequestCount ?? 0L) + (success ? 1L : 0L);
         long transientFailureCount = (previous?.TransientFailureCount ?? 0L) + (transientFailure ? 1L : 0L);
@@ -49,12 +50,11 @@ public static class CtProviderRuntimeStateUpdater
             ProviderId = string.IsNullOrWhiteSpace(outcome.ProviderId) ? profile.ProviderId : outcome.ProviderId,
             CooldownUntilUtc = cooldownUntilUtc,
             ConsecutiveFailures = consecutiveFailures,
+            IsPermanentlyFailed = success ? false : permanentFailure || previous?.IsPermanentlyFailed == true,
             LastSuccessUtc = success ? occurredAtUtc : previous?.LastSuccessUtc,
             LastFailureUtc = success ? previous?.LastFailureUtc : occurredAtUtc,
             ObservedP95LatencyMilliseconds = previous?.ObservedP95LatencyMilliseconds,
-            TransientFailureRatio = totalRequestCount == 0
-                ? 0d
-                : (double)transientFailureCount / totalRequestCount,
+            TransientFailureRatio = (double)transientFailureCount / totalRequestCount,
             TotalRequestCount = totalRequestCount,
             SuccessfulRequestCount = successfulRequestCount,
             TransientFailureCount = transientFailureCount,

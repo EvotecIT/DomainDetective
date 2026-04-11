@@ -31,6 +31,9 @@ public sealed class CtProviderRateLimitProfile
     /// <summary>Default cooldown after a rate limit or repeated provider failure.</summary>
     public TimeSpan CooldownAfterRateLimit { get; init; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>Transient failure ratio from zero to one at which provider execution should cool down.</summary>
+    public double TransientFailureRatioCooldownThreshold { get; init; } = 0.5d;
+
     /// <summary>Optional request budget for a single logical run. Null means no run-local cap.</summary>
     public int? MaximumRequestsPerRun { get; init; }
 
@@ -70,6 +73,12 @@ public sealed class CtProviderRateLimitProfile
         TimeSpan cooldownAfterRateLimit = CooldownAfterRateLimit < TimeSpan.Zero
             ? TimeSpan.Zero
             : CooldownAfterRateLimit;
+        double transientFailureRatioCooldownThreshold =
+            double.IsNaN(TransientFailureRatioCooldownThreshold) ||
+            double.IsInfinity(TransientFailureRatioCooldownThreshold) ||
+            TransientFailureRatioCooldownThreshold <= 0d
+                ? 0.5d
+                : Math.Min(1d, TransientFailureRatioCooldownThreshold);
 
         return new CtProviderRateLimitProfile
         {
@@ -81,6 +90,7 @@ public sealed class CtProviderRateLimitProfile
             RetryBaseDelay = retryBaseDelay,
             RetryMaxDelay = retryMaxDelay,
             CooldownAfterRateLimit = cooldownAfterRateLimit,
+            TransientFailureRatioCooldownThreshold = transientFailureRatioCooldownThreshold,
             MaximumRequestsPerRun = maximumRequestsPerRun
         };
     }
