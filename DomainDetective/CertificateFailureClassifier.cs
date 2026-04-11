@@ -42,6 +42,11 @@ internal static class CertificateFailureClassifier {
                 return CertificateFailureKind.TlsHandshake;
             }
 
+            if (current is InvalidOperationException invalidOperationException &&
+                IsSslStreamAuthenticationStateFailure(invalidOperationException)) {
+                return CertificateFailureKind.TlsHandshake;
+            }
+
             if (current is TimeoutException) {
                 return CertificateFailureKind.Timeout;
             }
@@ -99,6 +104,7 @@ internal static class CertificateFailureClassifier {
 
         if (Contains(normalized, "FailureKind:TlsHandshake") ||
             Contains(normalized, "HttpRequestError:SecureConnectionError") ||
+            Contains(normalized, "successfully authenticated context") ||
             Contains(normalized, "TLS Handshake Failure")) {
             return CertificateFailureKind.TlsHandshake;
         }
@@ -137,6 +143,11 @@ internal static class CertificateFailureClassifier {
 
     private static bool Contains(string value, string pattern) {
         return value.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsSslStreamAuthenticationStateFailure(InvalidOperationException exception) {
+        return !string.IsNullOrWhiteSpace(exception.Message) &&
+               exception.Message.IndexOf("successfully authenticated context", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static CertificateFailureKind Promote(CertificateFailureKind current, CertificateFailureKind candidate) {
