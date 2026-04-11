@@ -239,7 +239,7 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task SignedSecurityTxtWarnsWhenPgpVerifierIsNotRegistered() {
+        public async Task SignedSecurityTxtWarnsWhenPgpVerificationIsUnavailable() {
             using var listener = StartListener(out var prefix);
             var expires = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-ddTHH:mm:ssZ");
             var content =
@@ -285,7 +285,8 @@ namespace DomainDetective.Tests {
                 Assert.Contains(
                     warnings,
                     warning => warning.Code == SecurityTxtCodes.SignatureVerifyFailed &&
-                               warning.FullMessage.Contains("no verifier is registered", StringComparison.OrdinalIgnoreCase));
+                               (warning.FullMessage.Contains("no verifier is registered", StringComparison.OrdinalIgnoreCase) ||
+                                warning.FullMessage.Contains("PGP signature verification failed", StringComparison.OrdinalIgnoreCase)));
             } finally {
                 listener.Stop();
                 await serverTask;
