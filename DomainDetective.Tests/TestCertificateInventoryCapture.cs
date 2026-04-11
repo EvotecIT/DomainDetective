@@ -2336,10 +2336,71 @@ public class TestCertificateInventoryCapture {
         Assert.Equal(2, requests.Count);
         Assert.Equal("certspotter", requests[0].SourceName);
         Assert.Contains("domain=access.tchibo.com", requests[0].Url, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("include_subdomains=false", requests[0].Url, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("match_wildcards=true", requests[0].Url, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("expand=issuer", requests[0].Url, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("expand=cert_der", requests[0].Url, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("include_subdomains=true", requests[0].Url, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("crt.sh", requests[1].SourceName);
         Assert.Contains("q=access.tchibo.com", requests[1].Url, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryBuildExactCtMetadataEntry_HydratesCertSpotterCertificateDer() {
+        const string hostName = "mail.emmasguesthouse.co.za";
+        using RSA rsa = RSA.Create(2048);
+        var request = new CertificateRequest(
+            $"CN={hostName}",
+            rsa,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        request.CertificateExtensions.Add(
+            new X509EnhancedKeyUsageExtension(
+                new OidCollection {
+                    new(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid)
+                },
+                critical: false));
+        request.CertificateExtensions.Add(
+            new X509BasicConstraintsExtension(false, false, 0, false));
+        request.CertificateExtensions.Add(
+            new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+        using X509Certificate2 certificate = request.CreateSelfSigned(
+            new DateTimeOffset(2026, 3, 26, 0, 3, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 6, 24, 0, 2, 59, TimeSpan.Zero));
+        string certificateDer = Convert.ToBase64String(certificate.Export(X509ContentType.Cert));
+
+        IReadOnlyList<PassiveCtSourceClient.SourcePayload> payloads = new[] {
+            new PassiveCtSourceClient.SourcePayload {
+                SourceName = "certspotter",
+                Url = "https://api.certspotter.com/v1/issuances?domain=mail.emmasguesthouse.co.za&include_subdomains=false&match_wildcards=true&expand=dns_names&expand=issuer&expand=cert_der",
+                Payload =
+                    $$"""
+                    [
+                      {
+                        "id": "certspotter-test-id",
+                        "dns_names": [ "{{hostName}}" ],
+                        "issuer": { "name": "CN=placeholder" },
+                        "not_before": "2026-03-26T00:03:00Z",
+                        "not_after": "2026-06-24T00:02:59Z",
+                        "cert_der": "{{certificateDer}}"
+                      }
+                    ]
+                    """
+            }
+        };
+
+        SubdomainDiscoveryEntry? entry = CertificateInventoryCapture.TryBuildExactCtMetadataEntry(hostName, payloads);
+
+        Assert.NotNull(entry);
+        Assert.Equal(certificate.Thumbprint, entry!.LatestCertificateThumbprint);
+        Assert.Equal(certificate.Subject, entry.LatestCertificateSubject);
+        Assert.Equal(certificate.Issuer, entry.LatestCertificateIssuer);
+        Assert.Equal(certificate.SerialNumber, entry.LatestCertificateSerialNumber);
+        Assert.True(entry.LatestCertificateHasServerAuthentication);
+        Assert.False(entry.LatestCertificateHasClientAuthentication);
+        Assert.False(entry.LatestCertificateHasSecureEmail);
+        Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAuthOnly, entry.LatestCertificateAuthenticationProfile);
+        Assert.Contains("certspotter", entry.CtSources, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -3253,6 +3314,130 @@ public class TestCertificateInventoryCapture {
         Console.WriteLine($"AuthenticationProfile={endpoint.AuthenticationProfile}");
         Console.WriteLine($"AllowsServerAuthentication={endpoint.AllowsServerAuthentication}");
         Console.WriteLine($"CtSources={string.Join(", ", endpoint.CtDiscoverySources)}");
+    }
+
+    [IntegrationFact]
+    public async Task CaptureAsync_CtEvidenceRefreshProfile_HydratesEurofinsExactHostFromLivePassiveCtSources() {
+        const string hostName = "eurofins.com";
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (httpsTargets, options, logger, cancellationToken) => {
+                var entries = new List<CertificateMonitor.Entry>();
+                foreach (var target in httpsTargets) {
+                    var uri = new Uri(target);
+                    entries.Add(new CertificateMonitor.Entry {
+                        Host = uri.Host,
+                        ResolvedHost = uri.Host,
+                        Url = target,
+                        Scheme = uri.Scheme,
+                        Port = uri.Port,
+                        Service = "HTTPS",
+                        Valid = false,
+                        Expired = false,
+                        ChainComplete = false,
+                        Protocol = SslProtocols.None,
+                        Analysis = new CertificateAnalysis {
+                            Url = target,
+                            IsReachable = false
+                        }
+                    });
+                }
+
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            }
+        };
+
+        var options = new CertificateInventoryCaptureOptions {
+            EnablePassiveCtMetadataFallback = true,
+            EnableCrtShPostgreSqlMetadataFallback = false,
+            BackfillMissingCtCertificateMetadata = true,
+            PersistSnapshot = false,
+            PassiveCtRequestTimeout = TimeSpan.FromSeconds(45),
+            PassiveCtRetryCount = 0,
+            PassiveCtCrtShMinimumSpacing = TimeSpan.Zero,
+            PassiveCtCertSpotterMinimumSpacing = TimeSpan.Zero,
+            PassiveCtCrtShMaximumRequestsPerRun = 1,
+            PassiveCtCertSpotterMaximumRequestsPerRun = 1
+        }.ApplyCtEvidenceRefreshProfile();
+        options.ExactPassiveCtMetadataTargetHosts.Add(hostName);
+
+        var result = await capture.CaptureAsync(new[] { hostName }, options, cancellationToken: CancellationToken.None);
+
+        var endpoint = Assert.Single(result.Snapshot.Entries, entry => entry.Host.Equals(hostName, StringComparison.OrdinalIgnoreCase));
+        string diagnostics = string.Join(
+            Environment.NewLine,
+            result.PassiveCtDiagnosticEntries.Select(diagnostic =>
+                $"{diagnostic.QueryKind}:{diagnostic.SourceName}:{diagnostic.State}:{diagnostic.Failure}"));
+        Assert.False(endpoint.IsReachable);
+        Assert.True(endpoint.PresentInCtLogs, "Expected live passive CT metadata for eurofins.com." + Environment.NewLine + diagnostics);
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.CertificateThumbprint), diagnostics);
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.CertificateSubject), diagnostics);
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.CertificateIssuer), diagnostics);
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.CertificateSerialNumber), diagnostics);
+        Assert.True(endpoint.NotBeforeUtc.HasValue, diagnostics);
+        Assert.True(endpoint.NotAfterUtc.HasValue, diagnostics);
+        Assert.False(string.IsNullOrWhiteSpace(endpoint.AuthenticationProfile), diagnostics);
+        Assert.True(
+            endpoint.CtDiscoverySources.Any(source =>
+                source.Equals("crt.sh", StringComparison.OrdinalIgnoreCase) ||
+                source.Equals("certspotter", StringComparison.OrdinalIgnoreCase)),
+            "Expected crt.sh or CertSpotter source evidence." + Environment.NewLine + diagnostics);
+
+        Console.WriteLine($"Host={endpoint.Host}");
+        Console.WriteLine($"PresentInCtLogs={endpoint.PresentInCtLogs}");
+        Console.WriteLine($"Thumbprint={endpoint.CertificateThumbprint}");
+        Console.WriteLine($"Subject={endpoint.CertificateSubject}");
+        Console.WriteLine($"Issuer={endpoint.CertificateIssuer}");
+        Console.WriteLine($"Serial={endpoint.CertificateSerialNumber}");
+        Console.WriteLine($"NotBeforeUtc={endpoint.NotBeforeUtc:O}");
+        Console.WriteLine($"NotAfterUtc={endpoint.NotAfterUtc:O}");
+        Console.WriteLine($"AuthenticationProfile={endpoint.AuthenticationProfile}");
+        Console.WriteLine($"CtSources={string.Join(", ", endpoint.CtDiscoverySources)}");
+        Console.WriteLine(diagnostics);
+    }
+
+    [IntegrationFact]
+    public async Task CaptureAsync_CtDiscoveryOnlyProfile_DiscoversEurofinsSubdomainsFromLivePassiveCtSources() {
+        const string domainName = "eurofins.com";
+        PassiveCtSourceClient.ResetSharedStateForTesting();
+
+        var capture = new CertificateInventoryCapture();
+        var options = new CertificateInventoryCaptureOptions {
+            PersistSnapshot = false,
+            PassiveCtRequestTimeout = TimeSpan.FromSeconds(45),
+            PassiveCtRetryCount = 0,
+            PassiveCtCrtShMinimumSpacing = TimeSpan.Zero,
+            PassiveCtCertSpotterMinimumSpacing = TimeSpan.Zero,
+            PassiveCtCrtShMaximumRequestsPerRun = 1,
+            PassiveCtCertSpotterMaximumRequestsPerRun = 1,
+            MaxCtRowsPerDomain = 500,
+            MaxCtSubdomainsPerDomain = 50
+        }.ApplyCtDiscoveryOnlyProfile();
+        options.EnableNativeCtLogSubdomainSource = false;
+        options.BackfillMissingCtCertificateMetadata = false;
+
+        var result = await capture.CaptureAsync(new[] { domainName }, options, cancellationToken: CancellationToken.None);
+
+        string diagnostics = string.Join(
+            Environment.NewLine,
+            result.PassiveCtDiagnosticEntries.Select(diagnostic =>
+                $"{diagnostic.QueryKind}:{diagnostic.SourceName}:{diagnostic.State}:{diagnostic.Failure}"));
+        Assert.NotEmpty(result.CtDiscoveredSubdomainEntries);
+        Assert.Contains(
+            result.CtDiscoveredSubdomainEntries,
+            entry => entry.Name.EndsWith("." + domainName, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            result.CtDiscoveredSubdomainEntries,
+            entry => entry.CtSources.Any(source =>
+                source.Equals("crt.sh", StringComparison.OrdinalIgnoreCase) ||
+                source.Equals("certspotter", StringComparison.OrdinalIgnoreCase)));
+
+        foreach (var entry in result.CtDiscoveredSubdomainEntries.Take(10)) {
+            Console.WriteLine(
+                $"Subdomain={entry.Name}; Sources={string.Join(", ", entry.CtSources)}; Observations={entry.CertificateObservationCount}; NotBefore={entry.LatestCertificateNotBeforeUtc:O}; NotAfter={entry.LatestCertificateNotAfterUtc:O}");
+        }
+        Console.WriteLine(diagnostics);
     }
 
     [Fact]

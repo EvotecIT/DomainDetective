@@ -10,9 +10,23 @@ namespace DomainDetective;
 public static class DomainDetectiveOptionalFeatures
 {
     private static volatile Func<string, string, (bool IsVerified, string ClearText)>? _securityTxtPgpVerifier;
-    private static volatile Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?>? _typosquattingVisualFingerprintBuilder;
-    private static volatile Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>>? _typosquattingBrowserCapture;
+    private static volatile VisualProviderRegistration? _visualProvider;
     private static volatile Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? _ctSqlExactMetadataProvider;
+
+    private sealed class VisualProviderRegistration
+    {
+        public VisualProviderRegistration(
+            Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?> fingerprintBuilder,
+            Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>> browserCapture)
+        {
+            FingerprintBuilder = fingerprintBuilder;
+            BrowserCapture = browserCapture;
+        }
+
+        public Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?> FingerprintBuilder { get; }
+
+        public Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>> BrowserCapture { get; }
+    }
 
     /// <summary>
     /// Indicates whether an optional PGP verifier has been registered.
@@ -22,7 +36,7 @@ public static class DomainDetectiveOptionalFeatures
     /// <summary>
     /// Indicates whether optional visual providers have been registered.
     /// </summary>
-    public static bool HasVisualProvider => _typosquattingVisualFingerprintBuilder != null && _typosquattingBrowserCapture != null;
+    public static bool HasVisualProvider => _visualProvider != null;
 
     /// <summary>
     /// Indicates whether an optional CT SQL exact-metadata provider has been registered.
@@ -44,12 +58,13 @@ public static class DomainDetectiveOptionalFeatures
         Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?> fingerprintBuilder,
         Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>> browserCapture)
     {
-        _typosquattingVisualFingerprintBuilder = fingerprintBuilder ?? throw new ArgumentNullException(nameof(fingerprintBuilder));
-        _typosquattingBrowserCapture = browserCapture ?? throw new ArgumentNullException(nameof(browserCapture));
+        _visualProvider = new VisualProviderRegistration(
+            fingerprintBuilder ?? throw new ArgumentNullException(nameof(fingerprintBuilder)),
+            browserCapture ?? throw new ArgumentNullException(nameof(browserCapture)));
     }
 
     /// <summary>
-    /// Registers an exact-host CT metadata provider that can later move out of core.
+    /// Registers a caller-supplied exact-host CT metadata provider for the future CtSql package split.
     /// </summary>
     public static void RegisterCtSqlExactMetadataProvider(
         Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>> provider)
@@ -76,13 +91,13 @@ public static class DomainDetectiveOptionalFeatures
 
     internal static (string FingerprintHex, int? Width, int? Height)? BuildTyposquattingFingerprint(TyposquattingVisualArtifact artifact)
     {
-        var builder = _typosquattingVisualFingerprintBuilder;
-        if (builder == null)
+        var provider = _visualProvider;
+        if (provider == null)
         {
             return null;
         }
 
-        return builder(artifact);
+        return provider.FingerprintBuilder(artifact);
     }
 
     internal static Task<TyposquattingVisualArtifact?> CaptureTyposquattingBrowserArtifactAsync(
@@ -90,13 +105,13 @@ public static class DomainDetectiveOptionalFeatures
         TyposquattingVisualSimilarityOptions options,
         CancellationToken cancellationToken)
     {
-        var capture = _typosquattingBrowserCapture;
-        if (capture == null)
+        var provider = _visualProvider;
+        if (provider == null)
         {
             return Task.FromResult<TyposquattingVisualArtifact?>(null);
         }
 
-        return capture(url, options, cancellationToken);
+        return provider.BrowserCapture(url, options, cancellationToken);
     }
 
     internal static Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? GetCtSqlExactMetadataProvider()

@@ -1568,7 +1568,7 @@ public sealed partial class CertificateInventoryCapture {
         }
     }
 
-    private static SubdomainDiscoveryEntry? TryBuildExactCtMetadataEntry(
+    internal static SubdomainDiscoveryEntry? TryBuildExactCtMetadataEntry(
         string normalizedHost,
         IReadOnlyList<PassiveCtSourceClient.SourcePayload> payloads) {
         if (string.IsNullOrWhiteSpace(normalizedHost) || payloads == null || payloads.Count == 0) {
@@ -1585,6 +1585,13 @@ public sealed partial class CertificateInventoryCapture {
         DateTimeOffset? latestCertificateNotBeforeUtc = null;
         DateTimeOffset? latestCertificateNotAfterUtc = null;
         IReadOnlyList<string> latestCertificateSubjectAlternativeNames = Array.Empty<string>();
+        bool? latestCertificateIsSelfSigned = null;
+        bool? latestCertificateWeakKey = null;
+        bool? latestCertificateSha1Signature = null;
+        bool? latestCertificateHasServerAuthentication = null;
+        bool? latestCertificateHasClientAuthentication = null;
+        bool? latestCertificateHasSecureEmail = null;
+        string? latestCertificateAuthenticationProfile = null;
         var ctSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var observationCount = 0;
 
@@ -1640,6 +1647,29 @@ public sealed partial class CertificateInventoryCapture {
                 latestCertificateNotBeforeUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_before"));
                 latestCertificateNotAfterUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_after"));
                 latestCertificateSubjectAlternativeNames = candidateNames;
+                X509Certificate2? embeddedCertificate = TryLoadCtMetadataCertificateDer(item);
+                if (embeddedCertificate != null) {
+                    using (embeddedCertificate) {
+                        CertificateExtendedKeyUsageInfo eku = CertificateExtendedKeyUsageAnalyzer.Analyze(embeddedCertificate);
+                        string? signatureOid = embeddedCertificate.SignatureAlgorithm?.Value;
+                        int keySize = GetPublicKeySize(embeddedCertificate);
+                        latestCertificateThumbprint = NormalizeCtMetadataThumbprint(embeddedCertificate.Thumbprint) ?? latestCertificateThumbprint;
+                        latestCertificateSubject = embeddedCertificate.Subject;
+                        latestCertificateIssuer = embeddedCertificate.Issuer;
+                        latestCertificateSerialNumber = embeddedCertificate.SerialNumber;
+                        latestCertificateNotBeforeUtc = new DateTimeOffset(embeddedCertificate.NotBefore.ToUniversalTime());
+                        latestCertificateNotAfterUtc = new DateTimeOffset(embeddedCertificate.NotAfter.ToUniversalTime());
+                        latestCertificateIsSelfSigned = IsSelfSigned(embeddedCertificate);
+                        latestCertificateWeakKey = keySize > 0 && keySize < 2048;
+                        latestCertificateSha1Signature = IsSha1Signature(signatureOid);
+                        latestCertificateHasServerAuthentication = eku.AllowsServerAuthentication;
+                        latestCertificateHasClientAuthentication = eku.AllowsClientAuthentication;
+                        latestCertificateHasSecureEmail = eku.AllowsSecureEmail;
+                        latestCertificateAuthenticationProfile = string.IsNullOrWhiteSpace(eku.AuthenticationProfile)
+                            ? CertificateAuthenticationProfileClassifier.Classify(eku)
+                            : eku.AuthenticationProfile;
+                    }
+                }
             }
         }
 
@@ -1659,10 +1689,33 @@ public sealed partial class CertificateInventoryCapture {
             LatestCertificateNotBeforeUtc = latestCertificateNotBeforeUtc,
             LatestCertificateNotAfterUtc = latestCertificateNotAfterUtc,
             LatestCertificateSubjectAlternativeNames = latestCertificateSubjectAlternativeNames,
+            LatestCertificateIsSelfSigned = latestCertificateIsSelfSigned,
+            LatestCertificateWeakKey = latestCertificateWeakKey,
+            LatestCertificateSha1Signature = latestCertificateSha1Signature,
+            LatestCertificateHasServerAuthentication = latestCertificateHasServerAuthentication,
+            LatestCertificateHasClientAuthentication = latestCertificateHasClientAuthentication,
+            LatestCertificateHasSecureEmail = latestCertificateHasSecureEmail,
+            LatestCertificateAuthenticationProfile = latestCertificateAuthenticationProfile,
             CtSources = ctSources.OrderBy(source => source, StringComparer.OrdinalIgnoreCase).ToList(),
             CertificateObservationCount = observationCount,
             ResolutionStatus = SubdomainResolutionStatus.Unknown
         };
+    }
+
+    private static X509Certificate2? TryLoadCtMetadataCertificateDer(JsonElement obj) {
+        string? certificateDer = GetCtMetadataString(obj, "cert_der");
+        if (string.IsNullOrWhiteSpace(certificateDer)) {
+            return null;
+        }
+
+        try {
+            byte[] certificateBytes = Convert.FromBase64String(certificateDer!.Trim());
+            return CertificateLoaderCompat.LoadCertificate(certificateBytes);
+        } catch (FormatException) {
+            return null;
+        } catch (CryptographicException) {
+            return null;
+        }
     }
 
     private static string? SelectBestCrtShCertificateDownloadId(
@@ -1770,7 +1823,7 @@ public sealed partial class CertificateInventoryCapture {
         var requests = new List<PassiveCtSourceClient.SourceRequest>(2);
         requests.Add(new PassiveCtSourceClient.SourceRequest {
             SourceName = "certspotter",
-            Url = "https://api.certspotter.com/v1/issuances?domain=" + Uri.EscapeDataString(normalizedHost) + "&match_wildcards=true&expand=dns_names"
+            Url = "https://api.certspotter.com/v1/issuances?domain=" + Uri.EscapeDataString(normalizedHost) + "&include_subdomains=false&match_wildcards=true&expand=dns_names&expand=issuer&expand=cert_der"
         });
         requests.Add(new PassiveCtSourceClient.SourceRequest {
             SourceName = "crt.sh",

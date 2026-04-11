@@ -106,6 +106,7 @@ internal static class DomainDetectiveVisualProvider
                     Width = Math.Max(320, options.BrowserViewportWidth),
                     Height = Math.Max(240, options.BrowserViewportHeight)
                 },
+                // Typosquatting probes intentionally continue through invalid certificates.
                 IgnoreHTTPSErrors = options.HttpRequestOptions.DisableTlsValidation
             }).WaitAsync(linkedCts.Token).ConfigureAwait(false);
             var page = await context.NewPageAsync().WaitAsync(linkedCts.Token).ConfigureAwait(false);

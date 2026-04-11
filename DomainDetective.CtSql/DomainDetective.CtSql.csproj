@@ -17,11 +17,4 @@
         <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-        <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.0" />
-        <Reference Include="System.IO.Compression" />
-        <Reference Include="System.IO.Compression.FileSystem" />
-        <Reference Include="System.ComponentModel.DataAnnotations" />
-    </ItemGroup>
-
 </Project>
