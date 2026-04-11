@@ -197,6 +197,63 @@ public class TestCtIngestionPlanner
         Assert.NotEmpty(record.CertificateDer!);
     }
 
+    [Fact]
+    public void RuntimeStateUpdaterAppliesRateLimitCooldown()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var outcome = new CtProviderRequestOutcome
+        {
+            ProviderId = profile.ProviderId,
+            OutcomeKind = CtProviderOutcomeKind.RateLimited,
+            OccurredAtUtc = now,
+            RetryAfter = TimeSpan.FromMinutes(2),
+            HttpStatusCode = 429,
+            Error = "Too many requests"
+        };
+
+        CtProviderRuntimeState state = CtProviderRuntimeStateUpdater.Apply(null, profile, outcome);
+
+        Assert.Equal(now.AddMinutes(2), state.CooldownUntilUtc);
+        Assert.Equal(1, state.ConsecutiveFailures);
+        Assert.Equal(1, state.TotalRequestCount);
+        Assert.Equal(1, state.RateLimitedCount);
+        Assert.Equal(1d, state.TransientFailureRatio);
+        Assert.Equal(429, state.LastHttpStatusCode);
+    }
+
+    [Fact]
+    public void RuntimeStateUpdaterClearsCooldownAfterSuccess()
+    {
+        CtProviderProfile profile = CtProviderProfiles.CreateCrtShHttp();
+        DateTimeOffset now = new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero);
+        var previous = new CtProviderRuntimeState
+        {
+            ProviderId = profile.ProviderId,
+            CooldownUntilUtc = now.AddMinutes(2),
+            ConsecutiveFailures = 3,
+            TotalRequestCount = 3,
+            TransientFailureCount = 3,
+            LastFailureUtc = now.AddMinutes(-1)
+        };
+        var outcome = new CtProviderRequestOutcome
+        {
+            ProviderId = profile.ProviderId,
+            OutcomeKind = CtProviderOutcomeKind.Success,
+            OccurredAtUtc = now,
+            Latency = TimeSpan.FromMilliseconds(250)
+        };
+
+        CtProviderRuntimeState state = CtProviderRuntimeStateUpdater.Apply(previous, profile, outcome);
+
+        Assert.Null(state.CooldownUntilUtc);
+        Assert.Equal(0, state.ConsecutiveFailures);
+        Assert.Equal(4, state.TotalRequestCount);
+        Assert.Equal(1, state.SuccessfulRequestCount);
+        Assert.Equal(now, state.LastSuccessUtc);
+        Assert.Equal(250d, state.LastObservedLatencyMilliseconds);
+    }
+
     private static byte[] LoadPemCertificateDer(string fileName)
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Data", fileName);

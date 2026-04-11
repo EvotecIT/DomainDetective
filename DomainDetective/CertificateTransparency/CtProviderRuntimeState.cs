@@ -27,4 +27,28 @@ public sealed class CtProviderRuntimeState
 
     /// <summary>Rolling transient failure ratio from zero to one, when tracked by the caller.</summary>
     public double? TransientFailureRatio { get; init; }
+
+    /// <summary>Total provider requests observed by the caller.</summary>
+    public long TotalRequestCount { get; init; }
+
+    /// <summary>Total successful provider requests observed by the caller.</summary>
+    public long SuccessfulRequestCount { get; init; }
+
+    /// <summary>Total transient provider failures observed by the caller.</summary>
+    public long TransientFailureCount { get; init; }
+
+    /// <summary>Total provider rate-limit responses observed by the caller.</summary>
+    public long RateLimitedCount { get; init; }
+
+    /// <summary>Total provider timeout responses observed by the caller.</summary>
+    public long TimeoutCount { get; init; }
+
+    /// <summary>Last HTTP status code observed for HTTP-backed providers.</summary>
+    public int? LastHttpStatusCode { get; init; }
+
+    /// <summary>Last provider error message observed by the caller.</summary>
+    public string? LastError { get; init; }
+
+    /// <summary>Last observed request latency in milliseconds.</summary>
+    public double? LastObservedLatencyMilliseconds { get; init; }
 }
