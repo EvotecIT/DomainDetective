@@ -371,6 +371,7 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Converts this value to inventory entry.</summary>
         public static CertificateInventoryEntry ToInventoryEntry(Entry entry) {
             var analysis = entry.Analysis;
             var certificate = analysis.Certificate;

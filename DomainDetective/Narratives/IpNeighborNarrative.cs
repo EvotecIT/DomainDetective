@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives
 {
+    /// <summary>Provides ip neighbor narrative functionality.</summary>
     public static class IpNeighborNarrative
     {
+        /// <summary>Provides sections functionality.</summary>
         public sealed class Sections : NarrativeSections { }
 
+        /// <summary>Executes the build operation.</summary>
         public static Sections Build(IPNeighborAnalysis? analysis)
         {
             var subjCandidate = analysis?.Subject;

@@ -9,35 +9,47 @@ namespace DomainDetective;
 
 /// <summary>SMTP rules loaded from a JSON file.</summary>
 public sealed class EmailSmtpRuleSet {
+    /// <summary>Gets or sets the by domain value.</summary>
     public Dictionary<string, EmailSmtpRulePolicy>? ByDomain { get; set; }
+    /// <summary>Gets or sets the by mx value.</summary>
     public Dictionary<string, EmailSmtpRulePolicy>? ByMx { get; set; }
+    /// <summary>Gets or sets the by mx suffix value.</summary>
     public Dictionary<string, EmailSmtpRulePolicy>? ByMxSuffix { get; set; }
 }
 
 /// <summary>SMTP rule settings.</summary>
 public sealed class EmailSmtpRulePolicy {
+    /// <summary>Gets or sets the disable catch all value.</summary>
     public bool? DisableCatchAll { get; set; }
+    /// <summary>Gets or sets the smtp timeout seconds value.</summary>
     public int? SmtpTimeoutSeconds { get; set; }
+    /// <summary>Gets or sets the smtp port override value.</summary>
     public int? SmtpPortOverride { get; set; }
 }
 
 /// <summary>Resolved SMTP rule overrides.</summary>
 public sealed class EmailSmtpRuleMatch {
+    /// <summary>Gets or sets the disable catch all value.</summary>
     public bool? DisableCatchAll { get; set; }
+    /// <summary>Gets or sets the smtp timeout seconds value.</summary>
     public int? SmtpTimeoutSeconds { get; set; }
+    /// <summary>Gets or sets the smtp port override value.</summary>
     public int? SmtpPortOverride { get; set; }
 }
 
+/// <summary>Provides email smtp rule resolver functionality.</summary>
 public static class EmailSmtpRuleResolver {
     private const string BuiltinResource = "DomainDetective.email_smtp_rules.json";
     private static readonly object _cacheLock = new();
     private static readonly Dictionary<string, CachedRules> _rulesCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Lazy<EmailSmtpRuleSet?> _builtinRules = new(LoadBuiltinRules);
 
+    /// <summary>Executes the resolve operation.</summary>
     public static EmailSmtpRuleMatch? Resolve(string? domain, IEnumerable<string>? mxHosts, string? rulesPath, bool useBuiltin) {
         return ResolveAsync(domain, mxHosts, rulesPath, useBuiltin).GetAwaiter().GetResult();
     }
 
+    /// <summary>Executes the resolve async operation.</summary>
     public static async Task<EmailSmtpRuleMatch?> ResolveAsync(string? domain, IEnumerable<string>? mxHosts, string? rulesPath, bool useBuiltin, CancellationToken cancellationToken = default) {
         var rules = await LoadRulesAsync(rulesPath, useBuiltin, cancellationToken).ConfigureAwait(false);
         if (rules == null) {

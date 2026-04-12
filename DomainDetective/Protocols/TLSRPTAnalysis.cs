@@ -36,11 +36,16 @@ public class TLSRPTAnalysis : IHasAssessments {
 
         /// <summary>True when at least one RUA destination is defined.</summary>
         public bool RuaDefined { get; private set; }
+        /// <summary>Gets or sets the mailto rua value.</summary>
         public List<string> MailtoRua { get; private set; } = new();
+        /// <summary>Gets or sets the http rua value.</summary>
         public List<string> HttpRua { get; private set; } = new();
+        /// <summary>Gets or sets the invalid rua value.</summary>
         public List<string> InvalidRua { get; private set; } = new();
+        /// <summary>Gets or sets the unknown tags value.</summary>
         public List<string> UnknownTags { get; private set; } = new();
 
+        /// <summary>Represents the policy valid value.</summary>
         public bool PolicyValid => TlsRptRecordExists && StartsCorrectly && RuaDefined;
 
         /// <summary>Optional: when true, attempts a lightweight HEAD to HTTPS RUA endpoints to verify reachability.</summary>
@@ -58,8 +63,10 @@ public class TLSRPTAnalysis : IHasAssessments {
 
         /// <summary>Structured assessments captured during TLSRPT analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
+        /// <summary>Analyzes tls rpt records.</summary>
         public async Task AnalyzeTlsRptRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "TLSRPT", target: Subject);
             cancellationToken.ThrowIfCancellationRequested();

@@ -9,16 +9,26 @@ using System.Threading.Tasks;
 
 namespace DomainDetective;
 
+/// <summary>Represents dns over tls endpoint result data.</summary>
 public sealed record DnsOverTlsEndpointResult
 {
+    /// <summary>Gets or sets the name server host value.</summary>
     public string NameServerHost { get; init; } = string.Empty;
+    /// <summary>Gets or sets the server ip value.</summary>
     public string ServerIp { get; init; } = string.Empty;
+    /// <summary>Gets or sets the port value.</summary>
     public int Port { get; init; }
+    /// <summary>Gets or sets the supported value.</summary>
     public bool Supported { get; init; }
+    /// <summary>Gets or sets the protocol value.</summary>
     public string? Protocol { get; init; }
+    /// <summary>Gets or sets the cipher suite value.</summary>
     public string? CipherSuite { get; init; }
+    /// <summary>Gets or sets the hostname match value.</summary>
     public bool? HostnameMatch { get; init; }
+    /// <summary>Gets or sets the certificate valid value.</summary>
     public bool? CertificateValid { get; init; }
+    /// <summary>Gets or sets the error value.</summary>
     public string? Error { get; init; }
 }
 
@@ -28,8 +38,10 @@ public sealed record DnsOverTlsEndpointResult
 /// <para>Part of the DomainDetective project.</para>
 public sealed class DnsOverTlsAnalysis : IHasAssessments
 {
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
 
+    /// <summary>Gets or sets the dns configuration value.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
 
     /// <summary>Maximum time allowed per TLS probe.</summary>
@@ -41,6 +53,7 @@ public sealed class DnsOverTlsAnalysis : IHasAssessments
     /// <summary>Max servers (A/AAAA endpoints) to probe to avoid aggressive scanning.</summary>
     public int MaxServersToProbe { get; set; } = 12;
 
+    /// <summary>Gets or sets the server results value.</summary>
     public Dictionary<string, DnsOverTlsEndpointResult> ServerResults { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Optional override for DNS queries (NS/A/AAAA discovery) used in tests.</summary>
@@ -49,9 +62,12 @@ public sealed class DnsOverTlsAnalysis : IHasAssessments
     /// <summary>Optional override for DoT probes used in tests.</summary>
     public Func<string, IPAddress, int, TimeSpan, CancellationToken, Task<DnsOverTlsEndpointResult>>? ProbeOverride { get; set; }
 
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
+    /// <summary>Executes the analyze operation.</summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken cancellationToken = default)
     {
         using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSOVERTLS", target: domainName);

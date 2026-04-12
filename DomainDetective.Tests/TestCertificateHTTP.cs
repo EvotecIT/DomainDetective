@@ -280,7 +280,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ChecksCertificateTransparency() {
             var certPath = Path.Combine("Data", "wildcard.pem");
-            var cert = new X509Certificate2(certPath);
+            var cert = CertificateLoaderCompat.LoadCertificateFromFile(certPath);
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[{\"id\":1}]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.PresentInCtLogs);
@@ -478,7 +478,7 @@ namespace DomainDetective.Tests {
             using var rsa = RSA.Create(2048);
             var req = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
-            return new X509Certificate2(cert.Export(X509ContentType.Pfx));
+            return CertificateLoaderCompat.LoadPkcs12(cert.Export(X509ContentType.Pfx));
         }
     }
 }

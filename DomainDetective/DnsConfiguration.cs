@@ -583,8 +583,11 @@ namespace DomainDetective {
 
     /// <summary>Strategy used for multi-resolver DNS queries.</summary>
     public enum MultiResolverStrategy {
+        /// <summary>Represents the first success value.</summary>
         FirstSuccess = 0,
+        /// <summary>Represents the fastest wins value.</summary>
         FastestWins = 1,
+        /// <summary>Represents the sequential all value.</summary>
         SequentialAll = 2
     }
 }

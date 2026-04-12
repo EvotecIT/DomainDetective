@@ -5,10 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides ttl narrative functionality.</summary>
 public static class TtlNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(DnsTtlAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
         var subjectCandidate = analysis?.Subject;

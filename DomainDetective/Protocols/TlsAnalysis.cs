@@ -12,11 +12,17 @@ namespace DomainDetective;
 /// </summary>
 public class TlsAnalysis : IHasAssessments, IDisposable
 {
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets the server results value.</summary>
     public Dictionary<string, TlsProbe.Result> ServerResults { get; } = new();
+    /// <summary>Gets or sets the timeout value.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <summary>Gets or sets the max concurrency value.</summary>
     public int MaxConcurrency { get; set; } = Environment.ProcessorCount;
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     private static bool IsStrongProtocol(SslProtocols protocol)
@@ -24,6 +30,7 @@ public class TlsAnalysis : IHasAssessments, IDisposable
         return protocol == SslProtocols.Tls12 || (int)protocol == 12288;
     }
 
+    /// <summary>Analyzes server.</summary>
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
         using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "TLS", target: $"{host}:{port}");
@@ -44,6 +51,7 @@ public class TlsAnalysis : IHasAssessments, IDisposable
         }
     }
 
+    /// <summary>Analyzes servers.</summary>
     public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
         using var gate = new SemaphoreSlim(Math.Max(1, MaxConcurrency));
@@ -62,6 +70,7 @@ public class TlsAnalysis : IHasAssessments, IDisposable
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
+    /// <summary>Executes the dispose operation.</summary>
     public void Dispose()
     {
         foreach (var r in ServerResults.Values)

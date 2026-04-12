@@ -12,13 +12,18 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SMIMEAAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Detailed analysis results for each SMIMEA record.</summary>
         public List<SMIMEARecordAnalysis> AnalysisResults { get; private set; } = new();
+        /// <summary>Gets or sets the number of records value.</summary>
         public int NumberOfRecords { get; private set; }
+        /// <summary>Gets or sets the has duplicate records value.</summary>
         public bool HasDuplicateRecords { get; private set; }
+        /// <summary>Gets or sets the has invalid records value.</summary>
         public bool HasInvalidRecords { get; private set; }
 
+        /// <summary>Executes the reset operation.</summary>
         public void Reset() {
             AnalysisResults = new List<SMIMEARecordAnalysis>();
             NumberOfRecords = 0;
@@ -31,6 +36,7 @@ namespace DomainDetective {
         /// <summary>Actionable recommendations derived from assessments.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
+        /// <summary>Analyzes smimea records.</summary>
         public Task AnalyzeSMIMEARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SMIMEA");
             Reset();
@@ -146,6 +152,7 @@ namespace DomainDetective {
         };
         private bool IsHexadecimal(string input) => System.Text.RegularExpressions.Regex.IsMatch(input, @"\A\b[0-9a-fA-F]+\b\Z");
 
+        /// <summary>Gets query name.</summary>
         public static string GetQueryName(string emailAddress) {
             if (string.IsNullOrWhiteSpace(emailAddress)) {
                 throw new ArgumentNullException(nameof(emailAddress));
@@ -183,22 +190,37 @@ namespace DomainDetective {
     /// <summary>Detailed analysis for a single SMIMEA record.</summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SMIMEARecordAnalysis {
+        /// <summary>Gets or sets the email address value.</summary>
         public string EmailAddress { get; set; } = string.Empty;
+        /// <summary>Gets or sets the smimea record value.</summary>
         public string SmimeaRecord { get; set; } = string.Empty;
+        /// <summary>Gets or sets the valid smimea record value.</summary>
         public bool ValidSMIMEARecord { get; set; }
+        /// <summary>Gets or sets the valid usage value.</summary>
         public bool ValidUsage { get; set; }
+        /// <summary>Gets or sets the valid selector value.</summary>
         public bool ValidSelector { get; set; }
+        /// <summary>Gets or sets the valid matching type value.</summary>
         public bool ValidMatchingType { get; set; }
+        /// <summary>Gets or sets the valid certificate association data value.</summary>
         public bool ValidCertificateAssociationData { get; set; }
         /// <summary>True when the record name uses the '_smimecert' label without a protocol.</summary>
         public bool ValidServiceAndProtocol { get; set; }
+        /// <summary>Gets or sets the certificate usage value.</summary>
         public string CertificateUsage { get; set; } = string.Empty;
+        /// <summary>Gets or sets the selector field value.</summary>
         public string SelectorField { get; set; } = string.Empty;
+        /// <summary>Gets or sets the matching type field value.</summary>
         public string MatchingTypeField { get; set; } = string.Empty;
+        /// <summary>Gets or sets the certificate association data value.</summary>
         public string CertificateAssociationData { get; set; } = string.Empty;
+        /// <summary>Gets or sets the correct number of fields value.</summary>
         public bool CorrectNumberOfFields { get; set; }
+        /// <summary>Gets or sets the correct length of certificate association data value.</summary>
         public bool CorrectLengthOfCertificateAssociationData { get; set; }
+        /// <summary>Gets or sets the length of certificate association data value.</summary>
         public int LengthOfCertificateAssociationData { get; set; }
+        /// <summary>Gets or sets the number of fields value.</summary>
         public int NumberOfFields { get; set; }
     }
 }

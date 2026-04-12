@@ -13,17 +13,22 @@ namespace DomainDetective;
 /// Organization policy override configuration for certificate inventory policy evaluation.
 /// </summary>
 public sealed class CertificateInventoryPolicyOverrides {
+    /// <summary>Represents the supported version value.</summary>
     public const int SupportedVersion = 1;
 
+    /// <summary>Gets or sets the schema value.</summary>
     [JsonPropertyName("$schema")]
     public string? Schema { get; set; }
 
+    /// <summary>Gets or sets the version value.</summary>
     [JsonPropertyName("version")]
     public int Version { get; set; } = 1;
 
+    /// <summary>Gets or sets the defaults value.</summary>
     [JsonPropertyName("defaults")]
     public CertificateInventoryPolicyOverrideAction Defaults { get; set; } = new();
 
+    /// <summary>Gets or sets the rules value.</summary>
     [JsonPropertyName("rules")]
     public List<CertificateInventoryPolicyOverrideRule> Rules { get; set; } = new();
 
@@ -301,42 +306,55 @@ public sealed class CertificateInventoryPolicyOverrides {
 /// Rule action that modifies effective baseline profile and/or suppresses violation codes.
 /// </summary>
 public sealed class CertificateInventoryPolicyOverrideAction {
+    /// <summary>Gets or sets the baseline profile value.</summary>
     [JsonPropertyName("baselineProfile")]
     public string? BaselineProfile { get; set; }
 
+    /// <summary>Gets or sets the suppress violation codes value.</summary>
     [JsonPropertyName("suppressViolationCodes")]
     public string[] SuppressViolationCodes { get; set; } = Array.Empty<string>();
 
+    /// <summary>Gets or sets the require ct for known authority value.</summary>
     [JsonPropertyName("requireCtForKnownAuthority")]
     public bool? RequireCtForKnownAuthority { get; set; }
 
+    /// <summary>Gets or sets the flag unknown authority value.</summary>
     [JsonPropertyName("flagUnknownAuthority")]
     public bool? FlagUnknownAuthority { get; set; }
 
+    /// <summary>Gets or sets the flag unknown root authority value.</summary>
     [JsonPropertyName("flagUnknownRootAuthority")]
     public bool? FlagUnknownRootAuthority { get; set; }
 
+    /// <summary>Gets or sets the flag client auth usage value.</summary>
     [JsonPropertyName("flagClientAuthUsage")]
     public bool? FlagClientAuthUsage { get; set; }
 
+    /// <summary>Gets or sets the flag secure email usage value.</summary>
     [JsonPropertyName("flagSecureEmailUsage")]
     public bool? FlagSecureEmailUsage { get; set; }
 
+    /// <summary>Gets or sets the flag cross service reuse value.</summary>
     [JsonPropertyName("flagCrossServiceReuse")]
     public bool? FlagCrossServiceReuse { get; set; }
 
+    /// <summary>Gets or sets the flag cross port reuse value.</summary>
     [JsonPropertyName("flagCrossPortReuse")]
     public bool? FlagCrossPortReuse { get; set; }
 
+    /// <summary>Gets or sets the renewal window days value.</summary>
     [JsonPropertyName("renewalWindowDays")]
     public int? RenewalWindowDays { get; set; }
 
+    /// <summary>Gets or sets the max reuse endpoint count value.</summary>
     [JsonPropertyName("maxReuseEndpointCount")]
     public int? MaxReuseEndpointCount { get; set; }
 
+    /// <summary>Gets or sets the max known authority reuse endpoint count value.</summary>
     [JsonPropertyName("maxKnownAuthorityReuseEndpointCount")]
     public int? MaxKnownAuthorityReuseEndpointCount { get; set; }
 
+    /// <summary>Gets or sets the max private authority reuse endpoint count value.</summary>
     [JsonPropertyName("maxPrivateAuthorityReuseEndpointCount")]
     public int? MaxPrivateAuthorityReuseEndpointCount { get; set; }
 }
@@ -345,12 +363,15 @@ public sealed class CertificateInventoryPolicyOverrideAction {
 /// Matching rule applied to endpoint policy evaluation.
 /// </summary>
 public sealed class CertificateInventoryPolicyOverrideRule {
+    /// <summary>Gets or sets the name value.</summary>
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
+    /// <summary>Gets or sets the match value.</summary>
     [JsonPropertyName("match")]
     public CertificateInventoryPolicyOverrideMatch Match { get; set; } = new();
 
+    /// <summary>Gets or sets the action value.</summary>
     [JsonPropertyName("action")]
     public CertificateInventoryPolicyOverrideAction Action { get; set; } = new();
 
@@ -466,39 +487,51 @@ public sealed class CertificateInventoryPolicyOverrideRule {
 /// Endpoint selector used by policy override rules.
 /// </summary>
 public sealed class CertificateInventoryPolicyOverrideMatch {
+    /// <summary>Gets or sets the hosts value.</summary>
     [JsonPropertyName("hosts")]
     public string[] Hosts { get; set; } = Array.Empty<string>();
 
+    /// <summary>Gets or sets the host suffixes value.</summary>
     [JsonPropertyName("hostSuffixes")]
     public string[] HostSuffixes { get; set; } = Array.Empty<string>();
 
+    /// <summary>Gets or sets the services value.</summary>
     [JsonPropertyName("services")]
     public string[] Services { get; set; } = Array.Empty<string>();
 
+    /// <summary>Gets or sets the issuer contains any of value.</summary>
     [JsonPropertyName("issuerContainsAnyOf")]
     public string[] IssuerContainsAnyOf { get; set; } = Array.Empty<string>();
 
+    /// <summary>Gets or sets the root issuer contains any of value.</summary>
     [JsonPropertyName("rootIssuerContainsAnyOf")]
     public string[] RootIssuerContainsAnyOf { get; set; } = Array.Empty<string>();
 
+    /// <summary>Gets or sets the authentication profiles value.</summary>
     [JsonPropertyName("authenticationProfiles")]
     public string[] AuthenticationProfiles { get; set; } = Array.Empty<string>();
 
+    /// <summary>Gets or sets the known certificate authority value.</summary>
     [JsonPropertyName("knownCertificateAuthority")]
     public bool? KnownCertificateAuthority { get; set; }
 
+    /// <summary>Gets or sets the known root certificate authority value.</summary>
     [JsonPropertyName("knownRootCertificateAuthority")]
     public bool? KnownRootCertificateAuthority { get; set; }
 
+    /// <summary>Gets or sets the ct observed value.</summary>
     [JsonPropertyName("ctObserved")]
     public bool? CtObserved { get; set; }
 
+    /// <summary>Gets or sets the self signed value.</summary>
     [JsonPropertyName("selfSigned")]
     public bool? SelfSigned { get; set; }
 
+    /// <summary>Gets or sets the reachable value.</summary>
     [JsonPropertyName("reachable")]
     public bool? Reachable { get; set; }
 
+    /// <summary>Gets or sets the ports value.</summary>
     [JsonPropertyName("ports")]
     public int[] Ports { get; set; } = Array.Empty<int>();
 }

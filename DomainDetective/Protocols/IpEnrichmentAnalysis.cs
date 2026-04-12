@@ -15,42 +15,64 @@ namespace DomainDetective;
 /// <summary>Indicates where an IP address was discovered.</summary>
 public enum IpEnrichmentSourceKind
 {
+    /// <summary>Defines values for ip address family kind.</summary>
     Unknown = 0,
+    /// <summary>Defines values for ip address family kind.</summary>
     Apex = 1,
+    /// <summary>Defines values for ip address family kind.</summary>
     Mx = 2,
+    /// <summary>Defines values for ip address family kind.</summary>
     Ns = 3,
+    /// <summary>Defines values for ip address family kind.</summary>
     Custom = 4
 }
 
 /// <summary>Coarse IP address family for reporting.</summary>
 public enum IpAddressFamilyKind
 {
+    /// <summary>Provides ip enrichment source functionality.</summary>
     Unknown = 0,
+    /// <summary>Provides ip enrichment source functionality.</summary>
     IPv4 = 1,
+    /// <summary>Provides ip enrichment source functionality.</summary>
     IPv6 = 2
 }
 
 /// <summary>Input source describing a discovered IP address.</summary>
 public sealed class IpEnrichmentSource
 {
+    /// <summary>Gets or sets the ip address value.</summary>
     public string IpAddress { get; init; } = string.Empty;
+    /// <summary>Gets or sets the source host value.</summary>
     public string SourceHost { get; init; } = string.Empty;
+    /// <summary>Gets or sets the source kind value.</summary>
     public IpEnrichmentSourceKind SourceKind { get; init; } = IpEnrichmentSourceKind.Unknown;
 }
 
 /// <summary>Enriched IP row (source + rDNS + RDAP + geo hints).</summary>
 public sealed class IpEnrichmentRow
 {
+    /// <summary>Gets or sets the ip address value.</summary>
     public string IpAddress { get; init; } = string.Empty;
+    /// <summary>Gets or sets the address family value.</summary>
     public IpAddressFamilyKind AddressFamily { get; init; } = IpAddressFamilyKind.Unknown;
+    /// <summary>Gets or sets the source kind value.</summary>
     public IpEnrichmentSourceKind SourceKind { get; init; } = IpEnrichmentSourceKind.Unknown;
+    /// <summary>Gets or sets the source host value.</summary>
     public string SourceHost { get; init; } = string.Empty;
+    /// <summary>Gets or sets the ptr value.</summary>
     public string Ptr { get; init; } = string.Empty;
+    /// <summary>Gets or sets the ptr records value.</summary>
     public string PtrRecords { get; init; } = string.Empty;
+    /// <summary>Gets or sets the asn value.</summary>
     public int? Asn { get; init; }
+    /// <summary>Gets or sets the as name value.</summary>
     public string AsName { get; init; } = string.Empty;
+    /// <summary>Gets or sets the cidr value.</summary>
     public string Cidr { get; init; } = string.Empty;
+    /// <summary>Gets or sets the country value.</summary>
     public string Country { get; init; } = string.Empty;
+    /// <summary>Gets or sets the region value.</summary>
     public string Region { get; init; } = string.Empty;
 }
 
@@ -135,6 +157,7 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
     /// <summary>Assessment collection for report-friendly output.</summary>
     public List<Assessment> Assessments { get; } = new();
 
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     private static void EnsureGeoLoaded()

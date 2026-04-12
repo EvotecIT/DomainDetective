@@ -56,10 +56,13 @@ public sealed class RdapIpNetwork
 /// See: https://www.arin.net/resources/registry/whois/rdap/ (cidr0)
 /// </summary>
 public sealed class RdapCidr0 {
+    /// <summary>Gets or sets the v4 prefix value.</summary>
     [JsonPropertyName("v4prefix")]
     public string? V4Prefix { get; set; }
+    /// <summary>Gets or sets the v6 prefix value.</summary>
     [JsonPropertyName("v6prefix")]
     public string? V6Prefix { get; set; }
+    /// <summary>Gets or sets the length value.</summary>
     [JsonPropertyName("length")]
     public int? Length { get; set; }
 }

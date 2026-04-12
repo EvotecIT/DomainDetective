@@ -11,6 +11,7 @@ internal sealed class NtpHostAttribute : Attribute {
     public NtpHostAttribute(string host) => Host = host;
 }
 
+/// <summary>Defines values for ntp server.</summary>
 public enum NtpServer {
     /// <summary>Pool.ntp.org service.</summary>
     [NtpHost("pool.ntp.org")]

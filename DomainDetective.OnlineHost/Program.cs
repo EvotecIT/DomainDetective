@@ -1,4 +1,5 @@
 using DomainDetective;
+using DomainDetective.Pgp;
 using DomainDetective.Views;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.RateLimiting;
@@ -10,6 +11,8 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Threading.RateLimiting;
+
+DomainDetectivePgpRegistration.Register();
 
 var builder = WebApplication.CreateBuilder(args);
 var allowedOrigins = ResolveAllowedOrigins(builder.Configuration, builder.Environment, out var usingFallbackOrigins);

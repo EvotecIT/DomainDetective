@@ -4,9 +4,12 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides threat intel narrative functionality.</summary>
 public static class ThreatIntelNarrative {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(ThreatIntelAnalysis ti) {
         var subj = string.IsNullOrWhiteSpace(ti.Subject) ? "(domain)" : ti.Subject;
         var title = $"Threat Intelligence Report — {subj}";

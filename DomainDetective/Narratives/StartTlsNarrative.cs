@@ -4,10 +4,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides start tls narrative functionality.</summary>
 public static class StartTlsNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(STARTTLSAnalysis? analysis)
     {
         var subjCandidate = analysis?.Subject;

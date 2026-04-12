@@ -5,10 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides ns narrative functionality.</summary>
 public static class NSNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(NSAnalysis ns)
     {
         var subj = string.IsNullOrWhiteSpace(ns.Subject) ? "(domain)" : ns.Subject;

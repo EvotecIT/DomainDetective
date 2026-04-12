@@ -713,7 +713,7 @@ namespace DomainDetective.Tests {
             };
             request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(oids, false));
             var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
-            return new X509Certificate2(cert.Export(X509ContentType.Cert));
+            return CertificateLoaderCompat.LoadCertificate(cert.Export(X509ContentType.Cert));
         }
 
         private static void WriteInventorySnapshot(string cacheDirectory, CertificateInventorySnapshot snapshot) {

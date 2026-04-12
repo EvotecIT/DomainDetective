@@ -14,26 +14,34 @@ namespace DomainDetective.DesiredState;
 /// Represents an organization-specific desired state baseline for DomainDetective checks.
 /// </summary>
 public sealed partial class DesiredStateConfiguration {
+    /// <summary>Represents the supported version value.</summary>
     public const int SupportedVersion = 1;
 
+    /// <summary>Gets or sets the schema value.</summary>
     [JsonPropertyName("$schema")]
     public string? Schema { get; set; }
 
+    /// <summary>Gets or sets the version value.</summary>
     [JsonPropertyName("version")]
     public int Version { get; set; } = 1;
 
+    /// <summary>Gets or sets the mode value.</summary>
     [JsonPropertyName("mode")]
     public DesiredStateMode Mode { get; set; } = DesiredStateMode.HybridSplit;
 
+    /// <summary>Gets or sets the best practices value.</summary>
     [JsonPropertyName("bestPractices")]
     public DesiredStateBestPracticeSettings BestPractices { get; set; } = new DesiredStateBestPracticeSettings();
 
+    /// <summary>Gets or sets the defaults value.</summary>
     [JsonPropertyName("defaults")]
     public DesiredStateProfile Defaults { get; set; } = new DesiredStateProfile();
 
+    /// <summary>Gets or sets the overrides value.</summary>
     [JsonPropertyName("overrides")]
     public List<DesiredStateOverride> Overrides { get; set; } = new List<DesiredStateOverride>();
 
+    /// <summary>Executes the load operation.</summary>
     public static DesiredStateConfiguration Load(string path) {
         if (string.IsNullOrWhiteSpace(path)) {
             throw new ArgumentException("Path cannot be empty or whitespace.", nameof(path));
@@ -82,6 +90,7 @@ public sealed partial class DesiredStateConfiguration {
         return config;
     }
 
+    /// <summary>Executes the requires mail classification operation.</summary>
     public bool RequiresMailClassification() {
         if (Overrides == null || Overrides.Count == 0) return false;
         foreach (var o in Overrides) {
@@ -92,6 +101,7 @@ public sealed partial class DesiredStateConfiguration {
         return false;
     }
 
+    /// <summary>Executes the resolve profile operation.</summary>
     public DesiredStateProfile ResolveProfile(string domain, MailDomainClassificationCategory? classification = null) {
         if (string.IsNullOrWhiteSpace(domain)) {
             throw new ArgumentException("Domain cannot be empty or whitespace.", nameof(domain));
@@ -113,6 +123,7 @@ public sealed partial class DesiredStateConfiguration {
         return effective;
     }
 
+    /// <summary>Gets required checks.</summary>
     public static HealthCheckType[] GetRequiredChecks(DesiredStateProfile profile) {
         if (profile == null) return Array.Empty<HealthCheckType>();
 
@@ -164,10 +175,12 @@ public sealed partial class DesiredStateConfiguration {
         return set.ToArray();
     }
 
+    /// <summary>Gets checks to run.</summary>
     public HealthCheckType[] GetChecksToRun(DesiredStateProfile profile, DesiredStateMode mode) {
         return GetChecksToRun(profile, mode, BestPractices);
     }
 
+    /// <summary>Gets checks to run.</summary>
     public static HealthCheckType[] GetChecksToRun(DesiredStateProfile profile, DesiredStateMode mode, DesiredStateBestPracticeSettings? bestPractices = null) {
         if (profile == null) return Array.Empty<HealthCheckType>();
         var required = GetRequiredChecks(profile);

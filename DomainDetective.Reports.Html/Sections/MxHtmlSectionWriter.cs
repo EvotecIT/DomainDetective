@@ -3,8 +3,10 @@ using System.Linq;
 
 namespace DomainDetective.Reports.Html;
 
+/// <summary>Provides mx html section writer functionality.</summary>
 public static class MxHtmlSectionWriter
 {
+    /// <summary>Writes the HTML report section.</summary>
     public static void Write(IHtmlComposer html, DomainDetective.Views.MxInfo mx, string domain, Reports.ReportScope scope)
     {
         if (html == null) throw new ArgumentNullException(nameof(html));

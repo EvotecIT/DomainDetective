@@ -7,11 +7,17 @@ namespace DomainDetective {
     /// Structured issuer identity details derived from certificate issuer metadata.
     /// </summary>
     public sealed class CertificateIssuerIdentity {
+        /// <summary>Gets or sets the raw issuer value.</summary>
         public string RawIssuer { get; set; } = string.Empty;
+        /// <summary>Gets or sets the organization value.</summary>
         public string? Organization { get; set; }
+        /// <summary>Gets or sets the common name value.</summary>
         public string? CommonName { get; set; }
+        /// <summary>Gets or sets the normalized name value.</summary>
         public string NormalizedName { get; set; } = string.Empty;
+        /// <summary>Gets or sets the authority family value.</summary>
         public string? AuthorityFamily { get; set; }
+        /// <summary>Gets or sets the is known authority value.</summary>
         public bool IsKnownAuthority { get; set; }
     }
 
@@ -47,10 +53,12 @@ namespace DomainDetective {
             new() { AuthorityFamily = "SslDotCom", NormalizedName = "SSL.com", Tokens = new[] { "ssl.com" } }
         };
 
+        /// <summary>Executes the classify operation.</summary>
         public static CertificateIssuerIdentity Classify(X509Certificate2? certificate) {
             return Classify(certificate?.Issuer);
         }
 
+        /// <summary>Executes the classify operation.</summary>
         public static CertificateIssuerIdentity Classify(string? issuerDistinguishedName) {
             var rawIssuer = (issuerDistinguishedName ?? string.Empty).Trim();
             var organization = ExtractDistinguishedNameField(rawIssuer, "O");

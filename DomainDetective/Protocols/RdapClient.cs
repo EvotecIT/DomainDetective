@@ -119,6 +119,7 @@ public sealed class RdapClient
     public Task<RdapEntity?> QueryRegistrarAsync(string handle, CancellationToken ct = default)
         => QueryEntityAsync(handle, ct);
 
+    /// <summary>Gets registrar.</summary>
     public Task<RdapEntity?> GetRegistrar(string handle, CancellationToken ct = default)
         => QueryRegistrarAsync(handle, ct);
 
@@ -126,6 +127,7 @@ public sealed class RdapClient
     public Task<RdapNameserver?> QueryNameserverAsync(string host, CancellationToken ct = default)
         => QueryAsync<RdapNameserver>(BuildResourcePath("nameserver", host), ct);
 
+    /// <summary>Gets nameserver.</summary>
     public Task<RdapNameserver?> GetNameserver(string host, CancellationToken ct = default)
         => QueryNameserverAsync(host, ct);
 }

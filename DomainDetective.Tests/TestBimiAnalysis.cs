@@ -410,7 +410,7 @@ namespace DomainDetective.Tests {
             using var rsa = System.Security.Cryptography.RSA.Create(2048);
             var req = new System.Security.Cryptography.X509Certificates.CertificateRequest("CN=example", rsa, System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1);
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
-            return new X509Certificate2(cert.Export(X509ContentType.Pfx));
+            return CertificateLoaderCompat.LoadPkcs12(cert.Export(X509ContentType.Pfx));
         }
 
         private static X509Certificate2 CreateVmc() {
@@ -419,7 +419,7 @@ namespace DomainDetective.Tests {
             var data = System.Text.Encoding.ASCII.GetBytes("image/svg+xml");
             req.CertificateExtensions.Add(new X509Extension("1.3.6.1.5.5.7.1.12", data, false));
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
-            return new X509Certificate2(cert.Export(X509ContentType.Pfx));
+            return CertificateLoaderCompat.LoadPkcs12(cert.Export(X509ContentType.Pfx));
         }
 
         private static int GetFreePort() {

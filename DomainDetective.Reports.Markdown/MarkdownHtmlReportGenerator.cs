@@ -13,10 +13,13 @@ namespace DomainDetective.Reports.Markdown;
 /// Also saves the .md alongside the .html.
 /// </summary>
 public sealed class MarkdownHtmlReportGenerator : IReportGenerator {
+    /// <summary>Gets the report format produced by this generator.</summary>
     public ReportFormat Format => ReportFormat.MarkdownHtml;
 
+    /// <summary>Determines whether the supplied options request MarkdownHtml output.</summary>
     public bool CanGenerate(ReportOptions options) => options.Format == ReportFormat.MarkdownHtml;
 
+    /// <summary>Generates the MarkdownHtml report for the supplied domain health check.</summary>
     public Task<ReportResult> GenerateAsync(DomainHealthCheck healthCheck, ReportOptions options) {
         var domain = options.CustomProperties?.ContainsKey("Domain") == true
             ? options.CustomProperties["Domain"]?.ToString() ?? "unknown"

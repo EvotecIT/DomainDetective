@@ -5,6 +5,7 @@ using System.Linq;
 namespace DomainDetective.Views;
 
 public static partial class Converters {
+    /// <summary>Executes the convert domain overview operation.</summary>
     public static DomainOverviewInfo ConvertDomainOverview(DomainHealthCheck health, string subject) {
         var dnsInventory = Convert(health.DnsInventoryAnalysis);
         var spf = Convert(health.SpfAnalysis);
@@ -51,6 +52,7 @@ public static partial class Converters {
             assessments);
     }
 
+    /// <summary>Executes the convert domain overview operation.</summary>
     public static DomainOverviewInfo ConvertDomainOverview(
         string subject,
         DnsInventoryInfo dnsInventory,
@@ -396,53 +398,102 @@ public static partial class Converters {
     };
 }
 
+/// <summary>Provides domain overview info functionality.</summary>
 public sealed class DomainOverviewInfo {
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>Gets or sets the is partial value.</summary>
     public bool IsPartial { get; set; }
+    /// <summary>Gets or sets the is browser limited value.</summary>
     public bool IsBrowserLimited { get; set; }
+    /// <summary>Gets or sets the served from cache value.</summary>
     public bool ServedFromCache { get; set; }
+    /// <summary>Gets or sets the stage label value.</summary>
     public string StageLabel { get; set; } = string.Empty;
+    /// <summary>Gets or sets the generated at utc value.</summary>
     public DateTimeOffset GeneratedAtUtc { get; set; }
+    /// <summary>Gets or sets the completed at utc value.</summary>
     public DateTimeOffset? CompletedAtUtc { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public DomainSummary Summary { get; set; } = new DomainSummary();
+    /// <summary>Gets or sets the total assessments value.</summary>
     public int TotalAssessments { get; set; }
+    /// <summary>Gets or sets the info count value.</summary>
     public int InfoCount { get; set; }
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the dns provider value.</summary>
     public string DnsProvider { get; set; } = string.Empty;
+    /// <summary>Gets or sets the mail provider value.</summary>
     public string MailProvider { get; set; } = string.Empty;
+    /// <summary>Gets or sets the detected application count value.</summary>
     public int DetectedApplicationCount { get; set; }
+    /// <summary>Gets or sets the http grade value.</summary>
     public string HttpGrade { get; set; } = string.Empty;
+    /// <summary>Gets or sets the http reachable value.</summary>
     public bool HttpReachable { get; set; }
+    /// <summary>Gets or sets the security txt published value.</summary>
     public bool SecurityTxtPublished { get; set; }
+    /// <summary>Gets or sets the days until expiration value.</summary>
     public int? DaysUntilExpiration { get; set; }
+    /// <summary>Gets or sets the subdomain count value.</summary>
     public int SubdomainCount { get; set; }
+    /// <summary>Gets or sets the spf value.</summary>
     public SpfRecordInfo? Spf { get; set; }
+    /// <summary>Gets or sets the dkim value.</summary>
     public IReadOnlyList<DkimRecordInfo> Dkim { get; set; } = Array.Empty<DkimRecordInfo>();
+    /// <summary>Gets or sets the dmarc value.</summary>
     public DmarcRecordInfo? Dmarc { get; set; }
+    /// <summary>Gets or sets the mx value.</summary>
     public MxInfo? Mx { get; set; }
+    /// <summary>Gets or sets the mtasts value.</summary>
     public MtastsInfo? Mtasts { get; set; }
+    /// <summary>Gets or sets the tls rpt value.</summary>
     public TlsRptInfo? TlsRpt { get; set; }
+    /// <summary>Gets or sets the bimi value.</summary>
     public BimiRecordInfo? Bimi { get; set; }
+    /// <summary>Gets or sets the caa value.</summary>
     public CaaInfo? Caa { get; set; }
+    /// <summary>Gets or sets the dane value.</summary>
     public DaneRecordInfo? Dane { get; set; }
+    /// <summary>Gets or sets the dnssec value.</summary>
     public DnsSecInfo? Dnssec { get; set; }
+    /// <summary>Gets or sets the ns value.</summary>
     public NsInfo? Ns { get; set; }
+    /// <summary>Gets or sets the soa value.</summary>
     public SoaInfo? Soa { get; set; }
+    /// <summary>Gets or sets the http value.</summary>
     public HttpInfo? Http { get; set; }
+    /// <summary>Gets or sets the certificate value.</summary>
     public CertificateInfo? Certificate { get; set; }
+    /// <summary>Gets or sets the security txt value.</summary>
     public SecurityTxtInfo? SecurityTxt { get; set; }
+    /// <summary>Gets or sets the rdap value.</summary>
     public RdapInfo? Rdap { get; set; }
+    /// <summary>Gets or sets the dnsbl value.</summary>
     public DnsblInfo? Dnsbl { get; set; }
+    /// <summary>Gets or sets the subdomains value.</summary>
     public SubdomainsInfo? Subdomains { get; set; }
+    /// <summary>Gets or sets the pending sections value.</summary>
     public IReadOnlyList<string> PendingSections { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the unavailable sections value.</summary>
     public IReadOnlyList<string> UnavailableSections { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the detected applications value.</summary>
     public IReadOnlyList<DetectedDnsApplication> DetectedApplications { get; set; } = Array.Empty<DetectedDnsApplication>();
+    /// <summary>Gets or sets the subdomain sample value.</summary>
     public IReadOnlyList<string> SubdomainSample { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the mail dns checks value.</summary>
     public IReadOnlyList<AggregateCheckStatusInfo> MailDnsChecks { get; set; } = Array.Empty<AggregateCheckStatusInfo>();
+    /// <summary>Gets or sets the web registration checks value.</summary>
     public IReadOnlyList<AggregateCheckStatusInfo> WebRegistrationChecks { get; set; } = Array.Empty<AggregateCheckStatusInfo>();
+    /// <summary>Gets or sets the highlights value.</summary>
     public IReadOnlyList<string> Highlights { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = Array.Empty<RecommendationAdvice>();
 }

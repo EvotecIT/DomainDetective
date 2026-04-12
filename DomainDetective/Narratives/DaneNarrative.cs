@@ -9,8 +9,10 @@ public static class DaneNarrative
 {
     private static string FormatRecord(string domain, object selector, object matching) =>
         $"TLSA record for {domain} uses selector {selector} and matching {matching}.";
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(DANEAnalysis? dane, IEnumerable<Assessment>? assessments = null)
     {
         var subject = dane?.Subject ?? "(domain)";

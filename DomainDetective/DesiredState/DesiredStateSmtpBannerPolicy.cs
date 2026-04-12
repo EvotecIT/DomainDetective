@@ -3,31 +3,41 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state smtp banner policy functionality.</summary>
 public sealed class DesiredStateSmtpBannerPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require at least one result value.</summary>
     [JsonPropertyName("requireAtLeastOneResult")]
     public bool? RequireAtLeastOneResult { get; set; }
 
+    /// <summary>Gets or sets the require valid format value.</summary>
     [JsonPropertyName("requireValidFormat")]
     public bool? RequireValidFormat { get; set; }
 
+    /// <summary>Gets or sets the require starts with220 value.</summary>
     [JsonPropertyName("requireStartsWith220")]
     public bool? RequireStartsWith220 { get; set; }
 
+    /// <summary>Gets or sets the require domain present value.</summary>
     [JsonPropertyName("requireDomainPresent")]
     public bool? RequireDomainPresent { get; set; }
 
+    /// <summary>Gets or sets the disallow truncated value.</summary>
     [JsonPropertyName("disallowTruncated")]
     public bool? DisallowTruncated { get; set; }
 
+    /// <summary>Gets or sets the max response time ms value.</summary>
     [JsonPropertyName("maxResponseTimeMs")]
     public int? MaxResponseTimeMs { get; set; }
 
+    /// <summary>Gets or sets the require tls advertised value.</summary>
     [JsonPropertyName("requireTlsAdvertised")]
     public bool? RequireTlsAdvertised { get; set; }
 
+    /// <summary>Gets or sets the disallow version leak value.</summary>
     [JsonPropertyName("disallowVersionLeak")]
     public bool? DisallowVersionLeak { get; set; }
 
@@ -35,6 +45,7 @@ public sealed class DesiredStateSmtpBannerPolicy {
     [JsonPropertyName("allowedServerDomainSuffixes")]
     public string[]? AllowedServerDomainSuffixes { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateSmtpBannerPolicy Clone() {
         return new DesiredStateSmtpBannerPolicy {
             Enabled = Enabled,
@@ -50,6 +61,7 @@ public sealed class DesiredStateSmtpBannerPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateSmtpBannerPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

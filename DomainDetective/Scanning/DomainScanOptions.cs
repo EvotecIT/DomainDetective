@@ -1,7 +1,14 @@
 namespace DomainDetective.Scanning;
 
 /// <summary>Scan mode controlling depth and modules.</summary>
-public enum ScanMode { Default, Quick, Full }
+public enum ScanMode {
+    /// <summary>Uses the default scan depth.</summary>
+    Default,
+    /// <summary>Runs a faster scan with reduced depth.</summary>
+    Quick,
+    /// <summary>Runs the full scan depth.</summary>
+    Full
+}
 
 /// <summary>Options for running a domain scan.</summary>
 public sealed class DomainScanOptions

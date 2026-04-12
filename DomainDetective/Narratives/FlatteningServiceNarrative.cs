@@ -3,10 +3,13 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides flattening service narrative functionality.</summary>
 public static class FlatteningServiceNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(FlatteningServiceAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
         var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis!.Subject!;

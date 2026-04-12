@@ -3,6 +3,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static IdpInfoView Convert(IdpInfoAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -34,6 +35,7 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides idp info view functionality.</summary>
 public sealed class IdpInfoView
 {
     /// <summary>Logical check identifier (closest area; reused).</summary>

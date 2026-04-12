@@ -5,10 +5,15 @@ namespace DomainDetective {
     /// Represents normalized endpoint details for certificate monitoring targets.
     /// </summary>
     public sealed class CertificateServiceDescriptor {
+        /// <summary>Gets or sets the url value.</summary>
         public string Url { get; set; } = string.Empty;
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = string.Empty;
+        /// <summary>Gets or sets the scheme value.</summary>
         public string Scheme { get; set; } = "https";
+        /// <summary>Gets or sets the port value.</summary>
         public int Port { get; set; }
+        /// <summary>Gets or sets the service value.</summary>
         public string Service { get; set; } = "Custom TLS";
     }
 
@@ -16,6 +21,7 @@ namespace DomainDetective {
     /// Resolves endpoint metadata (URL/scheme/port/service) for certificate checks.
     /// </summary>
     public static class CertificateServiceClassifier {
+        /// <summary>Executes the resolve operation.</summary>
         public static CertificateServiceDescriptor Resolve(string hostOrUrl, int defaultPort) {
             if (string.IsNullOrWhiteSpace(hostOrUrl)) {
                 throw new ArgumentNullException(nameof(hostOrUrl));
@@ -48,6 +54,7 @@ namespace DomainDetective {
             };
         }
 
+        /// <summary>Executes the guess service operation.</summary>
         public static string GuessService(string scheme, int port) {
             if (scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) {
                 if (port == 443) {

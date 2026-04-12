@@ -2,8 +2,10 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides registration narrative functionality.</summary>
 public static class RegistrationNarrative
 {
+    /// <summary>Executes the build operation.</summary>
     public static NarrativeSections Build(string? subject)
     {
         var subj = string.IsNullOrWhiteSpace(subject) ? "Domain" : subject!;

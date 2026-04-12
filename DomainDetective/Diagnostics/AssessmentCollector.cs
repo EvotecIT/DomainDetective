@@ -97,6 +97,7 @@ public sealed class AssessmentCollector : IDisposable {
         }
     }
 
+    /// <summary>Executes the dispose operation.</summary>
     public void Dispose() {
         _logger.OnWarningMessage -= _onWarn;
         _logger.OnErrorMessage -= _onError;

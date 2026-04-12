@@ -4,8 +4,10 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace DomainDetective.Helpers;
 
+/// <summary>Provides json options functionality.</summary>
 public static class JsonOptions
 {
+    /// <summary>Gets the default value.</summary>
     public static JsonSerializerOptions Default { get; } = new()
     {
         WriteIndented = true,

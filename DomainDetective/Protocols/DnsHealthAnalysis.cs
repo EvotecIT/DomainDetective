@@ -14,26 +14,37 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class DnsHealthAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
+        /// <summary>Gets or sets the dns configuration value.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
+        /// <summary>Gets or sets the query udp override value.</summary>
         public Func<IPAddress, byte[], CancellationToken, Task<byte[]?>>? QueryUdpOverride { get; set; }
 
+        /// <summary>Gets or sets the name servers value.</summary>
         public List<string> NameServers { get; private set; } = new();
+        /// <summary>Gets the soa serial by server value.</summary>
         public Dictionary<string, long> SoaSerialByServer { get; } = new();
+        /// <summary>Gets or sets the soa serial consistent value.</summary>
         public bool SoaSerialConsistent { get; private set; }
 
+        /// <summary>Gets the apex addresses by server value.</summary>
         public Dictionary<string, List<string>> ApexAddressesByServer { get; } = new();
+        /// <summary>Gets or sets the apex addresses consistent value.</summary>
         public bool ApexAddressesConsistent { get; private set; }
 
+        /// <summary>Gets or sets the servers responsive value.</summary>
         public bool ServersResponsive { get; private set; }
 
+        /// <summary>Gets the assessments value.</summary>
         public List<Assessment> Assessments { get; } = new();
 
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
             return await DnsConfiguration.QueryDNS(name, type);
         }
 
+        /// <summary>Executes the analyze operation.</summary>
         public async Task Analyze(string domainName, InternalLogger logger, CancellationToken cancellationToken = default) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSHEALTH", target: domainName);
             Subject = domainName;

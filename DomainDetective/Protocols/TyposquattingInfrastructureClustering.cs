@@ -9,15 +9,25 @@ namespace DomainDetective;
 /// </summary>
 public sealed class TyposquattingInfrastructureCluster
 {
+    /// <summary>Gets or sets the id value.</summary>
     public string Id { get; init; } = string.Empty;
+    /// <summary>Gets or sets the label value.</summary>
     public string Label { get; init; } = string.Empty;
+    /// <summary>Gets or sets the domains value.</summary>
     public IReadOnlyList<string> Domains { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the shared signals value.</summary>
     public IReadOnlyList<string> SharedSignals { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the registrars value.</summary>
     public IReadOnlyList<string> Registrars { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the name servers value.</summary>
     public IReadOnlyList<string> NameServers { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the asns value.</summary>
     public IReadOnlyList<int> Asns { get; init; } = Array.Empty<int>();
+    /// <summary>Gets or sets the highest risk score value.</summary>
     public int HighestRiskScore { get; init; }
+    /// <summary>Gets or sets the threat listed count value.</summary>
     public int ThreatListedCount { get; init; }
+    /// <summary>Represents the has multiple candidates value.</summary>
     public bool HasMultipleCandidates => Domains.Count > 1;
 }
 
@@ -26,6 +36,7 @@ public sealed class TyposquattingInfrastructureCluster
 /// </summary>
 public static class TyposquattingInfrastructureClusterAnalyzer
 {
+    /// <summary>Builds clusters.</summary>
     public static IReadOnlyList<TyposquattingInfrastructureCluster> BuildClusters(IReadOnlyList<TyposquattingCandidate>? candidates)
     {
         if (candidates == null || candidates.Count == 0)

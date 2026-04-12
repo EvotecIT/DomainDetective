@@ -5,8 +5,10 @@ using HtmlForgeX.Containers.Tabler;
 
 namespace DomainDetective.Reports.Html;
 
+/// <summary>Provides spf html report functionality.</summary>
 public static class SpfHtmlReport
 {
+    /// <summary>Generates the HTML output.</summary>
     public static void Generate(string path, DomainDetective.SpfAnalysis spf, string domain, bool openInBrowser)
     {
         using var document = new Document

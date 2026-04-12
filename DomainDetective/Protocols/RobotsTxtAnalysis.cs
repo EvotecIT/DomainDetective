@@ -42,6 +42,7 @@ public class RobotsTxtAnalysis : IHasAssessments
     public bool HasAiBotRules => AiBots.Count > 0;
 
     internal InternalLogger? Logger { get; set; }
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
 
     private static readonly HttpClient _client;

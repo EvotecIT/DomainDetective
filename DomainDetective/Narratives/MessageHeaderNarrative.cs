@@ -4,10 +4,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides message header narrative functionality.</summary>
 public static class MessageHeaderNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(MessageHeaderAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
         var title = "Email Message Headers";

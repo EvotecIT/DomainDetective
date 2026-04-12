@@ -12,6 +12,7 @@ public readonly struct IpCidrRange {
     /// <summary>Prefix length.</summary>
     public int PrefixLength { get; }
 
+    /// <summary>Initializes a new instance of the IpCidrRange class.</summary>
     public IpCidrRange(IPAddress network, int prefixLength) {
         Network = network;
         PrefixLength = prefixLength;

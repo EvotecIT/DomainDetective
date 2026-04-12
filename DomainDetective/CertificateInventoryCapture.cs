@@ -72,6 +72,13 @@ public sealed class CertificateInventoryCaptureOptions {
     /// </summary>
     public List<string> ExactPassiveCtMetadataTargetHosts { get; } = new();
 
+    /// <summary>
+    /// Optional normalized certificate thumbprints that should be preferred when passive CT metadata
+    /// rescue needs provenance for already-identified certificates rather than the newest certificate
+    /// currently associated with a host.
+    /// </summary>
+    public List<string> CtMetadataTargetThumbprints { get; } = new();
+
     /// <summary>When true, uses native RFC6962 CT log polling for subdomain discovery.</summary>
     public bool EnableNativeCtLogSubdomainSource { get; set; }
 
@@ -120,6 +127,13 @@ public sealed class CertificateInventoryCaptureOptions {
     /// </summary>
     public int CrtShPostgreSqlCommandTimeoutSeconds { get; set; } = 15;
 
+    /// <summary>
+    /// Maximum number of concurrent exact-host crt.sh PostgreSQL metadata rescue queries.
+    /// Keep this conservative for the public guest replica to avoid exhausting shared
+    /// connection budgets during large capture runs.
+    /// </summary>
+    public int CrtShPostgreSqlMaximumConcurrentRequests { get; set; } = 2;
+
     /// <summary>Per-request timeout for passive/public CT HTTP calls.</summary>
     public TimeSpan PassiveCtRequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
@@ -139,19 +153,19 @@ public sealed class CertificateInventoryCaptureOptions {
     /// Minimum spacing between public crt.sh requests when passive/public CT fallback is active.
     /// This helps exact-host rescue and fallback discovery stay within respectful shared-source pacing.
     /// </summary>
-    public TimeSpan PassiveCtCrtShMinimumSpacing { get; set; } = TimeSpan.FromSeconds(5);
+    public TimeSpan PassiveCtCrtShMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// Minimum spacing between Cert Spotter requests when passive/public CT fallback is active.
     /// This is anti-burst pacing only; the main safety rail is the run-local request budget below.
     /// </summary>
-    public TimeSpan PassiveCtCertSpotterMinimumSpacing { get; set; } = TimeSpan.FromSeconds(5);
+    public TimeSpan PassiveCtCertSpotterMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// Maximum number of public crt.sh exact-host metadata requests issued during a single passive CT run.
     /// Zero means uncapped.
     /// </summary>
-    public int PassiveCtCrtShMaximumRequestsPerRun { get; set; } = 8;
+    public int PassiveCtCrtShMaximumRequestsPerRun { get; set; } = 5;
 
     /// <summary>
     /// Maximum number of Cert Spotter exact-host metadata requests issued during a single passive CT run.
@@ -360,6 +374,59 @@ public sealed class CertificateInventoryCaptureOptions {
 
     /// <summary>When true, persists a snapshot to inventory storage.</summary>
     public bool PersistSnapshot { get; set; } = true;
+
+    /// <summary>
+    /// Configures the capture for CT discovery only.
+    /// This keeps the run focused on discovering names and CT-backed metadata without
+    /// widening into HTTPS, MX, or mail probing in the same pass.
+    /// </summary>
+    public CertificateInventoryCaptureOptions ApplyCtDiscoveryOnlyProfile() {
+        IncludeApexHttps = false;
+        IncludeWwwHttps = false;
+        IncludeCtDiscoveredSubdomains = true;
+        EnableNativeCtLogSubdomainSource = true;
+        EnablePassiveCtFallback = true;
+        NativeCtLogOnly = false;
+        VerifyCtDiscoveredSubdomains = false;
+        BackfillMissingCtCertificateMetadata = true;
+        PromoteCtDiscoveredSubdomainsToHttpsProbes = false;
+        // Disable all non-CT probe expansion in the discovery-only lane.
+        IncludeMxHosts = false;
+        IncludeMxHttps = false;
+        IncludeSmtpStartTls = false;
+        IncludeSubmissionStartTls = false;
+        IncludeImapTls = false;
+        IncludePop3Tls = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the capture for exact-host CT evidence refresh.
+    /// This keeps the run focused on apex or explicit host probes plus CT metadata hydration,
+    /// without reopening broader CT discovery or MX/mail expansion. CT metadata hydration stays
+    /// enabled for exact-host seeds and explicit CT metadata targets via passive metadata fallback
+    /// rather than discovered-host expansion.
+    /// </summary>
+    public CertificateInventoryCaptureOptions ApplyCtEvidenceRefreshProfile() {
+        IncludeApexHttps = true;
+        IncludeWwwHttps = false;
+        IncludeCtDiscoveredSubdomains = false;
+        EnableNativeCtLogSubdomainSource = false;
+        EnablePassiveCtFallback = false;
+        EnablePassiveCtMetadataFallback = true;
+        NativeCtLogOnly = false;
+        VerifyCtDiscoveredSubdomains = false;
+        BackfillMissingCtCertificateMetadata = true;
+        PromoteCtDiscoveredSubdomainsToHttpsProbes = false;
+        // Disable all non-CT probe expansion in the evidence-refresh lane.
+        IncludeMxHosts = false;
+        IncludeMxHttps = false;
+        IncludeSmtpStartTls = false;
+        IncludeSubmissionStartTls = false;
+        IncludeImapTls = false;
+        IncludePop3Tls = false;
+        return this;
+    }
 
     /// <summary>
     /// Additional endpoints to probe.
@@ -765,7 +832,11 @@ public sealed partial class CertificateInventoryCapture {
         var normalizedDomains = NormalizeDomains(domains, warnings);
         var seeds = BuildSeeds(normalizedDomains);
         var normalizedCtDiscoveryDomains = options.CtDiscoveryDomains.Count == 0
-            ? normalizedDomains
+            ? seeds
+                .Where(static seed => seed != null && !seed.IsExactHostSeed && !string.IsNullOrWhiteSpace(seed.Name))
+                .Select(static seed => seed.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
             : NormalizeDomains(options.CtDiscoveryDomains, warnings);
         var ctDiscoverySeeds = BuildSeeds(normalizedCtDiscoveryDomains);
         logger.WriteVerbose("Certificate inventory capture started for {0} normalized domain(s).", normalizedDomains.Count);

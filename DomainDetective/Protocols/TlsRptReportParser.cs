@@ -226,44 +226,70 @@ public static class TlsRptReportParser
     }
 }
 
+/// <summary>Provides tls rpt report functionality.</summary>
 public sealed class TlsRptReport
 {
+    /// <summary>Gets or sets the organization name value.</summary>
     public string OrganizationName { get; set; } = string.Empty;
+    /// <summary>Gets or sets the contact info value.</summary>
     public string ContactInfo { get; set; } = string.Empty;
+    /// <summary>Gets or sets the report id value.</summary>
     public string ReportId { get; set; } = string.Empty;
+    /// <summary>Gets or sets the range begin utc value.</summary>
     public DateTimeOffset RangeBeginUtc { get; set; }
+    /// <summary>Gets or sets the range end utc value.</summary>
     public DateTimeOffset RangeEndUtc { get; set; }
+    /// <summary>Gets the policies value.</summary>
     public List<TlsRptPolicyResult> Policies { get; } = new();
 }
 
+/// <summary>Provides tls rpt policy result functionality.</summary>
 public sealed class TlsRptPolicyResult
 {
+    /// <summary>Gets or sets the policy value.</summary>
     public TlsRptPolicy Policy { get; set; } = new();
+    /// <summary>Gets or sets the summary value.</summary>
     public TlsRptPolicySummary Summary { get; set; } = new();
+    /// <summary>Gets the failure details value.</summary>
     public List<TlsRptFailureDetail> FailureDetails { get; } = new();
 }
 
+/// <summary>Provides tls rpt policy functionality.</summary>
 public sealed class TlsRptPolicy
 {
+    /// <summary>Gets or sets the policy type value.</summary>
     public string PolicyType { get; set; } = string.Empty;
+    /// <summary>Gets or sets the mx host value.</summary>
     public string MxHost { get; set; } = string.Empty;
+    /// <summary>Gets or sets the policy domain value.</summary>
     public string? PolicyDomain { get; set; }
+    /// <summary>Gets or sets the policy strings value.</summary>
     public List<string> PolicyStrings { get; set; } = new();
 }
 
+/// <summary>Provides tls rpt policy summary functionality.</summary>
 public sealed class TlsRptPolicySummary
 {
+    /// <summary>Gets or sets the successful session count value.</summary>
     public int SuccessfulSessionCount { get; set; }
+    /// <summary>Gets or sets the failed session count value.</summary>
     public int FailedSessionCount { get; set; }
 }
 
+/// <summary>Provides tls rpt failure detail functionality.</summary>
 public sealed class TlsRptFailureDetail
 {
+    /// <summary>Gets or sets the result type value.</summary>
     public string ResultType { get; set; } = "unknown";
+    /// <summary>Gets or sets the failed session count value.</summary>
     public int FailedSessionCount { get; set; }
+    /// <summary>Gets or sets the sending mta ip value.</summary>
     public string? SendingMtaIp { get; set; }
+    /// <summary>Gets or sets the receiving mx hostname value.</summary>
     public string? ReceivingMxHostname { get; set; }
+    /// <summary>Gets or sets the receiving mx helo value.</summary>
     public string? ReceivingMxHelo { get; set; }
+    /// <summary>Gets or sets the additional information value.</summary>
     public string? AdditionalInformation { get; set; }
 }
 

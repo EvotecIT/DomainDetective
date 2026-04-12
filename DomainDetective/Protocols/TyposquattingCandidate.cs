@@ -8,21 +8,37 @@ namespace DomainDetective;
 /// </summary>
 public enum TyposquattingVariantKind
 {
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Omission,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Repetition,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Homoglyph,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     BrandCombination,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Addition,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Bitsquatting,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Cyrillic,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Hyphenation,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Insertion,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Plural,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Replacement,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Subdomain,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Transposition,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     VowelSwap,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     Dictionary,
+    /// <summary>Defines values for typosquatting risk level.</summary>
     TldSwap
 }
 
@@ -31,10 +47,15 @@ public enum TyposquattingVariantKind
 /// </summary>
 public enum TyposquattingRiskLevel
 {
+    /// <summary>Defines values for typosquatting disposition.</summary>
     None,
+    /// <summary>Defines values for typosquatting disposition.</summary>
     Low,
+    /// <summary>Defines values for typosquatting disposition.</summary>
     Medium,
+    /// <summary>Defines values for typosquatting disposition.</summary>
     High,
+    /// <summary>Defines values for typosquatting disposition.</summary>
     Critical
 }
 
@@ -43,11 +64,17 @@ public enum TyposquattingRiskLevel
 /// </summary>
 public enum TyposquattingDisposition
 {
+    /// <summary>Provides typosquatting candidate functionality.</summary>
     Unknown,
+    /// <summary>Provides typosquatting candidate functionality.</summary>
     Available,
+    /// <summary>Provides typosquatting candidate functionality.</summary>
     DefensiveOwned,
+    /// <summary>Provides typosquatting candidate functionality.</summary>
     Monitor,
+    /// <summary>Provides typosquatting candidate functionality.</summary>
     LikelyImpersonation,
+    /// <summary>Provides typosquatting candidate functionality.</summary>
     LikelyMalicious
 }
 

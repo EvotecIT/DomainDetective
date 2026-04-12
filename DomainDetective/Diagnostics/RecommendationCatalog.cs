@@ -3,37 +3,71 @@ using System.Collections.Generic;
 
 namespace DomainDetective;
 
+/// <summary>Defines values for recommendation domain.</summary>
 public enum RecommendationDomain {
+    /// <summary>Provides recommendation advice functionality.</summary>
     Http,
+    /// <summary>Provides recommendation advice functionality.</summary>
     Dkim,
+    /// <summary>Provides recommendation advice functionality.</summary>
     Spf,
+    /// <summary>Provides recommendation advice functionality.</summary>
     Dmarc,
+    /// <summary>Provides recommendation advice functionality.</summary>
     Dnssec,
+    /// <summary>Provides recommendation advice functionality.</summary>
     Tls,
+    /// <summary>Provides recommendation advice functionality.</summary>
     EmailAuth,
+    /// <summary>Provides recommendation advice functionality.</summary>
     ThreatIntel,
+    /// <summary>Provides recommendation advice functionality.</summary>
     Infrastructure,
+    /// <summary>Provides recommendation advice functionality.</summary>
     Branding,
+    /// <summary>Provides recommendation advice functionality.</summary>
     Privacy,
+    /// <summary>Provides recommendation advice functionality.</summary>
     Other
 }
 
+/// <summary>Provides recommendation advice functionality.</summary>
 public sealed class RecommendationAdvice {
+    /// <summary>Gets or sets the code value.</summary>
     public string Code { get; init; } = string.Empty;
+    /// <summary>Gets or sets the title value.</summary>
     public string Title { get; init; } = string.Empty;
+    /// <summary>Gets or sets the why value.</summary>
     public string Why { get; init; } = string.Empty;
+    /// <summary>Gets or sets the how value.</summary>
     public string How { get; init; } = string.Empty;
+    /// <summary>Gets or sets the links value.</summary>
     public IReadOnlyList<string> Links { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the domain value.</summary>
     public RecommendationDomain Domain { get; init; } = RecommendationDomain.Other;
+    /// <summary>Gets or sets the tags value.</summary>
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the impact value.</summary>
     public string Impact { get; init; } = string.Empty;
+    /// <summary>Gets or sets the effort value.</summary>
     public RecommendationEffort Effort { get; init; } = RecommendationEffort.Low;
+    /// <summary>Gets or sets the verify value.</summary>
     public string Verify { get; init; } = string.Empty;
 }
 
-public enum RecommendationEffort { Low, Medium, High }
+/// <summary>Defines values for recommendation effort.</summary>
+public enum RecommendationEffort {
+    /// <summary>Low implementation effort.</summary>
+    Low,
+    /// <summary>Medium implementation effort.</summary>
+    Medium,
+    /// <summary>High implementation effort.</summary>
+    High
+}
 
+/// <summary>Defines the contract for i recommendation provider.</summary>
 public interface IRecommendationProvider {
+    /// <summary>Executes the register operation.</summary>
     void Register(IDictionary<string, RecommendationAdvice> map);
 }
 
@@ -67,6 +101,7 @@ public static class RecommendationCatalog {
         }
     }
 
+    /// <summary>Executes the register provider operation.</summary>
     public static void RegisterProvider(IRecommendationProvider provider) {
         if (provider == null) return;
         _providers.Add(provider);
@@ -94,6 +129,7 @@ public static class RecommendationCatalog {
         };
     }
 
+    /// <summary>Attempts to get.</summary>
     public static bool TryGet(string? code, out RecommendationAdvice advice) {
         if (!string.IsNullOrWhiteSpace(code) && _map.TryGetValue(code!, out advice!)) {
             return true;
@@ -102,5 +138,6 @@ public static class RecommendationCatalog {
         return false;
     }
 
+    /// <summary>Gets all.</summary>
     public static IReadOnlyList<RecommendationAdvice> GetAll() => new List<RecommendationAdvice>(_map.Values);
 }

@@ -28,6 +28,7 @@ public class ContactInfoAnalysis : IHasAssessments {
 
     /// <summary>Collected assessments for this analysis.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>

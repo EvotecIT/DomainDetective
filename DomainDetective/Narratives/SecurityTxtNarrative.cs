@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace DomainDetective.Narratives {
+    /// <summary>Provides security txt narrative functionality.</summary>
     public static class SecurityTxtNarrative {
+        /// <summary>Provides sections functionality.</summary>
         public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(SecurityTXTAnalysis analysis) {
             var subj = string.IsNullOrWhiteSpace(analysis.Domain) ? "(domain)" : analysis.Domain;
             var title = $"security.txt Report — {subj}";

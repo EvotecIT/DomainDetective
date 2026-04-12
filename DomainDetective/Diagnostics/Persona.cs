@@ -7,10 +7,15 @@ namespace DomainDetective;
 /// Narration persona options for rendering assessments.
 /// </summary>
 public enum PersonaKind {
+    /// <summary>Provides assessment narrator functionality.</summary>
     Business,
+    /// <summary>Provides assessment narrator functionality.</summary>
     Funny,
+    /// <summary>Provides assessment narrator functionality.</summary>
     Geek,
+    /// <summary>Provides assessment narrator functionality.</summary>
     Noir,
+    /// <summary>Provides assessment narrator functionality.</summary>
     Pirate
 }
 
@@ -30,6 +35,7 @@ public static class AssessmentNarrator {
         return string.IsNullOrWhiteSpace(phrase) ? title : $"{title} — {phrase}";
     }
 
+    /// <summary>Executes the narrate operation.</summary>
     public static IEnumerable<string> Narrate(IEnumerable<Assessment> assessments, PersonaKind persona, int max = 12) {
         var prioritized = assessments
             .OrderByDescending(a => a.Severity)
@@ -95,6 +101,7 @@ public static class PersonaLexicon {
     private static readonly string[] NoirStep = new[] { "Shadowing", "Trailing", "Interrogating", "Dusting for prints on", "Tailoring the lead on" };
     private static readonly string[] PirStep = new[] { "Chartin’", "Spyglassin’", "Soundin’", "Boardin’", "Pillagin’" };
 
+    /// <summary>Executes the pick operation.</summary>
     public static string? Pick(PersonaKind persona, AssessmentSeverity severity, string key) {
         var (ok, warn, err) = persona switch {
             PersonaKind.Funny  => (FunOk,  FunWarn,  FunErr),
@@ -130,6 +137,7 @@ public static class PersonaLexicon {
         }
     }
 
+    /// <summary>Executes the step verb operation.</summary>
     public static string StepVerb(PersonaKind persona, string opKey) {
         var pool = persona switch {
             PersonaKind.Funny  => FunStep,

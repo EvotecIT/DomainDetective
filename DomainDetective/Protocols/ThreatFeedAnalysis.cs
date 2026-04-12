@@ -12,6 +12,7 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public class ThreatFeedAnalysis : IHasAssessments {
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
     /// <summary>Override VirusTotal query returning JSON.</summary>
     public Func<string, Task<string>>? VirusTotalOverride { private get; set; }
@@ -124,6 +125,8 @@ public class ThreatFeedAnalysis : IHasAssessments {
         }
     }
 
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

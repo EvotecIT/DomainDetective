@@ -7,24 +7,43 @@ namespace DomainDetective {
     /// Summary view over persisted certificate inventory snapshots.
     /// </summary>
     public sealed class CertificateInventorySummary {
+        /// <summary>Gets or sets the snapshot count value.</summary>
         public int SnapshotCount { get; set; }
+        /// <summary>Gets or sets the sample count value.</summary>
         public int SampleCount { get; set; }
+        /// <summary>Gets or sets the unique endpoint count value.</summary>
         public int UniqueEndpointCount { get; set; }
+        /// <summary>Gets or sets the expired endpoint count value.</summary>
         public int ExpiredEndpointCount { get; set; }
+        /// <summary>Gets or sets the expiring soon endpoint count value.</summary>
         public int ExpiringSoonEndpointCount { get; set; }
+        /// <summary>Gets or sets the missing server auth endpoint count value.</summary>
         public int MissingServerAuthEndpointCount { get; set; }
+        /// <summary>Gets or sets the client auth endpoint count value.</summary>
         public int ClientAuthEndpointCount { get; set; }
+        /// <summary>Gets or sets the secure email endpoint count value.</summary>
         public int SecureEmailEndpointCount { get; set; }
+        /// <summary>Gets or sets the self signed endpoint count value.</summary>
         public int SelfSignedEndpointCount { get; set; }
+        /// <summary>Gets or sets the incomplete chain endpoint count value.</summary>
         public int IncompleteChainEndpointCount { get; set; }
+        /// <summary>Gets or sets the ct template error endpoint count value.</summary>
         public int CtTemplateErrorEndpointCount { get; set; }
+        /// <summary>Gets or sets the service counts value.</summary>
         public Dictionary<string, int> ServiceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the issuer counts value.</summary>
         public Dictionary<string, int> IssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the root issuer counts value.</summary>
         public Dictionary<string, int> RootIssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the authentication profile counts value.</summary>
         public Dictionary<string, int> AuthenticationProfileCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the chain source counts value.</summary>
         public Dictionary<string, int> ChainSourceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the ct source counts value.</summary>
         public Dictionary<string, int> CtSourceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the ct template error counts value.</summary>
         public Dictionary<string, int> CtTemplateErrorCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets or sets the expiring soon value.</summary>
         public List<CertificateExpiringEndpoint> ExpiringSoon { get; set; } = new();
     }
 
@@ -32,11 +51,17 @@ namespace DomainDetective {
     /// Minimal endpoint row for expiring-certificate reports.
     /// </summary>
     public sealed class CertificateExpiringEndpoint {
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = string.Empty;
+        /// <summary>Gets or sets the port value.</summary>
         public int Port { get; set; }
+        /// <summary>Gets or sets the service value.</summary>
         public string Service { get; set; } = string.Empty;
+        /// <summary>Gets or sets the not after utc value.</summary>
         public DateTimeOffset? NotAfterUtc { get; set; }
+        /// <summary>Gets or sets the days to expire value.</summary>
         public int DaysToExpire { get; set; }
+        /// <summary>Gets or sets the issuer value.</summary>
         public string Issuer { get; set; } = string.Empty;
     }
 
@@ -49,6 +74,7 @@ namespace DomainDetective {
             public CertificateInventoryEntry Entry { get; init; } = null!;
         }
 
+        /// <summary>Builds summary.</summary>
         public static CertificateInventorySummary BuildSummary(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             int expiringWithinDays = 30,

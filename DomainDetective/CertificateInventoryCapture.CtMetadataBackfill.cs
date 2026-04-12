@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Helpers;
-using Npgsql;
 
 namespace DomainDetective;
 
@@ -51,7 +52,8 @@ public sealed partial class CertificateInventoryCapture {
 
         bool allowPassiveMetadataFallback = options.EnablePassiveCtFallback ||
                                             options.EnablePassiveCtMetadataFallback;
-        if (!allowPassiveMetadataFallback) {
+        bool allowPostgreSqlMetadataFallback = ShouldUseCrtShPostgreSqlMetadataFallback(options);
+        if (!allowPassiveMetadataFallback && !allowPostgreSqlMetadataFallback) {
             return discoveredEntries;
         }
 
@@ -136,6 +138,93 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
+        bool domainPostgreSqlLookupFailed = false;
+        if (allowPostgreSqlMetadataFallback) {
+            logger.WriteVerbose(
+                "CT metadata backfill: querying domain-batched crt.sh PostgreSQL metadata for {0} domain(s) covering {1} remaining subdomain(s).",
+                missingByDomain.Count(static pair => pair.Value.Count > 0),
+                missingByDomain.Sum(static pair => pair.Value.Count));
+
+            foreach (KeyValuePair<string, HashSet<string>> pair in missingByDomain
+                         .Where(static pair => pair.Value.Count > 0)
+                         .OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                Dictionary<string, SubdomainDiscoveryEntry> domainHydrated;
+                try {
+                    ICtSqlMetadataProvider? domainSqlMetadataProvider =
+                        DomainDetectiveOptionalFeatures.GetCtSqlMetadataProvider();
+                    var exactSqlMetadataProvider =
+                        CtExactMetadataPostgreSqlOverride ?? DomainDetectiveOptionalFeatures.GetCtSqlExactMetadataProvider();
+                    if (domainSqlMetadataProvider != null) {
+                        domainHydrated = await QueryCrtShPostgreSqlMetadataByDomainAsync(
+                                pair.Key,
+                                pair.Value,
+                                options,
+                                logger,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    } else if (exactSqlMetadataProvider != null) {
+                        domainPostgreSqlLookupFailed = true;
+                        logger.WriteVerbose(
+                            "CT metadata backfill domain PostgreSQL lookup skipped for {0} because only exact PostgreSQL metadata lookup is available.",
+                            pair.Key);
+                        domainHydrated = await QueryCrtShPostgreSqlExactMetadataAsync(
+                                pair.Value
+                                    .OrderBy(static host => host, StringComparer.OrdinalIgnoreCase)
+                                    .ToList(),
+                                options,
+                                logger,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    } else {
+                        domainPostgreSqlLookupFailed = true;
+                        logger.WriteVerbose(
+                            "CT metadata backfill domain PostgreSQL lookup skipped for {0} because DomainDetective.CtSql is not registered.",
+                            pair.Key);
+                        continue;
+                    }
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
+                } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
+                    domainPostgreSqlLookupFailed = true;
+                    string warning = $"CT metadata backfill domain PostgreSQL lookup timed out for {pair.Key}.";
+                    warnings.Add(warning);
+                    logger.WriteVerbose(warning);
+                    continue;
+                } catch (ArgumentException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
+                    domainPostgreSqlLookupFailed = true;
+                    continue;
+                } catch (InvalidOperationException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
+                    domainPostgreSqlLookupFailed = true;
+                    continue;
+                } catch (TimeoutException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
+                    domainPostgreSqlLookupFailed = true;
+                    continue;
+                } catch (IOException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
+                    domainPostgreSqlLookupFailed = true;
+                    continue;
+                } catch (CryptographicException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
+                    domainPostgreSqlLookupFailed = true;
+                    continue;
+                }
+
+                foreach (KeyValuePair<string, SubdomainDiscoveryEntry> hydratedPair in domainHydrated) {
+                    MergeCtSubdomainEntry(merged, hydratedPair.Value);
+                    if (merged.TryGetValue(hydratedPair.Key, out SubdomainDiscoveryEntry? hydrated) &&
+                        hydrated != null &&
+                        !IsCtCertificateMetadataMissing(hydrated)) {
+                        pair.Value.Remove(hydratedPair.Key);
+                    }
+                }
+            }
+        }
+
         var remainingMissingNames = merged.Values
             .Where(IsCtCertificateMetadataMissing)
             .Select(static entry => entry.Name?.Trim())
@@ -148,14 +237,18 @@ public sealed partial class CertificateInventoryCapture {
             .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (remainingMissingNames.Count > 0 && suppressedHosts.Count > 0) {
-            int originalCount = remainingMissingNames.Count;
-            remainingMissingNames = remainingMissingNames
-                .Where(name => !suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()))
-                .ToList();
-            int suppressedCount = originalCount - remainingMissingNames.Count;
-            if (suppressedCount > 0) {
+            int suppressedCount = remainingMissingNames.Count(name =>
+                suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()));
+            if (suppressedCount > 0 && !domainPostgreSqlLookupFailed) {
+                remainingMissingNames = remainingMissingNames
+                    .Where(name => !suppressedHosts.Contains(name!.Trim().TrimEnd('.').ToLowerInvariant()))
+                    .ToList();
                 logger.WriteVerbose(
                     "CT metadata backfill: skipping exact passive CT metadata for {0} remaining host(s) because the caller already supplied suppression state.",
+                    suppressedCount);
+            } else if (suppressedCount > 0) {
+                logger.WriteVerbose(
+                    "CT metadata backfill: retaining {0} remaining host(s) for exact passive CT metadata because domain-batched crt.sh PostgreSQL lookup failed in this pass.",
                     suppressedCount);
             }
         }
@@ -195,6 +288,16 @@ public sealed partial class CertificateInventoryCapture {
             .ToList();
     }
 
+    private static void RecordCrtShPostgreSqlDomainMetadataLookupFailure(
+        string domain,
+        Exception ex,
+        List<string> warnings,
+        InternalLogger logger) {
+        string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {domain}: {ex.Message}";
+        warnings.Add(warning);
+        logger.WriteVerbose(warning);
+    }
+
     private async Task<IReadOnlyList<SubdomainDiscoveryEntry>> BackfillExactHostSeedCtMetadataAsync(
         IReadOnlyList<CertificateInventorySeed> seeds,
         IReadOnlyDictionary<string, SubdomainDiscoveryEntry> existingEntries,
@@ -209,7 +312,9 @@ public sealed partial class CertificateInventoryCapture {
 
         if (options.NativeCtLogOnly ||
             !options.BackfillMissingCtCertificateMetadata ||
-            (!options.EnablePassiveCtFallback && !options.EnablePassiveCtMetadataFallback)) {
+            (!options.EnablePassiveCtFallback &&
+             !options.EnablePassiveCtMetadataFallback &&
+             !ShouldUseCrtShPostgreSqlMetadataFallback(options))) {
             return Array.Empty<SubdomainDiscoveryEntry>();
         }
 
@@ -381,11 +486,14 @@ public sealed partial class CertificateInventoryCapture {
             return true;
         }
 
-        return string.IsNullOrWhiteSpace(entry.LatestCertificateSubject) &&
-               string.IsNullOrWhiteSpace(entry.LatestCertificateIssuer) &&
-               string.IsNullOrWhiteSpace(entry.LatestCertificateSerialNumber) &&
-               !entry.LatestCertificateNotBeforeUtc.HasValue &&
-               !entry.LatestCertificateNotAfterUtc.HasValue;
+        // Treat partially populated historical entries as incomplete so one refresh can backfill richer metadata.
+        return string.IsNullOrWhiteSpace(entry.LatestCertificateSubject) ||
+               string.IsNullOrWhiteSpace(entry.LatestCertificateIssuer) ||
+               string.IsNullOrWhiteSpace(entry.LatestCertificateSerialNumber) ||
+               !entry.LatestCertificateNotBeforeUtc.HasValue ||
+               !entry.LatestCertificateNotAfterUtc.HasValue ||
+               string.IsNullOrWhiteSpace(entry.LatestCertificateThumbprint) ||
+               string.IsNullOrWhiteSpace(entry.LatestCertificateAuthenticationProfile);
     }
 
     private static bool HasCtCertificateMetadata(
@@ -415,7 +523,9 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
-        bool usePassiveNetworkQueries = CtPassiveMetadataBackfillOverride == null;
+        bool allowPassiveMetadataFallback = options.EnablePassiveCtFallback ||
+                                            options.EnablePassiveCtMetadataFallback;
+        bool usePassiveNetworkQueries = allowPassiveMetadataFallback && CtPassiveMetadataBackfillOverride == null;
         List<string> normalizedHostNames = hostNames
             .Where(static hostName => !string.IsNullOrWhiteSpace(hostName))
             .Select(static hostName => hostName.Trim())
@@ -454,6 +564,12 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
+        if (!allowPassiveMetadataFallback) {
+            return results.Values
+                .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         if (TryBuildPassiveCtRunSuppressionReason(passiveCtDiagnosticEntries, out string suppressionReason)) {
             string warning =
                 "Passive CT exact metadata backfill skipped for " +
@@ -472,6 +588,7 @@ public sealed partial class CertificateInventoryCapture {
             int exactNetworkParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
                 options.DiscoveryParallelism,
                 options.PassiveCtParallelism,
+                options.CrtShPostgreSqlMaximumConcurrentRequests,
                 remainingHostNames.Count,
                 usePassiveNetworkQueries: true);
             int scheduledHosts = 0;
@@ -514,11 +631,22 @@ public sealed partial class CertificateInventoryCapture {
                             }
                         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                             throw;
-                        } catch (Exception ex) {
-                            logger.WriteVerbose(
-                                "CT metadata backfill exact lookup failed for {0}: {1}",
-                                hostName,
-                                ex.Message);
+                        } catch (OperationCanceledException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (ArgumentException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (InvalidOperationException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (TimeoutException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (HttpRequestException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (IOException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (CryptographicException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (JsonException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
                         }
                     }, cancellationToken));
                 }
@@ -568,11 +696,22 @@ public sealed partial class CertificateInventoryCapture {
                     }
                 } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                     throw;
-                } catch (Exception ex) {
-                    logger.WriteVerbose(
-                        "CT metadata backfill exact lookup failed for {0}: {1}",
-                        hostName,
-                        ex.Message);
+                } catch (OperationCanceledException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (ArgumentException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (InvalidOperationException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (TimeoutException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (HttpRequestException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (IOException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (CryptographicException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (JsonException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
                 } finally {
                     gate.Release();
                 }
@@ -586,8 +725,7 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private bool ShouldUseCrtShPostgreSqlMetadataFallback(CertificateInventoryCaptureOptions options) {
-        return options != null &&
-               (options.EnableCrtShPostgreSqlMetadataFallback || CtExactMetadataPostgreSqlOverride != null);
+        return options != null && options.EnableCrtShPostgreSqlMetadataFallback;
     }
 
     private async Task<Dictionary<string, SubdomainDiscoveryEntry>> QueryCrtShPostgreSqlExactMetadataAsync(
@@ -600,9 +738,19 @@ public sealed partial class CertificateInventoryCapture {
             return results;
         }
 
+        ICtSqlMetadataProvider? sqlMetadataProvider = DomainDetectiveOptionalFeatures.GetCtSqlMetadataProvider();
+        var exactMetadataProvider = CtExactMetadataPostgreSqlOverride ?? DomainDetectiveOptionalFeatures.GetCtSqlExactMetadataProvider();
+        if (sqlMetadataProvider == null && exactMetadataProvider == null) {
+            logger.WriteVerbose(
+                "CT metadata backfill exact PostgreSQL lookup skipped because DomainDetective.CtSql is not registered.");
+            return results;
+        }
+
+        HashSet<string> targetedThumbprints = BuildTargetedCtMetadataThumbprintSet(options);
         int exactParallelism = ResolveExactPassiveCtMetadataBackfillParallelism(
             options.DiscoveryParallelism,
             options.PassiveCtParallelism,
+            options.CrtShPostgreSqlMaximumConcurrentRequests,
             hostNames.Count,
             usePassiveNetworkQueries: false);
         using var gate = new SemaphoreSlim(exactParallelism, exactParallelism);
@@ -611,9 +759,11 @@ public sealed partial class CertificateInventoryCapture {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             tasks.Add(Task.Run(async () => {
                 try {
-                    SubdomainDiscoveryEntry? entry = CtExactMetadataPostgreSqlOverride != null
-                        ? await CtExactMetadataPostgreSqlOverride(hostName, options, logger, cancellationToken).ConfigureAwait(false)
-                        : await QueryCrtShPostgreSqlMetadataExactAsync(hostName, options, logger, cancellationToken).ConfigureAwait(false);
+                    SubdomainDiscoveryEntry? entry = sqlMetadataProvider != null
+                        ? await sqlMetadataProvider.QueryExactMetadataAsync(hostName, options, logger, targetedThumbprints, cancellationToken).ConfigureAwait(false)
+                        : exactMetadataProvider != null
+                        ? await exactMetadataProvider(hostName, options, logger, cancellationToken).ConfigureAwait(false)
+                        : null;
                     if (entry == null || string.IsNullOrWhiteSpace(entry.Name)) {
                         return;
                     }
@@ -623,11 +773,18 @@ public sealed partial class CertificateInventoryCapture {
                     }
                 } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                     throw;
-                } catch (Exception ex) {
-                    logger.WriteVerbose(
-                        "CT metadata backfill exact PostgreSQL lookup failed for {0}: {1}",
-                        hostName,
-                        ex.Message);
+                } catch (OperationCanceledException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (ArgumentException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (InvalidOperationException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (TimeoutException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (IOException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (CryptographicException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
                 } finally {
                     gate.Release();
                 }
@@ -638,56 +795,93 @@ public sealed partial class CertificateInventoryCapture {
         return results;
     }
 
-    private static async Task<SubdomainDiscoveryEntry?> QueryCrtShPostgreSqlMetadataExactAsync(
+    private static void LogCtMetadataExactLookupFailure(
+        InternalLogger logger,
         string hostName,
+        Exception ex) {
+        logger.WriteVerbose(
+            "CT metadata backfill exact lookup failed for {0}: {1}",
+            hostName,
+            ex.Message);
+    }
+
+    private static void LogCrtShPostgreSqlExactMetadataLookupFailure(
+        InternalLogger logger,
+        string hostName,
+        Exception ex) {
+        logger.WriteVerbose(
+            "CT metadata backfill exact PostgreSQL lookup failed for {0}: {1}",
+            hostName,
+            ex.Message);
+    }
+
+    private static HashSet<string> BuildTargetedCtMetadataThumbprintSet(CertificateInventoryCaptureOptions? options) {
+        if (options == null || options.CtMetadataTargetThumbprints.Count == 0) {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var thumbprints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string rawThumbprint in options.CtMetadataTargetThumbprints) {
+            string? normalizedThumbprint = NormalizeCtMetadataThumbprint(rawThumbprint);
+            if (!string.IsNullOrWhiteSpace(normalizedThumbprint)) {
+                thumbprints.Add(normalizedThumbprint!);
+            }
+        }
+
+        return thumbprints;
+    }
+
+    private async Task<Dictionary<string, SubdomainDiscoveryEntry>> QueryCrtShPostgreSqlMetadataByDomainAsync(
+        string domain,
+        IReadOnlyCollection<string> hostNames,
         CertificateInventoryCaptureOptions options,
-        InternalLogger? logger,
+        InternalLogger logger,
         CancellationToken cancellationToken) {
-        if (string.IsNullOrWhiteSpace(hostName) || options == null) {
-            return null;
+        var results = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(domain) || hostNames == null || hostNames.Count == 0 || options == null) {
+            return results;
         }
 
-        string normalizedHost = hostName.Trim().TrimEnd('.').ToLowerInvariant();
-        string connectionString = BuildCrtShPostgreSqlConnectionString(options);
-        await using var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        using var command = connection.CreateCommand();
-        command.CommandTimeout = Math.Max(1, options.CrtShPostgreSqlCommandTimeoutSeconds);
-        command.CommandText = BuildCrtShPostgreSqlExactMetadataQuery();
-        command.Parameters.AddWithValue("host", normalizedHost);
-        command.Parameters.AddWithValue("wildcardHost", BuildWildcardCandidateHost(normalizedHost));
-
-        var rows = new List<CrtShPostgreSqlExactMetadataRow>();
-        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) {
-            rows.Add(new CrtShPostgreSqlExactMetadataRow {
-                CertificateDer = reader.IsDBNull(0) ? null : (byte[])reader.GetValue(0),
-                EntryTimestampUtc = reader.IsDBNull(1) ? null : ReadDateTimeOffset(reader.GetValue(1)),
-                CommonName = reader.IsDBNull(2) ? null : reader.GetString(2),
-                IssuerName = reader.IsDBNull(3) ? null : reader.GetString(3),
-                SerialNumber = reader.IsDBNull(4) ? null : reader.GetString(4),
-                NotBeforeUtc = reader.IsDBNull(5) ? null : ReadDateTimeOffset(reader.GetValue(5)),
-                NotAfterUtc = reader.IsDBNull(6) ? null : ReadDateTimeOffset(reader.GetValue(6)),
-                CandidateNames = reader.IsDBNull(7)
-                    ? Array.Empty<string>()
-                    : ((string[])reader.GetValue(7))
-                        .Select(static name => NormalizeCtMetadataCandidate(name, preserveWildcard: true))
-                        .Where(static name => !string.IsNullOrWhiteSpace(name))
-                        .Select(static name => name!)
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList()
-            });
+        List<string> normalizedHosts = hostNames
+            .Where(static host => !string.IsNullOrWhiteSpace(host))
+            .Select(static host => host.Trim().TrimEnd('.').ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (normalizedHosts.Count == 0) {
+            return results;
         }
 
-        SubdomainDiscoveryEntry? entry = TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(normalizedHost, rows);
-        if (entry != null) {
-            logger?.WriteVerbose(
-                "CT metadata backfill exact PostgreSQL lookup matched {0} row(s) for {1}.",
-                rows.Count,
-                normalizedHost);
+        string normalizedDomain = domain.Trim().TrimEnd('.').ToLowerInvariant();
+        HashSet<string> targetedThumbprints = BuildTargetedCtMetadataThumbprintSet(options);
+        ICtSqlMetadataProvider? sqlMetadataProvider = DomainDetectiveOptionalFeatures.GetCtSqlMetadataProvider();
+        if (sqlMetadataProvider == null) {
+            throw new InvalidOperationException("DomainDetective.CtSql is not registered. Reference DomainDetective.CtSql and call DomainDetectiveCtSqlRegistration.Register() before enabling crt.sh PostgreSQL metadata fallback.");
         }
 
-        return entry;
+        IReadOnlyDictionary<string, SubdomainDiscoveryEntry> providerResults = await sqlMetadataProvider.QueryDomainMetadataAsync(
+            normalizedDomain,
+            normalizedHosts,
+            options,
+            logger,
+            targetedThumbprints,
+            cancellationToken).ConfigureAwait(false);
+        foreach (KeyValuePair<string, SubdomainDiscoveryEntry> pair in providerResults) {
+            if (pair.Value == null || string.IsNullOrWhiteSpace(pair.Value.Name)) {
+                continue;
+            }
+
+            results[pair.Key] = pair.Value;
+        }
+
+        if (results.Count > 0) {
+            logger.WriteVerbose(
+                "CT metadata backfill domain PostgreSQL lookup matched {0} host(s) for {1} from {2} candidate certificate row(s).",
+                results.Count,
+                normalizedDomain,
+                results.Sum(static pair => Math.Max(0, pair.Value.CertificateObservationCount)));
+        }
+
+        return results;
     }
 
     internal static string BuildCrtShPostgreSqlExactMetadataQuery() {
@@ -720,18 +914,13 @@ public sealed partial class CertificateInventoryCapture {
                     ORDER BY lower(candidate_name)
                 ) AS dns_names
             FROM certificate c
-            WHERE (
-                    identities(c.certificate) @@ plainto_tsquery('simple', @host)
-                 OR identities(c.certificate) @@ plainto_tsquery('simple', @wildcardHost)
-                  )
+            WHERE identities(c.certificate) @@ plainto_tsquery('simple', @host)
               AND (
                     lower(COALESCE(x509_commonName(c.certificate), '')) = lower(@host)
-                 OR lower(COALESCE(x509_commonName(c.certificate), '')) = lower(@wildcardHost)
                  OR EXISTS (
                         SELECT 1
                         FROM x509_altnames(c.certificate) AS alt_name
                         WHERE lower(alt_name) = lower(@host)
-                           OR lower(alt_name) = lower(@wildcardHost)
                     )
                   )
             ORDER BY entry_timestamp DESC NULLS LAST,
@@ -740,16 +929,91 @@ public sealed partial class CertificateInventoryCapture {
             """;
     }
 
+    internal static string BuildCrtShPostgreSqlDomainMetadataQuery() {
+        return
+            """
+            SELECT
+                c.certificate,
+                COALESCE(
+                    (
+                        SELECT MAX(ctle.entry_timestamp)
+                        FROM ct_log_entry ctle
+                        WHERE ctle.certificate_id = c.id
+                    ),
+                    NULL
+                ) AS entry_timestamp,
+                x509_commonName(c.certificate) AS common_name,
+                x509_issuerName(c.certificate) AS issuer_name,
+                encode(x509_serialNumber(c.certificate), 'hex') AS serial_number,
+                x509_notBefore(c.certificate) AS not_before,
+                x509_notAfter(c.certificate) AS not_after,
+                ARRAY(
+                    SELECT candidate_name
+                    FROM (
+                        SELECT x509_commonName(c.certificate) AS candidate_name
+                        UNION
+                        SELECT alt_name
+                        FROM x509_altnames(c.certificate) AS alt_name
+                    ) AS candidate_names
+                    WHERE candidate_name IS NOT NULL
+                    ORDER BY lower(candidate_name)
+                ) AS dns_names
+            FROM certificate c
+            WHERE identities(c.certificate) @@ plainto_tsquery('simple', @domain)
+              AND EXISTS (
+                    SELECT 1
+                    FROM (
+                        SELECT lower(COALESCE(x509_commonName(c.certificate), '')) AS candidate_name
+                        UNION
+                        SELECT lower(alt_name)
+                        FROM x509_altnames(c.certificate) AS alt_name
+                    ) AS candidate_names
+                    WHERE candidate_name = ANY(@hosts)
+                       OR candidate_name = ANY(@wildcardHosts)
+                )
+            ORDER BY entry_timestamp DESC NULLS LAST,
+                     x509_notBefore(c.certificate) DESC NULLS LAST
+            LIMIT @limit;
+            """;
+    }
+
     internal static SubdomainDiscoveryEntry? TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(
         string normalizedHost,
-        IReadOnlyList<CrtShPostgreSqlExactMetadataRow>? rows) {
+        IReadOnlyList<CrtShPostgreSqlExactMetadataRow>? rows,
+        ISet<string>? targetedThumbprints = null) {
         if (string.IsNullOrWhiteSpace(normalizedHost) || rows == null || rows.Count == 0) {
             return null;
         }
 
-        CrtShPostgreSqlExactMetadataRow? selectedRow = rows
+        List<CrtShPostgreSqlExactMetadataRow> matchingRows = rows
             .Where(row => row != null &&
                           row.CandidateNames.Any(candidate => CtMetadataCandidateMatchesHost(normalizedHost, candidate)))
+            .ToList();
+        if (matchingRows.Count == 0) {
+            return null;
+        }
+
+        var normalizedTargetedThumbprints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (targetedThumbprints != null && targetedThumbprints.Count > 0) {
+            foreach (string rawThumbprint in targetedThumbprints) {
+                string? normalizedThumbprint = NormalizeCtMetadataThumbprint(rawThumbprint);
+                if (!string.IsNullOrWhiteSpace(normalizedThumbprint)) {
+                    normalizedTargetedThumbprints.Add(normalizedThumbprint!);
+                }
+            }
+        }
+
+        IEnumerable<CrtShPostgreSqlExactMetadataRow> candidateRows = matchingRows;
+        if (normalizedTargetedThumbprints.Count > 0) {
+            List<CrtShPostgreSqlExactMetadataRow> targetedRows = matchingRows
+                .Where(row => DoesCrtShPostgreSqlRowMatchTargetThumbprint(row, normalizedTargetedThumbprints))
+                .ToList();
+            if (targetedRows.Count > 0) {
+                candidateRows = targetedRows;
+            }
+        }
+
+        CrtShPostgreSqlExactMetadataRow? selectedRow = candidateRows
             .OrderByDescending(static row => row.EntryTimestampUtc ?? DateTimeOffset.MinValue)
             .ThenByDescending(static row => row.NotBeforeUtc ?? DateTimeOffset.MinValue)
             .FirstOrDefault();
@@ -808,47 +1072,35 @@ public sealed partial class CertificateInventoryCapture {
         };
     }
 
-    private static string BuildCrtShPostgreSqlConnectionString(CertificateInventoryCaptureOptions options) {
-        if (!string.IsNullOrWhiteSpace(options?.CrtShPostgreSqlConnectionString)) {
-            return options!.CrtShPostgreSqlConnectionString!;
+    private static bool DoesCrtShPostgreSqlRowMatchTargetThumbprint(
+        CrtShPostgreSqlExactMetadataRow? row,
+        ISet<string>? targetedThumbprints) {
+        if (row == null ||
+            targetedThumbprints == null ||
+            targetedThumbprints.Count == 0 ||
+            row.CertificateDer == null ||
+            row.CertificateDer.Length == 0) {
+            return false;
         }
 
-        var builder = new NpgsqlConnectionStringBuilder {
-            Host = "crt.sh",
-            Port = 5432,
-            Database = "certwatch",
-            Username = "guest",
-            SslMode = SslMode.Require,
-            Timeout = Math.Max(1, options?.CrtShPostgreSqlCommandTimeoutSeconds ?? 15),
-            CommandTimeout = Math.Max(1, options?.CrtShPostgreSqlCommandTimeoutSeconds ?? 15)
-        };
-        return builder.ConnectionString;
+        using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(row.CertificateDer);
+        string? thumbprint = NormalizeCtMetadataThumbprint(certificate.Thumbprint);
+        return !string.IsNullOrWhiteSpace(thumbprint) &&
+               targetedThumbprints.Contains(thumbprint!);
     }
 
-    private static string BuildWildcardCandidateHost(string normalizedHost) {
+    internal static string BuildWildcardCandidateHost(string normalizedHost) {
         if (string.IsNullOrWhiteSpace(normalizedHost)) {
             return normalizedHost ?? string.Empty;
         }
 
         int firstDotIndex = normalizedHost.IndexOf('.');
-        return firstDotIndex <= 0 || firstDotIndex >= normalizedHost.Length - 1
+        int lastDotIndex = normalizedHost.LastIndexOf('.');
+        return firstDotIndex <= 0 ||
+               firstDotIndex >= normalizedHost.Length - 1 ||
+               firstDotIndex == lastDotIndex
             ? normalizedHost
             : "*." + normalizedHost.Substring(firstDotIndex + 1);
-    }
-
-    private static DateTimeOffset? ReadDateTimeOffset(object? value) {
-        return value switch {
-            null => null,
-            DateTimeOffset dateTimeOffset => dateTimeOffset.ToUniversalTime(),
-            DateTime dateTime => new DateTimeOffset(DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)),
-            _ => DateTimeOffset.TryParse(
-                value.ToString(),
-                System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
-                out DateTimeOffset parsed)
-                ? parsed
-                : (DateTimeOffset?)null
-        };
     }
 
     private static bool IsSha1Signature(string? oid) {
@@ -860,6 +1112,7 @@ public sealed partial class CertificateInventoryCapture {
     internal static int ResolveExactPassiveCtMetadataBackfillParallelism(
         int configuredDiscoveryParallelism,
         int configuredPassiveCtParallelism,
+        int configuredCrtShPostgreSqlMaximumConcurrentRequests,
         int hostCount,
         bool usePassiveNetworkQueries) {
         int configuredParallelism = Math.Max(1, configuredDiscoveryParallelism);
@@ -867,7 +1120,9 @@ public sealed partial class CertificateInventoryCapture {
             ? Math.Min(
                 Math.Min(configuredParallelism, Math.Max(1, configuredPassiveCtParallelism)),
                 4)
-            : configuredParallelism;
+            : Math.Min(
+                configuredParallelism,
+                Math.Max(1, configuredCrtShPostgreSqlMaximumConcurrentRequests));
         return Math.Min(Math.Max(1, hostCount), effectiveParallelism);
     }
 
@@ -1013,36 +1268,49 @@ public sealed partial class CertificateInventoryCapture {
             return entry;
         }
 
-        SubdomainDiscoveryEntry hydratedEntry = CloneSubdomainEntry(entry);
-        hydratedEntry = new SubdomainDiscoveryEntry {
-            Name = hydratedEntry.Name,
-            FirstSeenUtc = hydratedEntry.FirstSeenUtc,
-            LastSeenUtc = hydratedEntry.LastSeenUtc,
-            LatestCertificateCtEntryTimestampUtc = hydratedEntry.LatestCertificateCtEntryTimestampUtc,
+        CertificateExtendedKeyUsageInfo eku = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
+        string? signatureOid = certificate.SignatureAlgorithm?.Value;
+        int keySize = GetPublicKeySize(certificate);
+        bool isSelfSigned = IsSelfSigned(certificate);
+        bool weakKey = keySize > 0 && keySize < 2048;
+        bool sha1Signature = IsSha1Signature(signatureOid);
+        bool hasServerAuthentication = eku.AllowsServerAuthentication;
+        bool hasClientAuthentication = eku.AllowsClientAuthentication;
+        bool hasSecureEmail = eku.AllowsSecureEmail;
+        string authenticationProfile = string.IsNullOrWhiteSpace(eku.AuthenticationProfile)
+            ? CertificateAuthenticationProfileClassifier.Classify(eku)
+            : eku.AuthenticationProfile;
+
+        return new SubdomainDiscoveryEntry {
+            Name = entry.Name,
+            FirstSeenUtc = entry.FirstSeenUtc,
+            LastSeenUtc = entry.LastSeenUtc,
+            LatestCertificateCtEntryTimestampUtc = entry.LatestCertificateCtEntryTimestampUtc,
             LatestCertificateThumbprint = thumbprint,
-            LatestCertificateSubject = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateSubject) ? certificate.Subject : hydratedEntry.LatestCertificateSubject,
-            LatestCertificateIssuer = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateIssuer) ? certificate.Issuer : hydratedEntry.LatestCertificateIssuer,
-            LatestCertificateSerialNumber = string.IsNullOrWhiteSpace(hydratedEntry.LatestCertificateSerialNumber) ? certificate.SerialNumber : hydratedEntry.LatestCertificateSerialNumber,
-            LatestCertificateNotBeforeUtc = hydratedEntry.LatestCertificateNotBeforeUtc ?? new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
-            LatestCertificateNotAfterUtc = hydratedEntry.LatestCertificateNotAfterUtc ?? new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
-            LatestCertificateSubjectAlternativeNames = hydratedEntry.LatestCertificateSubjectAlternativeNames == null ? Array.Empty<string>() : hydratedEntry.LatestCertificateSubjectAlternativeNames.ToList(),
-            LatestCertificateIsSelfSigned = hydratedEntry.LatestCertificateIsSelfSigned,
-            LatestCertificateWeakKey = hydratedEntry.LatestCertificateWeakKey,
-            LatestCertificateSha1Signature = hydratedEntry.LatestCertificateSha1Signature,
-            LatestCertificateHasServerAuthentication = hydratedEntry.LatestCertificateHasServerAuthentication,
-            LatestCertificateHasClientAuthentication = hydratedEntry.LatestCertificateHasClientAuthentication,
-            LatestCertificateHasSecureEmail = hydratedEntry.LatestCertificateHasSecureEmail,
-            LatestCertificateAuthenticationProfile = hydratedEntry.LatestCertificateAuthenticationProfile,
-            CtSources = hydratedEntry.CtSources == null ? Array.Empty<string>() : hydratedEntry.CtSources.ToList(),
-            CertificateObservationCount = hydratedEntry.CertificateObservationCount,
-            ResolutionStatus = hydratedEntry.ResolutionStatus,
-            ARecords = hydratedEntry.ARecords == null ? Array.Empty<string>() : hydratedEntry.ARecords.ToList(),
-            AaaaRecords = hydratedEntry.AaaaRecords == null ? Array.Empty<string>() : hydratedEntry.AaaaRecords.ToList(),
-            SensitiveRisk = hydratedEntry.SensitiveRisk,
-            SensitiveSignals = hydratedEntry.SensitiveSignals == null ? Array.Empty<string>() : hydratedEntry.SensitiveSignals.ToList(),
-            AiSignals = hydratedEntry.AiSignals == null ? Array.Empty<string>() : hydratedEntry.AiSignals.ToList()
+            LatestCertificateSubject = string.IsNullOrWhiteSpace(entry.LatestCertificateSubject) ? certificate.Subject : entry.LatestCertificateSubject,
+            LatestCertificateIssuer = string.IsNullOrWhiteSpace(entry.LatestCertificateIssuer) ? certificate.Issuer : entry.LatestCertificateIssuer,
+            LatestCertificateSerialNumber = string.IsNullOrWhiteSpace(entry.LatestCertificateSerialNumber) ? certificate.SerialNumber : entry.LatestCertificateSerialNumber,
+            LatestCertificateNotBeforeUtc = entry.LatestCertificateNotBeforeUtc ?? new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
+            LatestCertificateNotAfterUtc = entry.LatestCertificateNotAfterUtc ?? new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
+            LatestCertificateSubjectAlternativeNames = entry.LatestCertificateSubjectAlternativeNames == null ? Array.Empty<string>() : entry.LatestCertificateSubjectAlternativeNames.ToList(),
+            LatestCertificateIsSelfSigned = entry.LatestCertificateIsSelfSigned ?? isSelfSigned,
+            LatestCertificateWeakKey = entry.LatestCertificateWeakKey ?? weakKey,
+            LatestCertificateSha1Signature = entry.LatestCertificateSha1Signature ?? sha1Signature,
+            LatestCertificateHasServerAuthentication = entry.LatestCertificateHasServerAuthentication ?? hasServerAuthentication,
+            LatestCertificateHasClientAuthentication = entry.LatestCertificateHasClientAuthentication ?? hasClientAuthentication,
+            LatestCertificateHasSecureEmail = entry.LatestCertificateHasSecureEmail ?? hasSecureEmail,
+            LatestCertificateAuthenticationProfile = string.IsNullOrWhiteSpace(entry.LatestCertificateAuthenticationProfile)
+                ? authenticationProfile
+                : entry.LatestCertificateAuthenticationProfile,
+            CtSources = entry.CtSources == null ? Array.Empty<string>() : entry.CtSources.ToList(),
+            CertificateObservationCount = entry.CertificateObservationCount,
+            ResolutionStatus = entry.ResolutionStatus,
+            ARecords = entry.ARecords == null ? Array.Empty<string>() : entry.ARecords.ToList(),
+            AaaaRecords = entry.AaaaRecords == null ? Array.Empty<string>() : entry.AaaaRecords.ToList(),
+            SensitiveRisk = entry.SensitiveRisk,
+            SensitiveSignals = entry.SensitiveSignals == null ? Array.Empty<string>() : entry.SensitiveSignals.ToList(),
+            AiSignals = entry.AiSignals == null ? Array.Empty<string>() : entry.AiSignals.ToList()
         };
-        return hydratedEntry;
     }
 
     internal static bool CanPersistPassiveCtExactNoRowsDiagnostic(
@@ -1139,7 +1407,7 @@ public sealed partial class CertificateInventoryCapture {
         }
     }
 
-    private static SubdomainDiscoveryEntry? TryBuildExactCtMetadataEntry(
+    internal static SubdomainDiscoveryEntry? TryBuildExactCtMetadataEntry(
         string normalizedHost,
         IReadOnlyList<PassiveCtSourceClient.SourcePayload> payloads) {
         if (string.IsNullOrWhiteSpace(normalizedHost) || payloads == null || payloads.Count == 0) {
@@ -1156,6 +1424,13 @@ public sealed partial class CertificateInventoryCapture {
         DateTimeOffset? latestCertificateNotBeforeUtc = null;
         DateTimeOffset? latestCertificateNotAfterUtc = null;
         IReadOnlyList<string> latestCertificateSubjectAlternativeNames = Array.Empty<string>();
+        bool? latestCertificateIsSelfSigned = null;
+        bool? latestCertificateWeakKey = null;
+        bool? latestCertificateSha1Signature = null;
+        bool? latestCertificateHasServerAuthentication = null;
+        bool? latestCertificateHasClientAuthentication = null;
+        bool? latestCertificateHasSecureEmail = null;
+        string? latestCertificateAuthenticationProfile = null;
         var ctSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var observationCount = 0;
 
@@ -1211,6 +1486,29 @@ public sealed partial class CertificateInventoryCapture {
                 latestCertificateNotBeforeUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_before"));
                 latestCertificateNotAfterUtc = ParseCtMetadataTimestamp(GetCtMetadataString(item, "not_after"));
                 latestCertificateSubjectAlternativeNames = candidateNames;
+                X509Certificate2? embeddedCertificate = TryLoadCtMetadataCertificateDer(item);
+                if (embeddedCertificate != null) {
+                    using (embeddedCertificate) {
+                        CertificateExtendedKeyUsageInfo eku = CertificateExtendedKeyUsageAnalyzer.Analyze(embeddedCertificate);
+                        string? signatureOid = embeddedCertificate.SignatureAlgorithm?.Value;
+                        int keySize = GetPublicKeySize(embeddedCertificate);
+                        latestCertificateThumbprint = NormalizeCtMetadataThumbprint(embeddedCertificate.Thumbprint) ?? latestCertificateThumbprint;
+                        latestCertificateSubject = embeddedCertificate.Subject;
+                        latestCertificateIssuer = embeddedCertificate.Issuer;
+                        latestCertificateSerialNumber = embeddedCertificate.SerialNumber;
+                        latestCertificateNotBeforeUtc = new DateTimeOffset(embeddedCertificate.NotBefore.ToUniversalTime());
+                        latestCertificateNotAfterUtc = new DateTimeOffset(embeddedCertificate.NotAfter.ToUniversalTime());
+                        latestCertificateIsSelfSigned = IsSelfSigned(embeddedCertificate);
+                        latestCertificateWeakKey = keySize > 0 && keySize < 2048;
+                        latestCertificateSha1Signature = IsSha1Signature(signatureOid);
+                        latestCertificateHasServerAuthentication = eku.AllowsServerAuthentication;
+                        latestCertificateHasClientAuthentication = eku.AllowsClientAuthentication;
+                        latestCertificateHasSecureEmail = eku.AllowsSecureEmail;
+                        latestCertificateAuthenticationProfile = string.IsNullOrWhiteSpace(eku.AuthenticationProfile)
+                            ? CertificateAuthenticationProfileClassifier.Classify(eku)
+                            : eku.AuthenticationProfile;
+                    }
+                }
             }
         }
 
@@ -1230,10 +1528,33 @@ public sealed partial class CertificateInventoryCapture {
             LatestCertificateNotBeforeUtc = latestCertificateNotBeforeUtc,
             LatestCertificateNotAfterUtc = latestCertificateNotAfterUtc,
             LatestCertificateSubjectAlternativeNames = latestCertificateSubjectAlternativeNames,
+            LatestCertificateIsSelfSigned = latestCertificateIsSelfSigned,
+            LatestCertificateWeakKey = latestCertificateWeakKey,
+            LatestCertificateSha1Signature = latestCertificateSha1Signature,
+            LatestCertificateHasServerAuthentication = latestCertificateHasServerAuthentication,
+            LatestCertificateHasClientAuthentication = latestCertificateHasClientAuthentication,
+            LatestCertificateHasSecureEmail = latestCertificateHasSecureEmail,
+            LatestCertificateAuthenticationProfile = latestCertificateAuthenticationProfile,
             CtSources = ctSources.OrderBy(source => source, StringComparer.OrdinalIgnoreCase).ToList(),
             CertificateObservationCount = observationCount,
             ResolutionStatus = SubdomainResolutionStatus.Unknown
         };
+    }
+
+    private static X509Certificate2? TryLoadCtMetadataCertificateDer(JsonElement obj) {
+        string? certificateDer = GetCtMetadataString(obj, "cert_der");
+        if (string.IsNullOrWhiteSpace(certificateDer)) {
+            return null;
+        }
+
+        try {
+            byte[] certificateBytes = Convert.FromBase64String(certificateDer!.Trim());
+            return CertificateLoaderCompat.LoadCertificate(certificateBytes);
+        } catch (FormatException) {
+            return null;
+        } catch (CryptographicException) {
+            return null;
+        }
     }
 
     private static string? SelectBestCrtShCertificateDownloadId(
@@ -1341,7 +1662,7 @@ public sealed partial class CertificateInventoryCapture {
         var requests = new List<PassiveCtSourceClient.SourceRequest>(2);
         requests.Add(new PassiveCtSourceClient.SourceRequest {
             SourceName = "certspotter",
-            Url = "https://api.certspotter.com/v1/issuances?domain=" + Uri.EscapeDataString(normalizedHost) + "&match_wildcards=true&expand=dns_names"
+            Url = "https://api.certspotter.com/v1/issuances?domain=" + Uri.EscapeDataString(normalizedHost) + "&include_subdomains=false&match_wildcards=true&expand=dns_names&expand=issuer&expand=cert_der"
         });
         requests.Add(new PassiveCtSourceClient.SourceRequest {
             SourceName = "crt.sh",
@@ -1470,7 +1791,7 @@ public sealed partial class CertificateInventoryCapture {
         return wildcardLabel.Length > 0 && wildcardLabel.IndexOf('.') < 0;
     }
 
-    private static string? NormalizeCtMetadataCandidate(string? value, bool preserveWildcard = false) {
+    internal static string? NormalizeCtMetadataCandidate(string? value, bool preserveWildcard = false) {
         if (string.IsNullOrWhiteSpace(value)) {
             return null;
         }

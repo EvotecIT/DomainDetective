@@ -2,7 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state dns over tls policy functionality.</summary>
 public sealed class DesiredStateDnsOverTlsPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -26,6 +28,7 @@ public sealed class DesiredStateDnsOverTlsPolicy {
     [JsonPropertyName("requireHostnameMatch")]
     public bool? RequireHostnameMatch { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateDnsOverTlsPolicy Clone() {
         return new DesiredStateDnsOverTlsPolicy {
             Enabled = Enabled,
@@ -37,6 +40,7 @@ public sealed class DesiredStateDnsOverTlsPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateDnsOverTlsPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

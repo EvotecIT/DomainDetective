@@ -5,11 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides caa narrative functionality.</summary>
 public static class CaaNarrative
 {
     /// <summary>Structured narrative sections for CAA analysis.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(CAAAnalysis caa)
     {
         var subjCandidate = caa.Subject;

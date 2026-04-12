@@ -2,7 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state wildcard dns policy functionality.</summary>
 public sealed class DesiredStateWildcardDnsPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -12,6 +14,7 @@ public sealed class DesiredStateWildcardDnsPolicy {
     [JsonPropertyName("expectedCatchAll")]
     public bool? ExpectedCatchAll { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateWildcardDnsPolicy Clone() {
         return new DesiredStateWildcardDnsPolicy {
             Enabled = Enabled,
@@ -19,6 +22,7 @@ public sealed class DesiredStateWildcardDnsPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateWildcardDnsPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

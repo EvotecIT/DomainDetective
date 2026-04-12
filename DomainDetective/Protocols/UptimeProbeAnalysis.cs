@@ -13,16 +13,26 @@ namespace DomainDetective;
 /// <para>Scaffold for future synthetic monitoring and scheduling.</para>
 public sealed class UptimeProbeAnalysis : IHasAssessments
 {
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the url value.</summary>
     public Uri? Url { get; private set; }
+    /// <summary>Gets or sets the success value.</summary>
     public bool Success { get; private set; }
+    /// <summary>Gets or sets the status code value.</summary>
     public int StatusCode { get; private set; }
+    /// <summary>Gets or sets the ttfb milliseconds value.</summary>
     public long TtfbMilliseconds { get; private set; }
+    /// <summary>Gets or sets the total milliseconds value.</summary>
     public long TotalMilliseconds { get; private set; }
+    /// <summary>Gets the important headers value.</summary>
     public Dictionary<string, string> ImportantHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Represents the is https value.</summary>
     public bool IsHttps => Url?.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) == true;
 
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>

@@ -5,11 +5,13 @@ using DomainDetective.Providers.Email;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides mx narrative functionality.</summary>
 public static class MxNarrative
 {
 /// <summary>Structured narrative sections for MX analysis.</summary>
 public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(MXAnalysis mx)
     {
         var subj = string.IsNullOrWhiteSpace(mx.Subject) ? "(domain)" : mx.Subject;

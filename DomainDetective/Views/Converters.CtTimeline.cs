@@ -6,6 +6,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static CtTimelineInfo Convert(CertificateTransparencyTimelineAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -55,35 +56,64 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides ct timeline info functionality.</summary>
 public sealed class CtTimelineInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the query succeeded value.</summary>
     public bool QuerySucceeded { get; set; }
+    /// <summary>Gets or sets the failure reason value.</summary>
     public string? FailureReason { get; set; }
+    /// <summary>Gets or sets the certificate observation count value.</summary>
     public int CertificateObservationCount { get; set; }
+    /// <summary>Gets or sets the unique certificate count value.</summary>
     public int UniqueCertificateCount { get; set; }
+    /// <summary>Gets or sets the first seen utc value.</summary>
     public DateTimeOffset? FirstSeenUtc { get; set; }
+    /// <summary>Gets or sets the last seen utc value.</summary>
     public DateTimeOffset? LastSeenUtc { get; set; }
+    /// <summary>Gets or sets the issuer counts value.</summary>
     public IReadOnlyDictionary<string, int> IssuerCounts { get; set; } = null!;
+    /// <summary>Gets or sets the active certificate count value.</summary>
     public int ActiveCertificateCount { get; set; }
+    /// <summary>Gets or sets the expired certificate count value.</summary>
     public int ExpiredCertificateCount { get; set; }
+    /// <summary>Gets or sets the not yet valid certificate count value.</summary>
     public int NotYetValidCertificateCount { get; set; }
+    /// <summary>Gets or sets the wildcard certificate count value.</summary>
     public int WildcardCertificateCount { get; set; }
+    /// <summary>Gets or sets the issued last7 days value.</summary>
     public int IssuedLast7Days { get; set; }
+    /// <summary>Gets or sets the issued last30 days value.</summary>
     public int IssuedLast30Days { get; set; }
+    /// <summary>Gets or sets the results capped value.</summary>
     public bool ResultsCapped { get; set; }
+    /// <summary>Gets or sets the timeline value.</summary>
     public IReadOnlyList<CtTimelineBucket> Timeline { get; set; } = null!;
+    /// <summary>Gets or sets the recent certificates value.</summary>
     public IReadOnlyList<CtCertificateSample> RecentCertificates { get; set; } = null!;
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = null!;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = null!;
+    /// <summary>Gets or sets the raw value.</summary>
     public CertificateTransparencyTimelineAnalysis Raw { get; set; } = null!;
 }
 

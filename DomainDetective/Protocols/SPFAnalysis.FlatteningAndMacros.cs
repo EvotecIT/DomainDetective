@@ -20,6 +20,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public partial class SpfAnalysis : IHasAssessments {
+        /// <summary>Gets flattened spf.</summary>
         public async Task<string> GetFlattenedSpf(InternalLogger? logger = null) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF") : null;
             if (string.IsNullOrEmpty(SpfRecord)) {
@@ -485,6 +486,7 @@ namespace DomainDetective {
             return "unknown";
         }
 
+        /// <summary>Gets explanation text.</summary>
         public async Task<string?> GetExplanationText(IPAddress ip, string sender, string helo, string domain, InternalLogger? logger = null)
         {
             var expValue = ExpValue;

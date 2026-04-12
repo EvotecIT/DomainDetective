@@ -15,6 +15,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class ReverseDnsAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Provides DNS configuration for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -61,10 +62,13 @@ namespace DomainDetective {
         /// <summary>Represents PTR lookup result for a single address.</summary>
         /// <para>Part of the DomainDetective project.</para>
         public class ReverseDnsResult {
+            /// <summary>Gets or sets the ip address value.</summary>
             public string IpAddress { get; set; } = string.Empty;
+            /// <summary>Gets or sets the ptr record value.</summary>
             public string? PtrRecord { get; set; }
             /// <summary>All PTR records returned for the IP.</summary>
             public List<string> PtrRecords { get; } = new();
+            /// <summary>Gets or sets the expected host value.</summary>
             public string ExpectedHost { get; set; } = string.Empty;
             /// <summary>True when <see cref="PtrRecord"/> equals <see cref="ExpectedHost"/>.</summary>
             public bool IsValid => string.Equals(PtrRecord, ExpectedHost, StringComparison.Ordinal);
@@ -218,6 +222,7 @@ namespace DomainDetective {
         ///   </code>
         /// </example>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
     }
 }

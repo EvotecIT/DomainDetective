@@ -7,6 +7,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static Microsoft365TenantInfo Convert(Microsoft365TenantAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -401,53 +402,100 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides microsoft365 tenant info functionality.</summary>
 public sealed class Microsoft365TenantInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the query succeeded value.</summary>
     public bool QuerySucceeded { get; set; }
+    /// <summary>Gets or sets the failure reason value.</summary>
     public string? FailureReason { get; set; }
+    /// <summary>Gets or sets the is microsoft365 tenant value.</summary>
     public bool IsMicrosoft365Tenant { get; set; }
+    /// <summary>Gets or sets the detection confidence value.</summary>
     public Microsoft365DetectionConfidence DetectionConfidence { get; set; }
+    /// <summary>Gets or sets the tenant id value.</summary>
     public string? TenantId { get; set; }
+    /// <summary>Gets or sets the tenant name value.</summary>
     public string? TenantName { get; set; }
+    /// <summary>Gets or sets the company name value.</summary>
     public string? CompanyName { get; set; }
+    /// <summary>Gets or sets the tenant namespace domain value.</summary>
     public string? TenantNamespaceDomain { get; set; }
+    /// <summary>Gets or sets the name space type value.</summary>
     public string? NameSpaceType { get; set; }
+    /// <summary>Gets or sets the identity provider kind value.</summary>
     public TenantIdentityProviderKind IdentityProviderKind { get; set; }
+    /// <summary>Gets or sets the identity provider value.</summary>
     public string? IdentityProvider { get; set; }
+    /// <summary>Gets or sets the federation mode value.</summary>
     public Microsoft365FederationMode FederationMode { get; set; }
+    /// <summary>Gets or sets the cloud instance value.</summary>
     public TenantCloudInstanceKind CloudInstance { get; set; }
+    /// <summary>Gets or sets the region value.</summary>
     public TenantRegionKind Region { get; set; }
+    /// <summary>Gets or sets the consumer domain value.</summary>
     public bool ConsumerDomain { get; set; }
+    /// <summary>Gets or sets the user enumeration status value.</summary>
     public Microsoft365AuthExposureStatus UserEnumerationStatus { get; set; }
+    /// <summary>Gets or sets the smart lockout status value.</summary>
     public Microsoft365AuthExposureStatus SmartLockoutStatus { get; set; }
+    /// <summary>Gets or sets the throttling status value.</summary>
     public Microsoft365AuthThrottlingStatus ThrottlingStatus { get; set; }
+    /// <summary>Gets or sets the authentication probe succeeded value.</summary>
     public bool AuthenticationProbeSucceeded { get; set; }
+    /// <summary>Gets or sets the authentication probe address value.</summary>
     public string? AuthenticationProbeAddress { get; set; }
+    /// <summary>Gets or sets the authentication probe value.</summary>
     public MicrosoftCredentialTypeProbe? AuthenticationProbe { get; set; }
+    /// <summary>Gets or sets the authentication summary value.</summary>
     public Microsoft365AuthenticationSummary AuthenticationSummary { get; set; } = new();
+    /// <summary>Gets or sets the authentication path value.</summary>
     public Microsoft365AuthPathKind AuthenticationPath { get; set; }
+    /// <summary>Gets or sets the supported grant types value.</summary>
     public IReadOnlyList<string> SupportedGrantTypes { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the supported response types value.</summary>
     public IReadOnlyList<string> SupportedResponseTypes { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the services value.</summary>
     public IReadOnlyList<Microsoft365ServiceDetection> Services { get; set; } = Array.Empty<Microsoft365ServiceDetection>();
+    /// <summary>Gets or sets the workload summary value.</summary>
     public Microsoft365WorkloadConfidenceSummary WorkloadSummary { get; set; } = new();
+    /// <summary>Gets or sets the dns application summary value.</summary>
     public Microsoft365DnsApplicationSummary DnsApplicationSummary { get; set; } = new();
+    /// <summary>Gets or sets the evidence summary value.</summary>
     public Microsoft365EvidenceSummary EvidenceSummary { get; set; } = new();
+    /// <summary>Gets or sets the tenant domains value.</summary>
     public IReadOnlyList<Microsoft365TenantDomain> TenantDomains { get; set; } = Array.Empty<Microsoft365TenantDomain>();
+    /// <summary>Gets or sets the known subdomains value.</summary>
     public IReadOnlyList<KnownMicrosoft365Subdomain> KnownSubdomains { get; set; } = Array.Empty<KnownMicrosoft365Subdomain>();
+    /// <summary>Gets or sets the detected dns applications value.</summary>
     public IReadOnlyList<DetectedDnsApplication> DetectedDnsApplications { get; set; } = Array.Empty<DetectedDnsApplication>();
+    /// <summary>Gets or sets the evidence ledger value.</summary>
     public IReadOnlyList<Microsoft365EvidenceItem> EvidenceLedger { get; set; } = Array.Empty<Microsoft365EvidenceItem>();
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the highlights value.</summary>
     public IReadOnlyList<string> Highlights { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the raw value.</summary>
     [JsonIgnore]
     public Microsoft365TenantAnalysis Raw { get; set; } = null!;
 }

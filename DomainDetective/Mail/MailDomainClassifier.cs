@@ -20,6 +20,7 @@ public sealed class MailDomainClassifier {
     private readonly DomainHealthCheck _health;
     private readonly InternalLogger _logger;
 
+    /// <summary>Initializes a new instance of the MailDomainClassifier class.</summary>
     public MailDomainClassifier(DomainHealthCheck health, InternalLogger logger) {
         _health = health ?? throw new ArgumentNullException(nameof(health));
         _logger = logger ?? new InternalLogger(false);

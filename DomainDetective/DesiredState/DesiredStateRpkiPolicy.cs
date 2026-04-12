@@ -3,7 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state rpki policy functionality.</summary>
 public sealed class DesiredStateRpkiPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -34,6 +36,7 @@ public sealed class DesiredStateRpkiPolicy {
     [JsonPropertyName("ignoredAsns")]
     public int[]? IgnoredAsns { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateRpkiPolicy Clone() {
         return new DesiredStateRpkiPolicy {
             Enabled = Enabled,
@@ -46,6 +49,7 @@ public sealed class DesiredStateRpkiPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateRpkiPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

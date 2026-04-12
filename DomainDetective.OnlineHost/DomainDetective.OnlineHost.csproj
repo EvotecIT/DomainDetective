@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
+        <ProjectReference Include="..\DomainDetective.Pgp\DomainDetective.Pgp.csproj" />
     </ItemGroup>
 
 </Project>

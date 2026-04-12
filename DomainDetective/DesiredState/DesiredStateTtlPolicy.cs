@@ -2,97 +2,129 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state ttl policy functionality.</summary>
 public sealed class DesiredStateTtlPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the min a seconds value.</summary>
     [JsonPropertyName("minASeconds")]
     public int? MinASeconds { get; set; }
 
+    /// <summary>Gets or sets the max a seconds value.</summary>
     [JsonPropertyName("maxASeconds")]
     public int? MaxASeconds { get; set; }
 
+    /// <summary>Gets or sets the min aaaa seconds value.</summary>
     [JsonPropertyName("minAaaaSeconds")]
     public int? MinAaaaSeconds { get; set; }
 
+    /// <summary>Gets or sets the max aaaa seconds value.</summary>
     [JsonPropertyName("maxAaaaSeconds")]
     public int? MaxAaaaSeconds { get; set; }
 
+    /// <summary>Gets or sets the min mx seconds value.</summary>
     [JsonPropertyName("minMxSeconds")]
     public int? MinMxSeconds { get; set; }
 
+    /// <summary>Gets or sets the max mx seconds value.</summary>
     [JsonPropertyName("maxMxSeconds")]
     public int? MaxMxSeconds { get; set; }
 
+    /// <summary>Gets or sets the min ns seconds value.</summary>
     [JsonPropertyName("minNsSeconds")]
     public int? MinNsSeconds { get; set; }
 
+    /// <summary>Gets or sets the max ns seconds value.</summary>
     [JsonPropertyName("maxNsSeconds")]
     public int? MaxNsSeconds { get; set; }
 
+    /// <summary>Gets or sets the min soa seconds value.</summary>
     [JsonPropertyName("minSoaSeconds")]
     public int? MinSoaSeconds { get; set; }
 
+    /// <summary>Gets or sets the max soa seconds value.</summary>
     [JsonPropertyName("maxSoaSeconds")]
     public int? MaxSoaSeconds { get; set; }
 
+    /// <summary>Gets or sets the min spf txt seconds value.</summary>
     [JsonPropertyName("minSpfTxtSeconds")]
     public int? MinSpfTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the max spf txt seconds value.</summary>
     [JsonPropertyName("maxSpfTxtSeconds")]
     public int? MaxSpfTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the min dmarc txt seconds value.</summary>
     [JsonPropertyName("minDmarcTxtSeconds")]
     public int? MinDmarcTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the max dmarc txt seconds value.</summary>
     [JsonPropertyName("maxDmarcTxtSeconds")]
     public int? MaxDmarcTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the min dkim selector txt seconds value.</summary>
     [JsonPropertyName("minDkimSelectorTxtSeconds")]
     public int? MinDkimSelectorTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the max dkim selector txt seconds value.</summary>
     [JsonPropertyName("maxDkimSelectorTxtSeconds")]
     public int? MaxDkimSelectorTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the min mtasts txt seconds value.</summary>
     [JsonPropertyName("minMtastsTxtSeconds")]
     public int? MinMtastsTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the max mtasts txt seconds value.</summary>
     [JsonPropertyName("maxMtastsTxtSeconds")]
     public int? MaxMtastsTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the min tls rpt txt seconds value.</summary>
     [JsonPropertyName("minTlsRptTxtSeconds")]
     public int? MinTlsRptTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the max tls rpt txt seconds value.</summary>
     [JsonPropertyName("maxTlsRptTxtSeconds")]
     public int? MaxTlsRptTxtSeconds { get; set; }
 
+    /// <summary>Gets or sets the require a uniform across ns value.</summary>
     [JsonPropertyName("requireAUniformAcrossNs")]
     public bool? RequireAUniformAcrossNs { get; set; }
 
+    /// <summary>Gets or sets the require aaaa uniform across ns value.</summary>
     [JsonPropertyName("requireAaaaUniformAcrossNs")]
     public bool? RequireAaaaUniformAcrossNs { get; set; }
 
+    /// <summary>Gets or sets the require ns uniform across ns value.</summary>
     [JsonPropertyName("requireNsUniformAcrossNs")]
     public bool? RequireNsUniformAcrossNs { get; set; }
 
+    /// <summary>Gets or sets the require cname uniform across ns value.</summary>
     [JsonPropertyName("requireCnameUniformAcrossNs")]
     public bool? RequireCnameUniformAcrossNs { get; set; }
 
+    /// <summary>Gets or sets the require spf txt uniform across ns value.</summary>
     [JsonPropertyName("requireSpfTxtUniformAcrossNs")]
     public bool? RequireSpfTxtUniformAcrossNs { get; set; }
 
+    /// <summary>Gets or sets the require dmarc txt uniform across ns value.</summary>
     [JsonPropertyName("requireDmarcTxtUniformAcrossNs")]
     public bool? RequireDmarcTxtUniformAcrossNs { get; set; }
 
+    /// <summary>Gets or sets the require mtasts txt uniform across ns value.</summary>
     [JsonPropertyName("requireMtastsTxtUniformAcrossNs")]
     public bool? RequireMtastsTxtUniformAcrossNs { get; set; }
 
+    /// <summary>Gets or sets the require tls rpt txt uniform across ns value.</summary>
     [JsonPropertyName("requireTlsRptTxtUniformAcrossNs")]
     public bool? RequireTlsRptTxtUniformAcrossNs { get; set; }
 
+    /// <summary>Gets or sets the require dkim txt uniform across ns value.</summary>
     [JsonPropertyName("requireDkimTxtUniformAcrossNs")]
     public bool? RequireDkimTxtUniformAcrossNs { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateTtlPolicy Clone() {
         return new DesiredStateTtlPolicy {
             Enabled = Enabled,
@@ -128,6 +160,7 @@ public sealed class DesiredStateTtlPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateTtlPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

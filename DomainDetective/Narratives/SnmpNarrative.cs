@@ -3,10 +3,13 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides snmp narrative functionality.</summary>
 public static class SnmpNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(SnmpAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
         var subjCandidate = analysis?.Subject;

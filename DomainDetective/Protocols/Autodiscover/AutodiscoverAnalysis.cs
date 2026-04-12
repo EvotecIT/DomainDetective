@@ -15,6 +15,7 @@ namespace DomainDetective {
     /// where they point, assisting in troubleshooting client configuration.
     /// </remarks>
     public class AutodiscoverAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>DNS configuration used for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -57,8 +58,10 @@ namespace DomainDetective {
             return await config.QueryDNS(name, type);
         }
 
+        /// <summary>Gets the assessments value.</summary>
         public List<Assessment> Assessments { get; } = new();
 
+        /// <summary>Executes the analyze operation.</summary>
         public async Task Analyze(string domainName, DnsConfiguration config, InternalLogger logger, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));

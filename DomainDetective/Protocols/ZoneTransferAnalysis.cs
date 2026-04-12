@@ -31,6 +31,7 @@ public class ZoneTransferAnalysis : IHasAssessments
     /// <summary>Maximum time to wait for each transfer attempt.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
 
     /// <summary>

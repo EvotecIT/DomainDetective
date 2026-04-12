@@ -4,8 +4,10 @@ using System.Linq;
 
 namespace DomainDetective.Helpers;
 
+/// <summary>Provides path helper functionality.</summary>
 public static class PathHelper
 {
+    /// <summary>Executes the combine under root operation.</summary>
     public static string CombineUnderRoot(string rootPath, params string[] segments)
     {
         if (string.IsNullOrWhiteSpace(rootPath))
@@ -36,6 +38,7 @@ public static class PathHelper
         return combinedFull;
     }
 
+    /// <summary>Executes the normalize domain path segment operation.</summary>
     public static string NormalizeDomainPathSegment(string domain)
         => DomainHelper.ValidateIdn(domain);
 }

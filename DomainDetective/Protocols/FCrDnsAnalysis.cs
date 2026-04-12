@@ -23,8 +23,11 @@ public class FCrDnsAnalysis
     /// <summary>Represents forward confirmed result for a single address.</summary>
     public class FCrDnsResult
     {
+        /// <summary>Gets or sets the ip address value.</summary>
         public string IpAddress { get; set; } = null!;
+        /// <summary>Gets or sets the ptr records value.</summary>
         public List<string> PtrRecords { get; set; } = new();
+        /// <summary>Represents the ptr record value.</summary>
         public string? PtrRecord => PtrRecords.FirstOrDefault();
         /// <summary>True when PTR hostname resolves to the original IP.</summary>
         public bool ForwardConfirmed { get; set; }

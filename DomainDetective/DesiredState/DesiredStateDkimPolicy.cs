@@ -3,7 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state dkim policy functionality.</summary>
 public sealed class DesiredStateDkimPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -63,6 +65,7 @@ public sealed class DesiredStateDkimPolicy {
     [JsonPropertyName("allowedCnameTargetSuffixes")]
     public string[]? AllowedCnameTargetSuffixes { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateDkimPolicy Clone() {
         return new DesiredStateDkimPolicy {
             Enabled = Enabled,
@@ -83,6 +86,7 @@ public sealed class DesiredStateDkimPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateDkimPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

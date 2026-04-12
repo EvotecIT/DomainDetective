@@ -4,9 +4,12 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides spf flattened narrative functionality.</summary>
 public static class SpfFlattenedNarrative {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(SpfAnalysis? spf, IEnumerable<Assessment>? assessments = null) {
         var subj = string.IsNullOrWhiteSpace(spf?.Subject) ? "(domain)" : spf!.Subject!;
         var title = $"SPF Flattened Report — {subj}";

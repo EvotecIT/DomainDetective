@@ -60,4 +60,5 @@ When a cap is hit, `ResultsCapped` is set and an informational assessment is emi
 - CT data is an observation set, not a complete certificate inventory.
 - Some CT rows may omit validity window fields; validity status is best-effort.
 - Very large domains may hit caps; raise limits cautiously if needed.
+- Provider behavior and budgets differ by source. See [CT_PROVIDERS.MD](CT_PROVIDERS.MD) before using CT timeline or discovery paths in a service workflow.
 

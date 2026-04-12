@@ -14,11 +14,13 @@ public class SimpleDomainReport {
     private readonly DomainHealthCheck _healthCheck;
     private readonly string _domain;
 
+    /// <summary>Initializes a new instance of the SimpleDomainReport class.</summary>
     public SimpleDomainReport(DomainHealthCheck healthCheck, string domain) {
         _healthCheck = healthCheck;
         _domain = domain;
     }
 
+    /// <summary>Generates the HTML report.</summary>
     public void GenerateReport(string outputPath, bool openInBrowser = true) {
         using var document = new Document {
             Head = {

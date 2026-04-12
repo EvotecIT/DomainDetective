@@ -23,6 +23,7 @@ namespace DomainDetective {
     public class DkimAnalysis : IHasAssessments {
         /// <summary>DNS configuration used for auxiliary lookups (e.g., CNAME for provider mapping).</summary>
         public DnsConfiguration? DnsConfiguration { get; set; }
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Minimum allowed RSA key size in bits.</summary>
         public const int MinimumRsaKeyBits = 1024;

@@ -8,6 +8,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static class DnsblHtmlSectionWriter
 {
+    /// <summary>Writes the HTML report section.</summary>
     public static void Write(IHtmlComposer html, DomainDetective.Views.DnsblInfo dnsbl, string domain, Reports.ReportScope scope)
     {
         if (html == null) throw new ArgumentNullException(nameof(html));

@@ -4,6 +4,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static SoaInfo Convert(SOAAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -53,21 +54,31 @@ public class SoaInfo
     public string PrimaryNameServer { get; set; } = string.Empty;
     /// <summary>Responsible mailbox (RNAME).</summary>
     public string ResponsibleMailbox { get; set; } = string.Empty;
+    /// <summary>Gets or sets the serial number value.</summary>
     public long SerialNumber { get; set; }
+    /// <summary>Gets or sets the serial format valid value.</summary>
     public bool SerialFormatValid { get; set; }
     /// <summary>Suggestion when the serial format is not YYYMMDDnn.</summary>
     public string SerialFormatSuggestion { get; set; } = string.Empty;
+    /// <summary>Gets or sets the refresh value.</summary>
     public int Refresh { get; set; }
+    /// <summary>Gets or sets the retry value.</summary>
     public int Retry { get; set; }
+    /// <summary>Gets or sets the expire value.</summary>
     public int Expire { get; set; }
+    /// <summary>Gets or sets the minimum value.</summary>
     public int Minimum { get; set; }
+    /// <summary>Gets or sets the negative cache ttl value.</summary>
     public int NegativeCacheTtl { get; set; }
+    /// <summary>Gets or sets the record exists value.</summary>
     public bool RecordExists { get; set; }
     /// <summary>Assessment list.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
     /// <summary>Short summary text for executive reports.</summary>
     public string Summary { get; set; } = string.Empty;

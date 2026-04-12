@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides typosquatting narrative functionality.</summary>
 public static class TyposquattingNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(TyposquattingAnalysis analysis)
     {
         var subjCandidate = analysis.Subject;

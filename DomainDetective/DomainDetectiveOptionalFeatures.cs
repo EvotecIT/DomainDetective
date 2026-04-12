@@ -1,0 +1,152 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace DomainDetective;
+
+/// <summary>
+/// Registers optional dependency-backed feature providers without changing the main analysis API.
+/// </summary>
+/// <remarks>Provider registration is last-write-wins so host applications can intentionally replace startup defaults.</remarks>
+public static class DomainDetectiveOptionalFeatures
+{
+    private static readonly object _ctSqlProviderSyncRoot = new();
+    private static volatile Func<string, string, (bool IsVerified, string ClearText)>? _securityTxtPgpVerifier;
+    private static volatile VisualProviderRegistration? _visualProvider;
+    private static volatile Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? _ctSqlExactMetadataProvider;
+    private static volatile ICtSqlMetadataProvider? _ctSqlMetadataProvider;
+
+    private sealed class VisualProviderRegistration
+    {
+        public VisualProviderRegistration(
+            Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?> fingerprintBuilder,
+            Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>> browserCapture)
+        {
+            FingerprintBuilder = fingerprintBuilder;
+            BrowserCapture = browserCapture;
+        }
+
+        public Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?> FingerprintBuilder { get; }
+
+        public Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>> BrowserCapture { get; }
+    }
+
+    /// <summary>
+    /// Indicates whether an optional PGP verifier has been registered.
+    /// </summary>
+    public static bool HasPgpVerifier => _securityTxtPgpVerifier != null;
+
+    /// <summary>
+    /// Indicates whether optional visual providers have been registered.
+    /// </summary>
+    public static bool HasVisualProvider => _visualProvider != null;
+
+    /// <summary>
+    /// Indicates whether an optional CT SQL exact-metadata provider has been registered.
+    /// </summary>
+    public static bool HasCtSqlProvider => _ctSqlExactMetadataProvider != null || _ctSqlMetadataProvider != null;
+
+    /// <summary>
+    /// Registers PGP-backed security.txt clear-signature verification.
+    /// </summary>
+    /// <remarks>Calling this method again replaces the previously registered verifier.</remarks>
+    public static void RegisterPgpVerifier(Func<string, string, (bool IsVerified, string ClearText)> verifier)
+    {
+        _securityTxtPgpVerifier = verifier ?? throw new ArgumentNullException(nameof(verifier));
+    }
+
+    /// <summary>
+    /// Registers visual fingerprinting and browser capture helpers used by typosquatting analysis.
+    /// </summary>
+    /// <remarks>Calling this method again replaces the previously registered visual provider pair.</remarks>
+    public static void RegisterVisualProvider(
+        Func<TyposquattingVisualArtifact, (string FingerprintHex, int? Width, int? Height)?> fingerprintBuilder,
+        Func<string, TyposquattingVisualSimilarityOptions, CancellationToken, Task<TyposquattingVisualArtifact?>> browserCapture)
+    {
+        _visualProvider = new VisualProviderRegistration(
+            fingerprintBuilder ?? throw new ArgumentNullException(nameof(fingerprintBuilder)),
+            browserCapture ?? throw new ArgumentNullException(nameof(browserCapture)));
+    }
+
+    /// <summary>
+    /// Registers a caller-supplied exact-host CT metadata provider for the future CtSql package split.
+    /// </summary>
+    /// <remarks>Calling this method again replaces the previously registered CT SQL provider.</remarks>
+    public static void RegisterCtSqlExactMetadataProvider(
+        Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>> provider)
+    {
+        _ctSqlExactMetadataProvider = provider ?? throw new ArgumentNullException(nameof(provider));
+    }
+
+    internal static void RegisterCtSqlMetadataProvider(ICtSqlMetadataProvider provider)
+    {
+        if (provider == null)
+        {
+            throw new ArgumentNullException(nameof(provider));
+        }
+
+        ICtSqlMetadataProvider? previousProvider;
+        lock (_ctSqlProviderSyncRoot)
+        {
+            previousProvider = _ctSqlMetadataProvider;
+            _ctSqlMetadataProvider = provider;
+        }
+
+        if (!ReferenceEquals(previousProvider, provider))
+        {
+            previousProvider?.Dispose();
+        }
+    }
+
+    internal static bool TryVerifySecurityTxtSignature(string signedText, string? publicKey, out bool isVerified, out string clearText)
+    {
+        isVerified = false;
+        clearText = string.Empty;
+
+        var verifier = _securityTxtPgpVerifier;
+        if (verifier == null || string.IsNullOrWhiteSpace(publicKey))
+        {
+            return false;
+        }
+
+        var result = verifier(signedText, publicKey!);
+        isVerified = result.IsVerified;
+        clearText = result.ClearText ?? string.Empty;
+        return true;
+    }
+
+    internal static (string FingerprintHex, int? Width, int? Height)? BuildTyposquattingFingerprint(TyposquattingVisualArtifact artifact)
+    {
+        var provider = _visualProvider;
+        if (provider == null)
+        {
+            return null;
+        }
+
+        return provider.FingerprintBuilder(artifact);
+    }
+
+    internal static Task<TyposquattingVisualArtifact?> CaptureTyposquattingBrowserArtifactAsync(
+        string url,
+        TyposquattingVisualSimilarityOptions options,
+        CancellationToken cancellationToken)
+    {
+        var provider = _visualProvider;
+        if (provider == null)
+        {
+            return Task.FromResult<TyposquattingVisualArtifact?>(null);
+        }
+
+        return provider.BrowserCapture(url, options, cancellationToken);
+    }
+
+    internal static Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? GetCtSqlExactMetadataProvider()
+    {
+        return _ctSqlExactMetadataProvider;
+    }
+
+    internal static ICtSqlMetadataProvider? GetCtSqlMetadataProvider()
+    {
+        return _ctSqlMetadataProvider;
+    }
+}

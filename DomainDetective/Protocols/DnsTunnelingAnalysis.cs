@@ -22,6 +22,7 @@ public class DnsTunnelingAnalysis : IHasAssessments
     /// <summary>Time window for frequency detection.</summary>
     public TimeSpan FrequencyInterval { get; set; } = TimeSpan.FromSeconds(1);
 
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
 
     /// <summary>

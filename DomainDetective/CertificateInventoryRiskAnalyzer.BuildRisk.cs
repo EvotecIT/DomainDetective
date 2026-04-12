@@ -5,6 +5,7 @@ using System.Linq;
 
 namespace DomainDetective {
     public static partial class CertificateInventoryRiskAnalyzer {
+        /// <summary>Builds risk.</summary>
         public static CertificateInventoryRiskSummary BuildRisk(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             bool includeNoRisk = false,

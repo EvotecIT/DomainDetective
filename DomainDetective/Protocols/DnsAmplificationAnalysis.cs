@@ -11,31 +11,50 @@ using System.Threading.Tasks;
 
 namespace DomainDetective;
 
+/// <summary>Represents dns amplification probe result data.</summary>
 public sealed record DnsAmplificationProbeResult
 {
+    /// <summary>Gets or sets the query name value.</summary>
     public string QueryName { get; init; } = string.Empty;
+    /// <summary>Gets or sets the query type value.</summary>
     public DnsRecordType QueryType { get; init; }
+    /// <summary>Gets or sets the client udp payload size value.</summary>
     public int ClientUdpPayloadSize { get; init; }
+    /// <summary>Gets or sets the dns sec ok value.</summary>
     public bool DnsSecOk { get; init; }
+    /// <summary>Gets or sets the query bytes value.</summary>
     public int QueryBytes { get; init; }
+    /// <summary>Gets or sets the response bytes value.</summary>
     public int ResponseBytes { get; init; }
+    /// <summary>Gets or sets the truncated value.</summary>
     public bool Truncated { get; init; }
+    /// <summary>Gets or sets the rcode value.</summary>
     public int Rcode { get; init; }
+    /// <summary>Gets or sets the amplification factor value.</summary>
     public double AmplificationFactor { get; init; }
 }
 
+/// <summary>Represents dns amplification server result data.</summary>
 public sealed record DnsAmplificationServerResult
 {
+    /// <summary>Gets or sets the name server host value.</summary>
     public string NameServerHost { get; init; } = string.Empty;
+    /// <summary>Gets or sets the server ip value.</summary>
     public string ServerIp { get; init; } = string.Empty;
 
+    /// <summary>Gets or sets the open recursion value.</summary>
     public bool OpenRecursion { get; init; }
+    /// <summary>Gets or sets the recursion rcode value.</summary>
     public int? RecursionRcode { get; init; }
 
+    /// <summary>Gets or sets the edns supported value.</summary>
     public bool EdnsSupported { get; init; }
+    /// <summary>Gets or sets the edns udp payload size value.</summary>
     public int? EdnsUdpPayloadSize { get; init; }
+    /// <summary>Gets or sets the edns truncated udp value.</summary>
     public bool EdnsTruncatedUdp { get; init; }
 
+    /// <summary>Gets or sets the probes value.</summary>
     public IReadOnlyList<DnsAmplificationProbeResult> Probes { get; init; } = Array.Empty<DnsAmplificationProbeResult>();
 }
 
@@ -48,8 +67,10 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
     private const int MaxServersToProbeUpperBound = 50;
     private static readonly TimeSpan MaxTimeoutUpperBound = TimeSpan.FromSeconds(15);
 
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
 
+    /// <summary>Gets or sets the dns configuration value.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
 
     /// <summary>Maximum time allowed per UDP probe.</summary>
@@ -64,6 +85,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
     /// <summary>Amplification factor considered high (response/query).</summary>
     public double HighAmplificationFactorThreshold { get; set; } = 20.0;
 
+    /// <summary>Gets or sets the server results value.</summary>
     public Dictionary<string, DnsAmplificationServerResult> ServerResults { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Optional override for DNS queries (NS/A/AAAA discovery) used in tests.</summary>
@@ -72,9 +94,12 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
     /// <summary>Optional override for raw UDP queries used in tests.</summary>
     public Func<IPAddress, byte[], CancellationToken, Task<byte[]?>>? QueryUdpOverride { get; set; }
 
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
+    /// <summary>Executes the analyze operation.</summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken cancellationToken = default)
     {
         using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSAMPLIFICATION", target: domainName);

@@ -44,7 +44,7 @@ namespace DomainDetective.Tests {
             rootReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
             rootReq.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(rootReq.PublicKey, false));
             var rootCert = rootReq.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
-            root = new X509Certificate2(rootCert.Export(X509ContentType.Pfx));
+            root = CertificateLoaderCompat.LoadPkcs12(rootCert.Export(X509ContentType.Pfx));
 
             using var leafKey = RSA.Create(2048);
             var leafReq = new CertificateRequest("CN=example", leafKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -54,7 +54,7 @@ namespace DomainDetective.Tests {
                 rng.GetBytes(serial);
             }
             var leafCert = leafReq.Create(root, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30), serial);
-            return new X509Certificate2(leafCert.Export(X509ContentType.Pfx));
+            return CertificateLoaderCompat.LoadPkcs12(leafCert.Export(X509ContentType.Pfx));
         }
 }
 }

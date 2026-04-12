@@ -25,6 +25,7 @@ namespace DomainDetective {
     /// against DS records from the parent zone.
     /// </remarks>
     public partial class DnsSecAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>When true, DnsClientX performs local DNSSEC validation.</summary>
         public bool UseLocalDnssecValidation { get; set; }
@@ -86,6 +87,7 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during DNSSEC validation.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         private static readonly HttpClient _client;

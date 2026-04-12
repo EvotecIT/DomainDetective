@@ -2,28 +2,41 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Providers.Email.Vendors;
 
+/// <summary>Provides send grid provider functionality.</summary>
 public sealed class SendGridProvider : IMailProvider
 {
+    /// <summary>Represents the id value.</summary>
     public string Id => "sendgrid";
+    /// <summary>Represents the display name value.</summary>
     public string DisplayName => "SendGrid";
+    /// <summary>Represents the capabilities value.</summary>
     public ProviderCapability Capabilities => ProviderCapability.OutboundOnly | ProviderCapability.DkimSigning | ProviderCapability.SpfPublish;
 
+    /// <summary>Represents the mx host patterns value.</summary>
     public IEnumerable<string> MxHostPatterns => new string[0];
 
+    /// <summary>Represents the spf required tokens value.</summary>
     public IEnumerable<string> SpfRequiredTokens => new[]
     {
         "include:sendgrid.net"
     };
 
+    /// <summary>Represents the dkim selector hints value.</summary>
     public IEnumerable<string> DkimSelectorHints => new[] { "s1", "s2" };
+    /// <summary>Represents the dkim cname suffixes value.</summary>
     public IEnumerable<string> DkimCnameSuffixes => new[] { "sendgrid.net" };
 
+    /// <summary>Represents the single mx ok value.</summary>
     public bool SingleMxOk => false;
+    /// <summary>Represents the recommended min mx records value.</summary>
     public int RecommendedMinMxRecords => 0;
+    /// <summary>Represents the minimum dkim selectors to pass value.</summary>
     public int MinimumDkimSelectorsToPass => 0;
+    /// <summary>Represents the subdomain policy recommendation value.</summary>
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
     // Documentation (source of truth)
 
+    /// <summary>Represents the docs value.</summary>
     public ProviderDocumentation Docs => new ProviderDocumentation {
         Provider = DisplayName,
         Arc = new ProviderDocLink { Url = null, Title = "ARC with SendGrid", Summary = "No outbound ARC signing; ARC is for intermediaries/forwarders.", Notes = "Ensure DKIM alignment and correct SPF (include sendgrid.net via Domain Auth).", IsPublic = true, IsThirdParty = true, LastVerified = new System.DateTime(2025, 9, 9) },

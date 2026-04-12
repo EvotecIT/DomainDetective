@@ -3,10 +3,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides rpki narrative functionality.</summary>
 public static class RpkiNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(RPKIAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
         var subjectCandidate = analysis?.Subject;

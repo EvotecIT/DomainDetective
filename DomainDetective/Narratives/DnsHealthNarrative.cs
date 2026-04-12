@@ -4,10 +4,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides dns health narrative functionality.</summary>
 public static class DnsHealthNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(DnsHealthAnalysis? analysis)
     {
         var subjectCandidate = analysis?.Subject;

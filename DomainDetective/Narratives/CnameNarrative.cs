@@ -3,10 +3,13 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides cname narrative functionality.</summary>
 public static class CnameNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(CnameAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
         var s = analysis?.Subject;

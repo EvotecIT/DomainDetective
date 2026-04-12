@@ -238,6 +238,61 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task SignedSecurityTxtWarnsWhenPgpVerificationIsUnavailable() {
+            using var listener = StartListener(out var prefix);
+            var expires = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-ddTHH:mm:ssZ");
+            var content =
+                $"""
+                -----BEGIN PGP SIGNED MESSAGE-----
+                Hash: SHA256
+
+                Contact: mailto:admin@example.com
+                Expires: {expires}
+                -----BEGIN PGP SIGNATURE-----
+                placeholder
+                -----END PGP SIGNATURE-----
+                """;
+            var serverTask = Task.Run(async () => {
+                try {
+                    var ctx = await listener.GetContextAsync();
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "text/plain";
+                    var buffer = Encoding.UTF8.GetBytes(content);
+                    await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                    ctx.Response.Close();
+                } catch (ObjectDisposedException) {
+                    // listener stopped before context was retrieved
+                } catch (HttpListenerException) {
+                    // listener stopped before context was retrieved
+                }
+            });
+
+            try {
+                var warnings = new List<LogEventArgs>();
+                var logger = new InternalLogger();
+                logger.OnWarningMessage += (_, args) => warnings.Add(args);
+                var analysis = new SecurityTXTAnalysis();
+
+                await analysis.AnalyzeSecurityTxtRecord(
+                    prefix.Replace("http://", string.Empty).TrimEnd('/'),
+                    logger,
+                    pgpPublicKey: "-----BEGIN PGP PUBLIC KEY BLOCK-----");
+
+                Assert.True(analysis.PGPSigned);
+                Assert.True(analysis.RecordValid);
+                Assert.Contains("admin@example.com", analysis.ContactEmail);
+                Assert.Contains(
+                    warnings,
+                    warning => warning.Code == SecurityTxtCodes.SignatureVerifyFailed &&
+                               (warning.FullMessage.Contains("no verifier is registered", StringComparison.OrdinalIgnoreCase) ||
+                                warning.FullMessage.Contains("PGP signature verification failed", StringComparison.OrdinalIgnoreCase)));
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
         private static int GetFreePort() {
             return PortHelper.GetFreePort();
         }

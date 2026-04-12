@@ -2,7 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state apex address policy functionality.</summary>
 public sealed class DesiredStateApexAddressPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -14,21 +16,27 @@ public sealed class DesiredStateApexAddressPolicy {
     [JsonPropertyName("disallowAnyAddress")]
     public bool? DisallowAnyAddress { get; set; }
 
+    /// <summary>Gets or sets the disallow private addresses value.</summary>
     [JsonPropertyName("disallowPrivateAddresses")]
     public bool? DisallowPrivateAddresses { get; set; }
 
+    /// <summary>Gets or sets the disallow loopback addresses value.</summary>
     [JsonPropertyName("disallowLoopbackAddresses")]
     public bool? DisallowLoopbackAddresses { get; set; }
 
+    /// <summary>Gets or sets the disallow link local addresses value.</summary>
     [JsonPropertyName("disallowLinkLocalAddresses")]
     public bool? DisallowLinkLocalAddresses { get; set; }
 
+    /// <summary>Gets or sets the disallow multicast addresses value.</summary>
     [JsonPropertyName("disallowMulticastAddresses")]
     public bool? DisallowMulticastAddresses { get; set; }
 
+    /// <summary>Gets or sets the disallow documentation addresses value.</summary>
     [JsonPropertyName("disallowDocumentationAddresses")]
     public bool? DisallowDocumentationAddresses { get; set; }
 
+    /// <summary>Gets or sets the disallow unique local v6 addresses value.</summary>
     [JsonPropertyName("disallowUniqueLocalV6Addresses")]
     public bool? DisallowUniqueLocalV6Addresses { get; set; }
 
@@ -48,6 +56,7 @@ public sealed class DesiredStateApexAddressPolicy {
     [JsonPropertyName("requireAllFcrDnsValid")]
     public bool? RequireAllFcrDnsValid { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateApexAddressPolicy Clone() {
         return new DesiredStateApexAddressPolicy {
             Enabled = Enabled,
@@ -66,6 +75,7 @@ public sealed class DesiredStateApexAddressPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateApexAddressPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

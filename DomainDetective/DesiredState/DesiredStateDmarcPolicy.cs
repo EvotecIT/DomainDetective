@@ -3,10 +3,13 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state dmarc policy functionality.</summary>
 public sealed class DesiredStateDmarcPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require record value.</summary>
     [JsonPropertyName("requireRecord")]
     public bool? RequireRecord { get; set; }
 
@@ -38,6 +41,7 @@ public sealed class DesiredStateDmarcPolicy {
     [JsonPropertyName("allowedAdkimAlignments")]
     public string[]? AllowedAdkimAlignments { get; set; }
 
+    /// <summary>Gets or sets the require rua value.</summary>
     [JsonPropertyName("requireRua")]
     public bool? RequireRua { get; set; }
 
@@ -81,6 +85,7 @@ public sealed class DesiredStateDmarcPolicy {
     [JsonPropertyName("requireExternalReportAuthorization")]
     public bool? RequireExternalReportAuthorization { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateDmarcPolicy Clone() {
         return new DesiredStateDmarcPolicy {
             Enabled = Enabled,
@@ -106,6 +111,7 @@ public sealed class DesiredStateDmarcPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateDmarcPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

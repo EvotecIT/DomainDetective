@@ -7,10 +7,15 @@ namespace DomainDetective {
     /// Query options for CT diagnostics health timeline built from persisted inventory snapshots.
     /// </summary>
     public sealed class CertificateInventoryNativeCtDiagnosticsHealthQuery {
+        /// <summary>Gets or sets the since utc value.</summary>
         public DateTimeOffset? SinceUtc { get; set; }
+        /// <summary>Gets or sets the until utc value.</summary>
         public DateTimeOffset? UntilUtc { get; set; }
+        /// <summary>Gets or sets the latest snapshot only value.</summary>
         public bool LatestSnapshotOnly { get; set; }
+        /// <summary>Gets or sets the max snapshots value.</summary>
         public int MaxSnapshots { get; set; } = 200;
+        /// <summary>Gets or sets the alert thresholds value.</summary>
         public CertificateInventoryNativeCtDiagnosticsAlertThresholds AlertThresholds { get; set; } = new();
     }
 
@@ -18,13 +23,21 @@ namespace DomainDetective {
     /// Per-snapshot CT diagnostics health row.
     /// </summary>
     public sealed class CertificateInventoryNativeCtDiagnosticsHealthRow {
+        /// <summary>Gets or sets the captured at utc value.</summary>
         public DateTimeOffset CapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the diagnostic count value.</summary>
         public int DiagnosticCount { get; set; }
+        /// <summary>Gets or sets the failed count value.</summary>
         public int FailedCount { get; set; }
+        /// <summary>Gets or sets the circuit open count value.</summary>
         public int CircuitOpenCount { get; set; }
+        /// <summary>Gets or sets the highest lag after value.</summary>
         public long? HighestLagAfter { get; set; }
+        /// <summary>Gets or sets the status value.</summary>
         public string Status { get; set; } = "Unknown";
+        /// <summary>Gets or sets the threshold breached value.</summary>
         public bool ThresholdBreached { get; set; }
+        /// <summary>Gets or sets the breaches value.</summary>
         public List<string> Breaches { get; set; } = new();
     }
 
@@ -32,17 +45,29 @@ namespace DomainDetective {
     /// CT diagnostics health timeline and current status summary.
     /// </summary>
     public sealed class CertificateInventoryNativeCtDiagnosticsHealthSummary {
+        /// <summary>Gets or sets the since utc value.</summary>
         public DateTimeOffset? SinceUtc { get; set; }
+        /// <summary>Gets or sets the until utc value.</summary>
         public DateTimeOffset? UntilUtc { get; set; }
+        /// <summary>Gets or sets the loaded snapshot count value.</summary>
         public int LoadedSnapshotCount { get; set; }
+        /// <summary>Gets or sets the excluded by until count value.</summary>
         public int ExcludedByUntilCount { get; set; }
+        /// <summary>Gets or sets the returned snapshot count value.</summary>
         public int ReturnedSnapshotCount { get; set; }
+        /// <summary>Gets or sets the breached snapshot count value.</summary>
         public int BreachedSnapshotCount { get; set; }
+        /// <summary>Gets or sets the latest snapshot captured at utc value.</summary>
         public DateTimeOffset? LatestSnapshotCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the latest status value.</summary>
         public string LatestStatus { get; set; } = "NoData";
+        /// <summary>Gets or sets the last breach captured at utc value.</summary>
         public DateTimeOffset? LastBreachCapturedAtUtc { get; set; }
+        /// <summary>Gets or sets the latest breach messages value.</summary>
         public List<string> LatestBreachMessages { get; set; } = new();
+        /// <summary>Gets or sets the alert thresholds value.</summary>
         public CertificateInventoryNativeCtDiagnosticsAlertThresholds AlertThresholds { get; set; } = new();
+        /// <summary>Gets or sets the snapshots value.</summary>
         public List<CertificateInventoryNativeCtDiagnosticsHealthRow> Snapshots { get; set; } = new();
     }
 
@@ -50,6 +75,7 @@ namespace DomainDetective {
     /// Builds CT diagnostics health timeline from persisted inventory snapshots.
     /// </summary>
     public static class CertificateInventoryNativeCtDiagnosticsHealthAnalyzer {
+        /// <summary>Executes the build operation.</summary>
         public static CertificateInventoryNativeCtDiagnosticsHealthSummary Build(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             CertificateInventoryNativeCtDiagnosticsHealthQuery? query = null) {

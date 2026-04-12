@@ -46,3 +46,4 @@ DNS verification uses `DomainDetective.DnsConfiguration` and supports overriding
 - DNS verification is intentionally bounded for performance; entries beyond the cap remain `Unknown`.
 - IDN normalization is applied; invalid hostnames are skipped.
 - Very large CT result sets may be capped (`ResultsCapped = true`) to protect performance; raise caps cautiously if needed.
+- Cert Spotter exact-host and full-domain expansion queries have different budgets. See [CT_PROVIDERS.MD](CT_PROVIDERS.MD) before scheduling service-scale expansion.

@@ -7,12 +7,23 @@ namespace DomainDetective;
 /// </summary>
 public enum GradeLevel
 {
+    /// <summary>Represents the unknown value.</summary>
     Unknown = 0,
-    [Description("Failing: critical issues or misconfiguration")] F = 1,
-    [Description("Weak: significant gaps or legacy support")] D = 2,
-    [Description("Adequate: baseline controls; improvements recommended")] C = 3,
-    [Description("Good: secure configuration with minor gaps")] B = 4,
-    [Description("Excellent: strong modern configuration; best practices met")] A = 5
+    /// <summary>Failing posture with critical issues or misconfiguration.</summary>
+    [Description("Failing: critical issues or misconfiguration")]
+    F = 1,
+    /// <summary>Weak posture with significant gaps or legacy support.</summary>
+    [Description("Weak: significant gaps or legacy support")]
+    D = 2,
+    /// <summary>Adequate posture with baseline controls and recommended improvements.</summary>
+    [Description("Adequate: baseline controls; improvements recommended")]
+    C = 3,
+    /// <summary>Good posture with secure configuration and minor gaps.</summary>
+    [Description("Good: secure configuration with minor gaps")]
+    B = 4,
+    /// <summary>Excellent posture with strong modern configuration and best practices met.</summary>
+    [Description("Excellent: strong modern configuration; best practices met")]
+    A = 5
 }
 
 internal static class GradeLevelExtensions

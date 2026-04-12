@@ -179,7 +179,7 @@ public sealed partial class CertificateInventoryCapture {
             entry.NotAfterUtc = discoveredEntry.LatestCertificateNotAfterUtc;
             updated = true;
         }
-        if (string.IsNullOrWhiteSpace(entry.AuthenticationProfile) &&
+        if ((string.IsNullOrWhiteSpace(entry.AuthenticationProfile) || hadNoPrimaryCertificateEvidence) &&
             !string.IsNullOrWhiteSpace(discoveredEntry.LatestCertificateAuthenticationProfile)) {
             entry.AuthenticationProfile = discoveredEntry.LatestCertificateAuthenticationProfile!;
             updated = true;

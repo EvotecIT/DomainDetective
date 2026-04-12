@@ -2,7 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state edns support policy functionality.</summary>
 public sealed class DesiredStateEdnsSupportPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -26,6 +28,7 @@ public sealed class DesiredStateEdnsSupportPolicy {
     [JsonPropertyName("requireCookieSupport")]
     public bool? RequireCookieSupport { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateEdnsSupportPolicy Clone() {
         return new DesiredStateEdnsSupportPolicy {
             Enabled = Enabled,
@@ -37,6 +40,7 @@ public sealed class DesiredStateEdnsSupportPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateEdnsSupportPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

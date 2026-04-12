@@ -5,14 +5,19 @@ using DomainDetective;
 
 namespace DomainDetective.Providers.Dns;
 
+/// <summary>Provides dns txt signal detector functionality.</summary>
 public static class DnsTxtSignalDetector
 {
+    /// <summary>Provides match functionality.</summary>
     public sealed class Match
     {
+        /// <summary>Gets or sets the signals value.</summary>
         public DnsTxtSignals Signals { get; init; }
+        /// <summary>Gets or sets the evidence value.</summary>
         public IReadOnlyList<string> Evidence { get; init; } = Array.Empty<string>();
     }
 
+    /// <summary>Executes the detect operation.</summary>
     public static Match Detect(IEnumerable<string>? txtValues)
     {
         var values = (txtValues ?? Array.Empty<string>())
@@ -66,16 +71,26 @@ public static class DnsTxtSignalDetector
     }
 }
 
+/// <summary>Defines values for dns txt signals.</summary>
 [Flags]
 public enum DnsTxtSignals
 {
+    /// <summary>Represents the none value.</summary>
     None = 0,
+    /// <summary>Represents the spf value.</summary>
     Spf = 1,
+    /// <summary>Represents the google site verification value.</summary>
     GoogleSiteVerification = 2,
+    /// <summary>Represents the microsoft domain verification value.</summary>
     MicrosoftDomainVerification = 4,
+    /// <summary>Represents the facebook domain verification value.</summary>
     FacebookDomainVerification = 8,
+    /// <summary>Represents the apple domain verification value.</summary>
     AppleDomainVerification = 16,
+    /// <summary>Represents the atlassian domain verification value.</summary>
     AtlassianDomainVerification = 32,
+    /// <summary>Represents the stripe verification value.</summary>
     StripeVerification = 64,
+    /// <summary>Represents the bing webmaster verification value.</summary>
     BingWebmasterVerification = 128
 }

@@ -202,6 +202,30 @@ await healthCheck.Verify("example.com");
 Console.WriteLine(healthCheck.ToJson());
 ```
 
+### Optional Packages
+
+Dependency-heavy features are now split into optional packages so the base `DomainDetective` package can stay leaner:
+
+- `DomainDetective.Pgp` enables PGP-backed `security.txt` signature verification
+- `DomainDetective.Visual` enables Playwright/ImageSharp-powered visual typosquatting capture and fingerprinting
+- `DomainDetective.CtSql` enables DbaClientX-backed crt.sh PostgreSQL CT metadata enrichment
+
+Registration is explicit on purpose so app startup stays predictable for trimming and AOT scenarios:
+
+```csharp
+using DomainDetective;
+using DomainDetective.CtSql;
+using DomainDetective.Pgp;
+using DomainDetective.Visual;
+
+DomainDetectiveCtSqlRegistration.Register();
+DomainDetectivePgpRegistration.Register();
+DomainDetectiveVisualRegistration.Register();
+
+var healthCheck = new DomainHealthCheck();
+await healthCheck.Verify("example.com");
+```
+
 ## Key Commands
 
 ### PowerShell
@@ -673,6 +697,9 @@ HTTP posture checks inspect common security headers including:
 
 ```text
 DomainDetective/                Core analyzers, models, and protocol logic
+DomainDetective.Pgp/            Optional PGP-backed security.txt verification
+DomainDetective.Visual/         Optional Playwright/ImageSharp visual analysis helpers
+DomainDetective.CtSql/          Optional DbaClientX-backed crt.sh PostgreSQL CT provider
 DomainDetective.PowerShell/     Compiled PowerShell cmdlets
 DomainDetective.CLI/            Spectre.Console CLI and wizard
 DomainDetective.Reports/        Shared reporting abstractions and dispatch
@@ -708,6 +735,8 @@ pwsh ./Module/DomainDetective.Tests.ps1
 
 ## Packaging and Publish
 
+`Build/project.build.json` is the single place for staged output defaults, packed projects, CLI runtimes, and the default plan-file path.
+
 NuGet packages:
 
 ```powershell
@@ -732,11 +761,25 @@ Preview the plan without executing:
 pwsh ./Build/Build-Project.ps1 -Plan
 ```
 
+Write the resolved plan to a file:
+
+```powershell
+pwsh ./Build/Build-Project.ps1 -Plan -PlanPath .\Artifacts\ProjectBuild\custom-build-plan.json
+```
+
+Run only one side of the shared build driver when needed:
+
+```powershell
+pwsh ./Build/Build-Project.ps1 -PublishCli $false
+pwsh ./Build/Build-Project.ps1 -PublishNuget $false
+```
+
 Outputs are staged under `Artifacts/ProjectBuild`:
 
 - `Artifacts/ProjectBuild/NuGet` for `.nupkg` files
 - `Artifacts/ProjectBuild/CLI/<runtime>` for published CLI folders
 - `Artifacts/ProjectBuild/CLI/*.zip` for runtime archives when zipping is enabled
+- `Artifacts/ProjectBuild/build.plan.json` for the default resolved build plan
 
 GitHub Actions currently validate:
 
