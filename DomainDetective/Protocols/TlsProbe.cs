@@ -71,6 +71,26 @@ public static class TlsProbe
         }
     }
 
+    /// <summary>
+    /// Represents a TLS probe failure with endpoint evidence captured before the failure.
+    /// </summary>
+    public sealed class TlsProbeException : Exception
+    {
+        /// <summary>Remote endpoint IP address captured after a successful TCP connection.</summary>
+        public IPAddress? RemoteAddress { get; }
+
+        /// <summary>Remote endpoint port captured after a successful TCP connection.</summary>
+        public int? RemotePort { get; }
+
+        /// <summary>Initializes a new instance of the <see cref="TlsProbeException"/> class.</summary>
+        public TlsProbeException(string message, Exception innerException, IPAddress? remoteAddress, int? remotePort)
+            : base(message, innerException)
+        {
+            RemoteAddress = remoteAddress;
+            RemotePort = remotePort;
+        }
+    }
+
     /// <summary>Executes the probe async operation.</summary>
     public static Task<Result> ProbeAsync(string host, int port = 443, CancellationToken token = default)
         => ProbeAsync(host, port, null, token);
@@ -89,6 +109,31 @@ public static class TlsProbe
             sniHost: host,
             timeout: timeout,
             token: token).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Executes the probe async operation and wraps TLS-stage failures with endpoint evidence when available.
+    /// </summary>
+    public static Task<Result> ProbeWithFailureEvidenceAsync(string host, int port = 443, CancellationToken token = default)
+        => ProbeWithFailureEvidenceAsync(host, port, null, token);
+
+    /// <summary>
+    /// Executes the probe async operation and wraps TLS-stage failures with endpoint evidence when available.
+    /// </summary>
+    public static async Task<Result> ProbeWithFailureEvidenceAsync(string host, int port, TimeSpan? timeout, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            throw new ArgumentNullException(nameof(host));
+        }
+
+        return await ProbeAsyncCore(
+            clientFactory: static () => new TcpClient(),
+            connectAsync: (client, ct) => ConnectAsync(client, host, port, ct),
+            sniHost: host,
+            timeout: timeout,
+            token: token,
+            includeFailureEvidence: true).ConfigureAwait(false);
     }
 
     /// <summary>Executes the probe async operation.</summary>
@@ -115,7 +160,36 @@ public static class TlsProbe
             token: token).ConfigureAwait(false);
     }
 
-    internal static async Task<Result> ProbeAsyncCore(Func<TcpClient> clientFactory, Func<TcpClient, CancellationToken, Task> connectAsync, string sniHost, TimeSpan? timeout, CancellationToken token)
+    /// <summary>
+    /// Executes the probe async operation and wraps TLS-stage failures with endpoint evidence when available.
+    /// </summary>
+    public static Task<Result> ProbeWithFailureEvidenceAsync(IPAddress address, string sniHost, int port = 443, CancellationToken token = default)
+        => ProbeWithFailureEvidenceAsync(address, sniHost, port, null, token);
+
+    /// <summary>
+    /// Executes the probe async operation and wraps TLS-stage failures with endpoint evidence when available.
+    /// </summary>
+    public static async Task<Result> ProbeWithFailureEvidenceAsync(IPAddress address, string sniHost, int port, TimeSpan? timeout, CancellationToken token)
+    {
+        if (address == null)
+        {
+            throw new ArgumentNullException(nameof(address));
+        }
+        if (string.IsNullOrWhiteSpace(sniHost))
+        {
+            throw new ArgumentNullException(nameof(sniHost));
+        }
+
+        return await ProbeAsyncCore(
+            clientFactory: () => new TcpClient(address.AddressFamily),
+            connectAsync: (client, ct) => ConnectAsync(client, address, port, ct),
+            sniHost: sniHost,
+            timeout: timeout,
+            token: token,
+            includeFailureEvidence: true).ConfigureAwait(false);
+    }
+
+    internal static async Task<Result> ProbeAsyncCore(Func<TcpClient> clientFactory, Func<TcpClient, CancellationToken, Task> connectAsync, string sniHost, TimeSpan? timeout, CancellationToken token, bool includeFailureEvidence = false)
     {
         var result = new Result();
         using var client = clientFactory();
@@ -137,7 +211,13 @@ public static class TlsProbe
         }
         catch (Exception ex)
         {
-            throw NormalizeProbeException(ex, token, timeoutCts);
+            Exception normalized = NormalizeProbeException(ex, token, timeoutCts);
+            if (includeFailureEvidence && result.RemoteAddress != null)
+            {
+                throw new TlsProbeException(normalized.Message, normalized, result.RemoteAddress, result.RemotePort);
+            }
+
+            throw normalized;
         }
 
         using var ssl = new SslStream(client.GetStream(), false, (_, certificate, chain, errors) =>
@@ -155,7 +235,13 @@ public static class TlsProbe
         }
         catch (Exception ex)
         {
-            throw NormalizeProbeException(ex, token, timeoutCts);
+            Exception normalized = NormalizeProbeException(ex, token, timeoutCts);
+            if (includeFailureEvidence && result.RemoteAddress != null)
+            {
+                throw new TlsProbeException(normalized.Message, normalized, result.RemoteAddress, result.RemotePort);
+            }
+
+            throw normalized;
         }
         finally
         {

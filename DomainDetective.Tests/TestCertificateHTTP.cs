@@ -177,6 +177,38 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task TlsProbeWithFailureEvidence_CapturesRemoteEndpointOnHandshakeFailure() {
+            var server = new TcpListenerFixture(RunTcpCloseServer);
+            await server.InitializeAsync();
+
+            try {
+                var exception = await Assert.ThrowsAsync<TlsProbe.TlsProbeException>(() =>
+                    TlsProbe.ProbeWithFailureEvidenceAsync(IPAddress.Loopback, "localhost", server.Port, TimeSpan.FromSeconds(5), CancellationToken.None));
+
+                Assert.Equal(IPAddress.Loopback, exception.RemoteAddress);
+                Assert.Equal(server.Port, exception.RemotePort);
+                Assert.NotNull(exception.InnerException);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task TlsProbeAsync_KeepsOriginalFailureShapeOnHandshakeFailure() {
+            var server = new TcpListenerFixture(RunTcpCloseServer);
+            await server.InitializeAsync();
+
+            try {
+                var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
+                    TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", server.Port, TimeSpan.FromSeconds(5), CancellationToken.None));
+
+                Assert.IsNotType<TlsProbe.TlsProbeException>(exception);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
         public void BuildFailureReason_AppendsTlsHandshakeMarkerForAuthenticationFailure() {
             var handshake = new AuthenticationException("TLS handshake failed.");
 
@@ -469,6 +501,21 @@ namespace DomainDetective.Tests {
                         }
                     }, token);
                 }
+            } catch (Exception ex) when (token.IsCancellationRequested || ex is ObjectDisposedException) {
+                // ignore on shutdown
+            }
+        }
+
+        private static async Task RunTcpCloseServer(TcpListener listener, CancellationToken token) {
+            try {
+                var clientTask = listener.AcceptTcpClientAsync();
+                var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                if (completed != clientTask) {
+                    try { await clientTask; } catch { }
+                    return;
+                }
+
+                using var client = await clientTask;
             } catch (Exception ex) when (token.IsCancellationRequested || ex is ObjectDisposedException) {
                 // ignore on shutdown
             }
