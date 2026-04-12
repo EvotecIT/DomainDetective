@@ -4283,6 +4283,68 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task BackfillMissingCtCertificateMetadataAsync_SkipsPostgreSqlProviderWhenFallbackDisabled()
+    {
+        int exactPostgreSqlLookupCount = 0;
+        var capture = new CertificateInventoryCapture
+        {
+            CtExactMetadataPostgreSqlOverride = (host, _, _, _) =>
+            {
+                exactPostgreSqlLookupCount++;
+                return Task.FromResult<SubdomainDiscoveryEntry?>(
+                    new SubdomainDiscoveryEntry
+                    {
+                        Name = host,
+                        LatestCertificateThumbprint = "SHOULD-NOT-BE-USED"
+                    });
+            }
+        };
+
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "BackfillMissingCtCertificateMetadataAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(method);
+
+        var warnings = new List<string>();
+        var options = new CertificateInventoryCaptureOptions
+        {
+            EnablePassiveCtFallback = false,
+            EnablePassiveCtMetadataFallback = false,
+            EnableCrtShPostgreSqlMetadataFallback = false,
+            BackfillMissingCtCertificateMetadata = true
+        };
+
+        Task<IReadOnlyList<SubdomainDiscoveryEntry>> task =
+            (Task<IReadOnlyList<SubdomainDiscoveryEntry>>)method!.Invoke(
+                capture,
+                new object[]
+                {
+                    new[] { "example.com" },
+                    new[]
+                    {
+                        new SubdomainDiscoveryEntry
+                        {
+                            Name = "api.example.com"
+                        }
+                    },
+                    options,
+                    warnings,
+                    new List<PassiveCtDiagnosticEntry>(),
+                    new InternalLogger(false),
+                    CancellationToken.None
+                })!;
+
+        IReadOnlyList<SubdomainDiscoveryEntry> result = await task;
+
+        SubdomainDiscoveryEntry entry = Assert.Single(result);
+        Assert.Equal("api.example.com", entry.Name);
+        Assert.Null(entry.LatestCertificateThumbprint);
+        Assert.Equal(0, exactPostgreSqlLookupCount);
+        Assert.Empty(warnings);
+    }
+
+    [Fact]
     public async Task CaptureAsync_DoesNotAnnounceExactPassiveMetadataQueryWhenSharedCooldownAlreadyBlocksRun()
     {
         PassiveCtSourceClient.ResetSharedStateForTesting();

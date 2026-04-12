@@ -898,7 +898,11 @@ public class TestCtIngestionPlanner
         string safeFileName = Path.GetFileName(fileName);
         Assert.Equal(fileName, safeFileName);
         Assert.False(Path.IsPathRooted(safeFileName));
-        string dataDirectory = Path.Combine(AppContext.BaseDirectory, "Data");
+        string dataDirectory = AppContext.BaseDirectory.TrimEnd(
+                                   Path.DirectorySeparatorChar,
+                                   Path.AltDirectorySeparatorChar) +
+                               Path.DirectorySeparatorChar +
+                               "Data";
         string path = dataDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
                       Path.DirectorySeparatorChar +
                       safeFileName;

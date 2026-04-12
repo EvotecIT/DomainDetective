@@ -679,10 +679,7 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private bool ShouldUseCrtShPostgreSqlMetadataFallback(CertificateInventoryCaptureOptions options) {
-        ICtSqlMetadataProvider? sqlMetadataProvider = DomainDetectiveOptionalFeatures.GetCtSqlMetadataProvider();
-        var exactMetadataProvider = CtExactMetadataPostgreSqlOverride ?? DomainDetectiveOptionalFeatures.GetCtSqlExactMetadataProvider();
-        return options != null &&
-               (options.EnableCrtShPostgreSqlMetadataFallback || exactMetadataProvider != null || sqlMetadataProvider != null);
+        return options != null && options.EnableCrtShPostgreSqlMetadataFallback;
     }
 
     private async Task<Dictionary<string, SubdomainDiscoveryEntry>> QueryCrtShPostgreSqlExactMetadataAsync(
