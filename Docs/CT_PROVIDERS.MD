@@ -105,9 +105,9 @@ WHERE identities(c.certificate) @@ plainto_tsquery('simple', @host)
 
 Do not query `certificate_identity` for new code. The public crt.sh database reports that `certificate_identity` has been superseded by the full-text search index on `certificate`.
 
-DomainDetective's crt.sh PostgreSQL metadata provider uses the supported FTS path and tests assert that `certificate_identity` is not referenced. Keep future `DomainDetective.CtSql` implementation on that path unless crt.sh publishes a new supported schema.
+DomainDetective's crt.sh PostgreSQL provider uses the supported FTS path and tests assert that `certificate_identity` is not referenced. Keep future `DomainDetective.CtSql` queries on that path unless crt.sh publishes a new supported schema.
 
-Current typed status: `DomainDetective.CtSql` registers a DbaClientX-backed crt.sh PostgreSQL provider through `DomainDetectiveCtSqlRegistration.Register()`. The base `DomainDetective` package keeps the CT capture options and SQL-shape helpers, but no longer carries the PostgreSQL dependency. The provider returns DomainDetective objects such as `SubdomainDiscoveryEntry`; the broader `CtCertificateQuery` / `CtCertificateQueryResult` provider implementation is still planned for the dedicated end-to-end CT query surface.
+Current typed status: `DomainDetective.CtSql` exposes `CrtShPostgreSqlCertificateTransparencyProvider`, a DbaClientX-backed `ICtCertificateTransparencyProvider` for exact-host latest, exact-host history, domain expansion, and domain-tree certificate queries. `DomainDetectiveCtSqlRegistration.Register()` still registers the same implementation for certificate-inventory metadata backfill. The base `DomainDetective` package keeps the CT capture options and SQL-shape helpers, but no longer carries the PostgreSQL dependency.
 
 ## DD Next Planning Notes
 
