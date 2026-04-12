@@ -42,8 +42,12 @@ public class TestTlsFailureClassification {
     }
 
     [Fact]
-    public void PublicWrapperExposesReuseAndMarkerHelpers() {
+    public void PublicWrapperExposesReuseHelper() {
         Assert.True(TlsFailureClassification.IsStableForSnapshotReuse(CertificateFailureKind.Timeout));
+    }
+
+    [Fact]
+    public void PublicWrapperExposesMarkerHelper() {
         Assert.Equal("FailureKind:Timeout", TlsFailureClassification.ToMarker(CertificateFailureKind.Timeout));
     }
 }

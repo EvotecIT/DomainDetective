@@ -10,6 +10,10 @@ namespace DomainDetective;
 /// Provides normalized failure classification for certificate probing.
 /// </summary>
 internal static class CertificateFailureClassifier {
+    // SslStream source/message: "This operation is only allowed using a successfully authenticated context."
+    // Matched via substring because SslStream exposes no typed discriminator for this state.
+    private const string SslStreamUnauthenticatedMessage = "successfully authenticated context";
+
     public static CertificateFailureKind Classify(Exception? exception) {
         if (exception == null) {
             return CertificateFailureKind.None;
@@ -104,7 +108,7 @@ internal static class CertificateFailureClassifier {
 
         if (Contains(normalized, "FailureKind:TlsHandshake") ||
             Contains(normalized, "HttpRequestError:SecureConnectionError") ||
-            Contains(normalized, "successfully authenticated context") ||
+            Contains(normalized, SslStreamUnauthenticatedMessage) ||
             Contains(normalized, "TLS Handshake Failure")) {
             return CertificateFailureKind.TlsHandshake;
         }
@@ -146,10 +150,9 @@ internal static class CertificateFailureClassifier {
     }
 
     private static bool IsSslStreamAuthenticationStateFailure(InvalidOperationException exception) {
-        // SslStream does not expose a typed discriminator for this unauthenticated-state failure.
         // Prefer typed AuthenticationException and transport errors above; this is a best-effort
         // fallback for the .NET message and persisted failure-reason text.
-        return exception.Message.IndexOf("successfully authenticated context", StringComparison.OrdinalIgnoreCase) >= 0;
+        return exception.Message.IndexOf(SslStreamUnauthenticatedMessage, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static CertificateFailureKind Promote(CertificateFailureKind current, CertificateFailureKind candidate) {

@@ -154,6 +154,18 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task TlsProbe_ConnectionFailureHasNoReturnedEndpointEvidence() {
+            using var result = new TlsProbe.Result();
+            Assert.Null(result.RemoteAddress);
+            Assert.Null(result.RemotePort);
+
+            var port = PortHelper.GetFreePort();
+
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", port, TimeSpan.FromMilliseconds(250), CancellationToken.None));
+        }
+
+        [Fact]
         public void BuildFailureReason_AppendsTlsHandshakeMarkerForAuthenticationFailure() {
             var handshake = new AuthenticationException("TLS handshake failed.");
 
