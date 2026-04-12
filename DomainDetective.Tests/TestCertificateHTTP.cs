@@ -155,6 +155,23 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task TlsProbeWithFailureEvidence_ReturnsResultOnSuccess() {
+            using var cert = CreateSelfSigned("localhost");
+            var server = new TcpListenerFixture((l, t) => Task.Run(() => RunTlsOnlyServer(l, cert, SslProtocols.Tls12, t), t));
+            await server.InitializeAsync();
+
+            try {
+                using var result = await TlsProbe.ProbeWithFailureEvidenceAsync(IPAddress.Loopback, "localhost", server.Port, TimeSpan.FromSeconds(5), CancellationToken.None);
+
+                Assert.Equal(IPAddress.Loopback, result.RemoteAddress);
+                Assert.Equal(server.Port, result.RemotePort);
+                Assert.NotNull(result.Certificate);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
         public void TlsProbe_DefaultResultHasNullEndpointFields() {
             using var result = new TlsProbe.Result();
 

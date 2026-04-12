@@ -10,7 +10,8 @@ namespace DomainDetective;
 /// lower-level classifier remains internal so its implementation can evolve
 /// without forcing service callers to depend on internal plumbing.
 /// </remarks>
-public static class TlsFailureClassification {
+public static class TlsFailureClassification
+{
     /// <summary>
     /// Classifies an exception thrown while collecting certificate or TLS evidence.
     /// </summary>

@@ -146,7 +146,6 @@ public static class TlsProbe
             : normalized;
     }
 
-
     /// <summary>
     /// Executes the probe async operation and wraps TLS-stage failures with endpoint evidence when available.
     /// </summary>
