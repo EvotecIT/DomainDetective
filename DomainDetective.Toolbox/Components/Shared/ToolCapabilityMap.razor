@@ -1,0 +1,129 @@
+@using DomainDetective.Toolbox.Models
+@using DomainDetective.Toolbox.Services
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<details class="tool-capability-map" open="@StartOpen">
+    <summary>
+        <span class="tool-capability-kicker">Web edition coverage</span>
+        <strong>@Capability.Title</strong>
+        <span>@Capability.Description</span>
+    </summary>
+    <div class="tool-capability-grid">
+        <section class="tool-capability-column" aria-label="Runs here">
+            <span class="tool-summary-label">Runs here</span>
+            <ul class="tool-bullet-list">
+                @foreach (var item in Capability.BrowserChecks) {
+                    <li>@item</li>
+                }
+            </ul>
+        </section>
+        <section class="tool-capability-column" aria-label="Deeper run adds">
+            <span class="tool-summary-label">Deeper run adds</span>
+            <ul class="tool-bullet-list">
+                @foreach (var item in Capability.DeeperChecks) {
+                    <li>@item</li>
+                }
+            </ul>
+        </section>
+    </div>
+    @if (ShouldShowLocalCommand()) {
+        <div class="tool-capability-command">
+            <div class="tool-capability-command-header">
+                <span class="tool-summary-label">Run deeper locally</span>
+                <button type="button"
+                        class="@GetCopyButtonClass()"
+                        @onclick="CopyLocalCommandAsync">
+                    @GetCopyButtonText()
+                </button>
+            </div>
+            <pre><code class="language-powershell">@GetLocalPowerShellCommand()</code></pre>
+        </div>
+    }
+</details>
+
+@code {
+    [Parameter] public required ToolDefinition Tool { get; set; }
+    [Parameter] public ToolsDeploymentMode DeploymentMode { get; set; }
+    [Parameter] public string? Domain { get; set; }
+    [Parameter] public bool StartOpen { get; set; }
+
+    private string? _copyState;
+
+    private ToolCapabilityInfo Capability => ToolCapabilityPresentation.Build(Tool, DeploymentMode);
+
+    private bool ShouldShowLocalCommand() {
+        return DeploymentMode == ToolsDeploymentMode.StaticOnly &&
+            (Tool.LiteCompatible || !Tool.BrowserCompatible) &&
+            !string.IsNullOrWhiteSpace(Domain);
+    }
+
+    private async Task CopyLocalCommandAsync() {
+        var copied = await JS.InvokeAsync<bool>("domainDetectiveTools.copyText", GetLocalPowerShellCommand());
+        _copyState = copied ? "copied" : "failed";
+        StateHasChanged();
+
+        var currentState = _copyState;
+        await Task.Delay(1600);
+        if (_copyState == currentState) {
+            _copyState = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string GetCopyButtonClass() {
+        var cssClass = "tool-capability-copy-btn";
+        if (_copyState == "copied") {
+            cssClass += " is-success";
+        } else if (_copyState == "failed") {
+            cssClass += " is-failure";
+        }
+
+        return cssClass;
+    }
+
+    private string GetCopyButtonText() {
+        return _copyState switch {
+            "copied" => "Copied",
+            "failed" => "Copy failed",
+            _ => "Copy"
+        };
+    }
+
+    private string GetLocalPowerShellCommand() {
+        var sampleDomain = EscapePowerShellDoubleQuotedString(Domain?.Trim() ?? "example.com");
+        return Tool.Slug switch {
+            "m365-overview" or "domain-overview" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"$check = Get-DomainHealthCheck -Domain \"{sampleDomain}\"",
+            "mta-sts" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"$check = Get-DomainHealthCheck -Domain \"{sampleDomain}\" -Type MTASTS",
+            "dns-propagation" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"Test-DDDnsPropagation -DomainName \"{sampleDomain}\" -RecordType A",
+            "cert-check" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"Test-DDDomainCertificate -Url \"{sampleDomain}\"",
+            "http-headers" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"Test-DDWebsiteSecurity -DomainName \"{sampleDomain}\"",
+            "security-txt" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"Test-DDDomainSecurityTxt -DomainName \"{sampleDomain}\"",
+            "rdap" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"Get-DDRdap -DomainName \"{sampleDomain}\"",
+            "ct-subdomains" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"Invoke-DDCertificateInventory -DomainName \"{sampleDomain}\" -IncludeCtSubdomains",
+            _ => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"$check = Get-DomainHealthCheck -Domain \"{sampleDomain}\""
+        };
+    }
+
+    private static string EscapePowerShellDoubleQuotedString(string value) {
+        return value.Replace("`", "``", StringComparison.Ordinal).Replace("\"", "`\"", StringComparison.Ordinal);
+    }
+}

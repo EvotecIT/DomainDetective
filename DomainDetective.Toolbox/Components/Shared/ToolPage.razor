@@ -23,6 +23,10 @@
     @if (!CanRunOnline(Definition)) {
         <ToolNotAvailable Tool="Definition" />
     } else if (UsesCustomToolLayout(Definition)) {
+        @if (Availability.IsStaticOnly) {
+            <ToolCapabilityMap Tool="Definition" DeploymentMode="Availability.Mode" />
+        }
+
         @switch (Definition.Slug) {
             case "raw-dns-query":
                 <DomainDetective.Toolbox.Components.Tools.Dns.RawDnsQueryTool />
@@ -47,24 +51,46 @@
         }
 
         <form class="tool-input-form" @onsubmit="RunAnalysis" @onsubmit:preventDefault>
-            <input type="text" @bind="_domain" placeholder="@(Definition.InputPlaceholder ?? "example.com")" />
-            @if (Definition.SecondaryInputLabel is not null) {
-                <input type="text"
-                       @bind="_secondaryInput"
-                       placeholder="@(Definition.SecondaryInputPlaceholder ?? "")"
-                       aria-label="@Definition.SecondaryInputLabel"
-                       title="@Definition.SecondaryInputLabel"
-                       class="tool-input-secondary" />
-            }
-            <button type="submit" class="tool-run-btn" disabled="@_isLoading">
-                @(_isLoading ? "Analyzing..." : "Analyze")
-            </button>
-            @if (SupportsHostedCache(Definition)) {
-                <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="RunFreshAnalysis" disabled="@_isLoading">
-                    @(_isLoading ? "Working..." : "Refresh")
+            <div class="tool-input-fields">
+                <input type="text" @bind="_domain" placeholder="@(Definition.InputPlaceholder ?? "example.com")" />
+                @if (Definition.SecondaryInputLabel is not null) {
+                    <input type="text"
+                           @bind="_secondaryInput"
+                           placeholder="@(Definition.SecondaryInputPlaceholder ?? "")"
+                           aria-label="@Definition.SecondaryInputLabel"
+                           title="@Definition.SecondaryInputLabel"
+                           class="tool-input-secondary" />
+                }
+            </div>
+            <div class="tool-input-actions">
+                <button type="submit" class="tool-run-btn" disabled="@_isLoading">
+                    @(_isLoading ? "Analyzing..." : "Analyze")
                 </button>
-            }
+                @if (SupportsHostedCache(Definition)) {
+                    <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="RunFreshAnalysis" disabled="@_isLoading">
+                        @(_isLoading ? "Working..." : "Refresh")
+                    </button>
+                }
+            </div>
         </form>
+
+        @if (_exampleDomains.Count > 0) {
+            <div class="tool-example-row" aria-label="Example domains">
+                <span class="tool-example-label">Try</span>
+                @foreach (var exampleDomain in _exampleDomains) {
+                    <button type="button"
+                            class="tool-example-chip"
+                            disabled="@_isLoading"
+                            @onclick="() => RunExampleAsync(exampleDomain)">
+                        @exampleDomain
+                    </button>
+                }
+            </div>
+        }
+
+        @if (Availability.IsStaticOnly) {
+            <ToolCapabilityMap Tool="Definition" DeploymentMode="Availability.Mode" Domain="@_domain" />
+        }
 
         @if (_recentRuns.Count > 0) {
             <div class="tool-history-row" aria-label="Recent runs">
@@ -242,6 +268,7 @@
     private DateTimeOffset? _scanStartedAt;
     private DateTimeOffset? _quickReadyAt;
     private DateTimeOffset? _deepReadyAt;
+    private System.Threading.Timer? _progressTimer;
     private List<RecentToolRun> _recentRuns = new();
     private DomainHealthCheck? _healthCheck;
     private DomainDetective.Views.HttpInfo? _httpInfo;
@@ -254,6 +281,7 @@
     private DomainDetective.Views.SubdomainsInfo? _subdomainsInfo;
     private DomainDetective.Views.Microsoft365OverviewInfo? _microsoft365OverviewInfo;
     private DomainDetective.Views.DomainOverviewInfo? _domainOverviewInfo;
+    private IReadOnlyList<string> _exampleDomains = Array.Empty<string>();
     private string? _dnsRequestedTypes;
     private string? _dnsHostLabel;
     private string? _dnsBrowserResolverName;
@@ -264,6 +292,7 @@
 
     protected override async Task OnParametersSetAsync() {
         await Availability.InitializeAsync();
+        _exampleDomains = BuildExampleDomains();
         await SyncWithCurrentUriAsync();
     }
 
@@ -293,6 +322,7 @@
         _scanStartedAt = DateTimeOffset.Now;
         _quickReadyAt = null;
         _deepReadyAt = null;
+        StartProgressTicker();
         _healthCheck = null;
         _httpInfo = null;
         _securityTxtInfo = null;
@@ -420,6 +450,10 @@
         } finally {
             _forceHostedRefresh = false;
             _isLoading = false;
+            if (!_isHydratingDeep) {
+                StopProgressTicker();
+            }
+
             StateHasChanged();
         }
     }
@@ -471,6 +505,7 @@
         } finally {
             if (analysisVersion == _analysisVersion) {
                 _isHydratingDeep = false;
+                StopProgressTicker();
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -533,6 +568,7 @@
         _scanStartedAt = null;
         _quickReadyAt = null;
         _deepReadyAt = null;
+        StopProgressTicker();
         _healthCheck = null;
         _httpInfo = null;
         _securityTxtInfo = null;
@@ -560,6 +596,19 @@
         _dnsRequestedTypes = Definition.Slug == "dns-lookup" ? item.SecondaryInput : null;
         _dnsHostLabel = item.DnsHost;
         _dnsBrowserResolverName = NormalizeDnsBrowserResolverName(item.DnsResolver);
+        await RunAnalysis();
+    }
+
+    private async Task RunExampleAsync(string domainName) {
+        if (_isLoading || string.IsNullOrWhiteSpace(domainName)) {
+            return;
+        }
+
+        _domain = domainName.Trim();
+        _secondaryInput = null;
+        _dnsRequestedTypes = null;
+        _dnsHostLabel = null;
+        _dnsBrowserResolverName = null;
         await RunAnalysis();
     }
 
@@ -656,11 +705,11 @@
 
     private int GetProgressPercentage() {
         if (_isLoading && !IsOverviewTool(Definition)) {
-            return 32;
+            return GetElapsedProgress(18, 86, 4.5);
         }
 
         if (_isLoading && IsOverviewTool(Definition) && _quickReadyAt is null) {
-            return 18;
+            return GetElapsedProgress(14, 72, 3.2);
         }
 
         if (_isHydratingDeep) {
@@ -669,9 +718,10 @@
                 "domain-overview" => 7,
                 _ => 1
             };
-            var pendingCount = GetPendingSections().Count;
+            var pendingCount = GetPendingSectionCount();
             var completed = Math.Max(1, totalSections - pendingCount);
-            return Math.Clamp((int)Math.Round((double)completed / totalSections * 100), 40, 96);
+            var sectionProgress = Math.Clamp((int)Math.Round((double)completed / totalSections * 100), 40, 92);
+            return Math.Max(sectionProgress, GetElapsedProgress(48, 96, 1.25, _quickReadyAt ?? _scanStartedAt));
         }
 
         if (_quickReadyAt.HasValue && _deepReadyAt.HasValue) {
@@ -691,14 +741,14 @@
 
     private string GetProgressLabel() {
         if (_isHydratingDeep) {
-            return $"Step 2 of 2 · {GetProgressPercentage()}%";
+            return $"Step 2 of 2 - {GetProgressPercentage()}% - {GetElapsedLabel(_quickReadyAt ?? _scanStartedAt)}";
         }
 
         if (IsOverviewTool(Definition)) {
-            return "Step 1 of 2";
+            return $"Step 1 of 2 - {GetProgressPercentage()}% - {GetElapsedLabel(_scanStartedAt)}";
         }
 
-        return "Running checks";
+        return $"Running checks - {GetProgressPercentage()}% - {GetElapsedLabel(_scanStartedAt)}";
     }
 
     private string GetProgressDescription() {
@@ -710,8 +760,196 @@
         }
 
         return IsOverviewTool(Definition)
-            ? "Running the first report pass and preparing the deeper sections."
-            : "Running DomainDetective checks and building the result view.";
+            ? $"{GetActiveProgressActivity()} Browser DNS resolvers can pause while public answers come back, so DD keeps this progress view moving until the first result is ready."
+            : $"{GetActiveProgressActivity()} DD is building the result view from the browser-safe checks for this tool.";
+    }
+
+    private int GetPendingSectionCount() {
+        if (_microsoft365OverviewInfo is not null) {
+            return _microsoft365OverviewInfo.PendingSections.Count;
+        }
+
+        if (_domainOverviewInfo is not null) {
+            return _domainOverviewInfo.PendingSections.Count;
+        }
+
+        return 0;
+    }
+
+    private int GetElapsedProgress(int minimum, int maximum, double pointsPerSecond, DateTimeOffset? startedAt = null) {
+        var elapsedSeconds = GetElapsedSeconds(startedAt ?? _scanStartedAt);
+        var progress = minimum + (int)Math.Floor(elapsedSeconds * pointsPerSecond);
+        return Math.Clamp(progress, minimum, maximum);
+    }
+
+    private static int GetElapsedSeconds(DateTimeOffset? startedAt) {
+        if (!startedAt.HasValue) {
+            return 0;
+        }
+
+        return Math.Max(0, (int)Math.Floor((DateTimeOffset.Now - startedAt.Value).TotalSeconds));
+    }
+
+    private static string GetElapsedLabel(DateTimeOffset? startedAt) {
+        var elapsedSeconds = GetElapsedSeconds(startedAt);
+        return elapsedSeconds <= 0 ? "starting" : $"{elapsedSeconds}s";
+    }
+
+    private static readonly IReadOnlyList<string> OverviewProgressActivities = new[] {
+        "Resolving DNS inventory and provider hints.",
+        "Checking mail authentication records.",
+        "Evaluating DNSSEC, CAA, DANE, and transport evidence.",
+        "Assembling overview cards and section status.",
+        "Waiting for the remaining resolver responses."
+    };
+
+    private static readonly IReadOnlyList<string> DefaultToolProgressActivities = new[] {
+        "Starting the browser-safe DD checks.",
+        "Resolving public DNS evidence.",
+        "Normalizing findings into report cards.",
+        "Waiting for slower resolver responses."
+    };
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> ToolProgressActivitiesBySlug =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase) {
+            ["spf"] = new[] {
+                "Looking up the SPF TXT policy.",
+                "Expanding SPF mechanisms and include references.",
+                "Checking SPF limits and policy strength.",
+                "Building SPF findings and record details."
+            },
+            ["dkim"] = new[] {
+                "Looking for DKIM selectors.",
+                "Resolving DKIM public keys.",
+                "Checking key posture and selector coverage.",
+                "Building DKIM findings and selector details."
+            },
+            ["dmarc"] = new[] {
+                "Looking up the DMARC policy.",
+                "Reading reporting and alignment settings.",
+                "Checking enforcement posture.",
+                "Building DMARC findings and record details."
+            },
+            ["mx"] = new[] {
+                "Resolving MX hosts.",
+                "Checking mail provider hints.",
+                "Sorting priorities and target records.",
+                "Building MX findings and transport details."
+            },
+            ["mta-sts"] = new[] {
+                "Looking up the MTA-STS bootstrap record.",
+                "Checking DNS policy hints.",
+                "Marking policy fetch work for the deeper run.",
+                "Building MTA-STS findings."
+            },
+            ["tls-rpt"] = new[] {
+                "Looking up TLS-RPT records.",
+                "Reading reporting endpoints.",
+                "Checking reporting posture.",
+                "Building TLS-RPT findings."
+            },
+            ["bimi"] = new[] {
+                "Looking up BIMI records.",
+                "Reading logo and authority evidence.",
+                "Checking browser-safe BIMI posture.",
+                "Building BIMI findings."
+            },
+            ["dns-lookup"] = new[] {
+                "Resolving the DNS inventory.",
+                "Checking provider and application fingerprints.",
+                "Normalizing record families.",
+                "Building DNS inventory cards."
+            },
+            ["dnssec"] = new[] {
+                "Checking DNSSEC records.",
+                "Reading delegation and signing signals.",
+                "Evaluating chain posture.",
+                "Building DNSSEC findings."
+            },
+            ["soa"] = new[] {
+                "Resolving the SOA record.",
+                "Reading zone authority details.",
+                "Checking serial and timing values.",
+                "Building SOA findings."
+            },
+            ["ns"] = new[] {
+                "Resolving authoritative nameservers.",
+                "Checking nameserver coverage.",
+                "Reading provider hints.",
+                "Building NS findings."
+            },
+            ["dns-propagation"] = new[] {
+                "Querying the web-edition resolver sample.",
+                "Comparing resolver answers.",
+                "Checking answer drift and availability.",
+                "Waiting for slower public resolvers."
+            },
+            ["caa"] = new[] {
+                "Looking up CAA records.",
+                "Reading certificate authority rules.",
+                "Checking issue and reporting directives.",
+                "Building CAA findings."
+            },
+            ["dane"] = new[] {
+                "Looking up TLSA records.",
+                "Checking SMTP and HTTPS service hints.",
+                "Evaluating DANE coverage.",
+                "Building DANE findings."
+            },
+            ["dnsbl"] = new[] {
+                "Resolving mail hosts for DNSBL checks.",
+                "Querying browser-safe blacklist evidence.",
+                "Checking listed and clean responses.",
+                "Building DNSBL findings."
+            },
+            ["dangling-cname"] = new[] {
+                "Resolving CNAME records.",
+                "Checking takeover provider fingerprints.",
+                "Evaluating dangling target evidence.",
+                "Building dangling CNAME findings."
+            }
+        };
+
+    private string GetActiveProgressActivity() {
+        var elapsedSeconds = GetElapsedSeconds(_quickReadyAt ?? _scanStartedAt);
+        if (IsOverviewTool(Definition)) {
+            return OverviewProgressActivities[Math.Min(OverviewProgressActivities.Count - 1, elapsedSeconds / 6)];
+        }
+
+        var toolActivities = GetToolProgressActivities();
+        return toolActivities[Math.Min(toolActivities.Count - 1, elapsedSeconds / 6)];
+    }
+
+    private IReadOnlyList<string> GetToolProgressActivities() {
+        return ToolProgressActivitiesBySlug.TryGetValue(Definition.Slug, out var activities) ? activities : DefaultToolProgressActivities;
+    }
+
+    private IReadOnlyList<string> BuildExampleDomains() {
+        return Definition.Slug switch {
+            "m365-overview" => new[] { "evotec.pl", "microsoft.com" },
+            "domain-overview" => new[] { "evotec.pl", "microsoft.com", "cloudflare.com" },
+            "mta-sts" or "tls-rpt" or "bimi" => new[] { "evotec.pl", "microsoft.com", "google.com" },
+            "spf" or "dkim" or "dmarc" or "mx" => new[] { "evotec.pl", "microsoft.com", "gmail.com" },
+            "dns-lookup" or "dnssec" or "soa" or "ns" or "dns-propagation" or "caa" or "dane" => new[] { "evotec.pl", "cloudflare.com", "microsoft.com" },
+            "dnsbl" or "dangling-cname" => new[] { "evotec.pl", "microsoft.com" },
+            _ => Array.Empty<string>()
+        };
+    }
+
+    private void StartProgressTicker() {
+        StopProgressTicker();
+        _progressTimer = new System.Threading.Timer(_ => {
+            _ = InvokeAsync(() => {
+                if (_isLoading || _isHydratingDeep) {
+                    StateHasChanged();
+                }
+            });
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private void StopProgressTicker() {
+        var timer = Interlocked.Exchange(ref _progressTimer, null);
+        timer?.Dispose();
     }
 
     private static string GetProgressStepClass(bool isReady, bool isActive) {
@@ -835,6 +1073,7 @@
     public void Dispose() {
         Navigation.LocationChanged -= HandleLocationChanged;
         CancelOverviewHydration();
+        StopProgressTicker();
     }
 
     private sealed class RecentToolRun {

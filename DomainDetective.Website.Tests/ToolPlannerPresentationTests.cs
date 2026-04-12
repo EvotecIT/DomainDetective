@@ -61,6 +61,15 @@ public sealed class ToolPlannerPresentationTests {
         Assert.Equal("Guided locally", label);
     }
 
+    [Fact]
+    public void GetModeLabelUsesBrowserSpecificStaticLabels() {
+        var available = CreateTool("spf", browserCompatible: true);
+        var adaptive = CreateTool("mta-sts", browserCompatible: false, hostedCompatible: true, liteCompatible: true);
+
+        Assert.Equal("Runs in browser", ToolPlannerPresentation.GetModeLabel(available, ToolsDeploymentMode.StaticOnly));
+        Assert.Equal("Partial browser", ToolPlannerPresentation.GetModeLabel(adaptive, ToolsDeploymentMode.StaticOnly));
+    }
+
     private static ToolDefinition CreateTool(string slug, bool browserCompatible = true, bool hostedCompatible = false, bool liteCompatible = false) {
         return new ToolDefinition {
             Name = slug,

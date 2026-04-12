@@ -8,6 +8,8 @@
         This check relies on network capabilities that browser sandboxing limits. Use the CLI or PowerShell module for the full experience.
     </p>
 
+    <ToolCapabilityMap Tool="Tool" DeploymentMode="ToolsDeploymentMode.StaticOnly" Domain="@Domain" StartOpen="true" />
+
     <ToolUsageExamples Definition="Tool" StartOpen="true" />
 
     <div class="tool-link-row">
@@ -19,6 +21,7 @@
 
 @code {
     [Parameter] public required ToolDefinition Tool { get; set; }
+    [Parameter] public string? Domain { get; set; }
 
     private string BuildDescriptionPrefix() {
         return (Tool.Description ?? string.Empty).TrimEnd('.', ' ') + ".";

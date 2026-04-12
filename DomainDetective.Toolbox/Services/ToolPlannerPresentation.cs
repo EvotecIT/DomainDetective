@@ -57,10 +57,10 @@ public static class ToolPlannerPresentation {
 
     public static string GetModeLabel(ToolDefinition tool, ToolsDeploymentMode deploymentMode) {
         return GetMode(tool, deploymentMode) switch {
-            ToolPlannerMode.Adaptive => "Adaptive",
+            ToolPlannerMode.Adaptive => "Partial browser",
             ToolPlannerMode.GuidedLocally => "Guided locally",
             ToolPlannerMode.Online => "Online",
-            _ => "Available now"
+            _ => "Runs in browser"
         };
     }
 

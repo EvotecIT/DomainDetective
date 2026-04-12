@@ -12,9 +12,12 @@
             </div>
             <div class="category-tools">
                 @foreach (var tool in categoryTools) {
-                    <a href="@($"/tools/{tool.Slug}/")" class="category-tool-link">
+                    <a href="@BuildToolUrl(tool)"
+                       class="category-tool-link"
+                       title="@GetAvailabilityLabel(tool)"
+                       aria-label="@GetAvailabilityLabel(tool)">
                         @if (DeploymentMode == ToolsDeploymentMode.StaticOnly) {
-                            <span class="tool-availability-dot @GetDotClass(tool)"></span>
+                            <span class="tool-availability-dot @GetDotClass(tool)" aria-hidden="true"></span>
                         }
                         <span class="category-tool-name">@tool.Name</span>
                     </a>
@@ -27,6 +30,7 @@
 @code {
     [Parameter] public required IReadOnlyList<ToolDefinition> Tools { get; set; }
     [Parameter] public ToolsDeploymentMode? DeploymentMode { get; set; }
+    [Parameter] public string? Domain { get; set; }
 
     private IEnumerable<ToolCategory> GetCategories() =>
         Tools.Select(t => t.Category).Distinct().OrderBy(c => c);
@@ -35,5 +39,18 @@
         if (tool.BrowserCompatible) return "tool-availability-dot-browser";
         if (tool.LiteCompatible) return "tool-availability-dot-partial";
         return "tool-availability-dot-local";
+    }
+
+    private static string GetAvailabilityLabel(ToolDefinition tool) {
+        if (tool.BrowserCompatible) return $"{tool.Name}: runs in browser";
+        if (tool.LiteCompatible) return $"{tool.Name}: partial browser support";
+        return $"{tool.Name}: guided local workflow";
+    }
+
+    private string BuildToolUrl(ToolDefinition tool) {
+        var baseUrl = $"/tools/{tool.Slug}/";
+        return string.IsNullOrWhiteSpace(Domain)
+            ? baseUrl
+            : $"{baseUrl}?q={Uri.EscapeDataString(Domain.Trim())}";
     }
 }

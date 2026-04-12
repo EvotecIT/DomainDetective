@@ -538,7 +538,7 @@
             $"Risk: {GetShareRiskLabel(info)}",
             $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
             $"Pending sections: {pending}",
-            $"Unavailable sections: {unavailable}",
+            $"Deeper-run sections: {unavailable}",
             $"Mail provider: {provider}",
             $"DNS provider: {dnsProvider}",
             $"Warnings/Errors: {info.WarningCount}/{info.ErrorCount}",
@@ -558,7 +558,7 @@
             $"Risk: {GetShareRiskLabel(info)}",
             $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
             $"Warnings/Errors: {info.WarningCount}/{info.ErrorCount}",
-            $"Unavailable sections: {(info.UnavailableSections.Count == 0 ? "None" : string.Join(", ", info.UnavailableSections))}"
+            $"Deeper-run sections: {(info.UnavailableSections.Count == 0 ? "None" : string.Join(", ", info.UnavailableSections))}"
         };
 
         var failingChecks = info.MailDnsChecks
@@ -654,7 +654,7 @@
 
     private static string GetSectionBadgeLabel(bool isPending, bool isUnavailable) {
         if (isUnavailable) {
-            return "Unavailable";
+            return "Needs deeper run";
         }
 
         return isPending ? "Loading" : "Ready";
@@ -704,7 +704,7 @@
 
     private static string GetSharePendingLabel(DomainOverviewInfo info) {
         if (info.UnavailableSections.Count > 0) {
-            return $"{info.UnavailableSections.Count} sections unavailable";
+            return $"{info.UnavailableSections.Count} sections need deeper run";
         }
 
         return info.PendingSections.Count > 0
@@ -736,9 +736,9 @@
 
     private static string GetUnavailableSectionMessage(string section) {
         return section switch {
-            "Web and registration" => "Web headers, certificates, security.txt, and registration data are unavailable in the web edition.",
-            "Exposure" => "Subdomain discovery is unavailable in the web edition.",
-            _ => "This section is unavailable in the web edition."
+            "Web and registration" => "Web headers, certificates, security.txt, and registration data need the deeper online run.",
+            "Exposure" => "Subdomain discovery needs the deeper online run.",
+            _ => "This section needs the deeper online run."
         };
     }
 
