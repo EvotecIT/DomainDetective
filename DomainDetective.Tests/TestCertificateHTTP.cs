@@ -164,7 +164,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task TlsProbe_ThrowsOnConnectionFailure() {
-            var port = PortHelper.GetFreePort();
+            var port = GetStoppedLoopbackListenerPort();
 
             var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
                 TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", port, TimeSpan.FromSeconds(2), CancellationToken.None));
@@ -443,6 +443,14 @@ namespace DomainDetective.Tests {
             }
         }
 
+        private static int GetStoppedLoopbackListenerPort() {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+            return port;
+        }
+
         private static async Task RunTlsOnlyServer(
             TcpListener listener,
             X509Certificate2 cert,
@@ -470,7 +478,7 @@ namespace DomainDetective.Tests {
                         }
                     }, token);
                 }
-            } catch {
+            } catch (Exception ex) when (token.IsCancellationRequested || ex is ObjectDisposedException) {
                 // ignore on shutdown
             }
         }

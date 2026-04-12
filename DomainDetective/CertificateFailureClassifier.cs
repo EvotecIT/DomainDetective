@@ -109,6 +109,7 @@ internal static class CertificateFailureClassifier {
 
         if (Contains(normalized, "FailureKind:TlsHandshake") ||
             Contains(normalized, "HttpRequestError:SecureConnectionError") ||
+            // Persisted reasons produced by BuildFailureReason include the exception type name.
             (Contains(normalized, nameof(InvalidOperationException)) &&
              Contains(normalized, SslStreamUnauthenticatedMessage)) ||
             Contains(normalized, "TLS Handshake Failure")) {
