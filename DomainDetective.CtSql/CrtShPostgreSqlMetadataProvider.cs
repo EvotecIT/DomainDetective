@@ -24,14 +24,19 @@ internal sealed class CrtShPostgreSqlMetadataProvider : ICtSqlMetadataProvider {
         }
 
         string normalizedHost = hostName.Trim().TrimEnd('.').ToLowerInvariant();
-        IReadOnlyList<CertificateInventoryCapture.CrtShPostgreSqlExactMetadataRow> rows = await _client.QueryAsListAsync(
-            BuildCrtShPostgreSqlConnectionString(options),
-            CertificateInventoryCapture.BuildCrtShPostgreSqlExactMetadataQuery(),
-            MapRow,
-            new Dictionary<string, object?> {
-                ["host"] = normalizedHost
-            },
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<CertificateInventoryCapture.CrtShPostgreSqlExactMetadataRow> rows;
+        try {
+            rows = await _client.QueryAsListAsync(
+                BuildCrtShPostgreSqlConnectionString(options),
+                CertificateInventoryCapture.BuildCrtShPostgreSqlExactMetadataQuery(),
+                MapRow,
+                new Dictionary<string, object?> {
+                    ["host"] = normalizedHost
+                },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        } catch (DbaQueryExecutionException ex) {
+            throw new InvalidOperationException("crt.sh PostgreSQL exact metadata query failed.", ex);
+        }
 
         SubdomainDiscoveryEntry? entry = CertificateInventoryCapture.TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(
             normalizedHost,
@@ -69,17 +74,22 @@ internal sealed class CrtShPostgreSqlMetadataProvider : ICtSqlMetadataProvider {
             return results;
         }
 
-        IReadOnlyList<CertificateInventoryCapture.CrtShPostgreSqlExactMetadataRow> rows = await _client.QueryAsListAsync(
-            BuildCrtShPostgreSqlConnectionString(options),
-            CertificateInventoryCapture.BuildCrtShPostgreSqlDomainMetadataQuery(),
-            MapRow,
-            new Dictionary<string, object?> {
-                ["domain"] = normalizedDomain,
-                ["hosts"] = normalizedHosts.ToArray(),
-                ["wildcardHosts"] = normalizedHosts.Select(CertificateInventoryCapture.BuildWildcardCandidateHost).ToArray(),
-                ["limit"] = Math.Min(Math.Max(32, normalizedHosts.Count * 8), 512)
-            },
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<CertificateInventoryCapture.CrtShPostgreSqlExactMetadataRow> rows;
+        try {
+            rows = await _client.QueryAsListAsync(
+                BuildCrtShPostgreSqlConnectionString(options),
+                CertificateInventoryCapture.BuildCrtShPostgreSqlDomainMetadataQuery(),
+                MapRow,
+                new Dictionary<string, object?> {
+                    ["domain"] = normalizedDomain,
+                    ["hosts"] = normalizedHosts.ToArray(),
+                    ["wildcardHosts"] = normalizedHosts.Select(CertificateInventoryCapture.BuildWildcardCandidateHost).ToArray(),
+                    ["limit"] = Math.Min(Math.Max(32, normalizedHosts.Count * 8), 512)
+                },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        } catch (DbaQueryExecutionException ex) {
+            throw new InvalidOperationException("crt.sh PostgreSQL domain metadata query failed.", ex);
+        }
 
         foreach (string normalizedHost in normalizedHosts) {
             SubdomainDiscoveryEntry? entry = CertificateInventoryCapture.TryBuildExactCtMetadataEntryFromCrtShPostgreSqlRows(

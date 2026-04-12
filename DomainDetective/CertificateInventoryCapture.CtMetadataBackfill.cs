@@ -192,11 +192,25 @@ public sealed partial class CertificateInventoryCapture {
                     warnings.Add(warning);
                     logger.WriteVerbose(warning);
                     continue;
-                } catch (Exception ex) {
+                } catch (ArgumentException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
                     domainPostgreSqlLookupFailed = true;
-                    string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {pair.Key}: {ex.Message}";
-                    warnings.Add(warning);
-                    logger.WriteVerbose(warning);
+                    continue;
+                } catch (InvalidOperationException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
+                    domainPostgreSqlLookupFailed = true;
+                    continue;
+                } catch (TimeoutException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
+                    domainPostgreSqlLookupFailed = true;
+                    continue;
+                } catch (IOException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
+                    domainPostgreSqlLookupFailed = true;
+                    continue;
+                } catch (CryptographicException ex) {
+                    RecordCrtShPostgreSqlDomainMetadataLookupFailure(pair.Key, ex, warnings, logger);
+                    domainPostgreSqlLookupFailed = true;
                     continue;
                 }
 
@@ -272,6 +286,16 @@ public sealed partial class CertificateInventoryCapture {
         return merged.Values
             .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static void RecordCrtShPostgreSqlDomainMetadataLookupFailure(
+        string domain,
+        Exception ex,
+        List<string> warnings,
+        InternalLogger logger) {
+        string warning = $"CT metadata backfill domain PostgreSQL lookup failed for {domain}: {ex.Message}";
+        warnings.Add(warning);
+        logger.WriteVerbose(warning);
     }
 
     private async Task<IReadOnlyList<SubdomainDiscoveryEntry>> BackfillExactHostSeedCtMetadataAsync(
@@ -607,11 +631,22 @@ public sealed partial class CertificateInventoryCapture {
                             }
                         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                             throw;
-                        } catch (Exception ex) {
-                            logger.WriteVerbose(
-                                "CT metadata backfill exact lookup failed for {0}: {1}",
-                                hostName,
-                                ex.Message);
+                        } catch (OperationCanceledException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (ArgumentException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (InvalidOperationException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (TimeoutException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (HttpRequestException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (IOException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (CryptographicException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                        } catch (JsonException ex) {
+                            LogCtMetadataExactLookupFailure(logger, hostName, ex);
                         }
                     }, cancellationToken));
                 }
@@ -661,11 +696,22 @@ public sealed partial class CertificateInventoryCapture {
                     }
                 } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                     throw;
-                } catch (Exception ex) {
-                    logger.WriteVerbose(
-                        "CT metadata backfill exact lookup failed for {0}: {1}",
-                        hostName,
-                        ex.Message);
+                } catch (OperationCanceledException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (ArgumentException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (InvalidOperationException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (TimeoutException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (HttpRequestException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (IOException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (CryptographicException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
+                } catch (JsonException ex) {
+                    LogCtMetadataExactLookupFailure(logger, hostName, ex);
                 } finally {
                     gate.Release();
                 }
@@ -727,11 +773,18 @@ public sealed partial class CertificateInventoryCapture {
                     }
                 } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                     throw;
-                } catch (Exception ex) {
-                    logger.WriteVerbose(
-                        "CT metadata backfill exact PostgreSQL lookup failed for {0}: {1}",
-                        hostName,
-                        ex.Message);
+                } catch (OperationCanceledException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (ArgumentException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (InvalidOperationException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (TimeoutException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (IOException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
+                } catch (CryptographicException ex) {
+                    LogCrtShPostgreSqlExactMetadataLookupFailure(logger, hostName, ex);
                 } finally {
                     gate.Release();
                 }
@@ -740,6 +793,26 @@ public sealed partial class CertificateInventoryCapture {
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
         return results;
+    }
+
+    private static void LogCtMetadataExactLookupFailure(
+        InternalLogger logger,
+        string hostName,
+        Exception ex) {
+        logger.WriteVerbose(
+            "CT metadata backfill exact lookup failed for {0}: {1}",
+            hostName,
+            ex.Message);
+    }
+
+    private static void LogCrtShPostgreSqlExactMetadataLookupFailure(
+        InternalLogger logger,
+        string hostName,
+        Exception ex) {
+        logger.WriteVerbose(
+            "CT metadata backfill exact PostgreSQL lookup failed for {0}: {1}",
+            hostName,
+            ex.Message);
     }
 
     private static HashSet<string> BuildTargetedCtMetadataThumbprintSet(CertificateInventoryCaptureOptions? options) {
