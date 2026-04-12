@@ -11,9 +11,6 @@ namespace DomainDetective;
 /// without forcing service callers to depend on internal plumbing.
 /// </remarks>
 public static class TlsFailureClassification {
-    // Add retry/backoff helpers here when callers need stable public classification
-    // semantics instead of reaching into internal implementation details.
-
     /// <summary>
     /// Classifies an exception thrown while collecting certificate or TLS evidence.
     /// </summary>

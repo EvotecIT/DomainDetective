@@ -22,6 +22,7 @@ public static class TlsProbe
 
     public sealed class Result : IDisposable
     {
+        /// <summary>Negotiated TLS protocol, or <see cref="SslProtocols.None"/> when authentication did not complete.</summary>
         public SslProtocols Protocol { get; set; }
         public string? CipherSuite { get; set; }
         public string? KeyExchangeAlgorithm { get; set; }
@@ -36,8 +37,10 @@ public static class TlsProbe
         public DateTime? NotBefore { get; set; }
         public DateTime? NotAfter { get; set; }
         /// <summary>Remote endpoint IP address captured after a successful TCP connection.</summary>
+        /// <remarks>Captured together with <see cref="RemotePort"/> and kept flat for serialization callers.</remarks>
         public IPAddress? RemoteAddress { get; set; }
         /// <summary>Remote endpoint port captured after a successful TCP connection.</summary>
+        /// <remarks>Captured together with <see cref="RemoteAddress"/> and kept flat for serialization callers.</remarks>
         public int? RemotePort { get; set; }
         public List<string> DnsNames { get; } = new();
         public string? SanParsingError { get; set; }

@@ -109,9 +109,7 @@ internal static class CertificateFailureClassifier {
 
         if (Contains(normalized, "FailureKind:TlsHandshake") ||
             Contains(normalized, "HttpRequestError:SecureConnectionError") ||
-            // Persisted reasons produced by BuildFailureReason include the exception type name.
-            (Contains(normalized, nameof(InvalidOperationException)) &&
-             Contains(normalized, SslStreamUnauthenticatedMessage)) ||
+            IsPersistedUnauthenticatedSslReason(normalized) ||
             Contains(normalized, "TLS Handshake Failure")) {
             return CertificateFailureKind.TlsHandshake;
         }
@@ -156,6 +154,12 @@ internal static class CertificateFailureClassifier {
         // Prefer typed AuthenticationException and transport errors above; this is a best-effort
         // fallback for the .NET message and persisted failure-reason text.
         return exception.Message.IndexOf(SslStreamUnauthenticatedMessage, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsPersistedUnauthenticatedSslReason(string failureReason) {
+        // Persisted reasons produced by BuildFailureReason include the exception type name.
+        return Contains(failureReason, nameof(InvalidOperationException)) &&
+               Contains(failureReason, SslStreamUnauthenticatedMessage);
     }
 
     private static CertificateFailureKind Promote(CertificateFailureKind current, CertificateFailureKind candidate) {
