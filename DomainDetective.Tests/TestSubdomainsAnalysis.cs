@@ -668,7 +668,7 @@ public class TestSubdomainsAnalysis
             var options = new PassiveCtSourceClient.QueryOptions
             {
                 RetryCount = 0,
-                CrtShMinimumSpacing = TimeSpan.FromMilliseconds(150)
+                CrtShMinimumSpacing = TimeSpan.FromMilliseconds(300)
             };
 
             PassiveCtSourceClient.QueryResult first = await client.QueryAsync(
@@ -687,7 +687,7 @@ public class TestSubdomainsAnalysis
             Assert.False(first.RetrySuggested);
             Assert.False(second.RetrySuggested);
             Assert.Equal(2, requestOffsets.Count);
-            Assert.True(requestOffsets[1] - requestOffsets[0] >= 125);
+            Assert.True(requestOffsets[1] - requestOffsets[0] >= 200);
         }
         finally
         {
