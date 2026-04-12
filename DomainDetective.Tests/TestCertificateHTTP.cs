@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.IO;
@@ -166,7 +167,7 @@ namespace DomainDetective.Tests {
             var port = PortHelper.GetFreePort();
 
             await Assert.ThrowsAnyAsync<Exception>(() =>
-                TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", port, TimeSpan.FromMilliseconds(250), CancellationToken.None));
+                TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", port, TimeSpan.FromSeconds(2), CancellationToken.None));
         }
 
         [Fact]
@@ -451,9 +452,13 @@ namespace DomainDetective.Tests {
 
                     var client = await clientTask;
                     _ = Task.Run(async () => {
-                        using var tcp = client;
-                        using var ssl = new SslStream(tcp.GetStream());
-                        await ssl.AuthenticateAsServerAsync(cert, false, protocol, false);
+                        try {
+                            using var tcp = client;
+                            using var ssl = new SslStream(tcp.GetStream());
+                            await ssl.AuthenticateAsServerAsync(cert, false, protocol, false);
+                        } catch (Exception ex) when (!token.IsCancellationRequested) {
+                            Trace.TraceError("TLS test server failed: " + ex);
+                        }
                     }, token);
                 }
             } catch {
