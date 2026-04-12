@@ -92,7 +92,7 @@ public static class TlsProbe
             token: token).ConfigureAwait(false);
     }
 
-    private static async Task<Result> ProbeAsyncCore(Func<TcpClient> clientFactory, Func<TcpClient, CancellationToken, Task> connectAsync, string sniHost, TimeSpan? timeout, CancellationToken token)
+    internal static async Task<Result> ProbeAsyncCore(Func<TcpClient> clientFactory, Func<TcpClient, CancellationToken, Task> connectAsync, string sniHost, TimeSpan? timeout, CancellationToken token)
     {
         var result = new Result();
         using var client = clientFactory();

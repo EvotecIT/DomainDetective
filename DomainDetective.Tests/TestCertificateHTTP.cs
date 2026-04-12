@@ -164,17 +164,16 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task TlsProbe_ThrowsOnConnectionFailure() {
-            var port = GetStoppedLoopbackListenerPort();
+            var exception = await Assert.ThrowsAsync<SocketException>(() =>
+                TlsProbe.ProbeAsyncCore(
+                    static () => new TcpClient(AddressFamily.InterNetwork),
+                    static (_, _) => Task.FromException(new SocketException((int)SocketError.ConnectionRefused)),
+                    "localhost",
+                    TimeSpan.FromSeconds(2),
+                    CancellationToken.None));
 
-            var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
-                TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", port, TimeSpan.FromSeconds(2), CancellationToken.None));
-
-            Assert.True(
-                exception is SocketException or TimeoutException,
-                $"Expected a connection failure exception but got {exception.GetType().FullName}: {exception.Message}");
-            Assert.Contains(
-                TlsFailureClassification.Classify(exception),
-                new[] { CertificateFailureKind.ConnectionRefused, CertificateFailureKind.Timeout });
+            Assert.Equal(SocketError.ConnectionRefused, exception.SocketErrorCode);
+            Assert.Equal(CertificateFailureKind.ConnectionRefused, TlsFailureClassification.Classify(exception));
         }
 
         [Fact]
@@ -441,14 +440,6 @@ namespace DomainDetective.Tests {
             } catch {
                 // ignore on shutdown
             }
-        }
-
-        private static int GetStoppedLoopbackListenerPort() {
-            var listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            listener.Stop();
-            return port;
         }
 
         private static async Task RunTlsOnlyServer(
