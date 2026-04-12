@@ -137,13 +137,17 @@ public static class TlsProbe
         }
     }
 
-    private static Exception WrapWithFailureEvidence(Exception normalized, bool includeFailureEvidence, Result result)
+    private static Exception WrapWithFailureEvidence(Exception normalized, bool includeFailureEvidence, bool tcpConnected, Result result)
     {
-        // RemoteAddress is only set after a successful TCP connect; null means
-        // this is still a transport-stage failure and should keep its original shape.
-        return includeFailureEvidence && result.RemoteAddress != null
-            ? new TlsProbeException(normalized.Message, normalized, result.RemoteAddress, result.RemotePort)
-            : normalized;
+        if (!includeFailureEvidence || !tcpConnected || result.RemoteAddress == null)
+        {
+            return normalized;
+        }
+
+        string endpoint = result.RemotePort.HasValue
+            ? $"{result.RemoteAddress}:{result.RemotePort.Value}"
+            : result.RemoteAddress.ToString();
+        return new TlsProbeException($"TLS probe failed for {endpoint}: {normalized.Message}", normalized, result.RemoteAddress, result.RemotePort);
     }
 
     /// <summary>
@@ -225,10 +229,12 @@ public static class TlsProbe
             timeoutCts!.CancelAfter(timeout.Value);
         }
         var ct = timeoutCts?.Token ?? token;
+        bool tcpConnected = false;
 
         try
         {
             await connectAsync(client, ct).ConfigureAwait(false);
+            tcpConnected = true;
             if (client.Client.RemoteEndPoint is IPEndPoint remoteEndPoint)
             {
                 result.RemoteAddress = remoteEndPoint.Address;
@@ -238,7 +244,7 @@ public static class TlsProbe
         catch (Exception ex)
         {
             Exception normalized = NormalizeProbeException(ex, token, timeoutCts);
-            throw WrapWithFailureEvidence(normalized, includeFailureEvidence, result);
+            throw WrapWithFailureEvidence(normalized, includeFailureEvidence, tcpConnected, result);
         }
 
         using var ssl = new SslStream(client.GetStream(), false, (_, certificate, chain, errors) =>
@@ -257,7 +263,7 @@ public static class TlsProbe
         catch (Exception ex)
         {
             Exception normalized = NormalizeProbeException(ex, token, timeoutCts);
-            throw WrapWithFailureEvidence(normalized, includeFailureEvidence, result);
+            throw WrapWithFailureEvidence(normalized, includeFailureEvidence, tcpConnected, result);
         }
         finally
         {

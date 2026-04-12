@@ -204,6 +204,8 @@ namespace DomainDetective.Tests {
 
                 Assert.Equal(IPAddress.Loopback, exception.RemoteAddress);
                 Assert.Equal(server.Port, exception.RemotePort);
+                Assert.Contains(IPAddress.Loopback.ToString(), exception.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains(server.Port.ToString(), exception.Message, StringComparison.OrdinalIgnoreCase);
                 Assert.NotNull(exception.InnerException);
             } finally {
                 await server.DisposeAsync();
