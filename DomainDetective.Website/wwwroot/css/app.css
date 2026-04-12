@@ -2925,7 +2925,6 @@ a:hover { color: var(--dd-accent-light); }
     .tool-input-form {
         grid-template-columns: 1fr;
     }
-    .tool-input-fields,
     .tool-input-actions {
         grid-auto-flow: row;
         grid-auto-columns: auto;

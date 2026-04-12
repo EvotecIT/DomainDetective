@@ -74,10 +74,10 @@
             </div>
         </form>
 
-        @if (GetExampleDomains().Count > 0) {
+        @if (_exampleDomains.Count > 0) {
             <div class="tool-example-row" aria-label="Example domains">
                 <span class="tool-example-label">Try</span>
-                @foreach (var exampleDomain in GetExampleDomains()) {
+                @foreach (var exampleDomain in _exampleDomains) {
                     <button type="button"
                             class="tool-example-chip"
                             disabled="@_isLoading"
@@ -281,6 +281,7 @@
     private DomainDetective.Views.SubdomainsInfo? _subdomainsInfo;
     private DomainDetective.Views.Microsoft365OverviewInfo? _microsoft365OverviewInfo;
     private DomainDetective.Views.DomainOverviewInfo? _domainOverviewInfo;
+    private IReadOnlyList<string> _exampleDomains = Array.Empty<string>();
     private string? _dnsRequestedTypes;
     private string? _dnsHostLabel;
     private string? _dnsBrowserResolverName;
@@ -291,6 +292,7 @@
 
     protected override async Task OnParametersSetAsync() {
         await Availability.InitializeAsync();
+        _exampleDomains = BuildExampleDomains();
         await SyncWithCurrentUriAsync();
     }
 
@@ -793,17 +795,125 @@
         return elapsedSeconds <= 0 ? "starting" : $"{elapsedSeconds}s";
     }
 
+    private static readonly IReadOnlyList<string> OverviewProgressActivities = new[] {
+        "Resolving DNS inventory and provider hints.",
+        "Checking mail authentication records.",
+        "Evaluating DNSSEC, CAA, DANE, and transport evidence.",
+        "Assembling overview cards and section status.",
+        "Waiting for the remaining resolver responses."
+    };
+
+    private static readonly IReadOnlyList<string> DefaultToolProgressActivities = new[] {
+        "Starting the browser-safe DD checks.",
+        "Resolving public DNS evidence.",
+        "Normalizing findings into report cards.",
+        "Waiting for slower resolver responses."
+    };
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> ToolProgressActivitiesBySlug =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase) {
+            ["spf"] = new[] {
+                "Looking up the SPF TXT policy.",
+                "Expanding SPF mechanisms and include references.",
+                "Checking SPF limits and policy strength.",
+                "Building SPF findings and record details."
+            },
+            ["dkim"] = new[] {
+                "Looking for DKIM selectors.",
+                "Resolving DKIM public keys.",
+                "Checking key posture and selector coverage.",
+                "Building DKIM findings and selector details."
+            },
+            ["dmarc"] = new[] {
+                "Looking up the DMARC policy.",
+                "Reading reporting and alignment settings.",
+                "Checking enforcement posture.",
+                "Building DMARC findings and record details."
+            },
+            ["mx"] = new[] {
+                "Resolving MX hosts.",
+                "Checking mail provider hints.",
+                "Sorting priorities and target records.",
+                "Building MX findings and transport details."
+            },
+            ["mta-sts"] = new[] {
+                "Looking up the MTA-STS bootstrap record.",
+                "Checking DNS policy hints.",
+                "Marking policy fetch work for the deeper run.",
+                "Building MTA-STS findings."
+            },
+            ["tls-rpt"] = new[] {
+                "Looking up TLS-RPT records.",
+                "Reading reporting endpoints.",
+                "Checking reporting posture.",
+                "Building TLS-RPT findings."
+            },
+            ["bimi"] = new[] {
+                "Looking up BIMI records.",
+                "Reading logo and authority evidence.",
+                "Checking browser-safe BIMI posture.",
+                "Building BIMI findings."
+            },
+            ["dns-lookup"] = new[] {
+                "Resolving the DNS inventory.",
+                "Checking provider and application fingerprints.",
+                "Normalizing record families.",
+                "Building DNS inventory cards."
+            },
+            ["dnssec"] = new[] {
+                "Checking DNSSEC records.",
+                "Reading delegation and signing signals.",
+                "Evaluating chain posture.",
+                "Building DNSSEC findings."
+            },
+            ["soa"] = new[] {
+                "Resolving the SOA record.",
+                "Reading zone authority details.",
+                "Checking serial and timing values.",
+                "Building SOA findings."
+            },
+            ["ns"] = new[] {
+                "Resolving authoritative nameservers.",
+                "Checking nameserver coverage.",
+                "Reading provider hints.",
+                "Building NS findings."
+            },
+            ["dns-propagation"] = new[] {
+                "Querying the web-edition resolver sample.",
+                "Comparing resolver answers.",
+                "Checking answer drift and availability.",
+                "Waiting for slower public resolvers."
+            },
+            ["caa"] = new[] {
+                "Looking up CAA records.",
+                "Reading certificate authority rules.",
+                "Checking issue and reporting directives.",
+                "Building CAA findings."
+            },
+            ["dane"] = new[] {
+                "Looking up TLSA records.",
+                "Checking SMTP and HTTPS service hints.",
+                "Evaluating DANE coverage.",
+                "Building DANE findings."
+            },
+            ["dnsbl"] = new[] {
+                "Resolving mail hosts for DNSBL checks.",
+                "Querying browser-safe blacklist evidence.",
+                "Checking listed and clean responses.",
+                "Building DNSBL findings."
+            },
+            ["dangling-cname"] = new[] {
+                "Resolving CNAME records.",
+                "Checking takeover provider fingerprints.",
+                "Evaluating dangling target evidence.",
+                "Building dangling CNAME findings."
+            }
+        };
+
     private string GetActiveProgressActivity() {
         var elapsedSeconds = GetElapsedSeconds(_quickReadyAt ?? _scanStartedAt);
         if (IsOverviewTool(Definition)) {
-            var activities = new[] {
-                "Resolving DNS inventory and provider hints.",
-                "Checking mail authentication records.",
-                "Evaluating DNSSEC, CAA, DANE, and transport evidence.",
-                "Assembling overview cards and section status.",
-                "Waiting for the remaining resolver responses."
-            };
-            return activities[Math.Min(activities.Length - 1, elapsedSeconds / 6)];
+            return OverviewProgressActivities[Math.Min(OverviewProgressActivities.Count - 1, elapsedSeconds / 6)];
         }
 
         var toolActivities = GetToolProgressActivities();
@@ -811,113 +921,10 @@
     }
 
     private IReadOnlyList<string> GetToolProgressActivities() {
-        return Definition.Slug switch {
-            "spf" => new[] {
-                "Looking up the SPF TXT policy.",
-                "Expanding SPF mechanisms and include references.",
-                "Checking SPF limits and policy strength.",
-                "Building SPF findings and record details."
-            },
-            "dkim" => new[] {
-                "Looking for DKIM selectors.",
-                "Resolving DKIM public keys.",
-                "Checking key posture and selector coverage.",
-                "Building DKIM findings and selector details."
-            },
-            "dmarc" => new[] {
-                "Looking up the DMARC policy.",
-                "Reading reporting and alignment settings.",
-                "Checking enforcement posture.",
-                "Building DMARC findings and record details."
-            },
-            "mx" => new[] {
-                "Resolving MX hosts.",
-                "Checking mail provider hints.",
-                "Sorting priorities and target records.",
-                "Building MX findings and transport details."
-            },
-            "mta-sts" => new[] {
-                "Looking up the MTA-STS bootstrap record.",
-                "Checking DNS policy hints.",
-                "Marking policy fetch work for the deeper run.",
-                "Building MTA-STS findings."
-            },
-            "tls-rpt" => new[] {
-                "Looking up TLS-RPT records.",
-                "Reading reporting endpoints.",
-                "Checking reporting posture.",
-                "Building TLS-RPT findings."
-            },
-            "bimi" => new[] {
-                "Looking up BIMI records.",
-                "Reading logo and authority evidence.",
-                "Checking browser-safe BIMI posture.",
-                "Building BIMI findings."
-            },
-            "dns-lookup" => new[] {
-                "Resolving the DNS inventory.",
-                "Checking provider and application fingerprints.",
-                "Normalizing record families.",
-                "Building DNS inventory cards."
-            },
-            "dnssec" => new[] {
-                "Checking DNSSEC records.",
-                "Reading delegation and signing signals.",
-                "Evaluating chain posture.",
-                "Building DNSSEC findings."
-            },
-            "soa" => new[] {
-                "Resolving the SOA record.",
-                "Reading zone authority details.",
-                "Checking serial and timing values.",
-                "Building SOA findings."
-            },
-            "ns" => new[] {
-                "Resolving authoritative nameservers.",
-                "Checking nameserver coverage.",
-                "Reading provider hints.",
-                "Building NS findings."
-            },
-            "dns-propagation" => new[] {
-                "Querying the web-edition resolver sample.",
-                "Comparing resolver answers.",
-                "Checking answer drift and availability.",
-                "Waiting for slower public resolvers."
-            },
-            "caa" => new[] {
-                "Looking up CAA records.",
-                "Reading certificate authority rules.",
-                "Checking issue and reporting directives.",
-                "Building CAA findings."
-            },
-            "dane" => new[] {
-                "Looking up TLSA records.",
-                "Checking SMTP and HTTPS service hints.",
-                "Evaluating DANE coverage.",
-                "Building DANE findings."
-            },
-            "dnsbl" => new[] {
-                "Resolving mail hosts for DNSBL checks.",
-                "Querying browser-safe blacklist evidence.",
-                "Checking listed and clean responses.",
-                "Building DNSBL findings."
-            },
-            "dangling-cname" => new[] {
-                "Resolving CNAME records.",
-                "Checking takeover provider fingerprints.",
-                "Evaluating dangling target evidence.",
-                "Building dangling CNAME findings."
-            },
-            _ => new[] {
-                "Starting the browser-safe DD checks.",
-                "Resolving public DNS evidence.",
-                "Normalizing findings into report cards.",
-                "Waiting for slower resolver responses."
-            }
-        };
+        return ToolProgressActivitiesBySlug.TryGetValue(Definition.Slug, out var activities) ? activities : DefaultToolProgressActivities;
     }
 
-    private IReadOnlyList<string> GetExampleDomains() {
+    private IReadOnlyList<string> BuildExampleDomains() {
         return Definition.Slug switch {
             "m365-overview" => new[] { "evotec.pl", "microsoft.com" },
             "domain-overview" => new[] { "evotec.pl", "microsoft.com", "cloudflare.com" },

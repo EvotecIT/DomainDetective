@@ -3,7 +3,7 @@
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
 
-<details class="tool-capability-map" open="@ShouldStartOpen">
+<details class="tool-capability-map" open="@StartOpen">
     <summary>
         <span class="tool-capability-kicker">Web edition coverage</span>
         <strong>@Capability.Title</strong>
@@ -51,8 +51,6 @@
     private string? _copyState;
 
     private ToolCapabilityInfo Capability => ToolCapabilityPresentation.Build(Tool, DeploymentMode);
-
-    private bool ShouldStartOpen => StartOpen;
 
     private bool ShouldShowLocalCommand() {
         return DeploymentMode == ToolsDeploymentMode.StaticOnly &&
