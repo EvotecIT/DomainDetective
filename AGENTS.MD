@@ -11,6 +11,9 @@ alwaysApply: true
 
 # 📏 General Rules
 
+- Work that changes this repository should be done on a feature branch and opened as a pull request against `master`.
+- Do not push directly to `master` unless the repository owner explicitly asks for a direct push for that specific change.
+- Keep PRs ready for automated CI checks and human/agent review by Claude/Codex before merge.
 - Prefer smaller files over large ones.
 - Split large classes using `partial class` where applicable.
 - Always follow `.editorconfig` rules if available.
