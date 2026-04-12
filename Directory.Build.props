@@ -63,7 +63,7 @@
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.CtSql'">
     <PackageId>DomainDetective.CtSql</PackageId>
     <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
-    <Description>Prepared package shell for future CT SQL components in DomainDetective.</Description>
+    <Description>Optional crt.sh PostgreSQL metadata provider for DomainDetective certificate transparency workflows.</Description>
     <PackageTags>domain;dns;email;security;ct;sql</PackageTags>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.PowerShell'">

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -129,15 +130,18 @@ internal sealed class CrtShPostgreSqlMetadataProvider : ICtSqlMetadataProvider {
         }
 
         int timeoutSeconds = Math.Max(1, options?.CrtShPostgreSqlCommandTimeoutSeconds ?? 15);
-        // DBAClientX forwards the connection string to its PostgreSQL driver, so these Npgsql timeout keys remain effective.
-        return PostgreSql.BuildConnectionString(
-            host: "crt.sh",
-            database: "certwatch",
-            username: "guest",
-            password: string.Empty,
-            port: 5432,
-            ssl: true) +
-            $";Timeout={timeoutSeconds};Command Timeout={timeoutSeconds}";
+        var builder = new DbConnectionStringBuilder {
+            ConnectionString = PostgreSql.BuildConnectionString(
+                host: "crt.sh",
+                database: "certwatch",
+                username: "guest",
+                password: string.Empty,
+                port: 5432,
+                ssl: true)
+        };
+        builder["Timeout"] = timeoutSeconds;
+        builder["Command Timeout"] = timeoutSeconds;
+        return builder.ConnectionString;
     }
 
     private static DateTimeOffset? ReadDateTimeOffset(object? value) {
@@ -155,16 +159,10 @@ internal sealed class CrtShPostgreSqlMetadataProvider : ICtSqlMetadataProvider {
         };
     }
 
-    private static string? NormalizeCtMetadataCandidate(string? value, bool preserveWildcard = false) {
-        if (string.IsNullOrWhiteSpace(value)) {
-            return null;
-        }
+    private static string? NormalizeCtMetadataCandidate(string? value, bool preserveWildcard = false) =>
+        CertificateInventoryCapture.NormalizeCtMetadataCandidate(value, preserveWildcard);
 
-        string normalized = value!.Trim().TrimEnd('.').ToLowerInvariant();
-        while (!preserveWildcard && normalized.StartsWith("*.", StringComparison.Ordinal)) {
-            normalized = normalized.Substring(2);
-        }
-
-        return normalized.Length == 0 ? null : normalized;
+    public void Dispose() {
+        _client.Dispose();
     }
 }

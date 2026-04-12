@@ -1,10 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective;
 
-internal interface ICtSqlMetadataProvider
+internal interface ICtSqlMetadataProvider : IDisposable
 {
     Task<SubdomainDiscoveryEntry?> QueryExactMetadataAsync(
         string hostName,

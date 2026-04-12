@@ -1718,7 +1718,7 @@ public sealed partial class CertificateInventoryCapture {
         return wildcardLabel.Length > 0 && wildcardLabel.IndexOf('.') < 0;
     }
 
-    private static string? NormalizeCtMetadataCandidate(string? value, bool preserveWildcard = false) {
+    internal static string? NormalizeCtMetadataCandidate(string? value, bool preserveWildcard = false) {
         if (string.IsNullOrWhiteSpace(value)) {
             return null;
         }

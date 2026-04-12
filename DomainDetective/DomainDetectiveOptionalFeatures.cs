@@ -10,6 +10,7 @@ namespace DomainDetective;
 /// <remarks>Provider registration is last-write-wins so host applications can intentionally replace startup defaults.</remarks>
 public static class DomainDetectiveOptionalFeatures
 {
+    private static readonly object _ctSqlProviderSyncRoot = new();
     private static volatile Func<string, string, (bool IsVerified, string ClearText)>? _securityTxtPgpVerifier;
     private static volatile VisualProviderRegistration? _visualProvider;
     private static volatile Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? _ctSqlExactMetadataProvider;
@@ -79,7 +80,22 @@ public static class DomainDetectiveOptionalFeatures
 
     internal static void RegisterCtSqlMetadataProvider(ICtSqlMetadataProvider provider)
     {
-        _ctSqlMetadataProvider = provider ?? throw new ArgumentNullException(nameof(provider));
+        if (provider == null)
+        {
+            throw new ArgumentNullException(nameof(provider));
+        }
+
+        ICtSqlMetadataProvider? previousProvider;
+        lock (_ctSqlProviderSyncRoot)
+        {
+            previousProvider = _ctSqlMetadataProvider;
+            _ctSqlMetadataProvider = provider;
+        }
+
+        if (!ReferenceEquals(previousProvider, provider))
+        {
+            previousProvider?.Dispose();
+        }
     }
 
     internal static bool TryVerifySecurityTxtSignature(string signedText, string? publicKey, out bool isVerified, out string clearText)
