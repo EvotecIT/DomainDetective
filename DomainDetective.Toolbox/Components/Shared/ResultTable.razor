@@ -1,15 +1,17 @@
-<table class="result-table">
-    <thead>
-        <tr>
-            @foreach (var col in Columns) {
-                <th>@col</th>
-            }
-        </tr>
-    </thead>
-    <tbody>
-        @ChildContent
-    </tbody>
-</table>
+<div class="result-table-shell">
+    <table class="result-table">
+        <thead>
+            <tr>
+                @foreach (var col in Columns) {
+                    <th>@col</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @ChildContent
+        </tbody>
+    </table>
+</div>
 
 @code {
     [Parameter] public string[] Columns { get; set; } = Array.Empty<string>();

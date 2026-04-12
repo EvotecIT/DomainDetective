@@ -8,6 +8,8 @@ namespace DomainDetective.Website.Tests;
 
 public sealed class ToolsPageComponentTests : TestContext {
     public ToolsPageComponentTests() {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> {
                 ["Tools:Mode"] = "StaticOnly"
@@ -47,6 +49,35 @@ public sealed class ToolsPageComponentTests : TestContext {
         RenderComponent<DomainDetective.Website.Pages.Tools>();
 
         Assert.Equal("http://localhost/tools/domain-overview/?q=contoso.com", navigation.Uri);
+    }
+
+    [Fact]
+    public void ToolsPagePreservesQDomainInCatalogLinks() {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("http://localhost/tools/?q=evotec.pl");
+
+        var cut = RenderComponent<DomainDetective.Website.Pages.Tools>();
+
+        cut.WaitForAssertion(() => {
+            Assert.Contains("/tools/spf/?q=evotec.pl", cut.Markup);
+            Assert.Contains("/tools/cert-check/?q=evotec.pl", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void HostedOnlyToolUsesDomainQueryInLocalCommand() {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("http://localhost/tools/cert-check/?q=evotec.pl");
+
+        var cut = RenderComponent<DomainDetective.Website.Pages.Tools>(parameters => parameters
+            .Add(component => component.ToolSlug, "cert-check"));
+
+        cut.WaitForAssertion(() => {
+            Assert.Contains("Run deeper locally", cut.Markup);
+            Assert.Contains("Test-DDDomainCertificate -Url", cut.Markup);
+            Assert.Contains("evotec.pl", cut.Markup);
+            Assert.DoesNotContain("_domain", cut.Markup);
+        });
     }
 
     private sealed class StaticHttpMessageHandler : HttpMessageHandler {

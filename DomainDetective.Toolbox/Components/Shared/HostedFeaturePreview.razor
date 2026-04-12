@@ -7,6 +7,8 @@
         @GetIntro(Tool)
     </p>
 
+    <ToolCapabilityMap Tool="Tool" DeploymentMode="ToolsDeploymentMode.StaticOnly" Domain="@Domain" StartOpen="true" />
+
     <div class="tool-summary-grid tool-summary-grid-compact">
         <div class="tool-summary-card">
             <span class="tool-summary-label">What it checks</span>
@@ -35,6 +37,7 @@
 
 @code {
     [Parameter] public required ToolDefinition Tool { get; set; }
+    [Parameter] public string? Domain { get; set; }
 
     private static string GetIntro(ToolDefinition tool) {
         return tool.Slug switch {

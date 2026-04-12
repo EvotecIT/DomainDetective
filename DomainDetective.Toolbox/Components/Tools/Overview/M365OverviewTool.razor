@@ -556,7 +556,9 @@
 
     private static string BuildSummary(Microsoft365OverviewInfo info) {
         if (info.IsBrowserLimited) {
-            return "Web edition Microsoft 365 report built from web-ready DNS and mail evidence. Identity probing and tenant-correlation sections are marked clearly when they need deeper online validation.";
+            return info.Tenant.IsMicrosoft365Tenant
+                ? "Web edition found Microsoft 365 DNS or mail evidence. Identity probing and tenant-correlation sections still need deeper online validation."
+                : "Web edition did not find enough browser-safe Microsoft 365 evidence to confirm the tenant. Identity probing and tenant-correlation sections still need deeper online validation.";
         }
 
         if (!info.Tenant.IsMicrosoft365Tenant) {
@@ -588,7 +590,7 @@
             $"Risk: {GetShareRiskLabel(info)}",
             $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
             $"Pending sections: {pending}",
-            $"Unavailable sections: {unavailable}",
+            $"Deeper-run sections: {unavailable}",
             $"Tenant: {tenantName}",
             $"Identity: {identity}",
             $"Detected services: {detectedServices}",
@@ -608,7 +610,7 @@
             $"Risk: {GetShareRiskLabel(info)}",
             $"Updated: {FormatUtc(info.GeneratedAtUtc)}",
             $"Warnings/Errors: {info.WarningCount}/{info.ErrorCount}",
-            $"Unavailable sections: {(info.UnavailableSections.Count == 0 ? "None" : string.Join(", ", info.UnavailableSections))}"
+            $"Deeper-run sections: {(info.UnavailableSections.Count == 0 ? "None" : string.Join(", ", info.UnavailableSections))}"
         };
 
         var failingChecks = info.MailDnsChecks
@@ -704,7 +706,7 @@
 
     private static string GetSectionBadgeLabel(bool isPending, bool isUnavailable) {
         if (isUnavailable) {
-            return "Unavailable";
+            return "Needs deeper run";
         }
 
         return isPending ? "Loading" : "Ready";
@@ -754,7 +756,7 @@
 
     private static string GetSharePendingLabel(Microsoft365OverviewInfo info) {
         if (info.UnavailableSections.Count > 0) {
-            return $"{info.UnavailableSections.Count} sections unavailable";
+            return $"{info.UnavailableSections.Count} sections need deeper run";
         }
 
         return info.PendingSections.Count > 0
@@ -786,10 +788,10 @@
 
     private static string GetUnavailableSectionMessage(string section) {
         return section switch {
-            "Identity" => "Tenant identity and Microsoft authentication probing are unavailable in the web edition.",
-            "Services" => "Microsoft workload detection in this section depends on identity and tenant correlation that the web edition does not run.",
-            "Domains" => "Tenant domain and Microsoft subdomain correlation are unavailable in the web edition.",
-            _ => "This section is unavailable in the web edition."
+            "Identity" => "Tenant identity and Microsoft authentication probing need the deeper online run.",
+            "Services" => "Microsoft workload detection in this section depends on identity and tenant correlation that the browser edition does not run.",
+            "Domains" => "Tenant domain and Microsoft subdomain correlation need the deeper online run.",
+            _ => "This section needs the deeper online run."
         };
     }
 

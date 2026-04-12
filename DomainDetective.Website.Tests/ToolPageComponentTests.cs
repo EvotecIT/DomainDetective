@@ -72,6 +72,61 @@ public sealed class ToolPageComponentTests : TestContext {
         });
     }
 
+    [Fact]
+    public void M365OverviewBrowserLimitedTenantUsesNotConfirmedLanguage() {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("http://localhost/tools/m365-overview/?q=contoso.com");
+
+        var tool = _registry.GetBySlug("m365-overview")!;
+        var cut = RenderComponent<ToolPage>(parameters => parameters
+            .Add(component => component.Definition, tool));
+
+        cut.WaitForAssertion(() => {
+            Assert.Contains("Not confirmed", cut.Markup);
+            Assert.Contains("Tenant identity and Microsoft authentication probing need the deeper online run.", cut.Markup);
+            Assert.Contains("Partial browser support", cut.Markup);
+            Assert.Contains("Tenant identity and Microsoft authentication probes", cut.Markup);
+            Assert.Contains("Run deeper locally", cut.Markup);
+            Assert.Contains("Get-DomainHealthCheck -Domain", cut.Markup);
+            Assert.Contains("contoso.com", cut.Markup);
+            Assert.DoesNotContain("Not detected", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void RunnableToolPageShowsExampleDomainsAndRunsSelectedExample() {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("http://localhost/tools/m365-overview/");
+
+        var tool = _registry.GetBySlug("m365-overview")!;
+        var cut = RenderComponent<ToolPage>(parameters => parameters
+            .Add(component => component.Definition, tool));
+
+        var exampleButton = cut.FindAll("button.tool-example-chip")
+            .Single(button => button.TextContent.Contains("evotec.pl", StringComparison.OrdinalIgnoreCase));
+
+        exampleButton.Click();
+
+        cut.WaitForAssertion(() => {
+            Assert.Contains("q=evotec.pl", navigation.Uri);
+            Assert.Contains("evotec.pl", cut.Find("form.tool-input-form input[type='text']").GetAttribute("value"));
+        });
+    }
+
+    [Fact]
+    public void HostedOnlyStaticToolExplainsGuidedLocalCoverage() {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("http://localhost/tools/cert-check/");
+
+        var tool = _registry.GetBySlug("cert-check")!;
+        var cut = RenderComponent<ToolPage>(parameters => parameters
+            .Add(component => component.Definition, tool));
+
+        Assert.Contains("Guided locally", cut.Markup);
+        Assert.Contains("This check needs network access that the GitHub Pages browser edition cannot provide.", cut.Markup);
+        Assert.Contains("Full DD analysis through CLI, PowerShell, or C#", cut.Markup);
+    }
+
     private sealed class RecordingDnsHandler : HttpMessageHandler {
         public List<Uri> RequestUris { get; } = new();
 

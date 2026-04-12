@@ -31,14 +31,14 @@
 
         @if (!string.IsNullOrEmpty(_searchQuery)) {
             @if (_filteredAllTools.Count > 0) {
-                <ToolCategoryGrid Tools="_filteredAllTools" DeploymentMode="Availability.Mode" />
+                <ToolCategoryGrid Tools="_filteredAllTools" DeploymentMode="Availability.Mode" Domain="@GetToolDomainQuery()" />
             } else {
                 <div class="tools-empty">
                     <p>No tools match "<strong>@_searchQuery</strong>"</p>
                 </div>
             }
         } else {
-            <ToolCategoryGrid Tools="_allTools" DeploymentMode="Availability.Mode" />
+            <ToolCategoryGrid Tools="_allTools" DeploymentMode="Availability.Mode" Domain="@GetToolDomainQuery()" />
         }
     </div>
 } else {
@@ -59,7 +59,7 @@
                 <p>@tool.Description</p>
             </div>
 
-            <HostedFeaturePreview Tool="tool" />
+            <HostedFeaturePreview Tool="tool" Domain="@GetToolDomainQuery()" />
         </div>
     } else if (!Availability.CanRun(tool)) {
         <div class="tool-page">
@@ -72,7 +72,7 @@
                 <p>@tool.Description</p>
             </div>
 
-            <ToolNotAvailable Tool="tool" />
+            <ToolNotAvailable Tool="tool" Domain="@GetToolDomainQuery()" />
         </div>
     } else {
         <ToolPage Definition="tool" />
@@ -82,6 +82,7 @@
 @code {
     [Parameter] public string? ToolSlug { get; set; }
     [SupplyParameterFromQuery(Name = "domain")] public string? DomainQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "q")] public string? ToolDomainQuery { get; set; }
 
     private bool _isReady;
     private string? _searchQuery;
@@ -121,5 +122,9 @@
         if (!_isReady || string.IsNullOrEmpty(ToolSlug)) return "Tools | Domain Detective";
         var tool = Registry.GetBySlug(ToolSlug);
         return tool is not null ? $"{tool.Name} | Domain Detective" : "Tool Not Available | Domain Detective";
+    }
+
+    private string? GetToolDomainQuery() {
+        return string.IsNullOrWhiteSpace(ToolDomainQuery) ? null : ToolDomainQuery.Trim();
     }
 }

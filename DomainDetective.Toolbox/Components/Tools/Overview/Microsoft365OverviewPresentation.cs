@@ -116,16 +116,28 @@ internal static class Microsoft365OverviewPresentation
         return new DomainOverviewDetailCardView
         {
             Title = "Tenant detection",
-            ValueLabel = tenant.IsMicrosoft365Tenant ? "Detected" : "Not detected",
-            Summary = "DD combined namespace, tenant, and Microsoft identity evidence to decide whether this domain maps to a Microsoft 365 tenant.",
+            ValueLabel = FormatTenantDetectionLabel(info),
+            Summary = info.IsBrowserLimited
+                ? "DD used the browser-safe DNS, mail, and application evidence available here. Tenant identity and auth probes require the deeper online run."
+                : "DD combined namespace, tenant, and Microsoft identity evidence to decide whether this domain maps to a Microsoft 365 tenant.",
             Tags = new[]
             {
                 "Confidence: " + FormatConfidence(tenant.DetectionConfidence),
                 "Cloud: " + Humanize(tenant.CloudInstance.ToString()),
-                "Region: " + Humanize(tenant.Region.ToString())
+                info.IsBrowserLimited ? "Identity probes: unavailable" : "Region: " + Humanize(tenant.Region.ToString())
             },
             Samples = samples.Take(3).ToArray()
         };
+    }
+
+    private static string FormatTenantDetectionLabel(Microsoft365OverviewInfo info)
+    {
+        if (info.IsBrowserLimited)
+        {
+            return info.Tenant.IsMicrosoft365Tenant ? "Microsoft evidence observed" : "Not confirmed";
+        }
+
+        return info.Tenant.IsMicrosoft365Tenant ? "Detected" : "Not detected";
     }
 
     private static DomainOverviewDetailCardView BuildIdentitySnapshotCard(Microsoft365OverviewInfo info)
@@ -147,13 +159,15 @@ internal static class Microsoft365OverviewPresentation
         return new DomainOverviewDetailCardView
         {
             Title = "Identity posture",
-            ValueLabel = FormatIdentityPostureLabel(tenant),
-            Summary = "Authentication flow, identity provider, and exposed Microsoft protocol hints shape the public identity posture DD reports here.",
+            ValueLabel = FormatIdentityPostureLabel(info),
+            Summary = info.IsBrowserLimited
+                ? "Microsoft authentication probes do not run in the browser edition, so DD keeps identity posture separate from DNS and mail evidence."
+                : "Authentication flow, identity provider, and exposed Microsoft protocol hints shape the public identity posture DD reports here.",
             Tags = new[]
             {
-                tenant.FederationMode == Microsoft365FederationMode.CloudManaged ? "Cloud-managed" : Humanize(tenant.FederationMode.ToString()),
-                tenant.UserEnumerationStatus == Microsoft365AuthExposureStatus.Exposed ? "User enumeration exposed" : Humanize(tenant.UserEnumerationStatus.ToString()),
-                tenant.ThrottlingStatus == Microsoft365AuthThrottlingStatus.ThrottlingObserved ? "Throttling detected" : Humanize(tenant.ThrottlingStatus.ToString())
+                info.IsBrowserLimited ? "Auth path: unavailable in web edition" : tenant.FederationMode == Microsoft365FederationMode.CloudManaged ? "Cloud-managed" : Humanize(tenant.FederationMode.ToString()),
+                info.IsBrowserLimited ? "Provider: deeper online run" : tenant.UserEnumerationStatus == Microsoft365AuthExposureStatus.Exposed ? "User enumeration exposed" : Humanize(tenant.UserEnumerationStatus.ToString()),
+                info.IsBrowserLimited ? "Throttling: not probed" : tenant.ThrottlingStatus == Microsoft365AuthThrottlingStatus.ThrottlingObserved ? "Throttling detected" : Humanize(tenant.ThrottlingStatus.ToString())
             },
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToArray()
         };
@@ -1160,8 +1174,14 @@ internal static class Microsoft365OverviewPresentation
             : Humanize(confidence.ToString());
     }
 
-    private static string FormatIdentityPostureLabel(Microsoft365TenantInfo tenant)
+    private static string FormatIdentityPostureLabel(Microsoft365OverviewInfo info)
     {
+        var tenant = info.Tenant;
+        if (info.IsBrowserLimited && tenant.AuthenticationPath == Microsoft365AuthPathKind.Unknown && tenant.IdentityProviderKind == TenantIdentityProviderKind.Unknown)
+        {
+            return "Auth not probed";
+        }
+
         if (tenant.FederationMode == Microsoft365FederationMode.CloudManaged)
         {
             return tenant.UserEnumerationStatus == Microsoft365AuthExposureStatus.Exposed ? "Cloud-managed, exposed realm" : "Cloud-managed";

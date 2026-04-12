@@ -18,8 +18,25 @@ public sealed class ToolCategoryGridComponentTests : TestContext {
         var dot = cut.Find(".tool-availability-dot");
 
         Assert.Equal("/tools/ct-subdomains/", link.GetAttribute("href"));
+        Assert.Equal("ct-subdomains: guided local workflow", link.GetAttribute("aria-label"));
         Assert.Contains("tool-availability-dot-local", dot.ClassName);
         Assert.Contains("ct-subdomains", link.TextContent);
+    }
+
+    [Fact]
+    public void AddsDomainQueryToToolLinksWhenDomainIsProvided() {
+        var tools = new[] {
+            CreateTool("spf", ToolCategory.EmailSecurity)
+        };
+
+        var cut = RenderComponent<ToolCategoryGrid>(parameters => parameters
+            .Add(component => component.Tools, tools)
+            .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly)
+            .Add(component => component.Domain, "evotec.pl"));
+
+        var link = cut.Find("a.category-tool-link");
+
+        Assert.Equal("/tools/spf/?q=evotec.pl", link.GetAttribute("href"));
     }
 
     private static ToolDefinition CreateTool(string slug, ToolCategory category, bool browserCompatible = true, bool hostedCompatible = false, bool liteCompatible = false) {
