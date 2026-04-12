@@ -10,6 +10,12 @@ namespace DomainDetective;
 /// Provides normalized failure classification for certificate probing.
 /// </summary>
 internal static class CertificateFailureClassifier {
+    // TODO(net-compat): verified on en-US .NET 8/10; revisit for localized runtimes
+    // or if SslStream changes this runtime message.
+    // SslStream source/message: "This operation is only allowed using a successfully authenticated context."
+    // Matched via substring because SslStream exposes no typed discriminator for this state.
+    private const string SslStreamUnauthenticatedMessage = "successfully authenticated context";
+
     public static CertificateFailureKind Classify(Exception? exception) {
         if (exception == null) {
             return CertificateFailureKind.None;
@@ -39,6 +45,11 @@ internal static class CertificateFailureClassifier {
 #endif
 
             if (current is AuthenticationException) {
+                return CertificateFailureKind.TlsHandshake;
+            }
+
+            if (current is InvalidOperationException invalidOperationException &&
+                IsSslStreamAuthenticationStateFailure(invalidOperationException)) {
                 return CertificateFailureKind.TlsHandshake;
             }
 
@@ -99,6 +110,7 @@ internal static class CertificateFailureClassifier {
 
         if (Contains(normalized, "FailureKind:TlsHandshake") ||
             Contains(normalized, "HttpRequestError:SecureConnectionError") ||
+            IsPersistedUnauthenticatedSslReason(normalized) ||
             Contains(normalized, "TLS Handshake Failure")) {
             return CertificateFailureKind.TlsHandshake;
         }
@@ -137,6 +149,20 @@ internal static class CertificateFailureClassifier {
 
     private static bool Contains(string value, string pattern) {
         return value.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsSslStreamAuthenticationStateFailure(InvalidOperationException exception) {
+        // Prefer typed AuthenticationException and transport errors above; this is a best-effort
+        // fallback for the .NET message and persisted failure-reason text.
+        return exception.Message.IndexOf(SslStreamUnauthenticatedMessage, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsPersistedUnauthenticatedSslReason(string failureReason) {
+        // Persisted reasons produced by BuildFailureReason include the exception type name.
+        // This can only reclassify messages captured from runtimes using the known English
+        // SslStream text; localized historical reason strings may remain Unknown.
+        return Contains(failureReason, nameof(InvalidOperationException)) &&
+               Contains(failureReason, SslStreamUnauthenticatedMessage);
     }
 
     private static CertificateFailureKind Promote(CertificateFailureKind current, CertificateFailureKind candidate) {

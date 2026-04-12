@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.IO;
@@ -134,6 +135,121 @@ namespace DomainDetective.Tests {
                 callerCts.Token);
 
             Assert.Same(cancelled, normalized);
+        }
+
+        [Fact]
+        public async Task TlsProbe_CapturesRemoteEndpoint() {
+            using var cert = CreateSelfSigned("localhost");
+            var server = new TcpListenerFixture((l, t) => Task.Run(() => RunTlsOnlyServer(l, cert, SslProtocols.Tls12, t), t));
+            await server.InitializeAsync();
+
+            try {
+                using var result = await TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", server.Port, TimeSpan.FromSeconds(5), CancellationToken.None);
+
+                Assert.Equal(IPAddress.Loopback, result.RemoteAddress);
+                Assert.Equal(server.Port, result.RemotePort);
+                Assert.NotNull(result.Certificate);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task TlsProbeWithFailureEvidence_ReturnsResultOnSuccess() {
+            using var cert = CreateSelfSigned("localhost");
+            var server = new TcpListenerFixture((l, t) => Task.Run(() => RunTlsOnlyServer(l, cert, SslProtocols.Tls12, t), t));
+            await server.InitializeAsync();
+
+            try {
+                using var result = await TlsProbe.ProbeWithFailureEvidenceAsync(IPAddress.Loopback, "localhost", server.Port, TimeSpan.FromSeconds(5), CancellationToken.None);
+
+                Assert.Equal(IPAddress.Loopback, result.RemoteAddress);
+                Assert.Equal(server.Port, result.RemotePort);
+                Assert.NotNull(result.Certificate);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public void TlsProbe_DefaultResultHasNullEndpointFields() {
+            using var result = new TlsProbe.Result();
+
+            Assert.Null(result.RemoteAddress);
+            Assert.Null(result.RemotePort);
+        }
+
+        [Fact]
+        public async Task TlsProbe_ThrowsOnConnectionFailure() {
+            var exception = await Assert.ThrowsAsync<SocketException>(() =>
+                TlsProbe.ProbeAsyncCore(
+                    static () => new TcpClient(AddressFamily.InterNetwork),
+                    static (_, _) => Task.FromException(new SocketException((int)SocketError.ConnectionRefused)),
+                    "localhost",
+                    TimeSpan.FromSeconds(2),
+                    CancellationToken.None));
+
+            Assert.Equal(SocketError.ConnectionRefused, exception.SocketErrorCode);
+            Assert.Equal(CertificateFailureKind.ConnectionRefused, TlsFailureClassification.Classify(exception));
+        }
+
+        [Fact]
+        public async Task TlsProbeWithFailureEvidence_CapturesRemoteEndpointOnHandshakeFailure() {
+            var server = new TcpListenerFixture(RunTcpCloseServer);
+            await server.InitializeAsync();
+
+            try {
+                var exception = await Assert.ThrowsAsync<TlsProbe.TlsProbeException>(() =>
+                    TlsProbe.ProbeWithFailureEvidenceAsync(IPAddress.Loopback, "localhost", server.Port, TimeSpan.FromSeconds(5), CancellationToken.None));
+
+                Assert.Equal(IPAddress.Loopback, exception.RemoteAddress);
+                Assert.Equal(server.Port, exception.RemotePort);
+                Assert.Contains(IPAddress.Loopback.ToString(), exception.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains(server.Port.ToString(), exception.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.NotNull(exception.InnerException);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task TlsProbeWithFailureEvidence_StringHostCapturesRemoteEndpointOnTcpClose() {
+            var server = new TcpListenerFixture(RunTcpCloseServer);
+            await server.InitializeAsync();
+
+            try {
+                var exception = await Assert.ThrowsAsync<TlsProbe.TlsProbeException>(() =>
+                    TlsProbe.ProbeWithFailureEvidenceAsync(IPAddress.Loopback.ToString(), server.Port, TimeSpan.FromSeconds(5), CancellationToken.None));
+
+                IPAddress? remoteAddress = exception.RemoteAddress?.IsIPv4MappedToIPv6 == true
+                    ? exception.RemoteAddress.MapToIPv4()
+                    : exception.RemoteAddress;
+                Assert.Equal(IPAddress.Loopback, remoteAddress);
+                Assert.Equal(server.Port, exception.RemotePort);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task TlsProbeAsync_KeepsOriginalFailureShapeOnTcpCloseDuringTlsNegotiation() {
+            var server = new TcpListenerFixture(RunTcpCloseServer);
+            await server.InitializeAsync();
+
+            try {
+                var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
+                    TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", server.Port, TimeSpan.FromSeconds(5), CancellationToken.None));
+
+                Assert.IsNotType<TlsProbe.TlsProbeException>(exception);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task TlsProbeAsync_RejectsWhitespaceHostWithArgumentException() {
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                TlsProbe.ProbeAsync(" ", 443, TimeSpan.FromSeconds(1), CancellationToken.None));
         }
 
         [Fact]
@@ -398,6 +514,54 @@ namespace DomainDetective.Tests {
                     }, token);
                 }
             } catch {
+                // ignore on shutdown
+            }
+        }
+
+        private static async Task RunTlsOnlyServer(
+            TcpListener listener,
+            X509Certificate2 cert,
+            SslProtocols protocol,
+            CancellationToken token) {
+            try {
+                while (!token.IsCancellationRequested) {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask) {
+                        try { await clientTask; } catch { }
+                        break;
+                    }
+
+                    var client = await clientTask;
+                    _ = Task.Run(async () => {
+                        try {
+                            using var tcp = client;
+                            using var ssl = new SslStream(tcp.GetStream());
+                            await ssl.AuthenticateAsServerAsync(cert, false, protocol, false);
+                        } catch (Exception ex) {
+                            if (!token.IsCancellationRequested) {
+                                Trace.TraceError("TLS test server failed: " + ex);
+                            }
+                        }
+                    }, token);
+                }
+            } catch (Exception ex) when (token.IsCancellationRequested || ex is ObjectDisposedException) {
+                // ignore on shutdown
+            }
+        }
+
+        private static async Task RunTcpCloseServer(TcpListener listener, CancellationToken token) {
+            try {
+                // Single accept: the failure-evidence tests expect exactly one probe attempt.
+                var clientTask = listener.AcceptTcpClientAsync();
+                var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                if (completed != clientTask) {
+                    try { await clientTask; } catch { }
+                    return;
+                }
+
+                using var client = await clientTask;
+            } catch (Exception ex) when (token.IsCancellationRequested || ex is ObjectDisposedException) {
                 // ignore on shutdown
             }
         }
