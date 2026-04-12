@@ -10,6 +10,7 @@ namespace DomainDetective;
 /// Provides normalized failure classification for certificate probing.
 /// </summary>
 internal static class CertificateFailureClassifier {
+    // TODO(net-compat): revisit if SslStream changes this runtime message.
     // SslStream source/message: "This operation is only allowed using a successfully authenticated context."
     // Matched via substring because SslStream exposes no typed discriminator for this state.
     private const string SslStreamUnauthenticatedMessage = "successfully authenticated context";
@@ -108,7 +109,8 @@ internal static class CertificateFailureClassifier {
 
         if (Contains(normalized, "FailureKind:TlsHandshake") ||
             Contains(normalized, "HttpRequestError:SecureConnectionError") ||
-            Contains(normalized, SslStreamUnauthenticatedMessage) ||
+            (Contains(normalized, nameof(InvalidOperationException)) &&
+             Contains(normalized, SslStreamUnauthenticatedMessage)) ||
             Contains(normalized, "TLS Handshake Failure")) {
             return CertificateFailureKind.TlsHandshake;
         }

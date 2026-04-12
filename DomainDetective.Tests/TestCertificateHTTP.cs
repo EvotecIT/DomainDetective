@@ -154,11 +154,15 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task TlsProbe_ConnectionFailureHasNoReturnedEndpointEvidence() {
+        public void TlsProbe_DefaultResultHasNullEndpointFields() {
             using var result = new TlsProbe.Result();
+
             Assert.Null(result.RemoteAddress);
             Assert.Null(result.RemotePort);
+        }
 
+        [Fact]
+        public async Task TlsProbe_ThrowsOnConnectionFailure() {
             var port = PortHelper.GetFreePort();
 
             await Assert.ThrowsAnyAsync<Exception>(() =>
