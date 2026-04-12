@@ -137,6 +137,23 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task TlsProbe_CapturesRemoteEndpoint() {
+            using var cert = CreateSelfSigned("localhost");
+            var server = new TcpListenerFixture((l, t) => Task.Run(() => RunTlsOnlyServer(l, cert, SslProtocols.Tls12, t), t));
+            await server.InitializeAsync();
+
+            try {
+                using var result = await TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", server.Port, TimeSpan.FromSeconds(5), CancellationToken.None);
+
+                Assert.Equal(IPAddress.Loopback, result.RemoteAddress);
+                Assert.Equal(server.Port, result.RemotePort);
+                Assert.NotNull(result.Certificate);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
         public void BuildFailureReason_AppendsTlsHandshakeMarkerForAuthenticationFailure() {
             var handshake = new AuthenticationException("TLS handshake failed.");
 
@@ -395,6 +412,32 @@ namespace DomainDetective.Tests {
                         }
                         await writer.WriteLineAsync("Content-Length: 0");
                         await writer.WriteLineAsync();
+                    }, token);
+                }
+            } catch {
+                // ignore on shutdown
+            }
+        }
+
+        private static async Task RunTlsOnlyServer(
+            TcpListener listener,
+            X509Certificate2 cert,
+            SslProtocols protocol,
+            CancellationToken token) {
+            try {
+                while (!token.IsCancellationRequested) {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask) {
+                        try { await clientTask; } catch { }
+                        break;
+                    }
+
+                    var client = await clientTask;
+                    _ = Task.Run(async () => {
+                        using var tcp = client;
+                        using var ssl = new SslStream(tcp.GetStream());
+                        await ssl.AuthenticateAsServerAsync(cert, false, protocol, false);
                     }, token);
                 }
             } catch {

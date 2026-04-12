@@ -146,8 +146,10 @@ internal static class CertificateFailureClassifier {
     }
 
     private static bool IsSslStreamAuthenticationStateFailure(InvalidOperationException exception) {
-        return !string.IsNullOrWhiteSpace(exception.Message) &&
-               exception.Message.IndexOf("successfully authenticated context", StringComparison.OrdinalIgnoreCase) >= 0;
+        // SslStream does not expose a typed discriminator for this unauthenticated-state failure.
+        // Prefer typed AuthenticationException and transport errors above; this is a best-effort
+        // fallback for the .NET message and persisted failure-reason text.
+        return exception.Message.IndexOf("successfully authenticated context", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static CertificateFailureKind Promote(CertificateFailureKind current, CertificateFailureKind candidate) {

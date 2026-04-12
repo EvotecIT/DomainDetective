@@ -3,9 +3,14 @@ using System;
 namespace DomainDetective;
 
 /// <summary>
-/// Public helpers for classifying certificate and TLS probe failures.
+/// Public helpers for classifying TLS certificate probe failures.
 /// </summary>
-public static class CertificateFailureClassification {
+/// <remarks>
+/// This is the public API surface for consumers such as worker services. The
+/// lower-level classifier remains internal so its implementation can evolve
+/// without forcing service callers to depend on internal plumbing.
+/// </remarks>
+public static class TlsFailureClassification {
     /// <summary>
     /// Classifies an exception thrown while collecting certificate or TLS evidence.
     /// </summary>
