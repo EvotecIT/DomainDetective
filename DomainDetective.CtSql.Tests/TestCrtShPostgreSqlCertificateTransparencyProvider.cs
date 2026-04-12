@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using DBAClientX;
 using DomainDetective.CtSql;
 using Xunit;
 
@@ -49,6 +50,7 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
             Assert.Contains("LIMIT @limit", query.Sql, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("certificate_identity", query.Sql, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(hostName, query.Parameters["host"]);
+            Assert.Equal("*.example.test", query.Parameters["wildcardHost"]);
             Assert.Equal(1, query.Parameters["limit"]);
         }
     }
@@ -82,8 +84,37 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
 
             Assert.Single(result.Certificates);
             Assert.Contains("*.example.test", result.DiscoveredNames, StringComparer.OrdinalIgnoreCase);
-            Assert.Equal(25, fakeClient.Queries[0].Parameters["limit"]);
+            FakeCrtShPostgreSqlQuery executedQuery = Assert.Single(fakeClient.Queries);
+            Assert.Contains("lower(@wildcardHost)", executedQuery.Sql, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("*.example.test", executedQuery.Parameters["wildcardHost"]);
+            Assert.Equal(25, executedQuery.Parameters["limit"]);
         }
+    }
+
+    [Fact]
+    public async Task QueryExactHostLatest_SurfaceMalformedDerAsDiagnostics() {
+        const string hostName = "bad-der.example.test";
+        var fakeClient = new FakeCrtShPostgreSqlQueryClient(
+            new object?[] {
+                new byte[] { 1, 2, 3 },
+                new DateTimeOffset(2026, 4, 10, 12, 0, 0, TimeSpan.Zero),
+                hostName,
+                "CN=Test Issuer",
+                "1234",
+                new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero),
+                new[] { hostName }
+            });
+        using var provider = new CrtShPostgreSqlCertificateTransparencyProvider(new CertificateInventoryCaptureOptions(), fakeClient);
+
+        CtCertificateQueryResult result = await provider.QueryAsync(CtCertificateQuery.ForExactHostLatest(hostName));
+
+        CtCertificateRecord record = Assert.Single(result.Certificates);
+        Assert.False(record.HasFullCertificate);
+        string diagnostic = Assert.Single(record.Diagnostics);
+        Assert.Contains("could not be parsed", diagnostic, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(hostName, record.Subject);
+        Assert.Equal("1234", record.SerialNumber);
     }
 
     [Fact]
@@ -149,10 +180,50 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
 
         Assert.Contains("identities(c.certificate)", expansion, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("identities(c.certificate)", domainTree, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("identities(c.certificate)", CrtShPostgreSqlCertificateTransparencyProvider.BuildExactHostCertificateQuery(), StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LIMIT @limit", expansion, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LIMIT @limit", domainTree, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LIMIT @limit", CrtShPostgreSqlCertificateTransparencyProvider.BuildExactHostCertificateQuery(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("@wildcardHost", CrtShPostgreSqlCertificateTransparencyProvider.BuildExactHostCertificateQuery(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("certificate_identity", expansion, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("certificate_identity", domainTree, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("certificate_identity", CrtShPostgreSqlCertificateTransparencyProvider.BuildExactHostCertificateQuery(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task QueryAsync_MapsOperationCanceledToTimeoutWhenCallerDidNotCancel() {
+        using var provider = new CrtShPostgreSqlCertificateTransparencyProvider(
+            new CertificateInventoryCaptureOptions(),
+            new FakeCrtShPostgreSqlQueryClient(new OperationCanceledException()));
+
+        CtProviderQueryException exception = await Assert.ThrowsAsync<CtProviderQueryException>(
+            () => provider.QueryAsync(CtCertificateQuery.ForExactHostLatest("api.example.test")));
+
+        Assert.Equal(CtProviderOutcomeKind.Timeout, exception.OutcomeKind);
+        Assert.Equal("timeout", exception.ProviderErrorCode);
+    }
+
+    [Theory]
+    [InlineData("40001", CtProviderOutcomeKind.TransientFailure, true)]
+    [InlineData("57P03", CtProviderOutcomeKind.TransientFailure, true)]
+    [InlineData("53300", CtProviderOutcomeKind.TransientFailure, true)]
+    [InlineData("57014", CtProviderOutcomeKind.Timeout, false)]
+    [InlineData("28P01", CtProviderOutcomeKind.PermanentFailure, false)]
+    [InlineData("XX999", CtProviderOutcomeKind.PermanentFailure, false)]
+    public async Task QueryAsync_MapsPostgreSqlStateToTypedProviderOutcome(
+        string sqlState,
+        CtProviderOutcomeKind expectedOutcome,
+        bool expectedRetryAfter) {
+        using var provider = new CrtShPostgreSqlCertificateTransparencyProvider(
+            new CertificateInventoryCaptureOptions(),
+            new FakeCrtShPostgreSqlQueryClient(CreateQueryException(sqlState)));
+
+        CtProviderQueryException exception = await Assert.ThrowsAsync<CtProviderQueryException>(
+            () => provider.QueryAsync(CtCertificateQuery.ForExactHostLatest("api.example.test")));
+
+        Assert.Equal(expectedOutcome, exception.OutcomeKind);
+        Assert.Equal(sqlState, exception.ProviderErrorCode);
+        Assert.Equal(expectedRetryAfter, exception.RetryAfter.HasValue);
     }
 
     private static byte[] CreateCertificate(string commonName, out X509Certificate2 certificate) {
@@ -174,11 +245,29 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
         }
     }
 
+    private static DbaQueryExecutionException CreateQueryException(string sqlState)
+        => new("failed", "SELECT 1", new FakeSqlStateException(sqlState));
+
+    private sealed class FakeSqlStateException : Exception {
+        public FakeSqlStateException(string sqlState)
+            : base("Fake PostgreSQL provider exception.") {
+            SqlState = sqlState;
+        }
+
+        public string SqlState { get; }
+    }
+
     private sealed class FakeCrtShPostgreSqlQueryClient : ICrtShPostgreSqlQueryClient {
         private readonly List<object?[]> _rows;
+        private readonly Exception? _exception;
 
         public FakeCrtShPostgreSqlQueryClient(params object?[][] rows) {
             _rows = rows.ToList();
+        }
+
+        public FakeCrtShPostgreSqlQueryClient(Exception exception) {
+            _rows = new List<object?[]>();
+            _exception = exception;
         }
 
         public List<FakeCrtShPostgreSqlQuery> Queries { get; } = new();
@@ -193,6 +282,11 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
                 connectionString,
                 query,
                 new Dictionary<string, object?>(parameters, StringComparer.OrdinalIgnoreCase)));
+            if (_exception != null) {
+                throw _exception;
+            }
+
+            // Tests pass a single static rowset; add explicit batches if a future case issues multiple distinct SQL queries.
             IReadOnlyList<T> mappedRows = _rows
                 .Select(row => map(new FakeDataRecord(row)))
                 .ToList();

@@ -5,8 +5,7 @@ namespace DomainDetective;
 /// <summary>
 /// Represents a typed failure returned by a certificate transparency provider.
 /// </summary>
-public sealed class CtProviderQueryException : Exception
-{
+public sealed class CtProviderQueryException : Exception {
     /// <summary>
     /// Creates a typed CT provider exception.
     /// </summary>
@@ -17,8 +16,7 @@ public sealed class CtProviderQueryException : Exception
         Exception? innerException = null,
         string? providerErrorCode = null,
         TimeSpan? retryAfter = null)
-        : base(message, innerException)
-    {
+        : base(message, innerException) {
         ProviderId = providerId ?? string.Empty;
         OutcomeKind = outcomeKind;
         ProviderErrorCode = providerErrorCode;

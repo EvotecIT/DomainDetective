@@ -223,13 +223,10 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             """
             SELECT
                 c.certificate,
-                COALESCE(
-                    (
-                        SELECT MAX(ctle.entry_timestamp)
-                        FROM ct_log_entry ctle
-                        WHERE ctle.certificate_id = c.id
-                    ),
-                    NULL
+                (
+                    SELECT MAX(ctle.entry_timestamp)
+                    FROM ct_log_entry ctle
+                    WHERE ctle.certificate_id = c.id
                 ) AS entry_timestamp,
                 x509_commonName(c.certificate) AS common_name,
                 x509_issuerName(c.certificate) AS issuer_name,
@@ -266,6 +263,57 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             """;
     }
 
+    /// <summary>
+    /// Builds a crt.sh PostgreSQL certificate query for one host, including wildcard certificates that cover it.
+    /// </summary>
+    public static string BuildExactHostCertificateQuery() {
+        return
+            """
+            SELECT
+                c.certificate,
+                (
+                    SELECT MAX(ctle.entry_timestamp)
+                    FROM ct_log_entry ctle
+                    WHERE ctle.certificate_id = c.id
+                ) AS entry_timestamp,
+                x509_commonName(c.certificate) AS common_name,
+                x509_issuerName(c.certificate) AS issuer_name,
+                encode(x509_serialNumber(c.certificate), 'hex') AS serial_number,
+                x509_notBefore(c.certificate) AS not_before,
+                x509_notAfter(c.certificate) AS not_after,
+                ARRAY(
+                    SELECT candidate_name
+                    FROM (
+                        SELECT x509_commonName(c.certificate) AS candidate_name
+                        UNION
+                        SELECT alt_name
+                        FROM x509_altnames(c.certificate) AS alt_name
+                    ) AS candidate_names
+                    WHERE candidate_name IS NOT NULL
+                    ORDER BY lower(candidate_name)
+                ) AS dns_names
+            FROM certificate c
+            WHERE (
+                    identities(c.certificate) @@ plainto_tsquery('simple', @host)
+                 OR identities(c.certificate) @@ plainto_tsquery('simple', @wildcardHost)
+                  )
+              AND EXISTS (
+                    SELECT 1
+                    FROM (
+                        SELECT lower(COALESCE(x509_commonName(c.certificate), '')) AS candidate_name
+                        UNION
+                        SELECT lower(alt_name)
+                        FROM x509_altnames(c.certificate) AS alt_name
+                    ) AS candidate_names
+                    WHERE candidate_name = lower(@host)
+                       OR candidate_name = lower(@wildcardHost)
+                )
+            ORDER BY entry_timestamp DESC NULLS LAST,
+                     x509_notBefore(c.certificate) DESC NULLS LAST
+            LIMIT @limit;
+            """;
+    }
+
     /// <inheritdoc />
     public void Dispose() {
         _client.Dispose();
@@ -281,9 +329,10 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             : ResolvePageSize(query, DefaultHistoryLimit);
         IReadOnlyList<CertificateInventoryCapture.CrtShPostgreSqlExactMetadataRow> rows = await QueryCertificateRowsAsync(
             BuildCrtShPostgreSqlConnectionString(_options),
-            CertificateInventoryCapture.BuildCrtShPostgreSqlExactMetadataQuery(),
+            BuildExactHostCertificateQuery(),
             new Dictionary<string, object?> {
                 ["host"] = normalizedHost,
+                ["wildcardHost"] = CertificateInventoryCapture.BuildWildcardCandidateHost(normalizedHost),
                 ["limit"] = limit
             },
             cancellationToken).ConfigureAwait(false);
@@ -315,7 +364,7 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             return new CtCertificateQueryResult {
                 ProviderId = ProviderId,
                 Certificates = certificateResult.Certificates,
-                DiscoveredNames = ExtractNames(certificateResult.Certificates),
+                DiscoveredNames = certificateResult.DiscoveredNames,
                 HasMore = false
             };
         }
@@ -422,8 +471,8 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             "40001" => CtProviderOutcomeKind.TransientFailure,
             "57014" => CtProviderOutcomeKind.Timeout,
             "57P03" => CtProviderOutcomeKind.TransientFailure,
-            "53300" => CtProviderOutcomeKind.RateLimited,
-            _ => CtProviderOutcomeKind.TransientFailure
+            "53300" => CtProviderOutcomeKind.TransientFailure,
+            _ => CtProviderOutcomeKind.PermanentFailure
         };
         TimeSpan? retryAfter = outcomeKind == CtProviderOutcomeKind.RateLimited ||
                                outcomeKind == CtProviderOutcomeKind.TransientFailure
@@ -455,13 +504,14 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
 
     private static int ResolvePageSize(CtCertificateQuery query, int defaultPageSize) {
         if (query.PageSize.HasValue && query.PageSize.Value > 0) {
-            return Math.Max(1, query.PageSize.Value);
+            return query.PageSize.Value;
         }
 
         return defaultPageSize;
     }
 
     private static CtCertificateRecord? ToRecord(CertificateInventoryCapture.CrtShPostgreSqlExactMetadataRow row) {
+        string? certificateParseDiagnostic = null;
         if (row.CertificateDer != null && row.CertificateDer.Length > 0) {
             try {
                 return CtCertificateRecord.FromDer(
@@ -470,7 +520,7 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
                     providerCertificateId: row.SerialNumber,
                     entryTimestampUtc: row.EntryTimestampUtc);
             } catch (Exception ex) when (!ExceptionHelper.IsFatal(ex)) {
-                // Keep the SQL provider resilient when crt.sh returns unusual DER; fall back to typed metadata.
+                certificateParseDiagnostic = "crt.sh PostgreSQL returned certificate DER that could not be parsed: " + ex.Message;
             }
         }
 
@@ -484,7 +534,10 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             NotBeforeUtc = row.NotBeforeUtc,
             NotAfterUtc = row.NotAfterUtc,
             DnsNames = row.CandidateNames,
-            CertificateDer = row.CertificateDer
+            CertificateDer = certificateParseDiagnostic == null ? row.CertificateDer : null,
+            Diagnostics = certificateParseDiagnostic == null
+                ? Array.Empty<string>()
+                : new[] { certificateParseDiagnostic }
         };
     }
 
@@ -587,11 +640,22 @@ internal sealed class DbaClientXCrtShPostgreSqlQueryClient : ICrtShPostgreSqlQue
             connectionString,
             query,
             map,
-            parameters == null
-                ? null
-                : new Dictionary<string, object?>(parameters, StringComparer.OrdinalIgnoreCase),
+            CopyParameters(parameters),
             cancellationToken: cancellationToken).ConfigureAwait(false);
         return rows;
+    }
+
+    private static Dictionary<string, object?>? CopyParameters(IReadOnlyDictionary<string, object?>? parameters) {
+        if (parameters == null) {
+            return null;
+        }
+
+        var copy = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, object?> parameter in parameters) {
+            copy[parameter.Key] = parameter.Value;
+        }
+
+        return copy;
     }
 
     public void Dispose() {
