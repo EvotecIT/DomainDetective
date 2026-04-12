@@ -208,15 +208,17 @@ Dependency-heavy features are now split into optional packages so the base `Doma
 
 - `DomainDetective.Pgp` enables PGP-backed `security.txt` signature verification
 - `DomainDetective.Visual` enables Playwright/ImageSharp-powered visual typosquatting capture and fingerprinting
-- `DomainDetective.CtSql` is prepared for future CT SQL extraction, but the current PostgreSQL-backed CT implementation still remains in core for now
+- `DomainDetective.CtSql` enables DbaClientX-backed crt.sh PostgreSQL CT metadata enrichment
 
 Registration is explicit on purpose so app startup stays predictable for trimming and AOT scenarios:
 
 ```csharp
 using DomainDetective;
+using DomainDetective.CtSql;
 using DomainDetective.Pgp;
 using DomainDetective.Visual;
 
+DomainDetectiveCtSqlRegistration.Register();
 DomainDetectivePgpRegistration.Register();
 DomainDetectiveVisualRegistration.Register();
 
@@ -697,7 +699,7 @@ HTTP posture checks inspect common security headers including:
 DomainDetective/                Core analyzers, models, and protocol logic
 DomainDetective.Pgp/            Optional PGP-backed security.txt verification
 DomainDetective.Visual/         Optional Playwright/ImageSharp visual analysis helpers
-DomainDetective.CtSql/          Prepared package shell for future CT SQL extraction
+DomainDetective.CtSql/          Optional DbaClientX-backed crt.sh PostgreSQL CT provider
 DomainDetective.PowerShell/     Compiled PowerShell cmdlets
 DomainDetective.CLI/            Spectre.Console CLI and wizard
 DomainDetective.Reports/        Shared reporting abstractions and dispatch

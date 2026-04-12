@@ -8,7 +8,7 @@ Optional dependency-heavy features are split into companion packages:
 
 - `DomainDetective.Pgp` for PGP-backed `security.txt` verification
 - `DomainDetective.Visual` for Playwright/ImageSharp visual typosquatting checks
-- `DomainDetective.CtSql` for the future CT SQL extraction path
+- `DomainDetective.CtSql` for optional DbaClientX-backed crt.sh PostgreSQL CT metadata enrichment; the provider uses `identities(c.certificate)` full-text search rather than the superseded `certificate_identity` table
 
 Example:
 

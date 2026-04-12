@@ -4199,9 +4199,6 @@ public class TestCertificateInventoryCapture {
         Assert.Equal("api.example.com", entry.Name);
         Assert.Equal("EXACT-FALLBACK-THUMBPRINT-001", entry.LatestCertificateThumbprint);
         Assert.Contains(
-            warnings,
-            warning => warning.Contains("domain PostgreSQL lookup failed", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(
             overrideBatches,
             hosts => hosts.Count == 1 &&
                      string.Equals(hosts[0], "example.com", StringComparison.OrdinalIgnoreCase));
@@ -4215,6 +4212,136 @@ public class TestCertificateInventoryCapture {
         Assert.DoesNotContain(
             verboseMessages,
             message => message.Contains("skipping exact passive CT metadata", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task BackfillMissingCtCertificateMetadataAsync_UsesExactPostgreSqlProviderWhenDomainProviderIsUnavailable()
+    {
+        var capture = new CertificateInventoryCapture
+        {
+            CtPassiveMetadataBackfillOverride = (_, _, _, _) =>
+                throw new InvalidOperationException("Passive CT exact metadata query should not run when exact PostgreSQL metadata hydrates the host."),
+            CtExactMetadataPostgreSqlOverride = (host, _, _, _) =>
+            {
+                if (!string.Equals(host, "api.example.com", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult<SubdomainDiscoveryEntry?>(null);
+                }
+
+                return Task.FromResult<SubdomainDiscoveryEntry?>(
+                    new SubdomainDiscoveryEntry
+                    {
+                        Name = "api.example.com",
+                        LatestCertificateThumbprint = "EXACT-SQL-THUMBPRINT-001",
+                        LatestCertificateSubjectAlternativeNames = new[] { "api.example.com" },
+                        CtSources = new[] { "crt.sh-db" }
+                    });
+            }
+        };
+
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "BackfillMissingCtCertificateMetadataAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(method);
+
+        var warnings = new List<string>();
+        var options = new CertificateInventoryCaptureOptions
+        {
+            EnablePassiveCtFallback = false,
+            EnablePassiveCtMetadataFallback = false,
+            EnableCrtShPostgreSqlMetadataFallback = true,
+            BackfillMissingCtCertificateMetadata = true
+        };
+
+        Task<IReadOnlyList<SubdomainDiscoveryEntry>> task =
+            (Task<IReadOnlyList<SubdomainDiscoveryEntry>>)method!.Invoke(
+                capture,
+                new object[]
+                {
+                    new[] { "example.com" },
+                    new[]
+                    {
+                        new SubdomainDiscoveryEntry
+                        {
+                            Name = "api.example.com"
+                        }
+                    },
+                    options,
+                    warnings,
+                    new List<PassiveCtDiagnosticEntry>(),
+                    new InternalLogger(false),
+                    CancellationToken.None
+                })!;
+
+        IReadOnlyList<SubdomainDiscoveryEntry> result = await task;
+
+        SubdomainDiscoveryEntry entry = Assert.Single(result);
+        Assert.Equal("api.example.com", entry.Name);
+        Assert.Equal("EXACT-SQL-THUMBPRINT-001", entry.LatestCertificateThumbprint);
+        Assert.Empty(warnings);
+    }
+
+    [Fact]
+    public async Task BackfillMissingCtCertificateMetadataAsync_SkipsPostgreSqlProviderWhenFallbackDisabled()
+    {
+        int exactPostgreSqlLookupCount = 0;
+        var capture = new CertificateInventoryCapture
+        {
+            CtExactMetadataPostgreSqlOverride = (host, _, _, _) =>
+            {
+                exactPostgreSqlLookupCount++;
+                return Task.FromResult<SubdomainDiscoveryEntry?>(
+                    new SubdomainDiscoveryEntry
+                    {
+                        Name = host,
+                        LatestCertificateThumbprint = "SHOULD-NOT-BE-USED"
+                    });
+            }
+        };
+
+        var method = typeof(CertificateInventoryCapture).GetMethod(
+            "BackfillMissingCtCertificateMetadataAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(method);
+
+        var warnings = new List<string>();
+        var options = new CertificateInventoryCaptureOptions
+        {
+            EnablePassiveCtFallback = false,
+            EnablePassiveCtMetadataFallback = false,
+            EnableCrtShPostgreSqlMetadataFallback = false,
+            BackfillMissingCtCertificateMetadata = true
+        };
+
+        Task<IReadOnlyList<SubdomainDiscoveryEntry>> task =
+            (Task<IReadOnlyList<SubdomainDiscoveryEntry>>)method!.Invoke(
+                capture,
+                new object[]
+                {
+                    new[] { "example.com" },
+                    new[]
+                    {
+                        new SubdomainDiscoveryEntry
+                        {
+                            Name = "api.example.com"
+                        }
+                    },
+                    options,
+                    warnings,
+                    new List<PassiveCtDiagnosticEntry>(),
+                    new InternalLogger(false),
+                    CancellationToken.None
+                })!;
+
+        IReadOnlyList<SubdomainDiscoveryEntry> result = await task;
+
+        SubdomainDiscoveryEntry entry = Assert.Single(result);
+        Assert.Equal("api.example.com", entry.Name);
+        Assert.Null(entry.LatestCertificateThumbprint);
+        Assert.Equal(0, exactPostgreSqlLookupCount);
+        Assert.Empty(warnings);
     }
 
     [Fact]

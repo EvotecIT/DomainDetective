@@ -16,4 +16,8 @@
         <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <PackageReference Include="DBAClientX.PostgreSql" Version="0.4.0" />
+    </ItemGroup>
+
 </Project>

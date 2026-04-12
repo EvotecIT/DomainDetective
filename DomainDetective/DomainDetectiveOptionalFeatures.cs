@@ -13,6 +13,7 @@ public static class DomainDetectiveOptionalFeatures
     private static volatile Func<string, string, (bool IsVerified, string ClearText)>? _securityTxtPgpVerifier;
     private static volatile VisualProviderRegistration? _visualProvider;
     private static volatile Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? _ctSqlExactMetadataProvider;
+    private static volatile ICtSqlMetadataProvider? _ctSqlMetadataProvider;
 
     private sealed class VisualProviderRegistration
     {
@@ -42,7 +43,7 @@ public static class DomainDetectiveOptionalFeatures
     /// <summary>
     /// Indicates whether an optional CT SQL exact-metadata provider has been registered.
     /// </summary>
-    public static bool HasCtSqlProvider => _ctSqlExactMetadataProvider != null;
+    public static bool HasCtSqlProvider => _ctSqlExactMetadataProvider != null || _ctSqlMetadataProvider != null;
 
     /// <summary>
     /// Registers PGP-backed security.txt clear-signature verification.
@@ -74,6 +75,11 @@ public static class DomainDetectiveOptionalFeatures
         Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>> provider)
     {
         _ctSqlExactMetadataProvider = provider ?? throw new ArgumentNullException(nameof(provider));
+    }
+
+    internal static void RegisterCtSqlMetadataProvider(ICtSqlMetadataProvider provider)
+    {
+        _ctSqlMetadataProvider = provider ?? throw new ArgumentNullException(nameof(provider));
     }
 
     internal static bool TryVerifySecurityTxtSignature(string signedText, string? publicKey, out bool isVerified, out string clearText)
@@ -121,5 +127,10 @@ public static class DomainDetectiveOptionalFeatures
     internal static Func<string, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<SubdomainDiscoveryEntry?>>? GetCtSqlExactMetadataProvider()
     {
         return _ctSqlExactMetadataProvider;
+    }
+
+    internal static ICtSqlMetadataProvider? GetCtSqlMetadataProvider()
+    {
+        return _ctSqlMetadataProvider;
     }
 }
