@@ -194,7 +194,26 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task TlsProbeAsync_KeepsOriginalFailureShapeOnHandshakeFailure() {
+        public async Task TlsProbeWithFailureEvidence_StringHostCapturesRemoteEndpointOnTcpClose() {
+            var server = new TcpListenerFixture(RunTcpCloseServer);
+            await server.InitializeAsync();
+
+            try {
+                var exception = await Assert.ThrowsAsync<TlsProbe.TlsProbeException>(() =>
+                    TlsProbe.ProbeWithFailureEvidenceAsync(IPAddress.Loopback.ToString(), server.Port, TimeSpan.FromSeconds(5), CancellationToken.None));
+
+                IPAddress? remoteAddress = exception.RemoteAddress?.IsIPv4MappedToIPv6 == true
+                    ? exception.RemoteAddress.MapToIPv4()
+                    : exception.RemoteAddress;
+                Assert.Equal(IPAddress.Loopback, remoteAddress);
+                Assert.Equal(server.Port, exception.RemotePort);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task TlsProbeAsync_KeepsOriginalFailureShapeOnTcpCloseDuringTlsNegotiation() {
             var server = new TcpListenerFixture(RunTcpCloseServer);
             await server.InitializeAsync();
 
@@ -206,6 +225,12 @@ namespace DomainDetective.Tests {
             } finally {
                 await server.DisposeAsync();
             }
+        }
+
+        [Fact]
+        public async Task TlsProbeAsync_RejectsWhitespaceHostWithArgumentException() {
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                TlsProbe.ProbeAsync(" ", 443, TimeSpan.FromSeconds(1), CancellationToken.None));
         }
 
         [Fact]

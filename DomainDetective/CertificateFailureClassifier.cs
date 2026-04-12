@@ -159,6 +159,8 @@ internal static class CertificateFailureClassifier {
 
     private static bool IsPersistedUnauthenticatedSslReason(string failureReason) {
         // Persisted reasons produced by BuildFailureReason include the exception type name.
+        // This can only reclassify messages captured from runtimes using the known English
+        // SslStream text; localized historical reason strings may remain Unknown.
         return Contains(failureReason, nameof(InvalidOperationException)) &&
                Contains(failureReason, SslStreamUnauthenticatedMessage);
     }

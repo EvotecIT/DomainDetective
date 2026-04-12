@@ -75,7 +75,9 @@ public static class TlsProbe
     /// Represents a TLS probe failure with endpoint evidence captured before the failure.
     /// </summary>
     /// <remarks>Used for in-process probe evidence only; legacy exception serialization is intentionally not supported.</remarks>
+#pragma warning disable CA2237 // This in-process evidence exception is intentionally not binary-serializable.
     public sealed class TlsProbeException : Exception
+#pragma warning restore CA2237
     {
         /// <summary>Remote endpoint IP address captured after a successful TCP connection.</summary>
         public IPAddress? RemoteAddress { get; }
@@ -99,10 +101,7 @@ public static class TlsProbe
     /// <summary>Executes the probe async operation.</summary>
     public static async Task<Result> ProbeAsync(string host, int port, TimeSpan? timeout, CancellationToken token)
     {
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            throw new ArgumentNullException(nameof(host));
-        }
+        ValidateHost(host);
 
         return await ProbeAsyncCore(
             clientFactory: static () => new TcpClient(),
@@ -111,6 +110,42 @@ public static class TlsProbe
             timeout: timeout,
             token: token).ConfigureAwait(false);
     }
+
+    private static void ValidateHost(string host)
+    {
+        if (host == null)
+        {
+            throw new ArgumentNullException(nameof(host));
+        }
+
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            throw new ArgumentException("Host must not be empty or whitespace.", nameof(host));
+        }
+    }
+
+    private static void ValidateSniHost(string sniHost)
+    {
+        if (sniHost == null)
+        {
+            throw new ArgumentNullException(nameof(sniHost));
+        }
+
+        if (string.IsNullOrWhiteSpace(sniHost))
+        {
+            throw new ArgumentException("SNI host must not be empty or whitespace.", nameof(sniHost));
+        }
+    }
+
+    private static Exception WrapWithFailureEvidence(Exception normalized, bool includeFailureEvidence, Result result)
+    {
+        // RemoteAddress is only set after a successful TCP connect; null means
+        // this is still a transport-stage failure and should keep its original shape.
+        return includeFailureEvidence && result.RemoteAddress != null
+            ? new TlsProbeException(normalized.Message, normalized, result.RemoteAddress, result.RemotePort)
+            : normalized;
+    }
+
 
     /// <summary>
     /// Executes the probe async operation and wraps TLS-stage failures with endpoint evidence when available.
@@ -123,10 +158,7 @@ public static class TlsProbe
     /// </summary>
     public static async Task<Result> ProbeWithFailureEvidenceAsync(string host, int port, TimeSpan? timeout, CancellationToken token)
     {
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            throw new ArgumentNullException(nameof(host));
-        }
+        ValidateHost(host);
 
         return await ProbeAsyncCore(
             clientFactory: static () => new TcpClient(),
@@ -148,10 +180,7 @@ public static class TlsProbe
         {
             throw new ArgumentNullException(nameof(address));
         }
-        if (string.IsNullOrWhiteSpace(sniHost))
-        {
-            throw new ArgumentNullException(nameof(sniHost));
-        }
+        ValidateSniHost(sniHost);
 
         return await ProbeAsyncCore(
             clientFactory: () => new TcpClient(address.AddressFamily),
@@ -176,10 +205,7 @@ public static class TlsProbe
         {
             throw new ArgumentNullException(nameof(address));
         }
-        if (string.IsNullOrWhiteSpace(sniHost))
-        {
-            throw new ArgumentNullException(nameof(sniHost));
-        }
+        ValidateSniHost(sniHost);
 
         return await ProbeAsyncCore(
             clientFactory: () => new TcpClient(address.AddressFamily),
@@ -213,14 +239,7 @@ public static class TlsProbe
         catch (Exception ex)
         {
             Exception normalized = NormalizeProbeException(ex, token, timeoutCts);
-            // RemoteAddress is only set after a successful TCP connect; null means
-            // this is still a transport-stage failure and should keep its original shape.
-            if (includeFailureEvidence && result.RemoteAddress != null)
-            {
-                throw new TlsProbeException(normalized.Message, normalized, result.RemoteAddress, result.RemotePort);
-            }
-
-            throw normalized;
+            throw WrapWithFailureEvidence(normalized, includeFailureEvidence, result);
         }
 
         using var ssl = new SslStream(client.GetStream(), false, (_, certificate, chain, errors) =>
@@ -239,14 +258,7 @@ public static class TlsProbe
         catch (Exception ex)
         {
             Exception normalized = NormalizeProbeException(ex, token, timeoutCts);
-            // RemoteAddress is only set after a successful TCP connect; null means
-            // this is still a transport-stage failure and should keep its original shape.
-            if (includeFailureEvidence && result.RemoteAddress != null)
-            {
-                throw new TlsProbeException(normalized.Message, normalized, result.RemoteAddress, result.RemotePort);
-            }
-
-            throw normalized;
+            throw WrapWithFailureEvidence(normalized, includeFailureEvidence, result);
         }
         finally
         {
