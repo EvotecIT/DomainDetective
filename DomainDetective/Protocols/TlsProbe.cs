@@ -35,6 +35,8 @@ public static class TlsProbe
         public string? CertificateIssuer { get; set; }
         public DateTime? NotBefore { get; set; }
         public DateTime? NotAfter { get; set; }
+        public IPAddress? RemoteAddress { get; set; }
+        public int? RemotePort { get; set; }
         public List<string> DnsNames { get; } = new();
         public string? SanParsingError { get; set; }
 
@@ -102,6 +104,11 @@ public static class TlsProbe
         try
         {
             await connectAsync(client, ct).ConfigureAwait(false);
+            if (client.Client.RemoteEndPoint is IPEndPoint remoteEndPoint)
+            {
+                result.RemoteAddress = remoteEndPoint.Address;
+                result.RemotePort = remoteEndPoint.Port;
+            }
         }
         catch (Exception ex)
         {
