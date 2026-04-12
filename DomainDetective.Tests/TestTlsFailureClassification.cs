@@ -24,6 +24,15 @@ public class TestTlsFailureClassification {
     }
 
     [Fact]
+    public void ClassifiesInvalidOperationWithoutSslContextMessageAsUnknown() {
+        var exception = new InvalidOperationException("Another invalid operation.");
+
+        Assert.Equal(
+            CertificateFailureKind.Unknown,
+            TlsFailureClassification.Classify(exception));
+    }
+
+    [Fact]
     public void PublicWrapperClassifiesPersistedReason() {
         const string reason = "FailureKind:NameResolution SocketError:HostNotFound";
 

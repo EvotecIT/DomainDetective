@@ -10,7 +10,8 @@ namespace DomainDetective;
 /// Provides normalized failure classification for certificate probing.
 /// </summary>
 internal static class CertificateFailureClassifier {
-    // TODO(net-compat): verified on .NET 8/10; revisit if SslStream changes this runtime message.
+    // TODO(net-compat): verified on en-US .NET 8/10; revisit for localized runtimes
+    // or if SslStream changes this runtime message.
     // SslStream source/message: "This operation is only allowed using a successfully authenticated context."
     // Matched via substring because SslStream exposes no typed discriminator for this state.
     private const string SslStreamUnauthenticatedMessage = "successfully authenticated context";
