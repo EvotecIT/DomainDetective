@@ -9,10 +9,15 @@ namespace DomainDetective;
 /// </summary>
 public enum TyposquattingInfrastructureCampaignSeverity
 {
+    /// <summary>Defines values for typosquatting infrastructure campaign actionability.</summary>
     None,
+    /// <summary>Defines values for typosquatting infrastructure campaign actionability.</summary>
     Low,
+    /// <summary>Defines values for typosquatting infrastructure campaign actionability.</summary>
     Medium,
+    /// <summary>Defines values for typosquatting infrastructure campaign actionability.</summary>
     High,
+    /// <summary>Defines values for typosquatting infrastructure campaign actionability.</summary>
     Critical
 }
 
@@ -21,10 +26,15 @@ public enum TyposquattingInfrastructureCampaignSeverity
 /// </summary>
 public enum TyposquattingInfrastructureCampaignActionability
 {
+    /// <summary>Provides typosquatting infrastructure campaign functionality.</summary>
     None,
+    /// <summary>Provides typosquatting infrastructure campaign functionality.</summary>
     Low,
+    /// <summary>Provides typosquatting infrastructure campaign functionality.</summary>
     Medium,
+    /// <summary>Provides typosquatting infrastructure campaign functionality.</summary>
     High,
+    /// <summary>Provides typosquatting infrastructure campaign functionality.</summary>
     Immediate
 }
 
@@ -33,42 +43,79 @@ public enum TyposquattingInfrastructureCampaignActionability
 /// </summary>
 public sealed class TyposquattingInfrastructureCampaign
 {
+    /// <summary>Gets or sets the id value.</summary>
     public string Id { get; init; } = string.Empty;
+    /// <summary>Gets or sets the label value.</summary>
     public string Label { get; init; } = string.Empty;
+    /// <summary>Gets or sets the cluster id value.</summary>
     public string ClusterId { get; init; } = string.Empty;
+    /// <summary>Gets or sets the campaign score value.</summary>
     public int CampaignScore { get; init; }
+    /// <summary>Gets or sets the severity value.</summary>
     public TyposquattingInfrastructureCampaignSeverity Severity { get; init; }
+    /// <summary>Gets or sets the candidate count value.</summary>
     public int CandidateCount { get; init; }
+    /// <summary>Gets or sets the active count value.</summary>
     public int ActiveCount { get; init; }
+    /// <summary>Gets or sets the reachable web count value.</summary>
     public int ReachableWebCount { get; init; }
+    /// <summary>Gets or sets the threat listed count value.</summary>
     public int ThreatListedCount { get; init; }
+    /// <summary>Gets or sets the likely malicious count value.</summary>
     public int LikelyMaliciousCount { get; init; }
+    /// <summary>Gets or sets the likely impersonation count value.</summary>
     public int LikelyImpersonationCount { get; init; }
+    /// <summary>Gets or sets the likely impersonating count value.</summary>
     public int LikelyImpersonatingCount { get; init; }
+    /// <summary>Gets or sets the likely visual clone count value.</summary>
     public int LikelyVisualCloneCount { get; init; }
+    /// <summary>Gets or sets the highest risk score value.</summary>
     public int HighestRiskScore { get; init; }
+    /// <summary>Gets or sets the top candidate domain value.</summary>
     public string TopCandidateDomain { get; init; } = string.Empty;
+    /// <summary>Gets or sets the top candidate disposition value.</summary>
     public string TopCandidateDisposition { get; init; } = string.Empty;
+    /// <summary>Gets or sets the primary registrar value.</summary>
     public string PrimaryRegistrar { get; init; } = string.Empty;
+    /// <summary>Gets or sets the registrar concentration percent value.</summary>
     public int RegistrarConcentrationPercent { get; init; }
+    /// <summary>Gets or sets the primary hosting provider value.</summary>
     public string PrimaryHostingProvider { get; init; } = string.Empty;
+    /// <summary>Gets or sets the hosting concentration percent value.</summary>
     public int HostingConcentrationPercent { get; init; }
+    /// <summary>Gets or sets the primary country value.</summary>
     public string PrimaryCountry { get; init; } = string.Empty;
+    /// <summary>Gets or sets the country concentration percent value.</summary>
     public int CountryConcentrationPercent { get; init; }
+    /// <summary>Gets or sets the primary abuse contact value.</summary>
     public string PrimaryAbuseContact { get; init; } = string.Empty;
+    /// <summary>Gets or sets the actionability score value.</summary>
     public int ActionabilityScore { get; init; }
+    /// <summary>Gets or sets the actionability value.</summary>
     public TyposquattingInfrastructureCampaignActionability Actionability { get; init; }
+    /// <summary>Gets or sets the actionability summary value.</summary>
     public string ActionabilitySummary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the abuse contacts value.</summary>
     public IReadOnlyList<string> AbuseContacts { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the registrar contacts value.</summary>
     public IReadOnlyList<string> RegistrarContacts { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the hosting providers value.</summary>
     public IReadOnlyList<string> HostingProviders { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the countries value.</summary>
     public IReadOnlyList<string> Countries { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the escalation bundle value.</summary>
     public TyposquattingInfrastructureCampaignEscalationBundle EscalationBundle { get; init; } = new();
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the pivot summary value.</summary>
     public string PivotSummary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the recommended action value.</summary>
     public string RecommendedAction { get; init; } = string.Empty;
+    /// <summary>Gets or sets the domains value.</summary>
     public IReadOnlyList<string> Domains { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the shared signals value.</summary>
     public IReadOnlyList<string> SharedSignals { get; init; } = Array.Empty<string>();
+    /// <summary>Represents the requires urgent review value.</summary>
     public bool RequiresUrgentReview => Severity == TyposquattingInfrastructureCampaignSeverity.High || Severity == TyposquattingInfrastructureCampaignSeverity.Critical;
 }
 
@@ -77,6 +124,7 @@ public sealed class TyposquattingInfrastructureCampaign
 /// </summary>
 public static class TyposquattingInfrastructureCampaignAnalyzer
 {
+    /// <summary>Builds campaigns.</summary>
     public static IReadOnlyList<TyposquattingInfrastructureCampaign> BuildCampaigns(
         IReadOnlyList<TyposquattingInfrastructureCluster>? clusters,
         IReadOnlyList<TyposquattingCandidate>? candidates)

@@ -621,43 +621,61 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
 /// <summary>Status of an inventory query for a specific record type.</summary>
 public enum DnsInventoryQueryStatus
 {
+    /// <summary>Defines values for dns inventory section.</summary>
     Success = 0,
+    /// <summary>Defines values for dns inventory section.</summary>
     NoData = 1,
+    /// <summary>Defines values for dns inventory section.</summary>
     Failed = 2
 }
 
 /// <summary>DNS response section where a record was captured from.</summary>
 public enum DnsInventorySection
 {
+    /// <summary>Represents captured data.</summary>
     Answer = 0,
+    /// <summary>Represents captured data.</summary>
     Authority = 1,
+    /// <summary>Represents captured data.</summary>
     Additional = 2
 }
 
 /// <summary>A single DNS record captured for inventory/reporting.</summary>
 public sealed class DnsInventoryRecord
 {
+    /// <summary>Gets or sets the section value.</summary>
     public DnsInventorySection Section { get; init; }
+    /// <summary>Gets or sets the name value.</summary>
     public string Name { get; init; } = string.Empty;
+    /// <summary>Gets or sets the type value.</summary>
     public DnsRecordType Type { get; init; }
+    /// <summary>Gets or sets the ttl value.</summary>
     public int Ttl { get; init; }
+    /// <summary>Gets or sets the data value.</summary>
     public string Data { get; init; } = string.Empty;
 }
 
 /// <summary>Inventory result for a specific record type.</summary>
 public sealed class DnsInventoryQuery
 {
+    /// <summary>Gets or sets the record type value.</summary>
     public DnsRecordType RecordType { get; init; }
+    /// <summary>Gets or sets the status value.</summary>
     public DnsInventoryQueryStatus Status { get; internal set; }
+    /// <summary>Gets or sets the response status value.</summary>
     public DnsResponseCode ResponseStatus { get; internal set; }
+    /// <summary>Gets or sets the failure reason value.</summary>
     public string? FailureReason { get; internal set; }
+    /// <summary>Gets the records value.</summary>
     public List<DnsInventoryRecord> Records { get; } = new();
 }
 
 /// <summary>DNS inventory profile controlling the record types queried.</summary>
 public enum DnsInventoryProfile
 {
+    /// <summary>Represents the standard value.</summary>
     Standard = 0,
+    /// <summary>Represents the extended value.</summary>
     Extended = 1
 }
 

@@ -40,6 +40,7 @@ public class RdapAnalysis : IHasAssessments
     public List<RdapDomainStatus> Status { get; private set; } = new();
     /// <summary>Deserialized RDAP domain data.</summary>
     public RdapDomain? DomainData { get; private set; }
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
 
     internal Func<string, Task<string>>? QueryOverride { get; set; }

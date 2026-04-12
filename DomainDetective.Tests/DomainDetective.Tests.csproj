@@ -14,10 +14,6 @@
         <LangVersion>latest</LangVersion>
     </PropertyGroup>
 
-    <PropertyGroup Condition=" '$(TargetFramework)' == 'net10.0' ">
-        <NoWarn>$(NoWarn);SYSLIB0057;CA2022</NoWarn>
-    </PropertyGroup>
-
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
         <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.5.4" Condition=" '$(TargetFramework)' != 'net472' " />
@@ -36,6 +32,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
+        <ProjectReference Include="..\DomainDetective.Visual\DomainDetective.Visual.csproj" />
+        <ProjectReference Include="..\DomainDetective.Pgp\DomainDetective.Pgp.csproj" />
         <ProjectReference Include="..\DomainDetective.PowerShell\DomainDetective.PowerShell.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports\DomainDetective.Reports.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports.Office\DomainDetective.Reports.Office.csproj" />

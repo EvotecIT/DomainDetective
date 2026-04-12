@@ -5,10 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides dmarc narrative functionality.</summary>
 public static class DmarcNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(DmarcAnalysis dmarc)
     {
         var subj = string.IsNullOrWhiteSpace(dmarc.Subject) ? "(domain)" : dmarc.Subject;

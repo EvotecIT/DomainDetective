@@ -4,10 +4,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives
 {
+    /// <summary>Provides mail tls narrative functionality.</summary>
     public static class MailTlsNarrative
     {
+        /// <summary>Provides sections functionality.</summary>
         public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(MailTlsAnalysis? analysis, MailTlsAnalysis.MailProtocol protocol)
         {
             var subjCandidate = analysis?.Subject;

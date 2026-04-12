@@ -6,7 +6,9 @@ using DomainDetective.Definitions;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state evaluator functionality.</summary>
 public static partial class DesiredStateEvaluator {
+    /// <summary>Executes the evaluate operation.</summary>
     public static DesiredStateAnalysis Evaluate(
         string domain,
         DomainHealthCheck health,
@@ -126,6 +128,7 @@ public static partial class DesiredStateEvaluator {
         return result;
     }
 
+    /// <summary>Executes the apply assessment policy operation.</summary>
     public static void ApplyAssessmentPolicy(DomainHealthCheck health, DesiredStateAssessmentPolicy? policy) {
         if (health == null || policy == null) return;
 
@@ -173,6 +176,7 @@ public static partial class DesiredStateEvaluator {
         };
     }
 
+    /// <summary>Executes the apply assessment policy operation.</summary>
     public static void ApplyAssessmentPolicy(IHasAssessments hasAssessments, DesiredStateAssessmentPolicy? policy) {
         if (hasAssessments == null || policy == null) return;
         var suppress = new HashSet<string>(policy.SuppressCodes ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);

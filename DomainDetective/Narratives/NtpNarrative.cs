@@ -3,9 +3,12 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides ntp narrative functionality.</summary>
 public static class NtpNarrative {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(NtpAnalysis analysis) {
         var title = "NTP Report";
         var subtitle = "Network Time Protocol Assessment";

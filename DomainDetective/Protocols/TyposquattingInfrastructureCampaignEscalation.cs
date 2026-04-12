@@ -11,10 +11,15 @@ namespace DomainDetective;
 /// </summary>
 public enum TyposquattingInfrastructureCampaignEscalationRoute
 {
+    /// <summary>Provides typosquatting infrastructure campaign escalation bundle functionality.</summary>
     None,
+    /// <summary>Provides typosquatting infrastructure campaign escalation bundle functionality.</summary>
     Abuse,
+    /// <summary>Provides typosquatting infrastructure campaign escalation bundle functionality.</summary>
     Registrar,
+    /// <summary>Provides typosquatting infrastructure campaign escalation bundle functionality.</summary>
     Hosting,
+    /// <summary>Provides typosquatting infrastructure campaign escalation bundle functionality.</summary>
     Internal
 }
 
@@ -23,20 +28,35 @@ public enum TyposquattingInfrastructureCampaignEscalationRoute
 /// </summary>
 public sealed class TyposquattingInfrastructureCampaignEscalationBundle
 {
+    /// <summary>Gets or sets the case id value.</summary>
     public string CaseId { get; init; } = string.Empty;
+    /// <summary>Gets or sets the case fingerprint value.</summary>
     public string CaseFingerprint { get; init; } = string.Empty;
+    /// <summary>Gets or sets the tracking summary value.</summary>
     public string TrackingSummary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; init; } = string.Empty;
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the evidence summary value.</summary>
     public string EvidenceSummary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the draft body value.</summary>
     public string DraftBody { get; init; } = string.Empty;
+    /// <summary>Gets or sets the draft preview value.</summary>
     public string DraftPreview { get; init; } = string.Empty;
+    /// <summary>Gets or sets the primary route value.</summary>
     public TyposquattingInfrastructureCampaignEscalationRoute PrimaryRoute { get; init; }
+    /// <summary>Gets or sets the primary contact value.</summary>
     public string PrimaryContact { get; init; } = string.Empty;
+    /// <summary>Gets or sets the contacts value.</summary>
     public IReadOnlyList<string> Contacts { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the domains value.</summary>
     public IReadOnlyList<string> Domains { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the evidence points value.</summary>
     public IReadOnlyList<string> EvidencePoints { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the action checklist value.</summary>
     public IReadOnlyList<string> ActionChecklist { get; init; } = Array.Empty<string>();
+    /// <summary>Represents the ready to escalate value.</summary>
     public bool ReadyToEscalate => Contacts.Count > 0;
 }
 
@@ -45,6 +65,7 @@ public sealed class TyposquattingInfrastructureCampaignEscalationBundle
 /// </summary>
 public static class TyposquattingInfrastructureCampaignEscalationBuilder
 {
+    /// <summary>Executes the build operation.</summary>
     public static TyposquattingInfrastructureCampaignEscalationBundle Build(
         string label,
         IReadOnlyList<TyposquattingCandidate> members,

@@ -12,6 +12,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
 public sealed class ApexAddressAnalysis {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>DNS configuration used for lookups when needed.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -38,36 +39,57 @@ public sealed class ApexAddressAnalysis {
         };
 
         // Counts and diversity
+        /// <summary>Gets or sets the i pv4 count value.</summary>
         public int IPv4Count { get; private set; }
+        /// <summary>Gets or sets the i pv6 count value.</summary>
         public int IPv6Count { get; private set; }
+        /// <summary>Gets or sets the distinct subnet count v4 value.</summary>
         public int DistinctSubnetCountV4 { get; private set; }
+        /// <summary>Gets or sets the distinct subnet count v6 value.</summary>
         public int DistinctSubnetCountV6 { get; private set; }
 
         // Address quality/visibility
+        /// <summary>Gets or sets the private address count value.</summary>
         public int PrivateAddressCount { get; private set; }
+        /// <summary>Gets or sets the loopback count value.</summary>
         public int LoopbackCount { get; private set; }
+        /// <summary>Gets or sets the link local count value.</summary>
         public int LinkLocalCount { get; private set; }
+        /// <summary>Gets or sets the multicast count value.</summary>
         public int MulticastCount { get; private set; }
+        /// <summary>Gets or sets the documentation address count value.</summary>
         public int DocumentationAddressCount { get; private set; }
+        /// <summary>Gets or sets the unique local v6 count value.</summary>
         public int UniqueLocalV6Count { get; private set; }
+        /// <summary>Gets or sets the public address count value.</summary>
         public int PublicAddressCount { get; private set; }
 
         // Reverse DNS details
+        /// <summary>Gets or sets the ptr by ip value.</summary>
         public Dictionary<string, List<string>> PtrByIp { get; private set; } = new();
+        /// <summary>Gets or sets the any ptr present value.</summary>
         public bool AnyPtrPresent { get; private set; }
+        /// <summary>Gets or sets the all ptr present value.</summary>
         public bool AllPtrPresent { get; private set; }
+        /// <summary>Gets or sets the fcr dns valid count value.</summary>
         public int FcrDnsValidCount { get; private set; }
+        /// <summary>Gets or sets the all fcr dns valid value.</summary>
         public bool AllFcrDnsValid { get; private set; }
 
         // ASN + RPKI
+        /// <summary>Gets or sets the asn by ip value.</summary>
         public Dictionary<string, int> AsnByIp { get; private set; } = new();
+        /// <summary>Gets or sets the asn distinct count value.</summary>
         public int AsnDistinctCount { get; private set; }
+        /// <summary>Gets or sets the rpki valid count value.</summary>
         public int RpkiValidCount { get; private set; }
+        /// <summary>Gets or sets the all rpki valid value.</summary>
         public bool AllRpkiValid { get; private set; }
 
         /// <summary>Optional override for RPKI lookups when testing.</summary>
         public Func<string, Task<(string Prefix, int Asn, bool Valid)>>? QueryRpkiOverride { private get; set; }
 
+        /// <summary>Executes the reset operation.</summary>
         public void Reset() {
             ARecords = new List<string>();
             AaaaRecords = new List<string>();

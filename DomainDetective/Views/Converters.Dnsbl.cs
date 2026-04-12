@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static DnsblInfo Convert(DNSBLAnalysis analysis)
     {
         // DNSBLAnalysis already emits assessments for listed/timeouts/failures.
@@ -280,30 +281,55 @@ public static partial class Converters
 /// </summary>
 public class DnsblInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the providers checked value.</summary>
     public int ProvidersChecked { get; set; }
+    /// <summary>Gets or sets the hosts checked value.</summary>
     public int HostsChecked { get; set; }
+    /// <summary>Gets or sets the hosts listed value.</summary>
     public int HostsListed { get; set; }
+    /// <summary>Gets or sets the providers with listings value.</summary>
     public int ProvidersWithListings { get; set; }
+    /// <summary>Gets or sets the listed records value.</summary>
     public IReadOnlyList<DNSBLRecord> ListedRecords { get; set; } = System.Array.Empty<DNSBLRecord>();
+    /// <summary>Gets or sets the host summaries value.</summary>
     public IReadOnlyList<DnsblHostSummary> HostSummaries { get; set; } = System.Array.Empty<DnsblHostSummary>();
+    /// <summary>Gets or sets the targets value.</summary>
     public IReadOnlyList<DnsblTargetInfo> Targets { get; set; } = System.Array.Empty<DnsblTargetInfo>();
+    /// <summary>Gets or sets the listings value.</summary>
     public IReadOnlyList<DnsblListingInfo> Listings { get; set; } = System.Array.Empty<DnsblListingInfo>();
+    /// <summary>Gets or sets the pathways value.</summary>
     public IReadOnlyList<DnsblPathwayInfo> Pathways { get; set; } = System.Array.Empty<DnsblPathwayInfo>();
+    /// <summary>Gets or sets the provider summaries value.</summary>
     public IReadOnlyList<DnsblProviderSummary> ProviderSummaries { get; set; } = System.Array.Empty<DnsblProviderSummary>();
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the narrative value.</summary>
     public DomainDetective.Narratives.DnsblNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.DnsblNarrative.Sections();
+    /// <summary>Gets or sets the highlights value.</summary>
     public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the details value.</summary>
     public IReadOnlyList<string> Details { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the raw value.</summary>
     public DNSBLAnalysis Raw { get; set; } = new DNSBLAnalysis();
 }
 
@@ -312,55 +338,94 @@ public class DnsblInfo
 /// </summary>
 public class DnsblHostSummary
 {
+    /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = string.Empty;
+    /// <summary>Gets or sets the total value.</summary>
     public int Total { get; set; }
+    /// <summary>Gets or sets the listed value.</summary>
     public int Listed { get; set; }
+    /// <summary>Gets or sets the blacklists value.</summary>
     public IReadOnlyList<string> Blacklists { get; set; } = System.Array.Empty<string>();
 }
 
+/// <summary>Provides dnsbl target info functionality.</summary>
 public class DnsblTargetInfo
 {
+    /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = string.Empty;
+    /// <summary>Gets or sets the label value.</summary>
     public string Label { get; set; } = string.Empty;
+    /// <summary>Gets or sets the primary pathway value.</summary>
     public string PrimaryPathway { get; set; } = string.Empty;
+    /// <summary>Gets or sets the pathways value.</summary>
     public IReadOnlyList<string> Pathways { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the query kinds value.</summary>
     public IReadOnlyList<string> QueryKinds { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the source hosts value.</summary>
     public IReadOnlyList<string> SourceHosts { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the providers checked value.</summary>
     public int ProvidersChecked { get; set; }
+    /// <summary>Gets or sets the providers listed value.</summary>
     public int ProvidersListed { get; set; }
+    /// <summary>Gets or sets the listed providers value.</summary>
     public IReadOnlyList<string> ListedProviders { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the example query value.</summary>
     public string ExampleQuery { get; set; } = string.Empty;
 }
 
+/// <summary>Provides dnsbl listing info functionality.</summary>
 public class DnsblListingInfo
 {
+    /// <summary>Gets or sets the target value.</summary>
     public string Target { get; set; } = string.Empty;
+    /// <summary>Gets or sets the provider value.</summary>
     public string Provider { get; set; } = string.Empty;
+    /// <summary>Gets or sets the pathway value.</summary>
     public string Pathway { get; set; } = string.Empty;
+    /// <summary>Gets or sets the query kind value.</summary>
     public string QueryKind { get; set; } = string.Empty;
+    /// <summary>Gets or sets the source host value.</summary>
     public string SourceHost { get; set; } = string.Empty;
+    /// <summary>Gets or sets the query value.</summary>
     public string Query { get; set; } = string.Empty;
+    /// <summary>Gets or sets the fully qualified query value.</summary>
     public string FullyQualifiedQuery { get; set; } = string.Empty;
+    /// <summary>Gets or sets the answer value.</summary>
     public string Answer { get; set; } = string.Empty;
+    /// <summary>Gets or sets the meaning value.</summary>
     public string Meaning { get; set; } = string.Empty;
 }
 
+/// <summary>Provides dnsbl pathway info functionality.</summary>
 public class DnsblPathwayInfo
 {
+    /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = string.Empty;
+    /// <summary>Gets or sets the label value.</summary>
     public string Label { get; set; } = string.Empty;
+    /// <summary>Gets or sets the targets checked value.</summary>
     public int TargetsChecked { get; set; }
+    /// <summary>Gets or sets the listed targets value.</summary>
     public int ListedTargets { get; set; }
+    /// <summary>Gets or sets the providers checked value.</summary>
     public int ProvidersChecked { get; set; }
+    /// <summary>Gets or sets the providers with listings value.</summary>
     public int ProvidersWithListings { get; set; }
+    /// <summary>Gets or sets the query kinds value.</summary>
     public IReadOnlyList<string> QueryKinds { get; set; } = System.Array.Empty<string>();
 }
 
+/// <summary>Provides dnsbl provider summary functionality.</summary>
 public class DnsblProviderSummary
 {
+    /// <summary>Gets or sets the provider value.</summary>
     public string Provider { get; set; } = string.Empty;
+    /// <summary>Gets or sets the query count value.</summary>
     public int QueryCount { get; set; }
+    /// <summary>Gets or sets the listed count value.</summary>
     public int ListedCount { get; set; }
+    /// <summary>Gets or sets the listed targets value.</summary>
     public IReadOnlyList<string> ListedTargets { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the meanings value.</summary>
     public IReadOnlyList<string> Meanings { get; set; } = System.Array.Empty<string>();
 }

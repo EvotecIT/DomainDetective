@@ -95,6 +95,7 @@ public partial class DomainHealthCheck
         }
     }
 
+    /// <summary>Gets assessment providers.</summary>
     public IEnumerable<IHasAssessments> GetAssessmentProviders()
     {
         for (var i = 0; i < _assessmentProviderGetters.Length; i++)

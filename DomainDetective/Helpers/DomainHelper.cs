@@ -4,12 +4,14 @@ using System.Text.RegularExpressions;
 
 namespace DomainDetective.Helpers;
 
+/// <summary>Provides domain helper functionality.</summary>
 public static class DomainHelper {
     private static readonly IdnMapping _idn = new();
     private static readonly Regex _tldRegex = new(
         "^[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$",
         RegexOptions.Compiled);
 
+    /// <summary>Validates idn.</summary>
     public static string ValidateIdn(string domain) {
         if (string.IsNullOrWhiteSpace(domain)) {
             throw new ArgumentNullException(nameof(domain));
@@ -26,9 +28,11 @@ public static class DomainHelper {
         }
     }
 
+    /// <summary>Executes the is valid tld operation.</summary>
     public static bool IsValidTld(string tld) =>
         _tldRegex.IsMatch(tld ?? string.Empty);
 
+    /// <summary>Executes the is domain or subdomain of operation.</summary>
     public static bool IsDomainOrSubdomainOf(string? host, string? domain) {
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(domain)) {
             return false;

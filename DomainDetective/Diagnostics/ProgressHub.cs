@@ -12,12 +12,14 @@ public sealed class ProgressHub : IDisposable
     private readonly List<IProgressSink> _sinks = new();
     private bool _disposed;
 
+    /// <summary>Initializes a new instance of the ProgressHub class.</summary>
     public ProgressHub(InternalLogger logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         Attach();
     }
 
+    /// <summary>Adds sink.</summary>
     public void AddSink(IProgressSink sink)
     {
         if (sink == null) return;
@@ -59,6 +61,7 @@ public sealed class ProgressHub : IDisposable
         foreach (var s in _sinks) { try { s.OnDebug(e); } catch { } }
     }
 
+    /// <summary>Executes the dispose operation.</summary>
     public void Dispose()
     {
         if (_disposed) return;

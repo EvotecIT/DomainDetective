@@ -30,8 +30,11 @@ public sealed class Assessment {
 /// Severity levels for assessments.
 /// </summary>
 public enum AssessmentSeverity {
+    /// <summary>Defines the contract for for.</summary>
     Info = 0,
+    /// <summary>Defines the contract for for.</summary>
     Warning = 1,
+    /// <summary>Defines the contract for for.</summary>
     Error = 2
 }
 
@@ -39,6 +42,7 @@ public enum AssessmentSeverity {
 /// Optional interface for analysis classes that expose assessments.
 /// </summary>
 public interface IHasAssessments {
+    /// <summary>Gets the assessments value.</summary>
     List<Assessment> Assessments { get; }
 }
 

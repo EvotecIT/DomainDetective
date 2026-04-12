@@ -5,7 +5,9 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public enum HtmlProfile
 {
+    /// <summary>Represents the document value.</summary>
     Document,
+    /// <summary>Represents the dashboard value.</summary>
     Dashboard
 }
 

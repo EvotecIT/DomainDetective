@@ -5,13 +5,17 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state best practice settings functionality.</summary>
 public sealed class DesiredStateBestPracticeSettings {
+    /// <summary>Gets or sets the checks value.</summary>
     [JsonPropertyName("checks")]
     public HealthCheckType[]? Checks { get; set; }
 
+    /// <summary>Gets or sets the include active mail probes value.</summary>
     [JsonPropertyName("includeActiveMailProbes")]
     public bool IncludeActiveMailProbes { get; set; }
 
+    /// <summary>Executes the resolve checks operation.</summary>
     public HealthCheckType[] ResolveChecks() {
         var set = new HashSet<HealthCheckType>();
 

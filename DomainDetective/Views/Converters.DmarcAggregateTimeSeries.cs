@@ -7,6 +7,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static DmarcAggregateTimeSeriesInfo Convert(IReadOnlyList<DmarcAggregateSnapshot> snapshots, string? subjectOverride = null)
     {
         var list = (snapshots ?? Array.Empty<DmarcAggregateSnapshot>()).Where(s => s != null).ToList();
@@ -171,53 +172,88 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides dmarc aggregate time series info functionality.</summary>
 public sealed class DmarcAggregateTimeSeriesInfo
 {
+    /// <summary>Gets or sets the section key value.</summary>
     public string SectionKey { get; set; } = "DMARC Aggregate";
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the period start utc value.</summary>
     public DateTimeOffset? PeriodStartUtc { get; set; }
+    /// <summary>Gets or sets the period end utc value.</summary>
     public DateTimeOffset? PeriodEndUtc { get; set; }
+    /// <summary>Gets or sets the snapshot count value.</summary>
     public int SnapshotCount { get; set; }
 
+    /// <summary>Gets or sets the total count value.</summary>
     public int TotalCount { get; set; }
+    /// <summary>Gets or sets the pass count value.</summary>
     public int PassCount { get; set; }
+    /// <summary>Gets or sets the fail count value.</summary>
     public int FailCount { get; set; }
+    /// <summary>Gets or sets the pass rate percent value.</summary>
     public double PassRatePercent { get; set; }
 
+    /// <summary>Gets or sets the daily value.</summary>
     public IReadOnlyList<DmarcAggregateDailyStat> Daily { get; set; } = Array.Empty<DmarcAggregateDailyStat>();
+    /// <summary>Gets or sets the disposition counts value.</summary>
     public Dictionary<string, int> DispositionCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Gets or sets the top failing source ips value.</summary>
     public IReadOnlyList<NamedCount> TopFailingSourceIps { get; set; } = Array.Empty<NamedCount>();
+    /// <summary>Gets or sets the top failing header from value.</summary>
     public IReadOnlyList<NamedCount> TopFailingHeaderFrom { get; set; } = Array.Empty<NamedCount>();
+    /// <summary>Gets or sets the top failing dkim domains value.</summary>
     public IReadOnlyList<NamedCount> TopFailingDkimDomains { get; set; } = Array.Empty<NamedCount>();
+    /// <summary>Gets or sets the top failing spf domains value.</summary>
     public IReadOnlyList<NamedCount> TopFailingSpfDomains { get; set; } = Array.Empty<NamedCount>();
 
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = "OK";
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = Array.Empty<string>();
 
+    /// <summary>Gets or sets the snapshots value.</summary>
     public IReadOnlyList<DmarcAggregateSnapshot> Snapshots { get; set; } = Array.Empty<DmarcAggregateSnapshot>();
 }
 
+/// <summary>Provides dmarc aggregate daily stat functionality.</summary>
 public sealed class DmarcAggregateDailyStat
 {
+    /// <summary>Gets or sets the date utc value.</summary>
     public DateTime DateUtc { get; set; }
+    /// <summary>Gets or sets the total count value.</summary>
     public int TotalCount { get; set; }
+    /// <summary>Gets or sets the pass count value.</summary>
     public int PassCount { get; set; }
+    /// <summary>Gets or sets the fail count value.</summary>
     public int FailCount { get; set; }
+    /// <summary>Gets or sets the pass rate percent value.</summary>
     public double PassRatePercent { get; set; }
 }
 
+/// <summary>Provides named count functionality.</summary>
 public sealed class NamedCount
 {
+    /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = string.Empty;
+    /// <summary>Gets or sets the count value.</summary>
     public int Count { get; set; }
 }
 

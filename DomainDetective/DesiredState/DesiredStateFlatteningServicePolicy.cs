@@ -3,7 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state flattening service policy functionality.</summary>
 public sealed class DesiredStateFlatteningServicePolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -27,6 +29,7 @@ public sealed class DesiredStateFlatteningServicePolicy {
     [JsonPropertyName("allowedTargetSuffixes")]
     public string[]? AllowedTargetSuffixes { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateFlatteningServicePolicy Clone() {
         return new DesiredStateFlatteningServicePolicy {
             Enabled = Enabled,
@@ -38,6 +41,7 @@ public sealed class DesiredStateFlatteningServicePolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateFlatteningServicePolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

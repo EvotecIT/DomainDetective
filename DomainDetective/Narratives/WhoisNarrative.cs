@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides whois narrative functionality.</summary>
 public static class WhoisNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(WhoisAnalysis whois)
     {
         var subj = string.IsNullOrWhiteSpace(whois.DomainName) ? "(domain)" : whois.DomainName;

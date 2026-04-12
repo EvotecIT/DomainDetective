@@ -42,13 +42,21 @@ public sealed class TyposquattingContentSimilarityOptions
 /// </summary>
 public sealed class TyposquattingSourceContentProfile
 {
+    /// <summary>Gets or sets the domain value.</summary>
     public string Domain { get; init; } = string.Empty;
+    /// <summary>Gets or sets the body sha256 value.</summary>
     public string BodySha256 { get; init; } = string.Empty;
+    /// <summary>Gets or sets the body fingerprint value.</summary>
     public TyposquattingPageContentFingerprint? BodyFingerprint { get; init; }
+    /// <summary>Gets or sets the body length value.</summary>
     public int? BodyLength { get; init; }
+    /// <summary>Gets or sets the page title value.</summary>
     public string PageTitle { get; init; } = string.Empty;
+    /// <summary>Gets or sets the final host value.</summary>
     public string FinalHost { get; init; } = string.Empty;
+    /// <summary>Gets or sets the tech detections value.</summary>
     public IReadOnlyList<string> TechDetections { get; init; } = Array.Empty<string>();
+    /// <summary>Represents the has any signals value.</summary>
     public bool HasAnySignals =>
         !string.IsNullOrWhiteSpace(BodySha256)
         || BodyFingerprint?.HasValue == true
@@ -63,11 +71,17 @@ public sealed class TyposquattingSourceContentProfile
 /// </summary>
 public sealed class TyposquattingContentSimilarityMatch
 {
+    /// <summary>Gets or sets the score value.</summary>
     public int Score { get; init; }
+    /// <summary>Gets or sets the likely impersonating value.</summary>
     public bool LikelyImpersonating { get; init; }
+    /// <summary>Gets or sets the fuzzy fingerprint similarity value.</summary>
     public int? FuzzyFingerprintSimilarity { get; init; }
+    /// <summary>Gets or sets the fuzzy fingerprint distance value.</summary>
     public int? FuzzyFingerprintDistance { get; init; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the signals value.</summary>
     public IReadOnlyList<string> Signals { get; init; } = Array.Empty<string>();
 }
 
@@ -76,6 +90,7 @@ public sealed class TyposquattingContentSimilarityMatch
 /// </summary>
 public static class TyposquattingContentSimilarityAnalyzer
 {
+    /// <summary>Builds profile async.</summary>
     public static async Task<TyposquattingSourceContentProfile?> BuildProfileAsync(
         string domain,
         DnsConfiguration dnsConfiguration,
@@ -110,6 +125,7 @@ public static class TyposquattingContentSimilarityAnalyzer
         };
     }
 
+    /// <summary>Executes the compare candidates operation.</summary>
     public static void CompareCandidates(
         IReadOnlyList<TyposquattingCandidate>? candidates,
         TyposquattingSourceContentProfile? profile,
@@ -126,6 +142,7 @@ public static class TyposquattingContentSimilarityAnalyzer
         }
     }
 
+    /// <summary>Executes the compare candidate operation.</summary>
     public static TyposquattingContentSimilarityMatch CompareCandidate(
         TyposquattingCandidate candidate,
         TyposquattingSourceContentProfile profile,

@@ -17,53 +17,93 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public class MailTlsAnalysis : IHasAssessments {
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
     /// <summary>Supported mail protocols.</summary>
     public enum MailProtocol {
+        /// <summary>Provides tls result functionality.</summary>
         Smtp,
+        /// <summary>Provides tls result functionality.</summary>
         Imap,
+        /// <summary>Provides tls result functionality.</summary>
         Pop3
     }
 
     /// <summary>Result of a TLS check.</summary>
     public class TlsResult {
+        /// <summary>Gets or sets the start tls advertised value.</summary>
         public bool StartTlsAdvertised { get; set; }
+        /// <summary>Gets or sets the certificate valid value.</summary>
         public bool CertificateValid { get; set; }
+        /// <summary>Gets or sets the days to expire value.</summary>
         public int DaysToExpire { get; set; }
+        /// <summary>Gets or sets the days valid value.</summary>
         public int DaysValid { get; set; }
+        /// <summary>Gets or sets the is expired value.</summary>
         public bool IsExpired { get; set; }
+        /// <summary>Gets or sets the protocol value.</summary>
         public SslProtocols Protocol { get; set; }
+        /// <summary>Gets or sets the supports tls13 value.</summary>
         public bool SupportsTls13 { get; set; }
+        /// <summary>Gets or sets the supports tls12 value.</summary>
         public bool SupportsTls12 { get; set; }
+        /// <summary>Gets or sets the supports tls11 value.</summary>
         public bool SupportsTls11 { get; set; }
+        /// <summary>Gets or sets the supports tls10 value.</summary>
         public bool SupportsTls10 { get; set; }
+        /// <summary>Gets or sets the tls13 used value.</summary>
         public bool Tls13Used { get; set; }
+        /// <summary>Gets or sets the hostname match value.</summary>
         public bool HostnameMatch { get; set; }
+        /// <summary>Gets or sets the cipher algorithm value.</summary>
         public string CipherAlgorithm { get; set; } = string.Empty;
+        /// <summary>Gets or sets the cipher strength value.</summary>
         public int CipherStrength { get; set; }
+        /// <summary>Gets or sets the cipher suite value.</summary>
         public string CipherSuite { get; set; } = string.Empty;
+        /// <summary>Gets or sets the dh key bits value.</summary>
         public int DhKeyBits { get; set; }
+        /// <summary>Gets or sets the key exchange algorithm value.</summary>
         public string? KeyExchangeAlgorithm { get; set; }
+        /// <summary>Gets or sets the certificate value.</summary>
         public X509Certificate2? Certificate { get; set; }
+        /// <summary>Gets the chain value.</summary>
         public List<X509Certificate2> Chain { get; } = new();
+        /// <summary>Gets the chain errors value.</summary>
         public List<X509ChainStatusFlags> ChainErrors { get; } = new();
+        /// <summary>Represents the chain valid value.</summary>
         public bool ChainValid => ChainErrors.Count == 0;
 
         // Flattened certificate fields for easier consumption
+        /// <summary>Gets or sets the certificate subject value.</summary>
         public string? CertificateSubject { get; set; }
+        /// <summary>Gets or sets the certificate issuer value.</summary>
         public string? CertificateIssuer { get; set; }
+        /// <summary>Gets or sets the certificate not before value.</summary>
         public DateTime? CertificateNotBefore { get; set; }
+        /// <summary>Gets or sets the certificate not after value.</summary>
         public DateTime? CertificateNotAfter { get; set; }
+        /// <summary>Gets or sets the certificate thumbprint value.</summary>
         public string? CertificateThumbprint { get; set; }
+        /// <summary>Gets or sets the certificate serial number value.</summary>
         public string? CertificateSerialNumber { get; set; }
+        /// <summary>Gets or sets the certificate signature algorithm value.</summary>
         public string? CertificateSignatureAlgorithm { get; set; }
+        /// <summary>Gets or sets the public key algorithm value.</summary>
         public string? PublicKeyAlgorithm { get; set; }
+        /// <summary>Gets or sets the public key size value.</summary>
         public int? PublicKeySize { get; set; }
+        /// <summary>Gets the certificate dns names value.</summary>
         public List<string> CertificateDnsNames { get; } = new();
+        /// <summary>Gets or sets the grade level value.</summary>
         public GradeLevel GradeLevel { get; set; } = GradeLevel.Unknown;
+        /// <summary>Gets or sets the legacy enabled value.</summary>
         public bool LegacyEnabled { get; set; }
+        /// <summary>Gets or sets the ocsp stapling present value.</summary>
         public bool? OcspStaplingPresent { get; set; }
+        /// <summary>Gets or sets the failure reason value.</summary>
         public string? FailureReason { get; set; }
+        /// <summary>Gets or sets the failure kind value.</summary>
         public CertificateFailureKind FailureKind { get; set; }
     }
 
@@ -74,6 +114,7 @@ public class MailTlsAnalysis : IHasAssessments {
 
     /// <summary>Structured assessments captured during mail TLS checks.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>Analyzes a single host.</summary>

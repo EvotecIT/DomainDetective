@@ -3,10 +3,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives
 {
+    /// <summary>Provides website narrative functionality.</summary>
     public static class WebsiteNarrative
     {
+        /// <summary>Provides sections functionality.</summary>
         public sealed class Sections : NarrativeSections { }
 
+        /// <summary>Executes the build operation.</summary>
         public static Sections Build(HttpAnalysis? http, TlsAnalysis? tls)
         {
             var subj = http?.Subject ?? tls?.Subject;

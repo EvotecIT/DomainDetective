@@ -3,7 +3,9 @@ using System.Linq;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state reverse dns policy functionality.</summary>
 public sealed class DesiredStateReverseDnsPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -27,6 +29,7 @@ public sealed class DesiredStateReverseDnsPolicy {
     [JsonPropertyName("requireForwardConfirmed")]
     public bool? RequireForwardConfirmed { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateReverseDnsPolicy Clone() {
         return new DesiredStateReverseDnsPolicy {
             Enabled = Enabled,
@@ -38,6 +41,7 @@ public sealed class DesiredStateReverseDnsPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateReverseDnsPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

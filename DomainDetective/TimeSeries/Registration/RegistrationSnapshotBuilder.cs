@@ -5,8 +5,10 @@ using System.Linq;
 
 namespace DomainDetective.TimeSeries.Registration;
 
+/// <summary>Provides registration snapshot builder functionality.</summary>
 public static class RegistrationSnapshotBuilder
 {
+    /// <summary>Executes the build operation.</summary>
     public static RegistrationSnapshot Build(string domain, RdapAnalysis? rdap, WhoisAnalysis? whois, DateTimeOffset? capturedAtUtc = null)
     {
         var subject = (domain ?? string.Empty).Trim();

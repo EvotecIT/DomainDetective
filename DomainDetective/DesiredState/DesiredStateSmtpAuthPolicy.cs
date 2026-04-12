@@ -3,10 +3,13 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state smtp auth policy functionality.</summary>
 public sealed class DesiredStateSmtpAuthPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require at least one result value.</summary>
     [JsonPropertyName("requireAtLeastOneResult")]
     public bool? RequireAtLeastOneResult { get; set; }
 
@@ -30,6 +33,7 @@ public sealed class DesiredStateSmtpAuthPolicy {
     [JsonPropertyName("requireStartTlsCapabilityWhenAuth")]
     public bool? RequireStartTlsCapabilityWhenAuth { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateSmtpAuthPolicy Clone() {
         return new DesiredStateSmtpAuthPolicy {
             Enabled = Enabled,
@@ -42,6 +46,7 @@ public sealed class DesiredStateSmtpAuthPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateSmtpAuthPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

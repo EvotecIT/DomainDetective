@@ -17,6 +17,7 @@ namespace DomainDetective {
     /// authorities are permitted to issue certificates for the domain.
     /// </remarks>
     public class CAAAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string? DomainName { get; set; }
@@ -78,7 +79,9 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         /// <summary>Gets the per-record analysis results.</summary>
         public List<CAARecordAnalysis> AnalysisResults { get; private set; } = new List<CAARecordAnalysis>();
 
+        /// <summary>Gets the assessments value.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>

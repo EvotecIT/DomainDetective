@@ -2,6 +2,7 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Providers.Email;
 
+/// <summary>Provides provider registry functionality.</summary>
 public static class ProviderRegistry
 {
     private static readonly List<IMailProvider> _all = new()
@@ -22,5 +23,6 @@ public static class ProviderRegistry
         new Vendors.CiscoSecureEmailProvider()
     };
 
+    /// <summary>Represents the all value.</summary>
     public static IReadOnlyList<IMailProvider> All => _all;
 }

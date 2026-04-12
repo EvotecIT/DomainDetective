@@ -10,17 +10,21 @@ using DomainDetective.Helpers;
 
 namespace DomainDetective.TimeSeries.TlsRpt;
 
+/// <summary>Provides tls rpt time series store functionality.</summary>
 public sealed class TlsRptTimeSeriesStore
 {
     private static readonly string[] SupportedExtensions = { ".json" };
 
+    /// <summary>Initializes a new instance of the TlsRptTimeSeriesStore class.</summary>
     public TlsRptTimeSeriesStore(string rootPath)
     {
         RootPath = rootPath ?? throw new ArgumentNullException(nameof(rootPath));
     }
 
+    /// <summary>Gets the root path value.</summary>
     public string RootPath { get; }
 
+    /// <summary>Gets domain directory.</summary>
     public string GetDomainDirectory(string domain)
     {
         if (string.IsNullOrWhiteSpace(domain))
@@ -32,6 +36,7 @@ public sealed class TlsRptTimeSeriesStore
         return PathHelper.CombineUnderRoot(RootPath, "tls-rpt", safeDomain);
     }
 
+    /// <summary>Saves snapshot.</summary>
     public string SaveSnapshot(TlsRptSnapshot snapshot)
     {
         if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
@@ -51,6 +56,7 @@ public sealed class TlsRptTimeSeriesStore
         return file;
     }
 
+    /// <summary>Loads snapshots.</summary>
     public IReadOnlyList<TlsRptSnapshot> LoadSnapshots(string domain, DateTimeOffset? sinceUtc = null)
     {
         if (string.IsNullOrWhiteSpace(domain))

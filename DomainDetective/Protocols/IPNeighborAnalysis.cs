@@ -32,6 +32,7 @@ public class IPNeighborAnalysis : IHasAssessments
     /// <summary>Override for RPKI validity checks.</summary>
     public Func<string, Task<bool>>? RPKIValidationOverride { private get; set; }
 
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
     /// <summary>TTL for passive DNS cache entries.</summary>
     public TimeSpan PassiveDnsCacheTtl { get; set; } = TimeSpan.FromMinutes(30);
@@ -251,5 +252,6 @@ public class IPNeighborAnalysis : IHasAssessments
         }
     }
 
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

@@ -36,13 +36,21 @@ public sealed class TyposquattingOwnershipProfileOptions
 /// </summary>
 public sealed class TyposquattingOwnershipProfile
 {
+    /// <summary>Gets or sets the domain value.</summary>
     public string Domain { get; init; } = string.Empty;
+    /// <summary>Gets or sets the registrar value.</summary>
     public string Registrar { get; init; } = string.Empty;
+    /// <summary>Gets or sets the name servers value.</summary>
     public IReadOnlyList<string> NameServers { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the mail exchangers value.</summary>
     public IReadOnlyList<string> MailExchangers { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the a records value.</summary>
     public IReadOnlyList<string> ARecords { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the aaaa records value.</summary>
     public IReadOnlyList<string> AaaaRecords { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the asns value.</summary>
     public IReadOnlyList<int> Asns { get; init; } = Array.Empty<int>();
+    /// <summary>Represents the has any signals value.</summary>
     public bool HasAnySignals =>
         !string.IsNullOrWhiteSpace(Registrar)
         || NameServers.Count > 0
@@ -57,13 +65,21 @@ public sealed class TyposquattingOwnershipProfile
 /// </summary>
 public sealed class TyposquattingOwnershipMatch
 {
+    /// <summary>Gets or sets the likely owned value.</summary>
     public bool LikelyOwned { get; init; }
+    /// <summary>Gets or sets the confidence score value.</summary>
     public int ConfidenceScore { get; init; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the signals value.</summary>
     public IReadOnlyList<string> Signals { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the likely external value.</summary>
     public bool LikelyExternal { get; init; }
+    /// <summary>Gets or sets the external confidence score value.</summary>
     public int ExternalConfidenceScore { get; init; }
+    /// <summary>Gets or sets the external summary value.</summary>
     public string ExternalSummary { get; init; } = string.Empty;
+    /// <summary>Gets or sets the external signals value.</summary>
     public IReadOnlyList<string> ExternalSignals { get; init; } = Array.Empty<string>();
 }
 
@@ -72,6 +88,7 @@ public sealed class TyposquattingOwnershipMatch
 /// </summary>
 public static class TyposquattingOwnershipAnalyzer
 {
+    /// <summary>Builds profile async.</summary>
     public static async Task<TyposquattingOwnershipProfile?> BuildProfileAsync(
         string domain,
         DnsConfiguration dnsConfiguration,
@@ -144,6 +161,7 @@ public static class TyposquattingOwnershipAnalyzer
         };
     }
 
+    /// <summary>Executes the compare candidates operation.</summary>
     public static void CompareCandidates(IReadOnlyList<TyposquattingCandidate>? candidates, TyposquattingOwnershipProfile? profile)
     {
         if (candidates == null || candidates.Count == 0 || profile == null || !profile.HasAnySignals)
@@ -157,6 +175,7 @@ public static class TyposquattingOwnershipAnalyzer
         }
     }
 
+    /// <summary>Executes the compare candidate operation.</summary>
     public static TyposquattingOwnershipMatch CompareCandidate(TyposquattingCandidate candidate, TyposquattingOwnershipProfile profile)
     {
         if (candidate == null)

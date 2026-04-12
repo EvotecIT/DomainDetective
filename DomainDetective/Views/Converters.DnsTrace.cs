@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static DnsTraceInfo Convert(DnsTraceAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -42,25 +43,44 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides dns trace info functionality.</summary>
 public sealed class DnsTraceInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the trace succeeded value.</summary>
     public bool TraceSucceeded { get; set; }
+    /// <summary>Gets or sets the failure reason value.</summary>
     public string? FailureReason { get; set; }
+    /// <summary>Gets or sets the trace queries value.</summary>
     public int TraceQueries { get; set; }
+    /// <summary>Gets or sets the trace queries failed value.</summary>
     public int TraceQueriesFailed { get; set; }
+    /// <summary>Gets or sets the total steps value.</summary>
     public int TotalSteps { get; set; }
+    /// <summary>Gets or sets the queries value.</summary>
     public IReadOnlyList<DnsTraceQuery> Queries { get; set; } = null!;
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = null!;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = null!;
+    /// <summary>Gets or sets the raw value.</summary>
     public DnsTraceAnalysis Raw { get; set; } = null!;
 }
 

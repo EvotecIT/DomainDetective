@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Tests.Fixtures;
@@ -18,6 +19,11 @@ public class TestSubdomainsAnalysis
     public TestSubdomainsAnalysis()
     {
         PassiveCtSourceClient.ResetSharedStateForTesting();
+    }
+
+    private static void AssertExpectedListenerCancellation(Exception exception, CancellationToken token)
+    {
+        Assert.True(token.IsCancellationRequested, exception.Message);
     }
 
     [Fact]
@@ -245,11 +251,13 @@ public class TestSubdomainsAnalysis
                         {
                             await clientTask;
                         }
-                        catch (ObjectDisposedException) when (token.IsCancellationRequested)
+                        catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
                         {
+                            AssertExpectedListenerCancellation(ex, token);
                         }
-                        catch (SocketException) when (token.IsCancellationRequested)
+                        catch (SocketException ex) when (token.IsCancellationRequested)
                         {
+                            AssertExpectedListenerCancellation(ex, token);
                         }
 
                         break;
@@ -273,11 +281,13 @@ public class TestSubdomainsAnalysis
                     await writer.WriteAsync("{}");
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
         }, token));
         await server.InitializeAsync();
@@ -335,11 +345,13 @@ public class TestSubdomainsAnalysis
                     Interlocked.Increment(ref requestCount);
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
         }, token));
         await server.InitializeAsync();
@@ -432,11 +444,13 @@ public class TestSubdomainsAnalysis
                     }, token));
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
             finally
             {
@@ -522,11 +536,13 @@ public class TestSubdomainsAnalysis
                     await writer.WriteLineAsync();
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
         }, token));
         await server.InitializeAsync();
@@ -623,11 +639,13 @@ public class TestSubdomainsAnalysis
                     }, token));
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
             finally
             {
@@ -678,6 +696,94 @@ public class TestSubdomainsAnalysis
     }
 
     [Fact]
+    public async Task AnalyzeAsync_UsesConfiguredPassiveCtSourceSpacingForWildcardDiscovery()
+    {
+        var requestOffsets = new List<long>();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
+        {
+            var handlers = new List<Task>();
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask)
+                    {
+                        break;
+                    }
+
+                    handlers.Add(Task.Run(async () =>
+                    {
+                        using var client = await clientTask;
+                        lock (requestOffsets)
+                        {
+                            requestOffsets.Add(stopwatch.ElapsedMilliseconds);
+                        }
+
+                        using NetworkStream stream = client.GetStream();
+                        using var reader = new StreamReader(stream);
+                        using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                        string? line;
+                        do
+                        {
+                            line = await reader.ReadLineAsync();
+                        } while (!string.IsNullOrEmpty(line));
+
+                        const string payload = @"[{ ""name_value"": ""api.example.com"" }]";
+                        await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                        await writer.WriteLineAsync("Content-Type: application/json");
+                        await writer.WriteLineAsync($"Content-Length: {payload.Length}");
+                        await writer.WriteLineAsync();
+                        await writer.WriteAsync(payload);
+                    }, token));
+                }
+            }
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
+            {
+                AssertExpectedListenerCancellation(ex, token);
+            }
+            catch (SocketException ex) when (token.IsCancellationRequested)
+            {
+                AssertExpectedListenerCancellation(ex, token);
+            }
+            finally
+            {
+                await Task.WhenAll(handlers).ConfigureAwait(false);
+            }
+        }, token));
+        await server.InitializeAsync();
+
+        try
+        {
+            var analysis = new SubdomainsAnalysis
+            {
+                VerifyStillResolves = false,
+                UseCertSpotterFallback = false,
+                CrtShUrlTemplate = $"http://127.0.0.1:{server.Port}/?q=%25.{{0}}&output=json",
+                PassiveCtRetryCount = 0,
+                PassiveCtCrtShMinimumSpacing = TimeSpan.FromMilliseconds(300)
+            };
+
+            await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+            await analysis.AnalyzeAsync("example.net", new InternalLogger(), CancellationToken.None);
+
+            Assert.Equal(2, requestOffsets.Count);
+            if (RuntimeInformation.FrameworkDescription.StartsWith(".NET Framework", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            Assert.True(requestOffsets[1] - requestOffsets[0] >= 225);
+        }
+        finally
+        {
+            await server.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task PassiveCtClient_StopsUsingSourceAfterConfiguredPerRunBudget()
     {
         var requestCount = 0;
@@ -713,11 +819,13 @@ public class TestSubdomainsAnalysis
                     await writer.WriteAsync(payload);
                 }
             }
-            catch (ObjectDisposedException) when (token.IsCancellationRequested)
+            catch (ObjectDisposedException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
-            catch (SocketException) when (token.IsCancellationRequested)
+            catch (SocketException ex) when (token.IsCancellationRequested)
             {
+                AssertExpectedListenerCancellation(ex, token);
             }
         }, token));
         await server.InitializeAsync();
@@ -1018,7 +1126,7 @@ public class TestSubdomainsAnalysis
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
-        return new X509Certificate2(cert.Export(X509ContentType.Cert));
+        return CertificateLoaderCompat.LoadCertificate(cert.Export(X509ContentType.Cert));
     }
 
     private static string BuildCtEntriesResponse(X509Certificate2 certificate, DateTimeOffset timestampUtc)

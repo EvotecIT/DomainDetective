@@ -111,7 +111,7 @@ namespace DomainDetective.Tests {
             }
 
             var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
-            return new X509Certificate2(cert.Export(X509ContentType.Cert));
+            return CertificateLoaderCompat.LoadCertificate(cert.Export(X509ContentType.Cert));
         }
 
         private static X509Certificate2 CreateSelfSignedWithRawEku(byte[] rawEkuExtension) {
@@ -120,7 +120,7 @@ namespace DomainDetective.Tests {
             request.CertificateExtensions.Add(new X509Extension(new Oid("2.5.29.37"), rawEkuExtension, false));
 
             var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
-            return new X509Certificate2(cert.Export(X509ContentType.Cert));
+            return CertificateLoaderCompat.LoadCertificate(cert.Export(X509ContentType.Cert));
         }
     }
 }

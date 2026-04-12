@@ -18,12 +18,17 @@ namespace DomainDetective {
     /// host and port combination.
     /// </remarks>
     public class DANEAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Optional override for DNS queries.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { get; set; }
+        /// <summary>Gets or sets the analysis results value.</summary>
         public List<DANERecordAnalysis> AnalysisResults { get; private set; } = new List<DANERecordAnalysis>();
+        /// <summary>Gets or sets the number of records value.</summary>
         public int NumberOfRecords { get; private set; }
+        /// <summary>Gets or sets the has duplicate records value.</summary>
         public bool HasDuplicateRecords { get; private set; }
+        /// <summary>Gets or sets the has invalid records value.</summary>
         public bool HasInvalidRecords { get; set; }
 
         /// <summary>Fully qualified TLSA owner names that were queried (e.g., _443._tcp.example.com).</summary>
@@ -42,9 +47,11 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during DANE analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
 
+        /// <summary>Executes the reset operation.</summary>
         public void Reset() {
             ResetResults();
             QueriedNames = new List<string>();
@@ -60,6 +67,7 @@ namespace DomainDetective {
         }
 
 
+        /// <summary>Analyzes dane records.</summary>
         public Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DANE");
             ResetResults();

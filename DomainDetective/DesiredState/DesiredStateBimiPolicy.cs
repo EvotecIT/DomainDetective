@@ -3,10 +3,13 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state bimi policy functionality.</summary>
 public sealed class DesiredStateBimiPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require record value.</summary>
     [JsonPropertyName("requireRecord")]
     public bool? RequireRecord { get; set; }
 
@@ -34,6 +37,7 @@ public sealed class DesiredStateBimiPolicy {
     [JsonPropertyName("skipIndicatorDownload")]
     public bool? SkipIndicatorDownload { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateBimiPolicy Clone() {
         return new DesiredStateBimiPolicy {
             Enabled = Enabled,
@@ -47,6 +51,7 @@ public sealed class DesiredStateBimiPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateBimiPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

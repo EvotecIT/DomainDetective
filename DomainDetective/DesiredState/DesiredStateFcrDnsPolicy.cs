@@ -2,7 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state fcr dns policy functionality.</summary>
 public sealed class DesiredStateFcrDnsPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -14,6 +16,7 @@ public sealed class DesiredStateFcrDnsPolicy {
     [JsonPropertyName("requireAllForwardConfirmed")]
     public bool? RequireAllForwardConfirmed { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateFcrDnsPolicy Clone() {
         return new DesiredStateFcrDnsPolicy {
             Enabled = Enabled,
@@ -22,6 +25,7 @@ public sealed class DesiredStateFcrDnsPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateFcrDnsPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

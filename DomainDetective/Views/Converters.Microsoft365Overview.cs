@@ -5,6 +5,7 @@ using System.Linq;
 namespace DomainDetective.Views;
 
 public static partial class Converters {
+    /// <summary>Executes the convert microsoft365 overview operation.</summary>
     public static Microsoft365OverviewInfo ConvertMicrosoft365Overview(DomainHealthCheck health, string subject) {
         var tenant = Convert(health.Microsoft365TenantAnalysis);
         var spf = Convert(health.SpfAnalysis);
@@ -23,6 +24,7 @@ public static partial class Converters {
         return ConvertMicrosoft365Overview(subject, tenant, spf, dkim, dmarc, mx, mtasts, tlsRpt, bimi, caa, dane, dnssec, ns, assessments);
     }
 
+    /// <summary>Executes the convert microsoft365 overview operation.</summary>
     public static Microsoft365OverviewInfo ConvertMicrosoft365Overview(
         string subject,
         Microsoft365TenantInfo tenant,
@@ -187,40 +189,76 @@ public static partial class Converters {
     };
 }
 
+/// <summary>Provides microsoft365 overview info functionality.</summary>
 public sealed class Microsoft365OverviewInfo {
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>Gets or sets the is partial value.</summary>
     public bool IsPartial { get; set; }
+    /// <summary>Gets or sets the is browser limited value.</summary>
     public bool IsBrowserLimited { get; set; }
+    /// <summary>Gets or sets the served from cache value.</summary>
     public bool ServedFromCache { get; set; }
+    /// <summary>Gets or sets the stage label value.</summary>
     public string StageLabel { get; set; } = string.Empty;
+    /// <summary>Gets or sets the generated at utc value.</summary>
     public DateTimeOffset GeneratedAtUtc { get; set; }
+    /// <summary>Gets or sets the completed at utc value.</summary>
     public DateTimeOffset? CompletedAtUtc { get; set; }
+    /// <summary>Gets or sets the tenant value.</summary>
     public Microsoft365TenantInfo Tenant { get; set; } = new Microsoft365TenantInfo();
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the detected service count value.</summary>
     public int DetectedServiceCount { get; set; }
+    /// <summary>Gets or sets the strong service count value.</summary>
     public int StrongServiceCount { get; set; }
+    /// <summary>Gets or sets the moderate service count value.</summary>
     public int ModerateServiceCount { get; set; }
+    /// <summary>Gets or sets the weak service count value.</summary>
     public int WeakServiceCount { get; set; }
+    /// <summary>Gets or sets the accepted domain count value.</summary>
     public int AcceptedDomainCount { get; set; }
+    /// <summary>Gets or sets the known subdomain count value.</summary>
     public int KnownSubdomainCount { get; set; }
+    /// <summary>Gets or sets the detected application count value.</summary>
     public int DetectedApplicationCount { get; set; }
+    /// <summary>Gets or sets the spf value.</summary>
     public SpfRecordInfo? Spf { get; set; }
+    /// <summary>Gets or sets the dkim value.</summary>
     public IReadOnlyList<DkimRecordInfo> Dkim { get; set; } = Array.Empty<DkimRecordInfo>();
+    /// <summary>Gets or sets the dmarc value.</summary>
     public DmarcRecordInfo? Dmarc { get; set; }
+    /// <summary>Gets or sets the mx value.</summary>
     public MxInfo? Mx { get; set; }
+    /// <summary>Gets or sets the mtasts value.</summary>
     public MtastsInfo? Mtasts { get; set; }
+    /// <summary>Gets or sets the tls rpt value.</summary>
     public TlsRptInfo? TlsRpt { get; set; }
+    /// <summary>Gets or sets the bimi value.</summary>
     public BimiRecordInfo? Bimi { get; set; }
+    /// <summary>Gets or sets the caa value.</summary>
     public CaaInfo? Caa { get; set; }
+    /// <summary>Gets or sets the dane value.</summary>
     public DaneRecordInfo? Dane { get; set; }
+    /// <summary>Gets or sets the dnssec value.</summary>
     public DnsSecInfo? Dnssec { get; set; }
+    /// <summary>Gets or sets the ns value.</summary>
     public NsInfo? Ns { get; set; }
+    /// <summary>Gets or sets the pending sections value.</summary>
     public IReadOnlyList<string> PendingSections { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the unavailable sections value.</summary>
     public IReadOnlyList<string> UnavailableSections { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the mail dns checks value.</summary>
     public IReadOnlyList<AggregateCheckStatusInfo> MailDnsChecks { get; set; } = Array.Empty<AggregateCheckStatusInfo>();
+    /// <summary>Gets or sets the highlights value.</summary>
     public IReadOnlyList<string> Highlights { get; set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = Array.Empty<RecommendationAdvice>();
 }

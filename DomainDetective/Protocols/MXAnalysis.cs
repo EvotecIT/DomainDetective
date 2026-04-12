@@ -19,6 +19,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class MXAnalysis : IHasAssessments {
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>DNS configuration used for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -74,8 +75,11 @@ namespace DomainDetective {
         public bool Ipv6Supported { get; private set; }
 
         // Integrity checks
+        /// <summary>Gets or sets the mx ttl uniform value.</summary>
         public bool MxTtlUniform { get; private set; } = true;
+        /// <summary>Gets or sets the mx rrset consistent across ns value.</summary>
         public bool MxRrsetConsistentAcrossNs { get; private set; } = true;
+        /// <summary>Gets or sets the target address consistent across ns value.</summary>
         public bool TargetAddressConsistentAcrossNs { get; private set; } = true;
 
         /// <summary>Relevant standards for MX analysis.</summary>
@@ -84,7 +88,9 @@ namespace DomainDetective {
             new StandardReference { Title = "Null MX for No Service", Reference = "RFC 7505", Url = "https://datatracker.ietf.org/doc/html/rfc7505" }
         };
 
+        /// <summary>Gets the assessments value.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
@@ -95,6 +101,7 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryDNS(name, type);
         }
 
+        /// <summary>Analyzes mx records.</summary>
         public async Task AnalyzeMxRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MX");
             // reset properties for repeated calls
@@ -310,6 +317,7 @@ namespace DomainDetective {
             && !PointsToNonExistentDomain
             && !PointsToDomainWithoutAOrAaaaRecord;
 
+        /// <summary>Validates mx configuration.</summary>
         public bool ValidateMxConfiguration() => ValidMxConfiguration;
 
         private static string NormalizeHost(string host) => (host ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();

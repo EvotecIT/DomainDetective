@@ -6,7 +6,9 @@ using DomainDetective.Definitions;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state assessment split functionality.</summary>
 public sealed class DesiredStateAssessmentSplit {
+    /// <summary>Initializes a new instance of the DesiredStateAssessmentSplit class.</summary>
     public DesiredStateAssessmentSplit(
         IReadOnlyList<Assessment> desired,
         IReadOnlyList<Assessment> bestPractices) {
@@ -14,23 +16,34 @@ public sealed class DesiredStateAssessmentSplit {
         BestPracticeAssessments = bestPractices ?? Array.Empty<Assessment>();
     }
 
+    /// <summary>Gets the desired assessments value.</summary>
     public IReadOnlyList<Assessment> DesiredAssessments { get; }
+    /// <summary>Gets the best practice assessments value.</summary>
     public IReadOnlyList<Assessment> BestPracticeAssessments { get; }
 
+    /// <summary>Represents the desired info count value.</summary>
     public int DesiredInfoCount => DesiredAssessments.Count(a => a?.Severity == AssessmentSeverity.Info);
+    /// <summary>Represents the desired warning count value.</summary>
     public int DesiredWarningCount => DesiredAssessments.Count(a => a?.Severity == AssessmentSeverity.Warning);
+    /// <summary>Represents the desired error count value.</summary>
     public int DesiredErrorCount => DesiredAssessments.Count(a => a?.Severity == AssessmentSeverity.Error);
 
+    /// <summary>Represents the best practice info count value.</summary>
     public int BestPracticeInfoCount => BestPracticeAssessments.Count(a => a?.Severity == AssessmentSeverity.Info);
+    /// <summary>Represents the best practice warning count value.</summary>
     public int BestPracticeWarningCount => BestPracticeAssessments.Count(a => a?.Severity == AssessmentSeverity.Warning);
+    /// <summary>Represents the best practice error count value.</summary>
     public int BestPracticeErrorCount => BestPracticeAssessments.Count(a => a?.Severity == AssessmentSeverity.Error);
 
+    /// <summary>Represents the conforms value.</summary>
     public bool Conforms => DesiredAssessments.All(a => a == null || a.Severity == AssessmentSeverity.Info);
 }
 
+/// <summary>Provides desired state assessment splitter functionality.</summary>
 public static class DesiredStateAssessmentSplitter {
     private const string DesiredStateCategory = "DesiredState";
 
+    /// <summary>Executes the split operation.</summary>
     public static DesiredStateAssessmentSplit Split(
         DesiredStateAnalysis analysis,
         DesiredStateProfile? profile,

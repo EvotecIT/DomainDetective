@@ -3,7 +3,9 @@ using System.Linq;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state dnsbl policy functionality.</summary>
 public sealed class DesiredStateDnsblPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -27,6 +29,7 @@ public sealed class DesiredStateDnsblPolicy {
     [JsonPropertyName("includeIpSources")]
     public DnsblIpSource[]? IncludeIpSources { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateDnsblPolicy Clone() {
         return new DesiredStateDnsblPolicy {
             Enabled = Enabled,
@@ -38,6 +41,7 @@ public sealed class DesiredStateDnsblPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateDnsblPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

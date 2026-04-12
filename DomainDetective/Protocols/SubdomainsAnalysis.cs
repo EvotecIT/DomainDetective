@@ -51,6 +51,29 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
     /// <summary>Cooldown applied to passive/public CT sources after transient failures or rate limits.</summary>
     public TimeSpan PassiveCtSourceCooldown { get; set; } = TimeSpan.FromSeconds(60);
 
+    /// <summary>
+    /// Minimum spacing between public crt.sh requests when passive/public CT fallback is active.
+    /// crt.sh publishes conservative shared limits, so the default stays intentionally gentle.
+    /// </summary>
+    public TimeSpan PassiveCtCrtShMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Minimum spacing between Cert Spotter requests when passive/public CT fallback is active.
+    /// </summary>
+    public TimeSpan PassiveCtCertSpotterMinimumSpacing { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Maximum number of public crt.sh requests issued during one passive CT run.
+    /// Zero means uncapped.
+    /// </summary>
+    public int PassiveCtCrtShMaximumRequestsPerRun { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum number of Cert Spotter requests issued during one passive CT run.
+    /// Zero means uncapped.
+    /// </summary>
+    public int PassiveCtCertSpotterMaximumRequestsPerRun { get; set; } = 1;
+
     /// <summary>When true, uses direct RFC6962 CT log polling as primary subdomain discovery source.</summary>
     public bool EnableNativeCtLogSource { get; set; }
 
@@ -830,40 +853,70 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
 /// <summary>Resolution status for a discovered subdomain.</summary>
 public enum SubdomainResolutionStatus
 {
+    /// <summary>Provides subdomain discovery entry functionality.</summary>
     Unknown = 0,
+    /// <summary>Provides subdomain discovery entry functionality.</summary>
     Resolves = 1,
+    /// <summary>Provides subdomain discovery entry functionality.</summary>
     DoesNotResolve = 2,
+    /// <summary>Provides subdomain discovery entry functionality.</summary>
     QueryFailed = 3
 }
 
 /// <summary>Represents a subdomain discovered from CT data.</summary>
 public sealed class SubdomainDiscoveryEntry
 {
+    /// <summary>Gets or sets the name value.</summary>
     public string Name { get; init; } = string.Empty;
+    /// <summary>Gets or sets the first seen utc value.</summary>
     public DateTimeOffset? FirstSeenUtc { get; init; }
+    /// <summary>Gets or sets the last seen utc value.</summary>
     public DateTimeOffset? LastSeenUtc { get; init; }
+    /// <summary>Gets or sets the latest certificate ct entry timestamp utc value.</summary>
     public DateTimeOffset? LatestCertificateCtEntryTimestampUtc { get; init; }
+    /// <summary>Gets or sets the latest certificate thumbprint value.</summary>
     public string? LatestCertificateThumbprint { get; init; }
+    /// <summary>Gets or sets the latest certificate subject value.</summary>
     public string? LatestCertificateSubject { get; init; }
+    /// <summary>Gets or sets the latest certificate issuer value.</summary>
     public string? LatestCertificateIssuer { get; init; }
+    /// <summary>Gets or sets the latest certificate serial number value.</summary>
     public string? LatestCertificateSerialNumber { get; init; }
+    /// <summary>Gets or sets the latest certificate not before utc value.</summary>
     public DateTimeOffset? LatestCertificateNotBeforeUtc { get; init; }
+    /// <summary>Gets or sets the latest certificate not after utc value.</summary>
     public DateTimeOffset? LatestCertificateNotAfterUtc { get; init; }
+    /// <summary>Gets or sets the latest certificate subject alternative names value.</summary>
     public IReadOnlyList<string> LatestCertificateSubjectAlternativeNames { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the latest certificate is self signed value.</summary>
     public bool? LatestCertificateIsSelfSigned { get; init; }
+    /// <summary>Gets or sets the latest certificate weak key value.</summary>
     public bool? LatestCertificateWeakKey { get; init; }
+    /// <summary>Gets or sets the latest certificate sha1 signature value.</summary>
     public bool? LatestCertificateSha1Signature { get; init; }
+    /// <summary>Gets or sets the latest certificate has server authentication value.</summary>
     public bool? LatestCertificateHasServerAuthentication { get; init; }
+    /// <summary>Gets or sets the latest certificate has client authentication value.</summary>
     public bool? LatestCertificateHasClientAuthentication { get; init; }
+    /// <summary>Gets or sets the latest certificate has secure email value.</summary>
     public bool? LatestCertificateHasSecureEmail { get; init; }
+    /// <summary>Gets or sets the latest certificate authentication profile value.</summary>
     public string? LatestCertificateAuthenticationProfile { get; init; }
+    /// <summary>Gets or sets the ct sources value.</summary>
     public IReadOnlyList<string> CtSources { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the certificate observation count value.</summary>
     public int CertificateObservationCount { get; init; }
+    /// <summary>Gets or sets the resolution status value.</summary>
     public SubdomainResolutionStatus ResolutionStatus { get; internal set; }
+    /// <summary>Gets or sets the a records value.</summary>
     public IReadOnlyList<string> ARecords { get; internal set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the aaaa records value.</summary>
     public IReadOnlyList<string> AaaaRecords { get; internal set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the sensitive risk value.</summary>
     public SensitiveSubdomainRisk SensitiveRisk { get; internal set; } = SensitiveSubdomainRisk.None;
+    /// <summary>Gets or sets the sensitive signals value.</summary>
     public IReadOnlyList<string> SensitiveSignals { get; internal set; } = Array.Empty<string>();
+    /// <summary>Gets or sets the ai signals value.</summary>
     public IReadOnlyList<string> AiSignals { get; internal set; } = Array.Empty<string>();
 }
 
@@ -893,8 +946,11 @@ internal sealed class CtSubdomainAggregate
 /// <summary>Risk rating for sensitive subdomain naming patterns.</summary>
 public enum SensitiveSubdomainRisk
 {
+    /// <summary>Represents the none value.</summary>
     None = 0,
+    /// <summary>Represents the moderate value.</summary>
     Moderate = 1,
+    /// <summary>Represents the high value.</summary>
     High = 2
 }
 

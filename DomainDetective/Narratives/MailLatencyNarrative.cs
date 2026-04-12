@@ -3,9 +3,12 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides mail latency narrative functionality.</summary>
 public static class MailLatencyNarrative {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(MailLatencyAnalysis analysis) {
         var subj = "(servers)";
         if (analysis?.ServerResults != null && analysis.ServerResults.Count == 1) {

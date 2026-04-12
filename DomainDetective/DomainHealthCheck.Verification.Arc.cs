@@ -28,6 +28,7 @@ namespace DomainDetective {
             return VerifyARCAsync(rawHeaders, ct).GetAwaiter().GetResult();
         }
 
+        /// <summary>Executes the verify arc async operation.</summary>
         public async Task<ARCAnalysis> VerifyARCAsync(string rawHeaders, CancellationToken ct = default) {
             ct.ThrowIfCancellationRequested();
             return await Task.Run(() => {

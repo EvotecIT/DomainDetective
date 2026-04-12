@@ -13,14 +13,19 @@ namespace DomainDetective;
 public partial class WebStaticScanAnalysis
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, RobotsRules?> _robotsCache = new System.Collections.Concurrent.ConcurrentDictionary<string, RobotsRules?>(System.StringComparer.OrdinalIgnoreCase);
+    /// <summary>Provides robots rules functionality.</summary>
     public sealed class RobotsRules
     {
         private readonly List<(Regex pattern, string raw)> _allow = new();
         private readonly List<(Regex pattern, string raw)> _disallow = new();
+        /// <summary>Gets the sitemaps value.</summary>
         public List<string> Sitemaps { get; } = new List<string>();
+        /// <summary>Adds allow.</summary>
         public void AddAllow(string raw) { if (string.IsNullOrWhiteSpace(raw)) return; _allow.Add((Compile(raw), raw)); }
+        /// <summary>Adds disallow.</summary>
         public void AddDisallow(string raw) { if (string.IsNullOrWhiteSpace(raw)) return; _disallow.Add((Compile(raw), raw)); }
 
+        /// <summary>Executes the is allowed operation.</summary>
         public bool IsAllowed(string path)
         {
             if (string.IsNullOrEmpty(path)) return true;

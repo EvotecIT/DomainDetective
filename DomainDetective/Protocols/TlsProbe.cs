@@ -20,24 +20,41 @@ public static class TlsProbe
 {
     private const string SubjectAlternativeNameOid = "2.5.29.17";
 
+    /// <summary>Provides result functionality.</summary>
     public sealed class Result : IDisposable
     {
+        /// <summary>Gets or sets the protocol value.</summary>
         public SslProtocols Protocol { get; set; }
+        /// <summary>Gets or sets the cipher suite value.</summary>
         public string? CipherSuite { get; set; }
+        /// <summary>Gets or sets the key exchange algorithm value.</summary>
         public string? KeyExchangeAlgorithm { get; set; }
+        /// <summary>Gets or sets the certificate valid value.</summary>
         public bool CertificateValid { get; set; }
+        /// <summary>Gets or sets the hostname match value.</summary>
         public bool HostnameMatch { get; set; }
+        /// <summary>Represents the chain valid value.</summary>
         public bool ChainValid => ChainErrors.Count == 0;
+        /// <summary>Gets the chain errors value.</summary>
         public List<X509ChainStatusFlags> ChainErrors { get; } = new();
+        /// <summary>Gets the chain value.</summary>
         public List<X509Certificate2> Chain { get; } = new();
+        /// <summary>Gets or sets the certificate value.</summary>
         public X509Certificate2? Certificate { get; set; }
+        /// <summary>Gets or sets the certificate subject value.</summary>
         public string? CertificateSubject { get; set; }
+        /// <summary>Gets or sets the certificate issuer value.</summary>
         public string? CertificateIssuer { get; set; }
+        /// <summary>Gets or sets the not before value.</summary>
         public DateTime? NotBefore { get; set; }
+        /// <summary>Gets or sets the not after value.</summary>
         public DateTime? NotAfter { get; set; }
+        /// <summary>Gets the dns names value.</summary>
         public List<string> DnsNames { get; } = new();
+        /// <summary>Gets or sets the san parsing error value.</summary>
         public string? SanParsingError { get; set; }
 
+        /// <summary>Executes the dispose operation.</summary>
         public void Dispose()
         {
             Certificate?.Dispose();
@@ -48,9 +65,11 @@ public static class TlsProbe
         }
     }
 
+    /// <summary>Executes the probe async operation.</summary>
     public static Task<Result> ProbeAsync(string host, int port = 443, CancellationToken token = default)
         => ProbeAsync(host, port, null, token);
 
+    /// <summary>Executes the probe async operation.</summary>
     public static async Task<Result> ProbeAsync(string host, int port, TimeSpan? timeout, CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(host))
@@ -66,9 +85,11 @@ public static class TlsProbe
             token: token).ConfigureAwait(false);
     }
 
+    /// <summary>Executes the probe async operation.</summary>
     public static Task<Result> ProbeAsync(IPAddress address, string sniHost, int port = 443, CancellationToken token = default)
         => ProbeAsync(address, sniHost, port, null, token);
 
+    /// <summary>Executes the probe async operation.</summary>
     public static async Task<Result> ProbeAsync(IPAddress address, string sniHost, int port, TimeSpan? timeout, CancellationToken token)
     {
         if (address == null)

@@ -2,6 +2,8 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using DomainDetective.Pgp;
+using DomainDetective.Visual;
 using DomainDetective.CLI.Wizard;
 
 namespace DomainDetective.CLI;
@@ -11,6 +13,9 @@ internal static class Program {
 
     [RequiresDynamicCode("Calls Spectre.Console.Cli.CommandApp.CommandApp(ITypeRegistrar)")]
     public static async Task<int> Main(string[] args) {
+        DomainDetectivePgpRegistration.Register();
+        DomainDetectiveVisualRegistration.Register();
+
         // Ensure Unicode/emoji rendering and consistent input behavior
         try {
             Console.OutputEncoding = System.Text.Encoding.UTF8;

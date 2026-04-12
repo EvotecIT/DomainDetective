@@ -4,6 +4,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static CaaInfo Convert(CAAAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -46,9 +47,13 @@ public class CaaInfo
     public AnalysisArea Area { get; set; }
     /// <summary>Subject domain.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>Gets or sets the valid records value.</summary>
     public int ValidRecords { get; set; }
+    /// <summary>Gets or sets the invalid records value.</summary>
     public int InvalidRecords { get; set; }
+    /// <summary>Gets or sets the conflicting value.</summary>
     public bool Conflicting { get; set; }
+    /// <summary>Gets or sets the has duplicate issuers value.</summary>
     public bool HasDuplicateIssuers { get; set; }
     /// <summary>Issuers authorized to issue domain certificates.</summary>
     public IReadOnlyList<string> CanIssueCertificatesForDomain { get; set; } = System.Array.Empty<string>();
@@ -62,7 +67,9 @@ public class CaaInfo
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
     /// <summary>Short summary text used in executive summaries.</summary>
     public string Summary { get; set; } = string.Empty;

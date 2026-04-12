@@ -5,6 +5,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class Settings {
+        /// <summary>Represents the logger value.</summary>
         protected InternalLogger _logger = new InternalLogger();
 
         /// <summary>
@@ -52,6 +53,7 @@ namespace DomainDetective {
         /// </summary>
         public int NumberOfThreads = 8;
 
+        /// <summary>Represents the lock object value.</summary>
         protected readonly object _LockObject = new object();
     }
 }

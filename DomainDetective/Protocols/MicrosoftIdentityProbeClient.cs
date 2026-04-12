@@ -197,13 +197,21 @@ public static class MicrosoftIdentityProbeClient {
 /// Parsed OIDC discovery response for Microsoft identity platform.
 /// </summary>
 public sealed class MicrosoftOpenIdConfigurationProbe {
+    /// <summary>Gets or sets the discovery url value.</summary>
     public string DiscoveryUrl { get; init; } = string.Empty;
+    /// <summary>Gets or sets the issuer value.</summary>
     public string? Issuer { get; init; }
+    /// <summary>Gets or sets the token endpoint value.</summary>
     public string TokenEndpoint { get; init; } = string.Empty;
+    /// <summary>Gets or sets the cloud instance name value.</summary>
     public string? CloudInstanceName { get; init; }
+    /// <summary>Gets or sets the tenant region scope value.</summary>
     public string? TenantRegionScope { get; init; }
+    /// <summary>Gets or sets the tenant region sub scope value.</summary>
     public string? TenantRegionSubScope { get; init; }
+    /// <summary>Gets or sets the grant types supported value.</summary>
     public IReadOnlyList<string> GrantTypesSupported { get; init; } = Array.Empty<string>();
+    /// <summary>Gets or sets the response types supported value.</summary>
     public IReadOnlyList<string> ResponseTypesSupported { get; init; } = Array.Empty<string>();
 }
 
@@ -211,11 +219,17 @@ public sealed class MicrosoftOpenIdConfigurationProbe {
 /// Parsed GetUserRealm response for a domain.
 /// </summary>
 public sealed class MicrosoftUserRealmProbe {
+    /// <summary>Gets or sets the query url value.</summary>
     public string QueryUrl { get; init; } = string.Empty;
+    /// <summary>Gets or sets the name space type value.</summary>
     public string? NameSpaceType { get; init; }
+    /// <summary>Gets or sets the domain name value.</summary>
     public string? DomainName { get; init; }
+    /// <summary>Gets or sets the federation brand name value.</summary>
     public string? FederationBrandName { get; init; }
+    /// <summary>Gets or sets the auth url value.</summary>
     public string? AuthUrl { get; init; }
+    /// <summary>Gets or sets the cloud instance name value.</summary>
     public string? CloudInstanceName { get; init; }
 }
 
@@ -223,12 +237,20 @@ public sealed class MicrosoftUserRealmProbe {
 /// Parsed GetCredentialType response for a username probe.
 /// </summary>
 public sealed class MicrosoftCredentialTypeProbe {
+    /// <summary>Gets or sets the username value.</summary>
     public string Username { get; init; } = string.Empty;
+    /// <summary>Gets or sets the display value.</summary>
     public string? Display { get; init; }
+    /// <summary>Gets or sets the if exists result value.</summary>
     public int? IfExistsResult { get; init; }
+    /// <summary>Gets or sets the is unmanaged value.</summary>
     public bool? IsUnmanaged { get; init; }
+    /// <summary>Gets or sets the throttle status value.</summary>
     public int? ThrottleStatus { get; init; }
+    /// <summary>Gets or sets the preferred credential value.</summary>
     public int? PreferredCredential { get; init; }
+    /// <summary>Gets or sets the federation redirect url value.</summary>
     public string? FederationRedirectUrl { get; init; }
+    /// <summary>Gets or sets the domain type value.</summary>
     public int? DomainType { get; init; }
 }

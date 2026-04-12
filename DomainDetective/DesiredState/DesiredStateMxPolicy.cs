@@ -3,22 +3,29 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state mx policy functionality.</summary>
 public sealed class DesiredStateMxPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require record value.</summary>
     [JsonPropertyName("requireRecord")]
     public bool? RequireRecord { get; set; }
 
+    /// <summary>Gets or sets the require null mx value.</summary>
     [JsonPropertyName("requireNullMx")]
     public bool? RequireNullMx { get; set; }
 
+    /// <summary>Gets or sets the disallow null mx value.</summary>
     [JsonPropertyName("disallowNullMx")]
     public bool? DisallowNullMx { get; set; }
 
+    /// <summary>Gets or sets the require backup servers value.</summary>
     [JsonPropertyName("requireBackupServers")]
     public bool? RequireBackupServers { get; set; }
 
+    /// <summary>Gets or sets the require ipv6 supported value.</summary>
     [JsonPropertyName("requireIpv6Supported")]
     public bool? RequireIpv6Supported { get; set; }
 
@@ -26,30 +33,39 @@ public sealed class DesiredStateMxPolicy {
     [JsonPropertyName("allowedHostSuffixes")]
     public string[]? AllowedHostSuffixes { get; set; }
 
+    /// <summary>Gets or sets the disallow cname targets value.</summary>
     [JsonPropertyName("disallowCnameTargets")]
     public bool? DisallowCnameTargets { get; set; }
 
+    /// <summary>Gets or sets the disallow ip targets value.</summary>
     [JsonPropertyName("disallowIpTargets")]
     public bool? DisallowIpTargets { get; set; }
 
+    /// <summary>Gets or sets the disallow non existent targets value.</summary>
     [JsonPropertyName("disallowNonExistentTargets")]
     public bool? DisallowNonExistentTargets { get; set; }
 
+    /// <summary>Gets or sets the disallow no address targets value.</summary>
     [JsonPropertyName("disallowNoAddressTargets")]
     public bool? DisallowNoAddressTargets { get; set; }
 
+    /// <summary>Gets or sets the disallow localhost targets value.</summary>
     [JsonPropertyName("disallowLocalhostTargets")]
     public bool? DisallowLocalhostTargets { get; set; }
 
+    /// <summary>Gets or sets the require ttl uniform value.</summary>
     [JsonPropertyName("requireTtlUniform")]
     public bool? RequireTtlUniform { get; set; }
 
+    /// <summary>Gets or sets the require rrset consistent across ns value.</summary>
     [JsonPropertyName("requireRrsetConsistentAcrossNs")]
     public bool? RequireRrsetConsistentAcrossNs { get; set; }
 
+    /// <summary>Gets or sets the require target address consistent across ns value.</summary>
     [JsonPropertyName("requireTargetAddressConsistentAcrossNs")]
     public bool? RequireTargetAddressConsistentAcrossNs { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateMxPolicy Clone() {
         return new DesiredStateMxPolicy {
             Enabled = Enabled,
@@ -70,6 +86,7 @@ public sealed class DesiredStateMxPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateMxPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static SpfRecordInfo Convert(SpfAnalysis analysis)
     {
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
@@ -175,11 +176,16 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides spf record info functionality.</summary>
 public class SpfRecordInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>Gets or sets the spf record value.</summary>
     public string SpfRecord { get; set; } = string.Empty;
     /// <summary>DNS TTL (seconds) of the SPF TXT record.</summary>
     public int? DnsRecordTtl { get; set; }
@@ -187,50 +193,96 @@ public class SpfRecordInfo
     public int? CnameTtl { get; set; }
     /// <summary>True when the SPF record was resolved through a CNAME alias.</summary>
     public bool IsCnameResolved { get; set; }
+    /// <summary>Gets or sets the record length value.</summary>
     public int RecordLength { get; set; }
+    /// <summary>Gets or sets the spf record exists value.</summary>
     public bool SpfRecordExists { get; set; }
+    /// <summary>Gets or sets the starts correctly value.</summary>
     public bool StartsCorrectly { get; set; }
+    /// <summary>Gets or sets the multiple spf records value.</summary>
     public bool MultipleSpfRecords { get; set; }
+    /// <summary>Gets or sets the dns lookups count value.</summary>
     public int DnsLookupsCount { get; set; }
+    /// <summary>Gets or sets the exceeds dns lookups value.</summary>
     public bool ExceedsDnsLookups { get; set; }
+    /// <summary>Gets or sets the multiple all mechanisms value.</summary>
     public bool MultipleAllMechanisms { get; set; }
+    /// <summary>Gets or sets the contains characters after all value.</summary>
     public bool ContainsCharactersAfterAll { get; set; }
+    /// <summary>Gets or sets the has ptr type value.</summary>
     public bool HasPtrType { get; set; }
+    /// <summary>Gets or sets the has null lookups value.</summary>
     public bool HasNullLookups { get; set; }
+    /// <summary>Gets or sets the has redirect value.</summary>
     public bool HasRedirect { get; set; }
+    /// <summary>Gets or sets the has exp value.</summary>
     public bool HasExp { get; set; }
+    /// <summary>Gets or sets the invalid ip syntax value.</summary>
     public bool InvalidIpSyntax { get; set; }
+    /// <summary>Gets or sets the deny all value.</summary>
     public bool DenyAll { get; set; }
+    /// <summary>Gets or sets the all mechanism value.</summary>
     public string? AllMechanism { get; set; }
+    /// <summary>Gets or sets the exceeds total character limit value.</summary>
     public bool ExceedsTotalCharacterLimit { get; set; }
+    /// <summary>Gets or sets the exceeds character limit value.</summary>
     public bool ExceedsCharacterLimit { get; set; }
+    /// <summary>Gets or sets the unknown mechanisms value.</summary>
     public IReadOnlyList<string> UnknownMechanisms { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the mechanisms value.</summary>
     public IReadOnlyList<SpfPartAnalysis> Mechanisms { get; set; } = System.Array.Empty<SpfPartAnalysis>();
+    /// <summary>Gets or sets the provider counts value.</summary>
     public IReadOnlyDictionary<string, int> ProviderCounts { get; set; } = new System.Collections.Generic.Dictionary<string, int>();
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the raw value.</summary>
     public SpfAnalysis Raw { get; set; } = new SpfAnalysis();
+    /// <summary>Gets or sets the narrative value.</summary>
     public DomainDetective.Narratives.SpfNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.SpfNarrative.Sections();
+    /// <summary>Gets or sets the highlights value.</summary>
     public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the details value.</summary>
     public IReadOnlyList<string> Details { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the includes value.</summary>
     public IReadOnlyList<string> Includes { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the redirect value value.</summary>
     public string? RedirectValue { get; set; }
+    /// <summary>Gets or sets the exp value value.</summary>
     public string? ExpValue { get; set; }
+    /// <summary>Gets or sets the resolved ipv4 records value.</summary>
     public IReadOnlyList<string> ResolvedIpv4Records { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the resolved ipv6 records value.</summary>
     public IReadOnlyList<string> ResolvedIpv6Records { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the resolved include records value.</summary>
     public IReadOnlyList<string> ResolvedIncludeRecords { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the flattened unique ips value.</summary>
     public IReadOnlyList<string> FlattenedUniqueIps { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the flattened duplicate ips value.</summary>
     public IReadOnlyList<string> FlattenedDuplicateIps { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the effective spf sends value.</summary>
     public bool EffectiveSpfSends { get; set; }
+    /// <summary>Gets or sets the perm error value.</summary>
     public bool PermError { get; set; }
+    /// <summary>Gets or sets the advisory value.</summary>
     public string Advisory { get; set; } = string.Empty;
+    /// <summary>Gets or sets the cycle detected value.</summary>
     public bool CycleDetected { get; set; }
+    /// <summary>Gets or sets the cycle path value.</summary>
     public string? CyclePath { get; set; }
+    /// <summary>Gets or sets the provider help value.</summary>
     public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; } = System.Array.Empty<ProviderHelpLinks>();
 }

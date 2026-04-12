@@ -2,8 +2,10 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides dmarc aggregate narrative functionality.</summary>
 public static class DmarcAggregateNarrative
 {
+    /// <summary>Executes the build operation.</summary>
     public static NarrativeSections Build(string? subject)
     {
         var subj = string.IsNullOrWhiteSpace(subject) ? "Domain" : subject!;

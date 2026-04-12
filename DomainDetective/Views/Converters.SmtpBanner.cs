@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static SmtpBannerInfo Convert(SMTPBannerAnalysis analysis)
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
@@ -57,37 +58,66 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides smtp banner info functionality.</summary>
 public class SmtpBannerInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the expected hostname value.</summary>
     public string? ExpectedHostname { get; set; }
+    /// <summary>Gets or sets the expected software value.</summary>
     public string? ExpectedSoftware { get; set; }
+    /// <summary>Gets or sets the servers value.</summary>
     public IReadOnlyList<SmtpBannerServerInfo> Servers { get; set; } = null!;
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = null!;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = null!;
+    /// <summary>Gets or sets the raw value.</summary>
     public SMTPBannerAnalysis Raw { get; set; } = null!;
 }
 
+/// <summary>Provides smtp banner server info functionality.</summary>
 public class SmtpBannerServerInfo
 {
+    /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = null!;
+    /// <summary>Gets or sets the banner value.</summary>
     public string? Banner { get; set; }
+    /// <summary>Gets or sets the hostname match value.</summary>
     public bool HostnameMatch { get; set; }
+    /// <summary>Gets or sets the software match value.</summary>
     public bool SoftwareMatch { get; set; }
+    /// <summary>Gets or sets the starts with220 value.</summary>
     public bool StartsWith220 { get; set; }
+    /// <summary>Gets or sets the contains domain value.</summary>
     public bool ContainsDomain { get; set; }
+    /// <summary>Gets or sets the valid format value.</summary>
     public bool ValidFormat { get; set; }
+    /// <summary>Gets or sets the greeting code value.</summary>
     public int? GreetingCode { get; set; }
+    /// <summary>Gets or sets the server domain value.</summary>
     public string? ServerDomain { get; set; }
+    /// <summary>Gets or sets the truncated value.</summary>
     public bool Truncated { get; set; }
+    /// <summary>Gets or sets the response time ms value.</summary>
     public int? ResponseTimeMs { get; set; }
+    /// <summary>Gets or sets the tls advertised value.</summary>
     public bool TlsAdvertised { get; set; }
 }

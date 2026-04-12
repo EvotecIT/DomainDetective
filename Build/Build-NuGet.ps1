@@ -29,18 +29,18 @@ if (-not $config.NuGetProjects -or $config.NuGetProjects.Count -eq 0) {
 }
 
 if ($Plan) {
-    Write-Host "NuGet package plan"
-    Write-Host "  Root path       : $rootPath"
-    Write-Host "  Solution path   : $solutionPath"
-    Write-Host "  Configuration   : $effectiveConfiguration"
-    Write-Host "  Output path     : $packageOutputPath"
-    Write-Host "  Version         : $effectiveVersion"
-    Write-Host "  Skip restore    : $($SkipRestore.IsPresent)"
-    Write-Host "  Skip build      : $($SkipBuild.IsPresent)"
-    foreach ($project in $config.NuGetProjects) {
-        Write-Host "  Project         : $project"
+    [pscustomobject] @{
+        Type = 'NuGet'
+        RootPath = $rootPath
+        SolutionPath = $solutionPath
+        Configuration = $effectiveConfiguration
+        OutputPath = $packageOutputPath
+        Version = $effectiveVersion
+        SkipRestore = $SkipRestore.IsPresent
+        SkipBuild = $SkipBuild.IsPresent
+        Projects = @($config.NuGetProjects)
     }
-    exit 0
+    return
 }
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {

@@ -55,6 +55,7 @@ public sealed class DnsPropagationReportAnalysis : IHasAssessments
     /// <summary>Assessment collection for report-friendly output.</summary>
     public List<Assessment> Assessments { get; } = new();
 
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>Relevant standards for DNS propagation.</summary>

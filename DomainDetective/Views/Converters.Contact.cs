@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static ContactInfo Convert(ContactInfoAnalysis analysis)
     {
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
@@ -42,6 +43,7 @@ public class ContactInfo
     public AnalysisArea Area { get; set; }
     /// <summary>Subject domain.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>Gets or sets the record exists value.</summary>
     public bool RecordExists { get; set; }
     /// <summary>Raw contact TXT record.</summary>
     public string ContactRecord { get; set; } = string.Empty;
@@ -51,7 +53,9 @@ public class ContactInfo
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
     /// <summary>Short summary text used in executive reports.</summary>
     public string Summary { get; set; } = string.Empty;

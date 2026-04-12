@@ -4,7 +4,7 @@ namespace DomainDetective.Tests {
     public class TestCertificateInfo {
         [Fact]
         public async Task WeakCertificateFlagsSet() {
-            var cert = new X509Certificate2("Data/weak.pem");
+            var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/weak.pem");
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.WeakKey);
@@ -15,7 +15,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task StrongCertificateNotFlagged() {
-            var cert = new X509Certificate2("Data/wildcard.pem");
+            var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.False(analysis.WeakKey);
@@ -25,7 +25,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task PssSignatureDetected() {
-            var cert = new X509Certificate2("Data/pss.pem");
+            var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/pss.pem");
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.RsaPssSignature);
@@ -34,7 +34,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task SelfSignedFlagSet() {
-            var cert = new X509Certificate2("Data/wildcard.pem");
+            var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.IsSelfSigned);
@@ -43,7 +43,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task SkipRevocationDisablesChecks() {
-            var cert = new X509Certificate2("Data/wildcard.pem");
+            var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]"), SkipRevocation = true };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.SkipRevocation);

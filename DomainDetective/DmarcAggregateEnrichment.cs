@@ -17,6 +17,7 @@ public static class DmarcAggregateEnrichment
     private static readonly GeoIpAnalysis _geo = new GeoIpAnalysis();
     private static bool _geoLoaded = false;
 
+    /// <summary>Executes the enrich async operation.</summary>
     public static async Task EnrichAsync(IEnumerable<DmarcAggregateRecord> records, CancellationToken ct = default)
     {
         if (!_geoLoaded)

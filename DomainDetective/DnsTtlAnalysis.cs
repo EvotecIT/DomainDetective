@@ -16,6 +16,7 @@ namespace DomainDetective {
     /// </remarks>
     public class DnsTtlAnalysis : IHasAssessments {
         private readonly List<string> _warnings = new();
+        /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
 
         /// <summary>
@@ -48,6 +49,7 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during TTL analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>Provides DNS query implementation details.</summary>
@@ -78,19 +80,31 @@ namespace DomainDetective {
         public int UniformityMaxParallelism { get; set; } = 8;
 
 	        // Per-authoritative-server TTL uniformity results
+	        /// <summary>Gets or sets the server ttl a value.</summary>
 	        public Dictionary<string, int?> ServerTtlA { get; private set; } = new();
+	        /// <summary>Gets or sets the server ttl aaaa value.</summary>
 	        public Dictionary<string, int?> ServerTtlAaaa { get; private set; } = new();
+	        /// <summary>Gets or sets the server ttl ns value.</summary>
 	        public Dictionary<string, int?> ServerTtlNs { get; private set; } = new();
+	        /// <summary>Gets or sets the server ttl cname value.</summary>
 	        public Dictionary<string, int?> ServerTtlCname { get; private set; } = new();
+	        /// <summary>Gets or sets the server ttl txt spf value.</summary>
 	        public Dictionary<string, int?> ServerTtlTxtSpf { get; private set; } = new();
+	        /// <summary>Gets or sets the server ttl txt dmarc value.</summary>
 	        public Dictionary<string, int?> ServerTtlTxtDmarc { get; private set; } = new();
+	        /// <summary>Gets or sets the server ttl txt mtasts value.</summary>
 	        public Dictionary<string, int?> ServerTtlTxtMtasts { get; private set; } = new();
+	        /// <summary>Gets or sets the server ttl txt tls rpt value.</summary>
 	        public Dictionary<string, int?> ServerTtlTxtTlsRpt { get; private set; } = new();
 	        /// <summary>Per-name TXT TTLs across authoritative servers. Key is the record name (e.g., s1._domainkey.example.com).</summary>
 	        public Dictionary<string, Dictionary<string, int?>> ServerTtlTxtPerName { get; private set; } = new();
+	        /// <summary>Gets or sets the a uniform across servers value.</summary>
 	        public bool AUniformAcrossServers { get; private set; }
+	        /// <summary>Gets or sets the aaaa uniform across servers value.</summary>
 	        public bool AaaaUniformAcrossServers { get; private set; }
+	        /// <summary>Gets or sets the ns uniform across servers value.</summary>
 	        public bool NsUniformAcrossServers { get; private set; }
+        /// <summary>Gets or sets the cname uniform across servers value.</summary>
         public bool CnameUniformAcrossServers { get; private set; }
 
         /// <summary>

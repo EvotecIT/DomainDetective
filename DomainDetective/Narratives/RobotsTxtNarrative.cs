@@ -5,10 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides robots txt narrative functionality.</summary>
 public static class RobotsTxtNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(RobotsTxtAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
         var domainCandidate = analysis?.Domain;

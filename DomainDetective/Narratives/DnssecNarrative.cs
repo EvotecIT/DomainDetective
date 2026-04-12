@@ -7,10 +7,13 @@ using DomainDetective.Protocols;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides dnssec narrative functionality.</summary>
 public static class DnssecNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(DnsSecAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
         var subjectCandidate = analysis?.Subject;

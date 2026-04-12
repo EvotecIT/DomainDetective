@@ -3,9 +3,12 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides certificate http narrative functionality.</summary>
 public static class CertificateHttpNarrative {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(CertificateAnalysis? analysis, IEnumerable<Assessment>? assessments = null) {
         var intro = "Retrieves the TLS certificate over HTTPS and evaluates chain trust and expiry.";
         var why = "Trusted certificates with reasonable lifetimes prevent browser warnings and ensure secure connections.";

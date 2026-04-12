@@ -21,9 +21,13 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     private int _requestIdSeed = 0;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _requestIdByUrl = new(System.StringComparer.OrdinalIgnoreCase);
     private int _hostGroupSeed = 0;
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the timeout value.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <summary>Gets or sets the max resources value.</summary>
     public int MaxResources { get; set; } = 300;
+    /// <summary>Gets or sets the concurrency value.</summary>
     public int Concurrency { get; set; } = 8;
     /// <summary>Maximum parallel header fetches for discovered resources; 0 defers to Concurrency.</summary>
     public int DiscoveryConcurrency { get; set; } = 0;
@@ -33,7 +37,9 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     public int TlsConcurrency { get; set; } = 0;
     /// <summary>Maximum parallel DNS/RDAP enrichments; 0 defers to Concurrency.</summary>
     public int DnsConcurrency { get; set; } = 0;
+    /// <summary>Gets or sets the respect robots value.</summary>
     public bool RespectRobots { get; set; } = false;
+    /// <summary>Gets or sets the enable threat intel value.</summary>
     public bool EnableThreatIntel { get; set; } = false;
     /// <summary>When true, skip third-party resources; only first-party (same registrable domain) are fetched.</summary>
     public bool SkipThirdParty { get; set; } = false;
@@ -51,16 +57,22 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     private bool _techRulesTried;
     private readonly object _sync = new();
     // Link checking controls
+    /// <summary>Gets or sets the follow links value.</summary>
     public bool FollowLinks { get; set; } = false;
+    /// <summary>Gets or sets the link max depth value.</summary>
     public int LinkMaxDepth { get; set; } = 0;
+    /// <summary>Gets or sets the link max pages value.</summary>
     public int LinkMaxPages { get; set; } = 100;
+    /// <summary>Gets or sets the link first party only value.</summary>
     public bool LinkFirstPartyOnly { get; set; } = true;
+    /// <summary>Gets or sets the link concurrency value.</summary>
     public int LinkConcurrency { get; set; } = 0;
     /// <summary>When true, skips static resource discovery and performs link checks only.</summary>
     public bool LinkOnly { get; set; } = false;
 
     
 
+    /// <summary>Gets or sets the main http analysis value.</summary>
     public HttpAnalysis? MainHttpAnalysis { get; private set; }
     /// <summary>Final URI of the main document after redirects.</summary>
     public Uri? MainFinalUri { get; private set; }
@@ -68,8 +80,11 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     public string? PrimaryRegistrableDomain { get; private set; }
     /// <summary>Extracted HTML page title when available.</summary>
     public string? PageTitle { get; private set; }
+    /// <summary>Gets the requests value.</summary>
     public List<StaticRequest> Requests { get; } = new();
+    /// <summary>Gets the hosts value.</summary>
     public Dictionary<string, StaticHost> Hosts { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Gets the bytes by type value.</summary>
     public Dictionary<string, long> BytesByType { get; } = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Technologies detected via compiled rules and optional JSON extensions.</summary>
     public HashSet<string> TechDetections { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -80,7 +95,9 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     private int _cookiesSet;
     /// <summary>Adjacency list of request graph: parent RequestId -> list of child RequestIds.</summary>
     public System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<int>> RequestAdjacency { get; } = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<int>>();
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
     /// <summary>Detailed records for each technology detection.</summary>
     public System.Collections.Generic.List<TechDetectionDetail> TechDetails { get; } = new();
@@ -105,6 +122,7 @@ public partial class WebStaticScanAnalysis : IHasAssessments
 
     // Regex helpers moved to Regexes partial
 
+    /// <summary>Executes the analyze operation.</summary>
     public async Task Analyze(string url, InternalLogger logger, CancellationToken cancellationToken = default)
     {
         Subject = url;

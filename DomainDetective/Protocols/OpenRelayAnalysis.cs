@@ -20,7 +20,9 @@ namespace DomainDetective {
             public SocketError? SocketErrorCode { get; init; }
         }
 
+        /// <summary>Gets or sets the server results value.</summary>
         public Dictionary<string, OpenRelayResult> ServerResults { get; private set; } = new();
+        /// <summary>Gets or sets the timeout value.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
         internal static Func<TcpClient> CreateClient { get; set; } = () => new TcpClient();
 
@@ -29,6 +31,7 @@ namespace DomainDetective {
         /// </summary>
         public List<Assessment> Assessments { get; } = new();
 
+        /// <summary>Analyzes server.</summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();

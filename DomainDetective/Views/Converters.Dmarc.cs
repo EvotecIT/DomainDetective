@@ -5,6 +5,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static DmarcRecordInfo Convert(DmarcAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -94,8 +95,11 @@ public class DmarcRecordInfo
     public int? CnameTtl { get; set; }
     /// <summary>True when the DMARC record was resolved through a CNAME alias.</summary>
     public bool IsCnameResolved { get; set; }
+    /// <summary>Gets or sets the dmarc record exists value.</summary>
     public bool DmarcRecordExists { get; set; }
+    /// <summary>Gets or sets the starts correctly value.</summary>
     public bool StartsCorrectly { get; set; }
+    /// <summary>Gets or sets the is policy valid value.</summary>
     public bool IsPolicyValid { get; set; }
     /// <summary>Policy (p=).</summary>
     public string Policy { get; set; } = string.Empty;
@@ -115,7 +119,9 @@ public class DmarcRecordInfo
     public string DkimAlignment { get; set; } = string.Empty;
     /// <summary>SPF alignment (aspf).</summary>
     public string SpfAlignment { get; set; } = string.Empty;
+    /// <summary>Gets or sets the rua value.</summary>
     public string Rua { get; set; } = string.Empty;
+    /// <summary>Gets or sets the ruf value.</summary>
     public string Ruf { get; set; } = string.Empty;
     /// <summary>Aggregate report mailto URIs (rua).</summary>
     public IReadOnlyList<string> MailtoRua { get; set; } = System.Array.Empty<string>();
@@ -125,30 +131,47 @@ public class DmarcRecordInfo
     public IReadOnlyList<string> MailtoRuf { get; set; } = System.Array.Empty<string>();
     /// <summary>Forensic report HTTP URIs (ruf).</summary>
     public IReadOnlyList<string> HttpRuf { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the external report authorization value.</summary>
     public IReadOnlyDictionary<string, bool> ExternalReportAuthorization { get; set; } = new System.Collections.Generic.Dictionary<string, bool>();
+    /// <summary>Gets or sets the unauthorized external report domains value.</summary>
     public IReadOnlyList<string> UnauthorizedExternalReportDomains { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the invalid report uri value.</summary>
     public bool InvalidReportUri { get; set; }
     /// <summary>Deprecated tags present in the record.</summary>
     public IReadOnlyList<string> DeprecatedTags { get; set; } = System.Array.Empty<string>();
     /// <summary>Unknown tags present in the record.</summary>
     public IReadOnlyList<string> UnknownTags { get; set; } = System.Array.Empty<string>();
+    /// <summary>Gets or sets the multiple records value.</summary>
     public bool MultipleRecords { get; set; }
+    /// <summary>Gets or sets the exceeds character limit value.</summary>
     public bool ExceedsCharacterLimit { get; set; }
+    /// <summary>Gets or sets the has mandatory tags value.</summary>
     public bool HasMandatoryTags { get; set; }
+    /// <summary>Gets or sets the valid dkim alignment value.</summary>
     public bool ValidDkimAlignment { get; set; }
+    /// <summary>Gets or sets the valid spf alignment value.</summary>
     public bool ValidSpfAlignment { get; set; }
+    /// <summary>Gets or sets the weak policy value.</summary>
     public bool WeakPolicy { get; set; }
+    /// <summary>Gets or sets the policy recommendation value.</summary>
     public string? PolicyRecommendation { get; set; }
+    /// <summary>Gets or sets the advisory value.</summary>
     public string Advisory { get; set; } = string.Empty;
+    /// <summary>Gets or sets the spf aligned value.</summary>
     public bool SpfAligned { get; set; }
+    /// <summary>Gets or sets the dkim aligned value.</summary>
     public bool DkimAligned { get; set; }
+    /// <summary>Gets or sets the is pct valid value.</summary>
     public bool IsPctValid { get; set; }
+    /// <summary>Gets or sets the original pct value.</summary>
     public int? OriginalPct { get; set; }
     /// <summary>Assessment list.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
     /// <summary>Short summary text for executive reports.</summary>
     public string Summary { get; set; } = string.Empty;

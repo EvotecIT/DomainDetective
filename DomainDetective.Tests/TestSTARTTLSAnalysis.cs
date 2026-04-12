@@ -409,7 +409,7 @@ namespace DomainDetective.Tests {
             var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
                 "CN=localhost", rsa, System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1);
             var cert = req.CreateSelfSigned(System.DateTimeOffset.Now.AddDays(-1), System.DateTimeOffset.Now.AddDays(30));
-            return new System.Security.Cryptography.X509Certificates.X509Certificate2(cert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx));
+            return CertificateLoaderCompat.LoadPkcs12(cert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx));
         }
     }
 }

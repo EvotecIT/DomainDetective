@@ -12,19 +12,32 @@ using MimeKit;
 
 namespace DomainDetective.TimeSeries;
 
+/// <summary>Provides imap attachment ingest options functionality.</summary>
 public sealed class ImapAttachmentIngestOptions
 {
+    /// <summary>Gets or sets the host value.</summary>
     public string Host { get; set; } = string.Empty;
+    /// <summary>Gets or sets the port value.</summary>
     public int Port { get; set; } = 993;
+    /// <summary>Gets or sets the use ssl value.</summary>
     public bool UseSsl { get; set; } = true;
+    /// <summary>Gets or sets the username value.</summary>
     public string Username { get; set; } = string.Empty;
+    /// <summary>Gets or sets the password value.</summary>
     public string Password { get; set; } = string.Empty;
+    /// <summary>Gets or sets the mailbox value.</summary>
     public string Mailbox { get; set; } = "INBOX";
+    /// <summary>Gets or sets the since utc value.</summary>
     public DateTimeOffset? SinceUtc { get; set; }
+    /// <summary>Gets or sets the max messages value.</summary>
     public int MaxMessages { get; set; } = 500;
+    /// <summary>Gets or sets the only unseen value.</summary>
     public bool OnlyUnseen { get; set; }
+    /// <summary>Gets or sets the require attachments value.</summary>
     public bool RequireAttachments { get; set; }
+    /// <summary>Gets or sets the subject contains value.</summary>
     public string? SubjectContains { get; set; }
+    /// <summary>Gets or sets the max attachment bytes value.</summary>
     public long MaxAttachmentBytes { get; set; }
 
     internal void Validate()
@@ -56,14 +69,19 @@ public sealed class ImapAttachmentIngestOptions
     }
 }
 
+/// <summary>Provides imap attachment ingest result functionality.</summary>
 public sealed class ImapAttachmentIngestResult<T>
 {
+    /// <summary>Gets the items value.</summary>
     public List<T> Items { get; } = new();
+    /// <summary>Gets the errors value.</summary>
     public List<string> Errors { get; } = new();
 }
 
+/// <summary>Provides imap attachment ingestor functionality.</summary>
 public static class ImapAttachmentIngestor
 {
+    /// <summary>Executes the ingest async&lt;t&gt; operation.</summary>
     public static async Task<ImapAttachmentIngestResult<T>> IngestAsync<T>(
         ImapAttachmentIngestOptions options,
         Func<string, bool> includeAttachmentFileName,

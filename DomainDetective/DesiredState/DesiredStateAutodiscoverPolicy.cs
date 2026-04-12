@@ -2,16 +2,21 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state autodiscover policy functionality.</summary>
 public sealed class DesiredStateAutodiscoverPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require srv record value.</summary>
     [JsonPropertyName("requireSrvRecord")]
     public bool? RequireSrvRecord { get; set; }
 
+    /// <summary>Gets or sets the require autodiscover cname value.</summary>
     [JsonPropertyName("requireAutodiscoverCname")]
     public bool? RequireAutodiscoverCname { get; set; }
 
+    /// <summary>Gets or sets the require autoconfig cname value.</summary>
     [JsonPropertyName("requireAutoconfigCname")]
     public bool? RequireAutoconfigCname { get; set; }
 
@@ -35,6 +40,7 @@ public sealed class DesiredStateAutodiscoverPolicy {
     [JsonPropertyName("allowedValidEndpointHostSuffixes")]
     public string[]? AllowedValidEndpointHostSuffixes { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateAutodiscoverPolicy Clone() {
         return new DesiredStateAutodiscoverPolicy {
             Enabled = Enabled,
@@ -49,6 +55,7 @@ public sealed class DesiredStateAutodiscoverPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateAutodiscoverPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

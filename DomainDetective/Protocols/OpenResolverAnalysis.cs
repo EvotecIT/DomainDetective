@@ -11,6 +11,7 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public class OpenResolverAnalysis : IHasAssessments {
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
     /// <summary>Recursion results keyed by server and port.</summary>
     public Dictionary<string, bool> ServerResults { get; private set; } = new();
@@ -26,6 +27,7 @@ public class OpenResolverAnalysis : IHasAssessments {
     /// <summary>Tests a single server for open recursion.</summary>
     public List<Assessment> Assessments { get; } = new();
 
+    /// <summary>Analyzes server.</summary>
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "OpenResolver", target: $"{host}:{port}");
         Subject ??= $"{host}:{port}";
@@ -209,22 +211,40 @@ public class OpenResolverAnalysis : IHasAssessments {
 
 /// <summary>Detailed open resolver test result.</summary>
 public sealed class OpenResolverResult {
+    /// <summary>Gets or sets the host value.</summary>
     public string Host { get; set; } = null!;
+    /// <summary>Gets or sets the port value.</summary>
     public int Port { get; set; }
+    /// <summary>Gets or sets the is open resolver value.</summary>
     public bool IsOpenResolver { get; set; }
+    /// <summary>Gets or sets the ra bit set value.</summary>
     public bool? RaBitSet { get; set; }
+    /// <summary>Gets or sets the rcode value.</summary>
     public int? Rcode { get; set; }
+    /// <summary>Gets or sets the response bytes value.</summary>
     public int? ResponseBytes { get; set; }
+    /// <summary>Gets or sets the query time ms value.</summary>
     public int? QueryTimeMs { get; set; }
+    /// <summary>Gets or sets the qr bit set value.</summary>
     public bool? QrBitSet { get; set; }
+    /// <summary>Gets or sets the aa bit set value.</summary>
     public bool? AaBitSet { get; set; }
+    /// <summary>Gets or sets the tc bit set value.</summary>
     public bool? TcBitSet { get; set; }
+    /// <summary>Gets or sets the rd bit set value.</summary>
     public bool? RdBitSet { get; set; }
+    /// <summary>Gets or sets the ad bit set value.</summary>
     public bool? AdBitSet { get; set; }
+    /// <summary>Gets or sets the cd bit set value.</summary>
     public bool? CdBitSet { get; set; }
+    /// <summary>Gets or sets the opcode value.</summary>
     public int? Opcode { get; set; }
+    /// <summary>Gets or sets the qd count value.</summary>
     public int? QdCount { get; set; }
+    /// <summary>Gets or sets the an count value.</summary>
     public int? AnCount { get; set; }
+    /// <summary>Gets or sets the ns count value.</summary>
     public int? NsCount { get; set; }
+    /// <summary>Gets or sets the ar count value.</summary>
     public int? ArCount { get; set; }
 }

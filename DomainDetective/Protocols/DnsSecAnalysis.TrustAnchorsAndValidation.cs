@@ -16,6 +16,7 @@ using System.Xml;
 
 namespace DomainDetective {
     public partial class DnsSecAnalysis : IHasAssessments {
+        /// <summary>Executes the download trust anchors operation.</summary>
         public static async Task<(IReadOnlyList<string> anchors, DateTimeOffset? expiration)> DownloadTrustAnchors(
             InternalLogger? logger = null,
             CancellationToken cancellationToken = default,

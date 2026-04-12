@@ -9,26 +9,47 @@ namespace DomainDetective {
     /// <para>Aggregate counts are calculated before <see cref="Endpoints"/> is capped by max endpoints.</para>
     /// </summary>
     public sealed class CertificateInventoryDriftSummary {
+        /// <summary>Gets or sets the snapshot count value.</summary>
         public int SnapshotCount { get; set; }
+        /// <summary>Gets or sets the endpoint count value.</summary>
         public int EndpointCount { get; set; }
+        /// <summary>Gets or sets the endpoints matching filters value.</summary>
         public int EndpointsMatchingFilters { get; set; }
+        /// <summary>Gets or sets the endpoints excluded by changed only value.</summary>
         public int EndpointsExcludedByChangedOnly { get; set; }
+        /// <summary>Gets or sets the endpoints excluded by minimum severity value.</summary>
         public int EndpointsExcludedByMinimumSeverity { get; set; }
+        /// <summary>Gets or sets the endpoints excluded by change kind filter value.</summary>
         public int EndpointsExcludedByChangeKindFilter { get; set; }
+        /// <summary>Gets or sets the endpoints excluded by filters value.</summary>
         public int EndpointsExcludedByFilters { get; set; }
+        /// <summary>Gets or sets the endpoints truncated by max endpoints value.</summary>
         public int EndpointsTruncatedByMaxEndpoints { get; set; }
+        /// <summary>Gets or sets the applied change kinds value.</summary>
         public List<string> AppliedChangeKinds { get; set; } = new();
+        /// <summary>Gets or sets the applied change kind match mode value.</summary>
         public string AppliedChangeKindMatchMode { get; set; } = "Any";
+        /// <summary>Gets or sets the endpoints with any change value.</summary>
         public int EndpointsWithAnyChange { get; set; }
+        /// <summary>Gets or sets the endpoints with high severity drift value.</summary>
         public int EndpointsWithHighSeverityDrift { get; set; }
+        /// <summary>Gets or sets the endpoints with medium severity drift value.</summary>
         public int EndpointsWithMediumSeverityDrift { get; set; }
+        /// <summary>Gets or sets the endpoints with low severity drift value.</summary>
         public int EndpointsWithLowSeverityDrift { get; set; }
+        /// <summary>Gets or sets the endpoints with certificate change value.</summary>
         public int EndpointsWithCertificateChange { get; set; }
+        /// <summary>Gets or sets the endpoints with issuer change value.</summary>
         public int EndpointsWithIssuerChange { get; set; }
+        /// <summary>Gets or sets the endpoints with expiry change value.</summary>
         public int EndpointsWithExpiryChange { get; set; }
+        /// <summary>Gets or sets the endpoints with service change value.</summary>
         public int EndpointsWithServiceChange { get; set; }
+        /// <summary>Gets or sets the endpoints with authentication profile change value.</summary>
         public int EndpointsWithAuthenticationProfileChange { get; set; }
+        /// <summary>Gets or sets the endpoints with chain source change value.</summary>
         public int EndpointsWithChainSourceChange { get; set; }
+        /// <summary>Gets or sets the endpoints value.</summary>
         public List<CertificateInventoryEndpointDrift> Endpoints { get; set; } = new();
     }
 
@@ -36,31 +57,57 @@ namespace DomainDetective {
     /// Drift details for one endpoint over time.
     /// </summary>
     public sealed class CertificateInventoryEndpointDrift {
+        /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = string.Empty;
+        /// <summary>Gets or sets the port value.</summary>
         public int Port { get; set; }
+        /// <summary>Gets or sets the service value.</summary>
         public string Service { get; set; } = string.Empty;
+        /// <summary>Gets or sets the first seen utc value.</summary>
         public DateTimeOffset? FirstSeenUtc { get; set; }
+        /// <summary>Gets or sets the last seen utc value.</summary>
         public DateTimeOffset? LastSeenUtc { get; set; }
+        /// <summary>Gets or sets the observation count value.</summary>
         public int ObservationCount { get; set; }
+        /// <summary>Gets or sets the distinct certificate count value.</summary>
         public int DistinctCertificateCount { get; set; }
+        /// <summary>Gets or sets the previous certificate id value.</summary>
         public string? PreviousCertificateId { get; set; }
+        /// <summary>Gets or sets the current certificate id value.</summary>
         public string? CurrentCertificateId { get; set; }
+        /// <summary>Gets or sets the previous issuer value.</summary>
         public string? PreviousIssuer { get; set; }
+        /// <summary>Gets or sets the current issuer value.</summary>
         public string? CurrentIssuer { get; set; }
+        /// <summary>Gets or sets the previous not after utc value.</summary>
         public DateTimeOffset? PreviousNotAfterUtc { get; set; }
+        /// <summary>Gets or sets the current not after utc value.</summary>
         public DateTimeOffset? CurrentNotAfterUtc { get; set; }
+        /// <summary>Gets or sets the certificate changed value.</summary>
         public bool CertificateChanged { get; set; }
+        /// <summary>Gets or sets the issuer changed value.</summary>
         public bool IssuerChanged { get; set; }
+        /// <summary>Gets or sets the expiry changed value.</summary>
         public bool ExpiryChanged { get; set; }
+        /// <summary>Gets or sets the service changed value.</summary>
         public bool ServiceChanged { get; set; }
+        /// <summary>Gets or sets the previous authentication profile value.</summary>
         public string? PreviousAuthenticationProfile { get; set; }
+        /// <summary>Gets or sets the current authentication profile value.</summary>
         public string? CurrentAuthenticationProfile { get; set; }
+        /// <summary>Gets or sets the authentication profile changed value.</summary>
         public bool AuthenticationProfileChanged { get; set; }
+        /// <summary>Gets or sets the previous chain source value.</summary>
         public string? PreviousChainSource { get; set; }
+        /// <summary>Gets or sets the current chain source value.</summary>
         public string? CurrentChainSource { get; set; }
+        /// <summary>Gets or sets the chain source changed value.</summary>
         public bool ChainSourceChanged { get; set; }
+        /// <summary>Gets or sets the drift severity value.</summary>
         public string DriftSeverity { get; set; } = "None";
+        /// <summary>Gets or sets the change kinds value.</summary>
         public List<string> ChangeKinds { get; set; } = new();
+        /// <summary>Gets or sets the last changed at utc value.</summary>
         public DateTimeOffset? LastChangedAtUtc { get; set; }
     }
 

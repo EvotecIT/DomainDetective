@@ -13,6 +13,7 @@ public sealed class HtmlForgeXComposer : IHtmlComposer
     private readonly Document _doc;
     private TablerPage? _page;
 
+    /// <summary>Initializes a new instance of the HtmlForgeXComposer class.</summary>
     public HtmlForgeXComposer()
     {
         _doc = new Document { LibraryMode = LibraryMode.Online, ThemeMode = ThemeMode.Light };
@@ -100,6 +101,7 @@ public sealed class HtmlForgeXComposer : IHtmlComposer
         _doc.Save(path, openInBrowser);
     }
 
+    /// <summary>Releases resources used by this instance.</summary>
     public void Dispose()
     {
         _page = null;

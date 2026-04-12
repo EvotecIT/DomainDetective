@@ -4,6 +4,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static AutodiscoverInfo Convert(AutodiscoverAnalysis analysis)
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
@@ -102,7 +103,9 @@ public class AutodiscoverInfo
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
     /// <summary>Short summary string for executive reports.</summary>
     public string Summary { get; set; } = string.Empty;

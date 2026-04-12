@@ -50,23 +50,41 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides website info functionality.</summary>
 public class WebsiteInfo
 {
+    /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
+    /// <summary>Gets or sets the certificate value.</summary>
     public CertificateInfo? Certificate { get; set; }
+    /// <summary>Gets or sets the http value.</summary>
     public HttpInfo? Http { get; set; }
+    /// <summary>Gets or sets the certificate grade value.</summary>
     public GradeLevel CertificateGrade { get; set; }
+    /// <summary>Gets or sets the http grade value.</summary>
     public GradeLevel HttpGrade { get; set; }
+    /// <summary>Gets or sets the hsts present value.</summary>
     public bool HstsPresent { get; set; }
+    /// <summary>Gets or sets the mixed content detected value.</summary>
     public bool MixedContentDetected { get; set; }
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = null!;
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = null!;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = null!;
 }

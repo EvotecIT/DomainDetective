@@ -9,7 +9,9 @@ namespace DomainDetective;
 /// </summary>
 public sealed class TyposquattingDispositionOptions
 {
+    /// <summary>Gets or sets the likely malicious risk threshold value.</summary>
     public int LikelyMaliciousRiskThreshold { get; set; } = 70;
+    /// <summary>Gets or sets the likely impersonation risk threshold value.</summary>
     public int LikelyImpersonationRiskThreshold { get; set; } = 50;
 }
 
@@ -18,6 +20,7 @@ public sealed class TyposquattingDispositionOptions
 /// </summary>
 public static class TyposquattingDispositionAnalyzer
 {
+    /// <summary>Executes the apply operation.</summary>
     public static void Apply(IReadOnlyList<TyposquattingCandidate>? candidates, TyposquattingDispositionOptions? options = null)
     {
         if (candidates == null || candidates.Count == 0)
@@ -32,6 +35,7 @@ public static class TyposquattingDispositionAnalyzer
         }
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public static void Apply(TyposquattingCandidate candidate, TyposquattingDispositionOptions? options = null)
     {
         if (candidate == null)

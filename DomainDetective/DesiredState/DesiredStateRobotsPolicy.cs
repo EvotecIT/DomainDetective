@@ -2,10 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace DomainDetective.DesiredState;
 
+/// <summary>Provides desired state robots policy functionality.</summary>
 public sealed class DesiredStateRobotsPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the require record value.</summary>
     [JsonPropertyName("requireRecord")]
     public bool? RequireRecord { get; set; }
 
@@ -21,6 +24,7 @@ public sealed class DesiredStateRobotsPolicy {
     [JsonPropertyName("requireSitemap")]
     public bool? RequireSitemap { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateRobotsPolicy Clone() {
         return new DesiredStateRobotsPolicy {
             Enabled = Enabled,
@@ -31,6 +35,7 @@ public sealed class DesiredStateRobotsPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateRobotsPolicy overlay) {
         if (overlay == null) return;
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;

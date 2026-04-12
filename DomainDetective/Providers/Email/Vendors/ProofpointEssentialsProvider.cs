@@ -2,31 +2,44 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Providers.Email.Vendors;
 
+/// <summary>Provides proofpoint essentials provider functionality.</summary>
 public sealed class ProofpointEssentialsProvider : IMailProvider {
+    /// <summary>Represents the id value.</summary>
     public string Id => "proofpoint-essentials";
+    /// <summary>Represents the display name value.</summary>
     public string DisplayName => "Proofpoint Essentials";
+    /// <summary>Represents the capabilities value.</summary>
     public ProviderCapability Capabilities => ProviderCapability.Gateway | ProviderCapability.DkimSigning | ProviderCapability.SpfPublish;
 
+    /// <summary>Represents the mx host patterns value.</summary>
     public IEnumerable<string> MxHostPatterns => new[]
     {
         "*.ppe-hosted.com",
         "ppe-hosted.com"
     };
 
+    /// <summary>Represents the spf required tokens value.</summary>
     public IEnumerable<string> SpfRequiredTokens => new[]
     {
         // Proofpoint Essentials publishes SPF guidance that typically references ppe-hosted.com includes
         "ppe-hosted.com"
     };
 
+    /// <summary>Represents the dkim selector hints value.</summary>
     public IEnumerable<string> DkimSelectorHints => new[] { "pp", "proofpoint" };
+    /// <summary>Represents the dkim cname suffixes value.</summary>
     public IEnumerable<string> DkimCnameSuffixes => new[] { "pphosted.com", "proofpoint.com" };
 
+    /// <summary>Represents the single mx ok value.</summary>
     public bool SingleMxOk => false;
+    /// <summary>Represents the recommended min mx records value.</summary>
     public int RecommendedMinMxRecords => 2;
+    /// <summary>Represents the minimum dkim selectors to pass value.</summary>
     public int MinimumDkimSelectorsToPass => 0;
+    /// <summary>Represents the subdomain policy recommendation value.</summary>
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
     // Documentation (source of truth)
+    /// <summary>Represents the docs value.</summary>
     public ProviderDocumentation Docs => new ProviderDocumentation {
         Provider = DisplayName,
         Arc = new ProviderDocLink { Url = null, Title = "ARC", Summary = "No Essentials ARC signing page.", Notes = "Gateway evaluates SPF/DKIM/DMARC; confirm pass-through behavior in policies.", IsPublic = true, IsThirdParty = true, LastVerified = new System.DateTime(2025, 9, 9) },

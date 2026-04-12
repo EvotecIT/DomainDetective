@@ -9,6 +9,7 @@ namespace DomainDetective;
 /// </summary>
 public static class TyposquattingMailInfrastructure
 {
+    /// <summary>Executes the normalize mx hosts operation.</summary>
     public static IReadOnlyList<string> NormalizeMxHosts(IEnumerable<string>? mxRecords)
     {
         if (mxRecords == null)
@@ -24,6 +25,7 @@ public static class TyposquattingMailInfrastructure
             .ToArray();
     }
 
+    /// <summary>Executes the extract mx host operation.</summary>
     public static string ExtractMxHost(string? record)
     {
         if (string.IsNullOrWhiteSpace(record))

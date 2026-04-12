@@ -5,10 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides spf narrative functionality.</summary>
 public static class SpfNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(SpfAnalysis spf)
     {
         var subj = string.IsNullOrWhiteSpace(spf.Subject) ? "(domain)" : spf.Subject;

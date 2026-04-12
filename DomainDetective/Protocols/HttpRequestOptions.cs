@@ -9,13 +9,21 @@ using System.Net.Http;
 /// </summary>
 public enum HttpRequestMethod
 {
+    /// <summary>Provides http request options functionality.</summary>
     Head = 0,
+    /// <summary>Provides http request options functionality.</summary>
     Get = 1,
+    /// <summary>Provides http request options functionality.</summary>
     Post = 2,
+    /// <summary>Provides http request options functionality.</summary>
     Put = 3,
+    /// <summary>Provides http request options functionality.</summary>
     Delete = 4,
+    /// <summary>Provides http request options functionality.</summary>
     Options = 5,
+    /// <summary>Provides http request options functionality.</summary>
     Trace = 6,
+    /// <summary>Provides http request options functionality.</summary>
     Patch = 7
 }
 

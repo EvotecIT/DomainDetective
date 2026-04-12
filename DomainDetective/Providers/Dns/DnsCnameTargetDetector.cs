@@ -7,15 +7,21 @@ using DomainDetective.Helpers;
 
 namespace DomainDetective.Providers.Dns;
 
+/// <summary>Provides dns cname target detector functionality.</summary>
 public static class DnsCnameTargetDetector
 {
+    /// <summary>Provides match functionality.</summary>
     public sealed class Match
     {
+        /// <summary>Gets or sets the provider value.</summary>
         public DnsCnameTargetProvider Provider { get; init; }
+        /// <summary>Gets or sets the flags value.</summary>
         public DnsCnameTargetFlags Flags { get; init; }
+        /// <summary>Gets or sets the evidence value.</summary>
         public IReadOnlyList<string> Evidence { get; init; } = Array.Empty<string>();
     }
 
+    /// <summary>Executes the detect operation.</summary>
     public static Match Detect(string? cnameTarget)
     {
         var target = NormalizeHost(cnameTarget);
@@ -151,23 +157,37 @@ public static class DnsCnameTargetDetector
     }
 }
 
+/// <summary>Defines values for dns cname target flags.</summary>
 [Flags]
 public enum DnsCnameTargetFlags
 {
+    /// <summary>Defines values for dns cname target provider.</summary>
     None = 0,
+    /// <summary>Defines values for dns cname target provider.</summary>
     FlatteningService = 1,
+    /// <summary>Defines values for dns cname target provider.</summary>
     TakeoverRisk = 2
 }
 
+/// <summary>Defines values for dns cname target provider.</summary>
 public enum DnsCnameTargetProvider
 {
+    /// <summary>Represents the unknown value.</summary>
     Unknown = 0,
+    /// <summary>Represents the cloudflare value.</summary>
     Cloudflare = 1,
+    /// <summary>Represents the amazon value.</summary>
     Amazon = 2,
+    /// <summary>Represents the azure value.</summary>
     Azure = 3,
+    /// <summary>Represents the git hub value.</summary>
     GitHub = 4,
+    /// <summary>Represents the netlify value.</summary>
     Netlify = 5,
+    /// <summary>Represents the vercel value.</summary>
     Vercel = 6,
+    /// <summary>Represents the heroku value.</summary>
     Heroku = 7,
+    /// <summary>Represents the fastly value.</summary>
     Fastly = 8
 }

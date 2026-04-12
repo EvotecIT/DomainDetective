@@ -6,21 +6,27 @@ namespace DomainDetective.DesiredState;
 /// Desired state policy for certificate inventory posture evaluation.
 /// </summary>
 public sealed class DesiredStateCertificateInventoryPolicy {
+    /// <summary>Gets or sets the enabled value.</summary>
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
+    /// <summary>Gets or sets the baseline profile value.</summary>
     [JsonPropertyName("baselineProfile")]
     public string? BaselineProfile { get; set; }
 
+    /// <summary>Gets or sets the include compliant value.</summary>
     [JsonPropertyName("includeCompliant")]
     public bool? IncludeCompliant { get; set; }
 
+    /// <summary>Gets or sets the max endpoints value.</summary>
     [JsonPropertyName("maxEndpoints")]
     public int? MaxEndpoints { get; set; }
 
+    /// <summary>Gets or sets the policy overrides path value.</summary>
     [JsonPropertyName("policyOverridesPath")]
     public string? PolicyOverridesPath { get; set; }
 
+    /// <summary>Executes the clone operation.</summary>
     public DesiredStateCertificateInventoryPolicy Clone() {
         return new DesiredStateCertificateInventoryPolicy {
             Enabled = Enabled,
@@ -31,6 +37,7 @@ public sealed class DesiredStateCertificateInventoryPolicy {
         };
     }
 
+    /// <summary>Executes the apply operation.</summary>
     public void Apply(DesiredStateCertificateInventoryPolicy? overlay) {
         if (overlay == null) {
             return;

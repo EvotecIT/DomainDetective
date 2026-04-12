@@ -23,6 +23,7 @@ namespace DomainDetective {
     public partial class DNSBLAnalysis : IHasAssessments {
         /// <summary>Subject for this analysis when domain-scoped; null for multi-input or IP-only runs.</summary>
         public string? Subject { get; set; }
+        /// <summary>Gets or sets the dns configuration value.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
 
         /// <summary>Optional override for DNS queries used for testing.</summary>
@@ -90,6 +91,7 @@ namespace DomainDetective {
         /// </value>
         internal List<DnsblEntry> DnsblEntries { get; } = new();
 
+        /// <summary>Initializes a new instance of the DNSBLAnalysis class.</summary>
         public DNSBLAnalysis(DnsConfiguration? dnsConfiguration = null) {
             DnsConfiguration = dnsConfiguration ?? new DnsConfiguration();
             DnsblEntries.AddRange(_defaultEntries.Select(e => {
@@ -131,6 +133,7 @@ namespace DomainDetective {
         public List<DNSBLRecord> AllResults { get; private set; } = new List<DNSBLRecord>();
 
         internal InternalLogger? Logger { get; set; } = new InternalLogger();
+        /// <summary>Gets the assessments value.</summary>
         public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
@@ -727,6 +730,7 @@ namespace DomainDetective {
 
         }
 
+        /// <summary>Executes the update dnsbl data async operation.</summary>
         public async Task UpdateDnsblDataAsync(string url = DefaultUpdateUrl, bool overwriteExisting = true) {
             var client = SharedHttpClient.Instance;
             var json = await client.GetStringAsync(url);

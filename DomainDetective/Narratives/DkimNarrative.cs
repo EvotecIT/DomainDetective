@@ -5,10 +5,13 @@ using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides dkim narrative functionality.</summary>
 public static class DkimNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(DkimRecordAnalysis dkim, string? selector = null, System.Collections.Generic.IEnumerable<Assessment>? assessments = null)
     {
         var shown = selector ?? dkim?.Name ?? "(selector)";

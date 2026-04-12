@@ -14,10 +14,13 @@ namespace DomainDetective.Reports.Markdown;
 /// Generates a Markdown report using OfficeIMO.Markdown that mirrors the Word layout.
 /// </summary>
 public sealed class MarkdownReportGenerator : IReportGenerator {
+    /// <summary>Gets the report format produced by this generator.</summary>
     public ReportFormat Format => ReportFormat.Markdown;
 
+    /// <summary>Determines whether the supplied options request Markdown output.</summary>
     public bool CanGenerate(ReportOptions options) => options.Format == ReportFormat.Markdown;
 
+    /// <summary>Generates the Markdown report for the supplied domain health check.</summary>
     public Task<ReportResult> GenerateAsync(DomainHealthCheck healthCheck, ReportOptions options) {
         var domain = options.CustomProperties?.ContainsKey("Domain") == true
             ? options.CustomProperties["Domain"]?.ToString() ?? "unknown"

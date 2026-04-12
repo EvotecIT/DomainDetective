@@ -104,6 +104,8 @@ public class TakeoverCnameAnalysis : IHasAssessments
         }
     }
 
+    /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

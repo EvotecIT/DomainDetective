@@ -7,6 +7,7 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    /// <summary>Executes the convert operation.</summary>
     public static TlsRptReportsTimeSeriesInfo Convert(IReadOnlyList<TlsRptSnapshot> snapshots, string? subjectOverride = null)
     {
         var list = (snapshots ?? Array.Empty<TlsRptSnapshot>()).Where(s => s != null).ToList();
@@ -187,49 +188,81 @@ public static partial class Converters
     }
 }
 
+/// <summary>Provides tls rpt reports time series info functionality.</summary>
 public sealed class TlsRptReportsTimeSeriesInfo
 {
+    /// <summary>Gets or sets the section key value.</summary>
     public string SectionKey { get; set; } = "TLS-RPT Reports";
+    /// <summary>Gets or sets the area value.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Gets or sets the subject value.</summary>
     public string Subject { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the period start utc value.</summary>
     public DateTimeOffset? PeriodStartUtc { get; set; }
+    /// <summary>Gets or sets the period end utc value.</summary>
     public DateTimeOffset? PeriodEndUtc { get; set; }
+    /// <summary>Gets or sets the snapshot count value.</summary>
     public int SnapshotCount { get; set; }
 
+    /// <summary>Gets or sets the total successful sessions value.</summary>
     public int TotalSuccessfulSessions { get; set; }
+    /// <summary>Gets or sets the total failed sessions value.</summary>
     public int TotalFailedSessions { get; set; }
+    /// <summary>Gets or sets the failure rate percent value.</summary>
     public double FailureRatePercent { get; set; }
 
+    /// <summary>Gets or sets the daily value.</summary>
     public IReadOnlyList<TlsRptDailyStat> Daily { get; set; } = Array.Empty<TlsRptDailyStat>();
+    /// <summary>Gets or sets the top failure types value.</summary>
     public IReadOnlyList<NamedCount> TopFailureTypes { get; set; } = Array.Empty<NamedCount>();
+    /// <summary>Gets or sets the mx hosts value.</summary>
     public IReadOnlyList<TlsRptMxHostStat> MxHosts { get; set; } = Array.Empty<TlsRptMxHostStat>();
 
+    /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();
+    /// <summary>Gets or sets the status value.</summary>
     public string Status { get; set; } = "OK";
+    /// <summary>Gets or sets the warning count value.</summary>
     public int WarningCount { get; set; }
+    /// <summary>Gets or sets the error count value.</summary>
     public int ErrorCount { get; set; }
+    /// <summary>Gets or sets the summary value.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Gets or sets the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the positives value.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = Array.Empty<RecommendationAdvice>();
+    /// <summary>Gets or sets the references value.</summary>
     public IReadOnlyList<string> References { get; set; } = Array.Empty<string>();
 
+    /// <summary>Gets or sets the snapshots value.</summary>
     public IReadOnlyList<TlsRptSnapshot> Snapshots { get; set; } = Array.Empty<TlsRptSnapshot>();
 }
 
+/// <summary>Provides tls rpt daily stat functionality.</summary>
 public sealed class TlsRptDailyStat
 {
+    /// <summary>Gets or sets the date utc value.</summary>
     public DateTime DateUtc { get; set; }
+    /// <summary>Gets or sets the successful sessions value.</summary>
     public int SuccessfulSessions { get; set; }
+    /// <summary>Gets or sets the failed sessions value.</summary>
     public int FailedSessions { get; set; }
+    /// <summary>Gets or sets the failure rate percent value.</summary>
     public double FailureRatePercent { get; set; }
 }
 
+/// <summary>Provides tls rpt mx host stat functionality.</summary>
 public sealed class TlsRptMxHostStat
 {
+    /// <summary>Gets or sets the mx host value.</summary>
     public string MxHost { get; set; } = string.Empty;
+    /// <summary>Gets or sets the successful sessions value.</summary>
     public int SuccessfulSessions { get; set; }
+    /// <summary>Gets or sets the failed sessions value.</summary>
     public int FailedSessions { get; set; }
+    /// <summary>Gets or sets the failure by type value.</summary>
     public Dictionary<string, int> FailureByType { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 

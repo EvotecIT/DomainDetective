@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides apex address narrative functionality.</summary>
 public static class ApexAddressNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(ApexAddressAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
         var subjCandidate = analysis.Subject;

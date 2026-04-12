@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>Provides smtp banner narrative functionality.</summary>
 public static class SmtpBannerNarrative
 {
+    /// <summary>Provides sections functionality.</summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>Executes the build operation.</summary>
     public static Sections Build(SMTPBannerAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
         var subjCandidate = analysis?.Subject;

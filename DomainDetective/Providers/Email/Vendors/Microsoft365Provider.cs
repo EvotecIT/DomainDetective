@@ -2,11 +2,16 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Providers.Email.Vendors;
 
+/// <summary>Provides microsoft365 provider functionality.</summary>
 public sealed class Microsoft365Provider : IMailProvider {
+    /// <summary>Represents the id value.</summary>
     public string Id => "m365";
+    /// <summary>Represents the display name value.</summary>
     public string DisplayName => "Microsoft 365";
+    /// <summary>Represents the capabilities value.</summary>
     public ProviderCapability Capabilities => ProviderCapability.InboundMx | ProviderCapability.DkimSigning | ProviderCapability.SpfPublish;
 
+    /// <summary>Represents the mx host patterns value.</summary>
     public IEnumerable<string> MxHostPatterns => new[]
     {
         "*.mail.protection.outlook.com",
@@ -14,19 +19,27 @@ public sealed class Microsoft365Provider : IMailProvider {
         "*mx.microsoft*"
     };
 
+    /// <summary>Represents the spf required tokens value.</summary>
     public IEnumerable<string> SpfRequiredTokens => new[]
     {
         "include:spf.protection.outlook.com"
     };
 
+    /// <summary>Represents the dkim selector hints value.</summary>
     public IEnumerable<string> DkimSelectorHints => new[] { "selector1", "selector2" };
+    /// <summary>Represents the dkim cname suffixes value.</summary>
     public IEnumerable<string> DkimCnameSuffixes => new[] { "onmicrosoft.com", "protection.outlook.com", "outlook.com" };
 
+    /// <summary>Represents the single mx ok value.</summary>
     public bool SingleMxOk => true;
+    /// <summary>Represents the recommended min mx records value.</summary>
     public int RecommendedMinMxRecords => 1;
+    /// <summary>Represents the minimum dkim selectors to pass value.</summary>
     public int MinimumDkimSelectorsToPass => 1;
+    /// <summary>Represents the subdomain policy recommendation value.</summary>
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
 
+    /// <summary>Represents the docs value.</summary>
     public ProviderDocumentation Docs => new ProviderDocumentation {
         Provider = DisplayName,
         Arc = new ProviderDocLink {
