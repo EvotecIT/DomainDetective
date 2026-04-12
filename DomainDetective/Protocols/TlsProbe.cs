@@ -35,7 +35,9 @@ public static class TlsProbe
         public string? CertificateIssuer { get; set; }
         public DateTime? NotBefore { get; set; }
         public DateTime? NotAfter { get; set; }
+        /// <summary>Remote endpoint IP address captured after a successful TCP connection.</summary>
         public IPAddress? RemoteAddress { get; set; }
+        /// <summary>Remote endpoint port captured after a successful TCP connection.</summary>
         public int? RemotePort { get; set; }
         public List<string> DnsNames { get; } = new();
         public string? SanParsingError { get; set; }

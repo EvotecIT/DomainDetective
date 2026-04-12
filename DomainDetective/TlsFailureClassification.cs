@@ -9,6 +9,8 @@ namespace DomainDetective;
 /// This is the public API surface for consumers such as worker services. The
 /// lower-level classifier remains internal so its implementation can evolve
 /// without forcing service callers to depend on internal plumbing.
+/// Add retry/backoff helpers here when callers need stable public classification
+/// semantics instead of reaching into internal implementation details.
 /// </remarks>
 public static class TlsFailureClassification {
     /// <summary>

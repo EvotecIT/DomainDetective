@@ -166,8 +166,15 @@ namespace DomainDetective.Tests {
         public async Task TlsProbe_ThrowsOnConnectionFailure() {
             var port = PortHelper.GetFreePort();
 
-            await Assert.ThrowsAnyAsync<Exception>(() =>
+            var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
                 TlsProbe.ProbeAsync(IPAddress.Loopback, "localhost", port, TimeSpan.FromSeconds(2), CancellationToken.None));
+
+            Assert.True(
+                exception is SocketException or TimeoutException,
+                $"Expected a connection failure exception but got {exception.GetType().FullName}: {exception.Message}");
+            Assert.Contains(
+                TlsFailureClassification.Classify(exception),
+                new[] { CertificateFailureKind.ConnectionRefused, CertificateFailureKind.Timeout });
         }
 
         [Fact]
@@ -456,8 +463,10 @@ namespace DomainDetective.Tests {
                             using var tcp = client;
                             using var ssl = new SslStream(tcp.GetStream());
                             await ssl.AuthenticateAsServerAsync(cert, false, protocol, false);
-                        } catch (Exception ex) when (!token.IsCancellationRequested) {
-                            Trace.TraceError("TLS test server failed: " + ex);
+                        } catch (Exception ex) {
+                            if (!token.IsCancellationRequested) {
+                                Trace.TraceError("TLS test server failed: " + ex);
+                            }
                         }
                     }, token);
                 }

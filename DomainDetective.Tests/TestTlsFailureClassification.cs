@@ -42,6 +42,15 @@ public class TestTlsFailureClassification {
     }
 
     [Fact]
+    public void ClassifiesInvalidOperationReasonWithoutSslContextMessageAsUnknown() {
+        const string reason = "FailureKind:Unknown InvalidOperationException: Another invalid operation.";
+
+        Assert.Equal(
+            CertificateFailureKind.Unknown,
+            TlsFailureClassification.ClassifyFailureReason(reason));
+    }
+
+    [Fact]
     public void PublicWrapperExposesReuseHelper() {
         Assert.True(TlsFailureClassification.IsStableForSnapshotReuse(CertificateFailureKind.Timeout));
     }
