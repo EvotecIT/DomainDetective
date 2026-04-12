@@ -74,6 +74,7 @@ public static class TlsProbe
     /// <summary>
     /// Represents a TLS probe failure with endpoint evidence captured before the failure.
     /// </summary>
+    /// <remarks>Used for in-process probe evidence only; legacy exception serialization is intentionally not supported.</remarks>
     public sealed class TlsProbeException : Exception
     {
         /// <summary>Remote endpoint IP address captured after a successful TCP connection.</summary>
@@ -212,6 +213,8 @@ public static class TlsProbe
         catch (Exception ex)
         {
             Exception normalized = NormalizeProbeException(ex, token, timeoutCts);
+            // RemoteAddress is only set after a successful TCP connect; null means
+            // this is still a transport-stage failure and should keep its original shape.
             if (includeFailureEvidence && result.RemoteAddress != null)
             {
                 throw new TlsProbeException(normalized.Message, normalized, result.RemoteAddress, result.RemotePort);
@@ -236,6 +239,8 @@ public static class TlsProbe
         catch (Exception ex)
         {
             Exception normalized = NormalizeProbeException(ex, token, timeoutCts);
+            // RemoteAddress is only set after a successful TCP connect; null means
+            // this is still a transport-stage failure and should keep its original shape.
             if (includeFailureEvidence && result.RemoteAddress != null)
             {
                 throw new TlsProbeException(normalized.Message, normalized, result.RemoteAddress, result.RemotePort);

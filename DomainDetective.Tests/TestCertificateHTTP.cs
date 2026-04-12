@@ -508,6 +508,7 @@ namespace DomainDetective.Tests {
 
         private static async Task RunTcpCloseServer(TcpListener listener, CancellationToken token) {
             try {
+                // Single accept: the failure-evidence tests expect exactly one probe attempt.
                 var clientTask = listener.AcceptTcpClientAsync();
                 var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
                 if (completed != clientTask) {
