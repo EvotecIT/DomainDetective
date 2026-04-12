@@ -82,6 +82,9 @@ public sealed class CtCertificateRecord
     /// <summary>True when the record is known to represent a precertificate.</summary>
     public bool? IsPrecertificate { get; init; }
 
+    /// <summary>Non-fatal provider diagnostics captured while normalizing the CT certificate record.</summary>
+    public IReadOnlyList<string> Diagnostics { get; init; } = Array.Empty<string>();
+
     /// <summary>True when the record contains full certificate material.</summary>
     public bool HasFullCertificate => (CertificateDer != null && CertificateDer.Length > 0) ||
                                       !string.IsNullOrWhiteSpace(CertificatePem);

@@ -925,7 +925,7 @@ public sealed partial class CertificateInventoryCapture {
                   )
             ORDER BY entry_timestamp DESC NULLS LAST,
                      x509_notBefore(c.certificate) DESC NULLS LAST
-            LIMIT 16;
+            LIMIT @limit;
             """;
     }
 
@@ -1766,7 +1766,7 @@ public sealed partial class CertificateInventoryCapture {
             : names.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    private static bool CtMetadataCandidateMatchesHost(string normalizedHost, string? candidateName) {
+    internal static bool CtMetadataCandidateMatchesHost(string normalizedHost, string? candidateName) {
         if (string.IsNullOrWhiteSpace(normalizedHost) || string.IsNullOrWhiteSpace(candidateName)) {
             return false;
         }
