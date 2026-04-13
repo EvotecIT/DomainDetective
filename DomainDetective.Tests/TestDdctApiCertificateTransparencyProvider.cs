@@ -44,6 +44,7 @@ public class TestDdctApiCertificateTransparencyProvider
 
             if (pathAndQuery == "/api/v1/certificates/abc123/der")
             {
+                Assert.DoesNotContain(request.Headers.Accept, static header => string.Equals(header.MediaType, "application/json", StringComparison.OrdinalIgnoreCase));
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new ByteArrayContent(der)
@@ -125,11 +126,12 @@ public class TestDdctApiCertificateTransparencyProvider
         CtCertificateQueryResult result = await provider.QueryAsync(
             CtCertificateQuery.ForDomainExpansion("example.test"));
 
-        Assert.Equal(2, requestCount);
+        Assert.Equal(1, requestCount);
         Assert.Equal(
-            new[] { "api.example.test", "mail.example.test", "www.example.test" },
+            new[] { "api.example.test", "www.example.test" },
             result.DiscoveredNames);
-        Assert.False(result.HasMore);
+        Assert.True(result.HasMore);
+        Assert.Equal("next-token", result.ContinuationToken);
     }
 
     [Fact]

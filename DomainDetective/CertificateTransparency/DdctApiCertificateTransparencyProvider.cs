@@ -215,34 +215,19 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         string? continuation,
         CancellationToken cancellationToken)
     {
-        var items = new List<DdctObservationDto>();
-        string? currentContinuation = continuation;
-        string? lastContinuation = continuation;
-
-        for (int pageIndex = 0; pageIndex < _maxPagesPerQuery; pageIndex++)
+        string url = BuildPagedUrl("/api/v1/observations/paged", name, includeSubdomains, pageSize, continuation);
+        DdctPageDto<DdctObservationDto> page = await SendPageAsync<DdctObservationDto>(url, cancellationToken).ConfigureAwait(false);
+        if (page.Items.Count == 0)
         {
-            string url = BuildPagedUrl("/api/v1/observations/paged", name, includeSubdomains, pageSize, currentContinuation);
-            DdctPageDto<DdctObservationDto> page = await SendPageAsync<DdctObservationDto>(url, cancellationToken).ConfigureAwait(false);
-            if (page.Items.Count == 0)
-            {
-                return new DdctPage<DdctObservationDto>(items, page.Limit, page.Offset, null, false, false);
-            }
-
-            items.AddRange(page.Items);
-            if (!page.HasMore || string.IsNullOrWhiteSpace(page.NextContinuation) || string.Equals(page.NextContinuation, lastContinuation, StringComparison.Ordinal))
-            {
-                return new DdctPage<DdctObservationDto>(items, page.Limit, page.Offset, page.NextContinuation, page.HasMore, false);
-            }
-
-            lastContinuation = currentContinuation = page.NextContinuation;
+            return new DdctPage<DdctObservationDto>(Array.Empty<DdctObservationDto>(), page.Limit, page.Offset, null, false, false);
         }
 
-        return new DdctPage<DdctObservationDto>(items, pageSize, 0, currentContinuation, true, true);
+        return new DdctPage<DdctObservationDto>(page.Items, page.Limit, page.Offset, page.NextContinuation, page.HasMore, false);
     }
 
     private async Task<DdctPageDto<TItem>> SendPageAsync<TItem>(string url, CancellationToken cancellationToken)
     {
-        using HttpRequestMessage request = CreateRequest(HttpMethod.Get, url);
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Get, url, acceptJson: false);
         using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
@@ -274,7 +259,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
     private async Task<byte[]> DownloadCertificateDerAsync(string sha256Fingerprint, CancellationToken cancellationToken)
     {
         string url = BuildPath("/api/v1/certificates/" + Uri.EscapeDataString(sha256Fingerprint) + "/der");
-        using HttpRequestMessage request = CreateRequest(HttpMethod.Get, url);
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Get, url, acceptJson: false);
         using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
@@ -289,7 +274,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         return await ReadContentBytesAsync(response.Content, cancellationToken).ConfigureAwait(false);
     }
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, string url)
+    private HttpRequestMessage CreateRequest(HttpMethod method, string url, bool acceptJson = true)
     {
         var request = new HttpRequestMessage(method, url);
         if (!string.IsNullOrWhiteSpace(_apiKey))
@@ -304,7 +289,11 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
             }
         }
 
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        if (acceptJson)
+        {
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        }
+
         return request;
     }
 
