@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
@@ -103,6 +104,7 @@ public sealed class CtLogIngestionClient {
 
     /// <summary>Optional HTTP override used by tests and host applications.</summary>
     public Func<string, CancellationToken, Task<string>>? HttpGetOverride { get; set; }
+    internal Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? SendOverride { get; set; }
 
     /// <summary>
     /// Resolves CT logs from a v3/v2 Google-compatible log list.
@@ -292,9 +294,57 @@ public sealed class CtLogIngestionClient {
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        using HttpResponseMessage response = await SharedHttpClient.Instance.SendAsync(request, effectiveToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        using HttpResponseMessage response = SendOverride != null
+            ? await SendOverride(request, effectiveToken).ConfigureAwait(false)
+            : await SharedHttpClient.Instance.SendAsync(request, effectiveToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode) {
+            throw CreateRequestFailure(response);
+        }
+
         return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+    }
+
+    internal static HttpRequestException CreateRequestFailure(HttpResponseMessage response) {
+        ArgumentNullException.ThrowIfNull(response);
+
+        string message = "HTTP " + (int)response.StatusCode + " " + response.ReasonPhrase;
+        TimeSpan retryAfter = ComputeRetryAfterDelay(response);
+        if (retryAfter > TimeSpan.Zero) {
+            message += " (Retry-After " + (int)Math.Ceiling(retryAfter.TotalSeconds) + "s)";
+        }
+
+#if NET5_0_OR_GREATER
+        var exception = new HttpRequestException(message, null, response.StatusCode);
+#else
+        var exception = new HttpRequestException(message);
+#endif
+        if (retryAfter > TimeSpan.Zero) {
+            exception.Data["RetryAfter"] = retryAfter;
+        }
+
+        return exception;
+    }
+
+    internal static TimeSpan ComputeRetryAfterDelay(HttpResponseMessage response) {
+        ArgumentNullException.ThrowIfNull(response);
+
+        if (response.Headers.RetryAfter == null) {
+            return TimeSpan.Zero;
+        }
+
+        if (response.Headers.RetryAfter.Delta.HasValue &&
+            response.Headers.RetryAfter.Delta.Value > TimeSpan.Zero) {
+            return response.Headers.RetryAfter.Delta.Value;
+        }
+
+        if (response.Headers.RetryAfter.Date.HasValue) {
+            TimeSpan delta = response.Headers.RetryAfter.Date.Value - DateTimeOffset.UtcNow;
+            if (delta > TimeSpan.Zero) {
+                return delta;
+            }
+        }
+
+        return TimeSpan.Zero;
     }
 
     private static bool TryDecodeCertificate(
