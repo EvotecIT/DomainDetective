@@ -4,6 +4,8 @@ description: Redirecting to Raw DNS Query.
 slug: playground
 collection: products
 layout: page
+canonical: /tools/raw-dns-query/
+robots: noindex,follow
 ---
 
 <script>
