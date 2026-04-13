@@ -14,6 +14,7 @@ using DomainDetective.Tests.Fixtures;
 
 namespace DomainDetective.Tests;
 
+[Collection("PassiveCtTiming")]
 public class TestSubdomainsAnalysis
 {
     public TestSubdomainsAnalysis()
