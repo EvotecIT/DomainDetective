@@ -42,6 +42,6 @@ jobs:
       website_root: Website
       pipeline_config: Website/pipeline.json
       runner_labels_json: ${{ github.event.repository.private && '["self-hosted","linux"]' || '["ubuntu-latest"]' }}
-      powerforge_ref: d82db5edf64b9dab199917e2b300902e2d14d7c0
+      powerforge_ref: 49b2f74ee8badf1c1d19848fd36420caff29f0d2
       powerforge_web_tag: PowerForgeWeb-v1.0.0-preview-202603311925
       report_artifact_name: powerforge-website-reports

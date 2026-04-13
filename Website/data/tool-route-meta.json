@@ -1,0 +1,122 @@
+[
+  {
+    "slug": "m365-overview",
+    "name": "M365 Tenant Overview",
+    "description": "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one DD-backed dashboard"
+  },
+  {
+    "slug": "domain-overview",
+    "name": "Domain Overview",
+    "description": "Aggregate DNS, mail, web, registration, and exposure posture for any domain"
+  },
+  {
+    "slug": "spf",
+    "name": "SPF Lookup",
+    "description": "Validate SPF records and check for misconfigurations"
+  },
+  {
+    "slug": "dkim",
+    "name": "DKIM Lookup",
+    "description": "Verify DKIM records and key validity"
+  },
+  {
+    "slug": "dmarc",
+    "name": "DMARC Lookup",
+    "description": "Analyze DMARC policy and reporting configuration"
+  },
+  {
+    "slug": "mx",
+    "name": "MX Lookup",
+    "description": "Check mail exchanger records and priorities"
+  },
+  {
+    "slug": "mta-sts",
+    "name": "MTA-STS Check",
+    "description": "Verify MTA-STS policy for enforced TLS"
+  },
+  {
+    "slug": "tls-rpt",
+    "name": "TLS-RPT Check",
+    "description": "Check TLS reporting DNS record configuration"
+  },
+  {
+    "slug": "bimi",
+    "name": "BIMI Lookup",
+    "description": "Validate BIMI record and brand indicator"
+  },
+  {
+    "slug": "dns-lookup",
+    "name": "DNS Lookup",
+    "description": "Inspect a domain's DNS inventory, providers, and common record coverage"
+  },
+  {
+    "slug": "dnssec",
+    "name": "DNSSEC Check",
+    "description": "Validate DNSSEC chain of trust"
+  },
+  {
+    "slug": "soa",
+    "name": "SOA Lookup",
+    "description": "Check SOA record and zone authority"
+  },
+  {
+    "slug": "ns",
+    "name": "NS Lookup",
+    "description": "List authoritative nameservers"
+  },
+  {
+    "slug": "dns-propagation",
+    "name": "DNS Propagation",
+    "description": "Compare DNS answers across DomainDetective's distributed public resolver pool"
+  },
+  {
+    "slug": "raw-dns-query",
+    "name": "Raw DNS Query",
+    "description": "Resolve one record type at a time, inspect the raw JSON response, and copy equivalent DnsClientX code"
+  },
+  {
+    "slug": "cert-check",
+    "name": "Certificate Check",
+    "description": "Inspect TLS certificate details and chain"
+  },
+  {
+    "slug": "caa",
+    "name": "CAA Lookup",
+    "description": "Check Certificate Authority Authorization records"
+  },
+  {
+    "slug": "dane",
+    "name": "DANE Check",
+    "description": "Validate DANE/TLSA records"
+  },
+  {
+    "slug": "http-headers",
+    "name": "HTTP Headers",
+    "description": "Analyze security headers (CSP, HSTS, X-Frame-Options, etc.)"
+  },
+  {
+    "slug": "security-txt",
+    "name": "Security.txt",
+    "description": "Check for security.txt disclosure file"
+  },
+  {
+    "slug": "rdap",
+    "name": "RDAP / WHOIS",
+    "description": "Query domain registration data via RDAP"
+  },
+  {
+    "slug": "dnsbl",
+    "name": "DNSBL Check",
+    "description": "Check domain/IP against DNS blacklists"
+  },
+  {
+    "slug": "dangling-cname",
+    "name": "Dangling CNAME",
+    "description": "Detect dangling CNAME records vulnerable to takeover"
+  },
+  {
+    "slug": "ct-subdomains",
+    "name": "CT Subdomain Discovery",
+    "description": "Discover subdomains via Certificate Transparency logs"
+  }
+]
