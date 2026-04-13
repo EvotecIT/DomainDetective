@@ -137,6 +137,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
             query.Name,
             includeSubdomains,
             pageSize,
+            maxCertificates,
             query.ContinuationToken,
             cancellationToken).ConfigureAwait(false);
 
@@ -177,31 +178,31 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         string name,
         bool includeSubdomains,
         int pageSize,
+        int maxCertificates,
         string? continuation,
         CancellationToken cancellationToken)
     {
         var items = new List<DdctCertificateSearchDto>();
         string? currentContinuation = continuation;
         string? lastContinuation = continuation;
-        bool truncated = false;
+        int maxPages = ResolveMaximumPageCount(pageSize, maxCertificates);
 
-        for (int pageIndex = 0; pageIndex < _maxPagesPerQuery; pageIndex++)
+        for (int pageIndex = 0; pageIndex < maxPages; pageIndex++)
         {
             string url = BuildPagedUrl("/api/v1/certificates/paged", name, includeSubdomains, pageSize, currentContinuation);
-            DdctPageDto<DdctCertificateSearchDto> page = await SendJsonAsync<DdctPageDto<DdctCertificateSearchDto>>(HttpMethod.Get, url, cancellationToken).ConfigureAwait(false);
+            DdctPageDto<DdctCertificateSearchDto> page = await SendPageAsync<DdctCertificateSearchDto>(url, cancellationToken).ConfigureAwait(false);
             if (page.Items.Count == 0)
             {
-                return new DdctPage<DdctCertificateSearchDto>(items, page.Limit, page.Offset, null, false, truncated);
+                return new DdctPage<DdctCertificateSearchDto>(items, page.Limit, page.Offset, null, false, false);
             }
 
             items.AddRange(page.Items);
             if (!page.HasMore || string.IsNullOrWhiteSpace(page.NextContinuation) || string.Equals(page.NextContinuation, lastContinuation, StringComparison.Ordinal))
             {
-                return new DdctPage<DdctCertificateSearchDto>(items, page.Limit, page.Offset, page.NextContinuation, page.HasMore, truncated);
+                return new DdctPage<DdctCertificateSearchDto>(items, page.Limit, page.Offset, page.NextContinuation, page.HasMore, false);
             }
 
             lastContinuation = currentContinuation = page.NextContinuation;
-            truncated = pageIndex + 1 >= _maxPagesPerQuery - 1;
         }
 
         return new DdctPage<DdctCertificateSearchDto>(items, pageSize, 0, currentContinuation, true, true);
@@ -217,59 +218,49 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         var items = new List<DdctObservationDto>();
         string? currentContinuation = continuation;
         string? lastContinuation = continuation;
-        bool truncated = false;
 
         for (int pageIndex = 0; pageIndex < _maxPagesPerQuery; pageIndex++)
         {
             string url = BuildPagedUrl("/api/v1/observations/paged", name, includeSubdomains, pageSize, currentContinuation);
-            DdctPageDto<DdctObservationDto> page = await SendJsonAsync<DdctPageDto<DdctObservationDto>>(HttpMethod.Get, url, cancellationToken).ConfigureAwait(false);
+            DdctPageDto<DdctObservationDto> page = await SendPageAsync<DdctObservationDto>(url, cancellationToken).ConfigureAwait(false);
             if (page.Items.Count == 0)
             {
-                return new DdctPage<DdctObservationDto>(items, page.Limit, page.Offset, null, false, truncated);
+                return new DdctPage<DdctObservationDto>(items, page.Limit, page.Offset, null, false, false);
             }
 
             items.AddRange(page.Items);
             if (!page.HasMore || string.IsNullOrWhiteSpace(page.NextContinuation) || string.Equals(page.NextContinuation, lastContinuation, StringComparison.Ordinal))
             {
-                return new DdctPage<DdctObservationDto>(items, page.Limit, page.Offset, page.NextContinuation, page.HasMore, truncated);
+                return new DdctPage<DdctObservationDto>(items, page.Limit, page.Offset, page.NextContinuation, page.HasMore, false);
             }
 
             lastContinuation = currentContinuation = page.NextContinuation;
-            truncated = pageIndex + 1 >= _maxPagesPerQuery - 1;
         }
 
         return new DdctPage<DdctObservationDto>(items, pageSize, 0, currentContinuation, true, true);
     }
 
-    private async Task<T> SendJsonAsync<T>(HttpMethod method, string url, CancellationToken cancellationToken)
+    private async Task<DdctPageDto<TItem>> SendPageAsync<TItem>(string url, CancellationToken cancellationToken)
     {
-        using HttpRequestMessage request = CreateRequest(method, url);
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Get, url);
         using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            if (typeof(T) == typeof(DdctPageDto<DdctCertificateSearchDto>))
+            return new DdctPageDto<TItem>
             {
-                return (T)(object)new DdctPageDto<DdctCertificateSearchDto> {
-                    Items = Array.Empty<DdctCertificateSearchDto>(),
-                    Limit = 0,
-                    Offset = 0,
-                    NextContinuation = null,
-                    HasMore = false
-                };
-            }
-
-            if (typeof(T) == typeof(DdctPageDto<DdctObservationDto>))
-            {
-                return (T)(object)new DdctPageDto<DdctObservationDto> {
-                    Items = Array.Empty<DdctObservationDto>(),
-                    Limit = 0,
-                    Offset = 0,
-                    NextContinuation = null,
-                    HasMore = false
-                };
-            }
+                Items = Array.Empty<TItem>(),
+                Limit = 0,
+                Offset = 0,
+                NextContinuation = null,
+                HasMore = false
+            };
         }
 
+        return await DeserializeJsonAsync<DdctPageDto<TItem>>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<T> DeserializeJsonAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException($"DDCT API returned {(int)response.StatusCode} {response.ReasonPhrase}");
@@ -347,18 +338,24 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
             1,
             DdctApiCertificateTransparencyProviderOptions.MaxQueryPageSize);
 
-    private static int ResolveRequestedCertificateCount(CtCertificateQuery query)
-        => Math.Max(query.PageSize.GetValueOrDefault(DdctApiCertificateTransparencyProviderOptions.DefaultQueryPageSize), 1);
+    private int ResolveRequestedCertificateCount(CtCertificateQuery query)
+        => Math.Max(query.PageSize.GetValueOrDefault(_configuredQueryPageSize), 1);
+
+    private int ResolveMaximumPageCount(int pageSize, int maxCertificates)
+    {
+        int pagesNeeded = (int)Math.Ceiling(Math.Max(maxCertificates, 1) / (double)Math.Max(pageSize, 1));
+        return ClampInt(pagesNeeded, 1, _maxPagesPerQuery);
+    }
 
     private static string NormalizeEndpointUrl(string? value)
         => string.IsNullOrWhiteSpace(value)
             ? DdctApiCertificateTransparencyProviderOptions.DefaultEndpointUrl
-            : (value ?? string.Empty).Trim().TrimEnd('/');
+            : value!.Trim().TrimEnd('/');
 
     private static string NormalizeHostName(string? value)
         => string.IsNullOrWhiteSpace(value)
             ? string.Empty
-            : (value ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+            : value!.Trim().TrimEnd('.').ToLowerInvariant();
 
     private static int ClampInt(int value, int minimum, int maximum)
         => value < minimum ? minimum : (value > maximum ? maximum : value);

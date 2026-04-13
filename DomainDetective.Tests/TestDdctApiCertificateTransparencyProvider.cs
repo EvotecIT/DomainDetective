@@ -15,6 +15,7 @@ public class TestDdctApiCertificateTransparencyProvider
     public async Task QueryAsyncHydratesLatestCertificateFromDerEndpoint()
     {
         byte[] der = LoadPemCertificateDer("multi.pem");
+        string? noContinuation = null;
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             string pathAndQuery = request.RequestUri!.PathAndQuery;
@@ -36,7 +37,7 @@ public class TestDdctApiCertificateTransparencyProvider
                     },
                     limit = 100,
                     offset = 0,
-                    nextContinuation = (string?)null,
+                    nextContinuation = noContinuation,
                     hasMore = false
                 });
             }
@@ -51,10 +52,7 @@ public class TestDdctApiCertificateTransparencyProvider
 
             throw new InvalidOperationException("Unexpected URL: " + request.RequestUri);
         });
-        using var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://127.0.0.1:8080")
-        };
+        using var httpClient = new HttpClient(handler);
         var provider = new DdctApiCertificateTransparencyProvider(
             httpClient,
             new DdctApiCertificateTransparencyProviderOptions
@@ -81,6 +79,7 @@ public class TestDdctApiCertificateTransparencyProvider
     public async Task QueryAsyncUsesObservationPagesForDomainExpansion()
     {
         int requestCount = 0;
+        string? noContinuation = null;
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             requestCount++;
@@ -96,7 +95,7 @@ public class TestDdctApiCertificateTransparencyProvider
                     },
                     limit = 2,
                     offset = 2,
-                    nextContinuation = (string?)null,
+                    nextContinuation = noContinuation,
                     hasMore = false
                 });
             }
@@ -133,6 +132,163 @@ public class TestDdctApiCertificateTransparencyProvider
         Assert.False(result.HasMore);
     }
 
+    [Fact]
+    public async Task QueryAsyncReturnsEmptyResultWhenCertificatePageIsMissing()
+    {
+        var handler = new HttpStubMessageHandler((_, _) => new HttpResponseMessage(HttpStatusCode.NotFound));
+        using var httpClient = new HttpClient(handler);
+        var provider = new DdctApiCertificateTransparencyProvider(
+            httpClient,
+            new DdctApiCertificateTransparencyProviderOptions
+            {
+                EndpointUrl = "http://127.0.0.1:8080"
+            });
+
+        CtCertificateQueryResult result = await provider.QueryAsync(
+            CtCertificateQuery.ForExactHostLatest("missing.example.test"));
+
+        Assert.Empty(result.Certificates);
+        Assert.Empty(result.DiscoveredNames);
+        Assert.False(result.HasMore);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    [Fact]
+    public async Task QueryAsyncAddsDiagnosticWhenHistoryHitsConfiguredPageCap()
+    {
+        byte[] der = LoadPemCertificateDer("multi.pem");
+        int page = 0;
+        var handler = new HttpStubMessageHandler((request, _) =>
+        {
+            string pathAndQuery = request.RequestUri!.PathAndQuery;
+            if (pathAndQuery.StartsWith("/api/v1/certificates/paged?", StringComparison.Ordinal))
+            {
+                page++;
+                return Json(HttpStatusCode.OK, new
+                {
+                    items = new[]
+                    {
+                        new
+                        {
+                            sha256Fingerprint = "cert-" + page,
+                            matchedName = "www.example.test",
+                            firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
+                            lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
+                            notAfterUtc = "2027-04-12T12:00:00Z"
+                        }
+                    },
+                    limit = 1,
+                    offset = page - 1,
+                    nextContinuation = "token-" + page,
+                    hasMore = true
+                });
+            }
+
+            if (pathAndQuery.StartsWith("/api/v1/certificates/cert-", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(der)
+                };
+            }
+
+            throw new InvalidOperationException("Unexpected URL: " + request.RequestUri);
+        });
+        using var httpClient = new HttpClient(handler);
+        var provider = new DdctApiCertificateTransparencyProvider(
+            httpClient,
+            new DdctApiCertificateTransparencyProviderOptions
+            {
+                EndpointUrl = "http://127.0.0.1:8080",
+                QueryPageSize = 1,
+                MaxPagesPerQuery = 2
+            });
+
+        CtCertificateQueryResult result = await provider.QueryAsync(
+            CtCertificateQuery.ForExactHostHistory("www.example.test"));
+
+        Assert.Single(result.Certificates);
+        Assert.True(result.HasMore);
+        Assert.Contains(result.Diagnostics, message => message.Contains("page cap", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task QueryAsyncUsesBearerAuthorizationHeaderWhenRequested()
+    {
+        byte[] der = LoadPemCertificateDer("multi.pem");
+        string? noContinuation = null;
+        var handler = new HttpStubMessageHandler((request, _) =>
+        {
+            Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+            Assert.Equal("secret", request.Headers.Authorization?.Parameter);
+
+            string pathAndQuery = request.RequestUri!.PathAndQuery;
+            if (pathAndQuery.StartsWith("/api/v1/certificates/paged?", StringComparison.Ordinal))
+            {
+                return Json(HttpStatusCode.OK, new
+                {
+                    items = new[]
+                    {
+                        new
+                        {
+                            sha256Fingerprint = "bearer123",
+                            matchedName = "www.example.test",
+                            firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
+                            lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
+                            notAfterUtc = "2027-04-12T12:00:00Z"
+                        }
+                    },
+                    limit = 100,
+                    offset = 0,
+                    nextContinuation = noContinuation,
+                    hasMore = false
+                });
+            }
+
+            if (pathAndQuery == "/api/v1/certificates/bearer123/der")
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(der)
+                };
+            }
+
+            throw new InvalidOperationException("Unexpected URL: " + request.RequestUri);
+        });
+        using var httpClient = new HttpClient(handler);
+        var provider = new DdctApiCertificateTransparencyProvider(
+            httpClient,
+            new DdctApiCertificateTransparencyProviderOptions
+            {
+                EndpointUrl = "http://127.0.0.1:8080",
+                ApiKey = "secret",
+                ApiKeyHeaderName = "Authorization"
+            });
+
+        CtCertificateQueryResult result = await provider.QueryAsync(
+            CtCertificateQuery.ForExactHostLatest("www.example.test"));
+
+        Assert.Single(result.Certificates);
+    }
+
+    [Fact]
+    public async Task QueryAsyncThrowsForNonSuccessResponses()
+    {
+        var handler = new HttpStubMessageHandler((_, _) => new HttpResponseMessage(HttpStatusCode.BadGateway));
+        using var httpClient = new HttpClient(handler);
+        var provider = new DdctApiCertificateTransparencyProvider(
+            httpClient,
+            new DdctApiCertificateTransparencyProviderOptions
+            {
+                EndpointUrl = "http://127.0.0.1:8080"
+            });
+
+        HttpRequestException ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            provider.QueryAsync(CtCertificateQuery.ForExactHostLatest("www.example.test")));
+
+        Assert.Contains("502", ex.Message, StringComparison.Ordinal);
+    }
+
     private static HttpResponseMessage Json<T>(HttpStatusCode statusCode, T value)
     {
         return new HttpResponseMessage(statusCode)
@@ -145,8 +301,11 @@ public class TestDdctApiCertificateTransparencyProvider
     {
         string safeFileName = Path.GetFileName(fileName);
         Assert.Equal(fileName, safeFileName);
+        Assert.False(Path.IsPathRooted(safeFileName));
         string dataDirectory = Path.Combine(AppContext.BaseDirectory, "Data");
-        string pem = File.ReadAllText(Path.Combine(dataDirectory, safeFileName));
+        string pemPath = Path.GetFullPath(Path.Combine(dataDirectory, safeFileName));
+        Assert.StartsWith(Path.GetFullPath(dataDirectory), Path.GetDirectoryName(pemPath) ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        string pem = File.ReadAllText(pemPath);
         const string begin = "-----BEGIN CERTIFICATE-----";
         const string end = "-----END CERTIFICATE-----";
         int start = pem.IndexOf(begin, StringComparison.Ordinal);
