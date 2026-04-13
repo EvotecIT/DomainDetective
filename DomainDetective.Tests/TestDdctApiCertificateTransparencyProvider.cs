@@ -87,12 +87,10 @@ public class TestDdctApiCertificateTransparencyProvider
                 {
                     observations = new[]
                     {
-                        new { matchedName = "mail.example.test" },
-                        new { matchedName = "api.example.test" }
+                        new { matchedName = "mail.example.test" }
                     },
                     limit = 2,
-                    offset = 2,
-                    returnedObservations = 2
+                    offset = 2
                 });
             }
 
@@ -104,8 +102,7 @@ public class TestDdctApiCertificateTransparencyProvider
                     new { matchedName = "www.example.test" }
                 },
                 limit = 2,
-                offset = 0,
-                returnedObservations = 2
+                offset = 0
             });
         });
         using var httpClient = new HttpClient(handler);
@@ -126,6 +123,22 @@ public class TestDdctApiCertificateTransparencyProvider
             result.DiscoveredNames);
         Assert.True(result.HasMore);
         Assert.Equal("2", result.ContinuationToken);
+
+        CtCertificateQueryResult nextPage = await provider.QueryAsync(
+            new CtCertificateQuery
+            {
+                Name = "example.test",
+                QueryKind = CtCertificateQueryKind.DomainExpansion,
+                Operations = CtIngestionOperation.DiscoverSubdomains,
+                RequireFullCertificate = false,
+                ContinuationToken = result.ContinuationToken,
+                PageSize = 2
+            });
+
+        Assert.Equal(2, requestCount);
+        Assert.Equal(new[] { "mail.example.test" }, nextPage.DiscoveredNames);
+        Assert.False(nextPage.HasMore);
+        Assert.Null(nextPage.ContinuationToken);
     }
 
     [Fact]
@@ -296,7 +309,7 @@ public class TestDdctApiCertificateTransparencyProvider
     }
 
     [Fact]
-    public async Task QueryAsyncClampsRequestedCertificateCountToEffectivePageSize()
+    public async Task QueryAsyncClampsRequestedTimelinePageSize()
     {
         byte[] der = LoadPemCertificateDer("multi.pem");
         int pageRequestCount = 0;
@@ -320,8 +333,7 @@ public class TestDdctApiCertificateTransparencyProvider
                         }
                     },
                     limit = 500,
-                    offset = 0,
-                    returnedObservations = 500
+                    offset = 0
                 });
             }
 

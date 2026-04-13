@@ -216,7 +216,10 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
                 {
                     discoveredNames.Add(normalizedName);
                 }
+            }
 
+            foreach (DdctObservationDto item in page.Observations)
+            {
                 if (seenFingerprints.Add(item.Sha256Fingerprint))
                 {
                     selectedObservations.Add(item);
@@ -289,8 +292,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
             {
                 Observations = Array.Empty<DdctObservationDto>(),
                 Limit = pageSize,
-                Offset = offset,
-                ReturnedObservations = 0
+                Offset = offset
             };
         }
 
@@ -508,7 +510,6 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         public IReadOnlyList<DdctObservationDto> Observations { get; init; } = Array.Empty<DdctObservationDto>();
         public int Limit { get; init; }
         public int Offset { get; init; }
-        public int ReturnedObservations { get; init; }
     }
 
     private sealed class DdctDomainSearchResponseDto
