@@ -244,7 +244,9 @@
         "-SiteRoot",
         "./_site",
         "-RegistryPath",
-        "../DomainDetective.Toolbox/Services/ToolRegistry.cs"
+        "../DomainDetective.Toolbox/Services/ToolRegistry.cs",
+        "-TemplatePath",
+        "../DomainDetective.Website/wwwroot/index.html"
       ]
     },
     {

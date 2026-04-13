@@ -2,7 +2,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $SiteRoot,
     [Parameter(Mandatory = $true)]
-    [string] $RegistryPath
+    [string] $RegistryPath,
+    [Parameter(Mandatory = $true)]
+    [string] $TemplatePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,7 +12,9 @@ $ErrorActionPreference = 'Stop'
 function Get-ToolDefinitionBodies {
     param(
         [Parameter(Mandatory = $true)]
-        [string] $Content
+        [string] $Content,
+        [Parameter(Mandatory = $true)]
+        [string] $SourcePath
     )
 
     $marker = 'new ToolDefinition'
@@ -32,11 +36,31 @@ function Get-ToolDefinitionBodies {
         $bodyStart = $openBraceIndex + 1
         $inString = $false
         $inVerbatimString = $false
+        $inLineComment = $false
+        $inBlockComment = $false
         $escapeNext = $false
         $closed = $false
 
         for ($i = $openBraceIndex; $i -lt $Content.Length; $i++) {
             $character = $Content[$i]
+            $nextCharacter = if (($i + 1) -lt $Content.Length) { $Content[$i + 1] } else { [char]0 }
+
+            if ($inLineComment) {
+                if ($character -eq [char]13 -or $character -eq [char]10) {
+                    $inLineComment = $false
+                }
+
+                continue
+            }
+
+            if ($inBlockComment) {
+                if ($character -eq [char]42 -and $nextCharacter -eq [char]47) {
+                    $inBlockComment = $false
+                    $i++
+                }
+
+                continue
+            }
 
             if ($inString) {
                 if ($inVerbatimString) {
@@ -67,6 +91,18 @@ function Get-ToolDefinitionBodies {
                     $inString = $false
                 }
 
+                continue
+            }
+
+            if ($character -eq [char]47 -and $nextCharacter -eq [char]47) {
+                $inLineComment = $true
+                $i++
+                continue
+            }
+
+            if ($character -eq [char]47 -and $nextCharacter -eq [char]42) {
+                $inBlockComment = $true
+                $i++
                 continue
             }
 
@@ -101,15 +137,40 @@ function Get-ToolDefinitionBodies {
         }
 
         if (-not $closed) {
-            throw "Failed to parse ToolDefinition initializer near index $matchIndex in $resolvedRegistryPath."
+            throw "Failed to parse ToolDefinition initializer near index $matchIndex in $SourcePath."
         }
     }
 
     $blocks
 }
 
+function Get-CSharpAssignedStringValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Content,
+        [Parameter(Mandatory = $true)]
+        [string] $PropertyName
+    )
+
+    $pattern = [string]::Format(
+        '(?s)\b{0}\s*=\s*(?<literal>@"(?:[^"]|"")*"|"(?:\\.|[^"\\])*")',
+        [regex]::Escape($PropertyName))
+    $match = [regex]::Match($Content, $pattern)
+    if (-not $match.Success) {
+        return $null
+    }
+
+    $literal = $match.Groups['literal'].Value
+    if ($literal.StartsWith('@"', [System.StringComparison]::Ordinal)) {
+        return $literal.Substring(2, $literal.Length - 3).Replace('""', '"')
+    }
+
+    [regex]::Unescape($literal.Substring(1, $literal.Length - 2))
+}
+
 $resolvedSiteRoot = (Resolve-Path -LiteralPath $SiteRoot).Path
 $resolvedRegistryPath = (Resolve-Path -LiteralPath $RegistryPath).Path
+$resolvedTemplatePath = (Resolve-Path -LiteralPath $TemplatePath).Path
 $toolsRoot = Join-Path -Path $resolvedSiteRoot -ChildPath 'tools'
 $toolsIndexPath = Join-Path -Path $toolsRoot -ChildPath 'index.html'
 $baseUrl = 'https://domaindetective.dev'
@@ -122,23 +183,41 @@ if (-not (Test-Path -LiteralPath $toolsIndexPath -PathType Leaf)) {
     throw "Tool shell index was not found: $toolsIndexPath"
 }
 
-$toolsIndexTemplate = Get-Content -LiteralPath $toolsIndexPath -Raw
+$toolsIndexTemplate = Get-Content -LiteralPath $resolvedTemplatePath -Raw
 $registryContent = Get-Content -LiteralPath $resolvedRegistryPath -Raw
 $toolMetadata = [System.Collections.Generic.Dictionary[string, hashtable]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$requiredTemplateTokens = @(
+    '__DD_PAGE_TITLE__',
+    '__DD_META_DESCRIPTION__',
+    '__DD_CANONICAL_URL__',
+    '__DD_OG_TITLE__',
+    '__DD_OG_DESCRIPTION__',
+    '__DD_LOADING_TITLE__',
+    '__DD_LOADING_TEXT__'
+)
 
-foreach ($body in Get-ToolDefinitionBodies -Content $registryContent) {
-    $slugMatch = [regex]::Match($body, 'Slug\s*=\s*"(?<value>[^"]+)"')
-    if (-not $slugMatch.Success) {
+foreach ($token in $requiredTemplateTokens) {
+    if ($toolsIndexTemplate.IndexOf($token, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "Template '$resolvedTemplatePath' does not contain required token '$token'."
+    }
+}
+
+foreach ($body in Get-ToolDefinitionBodies -Content $registryContent -SourcePath $resolvedRegistryPath) {
+    $slug = Get-CSharpAssignedStringValue -Content $body -PropertyName 'Slug'
+    if ([string]::IsNullOrWhiteSpace($slug)) {
         $previewLength = [Math]::Min(120, $body.Length)
         Write-Warning ("ToolDefinition block found but no Slug could be extracted: {0}" -f $body.Substring(0, $previewLength))
         continue
     }
 
-    $slug = $slugMatch.Groups['value'].Value
-    $nameMatch = [regex]::Match($body, 'Name\s*=\s*"(?<value>[^"]+)"')
-    $descriptionMatch = [regex]::Match($body, 'Description\s*=\s*"(?<value>[^"]+)"')
-    $toolName = if ($nameMatch.Success) { $nameMatch.Groups['value'].Value } else { $slug }
-    $toolDescription = if ($descriptionMatch.Success) { $descriptionMatch.Groups['value'].Value } else { 'Browser-based DomainDetective analysis tool.' }
+    $toolName = Get-CSharpAssignedStringValue -Content $body -PropertyName 'Name'
+    $toolDescription = Get-CSharpAssignedStringValue -Content $body -PropertyName 'Description'
+    if ([string]::IsNullOrWhiteSpace($toolName)) {
+        $toolName = $slug
+    }
+    if ([string]::IsNullOrWhiteSpace($toolDescription)) {
+        $toolDescription = 'Browser-based DomainDetective analysis tool.'
+    }
 
     $toolMetadata[$slug] = @{
         Slug = $slug

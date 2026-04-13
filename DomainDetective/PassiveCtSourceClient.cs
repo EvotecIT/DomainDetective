@@ -73,6 +73,10 @@ internal sealed class PassiveCtSourceClient
 
     private static readonly ConcurrentDictionary<string, SourceState> SharedSourceStates = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> SharedSourceGates = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Func<DateTimeOffset> DefaultUtcNowProvider = static () => DateTimeOffset.UtcNow;
+    private static readonly Func<TimeSpan, CancellationToken, Task> DefaultDelayProvider = static (delay, cancellationToken) => Task.Delay(delay, cancellationToken);
+    private static Func<DateTimeOffset> _utcNowProvider = DefaultUtcNowProvider;
+    private static Func<TimeSpan, CancellationToken, Task> _delayProvider = DefaultDelayProvider;
     private static int _rotationCursor = -1;
     private readonly object _querySessionBudgetLock = new();
     private readonly Dictionary<string, int> _querySessionRequestCounts = new(StringComparer.OrdinalIgnoreCase);
@@ -403,7 +407,7 @@ internal sealed class PassiveCtSourceClient
 
         lock (state)
         {
-            if (state.CooldownUntilUtc <= DateTimeOffset.UtcNow)
+            if (state.CooldownUntilUtc <= GetUtcNow())
             {
                 state.CooldownUntilUtc = DateTimeOffset.MinValue;
                 state.LastCooldownAnnouncementUtc = DateTimeOffset.MinValue;
@@ -435,7 +439,7 @@ internal sealed class PassiveCtSourceClient
         TimeSpan delay = TimeSpan.Zero;
         lock (state)
         {
-            DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+            DateTimeOffset nowUtc = GetUtcNow();
             if (state.NextEligibleRequestStartUtc > nowUtc)
             {
                 delay = state.NextEligibleRequestStartUtc - nowUtc;
@@ -447,7 +451,7 @@ internal sealed class PassiveCtSourceClient
 
         if (delay > TimeSpan.Zero)
         {
-            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            await DelayAsync(delay, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -542,7 +546,7 @@ internal sealed class PassiveCtSourceClient
         lock (state)
         {
             state.ConsecutiveFailures++;
-            DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+            DateTimeOffset nowUtc = GetUtcNow();
             DateTimeOffset requestedUntilUtc = cooldown <= TimeSpan.Zero ? nowUtc : nowUtc + cooldown;
             if (requestedUntilUtc > state.CooldownUntilUtc)
             {
@@ -561,7 +565,7 @@ internal sealed class PassiveCtSourceClient
         {
             state.ConsecutiveFailures = 0;
             state.CooldownUntilUtc = DateTimeOffset.MinValue;
-            state.LastSuccessUtc = DateTimeOffset.UtcNow;
+            state.LastSuccessUtc = GetUtcNow();
             state.LastCooldownAnnouncementUtc = DateTimeOffset.MinValue;
         }
     }
@@ -586,6 +590,16 @@ internal sealed class PassiveCtSourceClient
         SharedSourceStates.Clear();
         SharedSourceGates.Clear();
         Interlocked.Exchange(ref _rotationCursor, -1);
+        _utcNowProvider = DefaultUtcNowProvider;
+        _delayProvider = DefaultDelayProvider;
+    }
+
+    internal static void ConfigureTimingForTesting(
+        Func<DateTimeOffset>? utcNowProvider,
+        Func<TimeSpan, CancellationToken, Task>? delayProvider)
+    {
+        _utcNowProvider = utcNowProvider ?? DefaultUtcNowProvider;
+        _delayProvider = delayProvider ?? DefaultDelayProvider;
     }
 
     internal static IReadOnlyList<SourceRequest> OrderRequestsBySourceHealth(IReadOnlyList<SourceRequest>? requests)
@@ -600,7 +614,7 @@ internal sealed class PassiveCtSourceClient
             return requests;
         }
 
-        DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+        DateTimeOffset nowUtc = GetUtcNow();
         return requests
             .Select((request, index) => new
             {
@@ -623,7 +637,7 @@ internal sealed class PassiveCtSourceClient
             return;
         }
 
-        DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+        DateTimeOffset nowUtc = GetUtcNow();
         foreach (PassiveCtDiagnosticEntry diagnostic in diagnostics)
         {
             if (diagnostic == null ||
@@ -664,7 +678,7 @@ internal sealed class PassiveCtSourceClient
         }
 
         SourceState resolvedState = state;
-        DateTimeOffset effectiveNowUtc = nowUtc ?? DateTimeOffset.UtcNow;
+        DateTimeOffset effectiveNowUtc = nowUtc ?? GetUtcNow();
         lock (resolvedState)
         {
             bool isCoolingDown = resolvedState.CooldownUntilUtc > effectiveNowUtc;
@@ -764,7 +778,7 @@ internal sealed class PassiveCtSourceClient
                 TimeSpan delay = ComputeRetryDelay(attempt, options.RetryBaseDelay, options.RetryMaxDelay, retryAfter);
                 if (delay > TimeSpan.Zero)
                 {
-                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                    await DelayAsync(delay, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -946,7 +960,7 @@ internal sealed class PassiveCtSourceClient
 
         if (response.Headers.RetryAfter.Date.HasValue)
         {
-            TimeSpan delta = response.Headers.RetryAfter.Date.Value - DateTimeOffset.UtcNow;
+            TimeSpan delta = response.Headers.RetryAfter.Date.Value - GetUtcNow();
             if (delta > TimeSpan.Zero)
             {
                 return delta;
@@ -954,6 +968,16 @@ internal sealed class PassiveCtSourceClient
         }
 
         return TimeSpan.Zero;
+    }
+
+    private static DateTimeOffset GetUtcNow()
+    {
+        return _utcNowProvider();
+    }
+
+    private static Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+    {
+        return _delayProvider(delay, cancellationToken);
     }
 
     private static TimeSpan? TryGetRetryAfterFromMessage(string? message)
