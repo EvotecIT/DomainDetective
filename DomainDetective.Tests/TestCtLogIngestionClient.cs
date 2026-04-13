@@ -1,13 +1,16 @@
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Headers;
 
 namespace DomainDetective.Tests;
 
 public sealed class TestCtLogIngestionClient {
+    private const HttpStatusCode TooManyRequestsStatusCode = (HttpStatusCode)429;
+
     [Fact]
     public async Task GetTreeSizeAsync_PropagatesRetryAfterDelta_FromHttpResponse() {
         var client = new CtLogIngestionClient {
-            SendOverride = static (_, _) => Task.FromResult(CreateFailureResponse(HttpStatusCode.TooManyRequests, delta: TimeSpan.FromSeconds(45)))
+            SendOverride = static (_, _) => Task.FromResult(CreateFailureResponse(TooManyRequestsStatusCode, delta: TimeSpan.FromSeconds(45)))
         };
 
         HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(() =>

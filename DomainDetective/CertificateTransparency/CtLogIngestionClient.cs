@@ -104,6 +104,7 @@ public sealed class CtLogIngestionClient {
 
     /// <summary>Optional HTTP override used by tests and host applications.</summary>
     public Func<string, CancellationToken, Task<string>>? HttpGetOverride { get; set; }
+    /// <summary>HTTP send override used by unit tests to inject controlled responses.</summary>
     internal Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? SendOverride { get; set; }
 
     /// <summary>
@@ -305,13 +306,14 @@ public sealed class CtLogIngestionClient {
     }
 
     internal static HttpRequestException CreateRequestFailure(HttpResponseMessage response) {
-        ArgumentNullException.ThrowIfNull(response);
-
-        string message = "HTTP " + (int)response.StatusCode + " " + response.ReasonPhrase;
-        TimeSpan retryAfter = ComputeRetryAfterDelay(response);
-        if (retryAfter > TimeSpan.Zero) {
-            message += " (Retry-After " + (int)Math.Ceiling(retryAfter.TotalSeconds) + "s)";
+        if (response == null) {
+            throw new ArgumentNullException(nameof(response));
         }
+
+        string message = response.ReasonPhrase is { Length: > 0 } reasonPhrase
+            ? "HTTP " + (int)response.StatusCode + " " + reasonPhrase
+            : "HTTP " + (int)response.StatusCode;
+        TimeSpan retryAfter = ComputeRetryAfterDelay(response);
 
 #if NET5_0_OR_GREATER
         var exception = new HttpRequestException(message, null, response.StatusCode);
@@ -319,6 +321,8 @@ public sealed class CtLogIngestionClient {
         var exception = new HttpRequestException(message);
 #endif
         if (retryAfter > TimeSpan.Zero) {
+            message += " (Retry-After " + (long)Math.Ceiling(retryAfter.TotalSeconds) + "s)";
+            exception = CreateRetriableRequestException(message, response.StatusCode);
             exception.Data["RetryAfter"] = retryAfter;
         }
 
@@ -326,7 +330,9 @@ public sealed class CtLogIngestionClient {
     }
 
     internal static TimeSpan ComputeRetryAfterDelay(HttpResponseMessage response) {
-        ArgumentNullException.ThrowIfNull(response);
+        if (response == null) {
+            throw new ArgumentNullException(nameof(response));
+        }
 
         if (response.Headers.RetryAfter == null) {
             return TimeSpan.Zero;
@@ -345,6 +351,14 @@ public sealed class CtLogIngestionClient {
         }
 
         return TimeSpan.Zero;
+    }
+
+    private static HttpRequestException CreateRetriableRequestException(string message, HttpStatusCode statusCode) {
+#if NET5_0_OR_GREATER
+        return new HttpRequestException(message, null, statusCode);
+#else
+        return new HttpRequestException(message);
+#endif
     }
 
     private static bool TryDecodeCertificate(
