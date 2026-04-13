@@ -7,6 +7,107 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Get-ToolDefinitionBodies {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Content
+    )
+
+    $marker = 'new ToolDefinition'
+    $blocks = New-Object 'System.Collections.Generic.List[string]'
+    $searchIndex = 0
+
+    while ($searchIndex -lt $Content.Length) {
+        $matchIndex = $Content.IndexOf($marker, $searchIndex, [System.StringComparison]::Ordinal)
+        if ($matchIndex -lt 0) {
+            break
+        }
+
+        $openBraceIndex = $Content.IndexOf('{', $matchIndex)
+        if ($openBraceIndex -lt 0) {
+            break
+        }
+
+        $depth = 0
+        $bodyStart = $openBraceIndex + 1
+        $inString = $false
+        $inVerbatimString = $false
+        $escapeNext = $false
+        $closed = $false
+
+        for ($i = $openBraceIndex; $i -lt $Content.Length; $i++) {
+            $character = $Content[$i]
+
+            if ($inString) {
+                if ($inVerbatimString) {
+                    if ($character -eq [char]34) {
+                        if (($i + 1) -lt $Content.Length -and $Content[$i + 1] -eq [char]34) {
+                            $i++
+                            continue
+                        }
+
+                        $inString = $false
+                        $inVerbatimString = $false
+                    }
+
+                    continue
+                }
+
+                if ($escapeNext) {
+                    $escapeNext = $false
+                    continue
+                }
+
+                if ($character -eq [char]92) {
+                    $escapeNext = $true
+                    continue
+                }
+
+                if ($character -eq [char]34) {
+                    $inString = $false
+                }
+
+                continue
+            }
+
+            if ($character -eq [char]64 -and
+                ($i + 1) -lt $Content.Length -and
+                $Content[$i + 1] -eq [char]34) {
+                $inString = $true
+                $inVerbatimString = $true
+                $i++
+                continue
+            }
+
+            if ($character -eq [char]34) {
+                $inString = $true
+                continue
+            }
+
+            if ($character -eq [char]123) {
+                $depth++
+                continue
+            }
+
+            if ($character -eq [char]125) {
+                $depth--
+                if ($depth -eq 0) {
+                    $blocks.Add($Content.Substring($bodyStart, $i - $bodyStart))
+                    $searchIndex = $i + 1
+                    $closed = $true
+                    break
+                }
+            }
+        }
+
+        if (-not $closed) {
+            throw "Failed to parse ToolDefinition initializer near index $matchIndex in $resolvedRegistryPath."
+        }
+    }
+
+    $blocks
+}
+
 $resolvedSiteRoot = (Resolve-Path -LiteralPath $SiteRoot).Path
 $resolvedRegistryPath = (Resolve-Path -LiteralPath $RegistryPath).Path
 $toolsRoot = Join-Path -Path $resolvedSiteRoot -ChildPath 'tools'
@@ -23,13 +124,13 @@ if (-not (Test-Path -LiteralPath $toolsIndexPath -PathType Leaf)) {
 
 $toolsIndexTemplate = Get-Content -LiteralPath $toolsIndexPath -Raw
 $registryContent = Get-Content -LiteralPath $resolvedRegistryPath -Raw
-$toolMatches = [regex]::Matches($registryContent, 'new ToolDefinition\s*\{(?<body>.*?)\}', [System.Text.RegularExpressions.RegexOptions]::Singleline)
 $toolMetadata = [System.Collections.Generic.Dictionary[string, hashtable]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
-foreach ($toolMatch in $toolMatches) {
-    $body = $toolMatch.Groups['body'].Value
+foreach ($body in Get-ToolDefinitionBodies -Content $registryContent) {
     $slugMatch = [regex]::Match($body, 'Slug\s*=\s*"(?<value>[^"]+)"')
     if (-not $slugMatch.Success) {
+        $previewLength = [Math]::Min(120, $body.Length)
+        Write-Warning ("ToolDefinition block found but no Slug could be extracted: {0}" -f $body.Substring(0, $previewLength))
         continue
     }
 
@@ -44,6 +145,10 @@ foreach ($toolMatch in $toolMatches) {
         Name = $toolName
         Description = $toolDescription
     }
+}
+
+if ($toolMetadata.Count -eq 0) {
+    throw "No tool metadata was extracted from registry '$resolvedRegistryPath'. Check the file path and ToolDefinition format."
 }
 
 $toolsIndexContent = $toolsIndexTemplate
