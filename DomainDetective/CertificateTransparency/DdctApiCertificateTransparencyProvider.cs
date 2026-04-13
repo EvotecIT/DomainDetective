@@ -87,7 +87,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         CtProviderRuntimeState? runtimeState = null,
         CancellationToken cancellationToken = default)
     {
-        CtCertificateQuery normalized = (query ?? throw new ArgumentNullException(nameof(query))).Normalize();
+        CtCertificateQuery normalized = WithNormalizedName((query ?? throw new ArgumentNullException(nameof(query))).Normalize());
         using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (normalized.Timeout.HasValue)
         {
@@ -266,7 +266,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
             throw new HttpRequestException($"DDCT API returned {(int)response.StatusCode} {response.ReasonPhrase}");
         }
 
-        using Stream stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        using Stream stream = await ReadContentStreamAsync(response.Content, cancellationToken).ConfigureAwait(false);
         T? payload = await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
         return payload ?? throw new InvalidOperationException("DDCT API returned an empty JSON payload.");
     }
@@ -286,7 +286,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
             throw new HttpRequestException($"DDCT DER endpoint returned {(int)response.StatusCode} {response.ReasonPhrase}");
         }
 
-        return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+        return await ReadContentBytesAsync(response.Content, cancellationToken).ConfigureAwait(false);
     }
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string url)
@@ -339,7 +339,33 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
             DdctApiCertificateTransparencyProviderOptions.MaxQueryPageSize);
 
     private int ResolveRequestedCertificateCount(CtCertificateQuery query)
-        => Math.Max(query.PageSize.GetValueOrDefault(_configuredQueryPageSize), 1);
+        => ClampInt(
+            query.PageSize.GetValueOrDefault(_configuredQueryPageSize),
+            1,
+            DdctApiCertificateTransparencyProviderOptions.MaxQueryPageSize);
+
+    private static string NormalizeQueryName(string? value)
+    {
+        string normalized = NormalizeHostName(value);
+        if (normalized.Length == 0)
+        {
+            throw new ArgumentException("CT query name must not be empty.", nameof(value));
+        }
+
+        return normalized;
+    }
+
+    private static CtCertificateQuery WithNormalizedName(CtCertificateQuery query)
+        => new CtCertificateQuery
+        {
+            Name = NormalizeQueryName(query.Name),
+            QueryKind = query.QueryKind,
+            Operations = query.Operations,
+            RequireFullCertificate = query.RequireFullCertificate,
+            ContinuationToken = query.ContinuationToken,
+            PageSize = query.PageSize,
+            Timeout = query.Timeout
+        };
 
     private int ResolveMaximumPageCount(int pageSize, int maxCertificates)
     {
@@ -362,6 +388,26 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
 
     private static IReadOnlyList<string> BuildDiagnostics(bool truncated)
         => truncated ? new[] { "DDCT query reached the configured page cap before exhausting results." } : Array.Empty<string>();
+
+    private static async Task<Stream> ReadContentStreamAsync(HttpContent content, CancellationToken cancellationToken)
+    {
+#if NET472
+        cancellationToken.ThrowIfCancellationRequested();
+        return await content.ReadAsStreamAsync().ConfigureAwait(false);
+#else
+        return await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+#endif
+    }
+
+    private static async Task<byte[]> ReadContentBytesAsync(HttpContent content, CancellationToken cancellationToken)
+    {
+#if NET472
+        cancellationToken.ThrowIfCancellationRequested();
+        return await content.ReadAsByteArrayAsync().ConfigureAwait(false);
+#else
+        return await content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+#endif
+    }
 
     private sealed class DdctPage<TItem>
     {

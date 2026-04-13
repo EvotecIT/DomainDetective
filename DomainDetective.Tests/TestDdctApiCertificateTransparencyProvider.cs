@@ -289,6 +289,87 @@ public class TestDdctApiCertificateTransparencyProvider
         Assert.Contains("502", ex.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task QueryAsyncRejectsEmptyQueryNames()
+    {
+        using var httpClient = new HttpClient(new HttpStubMessageHandler((_, _) => throw new InvalidOperationException("HTTP should not be called for empty names.")));
+        var provider = new DdctApiCertificateTransparencyProvider(
+            httpClient,
+            new DdctApiCertificateTransparencyProviderOptions
+            {
+                EndpointUrl = "http://127.0.0.1:8080"
+            });
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            provider.QueryAsync(CtCertificateQuery.ForExactHostLatest("   ")));
+    }
+
+    [Fact]
+    public async Task QueryAsyncClampsRequestedCertificateCountToEffectivePageSize()
+    {
+        byte[] der = LoadPemCertificateDer("multi.pem");
+        int pageRequestCount = 0;
+        var handler = new HttpStubMessageHandler((request, _) =>
+        {
+            string pathAndQuery = request.RequestUri!.PathAndQuery;
+            if (pathAndQuery.StartsWith("/api/v1/certificates/paged?", StringComparison.Ordinal))
+            {
+                pageRequestCount++;
+                return Json(HttpStatusCode.OK, new
+                {
+                    items = new[]
+                    {
+                        new
+                        {
+                            sha256Fingerprint = "oversized-page",
+                            matchedName = "www.example.test",
+                            firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
+                            lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
+                            notAfterUtc = "2027-04-12T12:00:00Z"
+                        }
+                    },
+                    limit = 500,
+                    offset = 0,
+                    nextContinuation = "next-token",
+                    hasMore = true
+                });
+            }
+
+            if (pathAndQuery == "/api/v1/certificates/oversized-page/der")
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(der)
+                };
+            }
+
+            throw new InvalidOperationException("Unexpected URL: " + request.RequestUri);
+        });
+        using var httpClient = new HttpClient(handler);
+        var provider = new DdctApiCertificateTransparencyProvider(
+            httpClient,
+            new DdctApiCertificateTransparencyProviderOptions
+            {
+                EndpointUrl = "http://127.0.0.1:8080",
+                QueryPageSize = 500,
+                MaxPagesPerQuery = 5
+            });
+
+        CtCertificateQueryResult result = await provider.QueryAsync(
+            new CtCertificateQuery
+            {
+                Name = "www.example.test",
+                QueryKind = CtCertificateQueryKind.ExactHostHistory,
+                Operations = CtIngestionOperation.GetCertificateHistory,
+                RequireFullCertificate = true,
+                PageSize = 600
+            });
+
+        Assert.Single(result.Certificates);
+        Assert.Equal(1, pageRequestCount);
+        Assert.Contains(result.Diagnostics, message => message.Contains("page cap", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static HttpResponseMessage Json<T>(HttpStatusCode statusCode, T value)
     {
         return new HttpResponseMessage(statusCode)
