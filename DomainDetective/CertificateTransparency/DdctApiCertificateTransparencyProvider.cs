@@ -99,149 +99,220 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
             CtCertificateQueryKind.DomainExpansion => await QueryDomainExpansionAsync(normalized, timeout.Token).ConfigureAwait(false),
             CtCertificateQueryKind.ExactHostHistory => await QueryCertificatesAsync(normalized, includeSubdomains: false, ResolveRequestedCertificateCount(normalized), timeout.Token).ConfigureAwait(false),
             CtCertificateQueryKind.DomainTreeCertificates => await QueryCertificatesAsync(normalized, includeSubdomains: true, ResolveRequestedCertificateCount(normalized), timeout.Token).ConfigureAwait(false),
-            _ => await QueryCertificatesAsync(normalized, includeSubdomains: false, 1, timeout.Token).ConfigureAwait(false)
+            _ => await QueryLatestCertificateAsync(normalized, timeout.Token).ConfigureAwait(false)
+        };
+    }
+
+    private async Task<CtCertificateQueryResult> QueryLatestCertificateAsync(CtCertificateQuery query, CancellationToken cancellationToken)
+    {
+        DdctDomainSearchResponseDto response = await QueryDomainSearchAsync(query.Name, includeSubdomains: false, 1, 1, cancellationToken).ConfigureAwait(false);
+        DdctCertificateSearchDto? latest = response.Certificates
+            .OrderByDescending(static item => item.LastCtObservedAtUtc ?? item.FirstCtObservedAtUtc ?? item.LastIngestedByDdctAtUtc ?? DateTimeOffset.MinValue)
+            .ThenByDescending(static item => item.NotAfterUtc ?? DateTimeOffset.MinValue)
+            .FirstOrDefault();
+
+        if (latest == null)
+        {
+            return new CtCertificateQueryResult
+            {
+                ProviderId = ProviderId,
+                Certificates = Array.Empty<CtCertificateRecord>(),
+                DiscoveredNames = response.Observations
+                    .Select(static item => NormalizeHostName(item.MatchedName))
+                    .Where(static name => name.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                HasMore = false,
+                ContinuationToken = null,
+                Diagnostics = Array.Empty<string>()
+            };
+        }
+
+        byte[] der = await DownloadCertificateDerAsync(latest.Sha256Fingerprint, cancellationToken).ConfigureAwait(false);
+        return new CtCertificateQueryResult
+        {
+            ProviderId = ProviderId,
+            Certificates = [
+                CtCertificateRecord.FromDer(
+                    ProviderId,
+                    der,
+                    providerCertificateId: latest.Sha256Fingerprint,
+                    entryTimestampUtc: latest.LastCtObservedAtUtc ?? latest.FirstCtObservedAtUtc)
+            ],
+            DiscoveredNames = response.Certificates
+                .Select(static item => NormalizeHostName(item.MatchedName))
+                .Concat(response.Observations.Select(static item => NormalizeHostName(item.MatchedName)))
+                .Where(static name => name.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            HasMore = false,
+            ContinuationToken = null,
+            Diagnostics = Array.Empty<string>()
         };
     }
 
     private async Task<CtCertificateQueryResult> QueryDomainExpansionAsync(CtCertificateQuery query, CancellationToken cancellationToken)
     {
         int pageSize = ResolvePageSize(query.PageSize);
-        DdctPage<DdctObservationDto> page = await QueryObservationPagesAsync(
+        int offset = DecodeOffsetContinuation(query.ContinuationToken);
+        DdctTimelineResponseDto page = await QueryTimelineAsync(
             query.Name,
             includeSubdomains: true,
             pageSize,
-            query.ContinuationToken,
+            offset,
             cancellationToken).ConfigureAwait(false);
 
-        string[] names = page.Items
+        string[] names = page.Observations
             .Select(static item => NormalizeHostName(item.MatchedName))
             .Where(static name => name.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        bool hasMore = page.Observations.Count >= page.Limit && page.Limit > 0;
+
         return new CtCertificateQueryResult
         {
             ProviderId = ProviderId,
             DiscoveredNames = names,
-            HasMore = page.HasMore,
-            ContinuationToken = page.NextContinuation,
-            Diagnostics = BuildDiagnostics(page.Truncated)
+            HasMore = hasMore,
+            ContinuationToken = hasMore ? EncodeOffsetContinuation(offset + page.Observations.Count) : null,
+            Diagnostics = Array.Empty<string>()
         };
     }
 
     private async Task<CtCertificateQueryResult> QueryCertificatesAsync(CtCertificateQuery query, bool includeSubdomains, int maxCertificates, CancellationToken cancellationToken)
     {
         int pageSize = ResolvePageSize(query.PageSize);
-        DdctPage<DdctCertificateSearchDto> page = await QueryCertificatePagesAsync(
-            query.Name,
-            includeSubdomains,
-            pageSize,
-            maxCertificates,
-            query.ContinuationToken,
-            cancellationToken).ConfigureAwait(false);
+        int offset = DecodeOffsetContinuation(query.ContinuationToken);
+        int currentOffset = offset;
+        int maxPages = ResolveMaximumPageCount(pageSize, maxCertificates);
+        bool hasMore = false;
+        bool truncated = false;
+        var discoveredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var selectedObservations = new List<DdctObservationDto>(maxCertificates);
+        var seenFingerprints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        IEnumerable<DdctCertificateSearchDto> ordered = page.Items
-            .OrderByDescending(static item => item.LastCtObservedAtUtc ?? item.FirstCtObservedAtUtc ?? item.LastIngestedByDdctAtUtc ?? DateTimeOffset.MinValue)
-            .ThenByDescending(static item => item.NotAfterUtc ?? DateTimeOffset.MinValue);
+        for (int pageIndex = 0; pageIndex < maxPages; pageIndex++)
+        {
+            DdctTimelineResponseDto page = await QueryTimelineAsync(
+                query.Name,
+                includeSubdomains,
+                pageSize,
+                currentOffset,
+                cancellationToken).ConfigureAwait(false);
+            if (page.Observations.Count == 0)
+            {
+                hasMore = false;
+                break;
+            }
 
-        var certificates = new List<CtCertificateRecord>(maxCertificates);
-        foreach (DdctCertificateSearchDto item in ordered.Take(maxCertificates))
+            foreach (DdctObservationDto item in page.Observations)
+            {
+                string normalizedName = NormalizeHostName(item.MatchedName);
+                if (normalizedName.Length > 0)
+                {
+                    discoveredNames.Add(normalizedName);
+                }
+
+                if (seenFingerprints.Add(item.Sha256Fingerprint))
+                {
+                    selectedObservations.Add(item);
+                    if (selectedObservations.Count >= maxCertificates)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            currentOffset += page.Observations.Count;
+            bool pageHasMore = page.Observations.Count >= page.Limit && page.Limit > 0;
+            hasMore = pageHasMore;
+
+            if (selectedObservations.Count >= maxCertificates)
+            {
+                truncated = pageHasMore;
+                break;
+            }
+
+            if (!pageHasMore)
+            {
+                break;
+            }
+
+            if (pageIndex == maxPages - 1)
+            {
+                truncated = true;
+                break;
+            }
+        }
+
+        var certificates = new List<CtCertificateRecord>(selectedObservations.Count);
+        foreach (DdctObservationDto item in selectedObservations)
         {
             byte[] der = await DownloadCertificateDerAsync(item.Sha256Fingerprint, cancellationToken).ConfigureAwait(false);
             certificates.Add(CtCertificateRecord.FromDer(
                 ProviderId,
                 der,
                 providerCertificateId: item.Sha256Fingerprint,
-                entryTimestampUtc: item.LastCtObservedAtUtc ?? item.FirstCtObservedAtUtc));
+                entryTimestampUtc: item.CtObservedAtUtc));
         }
-
-        string[] discoveredNames = page.Items
-            .Select(static item => NormalizeHostName(item.MatchedName))
-            .Where(static name => name.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
 
         return new CtCertificateQueryResult
         {
             ProviderId = ProviderId,
             Certificates = certificates,
-            DiscoveredNames = discoveredNames,
-            HasMore = page.HasMore,
-            ContinuationToken = page.NextContinuation,
-            Diagnostics = BuildDiagnostics(page.Truncated)
+            DiscoveredNames = discoveredNames
+                .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            HasMore = hasMore,
+            ContinuationToken = hasMore ? EncodeOffsetContinuation(currentOffset) : null,
+            Diagnostics = BuildDiagnostics(truncated)
         };
     }
 
-    private async Task<DdctPage<DdctCertificateSearchDto>> QueryCertificatePagesAsync(
+    private async Task<DdctTimelineResponseDto> QueryTimelineAsync(
         string name,
         bool includeSubdomains,
         int pageSize,
-        int maxCertificates,
-        string? continuation,
+        int offset,
         CancellationToken cancellationToken)
     {
-        var items = new List<DdctCertificateSearchDto>();
-        string? currentContinuation = continuation;
-        string? lastContinuation = continuation;
-        int maxPages = ResolveMaximumPageCount(pageSize, maxCertificates);
-
-        for (int pageIndex = 0; pageIndex < maxPages; pageIndex++)
-        {
-            string url = BuildPagedUrl("/api/v1/certificates/paged", name, includeSubdomains, pageSize, currentContinuation);
-            DdctPageDto<DdctCertificateSearchDto> page = await SendPageAsync<DdctCertificateSearchDto>(url, cancellationToken).ConfigureAwait(false);
-            if (page.Items.Count == 0)
-            {
-                return new DdctPage<DdctCertificateSearchDto>(items, page.Limit, page.Offset, null, false, false);
-            }
-
-            items.AddRange(page.Items);
-            if (!page.HasMore || string.IsNullOrWhiteSpace(page.NextContinuation) || string.Equals(page.NextContinuation, lastContinuation, StringComparison.Ordinal))
-            {
-                return new DdctPage<DdctCertificateSearchDto>(items, page.Limit, page.Offset, page.NextContinuation, page.HasMore, false);
-            }
-
-            lastContinuation = currentContinuation = page.NextContinuation;
-        }
-
-        return new DdctPage<DdctCertificateSearchDto>(items, pageSize, 0, currentContinuation, true, true);
-    }
-
-    private async Task<DdctPage<DdctObservationDto>> QueryObservationPagesAsync(
-        string name,
-        bool includeSubdomains,
-        int pageSize,
-        string? continuation,
-        CancellationToken cancellationToken)
-    {
-        string url = BuildPagedUrl("/api/v1/observations/paged", name, includeSubdomains, pageSize, continuation);
-        DdctPageDto<DdctObservationDto> page = await SendPageAsync<DdctObservationDto>(url, cancellationToken).ConfigureAwait(false);
-        if (page.Items.Count == 0)
-        {
-            return new DdctPage<DdctObservationDto>(Array.Empty<DdctObservationDto>(), page.Limit, page.Offset, null, false, false);
-        }
-
-        return new DdctPage<DdctObservationDto>(page.Items, page.Limit, page.Offset, page.NextContinuation, page.HasMore, false);
-    }
-
-    private async Task<DdctPageDto<TItem>> SendPageAsync<TItem>(string url, CancellationToken cancellationToken)
-    {
+        string url = BuildTimelineUrl(name, includeSubdomains, pageSize, offset);
         using HttpRequestMessage request = CreateRequest(HttpMethod.Get, url, acceptJson: false);
         using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            return new DdctPageDto<TItem>
+            return new DdctTimelineResponseDto
             {
-                Items = Array.Empty<TItem>(),
-                Limit = 0,
-                Offset = 0,
-                NextContinuation = null,
-                HasMore = false
+                Observations = Array.Empty<DdctObservationDto>(),
+                Limit = pageSize,
+                Offset = offset,
+                ReturnedObservations = 0
             };
         }
 
-        return await DeserializeJsonAsync<DdctPageDto<TItem>>(response, cancellationToken).ConfigureAwait(false);
+        return await DeserializeJsonAsync<DdctTimelineResponseDto>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<DdctDomainSearchResponseDto> QueryDomainSearchAsync(
+        string name,
+        bool includeSubdomains,
+        int certificateLimit,
+        int observationLimit,
+        CancellationToken cancellationToken)
+    {
+        string url = BuildDomainSearchUrl(name, includeSubdomains, certificateLimit, observationLimit);
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Get, url, acceptJson: false);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return new DdctDomainSearchResponseDto();
+        }
+
+        return await DeserializeJsonAsync<DdctDomainSearchResponseDto>(response, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<T> DeserializeJsonAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
@@ -297,25 +368,38 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         return request;
     }
 
-    private string BuildPagedUrl(string relativePath, string name, bool includeSubdomains, int limit, string? continuation)
+    private string BuildTimelineUrl(string name, bool includeSubdomains, int limit, int offset)
     {
         var query = new List<string>
         {
             "name=" + Uri.EscapeDataString(name),
             "includeSubdomains=" + (includeSubdomains ? "true" : "false"),
-            "limit=" + limit.ToString(CultureInfo.InvariantCulture)
+            "limit=" + limit.ToString(CultureInfo.InvariantCulture),
+            "offset=" + offset.ToString(CultureInfo.InvariantCulture)
         };
         if (!string.IsNullOrWhiteSpace(_scopeName))
         {
             query.Add("scope=" + Uri.EscapeDataString(_scopeName));
         }
 
-        if (!string.IsNullOrWhiteSpace(continuation))
+        return BuildPath("/api/v1/search/domain/timeline?" + string.Join("&", query));
+    }
+
+    private string BuildDomainSearchUrl(string name, bool includeSubdomains, int certificateLimit, int observationLimit)
+    {
+        var query = new List<string>
         {
-            query.Add("continuation=" + Uri.EscapeDataString(continuation));
+            "name=" + Uri.EscapeDataString(name),
+            "includeSubdomains=" + (includeSubdomains ? "true" : "false"),
+            "certificateLimit=" + certificateLimit.ToString(CultureInfo.InvariantCulture),
+            "observationLimit=" + observationLimit.ToString(CultureInfo.InvariantCulture)
+        };
+        if (!string.IsNullOrWhiteSpace(_scopeName))
+        {
+            query.Add("scope=" + Uri.EscapeDataString(_scopeName));
         }
 
-        return BuildPath(relativePath + "?" + string.Join("&", query));
+        return BuildPath("/api/v1/search/domain?" + string.Join("&", query));
     }
 
     private string BuildPath(string relativePath)
@@ -362,6 +446,27 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         return ClampInt(pagesNeeded, 1, _maxPagesPerQuery);
     }
 
+    private static string EncodeOffsetContinuation(int offset)
+        => Math.Max(0, offset).ToString(CultureInfo.InvariantCulture);
+
+    private static int DecodeOffsetContinuation(string? continuation)
+    {
+        if (continuation == null)
+        {
+            return 0;
+        }
+
+        string trimmed = continuation.Trim();
+        if (trimmed.Length == 0)
+        {
+            return 0;
+        }
+
+        return int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) && value > 0
+            ? value
+            : 0;
+    }
+
     private static string NormalizeEndpointUrl(string? value)
         => string.IsNullOrWhiteSpace(value)
             ? DdctApiCertificateTransparencyProviderOptions.DefaultEndpointUrl
@@ -398,50 +503,28 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
 #endif
     }
 
-    private sealed class DdctPage<TItem>
+    private sealed class DdctTimelineResponseDto
     {
-        public DdctPage(IReadOnlyList<TItem> items, int limit, int offset, string? nextContinuation, bool hasMore, bool truncated)
-        {
-            Items = items;
-            Limit = limit;
-            Offset = offset;
-            NextContinuation = nextContinuation;
-            HasMore = hasMore;
-            Truncated = truncated;
-        }
-
-        public IReadOnlyList<TItem> Items { get; }
-        public int Limit { get; }
-        public int Offset { get; }
-        public string? NextContinuation { get; }
-        public bool HasMore { get; }
-        public bool Truncated { get; }
-    }
-
-    private sealed class DdctPageDto<TItem>
-    {
-        public IReadOnlyList<TItem> Items { get; init; } = Array.Empty<TItem>();
+        public IReadOnlyList<DdctObservationDto> Observations { get; init; } = Array.Empty<DdctObservationDto>();
         public int Limit { get; init; }
         public int Offset { get; init; }
-        public string? NextContinuation { get; init; }
-        public bool HasMore { get; init; }
+        public int ReturnedObservations { get; init; }
+    }
+
+    private sealed class DdctDomainSearchResponseDto
+    {
+        public IReadOnlyList<DdctCertificateSearchDto> Certificates { get; init; } = Array.Empty<DdctCertificateSearchDto>();
+        public IReadOnlyList<DdctObservationDto> Observations { get; init; } = Array.Empty<DdctObservationDto>();
     }
 
     private sealed class DdctCertificateSearchDto
     {
         public string Sha256Fingerprint { get; init; } = string.Empty;
-        public string? Sha1Thumbprint { get; init; }
-        public string? SerialNumber { get; init; }
-        public string? Subject { get; init; }
-        public string? Issuer { get; init; }
-        public DateTimeOffset? NotBeforeUtc { get; init; }
         public DateTimeOffset? NotAfterUtc { get; init; }
         public DateTimeOffset? FirstCtObservedAtUtc { get; init; }
         public DateTimeOffset? LastCtObservedAtUtc { get; init; }
-        public DateTimeOffset? FirstIngestedByDdctAtUtc { get; init; }
         public DateTimeOffset? LastIngestedByDdctAtUtc { get; init; }
         public string MatchedName { get; init; } = string.Empty;
-        public bool IsPrecertificate { get; init; }
     }
 
     private sealed class DdctObservationDto

@@ -15,30 +15,27 @@ public class TestDdctApiCertificateTransparencyProvider
     public async Task QueryAsyncHydratesLatestCertificateFromDerEndpoint()
     {
         byte[] der = LoadPemCertificateDer("multi.pem");
-        string? noContinuation = null;
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.StartsWith("/api/v1/certificates/paged?", StringComparison.Ordinal))
+            if (pathAndQuery.StartsWith("/api/v1/search/domain?", StringComparison.Ordinal))
             {
                 Assert.Equal("secret", string.Join(",", request.Headers.GetValues("X-DDCT-Api-Key")));
                 return Json(HttpStatusCode.OK, new
                 {
-                    items = new[]
+                    certificates = new[]
                     {
                         new
                         {
                             sha256Fingerprint = "abc123",
                             matchedName = "www.example.test",
                             firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
+                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
                             lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
                             notAfterUtc = "2027-04-12T12:00:00Z"
                         }
                     },
-                    limit = 100,
-                    offset = 0,
-                    nextContinuation = noContinuation,
-                    hasMore = false
+                    observations = Array.Empty<object>()
                 });
             }
 
@@ -80,38 +77,35 @@ public class TestDdctApiCertificateTransparencyProvider
     public async Task QueryAsyncUsesObservationPagesForDomainExpansion()
     {
         int requestCount = 0;
-        string? noContinuation = null;
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             requestCount++;
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.Contains("continuation=next-token", StringComparison.Ordinal))
+            if (pathAndQuery.Contains("offset=2", StringComparison.Ordinal))
             {
                 return Json(HttpStatusCode.OK, new
                 {
-                    items = new[]
+                    observations = new[]
                     {
                         new { matchedName = "mail.example.test" },
                         new { matchedName = "api.example.test" }
                     },
                     limit = 2,
                     offset = 2,
-                    nextContinuation = noContinuation,
-                    hasMore = false
+                    returnedObservations = 2
                 });
             }
 
             return Json(HttpStatusCode.OK, new
             {
-                items = new[]
+                observations = new[]
                 {
                     new { matchedName = "api.example.test" },
                     new { matchedName = "www.example.test" }
                 },
                 limit = 2,
                 offset = 0,
-                nextContinuation = "next-token",
-                hasMore = true
+                returnedObservations = 2
             });
         });
         using var httpClient = new HttpClient(handler);
@@ -131,7 +125,7 @@ public class TestDdctApiCertificateTransparencyProvider
             new[] { "api.example.test", "www.example.test" },
             result.DiscoveredNames);
         Assert.True(result.HasMore);
-        Assert.Equal("next-token", result.ContinuationToken);
+        Assert.Equal("2", result.ContinuationToken);
     }
 
     [Fact]
@@ -163,26 +157,24 @@ public class TestDdctApiCertificateTransparencyProvider
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.StartsWith("/api/v1/certificates/paged?", StringComparison.Ordinal))
+            if (pathAndQuery.StartsWith("/api/v1/search/domain/timeline?", StringComparison.Ordinal))
             {
                 page++;
                 return Json(HttpStatusCode.OK, new
                 {
-                    items = new[]
+                    observations = new[]
                     {
                         new
                         {
                             sha256Fingerprint = "cert-" + page,
                             matchedName = "www.example.test",
-                            firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
-                            lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
+                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
                             notAfterUtc = "2027-04-12T12:00:00Z"
                         }
                     },
                     limit = 1,
                     offset = page - 1,
-                    nextContinuation = "token-" + page,
-                    hasMore = true
+                    returnedObservations = 1
                 });
             }
 
@@ -218,32 +210,29 @@ public class TestDdctApiCertificateTransparencyProvider
     public async Task QueryAsyncUsesBearerAuthorizationHeaderWhenRequested()
     {
         byte[] der = LoadPemCertificateDer("multi.pem");
-        string? noContinuation = null;
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
             Assert.Equal("secret", request.Headers.Authorization?.Parameter);
 
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.StartsWith("/api/v1/certificates/paged?", StringComparison.Ordinal))
+            if (pathAndQuery.StartsWith("/api/v1/search/domain?", StringComparison.Ordinal))
             {
                 return Json(HttpStatusCode.OK, new
                 {
-                    items = new[]
+                    certificates = new[]
                     {
                         new
                         {
                             sha256Fingerprint = "bearer123",
                             matchedName = "www.example.test",
                             firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
+                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
                             lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
                             notAfterUtc = "2027-04-12T12:00:00Z"
                         }
                     },
-                    limit = 100,
-                    offset = 0,
-                    nextContinuation = noContinuation,
-                    hasMore = false
+                    observations = Array.Empty<object>()
                 });
             }
 
@@ -314,26 +303,25 @@ public class TestDdctApiCertificateTransparencyProvider
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.StartsWith("/api/v1/certificates/paged?", StringComparison.Ordinal))
+            if (pathAndQuery.StartsWith("/api/v1/search/domain/timeline?", StringComparison.Ordinal))
             {
                 pageRequestCount++;
+                Assert.Contains("limit=500", pathAndQuery, StringComparison.Ordinal);
                 return Json(HttpStatusCode.OK, new
                 {
-                    items = new[]
+                    observations = new[]
                     {
                         new
                         {
                             sha256Fingerprint = "oversized-page",
                             matchedName = "www.example.test",
-                            firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
-                            lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
+                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
                             notAfterUtc = "2027-04-12T12:00:00Z"
                         }
                     },
                     limit = 500,
                     offset = 0,
-                    nextContinuation = "next-token",
-                    hasMore = true
+                    returnedObservations = 500
                 });
             }
 
@@ -369,7 +357,7 @@ public class TestDdctApiCertificateTransparencyProvider
 
         Assert.Single(result.Certificates);
         Assert.Equal(1, pageRequestCount);
-        Assert.Contains(result.Diagnostics, message => message.Contains("page cap", StringComparison.OrdinalIgnoreCase));
+        Assert.False(result.HasMore);
     }
 
     private static HttpResponseMessage Json<T>(HttpStatusCode statusCode, T value)
