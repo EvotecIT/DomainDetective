@@ -91,6 +91,11 @@ public sealed class CtLogIngestionBatchRequest {
     public long StartIndex { get; init; }
     /// <summary>Maximum entries to request. RFC6962 logs may return fewer entries.</summary>
     public int BatchSize { get; init; } = 256;
+    /// <summary>
+    /// Optional signed tree size already obtained by the caller. When supplied, the batch read skips
+    /// an additional <c>get-sth</c> request and trusts this tree size for range clamping.
+    /// </summary>
+    public long? KnownTreeSize { get; init; }
     /// <summary>HTTP request timeout.</summary>
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
 }
@@ -179,7 +184,9 @@ public sealed class CtLogIngestionClient {
         long start = Math.Max(0, request.StartIndex);
         int batchSize = Math.Max(1, Math.Min(request.BatchSize, 2048));
         TimeSpan timeout = request.RequestTimeout > TimeSpan.Zero ? request.RequestTimeout : TimeSpan.FromSeconds(30);
-        long treeSize = await GetTreeSizeAsync(logUrl, timeout, cancellationToken).ConfigureAwait(false);
+        long treeSize = request.KnownTreeSize is long knownTreeSize && knownTreeSize >= 0
+            ? knownTreeSize
+            : await GetTreeSizeAsync(logUrl, timeout, cancellationToken).ConfigureAwait(false);
         if (treeSize <= 0 || start >= treeSize) {
             return new CtLogIngestionBatch {
                 LogUrl = logUrl,

@@ -8,6 +8,49 @@ public sealed class TestCtLogIngestionClient {
     private const HttpStatusCode TooManyRequestsStatusCode = (HttpStatusCode)429;
 
     [Fact]
+    public async Task ReadBatchAsync_UsesKnownTreeSizeWithoutAdditionalSthRequest() {
+        int sthCalls = 0;
+        int getEntriesCalls = 0;
+        var client = new CtLogIngestionClient {
+            SendOverride = (request, _) => {
+                string url = request.RequestUri?.ToString() ?? string.Empty;
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    Interlocked.Increment(ref sthCalls);
+                    throw new InvalidOperationException("get-sth should not be called when KnownTreeSize is provided.");
+                }
+
+                if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    Interlocked.Increment(ref getEntriesCalls);
+                    return Task.FromResult(CreateSuccessResponse("""
+                        {
+                          "entries": []
+                        }
+                        """));
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(
+            new CtLogIngestionBatchRequest {
+                LogUrl = "https://ct.example.test/",
+                StartIndex = 0,
+                BatchSize = 16,
+                KnownTreeSize = 1,
+                RequestTimeout = TimeSpan.FromSeconds(5)
+            },
+            CancellationToken.None);
+
+        Assert.Equal(1L, batch.TreeSize);
+        Assert.Equal(0L, batch.StartIndex);
+        Assert.Equal(-1L, batch.EndIndex);
+        Assert.Empty(batch.Entries);
+        Assert.Equal(0, sthCalls);
+        Assert.Equal(1, getEntriesCalls);
+    }
+
+    [Fact]
     public async Task GetTreeSizeAsync_PropagatesRetryAfterDelta_FromHttpResponse() {
         var client = new CtLogIngestionClient {
             SendOverride = static (_, _) => Task.FromResult(CreateFailureResponse(TooManyRequestsStatusCode, delta: TimeSpan.FromSeconds(45)))
@@ -63,4 +106,9 @@ public sealed class TestCtLogIngestionClient {
 
         return response;
     }
+
+    private static HttpResponseMessage CreateSuccessResponse(string json)
+        => new(HttpStatusCode.OK) {
+            Content = new StringContent(json)
+        };
 }
