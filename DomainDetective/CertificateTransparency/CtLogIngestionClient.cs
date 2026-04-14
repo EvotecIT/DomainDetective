@@ -8,8 +8,27 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace DomainDetective;
+
+/// <summary>
+/// Signed tree head metadata for one CT log at a point in time.
+/// </summary>
+/// <param name="TreeSize">Current tree size reported by the CT log.</param>
+/// <param name="ObservedAtUtc">UTC time when the tree head was read or refreshed locally.</param>
+public sealed record CtSignedTreeHead(
+    long TreeSize,
+    DateTimeOffset ObservedAtUtc);
+
+/// <summary>
+/// Raw RFC6962 entry payload as returned by <c>get-entries</c>.
+/// </summary>
+/// <param name="LeafInputBase64">Base64-encoded Merkle leaf.</param>
+/// <param name="ExtraDataBase64">Base64-encoded extra data payload.</param>
+public sealed record RawCtEntryPayload(
+    string LeafInputBase64,
+    string ExtraDataBase64);
 
 /// <summary>
 /// Certificate Transparency entry type encoded in the Merkle tree leaf.
@@ -106,11 +125,16 @@ public sealed class CtLogIngestionBatchRequest {
 public sealed class CtLogIngestionClient {
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
+    private readonly ConcurrentDictionary<string, CachedSignedTreeHead> _signedTreeHeadCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Optional HTTP override used by tests and host applications.</summary>
     public Func<string, CancellationToken, Task<string>>? HttpGetOverride { get; set; }
     /// <summary>HTTP send override used by unit tests to inject controlled responses.</summary>
     internal Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? SendOverride { get; set; }
+    /// <summary>
+    /// Duration for which a successful signed tree head can be reused for the same log URL.
+    /// </summary>
+    public TimeSpan SignedTreeHeadCacheDuration { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Resolves CT logs from a v3/v2 Google-compatible log list.
@@ -186,7 +210,7 @@ public sealed class CtLogIngestionClient {
         TimeSpan timeout = request.RequestTimeout > TimeSpan.Zero ? request.RequestTimeout : TimeSpan.FromSeconds(30);
         long treeSize = request.KnownTreeSize is long knownTreeSize && knownTreeSize >= 0
             ? knownTreeSize
-            : await GetTreeSizeAsync(logUrl, timeout, cancellationToken).ConfigureAwait(false);
+            : (await GetSignedTreeHeadAsync(logUrl, timeout, cancellationToken).ConfigureAwait(false)).TreeSize;
         if (treeSize <= 0 || start >= treeSize) {
             return new CtLogIngestionBatch {
                 LogUrl = logUrl,
@@ -242,11 +266,16 @@ public sealed class CtLogIngestionClient {
     }
 
     /// <summary>
-    /// Reads the current signed tree head size for a CT log.
+    /// Reads the current signed tree head for a CT log.
     /// </summary>
-    public async Task<long> GetTreeSizeAsync(string logUrl, TimeSpan timeout, CancellationToken cancellationToken = default) {
+    public async Task<CtSignedTreeHead> GetSignedTreeHeadAsync(string logUrl, TimeSpan timeout, CancellationToken cancellationToken = default) {
         logUrl = NormalizeLogUrl(logUrl) ??
             throw new ArgumentException("Log URL must be an absolute URL.", nameof(logUrl));
+
+        if (TryGetCachedSignedTreeHead(logUrl, out CtSignedTreeHead cachedTreeHead)) {
+            return cachedTreeHead;
+        }
+
         string json = await FetchJsonAsync(CombineLogUrl(logUrl, "ct/v1/get-sth"), timeout, cancellationToken).ConfigureAwait(false);
         using var document = JsonDocument.Parse(json);
         if (document.RootElement.ValueKind != JsonValueKind.Object ||
@@ -254,15 +283,34 @@ public sealed class CtLogIngestionClient {
             throw new InvalidOperationException("CT get-sth response did not include tree_size.");
         }
 
-        return treeSize;
+        var signedTreeHead = new CtSignedTreeHead(treeSize, DateTimeOffset.UtcNow);
+        CacheSignedTreeHead(logUrl, signedTreeHead);
+        return signedTreeHead;
     }
 
-    private async Task<IReadOnlyList<RawCtEntryPayload>> GetEntriesAsync(
+    /// <summary>
+    /// Reads the current signed tree head size for a CT log.
+    /// </summary>
+    public async Task<long> GetTreeSizeAsync(string logUrl, TimeSpan timeout, CancellationToken cancellationToken = default) {
+        CtSignedTreeHead signedTreeHead = await GetSignedTreeHeadAsync(logUrl, timeout, cancellationToken).ConfigureAwait(false);
+        return signedTreeHead.TreeSize;
+    }
+
+    /// <summary>
+    /// Reads raw entry payloads from one CT log range.
+    /// </summary>
+    public async Task<IReadOnlyList<RawCtEntryPayload>> GetEntriesAsync(
         string logUrl,
         long start,
         long end,
         TimeSpan timeout,
         CancellationToken cancellationToken) {
+        logUrl = NormalizeLogUrl(logUrl) ??
+            throw new ArgumentException("Log URL must be an absolute URL.", nameof(logUrl));
+        if (end < start) {
+            return Array.Empty<RawCtEntryPayload>();
+        }
+
         string json = await FetchJsonAsync(CombineLogUrl(logUrl, $"ct/v1/get-entries?start={start}&end={end}"), timeout, cancellationToken).ConfigureAwait(false);
         using var document = JsonDocument.Parse(json);
         if (document.RootElement.ValueKind != JsonValueKind.Object ||
@@ -286,6 +334,39 @@ public sealed class CtLogIngestionClient {
         }
 
         return output;
+    }
+
+    private bool TryGetCachedSignedTreeHead(string logUrl, out CtSignedTreeHead signedTreeHead) {
+        signedTreeHead = default!;
+        TimeSpan cacheDuration = SignedTreeHeadCacheDuration;
+        if (cacheDuration <= TimeSpan.Zero) {
+            return false;
+        }
+
+        if (!_signedTreeHeadCache.TryGetValue(logUrl, out CachedSignedTreeHead? cached)) {
+            return false;
+        }
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (cached.ExpiresAtUtc <= now) {
+            _signedTreeHeadCache.TryRemove(logUrl, out _);
+            return false;
+        }
+
+        signedTreeHead = cached.Value;
+        return true;
+    }
+
+    private void CacheSignedTreeHead(string logUrl, CtSignedTreeHead signedTreeHead) {
+        TimeSpan cacheDuration = SignedTreeHeadCacheDuration;
+        if (cacheDuration <= TimeSpan.Zero) {
+            _signedTreeHeadCache.TryRemove(logUrl, out _);
+            return;
+        }
+
+        _signedTreeHeadCache[logUrl] = new CachedSignedTreeHead(
+            signedTreeHead,
+            signedTreeHead.ObservedAtUtc.Add(cacheDuration));
     }
 
     private async Task<string> FetchJsonAsync(string url, TimeSpan timeout, CancellationToken cancellationToken) {
@@ -616,13 +697,5 @@ public sealed class CtLogIngestionClient {
               long.TryParse(element.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
     }
 
-    private readonly struct RawCtEntryPayload {
-        public RawCtEntryPayload(string leafInputBase64, string extraDataBase64) {
-            LeafInputBase64 = leafInputBase64;
-            ExtraDataBase64 = extraDataBase64;
-        }
-
-        public string LeafInputBase64 { get; }
-        public string ExtraDataBase64 { get; }
-    }
+    private sealed record CachedSignedTreeHead(CtSignedTreeHead Value, DateTimeOffset ExpiresAtUtc);
 }

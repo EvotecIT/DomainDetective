@@ -51,6 +51,47 @@ public sealed class TestCtLogIngestionClient {
     }
 
     [Fact]
+    public async Task GetSignedTreeHeadAsync_ReusesCachedTreeHeadWithinTtl() {
+        int sthCalls = 0;
+        var client = new CtLogIngestionClient {
+            SignedTreeHeadCacheDuration = TimeSpan.FromMinutes(1),
+            SendOverride = (request, _) => {
+                string url = request.RequestUri?.ToString() ?? string.Empty;
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    Interlocked.Increment(ref sthCalls);
+                    return Task.FromResult(CreateSuccessResponse("""{"tree_size":42}"""));
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        CtSignedTreeHead first = await client.GetSignedTreeHeadAsync("https://ct.example.test/", TimeSpan.FromSeconds(5), CancellationToken.None);
+        CtSignedTreeHead second = await client.GetSignedTreeHeadAsync("https://ct.example.test/", TimeSpan.FromSeconds(5), CancellationToken.None);
+
+        Assert.Equal(42L, first.TreeSize);
+        Assert.Equal(42L, second.TreeSize);
+        Assert.Equal(1, sthCalls);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public async Task GetEntriesAsync_ReturnsEmpty_ForInvertedRange() {
+        var client = new CtLogIngestionClient {
+            SendOverride = static (_, _) => throw new InvalidOperationException("HTTP should not be called for an inverted range.")
+        };
+
+        IReadOnlyList<RawCtEntryPayload> entries = await client.GetEntriesAsync(
+            "https://ct.example.test/",
+            start: 5,
+            end: 4,
+            timeout: TimeSpan.FromSeconds(5),
+            cancellationToken: CancellationToken.None);
+
+        Assert.Empty(entries);
+    }
+
+    [Fact]
     public async Task GetTreeSizeAsync_PropagatesRetryAfterDelta_FromHttpResponse() {
         var client = new CtLogIngestionClient {
             SendOverride = static (_, _) => Task.FromResult(CreateFailureResponse(TooManyRequestsStatusCode, delta: TimeSpan.FromSeconds(45)))
