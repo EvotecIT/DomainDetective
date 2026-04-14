@@ -131,15 +131,7 @@ if (-not [string]::IsNullOrWhiteSpace($PowerForgeRoot)) {
 
 if ((-not $SkipBuildTool) -and
     $PowerForgeCliProject -and
-    (Test-Path $PowerForgeCliProject) -and
-    ($ForceBuildTool -or -not (
-        ($PowerForgeReleaseExe -and (Test-Path $PowerForgeReleaseExe)) -or
-        ($PowerForgeReleaseAppHost -and (Test-Path $PowerForgeReleaseAppHost)) -or
-        ($PowerForgeReleaseDll -and (Test-Path $PowerForgeReleaseDll)) -or
-        ($PowerForgeDebugExe -and (Test-Path $PowerForgeDebugExe)) -or
-        ($PowerForgeDebugAppHost -and (Test-Path $PowerForgeDebugAppHost)) -or
-        ($PowerForgeDebugDll -and (Test-Path $PowerForgeDebugDll))
-    ))) {
+    (Test-Path $PowerForgeCliProject)) {
     Write-Host "Building PowerForge.Web.Cli..." -ForegroundColor Cyan
     dotnet.exe build $PowerForgeCliProject -c Release | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "PowerForge.Web.Cli build failed (exit code $LASTEXITCODE)" }
