@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 
 namespace DomainDetective.Tests;
 
@@ -47,6 +48,76 @@ public sealed class TestCtLogIngestionClient {
         Assert.Equal(-1L, batch.EndIndex);
         Assert.Empty(batch.Entries);
         Assert.Equal(0, sthCalls);
+        Assert.Equal(1, getEntriesCalls);
+    }
+
+    [Fact]
+    public async Task ReadBatchAsync_WithZeroKnownTreeSize_ReturnsEmptyWithoutAdditionalSthRequest() {
+        int sthCalls = 0;
+        var client = new CtLogIngestionClient {
+            SendOverride = (request, _) => {
+                string url = request.RequestUri?.ToString() ?? string.Empty;
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    Interlocked.Increment(ref sthCalls);
+                    throw new InvalidOperationException("get-sth should not be called when KnownTreeSize is zero.");
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(
+            new CtLogIngestionBatchRequest {
+                LogUrl = "https://ct.example.test/",
+                StartIndex = 0,
+                BatchSize = 16,
+                KnownTreeSize = 0,
+                RequestTimeout = TimeSpan.FromSeconds(5)
+            },
+            CancellationToken.None);
+
+        Assert.Equal(0L, batch.TreeSize);
+        Assert.Equal(0L, batch.StartIndex);
+        Assert.Equal(-1L, batch.EndIndex);
+        Assert.Empty(batch.Entries);
+        Assert.Equal(0, sthCalls);
+    }
+
+    [Fact]
+    public async Task ReadBatchAsync_WithNegativeKnownTreeSize_FallsBackToSthRequest() {
+        int sthCalls = 0;
+        int getEntriesCalls = 0;
+        var client = new CtLogIngestionClient {
+            SendOverride = (request, _) => {
+                string url = request.RequestUri?.ToString() ?? string.Empty;
+                if (url.Contains("get-sth", StringComparison.OrdinalIgnoreCase)) {
+                    Interlocked.Increment(ref sthCalls);
+                    return Task.FromResult(CreateSuccessResponse("""{"tree_size":2}"""));
+                }
+
+                if (url.Contains("get-entries", StringComparison.OrdinalIgnoreCase)) {
+                    Interlocked.Increment(ref getEntriesCalls);
+                    return Task.FromResult(CreateSuccessResponse("""{"entries":[]}"""));
+                }
+
+                throw new InvalidOperationException("Unexpected URL: " + url);
+            }
+        };
+
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(
+            new CtLogIngestionBatchRequest {
+                LogUrl = "https://ct.example.test/",
+                StartIndex = 0,
+                BatchSize = 16,
+                KnownTreeSize = -1,
+                RequestTimeout = TimeSpan.FromSeconds(5)
+            },
+            CancellationToken.None);
+
+        Assert.Equal(2L, batch.TreeSize);
+        Assert.Equal(0, batch.StartIndex);
+        Assert.Equal(-1, batch.EndIndex);
+        Assert.Equal(1, sthCalls);
         Assert.Equal(1, getEntriesCalls);
     }
 
@@ -150,6 +221,6 @@ public sealed class TestCtLogIngestionClient {
 
     private static HttpResponseMessage CreateSuccessResponse(string json)
         => new(HttpStatusCode.OK) {
-            Content = new StringContent(json)
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
 }

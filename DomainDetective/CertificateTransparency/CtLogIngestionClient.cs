@@ -112,7 +112,9 @@ public sealed class CtLogIngestionBatchRequest {
     public int BatchSize { get; init; } = 256;
     /// <summary>
     /// Optional signed tree size already obtained by the caller. When supplied, the batch read skips
-    /// an additional <c>get-sth</c> request and trusts this tree size for range clamping.
+    /// an additional <c>get-sth</c> request and trusts this tree size for range clamping. Callers
+    /// should only supply a fresh value because a stale tree size can delay discovery of newer log
+    /// entries until a later refresh.
     /// </summary>
     public long? KnownTreeSize { get; init; }
     /// <summary>HTTP request timeout.</summary>
@@ -125,7 +127,7 @@ public sealed class CtLogIngestionBatchRequest {
 public sealed class CtLogIngestionClient {
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
-    private readonly ConcurrentDictionary<string, CachedSignedTreeHead> _signedTreeHeadCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CachedSignedTreeHead> _signedTreeHeadCache = new();
 
     /// <summary>Optional HTTP override used by tests and host applications.</summary>
     public Func<string, CancellationToken, Task<string>>? HttpGetOverride { get; set; }
