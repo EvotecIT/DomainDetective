@@ -9,6 +9,17 @@ using DomainDetective.Helpers;
 namespace DomainDetective;
 
 /// <summary>
+/// Controls how much certificate metadata is materialized from DER bytes.
+/// </summary>
+public enum CtCertificateRecordDetailLevel
+{
+    /// <summary>Decode and populate the full normalized certificate record.</summary>
+    Full = 0,
+    /// <summary>Decode only DNS names and preserve DER bytes for later hydration.</summary>
+    NamesOnly = 1
+}
+
+/// <summary>
 /// Represents a normalized certificate transparency certificate record.
 /// </summary>
 public sealed class CtCertificateRecord
@@ -21,6 +32,9 @@ public sealed class CtCertificateRecord
 
     /// <summary>Provider-specific certificate or issuance identifier.</summary>
     public string? ProviderCertificateId { get; init; }
+
+    /// <summary>Detail level currently populated on the record.</summary>
+    public CtCertificateRecordDetailLevel DetailLevel { get; init; } = CtCertificateRecordDetailLevel.Full;
 
     /// <summary>CT entry timestamp, when supplied by the provider.</summary>
     public DateTimeOffset? EntryTimestampUtc { get; init; }
@@ -98,13 +112,15 @@ public sealed class CtCertificateRecord
     /// <param name="entryTimestampUtc">Optional CT entry timestamp.</param>
     /// <param name="tbsSha256">Optional provider-supplied TBS certificate SHA-256 value.</param>
     /// <param name="isPrecertificate">True when the provider reports a precertificate.</param>
+    /// <param name="detailLevel">How much certificate metadata to decode.</param>
     public static CtCertificateRecord FromDer(
         string providerId,
         byte[] certificateDer,
         string? providerCertificateId = null,
         DateTimeOffset? entryTimestampUtc = null,
         string? tbsSha256 = null,
-        bool? isPrecertificate = null)
+        bool? isPrecertificate = null,
+        CtCertificateRecordDetailLevel detailLevel = CtCertificateRecordDetailLevel.Full)
     {
         if (certificateDer == null)
         {
@@ -119,6 +135,20 @@ public sealed class CtCertificateRecord
         // Keep the normalized record immutable even if the caller later mutates their input buffer.
         byte[] rawData = certificateDer.ToArray();
         using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(rawData);
+        if (detailLevel == CtCertificateRecordDetailLevel.NamesOnly)
+        {
+            return new CtCertificateRecord
+            {
+                ProviderId = providerId ?? string.Empty,
+                ProviderCertificateId = providerCertificateId,
+                DetailLevel = CtCertificateRecordDetailLevel.NamesOnly,
+                EntryTimestampUtc = entryTimestampUtc,
+                DnsNames = ExtractDnsNames(certificate),
+                CertificateDer = rawData,
+                IsPrecertificate = isPrecertificate
+            };
+        }
+
         CertificateExtendedKeyUsageInfo eku = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
         string? signatureOid = certificate.SignatureAlgorithm?.Value;
         byte[] sha256Bytes;
@@ -131,6 +161,7 @@ public sealed class CtCertificateRecord
         {
             ProviderId = providerId ?? string.Empty,
             ProviderCertificateId = providerCertificateId,
+            DetailLevel = CtCertificateRecordDetailLevel.Full,
             EntryTimestampUtc = entryTimestampUtc,
             Sha256Fingerprint = ToHex(sha256Bytes),
             Sha1Fingerprint = NormalizeHex(certificate.Thumbprint),
@@ -153,6 +184,31 @@ public sealed class CtCertificateRecord
             CertificateDer = rawData,
             IsPrecertificate = isPrecertificate
         };
+    }
+
+    /// <summary>
+    /// Hydrates a names-only record into a full certificate record.
+    /// </summary>
+    public CtCertificateRecord EnsureFullDetails()
+    {
+        if (DetailLevel == CtCertificateRecordDetailLevel.Full)
+        {
+            return this;
+        }
+
+        if (CertificateDer == null || CertificateDer.Length == 0)
+        {
+            throw new InvalidOperationException("A names-only CT certificate record cannot be hydrated without DER bytes.");
+        }
+
+        return FromDer(
+            ProviderId,
+            CertificateDer,
+            ProviderCertificateId,
+            EntryTimestampUtc,
+            TbsSha256,
+            IsPrecertificate,
+            CtCertificateRecordDetailLevel.Full);
     }
 
     private static IReadOnlyList<string> ExtractDnsNames(X509Certificate2 certificate)

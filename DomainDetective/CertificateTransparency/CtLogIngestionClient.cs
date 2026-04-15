@@ -119,12 +119,16 @@ public sealed class CtLogIngestionBatchRequest {
     public long? KnownTreeSize { get; init; }
     /// <summary>HTTP request timeout.</summary>
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    /// <summary>How much certificate metadata to decode for each entry.</summary>
+    public CtCertificateRecordDetailLevel CertificateDetailLevel { get; init; } = CtCertificateRecordDetailLevel.Full;
 }
 
 /// <summary>
 /// Reads native RFC6962 Certificate Transparency log entries and returns normalized certificate records.
 /// </summary>
 public sealed class CtLogIngestionClient {
+    /// <summary>Maximum number of entries requested from one RFC6962 <c>get-entries</c> call.</summary>
+    public const int MaxBatchSize = 8192;
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
     private readonly ConcurrentDictionary<string, CachedSignedTreeHead> _signedTreeHeadCache = new();
@@ -208,8 +212,9 @@ public sealed class CtLogIngestionClient {
         string logUrl = NormalizeLogUrl(request.LogUrl) ??
             throw new ArgumentException("Log URL must be an absolute URL.", nameof(request));
         long start = Math.Max(0, request.StartIndex);
-        int batchSize = Math.Max(1, Math.Min(request.BatchSize, 2048));
+        int batchSize = Math.Max(1, Math.Min(request.BatchSize, MaxBatchSize));
         TimeSpan timeout = request.RequestTimeout > TimeSpan.Zero ? request.RequestTimeout : TimeSpan.FromSeconds(30);
+        CtCertificateRecordDetailLevel certificateDetailLevel = request.CertificateDetailLevel;
         long treeSize = request.KnownTreeSize is long knownTreeSize && knownTreeSize >= 0
             ? knownTreeSize
             : (await GetSignedTreeHeadAsync(logUrl, timeout, cancellationToken).ConfigureAwait(false)).TreeSize;
@@ -250,7 +255,8 @@ public sealed class CtLogIngestionClient {
                         certificateDer!,
                         providerCertificateId: $"{logUrl}#{entryIndex}",
                         entryTimestampUtc: timestampUtc,
-                        isPrecertificate: entryType == CtLogEntryType.Precertificate)
+                        isPrecertificate: entryType == CtLogEntryType.Precertificate,
+                        detailLevel: certificateDetailLevel)
                 });
             } catch (Exception ex) when (!ExceptionHelper.IsFatal(ex)) {
                 diagnostics.Add($"Entry {entryIndex}: certificate decode failed: {ex.Message}");
