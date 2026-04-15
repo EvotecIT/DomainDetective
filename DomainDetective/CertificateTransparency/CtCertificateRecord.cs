@@ -137,12 +137,20 @@ public sealed class CtCertificateRecord
         using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(rawData);
         if (detailLevel == CtCertificateRecordDetailLevel.NamesOnly)
         {
+            byte[] namesOnlySha256Bytes;
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                namesOnlySha256Bytes = sha256.ComputeHash(rawData);
+            }
+
             return new CtCertificateRecord
             {
                 ProviderId = providerId ?? string.Empty,
                 ProviderCertificateId = providerCertificateId,
                 DetailLevel = CtCertificateRecordDetailLevel.NamesOnly,
                 EntryTimestampUtc = entryTimestampUtc,
+                Sha256Fingerprint = ToHex(namesOnlySha256Bytes),
+                TbsSha256 = NormalizeHex(tbsSha256),
                 DnsNames = ExtractDnsNames(certificate),
                 CertificateDer = rawData,
                 IsPrecertificate = isPrecertificate
