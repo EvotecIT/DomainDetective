@@ -17,7 +17,7 @@ public sealed class CtCertificateRecordTests {
         Assert.Equal(CtCertificateRecordDetailLevel.NamesOnly, record.DetailLevel);
         Assert.Contains("names-only.example.test", record.DnsNames, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("www.names-only.example.test", record.DnsNames, StringComparer.OrdinalIgnoreCase);
-        Assert.Null(record.Sha256Fingerprint);
+        Assert.NotNull(record.Sha256Fingerprint);
         Assert.Null(record.Subject);
         Assert.NotNull(record.CertificateDer);
         Assert.Equal(certificateDer, record.CertificateDer);
