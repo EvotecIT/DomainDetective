@@ -14,6 +14,7 @@ using DomainDetective.Tests.Fixtures;
 
 namespace DomainDetective.Tests;
 
+[Collection("PassiveCtTiming")]
 public class TestSubdomainsAnalysis
 {
     public TestSubdomainsAnalysis()
@@ -597,8 +598,8 @@ public class TestSubdomainsAnalysis
     [Fact]
     public async Task PassiveCtClient_RespectsConfiguredPerSourceMinimumSpacing()
     {
-        var requestOffsets = new List<long>();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var requestCount = 0;
+        var recordedDelays = new List<TimeSpan>();
         var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
         {
             var handlers = new List<Task>();
@@ -616,10 +617,7 @@ public class TestSubdomainsAnalysis
                     handlers.Add(Task.Run(async () =>
                     {
                         using var client = await clientTask;
-                        lock (requestOffsets)
-                        {
-                            requestOffsets.Add(stopwatch.ElapsedMilliseconds);
-                        }
+                        Interlocked.Increment(ref requestCount);
 
                         using NetworkStream stream = client.GetStream();
                         using var reader = new StreamReader(stream);
@@ -656,6 +654,20 @@ public class TestSubdomainsAnalysis
 
         try
         {
+            DateTimeOffset currentUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            PassiveCtSourceClient.ConfigureTimingForTesting(
+                () => currentUtc,
+                (delay, _) =>
+                {
+                    if (delay > TimeSpan.Zero)
+                    {
+                        recordedDelays.Add(delay);
+                        currentUtc += delay;
+                    }
+
+                    return Task.CompletedTask;
+                });
+
             var client = new PassiveCtSourceClient();
             var requests = new[]
             {
@@ -686,11 +698,13 @@ public class TestSubdomainsAnalysis
 
             Assert.False(first.RetrySuggested);
             Assert.False(second.RetrySuggested);
-            Assert.Equal(2, requestOffsets.Count);
-            Assert.True(requestOffsets[1] - requestOffsets[0] >= 200);
+            Assert.Equal(2, requestCount);
+            Assert.Single(recordedDelays);
+            Assert.True(recordedDelays[0] >= TimeSpan.FromMilliseconds(300));
         }
         finally
         {
+            PassiveCtSourceClient.ResetSharedStateForTesting();
             await server.DisposeAsync();
         }
     }
@@ -698,8 +712,8 @@ public class TestSubdomainsAnalysis
     [Fact]
     public async Task AnalyzeAsync_UsesConfiguredPassiveCtSourceSpacingForWildcardDiscovery()
     {
-        var requestOffsets = new List<long>();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var requestCount = 0;
+        var recordedDelays = new List<TimeSpan>();
         var server = new TcpListenerFixture((listener, token) => Task.Run(async () =>
         {
             var handlers = new List<Task>();
@@ -717,10 +731,7 @@ public class TestSubdomainsAnalysis
                     handlers.Add(Task.Run(async () =>
                     {
                         using var client = await clientTask;
-                        lock (requestOffsets)
-                        {
-                            requestOffsets.Add(stopwatch.ElapsedMilliseconds);
-                        }
+                        Interlocked.Increment(ref requestCount);
 
                         using NetworkStream stream = client.GetStream();
                         using var reader = new StreamReader(stream);
@@ -757,6 +768,20 @@ public class TestSubdomainsAnalysis
 
         try
         {
+            DateTimeOffset currentUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            PassiveCtSourceClient.ConfigureTimingForTesting(
+                () => currentUtc,
+                (delay, _) =>
+                {
+                    if (delay > TimeSpan.Zero)
+                    {
+                        recordedDelays.Add(delay);
+                        currentUtc += delay;
+                    }
+
+                    return Task.CompletedTask;
+                });
+
             var analysis = new SubdomainsAnalysis
             {
                 VerifyStillResolves = false,
@@ -769,16 +794,18 @@ public class TestSubdomainsAnalysis
             await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
             await analysis.AnalyzeAsync("example.net", new InternalLogger(), CancellationToken.None);
 
-            Assert.Equal(2, requestOffsets.Count);
+            Assert.Equal(2, requestCount);
             if (RuntimeInformation.FrameworkDescription.StartsWith(".NET Framework", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
-            Assert.True(requestOffsets[1] - requestOffsets[0] >= 225);
+            Assert.Single(recordedDelays);
+            Assert.True(recordedDelays[0] >= TimeSpan.FromMilliseconds(300));
         }
         finally
         {
+            PassiveCtSourceClient.ResetSharedStateForTesting();
             await server.DisposeAsync();
         }
     }

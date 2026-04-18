@@ -20,6 +20,9 @@ public static class CtProviderProfiles
     /// <summary>Native CT log provider identifier.</summary>
     public const string NativeCtProviderId = "native-ct";
 
+    /// <summary>DomainDetectiveCertificateTransparency API provider identifier.</summary>
+    public const string DdctApiProviderId = "ddct-api";
+
     /// <summary>
     /// Creates the conservative default profile for crt.sh HTTPS queries.
     /// </summary>
@@ -274,6 +277,35 @@ public static class CtProviderProfiles
                 CooldownAfterRateLimit = options.NativeCtCircuitBreakerDuration
             },
             Notes = defaults.Notes
+        };
+    }
+
+    /// <summary>
+    /// Creates the default profile for a DomainDetectiveCertificateTransparency API endpoint.
+    /// </summary>
+    public static CtProviderProfile CreateDdctApi()
+    {
+        return new CtProviderProfile
+        {
+            ProviderId = DdctApiProviderId,
+            DisplayName = "DDCT API",
+            Capabilities = CtProviderCapabilities.SubdomainExpansion |
+                           CtProviderCapabilities.ExactHostLookup |
+                           CtProviderCapabilities.CertificateHistory |
+                           CtProviderCapabilities.DomainTreeHistory |
+                           CtProviderCapabilities.FullCertificateDer |
+                           CtProviderCapabilities.Pagination |
+                           CtProviderCapabilities.AuthenticationRecommended,
+            RateLimit = new CtProviderRateLimitProfile
+            {
+                MaxConcurrentRequests = 2,
+                RequestTimeout = TimeSpan.FromSeconds(30),
+                EstimatedRequestDuration = TimeSpan.FromSeconds(3),
+                RetryBaseDelay = TimeSpan.FromSeconds(1),
+                RetryMaxDelay = TimeSpan.FromSeconds(30),
+                CooldownAfterRateLimit = TimeSpan.FromMinutes(5)
+            },
+            Notes = "Queries a local DomainDetectiveCertificateTransparency service for CT search, history, and certificate DER hydration."
         };
     }
 

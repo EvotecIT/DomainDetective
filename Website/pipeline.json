@@ -231,21 +231,33 @@
       "skipIfSourceMissing": true
     },
     {
-      "task": "hook",
+      "task": "route-fallbacks",
       "id": "generate-tool-route-fallbacks",
       "dependsOn": "overlay-toolbox",
-      "event": "post-overlay-tools",
-      "command": "pwsh",
-      "argsList": [
-        "-NoLogo",
-        "-NoProfile",
-        "-File",
-        "./scripts/Write-BlazorToolRouteFallbacks.ps1",
-        "-SiteRoot",
-        "./_site",
-        "-RegistryPath",
-        "../DomainDetective.Toolbox/Services/ToolRegistry.cs"
-      ]
+      "siteRoot": "./_site",
+      "template": "../DomainDetective.Website/wwwroot/index.html",
+      "items": "./data/tool-route-meta.json",
+      "destinationTemplate": "tools/{slug}/index.html",
+      "rootOutput": "tools/index.html",
+      "rootValues": {
+        "__DD_PAGE_TITLE__": "Domain Detective Browser Tools",
+        "__DD_META_DESCRIPTION__": "Browse DomainDetective browser tools for DNS, email, TLS, web security, and threat intelligence checks.",
+        "__DD_CANONICAL_URL__": "https://domaindetective.dev/tools/",
+        "__DD_OG_TITLE__": "Domain Detective Browser Tools",
+        "__DD_OG_DESCRIPTION__": "Browse DomainDetective browser tools for DNS, email, TLS, web security, and threat intelligence checks.",
+        "__DD_LOADING_TITLE__": "Preparing browser tools",
+        "__DD_LOADING_TEXT__": "Loading the shared navigation, theme, and DNS analysis toolkit."
+      },
+      "replacements": {
+        "__DD_PAGE_TITLE__": "{name} | Domain Detective Tools",
+        "__DD_META_DESCRIPTION__": "{description}",
+        "__DD_CANONICAL_URL__": "https://domaindetective.dev/tools/{slug}/",
+        "__DD_OG_TITLE__": "{name} | Domain Detective Tools",
+        "__DD_OG_DESCRIPTION__": "{description}",
+        "__DD_LOADING_TITLE__": "Preparing {name}",
+        "__DD_LOADING_TEXT__": "Loading the {name} workspace."
+      },
+      "reportPath": "./_reports/tool-route-fallbacks.json"
     },
     {
       "task": "verify",
