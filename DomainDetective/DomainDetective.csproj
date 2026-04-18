@@ -18,6 +18,7 @@
 
     <ItemGroup>
         <PackageReference Include="MailKit" Version="4.16.0" />
+        <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.6" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
