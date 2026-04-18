@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.IO.Compression;
 using System.Text;
 
 namespace DomainDetective.Tests;
@@ -410,6 +411,25 @@ public sealed class TestCtLogIngestionClient {
     }
 
     [Fact]
+    public async Task GetTreeSizeAsync_RejectsStaticCtCheckpointWithoutTreeSizeLine() {
+        var client = new CtLogIngestionClient {
+            SendOverride = static (_, _) => Task.FromResult(CreateTextResponse("log.ct.example.test/2026h1"))
+        };
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.GetTreeSizeAsync(
+                new CtLogDescriptor {
+                    Url = "https://log.ct.example.test/2026h1/",
+                    ApiKind = CtLogApiKind.StaticCt,
+                    MonitoringUrl = "https://mon.ct.example.test/2026h1/"
+                },
+                TimeSpan.FromSeconds(5),
+                CancellationToken.None));
+
+        Assert.Contains("tree size", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GetTreeSizeAsync_RejectsStaticCtCheckpointWithUnexpectedOrigin() {
         var client = new CtLogIngestionClient {
             SendOverride = static (_, _) => Task.FromResult(CreateTextResponse("""
@@ -514,6 +534,62 @@ public sealed class TestCtLogIngestionClient {
         Assert.Equal(0L, entry.EntryIndex);
         Assert.Equal(CtLogEntryType.X509, entry.EntryType);
         Assert.Contains("site1.com", entry.Certificate.DnsNames, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReadBatchAsync_ReadsGzipEncodedStaticCtDataTile() {
+        byte[] certificateDer = LoadCertificateDer("multi.pem");
+        byte[] tile = CreateStaticCtX509Tile(certificateDer, DateTimeOffset.Parse("2026-01-02T03:04:05Z"));
+        var client = new CtLogIngestionClient {
+            SendOverride = (request, _) => {
+                Assert.Contains("/tile/data/000.p/1", request.RequestUri?.ToString(), StringComparison.Ordinal);
+                return Task.FromResult(CreateGzipResponse(tile));
+            }
+        };
+
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(
+            new CtLogIngestionBatchRequest {
+                LogUrl = "https://log.ct.example.test/2026h1/",
+                ApiKind = CtLogApiKind.StaticCt,
+                MonitoringUrl = "https://mon.ct.example.test/2026h1/",
+                StartIndex = 0,
+                BatchSize = 1,
+                KnownTreeSize = 1,
+                RequestTimeout = TimeSpan.FromSeconds(5)
+            },
+            CancellationToken.None);
+
+        CtLogIngestionEntry entry = Assert.Single(batch.Entries);
+        Assert.Equal(CtLogEntryType.X509, entry.EntryType);
+        Assert.Contains("site1.com", entry.Certificate.DnsNames, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReadBatchAsync_RejectsStaticCtDataTileWithOversizedContentLength() {
+        var client = new CtLogIngestionClient {
+            SendOverride = static (_, _) => {
+                var content = new ByteArrayContent(Array.Empty<byte>());
+                content.Headers.ContentLength = CtLogIngestionClient.MaxResponseBodyBytes + 1L;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
+                    Content = content
+                });
+            }
+        };
+
+        HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            client.ReadBatchAsync(
+                new CtLogIngestionBatchRequest {
+                    LogUrl = "https://log.ct.example.test/2026h1/",
+                    ApiKind = CtLogApiKind.StaticCt,
+                    MonitoringUrl = "https://mon.ct.example.test/2026h1/",
+                    StartIndex = 0,
+                    BatchSize = 1,
+                    KnownTreeSize = 1,
+                    RequestTimeout = TimeSpan.FromSeconds(5)
+                },
+                CancellationToken.None));
+
+        Assert.Contains("limit", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -687,6 +763,19 @@ public sealed class TestCtLogIngestionClient {
         => new(HttpStatusCode.OK) {
             Content = new ByteArrayContent(bytes)
         };
+
+    private static HttpResponseMessage CreateGzipResponse(byte[] bytes) {
+        using var compressedStream = new MemoryStream();
+        using (var gzip = new GZipStream(compressedStream, CompressionMode.Compress, leaveOpen: true)) {
+            gzip.Write(bytes, 0, bytes.Length);
+        }
+
+        var content = new ByteArrayContent(compressedStream.ToArray());
+        content.Headers.ContentEncoding.Add("gzip");
+        return new HttpResponseMessage(HttpStatusCode.OK) {
+            Content = content
+        };
+    }
 
     private static byte[] LoadCertificateDer(string fileName) {
         string pem = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", fileName));

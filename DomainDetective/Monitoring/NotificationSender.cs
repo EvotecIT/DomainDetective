@@ -78,9 +78,10 @@ public class EmailNotificationSender : INotificationSender
 
         using var client = CreateClient();
         await client.ConnectAsync(SmtpHost, Port, UseSsl, ct);
-        if (!string.IsNullOrEmpty(Username))
+        string? userName = Username;
+        if (!string.IsNullOrEmpty(userName))
         {
-            await client.AuthenticateAsync(Username, Password ?? string.Empty, ct);
+            await client.AuthenticateAsync(userName!, Password ?? string.Empty, ct);
         }
         await client.SendAsync(email, ct);
         await client.DisconnectAsync(true, ct);

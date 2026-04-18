@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -171,6 +172,7 @@ public sealed class CtLogIngestionBatchRequest {
 public sealed class CtLogIngestionClient {
     /// <summary>Maximum number of entries requested from one RFC6962 <c>get-entries</c> call.</summary>
     public const int MaxBatchSize = 8192;
+    internal const int MaxResponseBodyBytes = 64 * 1024 * 1024;
     private const int StaticCtTileWidth = 256;
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
@@ -576,7 +578,9 @@ public sealed class CtLogIngestionClient {
             throw CreateRequestFailure(response);
         }
 
-        return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        byte[] bytes = await ReadContentBytesWithLimitAsync(response.Content, MaxResponseBodyBytes, effectiveToken).ConfigureAwait(false);
+        Encoding encoding = GetResponseEncoding(response.Content.Headers.ContentType?.CharSet);
+        return encoding.GetString(bytes);
     }
 
     private async Task<byte[]> FetchBytesAsync(string url, TimeSpan timeout, CancellationToken cancellationToken) {
@@ -598,16 +602,58 @@ public sealed class CtLogIngestionClient {
             throw CreateRequestFailure(response);
         }
 
-        byte[] bytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+        byte[] bytes = await ReadContentBytesWithLimitAsync(response.Content, MaxResponseBodyBytes, effectiveToken).ConfigureAwait(false);
         if (response.Content.Headers.ContentEncoding.Any(static value => string.Equals(value, "gzip", StringComparison.OrdinalIgnoreCase))) {
             using var compressed = new MemoryStream(bytes);
             using var gzip = new GZipStream(compressed, CompressionMode.Decompress);
-            using var decompressed = new MemoryStream();
-            await gzip.CopyToAsync(decompressed).ConfigureAwait(false);
-            return decompressed.ToArray();
+            return await ReadStreamBytesWithLimitAsync(gzip, MaxResponseBodyBytes, effectiveToken).ConfigureAwait(false);
         }
 
         return bytes;
+    }
+
+    private static async Task<byte[]> ReadContentBytesWithLimitAsync(
+        HttpContent content,
+        int maxBytes,
+        CancellationToken cancellationToken) {
+        if (content.Headers.ContentLength is long contentLength && contentLength > maxBytes) {
+            throw new HttpRequestException($"HTTP response body exceeded the {maxBytes} byte limit.");
+        }
+
+        using Stream stream = await content.ReadAsStreamAsync().ConfigureAwait(false);
+        return await ReadStreamBytesWithLimitAsync(stream, maxBytes, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<byte[]> ReadStreamBytesWithLimitAsync(
+        Stream stream,
+        int maxBytes,
+        CancellationToken cancellationToken) {
+        var buffer = new byte[81920];
+        using var output = new MemoryStream();
+        while (true) {
+            int read = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+            if (read == 0) {
+                return output.ToArray();
+            }
+
+            if (output.Length + read > maxBytes) {
+                throw new HttpRequestException($"HTTP response body exceeded the {maxBytes} byte limit.");
+            }
+
+            output.Write(buffer, 0, read);
+        }
+    }
+
+    private static Encoding GetResponseEncoding(string? charset) {
+        if (!string.IsNullOrWhiteSpace(charset)) {
+            string charsetValue = charset!;
+            try {
+                return Encoding.GetEncoding(charsetValue.Trim('"'));
+            } catch (ArgumentException) {
+            }
+        }
+
+        return Encoding.UTF8;
     }
 
     internal static HttpRequestException CreateRequestFailure(HttpResponseMessage response) {
@@ -935,6 +981,10 @@ public sealed class CtLogIngestionClient {
         }
 
         string[] lines = checkpoint.Replace("\r\n", "\n").Split('\n');
+        if (lines.Length < 2) {
+            throw new InvalidOperationException("Static CT checkpoint did not include a tree size on the second line.");
+        }
+
         if (!string.IsNullOrWhiteSpace(expectedOrigin)) {
             string checkpointOrigin = NormalizeStaticCheckpointOrigin(lines[0]);
             string expected = NormalizeStaticCheckpointOrigin(expectedOrigin);
@@ -947,8 +997,7 @@ public sealed class CtLogIngestionClient {
             }
         }
 
-        if (lines.Length < 2 ||
-            !long.TryParse(lines[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out long treeSize) ||
+        if (!long.TryParse(lines[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out long treeSize) ||
             treeSize < 0) {
             throw new InvalidOperationException("Static CT checkpoint did not include a tree size on the second line.");
         }
@@ -964,7 +1013,7 @@ public sealed class CtLogIngestionClient {
             return null;
         }
 
-        return ToStaticCheckpointOrigin(normalizedSubmissionUrl);
+        return ToStaticCheckpointOrigin(normalizedSubmissionUrl!);
     }
 
     private static string ToStaticCheckpointOrigin(string normalizedUrl) {
@@ -976,6 +1025,10 @@ public sealed class CtLogIngestionClient {
     private static string NormalizeStaticCheckpointOrigin(string? origin)
         => (origin ?? string.Empty).Trim().TrimEnd('/');
 
+    /// <remarks>
+    /// Static CT checkpoints use note signatures. This check confirms a signature line for the
+    /// expected origin is present, but does not cryptographically verify the signature value.
+    /// </remarks>
     private static bool HasStaticCheckpointSignatureForOrigin(string[] checkpointLines, string expectedOrigin) {
         string asciiExpectedPrefix = "- " + expectedOrigin + " ";
         string noteExpectedPrefix = "\u2014 " + expectedOrigin + " ";
