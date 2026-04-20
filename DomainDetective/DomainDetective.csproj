@@ -13,7 +13,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="DnsClientX" Version="1.0.7" />
+        <PackageReference Include="DnsClientX" Version="1.0.8" />
     </ItemGroup>
 
     <ItemGroup>
