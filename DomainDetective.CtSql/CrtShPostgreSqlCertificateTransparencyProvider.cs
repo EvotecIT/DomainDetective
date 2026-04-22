@@ -4,6 +4,8 @@ using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using DBAClientX;
@@ -20,6 +22,8 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
     private const int DefaultHistoryLimit = 100;
     private const int DefaultExpansionLimit = 500;
     private const int DefaultDomainTreeLimit = 100;
+    internal const string DefaultCrtShPostgreSqlHostName = "crt.sh";
+    internal const string DefaultCrtShPostgreSqlPinnedIpv4Address = "91.199.212.73";
 
     private readonly ICrtShPostgreSqlQueryClient _client;
     private readonly CertificateInventoryCaptureOptions _options;
@@ -221,45 +225,55 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
     public static string BuildDomainTreeCertificateQuery() {
         return
             """
+            WITH ranked_certificates AS (
+                SELECT
+                    c.id,
+                    c.certificate,
+                    (
+                        SELECT MAX(ctle.entry_timestamp)
+                        FROM ct_log_entry ctle
+                        WHERE ctle.certificate_id = c.id
+                    ) AS entry_timestamp,
+                    x509_notBefore(c.certificate) AS not_before
+                FROM certificate c
+                WHERE identities(c.certificate) @@ plainto_tsquery('simple', @domain)
+                  AND EXISTS (
+                        SELECT 1
+                        FROM (
+                            SELECT lower(COALESCE(x509_commonName(c.certificate), '')) AS candidate_name
+                            UNION
+                            SELECT lower(alt_name)
+                            FROM x509_altnames(c.certificate) AS alt_name
+                        ) AS candidate_names
+                        WHERE candidate_name = lower(@domain)
+                           OR candidate_name LIKE lower(@domainSuffix)
+                    )
+                ORDER BY entry_timestamp DESC NULLS LAST,
+                         not_before DESC NULLS LAST
+                LIMIT @limit
+            )
             SELECT
-                c.certificate,
-                (
-                    SELECT MAX(ctle.entry_timestamp)
-                    FROM ct_log_entry ctle
-                    WHERE ctle.certificate_id = c.id
-                ) AS entry_timestamp,
-                x509_commonName(c.certificate) AS common_name,
-                x509_issuerName(c.certificate) AS issuer_name,
-                encode(x509_serialNumber(c.certificate), 'hex') AS serial_number,
-                x509_notBefore(c.certificate) AS not_before,
-                x509_notAfter(c.certificate) AS not_after,
+                rc.certificate,
+                rc.entry_timestamp,
+                x509_commonName(rc.certificate) AS common_name,
+                x509_issuerName(rc.certificate) AS issuer_name,
+                encode(x509_serialNumber(rc.certificate), 'hex') AS serial_number,
+                rc.not_before,
+                x509_notAfter(rc.certificate) AS not_after,
                 ARRAY(
                     SELECT candidate_name
                     FROM (
-                        SELECT x509_commonName(c.certificate) AS candidate_name
+                        SELECT x509_commonName(rc.certificate) AS candidate_name
                         UNION
                         SELECT alt_name
-                        FROM x509_altnames(c.certificate) AS alt_name
+                        FROM x509_altnames(rc.certificate) AS alt_name
                     ) AS candidate_names
                     WHERE candidate_name IS NOT NULL
                     ORDER BY lower(candidate_name)
                 ) AS dns_names
-            FROM certificate c
-            WHERE identities(c.certificate) @@ plainto_tsquery('simple', @domain)
-              AND EXISTS (
-                    SELECT 1
-                    FROM (
-                        SELECT lower(COALESCE(x509_commonName(c.certificate), '')) AS candidate_name
-                        UNION
-                        SELECT lower(alt_name)
-                        FROM x509_altnames(c.certificate) AS alt_name
-                    ) AS candidate_names
-                    WHERE candidate_name = lower(@domain)
-                       OR candidate_name LIKE lower(@domainSuffix)
-                )
-            ORDER BY entry_timestamp DESC NULLS LAST,
-                     x509_notBefore(c.certificate) DESC NULLS LAST
-            LIMIT @limit;
+            FROM ranked_certificates rc
+            ORDER BY rc.entry_timestamp DESC NULLS LAST,
+                     rc.not_before DESC NULLS LAST;
             """;
     }
 
@@ -269,48 +283,58 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
     public static string BuildExactHostCertificateQuery() {
         return
             """
+            WITH ranked_certificates AS (
+                SELECT
+                    c.id,
+                    c.certificate,
+                    (
+                        SELECT MAX(ctle.entry_timestamp)
+                        FROM ct_log_entry ctle
+                        WHERE ctle.certificate_id = c.id
+                    ) AS entry_timestamp,
+                    x509_notBefore(c.certificate) AS not_before
+                FROM certificate c
+                WHERE (
+                        identities(c.certificate) @@ plainto_tsquery('simple', @host)
+                     OR identities(c.certificate) @@ plainto_tsquery('simple', @wildcardHost)
+                      )
+                  AND EXISTS (
+                        SELECT 1
+                        FROM (
+                            SELECT lower(COALESCE(x509_commonName(c.certificate), '')) AS candidate_name
+                            UNION
+                            SELECT lower(alt_name)
+                            FROM x509_altnames(c.certificate) AS alt_name
+                        ) AS candidate_names
+                        WHERE candidate_name = lower(@host)
+                           OR candidate_name = lower(@wildcardHost)
+                    )
+                ORDER BY entry_timestamp DESC NULLS LAST,
+                         not_before DESC NULLS LAST
+                LIMIT @limit
+            )
             SELECT
-                c.certificate,
-                (
-                    SELECT MAX(ctle.entry_timestamp)
-                    FROM ct_log_entry ctle
-                    WHERE ctle.certificate_id = c.id
-                ) AS entry_timestamp,
-                x509_commonName(c.certificate) AS common_name,
-                x509_issuerName(c.certificate) AS issuer_name,
-                encode(x509_serialNumber(c.certificate), 'hex') AS serial_number,
-                x509_notBefore(c.certificate) AS not_before,
-                x509_notAfter(c.certificate) AS not_after,
+                rc.certificate,
+                rc.entry_timestamp,
+                x509_commonName(rc.certificate) AS common_name,
+                x509_issuerName(rc.certificate) AS issuer_name,
+                encode(x509_serialNumber(rc.certificate), 'hex') AS serial_number,
+                rc.not_before,
+                x509_notAfter(rc.certificate) AS not_after,
                 ARRAY(
                     SELECT candidate_name
                     FROM (
-                        SELECT x509_commonName(c.certificate) AS candidate_name
+                        SELECT x509_commonName(rc.certificate) AS candidate_name
                         UNION
                         SELECT alt_name
-                        FROM x509_altnames(c.certificate) AS alt_name
+                        FROM x509_altnames(rc.certificate) AS alt_name
                     ) AS candidate_names
                     WHERE candidate_name IS NOT NULL
                     ORDER BY lower(candidate_name)
                 ) AS dns_names
-            FROM certificate c
-            WHERE (
-                    identities(c.certificate) @@ plainto_tsquery('simple', @host)
-                 OR identities(c.certificate) @@ plainto_tsquery('simple', @wildcardHost)
-                  )
-              AND EXISTS (
-                    SELECT 1
-                    FROM (
-                        SELECT lower(COALESCE(x509_commonName(c.certificate), '')) AS candidate_name
-                        UNION
-                        SELECT lower(alt_name)
-                        FROM x509_altnames(c.certificate) AS alt_name
-                    ) AS candidate_names
-                    WHERE candidate_name = lower(@host)
-                       OR candidate_name = lower(@wildcardHost)
-                )
-            ORDER BY entry_timestamp DESC NULLS LAST,
-                     x509_notBefore(c.certificate) DESC NULLS LAST
-            LIMIT @limit;
+            FROM ranked_certificates rc
+            ORDER BY rc.entry_timestamp DESC NULLS LAST,
+                     rc.not_before DESC NULLS LAST;
             """;
     }
 
@@ -467,27 +491,35 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
 
     private CtProviderQueryException CreateProviderQueryException(DbaQueryExecutionException exception) {
         string? providerErrorCode = TryGetProviderErrorCode(exception);
-        CtProviderOutcomeKind outcomeKind = providerErrorCode switch {
+        string? transportFailureCode = TryGetTransportFailureCode(exception);
+        string? effectiveErrorCode = providerErrorCode ?? transportFailureCode;
+        CtProviderOutcomeKind outcomeKind = effectiveErrorCode switch {
             "40001" => CtProviderOutcomeKind.TransientFailure,
             "57014" => CtProviderOutcomeKind.Timeout,
             "57P03" => CtProviderOutcomeKind.TransientFailure,
             "53300" => CtProviderOutcomeKind.TransientFailure,
+            "connect-timeout" => CtProviderOutcomeKind.TransientFailure,
+            "network-unreachable" => CtProviderOutcomeKind.TransientFailure,
+            "host-unreachable" => CtProviderOutcomeKind.TransientFailure,
+            "connection-refused" => CtProviderOutcomeKind.TransientFailure,
+            "host-not-found" => CtProviderOutcomeKind.TransientFailure,
+            "connect-failure" => CtProviderOutcomeKind.TransientFailure,
             _ => CtProviderOutcomeKind.PermanentFailure
         };
         TimeSpan? retryAfter = outcomeKind == CtProviderOutcomeKind.RateLimited ||
                                outcomeKind == CtProviderOutcomeKind.TransientFailure
             ? Profile.RateLimit.Normalize().CooldownAfterRateLimit
             : null;
-        string suffix = string.IsNullOrWhiteSpace(providerErrorCode)
+        string suffix = string.IsNullOrWhiteSpace(effectiveErrorCode)
             ? string.Empty
-            : $" Provider code: {providerErrorCode}.";
+            : $" Provider code: {effectiveErrorCode}.";
 
         return new CtProviderQueryException(
             ProviderId,
             outcomeKind,
             "crt.sh PostgreSQL CT query failed." + suffix,
             exception,
-            providerErrorCode,
+            effectiveErrorCode,
             retryAfter);
     }
 
@@ -496,6 +528,37 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             object? sqlState = current.GetType().GetProperty("SqlState")?.GetValue(current);
             if (sqlState is string value && !string.IsNullOrWhiteSpace(value)) {
                 return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryGetTransportFailureCode(Exception exception) {
+        for (Exception? current = exception; current != null; current = current.InnerException) {
+            if (current is TimeoutException) {
+                return "connect-timeout";
+            }
+
+            if (current is SocketException socketException) {
+                return socketException.SocketErrorCode switch {
+                    SocketError.NetworkUnreachable => "network-unreachable",
+                    SocketError.HostUnreachable => "host-unreachable",
+                    SocketError.ConnectionRefused => "connection-refused",
+                    SocketError.HostNotFound => "host-not-found",
+                    _ => null
+                };
+            }
+
+        }
+
+        for (Exception? current = exception; current != null; current = current.InnerException) {
+            object? isTransient = current.GetType().GetProperty("IsTransient")?.GetValue(current);
+            if (isTransient is true) {
+                string message = current.Message ?? string.Empty;
+                if (message.IndexOf("Failed to connect", StringComparison.OrdinalIgnoreCase) >= 0) {
+                    return "connect-failure";
+                }
             }
         }
 
@@ -565,6 +628,12 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
         => row.IsDBNull(0) ? string.Empty : row.GetString(0);
 
     private static string BuildCrtShPostgreSqlConnectionString(CertificateInventoryCaptureOptions options) {
+        return BuildCrtShPostgreSqlConnectionString(options, null);
+    }
+
+    internal static string BuildCrtShPostgreSqlConnectionString(
+        CertificateInventoryCaptureOptions? options,
+        Func<string, IPAddress[]>? dnsResolver) {
         if (!string.IsNullOrWhiteSpace(options?.CrtShPostgreSqlConnectionString)) {
             return options!.CrtShPostgreSqlConnectionString!;
         }
@@ -572,7 +641,7 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
         int timeoutSeconds = Math.Max(1, options?.CrtShPostgreSqlCommandTimeoutSeconds ?? 15);
         var builder = new DbConnectionStringBuilder {
             ConnectionString = PostgreSql.BuildConnectionString(
-                host: "crt.sh",
+                host: ResolveCrtShPostgreSqlHost(dnsResolver),
                 database: "certwatch",
                 username: "guest",
                 password: string.Empty,
@@ -582,6 +651,20 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
         builder["Timeout"] = timeoutSeconds;
         builder["Command Timeout"] = timeoutSeconds;
         return builder.ConnectionString;
+    }
+
+    internal static string ResolveCrtShPostgreSqlHost(Func<string, IPAddress[]>? dnsResolver = null) {
+        try {
+            IPAddress[] addresses = (dnsResolver ?? Dns.GetHostAddresses)(DefaultCrtShPostgreSqlHostName);
+            IPAddress? ipv4Address = addresses.FirstOrDefault(static address => address.AddressFamily == AddressFamily.InterNetwork);
+            if (ipv4Address != null) {
+                return ipv4Address.ToString();
+            }
+        } catch {
+            // Fall back to the pinned public IPv4 endpoint when DNS resolution is unavailable.
+        }
+
+        return DefaultCrtShPostgreSqlPinnedIpv4Address;
     }
 
     private static DateTimeOffset? ReadDateTimeOffset(object? value) {
