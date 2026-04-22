@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -177,17 +180,22 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
     public void QueryBuilders_UseSupportedCertificateFtsPath() {
         string expansion = CrtShPostgreSqlCertificateTransparencyProvider.BuildDomainExpansionNamesQuery();
         string domainTree = CrtShPostgreSqlCertificateTransparencyProvider.BuildDomainTreeCertificateQuery();
+        string exact = CrtShPostgreSqlCertificateTransparencyProvider.BuildExactHostCertificateQuery();
 
         Assert.Contains("identities(c.certificate)", expansion, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("identities(c.certificate)", domainTree, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("identities(c.certificate)", CrtShPostgreSqlCertificateTransparencyProvider.BuildExactHostCertificateQuery(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("identities(c.certificate)", exact, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LIMIT @limit", expansion, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LIMIT @limit", domainTree, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("LIMIT @limit", CrtShPostgreSqlCertificateTransparencyProvider.BuildExactHostCertificateQuery(), StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("@wildcardHost", CrtShPostgreSqlCertificateTransparencyProvider.BuildExactHostCertificateQuery(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LIMIT @limit", exact, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("@wildcardHost", exact, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("certificate_identity", expansion, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("certificate_identity", domainTree, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("certificate_identity", CrtShPostgreSqlCertificateTransparencyProvider.BuildExactHostCertificateQuery(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("certificate_identity", exact, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("WITH ranked_certificates AS", domainTree, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("WITH ranked_certificates AS", exact, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("FROM ranked_certificates rc", domainTree, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("FROM ranked_certificates rc", exact, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -226,6 +234,108 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
         Assert.Equal(expectedRetryAfter, exception.RetryAfter.HasValue);
     }
 
+    [Fact]
+    public async Task QueryAsync_MapsNetworkUnreachableToTransientFailure() {
+        using var provider = new CrtShPostgreSqlCertificateTransparencyProvider(
+            new CertificateInventoryCaptureOptions(),
+            new FakeCrtShPostgreSqlQueryClient(new DbaQueryExecutionException(
+                "failed",
+                "SELECT 1",
+                new FakeTransientConnectException(
+                    "Failed to connect to [2a0e:ac00:c7:d449::5bc7:d449]:5432",
+                    new SocketException((int)SocketError.NetworkUnreachable)))));
+
+        CtProviderQueryException exception = await Assert.ThrowsAsync<CtProviderQueryException>(
+            () => provider.QueryAsync(CtCertificateQuery.ForExactHostLatest("api.example.test")));
+
+        Assert.Equal(CtProviderOutcomeKind.TransientFailure, exception.OutcomeKind);
+        Assert.Equal("network-unreachable", exception.ProviderErrorCode);
+        Assert.True(exception.RetryAfter.HasValue);
+    }
+
+    [Fact]
+    public async Task QueryAsync_MapsConnectTimeoutToTransientFailure() {
+        using var provider = new CrtShPostgreSqlCertificateTransparencyProvider(
+            new CertificateInventoryCaptureOptions(),
+            new FakeCrtShPostgreSqlQueryClient(new DbaQueryExecutionException(
+                "failed",
+                "SELECT 1",
+                new FakeTransientConnectException(
+                    "Failed to connect to 91.199.212.73:5432",
+                    new TimeoutException("Timeout during connection attempt")))));
+
+        CtProviderQueryException exception = await Assert.ThrowsAsync<CtProviderQueryException>(
+            () => provider.QueryAsync(CtCertificateQuery.ForExactHostLatest("api.example.test")));
+
+        Assert.Equal(CtProviderOutcomeKind.TransientFailure, exception.OutcomeKind);
+        Assert.Equal("connect-timeout", exception.ProviderErrorCode);
+        Assert.True(exception.RetryAfter.HasValue);
+    }
+
+    [Fact]
+    public async Task QueryAsync_MapsTransientConnectFailureWithoutSocketCode() {
+        using var provider = new CrtShPostgreSqlCertificateTransparencyProvider(
+            new CertificateInventoryCaptureOptions(),
+            new FakeCrtShPostgreSqlQueryClient(new DbaQueryExecutionException(
+                "failed",
+                "SELECT 1",
+                new FakeTransientConnectException(
+                    "Failed to connect to crt.sh PostgreSQL endpoint",
+                    new InvalidOperationException("transport failed before socket classification")))));
+
+        CtProviderQueryException exception = await Assert.ThrowsAsync<CtProviderQueryException>(
+            () => provider.QueryAsync(CtCertificateQuery.ForExactHostLatest("api.example.test")));
+
+        Assert.Equal(CtProviderOutcomeKind.TransientFailure, exception.OutcomeKind);
+        Assert.Equal("connect-failure", exception.ProviderErrorCode);
+        Assert.True(exception.RetryAfter.HasValue);
+    }
+
+    [Fact]
+    public void BuildCrtShPostgreSqlConnectionString_PrefersResolvedIpv4Address() {
+        string connectionString = CrtShPostgreSqlCertificateTransparencyProvider.BuildCrtShPostgreSqlConnectionString(
+            new CertificateInventoryCaptureOptions {
+                CrtShPostgreSqlCommandTimeoutSeconds = 9
+            },
+            _ => new[] {
+                IPAddress.Parse("2a0e:ac00:c7:d449::5bc7:d449"),
+                IPAddress.Parse("91.199.212.73")
+            });
+        var builder = new DbConnectionStringBuilder {
+            ConnectionString = connectionString
+        };
+
+        Assert.Equal("91.199.212.73", builder["Host"]);
+        Assert.Equal("9", builder["Timeout"].ToString());
+        Assert.Equal("9", builder["Command Timeout"].ToString());
+    }
+
+    [Fact]
+    public void BuildCrtShPostgreSqlConnectionString_FallsBackToPinnedIpv4WhenDnsFails() {
+        string connectionString = CrtShPostgreSqlCertificateTransparencyProvider.BuildCrtShPostgreSqlConnectionString(
+            new CertificateInventoryCaptureOptions(),
+            _ => throw new SocketException((int)SocketError.HostNotFound));
+        var builder = new DbConnectionStringBuilder {
+            ConnectionString = connectionString
+        };
+
+        Assert.Equal(CrtShPostgreSqlCertificateTransparencyProvider.DefaultCrtShPostgreSqlPinnedIpv4Address, builder["Host"]);
+    }
+
+    [Fact]
+    public void BuildCrtShPostgreSqlConnectionString_PreservesHostnameWhenDnsReturnsOnlyIpv6() {
+        string connectionString = CrtShPostgreSqlCertificateTransparencyProvider.BuildCrtShPostgreSqlConnectionString(
+            new CertificateInventoryCaptureOptions(),
+            _ => new[] {
+                IPAddress.Parse("2a0e:ac00:c7:d449::5bc7:d449")
+            });
+        var builder = new DbConnectionStringBuilder {
+            ConnectionString = connectionString
+        };
+
+        Assert.Equal(CrtShPostgreSqlCertificateTransparencyProvider.DefaultCrtShPostgreSqlHostName, builder["Host"]);
+    }
+
     private static byte[] CreateCertificate(string commonName, out X509Certificate2 certificate) {
         RSA rsa = RSA.Create(2048);
         try {
@@ -255,6 +365,14 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
         }
 
         public string SqlState { get; }
+    }
+
+    private sealed class FakeTransientConnectException : Exception {
+        public FakeTransientConnectException(string message, Exception innerException)
+            : base(message, innerException) {
+        }
+
+        public bool IsTransient => true;
     }
 
     private sealed class FakeCrtShPostgreSqlQueryClient : ICrtShPostgreSqlQueryClient {
