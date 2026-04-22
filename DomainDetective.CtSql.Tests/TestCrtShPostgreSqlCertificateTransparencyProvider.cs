@@ -322,6 +322,20 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
         Assert.Equal(CrtShPostgreSqlCertificateTransparencyProvider.DefaultCrtShPostgreSqlPinnedIpv4Address, builder["Host"]);
     }
 
+    [Fact]
+    public void BuildCrtShPostgreSqlConnectionString_PreservesHostnameWhenDnsReturnsOnlyIpv6() {
+        string connectionString = CrtShPostgreSqlCertificateTransparencyProvider.BuildCrtShPostgreSqlConnectionString(
+            new CertificateInventoryCaptureOptions(),
+            _ => new[] {
+                IPAddress.Parse("2a0e:ac00:c7:d449::5bc7:d449")
+            });
+        var builder = new DbConnectionStringBuilder {
+            ConnectionString = connectionString
+        };
+
+        Assert.Equal(CrtShPostgreSqlCertificateTransparencyProvider.DefaultCrtShPostgreSqlHostName, builder["Host"]);
+    }
+
     private static byte[] CreateCertificate(string commonName, out X509Certificate2 certificate) {
         RSA rsa = RSA.Create(2048);
         try {

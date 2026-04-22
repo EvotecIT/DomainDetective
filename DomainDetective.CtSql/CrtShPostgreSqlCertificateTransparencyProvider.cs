@@ -666,6 +666,12 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             if (ipv4Address != null) {
                 return ipv4Address.ToString();
             }
+
+            if (addresses.Any(static address => address.AddressFamily == AddressFamily.InterNetworkV6)) {
+                // Preserve the hostname path when only IPv6 answers are available so IPv6-only
+                // environments can still connect instead of forcing the pinned IPv4 fallback.
+                return DefaultCrtShPostgreSqlHostName;
+            }
         } catch (SocketException) {
             // Fall back to the pinned public IPv4 endpoint when DNS resolution is unavailable.
         } catch (ArgumentException) {
