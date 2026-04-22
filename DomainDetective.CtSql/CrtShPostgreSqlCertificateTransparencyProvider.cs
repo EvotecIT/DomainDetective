@@ -23,6 +23,7 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
     private const int DefaultExpansionLimit = 500;
     private const int DefaultDomainTreeLimit = 100;
     internal const string DefaultCrtShPostgreSqlHostName = "crt.sh";
+    // Last verified against crt.sh DNS in April 2026. Update this fallback if crt.sh moves.
     internal const string DefaultCrtShPostgreSqlPinnedIpv4Address = "91.199.212.73";
 
     private readonly ICrtShPostgreSqlQueryClient _client;
@@ -541,21 +542,26 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             }
 
             if (current is SocketException socketException) {
-                return socketException.SocketErrorCode switch {
+                string? code = socketException.SocketErrorCode switch {
                     SocketError.NetworkUnreachable => "network-unreachable",
                     SocketError.HostUnreachable => "host-unreachable",
                     SocketError.ConnectionRefused => "connection-refused",
                     SocketError.HostNotFound => "host-not-found",
+                    SocketError.TimedOut => "connect-timeout",
                     _ => null
                 };
+                if (code != null) {
+                    return code;
+                }
             }
-
         }
 
         for (Exception? current = exception; current != null; current = current.InnerException) {
+            // Keep this duck-typed so we can recognize transient connect failures from provider-specific
+            // exceptions (for example Npgsql) without taking an additional package dependency here.
             object? isTransient = current.GetType().GetProperty("IsTransient")?.GetValue(current);
             if (isTransient is true) {
-                string message = current.Message ?? string.Empty;
+                string message = current.Message;
                 if (message.IndexOf("Failed to connect", StringComparison.OrdinalIgnoreCase) >= 0) {
                     return "connect-failure";
                 }
@@ -660,7 +666,9 @@ public sealed class CrtShPostgreSqlCertificateTransparencyProvider : ICtCertific
             if (ipv4Address != null) {
                 return ipv4Address.ToString();
             }
-        } catch {
+        } catch (SocketException) {
+            // Fall back to the pinned public IPv4 endpoint when DNS resolution is unavailable.
+        } catch (ArgumentException) {
             // Fall back to the pinned public IPv4 endpoint when DNS resolution is unavailable.
         }
 

@@ -273,6 +273,25 @@ public sealed class TestCrtShPostgreSqlCertificateTransparencyProvider {
     }
 
     [Fact]
+    public async Task QueryAsync_MapsTransientConnectFailureWithoutSocketCode() {
+        using var provider = new CrtShPostgreSqlCertificateTransparencyProvider(
+            new CertificateInventoryCaptureOptions(),
+            new FakeCrtShPostgreSqlQueryClient(new DbaQueryExecutionException(
+                "failed",
+                "SELECT 1",
+                new FakeTransientConnectException(
+                    "Failed to connect to crt.sh PostgreSQL endpoint",
+                    new InvalidOperationException("transport failed before socket classification")))));
+
+        CtProviderQueryException exception = await Assert.ThrowsAsync<CtProviderQueryException>(
+            () => provider.QueryAsync(CtCertificateQuery.ForExactHostLatest("api.example.test")));
+
+        Assert.Equal(CtProviderOutcomeKind.TransientFailure, exception.OutcomeKind);
+        Assert.Equal("connect-failure", exception.ProviderErrorCode);
+        Assert.True(exception.RetryAfter.HasValue);
+    }
+
+    [Fact]
     public void BuildCrtShPostgreSqlConnectionString_PrefersResolvedIpv4Address() {
         string connectionString = CrtShPostgreSqlCertificateTransparencyProvider.BuildCrtShPostgreSqlConnectionString(
             new CertificateInventoryCaptureOptions {
