@@ -18,24 +18,20 @@ public class TestDdctApiCertificateTransparencyProvider
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.StartsWith("/api/v1/search/domain?", StringComparison.Ordinal))
+            if (pathAndQuery.StartsWith("/api/v1/certificates?", StringComparison.Ordinal))
             {
                 Assert.Equal("secret", string.Join(",", request.Headers.GetValues("X-DDCT-Api-Key")));
-                return Json(HttpStatusCode.OK, new
+                return Json(HttpStatusCode.OK, new[]
                 {
-                    certificates = new[]
+                    new
                     {
-                        new
-                        {
-                            sha256Fingerprint = "abc123",
-                            matchedName = "www.example.test",
-                            firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
-                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
-                            lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
-                            notAfterUtc = "2027-04-12T12:00:00Z"
-                        }
-                    },
-                    observations = Array.Empty<object>()
+                        sha256Fingerprint = "abc123",
+                        matchedName = "www.example.test",
+                        firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
+                        ctObservedAtUtc = "2026-04-12T12:00:00Z",
+                        lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
+                        notAfterUtc = "2027-04-12T12:00:00Z"
+                    }
                 });
             }
 
@@ -81,28 +77,31 @@ public class TestDdctApiCertificateTransparencyProvider
         {
             requestCount++;
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.Contains("offset=2", StringComparison.Ordinal))
+            if (pathAndQuery.StartsWith("/api/v1/observations/paged?", StringComparison.Ordinal)
+                && pathAndQuery.Contains("continuation=page-2", StringComparison.Ordinal))
             {
                 return Json(HttpStatusCode.OK, new
                 {
-                    observations = new[]
+                    items = new[]
                     {
                         new { matchedName = "mail.example.test" }
                     },
                     limit = 2,
-                    offset = 2
+                    hasMore = false
                 });
             }
 
+            Assert.StartsWith("/api/v1/observations/paged?", pathAndQuery, StringComparison.Ordinal);
             return Json(HttpStatusCode.OK, new
             {
-                observations = new[]
+                items = new[]
                 {
                     new { matchedName = "api.example.test" },
                     new { matchedName = "www.example.test" }
                 },
                 limit = 2,
-                offset = 0
+                nextContinuation = "page-2",
+                hasMore = true
             });
         });
         using var httpClient = new HttpClient(handler);
@@ -122,7 +121,7 @@ public class TestDdctApiCertificateTransparencyProvider
             new[] { "api.example.test", "www.example.test" },
             result.DiscoveredNames);
         Assert.True(result.HasMore);
-        Assert.Equal("2", result.ContinuationToken);
+        Assert.Equal("page-2", result.ContinuationToken);
 
         CtCertificateQueryResult nextPage = await provider.QueryAsync(
             new CtCertificateQuery
@@ -170,24 +169,25 @@ public class TestDdctApiCertificateTransparencyProvider
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.StartsWith("/api/v1/search/domain/timeline?", StringComparison.Ordinal))
+            if (pathAndQuery.StartsWith("/api/v1/certificates/paged?", StringComparison.Ordinal))
             {
                 page++;
                 return Json(HttpStatusCode.OK, new
                 {
-                    observations = new[]
+                    items = new[]
                     {
                         new
                         {
                             sha256Fingerprint = "cert-" + page,
                             matchedName = "www.example.test",
-                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
+                            firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
+                            lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
                             notAfterUtc = "2027-04-12T12:00:00Z"
                         }
                     },
                     limit = 1,
-                    offset = page - 1,
-                    returnedObservations = 1
+                    nextContinuation = "next-page",
+                    hasMore = true
                 });
             }
 
@@ -229,23 +229,19 @@ public class TestDdctApiCertificateTransparencyProvider
             Assert.Equal("secret", request.Headers.Authorization?.Parameter);
 
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.StartsWith("/api/v1/search/domain?", StringComparison.Ordinal))
+            if (pathAndQuery.StartsWith("/api/v1/certificates?", StringComparison.Ordinal))
             {
-                return Json(HttpStatusCode.OK, new
+                return Json(HttpStatusCode.OK, new[]
                 {
-                    certificates = new[]
+                    new
                     {
-                        new
-                        {
-                            sha256Fingerprint = "bearer123",
-                            matchedName = "www.example.test",
-                            firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
-                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
-                            lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
-                            notAfterUtc = "2027-04-12T12:00:00Z"
-                        }
-                    },
-                    observations = Array.Empty<object>()
+                        sha256Fingerprint = "bearer123",
+                        matchedName = "www.example.test",
+                        firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
+                        ctObservedAtUtc = "2026-04-12T12:00:00Z",
+                        lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
+                        notAfterUtc = "2027-04-12T12:00:00Z"
+                    }
                 });
             }
 
@@ -294,6 +290,125 @@ public class TestDdctApiCertificateTransparencyProvider
     }
 
     [Fact]
+    public async Task QueryAsyncFallsBackToRegistrableDomainTimelineForWildcardLatest()
+    {
+        byte[] der = LoadPemCertificateDer("multi.pem");
+        int searchCalls = 0;
+        int observationPageCalls = 0;
+        var handler = new HttpStubMessageHandler((request, _) =>
+        {
+            string pathAndQuery = request.RequestUri!.PathAndQuery;
+            if (pathAndQuery.StartsWith("/api/v1/certificates?", StringComparison.Ordinal))
+            {
+                searchCalls++;
+                Assert.Contains("name=www.example.test", pathAndQuery, StringComparison.Ordinal);
+                Assert.Contains("includeSubdomains=false", pathAndQuery, StringComparison.Ordinal);
+                return Json(HttpStatusCode.OK, Array.Empty<object>());
+            }
+
+            if (pathAndQuery.StartsWith("/api/v1/observations/paged?", StringComparison.Ordinal))
+            {
+                observationPageCalls++;
+                Assert.Contains("name=example.test", pathAndQuery, StringComparison.Ordinal);
+                Assert.Contains("includeSubdomains=true", pathAndQuery, StringComparison.Ordinal);
+                return Json(HttpStatusCode.OK, new
+                {
+                    items = new[] {
+                        new {
+                            sha256Fingerprint = "wildcard-123",
+                            matchedName = "*.example.test",
+                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
+                            notAfterUtc = "2027-04-12T12:00:00Z"
+                        }
+                    },
+                    limit = 100,
+                    hasMore = false
+                });
+            }
+
+            if (pathAndQuery == "/api/v1/certificates/wildcard-123/der")
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(der)
+                };
+            }
+
+            throw new InvalidOperationException("Unexpected URL: " + request.RequestUri);
+        });
+        using var httpClient = new HttpClient(handler);
+        var provider = new DdctApiCertificateTransparencyProvider(
+            httpClient,
+            new DdctApiCertificateTransparencyProviderOptions
+            {
+                EndpointUrl = "http://127.0.0.1:8080",
+                QueryPageSize = 100,
+                MaxPagesPerQuery = 5
+            });
+
+        CtCertificateQueryResult result = await provider.QueryAsync(
+            CtCertificateQuery.ForExactHostLatest("www.example.test"));
+
+        CtCertificateRecord record = Assert.Single(result.Certificates);
+        Assert.Equal("wildcard-123", record.ProviderCertificateId);
+        Assert.Contains("*.example.test", result.DiscoveredNames);
+        Assert.Equal(1, searchCalls);
+        Assert.Equal(1, observationPageCalls);
+    }
+
+    [Fact]
+    public async Task QueryAsyncDoesNotTreatWildcardAsApexLatest()
+    {
+        int searchCalls = 0;
+        int observationPageCalls = 0;
+        var handler = new HttpStubMessageHandler((request, _) =>
+        {
+            string pathAndQuery = request.RequestUri!.PathAndQuery;
+            if (pathAndQuery.StartsWith("/api/v1/certificates?", StringComparison.Ordinal))
+            {
+                searchCalls++;
+                return Json(HttpStatusCode.OK, Array.Empty<object>());
+            }
+
+            if (pathAndQuery.StartsWith("/api/v1/observations/paged?", StringComparison.Ordinal))
+            {
+                observationPageCalls++;
+                return Json(HttpStatusCode.OK, new
+                {
+                    items = new[] {
+                        new {
+                            sha256Fingerprint = "wildcard-apex",
+                            matchedName = "*.example.test",
+                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
+                            notAfterUtc = "2027-04-12T12:00:00Z"
+                        }
+                    },
+                    limit = 100,
+                    hasMore = false
+                });
+            }
+
+            throw new InvalidOperationException("Unexpected URL: " + request.RequestUri);
+        });
+        using var httpClient = new HttpClient(handler);
+        var provider = new DdctApiCertificateTransparencyProvider(
+            httpClient,
+            new DdctApiCertificateTransparencyProviderOptions
+            {
+                EndpointUrl = "http://127.0.0.1:8080",
+                QueryPageSize = 100,
+                MaxPagesPerQuery = 5
+            });
+
+        CtCertificateQueryResult result = await provider.QueryAsync(
+            CtCertificateQuery.ForExactHostLatest("example.test"));
+
+        Assert.Empty(result.Certificates);
+        Assert.Equal(1, searchCalls);
+        Assert.Equal(0, observationPageCalls);
+    }
+
+    [Fact]
     public async Task QueryAsyncRejectsEmptyQueryNames()
     {
         using var httpClient = new HttpClient(new HttpStubMessageHandler((_, _) => throw new InvalidOperationException("HTTP should not be called for empty names.")));
@@ -316,24 +431,25 @@ public class TestDdctApiCertificateTransparencyProvider
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             string pathAndQuery = request.RequestUri!.PathAndQuery;
-            if (pathAndQuery.StartsWith("/api/v1/search/domain/timeline?", StringComparison.Ordinal))
+            if (pathAndQuery.StartsWith("/api/v1/certificates/paged?", StringComparison.Ordinal))
             {
                 pageRequestCount++;
                 Assert.Contains("limit=500", pathAndQuery, StringComparison.Ordinal);
                 return Json(HttpStatusCode.OK, new
                 {
-                    observations = new[]
+                    items = new[]
                     {
                         new
                         {
                             sha256Fingerprint = "oversized-page",
                             matchedName = "www.example.test",
-                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
+                            firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
+                            lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
                             notAfterUtc = "2027-04-12T12:00:00Z"
                         }
                     },
                     limit = 500,
-                    offset = 0
+                    hasMore = false
                 });
             }
 
