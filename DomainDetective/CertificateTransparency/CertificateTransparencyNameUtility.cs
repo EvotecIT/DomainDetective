@@ -23,7 +23,8 @@ public static class CertificateTransparencyNameUtility
             return string.Empty;
         }
 
-        return (name ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+        string normalized = name!;
+        return normalized.Trim().TrimEnd('.').ToLowerInvariant();
     }
 
     /// <summary>
@@ -179,7 +180,12 @@ public static class CertificateTransparencyNameUtility
         {
             return EmbeddedPublicSuffixList.Value.GetRegistrableDomain(candidate);
         }
-        catch
+        catch (Exception ex) when (
+            ex is InvalidOperationException ||
+            ex is ArgumentException ||
+            ex is IOException ||
+            ex is ObjectDisposedException ||
+            ex is FormatException)
         {
             string[] labels = candidate.Split('.');
             if (labels.Length <= 2)
@@ -202,7 +208,8 @@ public static class CertificateTransparencyNameUtility
             .Replace(@"\", @"\\")
             .Replace("%", @"\%")
             .Replace("_", @"\_")
-            .Replace("[", @"\[");
+            .Replace("[", @"\[")
+            .Replace("]", @"\]");
     }
 
     private static PublicSuffixList LoadPublicSuffixList()
@@ -216,7 +223,12 @@ public static class CertificateTransparencyNameUtility
                 return PublicSuffixList.Load(stream);
             }
         }
-        catch
+        catch (Exception ex) when (
+            ex is IOException ||
+            ex is UnauthorizedAccessException ||
+            ex is InvalidDataException ||
+            ex is ArgumentException ||
+            ex is FormatException)
         {
             // Best-effort only; fallback callers still preserve host-level behavior.
         }

@@ -186,6 +186,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
                     matchingNames.Add(matchedName);
                 }
 
+                // DDCT observation pages are ordered newest-first, so the first matching observation is the latest match.
                 latestMatch ??= observation;
             }
 
@@ -215,8 +216,8 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
                     ProviderId = ProviderId,
                     Certificates = Array.Empty<CtCertificateRecord>(),
                     DiscoveredNames = Array.Empty<string>(),
-                    HasMore = false,
-                    ContinuationToken = null,
+                    HasMore = HasMore(continuation),
+                    ContinuationToken = continuation,
                     Diagnostics = BuildDiagnostics(truncated)
                 }
                 : null;
@@ -597,6 +598,9 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
     private static bool HasMore<TItem>(DdctPageDto<TItem> page)
         => page.HasMore && !string.IsNullOrWhiteSpace(page.NextContinuation);
 
+    private static bool HasMore(string? continuation)
+        => !string.IsNullOrWhiteSpace(continuation);
+
     private static int ClampInt(int value, int minimum, int maximum)
         => value < minimum ? minimum : (value > maximum ? maximum : value);
 
@@ -627,7 +631,6 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
     {
         public IReadOnlyList<TItem> Items { get; init; } = Array.Empty<TItem>();
         public int Limit { get; init; }
-        public int Offset { get; init; }
         public string? NextContinuation { get; init; }
         public bool HasMore { get; init; }
     }
