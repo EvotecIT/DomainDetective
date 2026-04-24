@@ -154,7 +154,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         }
 
         int pageSize = ResolvePageSize(query.PageSize);
-        string? continuation = null;
+        string? continuation = query.ContinuationToken;
         bool truncated = false;
         var matchingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         DdctObservationDto? latestMatch = null;

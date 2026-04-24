@@ -357,6 +357,117 @@ public class TestDdctApiCertificateTransparencyProvider
     }
 
     [Fact]
+    public async Task QueryAsyncContinuesRegistrableDomainFallbackFromCallerToken()
+    {
+        byte[] der = LoadPemCertificateDer("multi.pem");
+        int searchCalls = 0;
+        int observationPageCalls = 0;
+        bool sawContinuedFallback = false;
+        var handler = new HttpStubMessageHandler((request, _) =>
+        {
+            string pathAndQuery = request.RequestUri!.PathAndQuery;
+            if (pathAndQuery.StartsWith("/api/v1/certificates?", StringComparison.Ordinal))
+            {
+                searchCalls++;
+                Assert.Contains("name=www.example.test", pathAndQuery, StringComparison.Ordinal);
+                return Json(HttpStatusCode.OK, Array.Empty<object>());
+            }
+
+            if (pathAndQuery.StartsWith("/api/v1/observations/paged?", StringComparison.Ordinal)
+                && pathAndQuery.Contains("continuation=page-2", StringComparison.Ordinal))
+            {
+                sawContinuedFallback = true;
+                observationPageCalls++;
+                return Json(HttpStatusCode.OK, new
+                {
+                    items = new[] {
+                        new {
+                            sha256Fingerprint = "wildcard-123",
+                            matchedName = "*.example.test",
+                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
+                            notAfterUtc = "2027-04-12T12:00:00Z"
+                        }
+                    },
+                    limit = 1,
+                    hasMore = false
+                });
+            }
+
+            if (pathAndQuery.StartsWith("/api/v1/observations/paged?", StringComparison.Ordinal))
+            {
+                observationPageCalls++;
+                Assert.DoesNotContain("continuation=", pathAndQuery, StringComparison.Ordinal);
+                return Json(HttpStatusCode.OK, new
+                {
+                    items = new[] {
+                        new {
+                            sha256Fingerprint = "other-123",
+                            matchedName = "other.example.test",
+                            ctObservedAtUtc = "2026-04-12T12:00:00Z",
+                            notAfterUtc = "2027-04-12T12:00:00Z"
+                        }
+                    },
+                    limit = 1,
+                    nextContinuation = "page-2",
+                    hasMore = true
+                });
+            }
+
+            if (pathAndQuery == "/api/v1/certificates/wildcard-123/der")
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(der)
+                };
+            }
+
+            throw new InvalidOperationException("Unexpected URL: " + request.RequestUri);
+        });
+        using var httpClient = new HttpClient(handler);
+        var provider = new DdctApiCertificateTransparencyProvider(
+            httpClient,
+            new DdctApiCertificateTransparencyProviderOptions
+            {
+                EndpointUrl = "http://127.0.0.1:8080",
+                QueryPageSize = 1,
+                MaxPagesPerQuery = 1
+            });
+
+        var firstQuery = new CtCertificateQuery
+        {
+            Name = "www.example.test",
+            QueryKind = CtCertificateQueryKind.ExactHostLatest,
+            Operations = CtIngestionOperation.GetLatestCertificate,
+            RequireFullCertificate = true,
+            PageSize = 1
+        };
+        CtCertificateQueryResult firstPage = await provider.QueryAsync(firstQuery);
+
+        Assert.Empty(firstPage.Certificates);
+        Assert.True(firstPage.HasMore);
+        Assert.Equal("page-2", firstPage.ContinuationToken);
+
+        var secondQuery = new CtCertificateQuery
+        {
+            Name = "www.example.test",
+            QueryKind = CtCertificateQueryKind.ExactHostLatest,
+            Operations = CtIngestionOperation.GetLatestCertificate,
+            RequireFullCertificate = true,
+            ContinuationToken = firstPage.ContinuationToken,
+            PageSize = 1
+        };
+        CtCertificateQueryResult secondPage = await provider.QueryAsync(secondQuery);
+
+        CtCertificateRecord record = Assert.Single(secondPage.Certificates);
+        Assert.Equal("wildcard-123", record.ProviderCertificateId);
+        Assert.Contains("*.example.test", secondPage.DiscoveredNames);
+        Assert.False(secondPage.HasMore);
+        Assert.True(sawContinuedFallback);
+        Assert.Equal(2, searchCalls);
+        Assert.Equal(2, observationPageCalls);
+    }
+
+    [Fact]
     public async Task QueryAsyncDoesNotTreatWildcardAsApexLatest()
     {
         int searchCalls = 0;
