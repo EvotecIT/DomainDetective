@@ -21,6 +21,11 @@
       "tools": ["http-headers", "security-txt"]
     },
     {
+      "name": "Web Discovery",
+      "slug": "web-discovery",
+      "tools": ["sitemap", "agent-readiness"]
+    },
+    {
       "name": "Registration",
       "slug": "registration",
       "tools": ["rdap"]

@@ -301,4 +301,20 @@ internal static class DesiredStateCodes {
     public const string RobotsFallbackNotAllowed = "DesiredState.ROBOTS.Fallback.NotAllowed";
     public const string RobotsAiBotRulesRequired = "DesiredState.ROBOTS.AiBots.Required";
     public const string RobotsSitemapRequired = "DesiredState.ROBOTS.Sitemap.Required";
+
+    public const string AgentReadinessNoResults = "DesiredState.AGENTREADINESS.Results.None";
+    public const string AgentReadinessScoreTooLow = "DesiredState.AGENTREADINESS.Score.TooLow";
+    public const string AgentReadinessRobotsMissing = "DesiredState.AGENTREADINESS.Robots.Missing";
+    public const string AgentReadinessSitemapMissing = "DesiredState.AGENTREADINESS.Sitemap.Missing";
+    public const string AgentReadinessLinkHeadersMissing = "DesiredState.AGENTREADINESS.LinkHeaders.Missing";
+    public const string AgentReadinessLlmsTxtMissing = "DesiredState.AGENTREADINESS.LlmsTxt.Missing";
+    public const string AgentReadinessMarkdownMissing = "DesiredState.AGENTREADINESS.Markdown.Missing";
+    public const string AgentReadinessContentSignalsMissing = "DesiredState.AGENTREADINESS.ContentSignals.Missing";
+    public const string AgentReadinessAiBotRulesMissing = "DesiredState.AGENTREADINESS.AiBots.Missing";
+    public const string AgentReadinessApiCatalogMissing = "DesiredState.AGENTREADINESS.ApiCatalog.Missing";
+    public const string AgentReadinessAgentSkillsMissing = "DesiredState.AGENTREADINESS.AgentSkills.Missing";
+    public const string AgentReadinessAgentsJsonMissing = "DesiredState.AGENTREADINESS.AgentsJson.Missing";
+    public const string AgentReadinessOpenApiMissing = "DesiredState.AGENTREADINESS.OpenApi.Missing";
+    public const string AgentReadinessHttpsRequired = "DesiredState.AGENTREADINESS.Https.Required";
+    public const string AgentReadinessTrustHeadersTooFew = "DesiredState.AGENTREADINESS.TrustHeaders.TooFew";
 }

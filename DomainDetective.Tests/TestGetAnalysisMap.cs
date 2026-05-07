@@ -26,6 +26,36 @@ public class TestGetAnalysisMap
         }
     }
 
+    [Fact]
+    public void FilterAnalysesPreservesSelectedSitemap()
+    {
+        var healthCheck = new DomainHealthCheck();
+        healthCheck.SitemapAnalysis.Documents.Add(new SitemapDocument {
+            Url = "https://example.com/sitemap.xml",
+            Present = true,
+            XmlValid = true,
+            NamespaceValid = true,
+            Kind = SitemapDocumentKind.UrlSet
+        });
+
+        var filtered = healthCheck.FilterAnalyses(new[] { HealthCheckType.SITEMAP });
+
+        Assert.NotNull(filtered.SitemapAnalysis);
+        Assert.Single(filtered.SitemapAnalysis.Documents);
+        Assert.Equal("https://example.com/sitemap.xml", filtered.SitemapAnalysis.Documents[0].Url);
+        Assert.Null(filtered.AgentReadinessAnalysis);
+    }
+
+    [Fact]
+    public void WebDiscoveryChecksDoNotRenumberExistingHealthCheckTypes()
+    {
+        Assert.Equal(21, (int)HealthCheckType.SOA);
+        Assert.Equal(56, (int)HealthCheckType.WHOIS);
+        Assert.Equal(68, (int)HealthCheckType.MICROSOFT365);
+        Assert.Equal(69, (int)HealthCheckType.SITEMAP);
+        Assert.Equal(70, (int)HealthCheckType.AGENTREADINESS);
+    }
+
     private static object? GetExpectedAnalysis(DomainHealthCheck healthCheck, HealthCheckType type)
     {
         switch (type)
@@ -73,6 +103,8 @@ public class TestGetAnalysisMap
                 return healthCheck.SecurityTXTAnalysis;
             case HealthCheckType.ROBOTS:
                 return healthCheck.RobotsTxtAnalysis;
+            case HealthCheckType.SITEMAP:
+                return healthCheck.SitemapAnalysis;
             case HealthCheckType.SOA:
                 return healthCheck.SOAAnalysis;
             case HealthCheckType.OPENRELAY:
@@ -141,6 +173,8 @@ public class TestGetAnalysisMap
                 return healthCheck.DirectoryExposureAnalysis;
             case HealthCheckType.NTP:
                 return healthCheck.NtpAnalysis;
+            case HealthCheckType.AGENTREADINESS:
+                return healthCheck.AgentReadinessAnalysis;
             case HealthCheckType.WHOIS:
                 return healthCheck.WhoisAnalysis;
             case HealthCheckType.APEXADDRESS:

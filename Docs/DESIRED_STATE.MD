@@ -629,6 +629,19 @@ Add a `$schema` field for editor IntelliSense:
       "requireAiBotRules": false,
       "requireSitemap": false
     },
+    "agentReadiness": {
+      "minimumScore": 70,
+      "requireRobotsTxt": true,
+      "requireSitemap": true,
+      "requireLinkHeaders": true,
+      "requireLlmsTxt": true,
+      "requireMarkdown": true,
+      "requireContentSignals": true,
+      "requireApiCatalog": true,
+      "requireAgentSkills": true,
+      "requireHttps": true,
+      "minTrustHeaders": 3
+    },
     "certificateInventory": {
       "enabled": true,
       "baselineProfile": "Balanced",

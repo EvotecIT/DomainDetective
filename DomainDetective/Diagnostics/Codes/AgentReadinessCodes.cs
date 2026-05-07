@@ -1,0 +1,40 @@
+namespace DomainDetective;
+
+internal static class AgentReadinessCodes {
+    public const string RobotsPresent = "AGENTREADINESS.Robots.Present";
+    public const string RobotsMissing = "AGENTREADINESS.Robots.Missing";
+    public const string SitemapPresent = "AGENTREADINESS.Sitemap.Present";
+    public const string SitemapMissing = "AGENTREADINESS.Sitemap.Missing";
+    public const string LinkHeaderPresent = "AGENTREADINESS.LinkHeader.Present";
+    public const string LinkHeaderMissing = "AGENTREADINESS.LinkHeader.Missing";
+    public const string LlmsTxtPresent = "AGENTREADINESS.LlmsTxt.Present";
+    public const string LlmsTxtMissing = "AGENTREADINESS.LlmsTxt.Missing";
+    public const string MarkdownDirect = "AGENTREADINESS.Markdown.Direct";
+    public const string MarkdownAlternate = "AGENTREADINESS.Markdown.Alternate";
+    public const string MarkdownMissing = "AGENTREADINESS.Markdown.Missing";
+    public const string ContentSignalsPresent = "AGENTREADINESS.ContentSignals.Present";
+    public const string ContentSignalsMissing = "AGENTREADINESS.ContentSignals.Missing";
+    public const string AiBotPolicyPresent = "AGENTREADINESS.AiBotPolicy.Present";
+    public const string AiBotPolicyMissing = "AGENTREADINESS.AiBotPolicy.Missing";
+    public const string ApiCatalogPresent = "AGENTREADINESS.ApiCatalog.Present";
+    public const string ApiCatalogMissing = "AGENTREADINESS.ApiCatalog.Missing";
+    public const string AgentSkillsPresent = "AGENTREADINESS.AgentSkills.Present";
+    public const string AgentSkillsMissing = "AGENTREADINESS.AgentSkills.Missing";
+    public const string AgentsJsonPresent = "AGENTREADINESS.AgentsJson.Present";
+    public const string AgentsJsonMissing = "AGENTREADINESS.AgentsJson.Missing";
+    public const string OpenApiPresent = "AGENTREADINESS.OpenApi.Present";
+    public const string OpenApiMissing = "AGENTREADINESS.OpenApi.Missing";
+    public const string OAuthMetadataPresent = "AGENTREADINESS.OAuthMetadata.Present";
+    public const string OAuthMetadataMissing = "AGENTREADINESS.OAuthMetadata.Missing";
+    public const string AgentCardsPresent = "AGENTREADINESS.AgentCards.Present";
+    public const string AgentCardsMissing = "AGENTREADINESS.AgentCards.Missing";
+    public const string McpPresent = "AGENTREADINESS.Mcp.Present";
+    public const string McpMissing = "AGENTREADINESS.Mcp.Missing";
+    public const string HttpsPresent = "AGENTREADINESS.Https.Present";
+    public const string HttpsMissing = "AGENTREADINESS.Https.Missing";
+    public const string SecurityHeadersStrong = "AGENTREADINESS.SecurityHeaders.Strong";
+    public const string SecurityHeadersWeak = "AGENTREADINESS.SecurityHeaders.Weak";
+    public const string MainPageFailed = "AGENTREADINESS.MainPage.Failed";
+    public const string RawHtmlStrong = "AGENTREADINESS.RawHtml.Strong";
+    public const string RawHtmlWeak = "AGENTREADINESS.RawHtml.Weak";
+}

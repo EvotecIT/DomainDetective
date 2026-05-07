@@ -76,6 +76,8 @@ public partial class DomainHealthCheck
                 return SecurityTXTAnalysis;
             case HealthCheckType.ROBOTS:
                 return RobotsTxtAnalysis;
+            case HealthCheckType.SITEMAP:
+                return SitemapAnalysis;
             case HealthCheckType.SOA:
                 return SOAAnalysis;
             case HealthCheckType.OPENRELAY:
@@ -144,6 +146,8 @@ public partial class DomainHealthCheck
                 return DirectoryExposureAnalysis;
             case HealthCheckType.NTP:
                 return NtpAnalysis;
+            case HealthCheckType.AGENTREADINESS:
+                return AgentReadinessAnalysis;
             case HealthCheckType.WHOIS:
                 return WhoisAnalysis;
             case HealthCheckType.APEXADDRESS:

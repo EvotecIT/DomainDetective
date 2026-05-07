@@ -136,6 +136,7 @@ public static partial class HtmlCompositionReport {
         Add(ref warn, ref err, b.Registration?.WarningCount ?? 0, b.Registration?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.CtTimeline?.WarningCount ?? 0, b.CtTimeline?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Http?.WarningCount ?? 0, b.Http?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Sitemap?.WarningCount ?? 0, b.Sitemap?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.IpEnrichment?.WarningCount ?? 0, b.IpEnrichment?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Microsoft365?.WarningCount ?? 0, b.Microsoft365?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Typosquatting?.WarningCount ?? 0, b.Typosquatting?.ErrorCount ?? 0);
@@ -233,6 +234,7 @@ public static partial class HtmlCompositionReport {
         foreach (var a in FromList(b.Rpki?.Assessments)) yield return a;
         foreach (var a in FromList(b.DnsAmplification?.Assessments)) yield return a;
         foreach (var a in FromList(b.DnsOverTls?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Sitemap?.Assessments)) yield return a;
         foreach (var a in FromList(b.Microsoft365?.Assessments)) yield return a;
         foreach (var a in FromList(b.Typosquatting?.Assessments)) yield return a;
         foreach (var a in FromList(b.Classification?.Assessments)) yield return a;
@@ -453,6 +455,8 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
         public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
         public DomainDetective.Views.HttpInfo? Http { get; set; }
+        public DomainDetective.Views.AgentReadinessInfo? AgentReadiness { get; set; }
+        public DomainDetective.Views.SitemapInfo? Sitemap { get; set; }
         public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
         public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
         public DomainDetective.Views.TyposquattingInfo? Typosquatting { get; set; }
@@ -550,6 +554,8 @@ public static partial class HtmlCompositionReport {
             DnsOverTls = s.DnsOverTls,
             CtTimeline = s.CtTimeline,
             Http = s.Http,
+            AgentReadiness = s.AgentReadiness,
+            Sitemap = s.Sitemap,
             IpEnrichment = s.IpEnrichment,
             Microsoft365 = s.Microsoft365,
             Typosquatting = s.Typosquatting,

@@ -62,6 +62,8 @@ app.MapGet("/tools/data/tools-runtime.json", () => TypedResults.Ok(new {
 
 app.MapPost("/tool-api/http-headers", AnalyzeHttpHeadersAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/security-txt", AnalyzeSecurityTxtAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/sitemap", AnalyzeSitemapAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/agent-readiness", AnalyzeAgentReadinessAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/cert-check", AnalyzeCertificateAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/bimi", AnalyzeBimiAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/mta-sts", AnalyzeMtastsAsync).RequireRateLimiting("tool-api");
@@ -106,6 +108,69 @@ static async Task<Results<Ok<SecurityTxtInfo>, ValidationProblem>> AnalyzeSecuri
     var healthCheck = new DomainHealthCheck();
     await healthCheck.VerifySecurityTxt(domainName, cancellationToken).ConfigureAwait(false);
     return TypedResults.Ok(Converters.Convert(healthCheck.SecurityTXTAnalysis));
+}
+
+static async Task<Results<Ok<SitemapInfo>, ValidationProblem>> AnalyzeSitemapAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
+    if (!TryNormalizeWebSubject(request, out string domainName, out Dictionary<string, string[]> errors)) {
+        return TypedResults.ValidationProblem(errors);
+    }
+
+    var cachedResult = await GetOrCreateCachedWithStateAsync(
+        cache,
+        "sitemap",
+        domainName,
+        request.ForceRefresh,
+        TimeSpan.FromMinutes(10),
+        async ct => {
+            var analysis = new SitemapAnalysis();
+            await analysis.AnalyzeAsync(
+                domainName,
+                options: new SitemapAnalysisOptions {
+                    Timeout = TimeSpan.FromSeconds(20),
+                    MaxSitemapDocuments = 20,
+                    MaxEntries = 10000,
+                    MaxUrlProbes = 100,
+                    MaxRedirects = 10,
+                    ProbeUrls = true,
+                    CheckCanonical = true,
+                    RestrictRemoteFetchesToOriginHost = true
+                },
+                cancellationToken: ct).ConfigureAwait(false);
+            return Converters.Convert(analysis);
+        },
+        cancellationToken).ConfigureAwait(false);
+
+    return TypedResults.Ok(cachedResult.Result);
+}
+
+static async Task<Results<Ok<AgentReadinessInfo>, ValidationProblem>> AnalyzeAgentReadinessAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
+    if (!TryNormalizeWebSubject(request, out string domainName, out Dictionary<string, string[]> errors)) {
+        return TypedResults.ValidationProblem(errors);
+    }
+
+    var cachedResult = await GetOrCreateCachedWithStateAsync(
+        cache,
+        "agent-readiness",
+        domainName,
+        request.ForceRefresh,
+        TimeSpan.FromMinutes(10),
+        async ct => {
+            var analysis = new AgentReadinessAnalysis();
+            await analysis.AnalyzeAsync(
+                domainName,
+                options: new AgentReadinessOptions {
+                    Timeout = TimeSpan.FromSeconds(20),
+                    ScoreProfile = AgentReadinessScoreProfile.DomainDetectiveDefault,
+                    AllowHttpFallback = true,
+                    MaxBodyCharacters = 256 * 1024,
+                    RestrictEndpointProbesToOriginHost = true
+                },
+                cancellationToken: ct).ConfigureAwait(false);
+            return Converters.Convert(analysis);
+        },
+        cancellationToken).ConfigureAwait(false);
+
+    return TypedResults.Ok(cachedResult.Result);
 }
 
 static async Task<Results<Ok<CertificateInfo>, ValidationProblem>> AnalyzeCertificateAsync(AnalyzeDomainRequest request, CancellationToken cancellationToken) {
@@ -844,6 +909,30 @@ static bool TryNormalizeDomain(AnalyzeDomainRequest request, out string domainNa
     return false;
 }
 
+static bool TryNormalizeWebSubject(AnalyzeDomainRequest request, out string subject, out Dictionary<string, string[]> errors) {
+    if (TryNormalizeDomain(request, out subject, out errors)) {
+        return true;
+    }
+
+    var requestedSubject = request.Domain?.Trim() ?? string.Empty;
+    if (Uri.TryCreate(requestedSubject, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)) {
+        if (TryNormalizeDomainName(uri.Host, out _, out var urlErrorMessage)) {
+            subject = uri.AbsoluteUri;
+            errors.Clear();
+            return true;
+        }
+
+        subject = string.Empty;
+        errors["domain"] = new[] { urlErrorMessage };
+        return false;
+    }
+
+    subject = string.Empty;
+    errors["domain"] = new[] { "Enter a valid public domain name or HTTP/HTTPS URL." };
+    return false;
+}
+
 static bool TryNormalizeDomainName(string value, out string domainName, out string errorMessage) {
     domainName = string.Empty;
     errorMessage = "Enter a valid public domain name.";
@@ -930,7 +1019,7 @@ static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>
     TimeSpan ttl,
     Func<CancellationToken, Task<T>> factory,
     CancellationToken cancellationToken) {
-    var cacheKey = $"{prefix}:{domainName.ToLowerInvariant()}";
+    var cacheKey = $"{prefix}:{NormalizeCacheSubject(domainName)}";
     if (!forceRefresh && cache.TryGetValue(cacheKey, out T? cached) && cached is not null) {
         return (cached, true);
     }
@@ -943,6 +1032,19 @@ static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>
     var created = await factory(cancellationToken).ConfigureAwait(false);
     cache.Set(cacheKey, created, ttl);
     return (created, false);
+}
+
+static string NormalizeCacheSubject(string subject) {
+    if (Uri.TryCreate(subject, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)) {
+        var builder = new UriBuilder(uri) {
+            Scheme = uri.Scheme.ToLowerInvariant(),
+            Host = uri.Host.ToLowerInvariant()
+        };
+        return builder.Uri.AbsoluteUri;
+    }
+
+    return subject.ToLowerInvariant();
 }
 
 static AggregateCheckStatusInfo[] MarkPendingChecks(IReadOnlyList<AggregateCheckStatusInfo> checks, params string[] pendingKeys) {

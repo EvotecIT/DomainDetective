@@ -25,6 +25,14 @@ public sealed class HostedAnalysisService {
         return PostAsync<SecurityTxtInfo>("/tool-api/security-txt", domainName, forceRefresh, cancellationToken);
     }
 
+    public Task<SitemapInfo> AnalyzeSitemapAsync(string domainName, bool forceRefresh = false, CancellationToken cancellationToken = default) {
+        return PostAsync<SitemapInfo>("/tool-api/sitemap", domainName, forceRefresh, cancellationToken);
+    }
+
+    public Task<AgentReadinessInfo> AnalyzeAgentReadinessAsync(string domainName, bool forceRefresh = false, CancellationToken cancellationToken = default) {
+        return PostAsync<AgentReadinessInfo>("/tool-api/agent-readiness", domainName, forceRefresh, cancellationToken);
+    }
+
     public Task<CertificateInfo> AnalyzeCertificateAsync(string domainName, bool forceRefresh = false, CancellationToken cancellationToken = default) {
         return PostAsync<CertificateInfo>("/tool-api/cert-check", domainName, forceRefresh, cancellationToken);
     }

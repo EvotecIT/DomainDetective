@@ -280,4 +280,168 @@ public static partial class DesiredStateEvaluator {
             }
         }
     }
+
+    private static void EvaluateAgentReadiness(string domain, AgentReadinessAnalysis agentReadiness, DesiredStateAgentReadinessPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) return;
+
+        if (agentReadiness == null ||
+            (agentReadiness.Checks.Count == 0 && agentReadiness.MainPageStatusCode == null && string.IsNullOrWhiteSpace(agentReadiness.Subject))) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessNoResults,
+                "Desired state requires agent readiness results, but the AGENTREADINESS check has not produced results.");
+            return;
+        }
+
+        if (desired.MinimumScore.HasValue && agentReadiness.Score < desired.MinimumScore.Value) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessScoreTooLow,
+                $"Desired state requires agent readiness score >= {desired.MinimumScore.Value}, but found {agentReadiness.Score:0.##}.");
+        }
+
+        if (desired.RequireRobotsTxt == true && !agentReadiness.RobotsPresent) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessRobotsMissing,
+                "Desired state requires robots.txt discovery for agent readiness, but none was found.");
+        }
+
+        if (desired.RequireSitemap == true && (agentReadiness.Robots?.Sitemaps?.Count ?? 0) == 0) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessSitemapMissing,
+                "Desired state requires robots.txt to declare at least one sitemap for agent discovery, but none was found.");
+        }
+
+        if (desired.RequireLinkHeaders == true && agentReadiness.LinkRelations.Count == 0) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessLinkHeadersMissing,
+                "Desired state requires agent-facing RFC 8288 Link headers, but none were found.");
+        }
+
+        if (desired.RequireLlmsTxt == true && !AgentEndpointPresent(agentReadiness, "llms.txt")) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessLlmsTxtMissing,
+                "Desired state requires llms.txt, but no usable llms.txt endpoint was found.");
+        }
+
+        if (desired.RequireMarkdown == true &&
+            !agentReadiness.Markdown.DirectMarkdown &&
+            string.IsNullOrWhiteSpace(agentReadiness.Markdown.AlternateMarkdownUrl)) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessMarkdownMissing,
+                "Desired state requires direct markdown negotiation or a markdown alternate, but neither was found.");
+        }
+
+        if (desired.RequireContentSignals == true && agentReadiness.ContentSignals.Count == 0) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessContentSignalsMissing,
+                "Desired state requires Content-Signal policy, but none was found.");
+        }
+
+        if (desired.RequireAiBotRules == true && !AgentReadinessCheckPassed(agentReadiness, "ai-bot-policy")) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessAiBotRulesMissing,
+                "Desired state requires AI bot directives in robots.txt, but none were found.");
+        }
+
+        if (desired.RequireApiCatalog == true && !AgentEndpointUsable(agentReadiness, "api-catalog")) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessApiCatalogMissing,
+                "Desired state requires RFC 9727 API Catalog discovery, but no usable endpoint was found.");
+        }
+
+        if (desired.RequireAgentSkills == true && !AgentEndpointUsable(agentReadiness, "agent-skills")) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessAgentSkillsMissing,
+                "Desired state requires Agent Skills discovery, but no usable endpoint was found.");
+        }
+
+        if (desired.RequireAgentsJson == true && !AgentEndpointUsable(agentReadiness, "agents-json")) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessAgentsJsonMissing,
+                "Desired state requires agents.json discovery, but no usable endpoint was found.");
+        }
+
+        if (desired.RequireOpenApi == true && !AgentEndpointUsable(agentReadiness, "openapi")) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessOpenApiMissing,
+                "Desired state requires OpenAPI discovery, but no usable endpoint was found.");
+        }
+
+        if (desired.RequireHttps == true && !agentReadiness.HttpsUsed) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessHttpsRequired,
+                "Desired state requires HTTPS for agent readiness probing, but HTTP fallback was used.");
+        }
+
+        if (desired.MinTrustHeaders.HasValue && agentReadiness.TrustHeaderCount < desired.MinTrustHeaders.Value) {
+            AddAgentReadinessDrift(
+                sink,
+                domain,
+                DesiredStateCodes.AgentReadinessTrustHeadersTooFew,
+                $"Desired state requires at least {desired.MinTrustHeaders.Value} trust headers, but found {agentReadiness.TrustHeaderCount}.");
+        }
+    }
+
+    private static void AddAgentReadinessDrift(DesiredStateAnalysis sink, string domain, string code, string message) {
+        sink.Assessments.Add(new Assessment {
+            Severity = AssessmentSeverity.Warning,
+            Category = "DesiredState",
+            Target = domain,
+            Code = code,
+            Message = message
+        });
+    }
+
+    private static bool AgentReadinessCheckPassed(AgentReadinessAnalysis analysis, string id) {
+        return analysis.Checks.Any(check =>
+            check.Id.Equals(id, StringComparison.OrdinalIgnoreCase) &&
+            check.Status == AgentReadinessCheckStatus.Pass);
+    }
+
+    private static bool AgentEndpointPresent(AgentReadinessAnalysis analysis, string kind) {
+        return analysis.EndpointProbes.Any(probe =>
+            probe.Kind.Equals(kind, StringComparison.OrdinalIgnoreCase) &&
+            probe.Present);
+    }
+
+    private static bool AgentEndpointUsable(AgentReadinessAnalysis analysis, string kind) {
+        return analysis.EndpointProbes.Any(probe =>
+            probe.Kind.Equals(kind, StringComparison.OrdinalIgnoreCase) &&
+            probe.Present &&
+            (!AgentEndpointRequiresShapeValidation(kind) || probe.ShapeValid));
+    }
+
+    private static bool AgentEndpointRequiresShapeValidation(string kind) {
+        return kind.Equals("api-catalog", StringComparison.OrdinalIgnoreCase) ||
+               kind.Equals("agent-skills", StringComparison.OrdinalIgnoreCase) ||
+               kind.Equals("agents-json", StringComparison.OrdinalIgnoreCase) ||
+               kind.Equals("openapi", StringComparison.OrdinalIgnoreCase);
+    }
 }
