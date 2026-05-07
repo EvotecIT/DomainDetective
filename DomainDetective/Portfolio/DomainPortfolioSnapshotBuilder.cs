@@ -53,11 +53,11 @@ public static class DomainPortfolioSnapshotBuilder {
         var analyses = healthCheck.GetAnalysisMap()
             .Where(item => selected == null || selected.Contains(item.Key))
             .Where(static item => item.Value != null)
-            .OrderBy(static item => item.Key.ToString(), StringComparer.OrdinalIgnoreCase);
+            .OrderBy(static item => item.Key.ToString(), StringComparer.OrdinalIgnoreCase)
+            .Select(static pair => BuildSection(pair.Key, pair.Value!))
+            .Where(static section => section.Facts.Count != 0 || section.Assessments.Count != 0);
 
-        foreach (var pair in analyses) {
-            var section = BuildSection(pair.Key, pair.Value!);
-            if (section.Facts.Count == 0 && section.Assessments.Count == 0) continue;
+        foreach (var section in analyses) {
             snapshot.Sections.Add(section);
             snapshot.Assessments.AddRange(section.Assessments);
         }
@@ -207,17 +207,28 @@ public static class DomainPortfolioSnapshotBuilder {
                 .OrderBy(static property => property.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray());
 
-        foreach (var property in properties.Where(static property => !IgnoredPropertyNames.Contains(property.Name))) {
-            if (!TryRead(property, analysis, out var value)) continue;
-            if (!TryFormat(value, out var formatted, out var kind)) continue;
+        return properties
+            .Where(static property => !IgnoredPropertyNames.Contains(property.Name))
+            .Select(property => TryExtractFact(property, analysis))
+            .Where(static fact => fact != null)
+            .Select(static fact => fact!);
+    }
 
-            yield return new DomainPortfolioFact {
-                Key = property.Name,
-                Label = ToDisplayLabel(property.Name),
-                Value = formatted,
-                Kind = kind
-            };
+    private static DomainPortfolioFact? TryExtractFact(PropertyInfo property, object analysis) {
+        if (!TryRead(property, analysis, out var value)) {
+            return null;
         }
+
+        if (!TryFormat(value, out var formatted, out var kind)) {
+            return null;
+        }
+
+        return new DomainPortfolioFact {
+            Key = property.Name,
+            Label = ToDisplayLabel(property.Name),
+            Value = formatted,
+            Kind = kind
+        };
     }
 
     private static bool TryRead(PropertyInfo property, object instance, out object value) {
