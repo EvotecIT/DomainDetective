@@ -8,6 +8,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DomainDetective.Website.Tests;
 
 public sealed class ToolPageComponentTests : TestContext {
+    private static readonly TimeSpan AsyncToolRenderTimeout = TimeSpan.FromSeconds(10);
+
     private readonly ToolRegistry _registry = new();
     private readonly RecordingDnsHandler _dnsHandler = new();
 
@@ -51,7 +53,7 @@ public sealed class ToolPageComponentTests : TestContext {
             Assert.Contains("Analyze", cut.Markup);
             Assert.DoesNotContain("Tool not found", cut.Markup);
             Assert.Contains(_dnsHandler.RequestUris, uri => uri.Host.Equals("cloudflare-dns.com", StringComparison.OrdinalIgnoreCase));
-        });
+        }, AsyncToolRenderTimeout);
     }
 
     [Fact]
@@ -69,7 +71,7 @@ public sealed class ToolPageComponentTests : TestContext {
             Assert.Contains("/tools/dns-lookup/?q=contoso.com", navigation.Uri, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("r=Google%20DNS", navigation.Uri, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Cloudflaer", navigation.Uri, StringComparison.OrdinalIgnoreCase);
-        });
+        }, AsyncToolRenderTimeout);
     }
 
     [Fact]
