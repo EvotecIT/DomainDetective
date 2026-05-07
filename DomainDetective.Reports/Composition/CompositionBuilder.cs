@@ -45,6 +45,8 @@ public static class CompositionBuilder
 	        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
 	        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
 	        public DomainDetective.Views.HttpInfo? Http { get; set; }
+        public DomainDetective.Views.AgentReadinessInfo? AgentReadiness { get; set; }
+        public DomainDetective.Views.SitemapInfo? Sitemap { get; set; }
 	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
         public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
         public DomainDetective.Views.TyposquattingInfo? Typosquatting { get; set; }
@@ -234,6 +236,26 @@ public static class CompositionBuilder
 	                    }
 	                    break;
 	                }
+                case DomainDetective.Views.AgentReadinessInfo agent when !string.IsNullOrWhiteSpace(agent.Subject):
+                {
+                    var subject = NormalizeWebAnalysisSubject(agent.Subject);
+                    if (!string.IsNullOrWhiteSpace(subject))
+                    {
+                        Ensure(subject!);
+                        map[subject!].AgentReadiness = agent;
+                    }
+                    break;
+                }
+                case DomainDetective.Views.SitemapInfo sitemap when !string.IsNullOrWhiteSpace(sitemap.Subject):
+                {
+                    var subject = NormalizeWebAnalysisSubject(sitemap.Subject);
+                    if (!string.IsNullOrWhiteSpace(subject))
+                    {
+                        Ensure(subject!);
+                        map[subject!].Sitemap = sitemap;
+                    }
+                    break;
+                }
 	                case DomainDetective.Views.IpEnrichmentInfo ip when !string.IsNullOrWhiteSpace(ip.Subject):
 	                {
 	                    Ensure(ip.Subject!);
@@ -276,15 +298,39 @@ public static class CompositionBuilder
         {
             return null;
         }
-        try
+        if (Uri.TryCreate(s, UriKind.Absolute, out var uri))
         {
-            if (Uri.TryCreate(s, UriKind.Absolute, out var uri))
-            {
-                return uri.Host;
-            }
+            return uri.Host;
         }
-        catch { }
         return s;
+    }
+
+    private static string? NormalizeWebAnalysisSubject(string? raw)
+    {
+        if (raw == null)
+        {
+            return null;
+        }
+
+        var s = raw.Trim();
+        if (s.Length == 0)
+        {
+            return null;
+        }
+
+        if (Uri.TryCreate(s, UriKind.Absolute, out var uri) &&
+            (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+             uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+        {
+            var builder = new UriBuilder(uri)
+            {
+                Scheme = uri.Scheme.ToLowerInvariant(),
+                Host = uri.Host.ToLowerInvariant()
+            };
+            return builder.Uri.AbsoluteUri;
+        }
+
+        return NormalizeHttpSubject(s);
     }
 
     private static bool PreferHttp(DomainDetective.Views.HttpInfo candidate, DomainDetective.Views.HttpInfo existing)

@@ -283,6 +283,13 @@ public sealed partial class DesiredStateConfiguration {
         set => Defaults.Robots = value;
     }
 
+    /// <summary>Represents the agent readiness value.</summary>
+    [JsonIgnore]
+    public DesiredStateAgentReadinessPolicy? AgentReadiness {
+        get => Defaults.AgentReadiness;
+        set => Defaults.AgentReadiness = value;
+    }
+
     /// <summary>Represents the certificate inventory value.</summary>
     [JsonIgnore]
     public DesiredStateCertificateInventoryPolicy? CertificateInventory {

@@ -251,6 +251,34 @@ public sealed class ToolRegistry {
             CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");"
         },
 
+        // Web Discovery
+        new ToolDefinition {
+            Name = "Sitemap XML Analyzer",
+            Slug = "sitemap",
+            Description = "Validate sitemap XML, sitemap indexes, duplicate URLs, redirects, redirect loops, noindex, and canonical mismatches",
+            Category = ToolCategory.WebDiscovery,
+            Icon = "file-search",
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false,
+            HostedCompatible = true,
+            CliExample = "domaindetective check 'example.com' --checks SITEMAP",
+            PowerShellExample = "Test-DDSitemap -Subject 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifySitemapAsync(\"example.com\");"
+        },
+        new ToolDefinition {
+            Name = "AI Agent Readiness",
+            Slug = "agent-readiness",
+            Description = "Assess robots, llms.txt, markdown access, Link headers, agent discovery endpoints, and trust signals for AI crawlers and agents",
+            Category = ToolCategory.WebDiscovery,
+            Icon = "sparkles",
+            InputPlaceholder = "example.com",
+            BrowserCompatible = false,
+            HostedCompatible = true,
+            CliExample = "domaindetective check 'example.com' --checks AGENTREADINESS",
+            PowerShellExample = "Test-DDAgentReadiness -Subject 'example.com'",
+            CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyAgentReadinessAsync(\"example.com\");"
+        },
+
         // Registration
         new ToolDefinition {
             Name = "RDAP / WHOIS",
@@ -329,6 +357,7 @@ public sealed class ToolRegistry {
         ToolCategory.Dns => "DNS",
         ToolCategory.TlsCert => "TLS & Certificates",
         ToolCategory.WebSecurity => "Web Security",
+        ToolCategory.WebDiscovery => "Web Discovery",
         ToolCategory.Registration => "Registration",
         ToolCategory.ThreatIntel => "Threat Intelligence",
         ToolCategory.Subdomain => "Subdomain Discovery",
@@ -342,6 +371,7 @@ public sealed class ToolRegistry {
         ToolCategory.Dns => "globe",
         ToolCategory.TlsCert => "lock",
         ToolCategory.WebSecurity => "shield",
+        ToolCategory.WebDiscovery => "file-search",
         ToolCategory.Registration => "database",
         ToolCategory.ThreatIntel => "alert-triangle",
         ToolCategory.Subdomain => "layers",

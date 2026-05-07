@@ -171,6 +171,7 @@ public sealed partial class DesiredStateConfiguration {
         if (profile.Autodiscover != null && profile.Autodiscover.Enabled != false) set.Add(HealthCheckType.AUTODISCOVER);
         if (profile.SecurityTxt != null && profile.SecurityTxt.Enabled != false) set.Add(HealthCheckType.SECURITYTXT);
         if (profile.Robots != null && profile.Robots.Enabled != false) set.Add(HealthCheckType.ROBOTS);
+        if (profile.AgentReadiness != null && profile.AgentReadiness.Enabled != false) set.Add(HealthCheckType.AGENTREADINESS);
 
         return set.ToArray();
     }

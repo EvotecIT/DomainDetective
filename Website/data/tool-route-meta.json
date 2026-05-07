@@ -100,6 +100,16 @@
     "description": "Check for security.txt disclosure file"
   },
   {
+    "slug": "sitemap",
+    "name": "Sitemap XML Analyzer",
+    "description": "Validate sitemap XML, sitemap indexes, duplicate URLs, redirects, redirect loops, noindex, and canonical mismatches"
+  },
+  {
+    "slug": "agent-readiness",
+    "name": "AI Agent Readiness",
+    "description": "Assess robots, llms.txt, markdown access, Link headers, agent discovery endpoints, and trust signals for AI crawlers and agents"
+  },
+  {
     "slug": "rdap",
     "name": "RDAP / WHOIS",
     "description": "Query domain registration data via RDAP"

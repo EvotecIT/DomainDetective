@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using DomainDetective.Narratives;
 using OfficeIMO.Markdown;
@@ -23,8 +24,8 @@ public static partial class MarkdownCompositionReport
                 .Row("Classification", b.Classification?.Classification ?? "-")
                 .Row("Confidence", b.Classification?.Confidence ?? "-")
                 .Row("Status", ComputeStatus(b))
-                .Row("Warnings", ((b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + (b.Typosquatting?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount)).ToString())
-                .Row("Errors", ((b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + (b.Typosquatting?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount)).ToString())
+                .Row("Warnings", ((b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.AgentReadiness?.WarningCount ?? 0) + (b.Sitemap?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + (b.Typosquatting?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount)).ToString(CultureInfo.InvariantCulture))
+                .Row("Errors", ((b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.AgentReadiness?.ErrorCount ?? 0) + (b.Sitemap?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + (b.Typosquatting?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount)).ToString(CultureInfo.InvariantCulture))
                 .AlignLeft(0,1));
 
             void RenderClassification()
@@ -188,6 +189,170 @@ public static partial class MarkdownCompositionReport
                     var rows = sec.Evidence.Select(x => (IReadOnlyList<string>)new[] { x.Label, x.Category, x.Confidence, x.Evidence }).ToList();
                     md.H3("Evidence Ledger").Table(t => t.Headers("Label", "Category", "Confidence", "Evidence").Rows(rows).AlignLeft(0, 1, 2, 3));
                 }
+                RenderReferences(md, sec.References);
+            }
+
+            void RenderAgentReadiness()
+            {
+                if (b.AgentReadiness == null)
+                {
+                    return;
+                }
+
+                var sec = SectionProjectors.BuildAgentReadiness(b.AgentReadiness);
+                if (sec == null)
+                {
+                    return;
+                }
+
+                md.H2("Agent Readiness");
+                md.Table(t =>
+                {
+                    t.Headers("Key", "Value");
+                    foreach (var kv2 in sec.Summary)
+                    {
+                        t.Row(kv2.Key, kv2.Value);
+                    }
+                    t.AlignLeft(0, 1);
+                });
+
+                if (sec.Highlights.Count > 0)
+                {
+                    md.H3("Highlights").Ul(sec.Highlights.ToArray());
+                }
+                if (sec.Positives.Count > 0)
+                {
+                    md.H3("Positives").Ul(sec.Positives.ToArray());
+                }
+                if (sec.Findings.Count > 0)
+                {
+                    var rows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(rows).AlignLeft(0, 1, 2, 3));
+                }
+                if (sec.Categories.Count > 0)
+                {
+                    var rows = sec.Categories.Select(c => (IReadOnlyList<string>)new[]
+                    {
+                        c.Category,
+                        FormatScorePair(c.Score, c.MaxScore),
+                        FormatScorePair(c.WeightedScore, c.Weight),
+                        c.Passed.ToString(CultureInfo.InvariantCulture),
+                        c.Warnings.ToString(CultureInfo.InvariantCulture),
+                        c.Failed.ToString(CultureInfo.InvariantCulture)
+                    }).ToList();
+                    md.H3("Category Scores").Table(t => t.Headers("Category", "Score", "Weighted", "Passed", "Warnings", "Failed").Rows(rows).AlignLeft(0, 1, 2, 3, 4, 5));
+                }
+                if (sec.Checks.Count > 0)
+                {
+                    var rows = sec.Checks.Select(c => (IReadOnlyList<string>)new[]
+                    {
+                        c.Id,
+                        c.Category,
+                        c.Name,
+                        c.Status,
+                        FormatScorePair(c.Score, c.MaxScore),
+                        c.Code,
+                        c.Evidence
+                    }).ToList();
+                    md.H3("Checks").Table(t => t.Headers("ID", "Category", "Name", "Status", "Score", "Code", "Evidence").Rows(rows).AlignLeft(0, 1, 2, 3, 4, 5, 6));
+                }
+                if (sec.Endpoints.Count > 0)
+                {
+                    var rows = sec.Endpoints.Select(e => (IReadOnlyList<string>)new[]
+                    {
+                        e.Kind,
+                        e.Url,
+                        e.StatusCode?.ToString(CultureInfo.InvariantCulture) ?? "-",
+                        e.ContentType,
+                        e.Present ? "Yes" : "No",
+                        e.ValidJson ? "Yes" : "No",
+                        e.ShapeValid ? "Yes" : "No",
+                        string.IsNullOrWhiteSpace(e.Shape) ? "-" : e.Shape,
+                        e.DiscoverySource,
+                        string.IsNullOrWhiteSpace(e.Error) ? "-" : e.Error
+                    }).ToList();
+                    md.H3("Endpoint Probes").Table(t => t.Headers("Kind", "URL", "Status", "Content Type", "Present", "JSON", "Shape Valid", "Shape", "Source", "Error").Rows(rows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
+                }
+                if (sec.Links.Count > 0)
+                {
+                    var rows = sec.Links.Select(l => (IReadOnlyList<string>)new[] { l.Relation, l.Target, l.Type, l.SourceUrl }).ToList();
+                    md.H3("Link Header Relations").Table(t => t.Headers("Relation", "Target", "Type", "Source").Rows(rows).AlignLeft(0, 1, 2, 3));
+                }
+                if (sec.ContentSignals.Count > 0)
+                {
+                    var rows = sec.ContentSignals.Select(s => (IReadOnlyList<string>)new[] { s.Source, s.Search, s.AiInput, s.AiTrain, s.RawValue }).ToList();
+                    md.H3("Content Signals").Table(t => t.Headers("Source", "Search", "AI Input", "AI Train", "Raw").Rows(rows).AlignLeft(0, 1, 2, 3, 4));
+                }
+
+                RenderReferences(md, sec.References);
+            }
+
+            void RenderSitemap()
+            {
+                if (b.Sitemap == null)
+                {
+                    return;
+                }
+
+                var sec = SectionProjectors.BuildSitemap(b.Sitemap);
+                if (sec == null)
+                {
+                    return;
+                }
+
+                md.H2("Sitemap");
+                md.Table(t =>
+                {
+                    t.Headers("Key", "Value");
+                    foreach (var kv2 in sec.Summary)
+                    {
+                        t.Row(kv2.Key, kv2.Value);
+                    }
+                    t.AlignLeft(0, 1);
+                });
+
+                if (sec.Positives.Count > 0)
+                {
+                    md.H3("Positives").Ul(sec.Positives.ToArray());
+                }
+                if (sec.Findings.Count > 0)
+                {
+                    var rows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(rows).AlignLeft(0, 1, 2, 3));
+                }
+                if (sec.Documents.Count > 0)
+                {
+                    var rows = sec.Documents.Select(d => (IReadOnlyList<string>)new[]
+                    {
+                        d.Url,
+                        d.StatusCode?.ToString(CultureInfo.InvariantCulture) ?? "-",
+                        d.ContentType,
+                        d.Present ? "Yes" : "No",
+                        d.XmlValid ? "Yes" : "No",
+                        d.NamespaceValid ? "Yes" : "No",
+                        d.Kind,
+                        d.UrlCount.ToString(CultureInfo.InvariantCulture),
+                        d.SitemapCount.ToString(CultureInfo.InvariantCulture),
+                        string.IsNullOrWhiteSpace(d.Error) ? "-" : d.Error
+                    }).ToList();
+                    md.H3("Documents").Table(t => t.Headers("URL", "Status", "Content Type", "Present", "XML", "Namespace", "Kind", "URLs", "Sitemaps", "Error").Rows(rows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
+                }
+                if (sec.ProblemUrls.Count > 0)
+                {
+                    var rows = sec.ProblemUrls.Select(p => (IReadOnlyList<string>)new[]
+                    {
+                        p.Url,
+                        string.IsNullOrWhiteSpace(p.FinalUrl) ? "-" : p.FinalUrl,
+                        p.StatusCode?.ToString(CultureInfo.InvariantCulture) ?? "-",
+                        p.WasRedirected ? "Yes" : "No",
+                        p.RedirectLoop ? "Yes" : "No",
+                        p.NoIndex ? "Yes" : "No",
+                        p.CanonicalMismatch ? "Yes" : "No",
+                        string.IsNullOrWhiteSpace(p.Error) ? "-" : p.Error
+                    }).ToList();
+                    md.H3("Problem URLs").Table(t => t.Headers("URL", "Final URL", "Status", "Redirected", "Loop", "Noindex", "Canonical Mismatch", "Error").Rows(rows).AlignLeft(0, 1, 2, 3, 4, 5, 6, 7));
+                }
+
                 RenderReferences(md, sec.References);
             }
 
@@ -962,6 +1127,12 @@ public static partial class MarkdownCompositionReport
                     case "Microsoft 365":
                         RenderMicrosoft365();
                         break;
+                    case "Agent Readiness":
+                        RenderAgentReadiness();
+                        break;
+                    case "Sitemap":
+                        RenderSitemap();
+                        break;
                     case "Typosquatting":
                         RenderTyposquatting();
                         break;
@@ -1015,6 +1186,8 @@ public static partial class MarkdownCompositionReport
         if (b.Classification != null) list.Add("Classification");
         if (b.DesiredState != null) list.Add("Desired State");
         if (b.Microsoft365 != null) list.Add("Microsoft 365");
+        if (b.AgentReadiness != null) list.Add("Agent Readiness");
+        if (b.Sitemap != null) list.Add("Sitemap");
         if (b.Typosquatting != null) list.Add("Typosquatting");
         if (b.Spf != null) list.Add("SPF");
         if (b.Dmarc != null) list.Add("DMARC");
@@ -1030,5 +1203,10 @@ public static partial class MarkdownCompositionReport
         if (b.Dnssec != null) list.Add("DNSSEC");
         if (b.Dane != null) list.Add("DANE");
         return list;
+    }
+
+    private static string FormatScorePair(double score, double maxScore)
+    {
+        return score.ToString("0.##", CultureInfo.InvariantCulture) + "/" + maxScore.ToString("0.##", CultureInfo.InvariantCulture);
     }
 }

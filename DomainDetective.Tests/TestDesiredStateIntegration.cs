@@ -302,7 +302,8 @@ $results = Test-DDDesiredState -DomainName '{domain}' -Configuration $cfg
             WildcardDns = new DesiredStateWildcardDnsPolicy { Enabled = true },
             Ttl = new DesiredStateTtlPolicy { Enabled = true },
             SecurityTxt = new DesiredStateSecurityTxtPolicy { Enabled = true },
-            Robots = new DesiredStateRobotsPolicy { Enabled = true }
+            Robots = new DesiredStateRobotsPolicy { Enabled = true },
+            AgentReadiness = new DesiredStateAgentReadinessPolicy { Enabled = true }
         };
     }
 }

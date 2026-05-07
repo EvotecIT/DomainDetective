@@ -93,6 +93,7 @@ public static partial class DesiredStateEvaluator {
         EvaluateAutodiscover(domain, health.AutodiscoverAnalysis, profile.Autodiscover, result);
         EvaluateSecurityTxt(domain, health.SecurityTXTAnalysis, profile.SecurityTxt, result);
         EvaluateRobots(domain, health.RobotsTxtAnalysis, profile.Robots, result);
+        EvaluateAgentReadiness(domain, health.AgentReadinessAnalysis, profile.AgentReadiness, result);
 
         // Apply policy so users can suppress/override DesiredState.* codes as well.
         try {

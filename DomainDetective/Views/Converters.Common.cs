@@ -61,6 +61,8 @@ public static partial class Converters
             case HealthCheckType.SECURITYTXT:
             case HealthCheckType.DIRECTORYEXPOSURE:
             case HealthCheckType.WEBSITE:
+            case HealthCheckType.AGENTREADINESS:
+            case HealthCheckType.SITEMAP:
             case HealthCheckType.CTTIMELINE:
                 return AnalysisArea.Web;
 

@@ -145,7 +145,7 @@
             </ResultCard>
         }
 
-        @if ((_healthCheck is not null || _httpInfo is not null || _securityTxtInfo is not null || _certificateInfo is not null || _bimiInfo is not null || _mtastsInfo is not null || _rdapInfo is not null || _dnsPropagationInfo is not null || _subdomainsInfo is not null || _microsoft365OverviewInfo is not null || _domainOverviewInfo is not null) && !_isLoading) {
+        @if ((_healthCheck is not null || _httpInfo is not null || _securityTxtInfo is not null || _sitemapInfo is not null || _agentReadinessInfo is not null || _certificateInfo is not null || _bimiInfo is not null || _mtastsInfo is not null || _rdapInfo is not null || _dnsPropagationInfo is not null || _subdomainsInfo is not null || _microsoft365OverviewInfo is not null || _domainOverviewInfo is not null) && !_isLoading) {
             @if (_isHydratingDeep) {
                 <div class="tool-callout tool-callout-inline">
                     <strong>Building detailed sections</strong>
@@ -229,6 +229,12 @@
                 case "security-txt":
                     <DomainDetective.Toolbox.Components.Tools.WebSecurity.SecurityTxtTool HealthCheck="_healthCheck" Info="_securityTxtInfo" Domain="@_domain" />
                     break;
+                case "sitemap":
+                    <DomainDetective.Toolbox.Components.Tools.WebDiscovery.SitemapTool Info="_sitemapInfo" Domain="@_domain" />
+                    break;
+                case "agent-readiness":
+                    <DomainDetective.Toolbox.Components.Tools.WebDiscovery.AgentReadinessTool Info="_agentReadinessInfo" Domain="@_domain" />
+                    break;
                 case "rdap":
                     <DomainDetective.Toolbox.Components.Tools.Registration.RdapTool HealthCheck="_healthCheck" Info="_rdapInfo" Domain="@_domain" />
                     break;
@@ -273,6 +279,8 @@
     private DomainHealthCheck? _healthCheck;
     private DomainDetective.Views.HttpInfo? _httpInfo;
     private DomainDetective.Views.SecurityTxtInfo? _securityTxtInfo;
+    private DomainDetective.Views.SitemapInfo? _sitemapInfo;
+    private DomainDetective.Views.AgentReadinessInfo? _agentReadinessInfo;
     private DomainDetective.Views.CertificateInfo? _certificateInfo;
     private DomainDetective.Views.BimiRecordInfo? _bimiInfo;
     private DomainDetective.Views.MtastsInfo? _mtastsInfo;
@@ -326,6 +334,8 @@
         _healthCheck = null;
         _httpInfo = null;
         _securityTxtInfo = null;
+        _sitemapInfo = null;
+        _agentReadinessInfo = null;
         _certificateInfo = null;
         _bimiInfo = null;
         _mtastsInfo = null;
@@ -422,6 +432,12 @@
                 case "security-txt":
                     _securityTxtInfo = await HostedAnalysisService.AnalyzeSecurityTxtAsync(_domain, _forceHostedRefresh);
                     break;
+                case "sitemap":
+                    _sitemapInfo = await HostedAnalysisService.AnalyzeSitemapAsync(_domain, _forceHostedRefresh);
+                    break;
+                case "agent-readiness":
+                    _agentReadinessInfo = await HostedAnalysisService.AnalyzeAgentReadinessAsync(_domain, _forceHostedRefresh);
+                    break;
                 case "rdap":
                     _rdapInfo = await HostedAnalysisService.AnalyzeRdapAsync(_domain, _forceHostedRefresh);
                     break;
@@ -432,7 +448,7 @@
                     break;
             }
 
-            if (_httpInfo == null && _securityTxtInfo == null && _certificateInfo == null && _mtastsInfo == null && _rdapInfo == null && _dnsPropagationInfo == null && _subdomainsInfo == null && _microsoft365OverviewInfo == null && _domainOverviewInfo == null) {
+            if (_httpInfo == null && _securityTxtInfo == null && _sitemapInfo == null && _agentReadinessInfo == null && _certificateInfo == null && _mtastsInfo == null && _rdapInfo == null && _dnsPropagationInfo == null && _subdomainsInfo == null && _microsoft365OverviewInfo == null && _domainOverviewInfo == null) {
                 _healthCheck = hc;
             }
 
@@ -572,6 +588,8 @@
         _healthCheck = null;
         _httpInfo = null;
         _securityTxtInfo = null;
+        _sitemapInfo = null;
+        _agentReadinessInfo = null;
         _certificateInfo = null;
         _bimiInfo = null;
         _mtastsInfo = null;
@@ -931,6 +949,7 @@
             "mta-sts" or "tls-rpt" or "bimi" => new[] { "evotec.pl", "microsoft.com", "google.com" },
             "spf" or "dkim" or "dmarc" or "mx" => new[] { "evotec.pl", "microsoft.com", "gmail.com" },
             "dns-lookup" or "dnssec" or "soa" or "ns" or "dns-propagation" or "caa" or "dane" => new[] { "evotec.pl", "cloudflare.com", "microsoft.com" },
+            "sitemap" or "agent-readiness" => new[] { "evotec.pl", "cloudflare.com", "microsoft.com" },
             "dnsbl" or "dangling-cname" => new[] { "evotec.pl", "microsoft.com" },
             _ => Array.Empty<string>()
         };

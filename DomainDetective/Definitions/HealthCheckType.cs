@@ -142,5 +142,9 @@ public enum HealthCheckType {
     /// <summary>Probe Microsoft identity endpoints for tenant hints.</summary>
     IDENTITYPROVIDER,
     /// <summary>Aggregate Microsoft 365 tenant, service, identity, and DNS footprint.</summary>
-    MICROSOFT365
+    MICROSOFT365,
+    /// <summary>Validate sitemap XML and sitemap-listed URLs.</summary>
+    SITEMAP,
+    /// <summary>Assess AI crawler and agent readiness for a website.</summary>
+    AGENTREADINESS
 }

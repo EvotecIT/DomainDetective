@@ -172,6 +172,7 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.CERT] = () => VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken),
                 [HealthCheckType.SECURITYTXT] = () => VerifySecurityTxt(domainName, cancellationToken),
                 [HealthCheckType.ROBOTS] = () => VerifyRobotsAsync(domainName, cancellationToken),
+                [HealthCheckType.SITEMAP] = () => VerifySitemapAsync(domainName, cancellationToken),
                 [HealthCheckType.SOA] = () => VerifySOA(domainName, cancellationToken),
                 [HealthCheckType.OPENRELAY] = () => VerifyOpenRelay(domainName, 25, cancellationToken),
                 [HealthCheckType.OPENRESOLVER] = () => VerifyOpenResolver(domainName, cancellationToken),
@@ -192,6 +193,7 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.PORTSCAN] = () => ScanPorts(domainName, null, portScanProfiles, cancellationToken),
                 [HealthCheckType.SNMP] = () => CheckSnmpHost(domainName, 161, cancellationToken),
                 [HealthCheckType.NTP] = () => TestNtpServer(domainName, cancellationToken: cancellationToken),
+                [HealthCheckType.AGENTREADINESS] = () => VerifyAgentReadinessAsync(domainName, cancellationToken),
                 [HealthCheckType.IPNEIGHBOR] = () => CheckIPNeighbors(domainName, cancellationToken),
                 [HealthCheckType.IPENRICHMENT] = () => VerifyIpEnrichmentAsync(domainName, cancellationToken),
                 [HealthCheckType.RPKI] = () => VerifyRPKI(domainName, cancellationToken),
@@ -299,6 +301,20 @@ public partial class DomainHealthCheck {
             await Task.WhenAll(
                 VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken),
                 VerifyWebsiteHttps(domainName, cancellationToken)).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Assesses machine-readable discovery resources and AI-agent readiness for the specified domain or URL.
+        /// </summary>
+        /// <param name="domainName">Domain, host, or HTTP/HTTPS URL to analyze.</param>
+        /// <param name="cancellationToken">Token used to cancel the operation.</param>
+        /// <param name="options">Optional agent-readiness analysis options.</param>
+        public async Task VerifyAgentReadinessAsync(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) {
+            var previous = AgentReadinessAnalysis;
+            AgentReadinessAnalysis = new AgentReadinessAnalysis {
+                HttpHandlerFactory = previous.HttpHandlerFactory
+            };
+            await AgentReadinessAnalysis.AnalyzeAsync(domainName, _logger, options, cancellationToken).ConfigureAwait(false);
         }
 
         private Task VerifySpfFlattenedAsync(string domainName, CancellationToken cancellationToken)
@@ -610,6 +626,8 @@ public partial class DomainHealthCheck {
             filtered.FlatteningServiceAnalysis = active.Contains(HealthCheckType.FLATTENINGSERVICE) ? CloneAnalysis(FlatteningServiceAnalysis) : null!;
             filtered.DirectoryExposureAnalysis = active.Contains(HealthCheckType.DIRECTORYEXPOSURE) ? CloneAnalysis(DirectoryExposureAnalysis) : null!;
             filtered.NtpAnalysis = active.Contains(HealthCheckType.NTP) ? CloneAnalysis(NtpAnalysis) : null!;
+            filtered.AgentReadinessAnalysis = active.Contains(HealthCheckType.AGENTREADINESS) ? CloneAnalysis(AgentReadinessAnalysis) : null!;
+            filtered.SitemapAnalysis = active.Contains(HealthCheckType.SITEMAP) ? CloneAnalysis(SitemapAnalysis) : null!;
             filtered.ApexAddressAnalysis = active.Contains(HealthCheckType.APEXADDRESS) ? CloneAnalysis(ApexAddressAnalysis) : null!;
             var mailDomainClassification = MailDomainClassification;
             filtered.MailDomainClassification =

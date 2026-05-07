@@ -6,6 +6,7 @@ public enum ToolCategory {
     Dns,
     TlsCert,
     WebSecurity,
+    WebDiscovery,
     Registration,
     ThreatIntel,
     Subdomain,

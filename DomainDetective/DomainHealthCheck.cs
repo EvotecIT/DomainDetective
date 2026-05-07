@@ -374,6 +374,14 @@ namespace DomainDetective {
         /// <value>Results of static (non-browser) web scanning.</value>
         public WebStaticScanAnalysis WebStaticScanAnalysis { get; private set; } = new WebStaticScanAnalysis();
 
+        /// <summary>Gets the agent readiness analysis.</summary>
+        /// <value>AI crawler and agent-facing discovery results.</value>
+        public AgentReadinessAnalysis AgentReadinessAnalysis { get; private set; } = new AgentReadinessAnalysis();
+
+        /// <summary>Gets the sitemap analysis.</summary>
+        /// <value>Sitemap XML validation and sitemap-listed URL probe results.</value>
+        public SitemapAnalysis SitemapAnalysis { get; private set; } = new SitemapAnalysis();
+
         /// <summary>Gets the subdomain discovery analysis.</summary>
         /// <value>CT-backed subdomain discovery with optional DNS verification.</value>
         public SubdomainsAnalysis SubdomainsAnalysis { get; private set; } = new SubdomainsAnalysis();

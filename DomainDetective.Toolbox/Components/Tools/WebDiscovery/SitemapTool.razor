@@ -1,0 +1,387 @@
+@using System.Globalization
+@using System.Collections.Generic
+@using System.Linq
+@using DomainDetective
+@using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
+
+@if (Info is { } view) {
+    <ResultCard Title="Sitemap posture" Status="@GetStatus(view)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Documents</span>
+                <strong class="tool-summary-value">@view.DocumentCount.ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">URLs: @view.UrlCount.ToString(CultureInfo.InvariantCulture)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Probed URLs</span>
+                <strong class="tool-summary-value">@view.ProbeCount.ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">Problems retained: @view.ProblemUrls.Length.ToString(CultureInfo.InvariantCulture)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Redirects</span>
+                <strong class="tool-summary-value">@view.RedirectCount.ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">Loops: @view.RedirectLoopCount.ToString(CultureInfo.InvariantCulture)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Indexing drift</span>
+                <strong class="tool-summary-value">@view.NoIndexCount.ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">Canonicals: @view.CanonicalMismatchCount.ToString(CultureInfo.InvariantCulture)</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@BuildSummary(view)</p>
+            <div class="tool-chip-list">
+                <span class="tool-chip">Status: @FormatValue(view.Status, "Unknown")</span>
+                <span class="tool-chip">@view.WarningCount.ToString(CultureInfo.InvariantCulture) warnings</span>
+                <span class="tool-chip">@view.ErrorCount.ToString(CultureInfo.InvariantCulture) errors</span>
+                @if (GetCrossHostDocumentCount(view) > 0) {
+                    <span class="tool-chip">@GetCrossHostDocumentCount(view).ToString(CultureInfo.InvariantCulture) cross-host document(s)</span>
+                }
+            </div>
+        </div>
+
+        <div class="tool-section-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Parsed scope</span>
+                <strong class="tool-summary-value">@view.UrlCount.ToString(CultureInfo.InvariantCulture) URLs</strong>
+                <p class="tool-summary-note">@view.DocumentCount.ToString(CultureInfo.InvariantCulture) sitemap document(s), @view.ProbeCount.ToString(CultureInfo.InvariantCulture) URL probe(s).</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Document health</span>
+                <strong class="tool-summary-value">@GetValidDocumentCount(view).ToString(CultureInfo.InvariantCulture) / @view.DocumentCount.ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">Well-formed XML documents. @GetInvalidDocumentCount(view).ToString(CultureInfo.InvariantCulture) document(s) need review.</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">URL hygiene</span>
+                <strong class="tool-summary-value">@view.DuplicateLocationCount.ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">Duplicate loc entries. Invalid loc entries: @view.InvalidLocationCount.ToString(CultureInfo.InvariantCulture).</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Fetch failures</span>
+                <strong class="tool-summary-value">@GetHttpFailureCount(view).ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">4xx/5xx URL probe failures. Redirect loops: @view.RedirectLoopCount.ToString(CultureInfo.InvariantCulture).</p>
+            </div>
+        </div>
+    </ResultCard>
+
+    <ResultCard Title="Actionable findings" Status="@GetActionableStatus(view)">
+        <AssessmentList Assessments="GetActionableAssessments(view)" EmptyMessage="@($"No sitemap warnings or errors found for {Domain}.")" />
+        @if (GetInfoAssessmentCount(view) > 0) {
+            <p class="tool-mini-note">
+                @GetInfoAssessmentCount(view).ToString(CultureInfo.InvariantCulture) successful evidence item(s) were summarized so repeated OK probe results do not bury the useful findings.
+            </p>
+        }
+    </ResultCard>
+
+    @if (view.Documents.Length > 0) {
+        <ResultCard Title="Sitemap documents" Status="ResultCard.ResultStatus.Info">
+            <div class="sitemap-evidence-list">
+                @foreach (var document in view.Documents.Take(20)) {
+                    <article class="tool-summary-card sitemap-document-card">
+                        <div class="sitemap-card-header">
+                            <span class="tool-summary-label">@FormatValue(document.Kind, "Sitemap")</span>
+                            <a class="tool-inline-link sitemap-url-link" href="@document.Url" target="_blank" rel="noopener">@document.Url</a>
+                        </div>
+                        <div class="tool-chip-list">
+                            <span class="tool-chip">HTTP @FormatStatusCode(document.StatusCode)</span>
+                            <span class="tool-chip">XML @FormatBool(document.XmlValid)</span>
+                            <span class="tool-chip">Namespace @FormatBool(document.NamespaceValid)</span>
+                            <span class="tool-chip">@document.UrlCount.ToString(CultureInfo.InvariantCulture) URLs</span>
+                            <span class="tool-chip">@document.SitemapCount.ToString(CultureInfo.InvariantCulture) child sitemaps</span>
+                            @if (IsCrossHost(document.Url, view.Subject ?? Domain)) {
+                                <span class="tool-chip">Cross-host: @GetHost(document.Url)</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(document.Error)) {
+                            <p class="sitemap-error-text">@document.Error</p>
+                        }
+                    </article>
+                }
+            </div>
+            @if (view.Documents.Length > 20) {
+                <p class="tool-mini-note">Showing the first 20 sitemap documents. Use CLI, PowerShell, or C# output for the complete raw list.</p>
+            }
+        </ResultCard>
+    }
+
+    @if (view.ProblemUrls.Length > 0) {
+        <ResultCard Title="Problem URL probes" Status="ResultCard.ResultStatus.Warning">
+            <div class="sitemap-evidence-list">
+                @foreach (var probe in view.ProblemUrls.Take(25)) {
+                    <article class="tool-summary-card sitemap-probe-card">
+                        <div class="sitemap-card-header">
+                            <span class="tool-summary-label">@FormatProbeHeadline(probe)</span>
+                            <a class="tool-inline-link sitemap-url-link" href="@probe.Url" target="_blank" rel="noopener">@probe.Url</a>
+                        </div>
+                        <div class="tool-chip-list">
+                            <span class="tool-chip">HTTP @FormatStatusCode(probe.StatusCode)</span>
+                            @if (probe.WasRedirected) {
+                                <span class="tool-chip">Redirected @probe.RedirectHopCount.ToString(CultureInfo.InvariantCulture) hop(s)</span>
+                            }
+                            @if (probe.RedirectLoop) {
+                                <span class="tool-chip">Redirect loop</span>
+                            }
+                            @if (probe.NoIndex) {
+                                <span class="tool-chip">Noindex</span>
+                            }
+                            @if (probe.CanonicalMismatch) {
+                                <span class="tool-chip">Canonical mismatch</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(probe.FinalUrl) && !string.Equals(probe.Url, probe.FinalUrl, StringComparison.OrdinalIgnoreCase)) {
+                            <div class="tool-detail-item">
+                                <span class="tool-detail-term">Final URL</span>
+                                <a class="tool-inline-link sitemap-url-link" href="@probe.FinalUrl" target="_blank" rel="noopener">@probe.FinalUrl</a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(probe.CanonicalUrl)) {
+                            <div class="tool-detail-item">
+                                <span class="tool-detail-term">Canonical</span>
+                                <a class="tool-inline-link sitemap-url-link" href="@probe.CanonicalUrl" target="_blank" rel="noopener">@probe.CanonicalUrl</a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(probe.Error)) {
+                            <p class="sitemap-error-text">@probe.Error</p>
+                        }
+                    </article>
+                }
+            </div>
+            @if (view.ProblemUrls.Length > 25) {
+                <p class="tool-mini-note">Showing the first 25 retained problem probes out of @view.ProblemUrls.Length.ToString(CultureInfo.InvariantCulture).</p>
+            }
+        </ResultCard>
+    }
+
+    @if (view.Positives.Count > 0 || view.Recommendations.Count > 0) {
+        <ResultCard Title="Sitemap guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Take(5)) {
+                                <li>@(item.Title ?? item.Code)</li>
+                            }
+                        </ul>
+                    </div>
+                }
+                @if (view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Follow-up guidance</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Recommendations.Take(5)) {
+                                <li>@(item.Title ?? item.Code)</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Evidence scope" Status="ResultCard.ResultStatus.Info">
+        <div class="tool-section-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Successes summarized</span>
+                <strong class="tool-summary-value">@GetInfoAssessmentCount(view).ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">Informational OK findings are kept in analysis output, but the hosted page summarizes them for readability.</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Raw exports</span>
+                <strong class="tool-summary-value">CLI / PowerShell / C#</strong>
+                <p class="tool-summary-note">Use the local commands below when you need every sitemap document, probe, and assessment entry for audit evidence.</p>
+            </div>
+        </div>
+    </ResultCard>
+}
+
+@code {
+    [Parameter] public SitemapInfo? Info { get; set; }
+    [Parameter] public required string Domain { get; set; }
+
+    private const int FindingExamplesPerCode = 8;
+
+    private static string BuildSummary(SitemapInfo view) {
+        if (view.ErrorCount > 0 && GetInvalidDocumentCount(view) == 0 && view.UrlCount > 0) {
+            return $"Sitemap XML parsed successfully across {GetValidDocumentCount(view).ToString(CultureInfo.InvariantCulture)} document(s), but sampled URL probes found {view.ErrorCount.ToString(CultureInfo.InvariantCulture)} blocking fetch issue(s).";
+        }
+
+        if (view.ErrorCount > 0) {
+            return $"DD found {view.ErrorCount.ToString(CultureInfo.InvariantCulture)} sitemap error(s), including XML, redirect-loop, or HTTP failure findings.";
+        }
+
+        if (view.WarningCount > 0) {
+            return $"DD found {view.WarningCount.ToString(CultureInfo.InvariantCulture)} sitemap warning(s), including duplicate URLs, redirects, crawler access blocks, noindex, or canonical drift.";
+        }
+
+        return "DD did not find blocking sitemap XML or sampled URL probe issues.";
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatStatusCode(int? statusCode) {
+        return statusCode.HasValue ? statusCode.Value.ToString(CultureInfo.InvariantCulture) : "-";
+    }
+
+    private static string FormatValue(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static IReadOnlyList<Assessment> GetActionableAssessments(SitemapInfo view) {
+        var grouped = view.Assessments
+            .Where(static assessment => assessment.Severity != AssessmentSeverity.Info)
+            .GroupBy(static assessment => $"{assessment.Severity}|{assessment.Code ?? assessment.Category}", StringComparer.OrdinalIgnoreCase);
+        var assessments = new List<Assessment>();
+
+        foreach (var group in grouped) {
+            var items = group.ToArray();
+            if (items.Length > FindingExamplesPerCode) {
+                assessments.Add(new Assessment {
+                    Severity = items[0].Severity,
+                    Code = items[0].Code,
+                    Category = items[0].Category,
+                    Source = items[0].Source,
+                    Target = items[0].Target,
+                    Message = $"{items.Length.ToString(CultureInfo.InvariantCulture)} {FormatFindingFamily(items[0])} finding(s) were found. Showing {FindingExamplesPerCode.ToString(CultureInfo.InvariantCulture)} examples here; raw exports keep the complete list."
+                });
+            }
+
+            assessments.AddRange(items.Take(FindingExamplesPerCode));
+        }
+
+        return assessments.ToArray();
+    }
+
+    private static string FormatFindingFamily(Assessment assessment) {
+        if (!string.IsNullOrWhiteSpace(assessment.Code)) {
+            return assessment.Code;
+        }
+
+        if (!string.IsNullOrWhiteSpace(assessment.Category)) {
+            return assessment.Category;
+        }
+
+        return assessment.Severity.ToString();
+    }
+
+    private static int GetInfoAssessmentCount(SitemapInfo view) {
+        return view.Assessments.Count(static assessment => assessment.Severity == AssessmentSeverity.Info);
+    }
+
+    private static int GetValidDocumentCount(SitemapInfo view) {
+        return view.Documents.Count(static document => document.XmlValid && document.NamespaceValid);
+    }
+
+    private static int GetInvalidDocumentCount(SitemapInfo view) {
+        return view.Documents.Count(static document => !document.XmlValid || !document.NamespaceValid);
+    }
+
+    private static int GetCrossHostDocumentCount(SitemapInfo view) {
+        return view.Documents.Count(document => IsCrossHost(document.Url, view.Subject));
+    }
+
+    private static int GetHttpFailureCount(SitemapInfo view) {
+        return view.ClientErrorCount + view.ServerErrorCount;
+    }
+
+    private static string FormatProbeHeadline(SitemapUrlProbeInfo probe) {
+        if (probe.RedirectLoop) {
+            return "Redirect loop";
+        }
+
+        if ((probe.StatusCode ?? 0) >= 500) {
+            return "Server error";
+        }
+
+        if (probe.StatusCode == 401 || probe.StatusCode == 403) {
+            return "Access blocked";
+        }
+
+        if ((probe.StatusCode ?? 0) >= 400) {
+            return "Client error";
+        }
+
+        if (probe.NoIndex) {
+            return "Noindex";
+        }
+
+        if (probe.CanonicalMismatch) {
+            return "Canonical drift";
+        }
+
+        if (probe.WasRedirected) {
+            return "Redirect";
+        }
+
+        return "Probe finding";
+    }
+
+    private static string GetHost(string? url) {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri)) {
+            return uri.Host;
+        }
+
+        return "-";
+    }
+
+    private static bool IsCrossHost(string? url, string? subject) {
+        if (string.IsNullOrWhiteSpace(subject) || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) {
+            return false;
+        }
+
+        if (!TryGetSubjectHost(subject, out var subjectHost)) {
+            return false;
+        }
+
+        return !string.Equals(NormalizeComparableHost(uri.Host), NormalizeComparableHost(subjectHost), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryGetSubjectHost(string subject, out string host) {
+        host = string.Empty;
+        if (Uri.TryCreate(subject, UriKind.Absolute, out var uri)) {
+            host = uri.Host;
+            return !string.IsNullOrWhiteSpace(host);
+        }
+
+        host = subject;
+        return !string.IsNullOrWhiteSpace(host);
+    }
+
+    private static string NormalizeComparableHost(string host) {
+        var normalized = host.Trim().TrimEnd('.');
+        if (normalized.StartsWith("www.", StringComparison.OrdinalIgnoreCase)) {
+            return normalized.Substring(4);
+        }
+
+        return normalized;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(SitemapInfo view) {
+        if (view.ErrorCount > 0) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.WarningCount > 0) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+
+    private static ResultCard.ResultStatus GetActionableStatus(SitemapInfo view) {
+        if (view.ErrorCount > 0) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.WarningCount > 0) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+}

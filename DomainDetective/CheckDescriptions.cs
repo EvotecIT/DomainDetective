@@ -116,6 +116,10 @@ public static class CheckDescriptions {
                 "Verify robots.txt.",
                 null,
                 "Publish a proper robots.txt file."),
+            [HealthCheckType.SITEMAP] = new(
+                "Validate sitemap XML and listed URLs.",
+                "https://www.sitemaps.org/protocol.html",
+                "Publish valid sitemap XML containing canonical, indexable URLs that return successful responses without redirect loops."),
             // Verify SOA Records
             [HealthCheckType.SOA] = new(
                 "Verify SOA records.",
@@ -269,6 +273,10 @@ public static class CheckDescriptions {
                 "Query NTP server for clock offset.",
                 "https://datatracker.ietf.org/doc/html/rfc5905",
                 "Ensure NTP responds with valid time data."),
+            [HealthCheckType.AGENTREADINESS] = new(
+                "Assess AI crawler and agent readiness.",
+                "https://www.rfc-editor.org/rfc/rfc9309",
+                "Publish agent-facing discovery resources such as robots.txt, llms.txt, Link headers, API Catalog, Agent Skills, and Markdown alternates."),
             [HealthCheckType.SUBDOMAINS] = new(
                 "Discover subdomains using certificate transparency (CT).",
                 "https://datatracker.ietf.org/doc/html/rfc6962",

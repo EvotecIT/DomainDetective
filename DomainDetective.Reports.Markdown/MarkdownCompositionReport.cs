@@ -171,6 +171,7 @@ public static partial class MarkdownCompositionReport
                 Pull(b.ImapTls?.References);
                 Pull(b.PopTls?.References);
                 Pull(b.Classification?.References);
+                Pull(b.Sitemap?.References);
                 Pull(b.Microsoft365?.References);
             }
             var uniq = refs.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
@@ -211,6 +212,8 @@ public static partial class MarkdownCompositionReport
             Wildcard = s.Wildcard,
             Ttl = s.Ttl,
             DesiredState = s.DesiredState,
+            AgentReadiness = s.AgentReadiness,
+            Sitemap = s.Sitemap,
             Microsoft365 = s.Microsoft365,
             Typosquatting = s.Typosquatting
         };
@@ -220,8 +223,8 @@ public static partial class MarkdownCompositionReport
 
     private static string ComputeStatus(DomainBucket b)
     {
-        var err = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + (b.Typosquatting?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
-        var warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + (b.Typosquatting?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
+        var err = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.AgentReadiness?.ErrorCount ?? 0) + (b.Sitemap?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + (b.Typosquatting?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
+        var warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.AgentReadiness?.WarningCount ?? 0) + (b.Sitemap?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + (b.Typosquatting?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
         return err > 0 ? "🔴 Error" : (warn > 0 ? "🟠 Warning" : "🟢 OK");
     }
 
@@ -249,6 +252,8 @@ public static partial class MarkdownCompositionReport
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
         public DomainDetective.Views.TtlInfo? Ttl { get; set; }
         public DomainDetective.Views.DesiredStateInfo? DesiredState { get; set; }
+        public DomainDetective.Views.AgentReadinessInfo? AgentReadiness { get; set; }
+        public DomainDetective.Views.SitemapInfo? Sitemap { get; set; }
         public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
         public DomainDetective.Views.TyposquattingInfo? Typosquatting { get; set; }
     }

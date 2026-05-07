@@ -213,6 +213,10 @@ public sealed class DesiredStateProfile {
     [JsonPropertyName("robots")]
     public DesiredStateRobotsPolicy? Robots { get; set; }
 
+    /// <summary>Gets or sets the agent readiness value.</summary>
+    [JsonPropertyName("agentReadiness")]
+    public DesiredStateAgentReadinessPolicy? AgentReadiness { get; set; }
+
     /// <summary>Gets or sets the certificate inventory value.</summary>
     [JsonPropertyName("certificateInventory")]
     public DesiredStateCertificateInventoryPolicy? CertificateInventory { get; set; }
@@ -260,6 +264,7 @@ public sealed class DesiredStateProfile {
             Ttl = Ttl?.Clone(),
             SecurityTxt = SecurityTxt?.Clone(),
             Robots = Robots?.Clone(),
+            AgentReadiness = AgentReadiness?.Clone(),
             CertificateInventory = CertificateInventory?.Clone()
         };
     }
@@ -467,6 +472,11 @@ public sealed class DesiredStateProfile {
             Robots.Apply(overlay.Robots);
         }
 
+        if (overlay.AgentReadiness != null) {
+            AgentReadiness ??= new DesiredStateAgentReadinessPolicy();
+            AgentReadiness.Apply(overlay.AgentReadiness);
+        }
+
         if (overlay.CertificateInventory != null) {
             CertificateInventory ??= new DesiredStateCertificateInventoryPolicy();
             CertificateInventory.Apply(overlay.CertificateInventory);
@@ -513,6 +523,7 @@ public sealed class DesiredStateProfile {
         Ttl?.NormalizeDefaults();
         SecurityTxt?.NormalizeDefaults();
         Robots?.NormalizeDefaults();
+        AgentReadiness?.NormalizeDefaults();
         CertificateInventory?.NormalizeDefaults();
     }
 }
