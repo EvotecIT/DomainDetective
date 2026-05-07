@@ -329,6 +329,54 @@ internal static class OutputFormatters {
             findings.Add(GetPositiveFinding(check, data));
         }
 
+        if (check == HealthCheckType.AGENTREADINESS && data is AgentReadinessAnalysis agentReadiness)
+        {
+            status = agentReadiness.Score >= 80
+                ? "✅ OK"
+                : agentReadiness.Score >= 50
+                    ? "⚠️  Warning"
+                    : "❌ Failed";
+
+            findings.Add($"• Score: {agentReadiness.Score:0.##}/100");
+            var topCategories = agentReadiness.CategoryScores
+                .OrderBy(category => category.WeightedScore / Math.Max(category.Weight, 1))
+                .Take(3)
+                .Select(category => $"{category.Category}: {category.Score:0.#}/{category.MaxScore:0.#}")
+                .ToArray();
+            if (topCategories.Length > 0)
+            {
+                findings.Add("• Categories: " + string.Join("; ", topCategories));
+            }
+
+            var presentProtocols = agentReadiness.EndpointProbes
+                .Where(probe => probe.Present)
+                .Select(probe => probe.Kind)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(kind => kind, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            findings.Add(presentProtocols.Length > 0
+                ? "• Discovery: " + string.Join(", ", presentProtocols)
+                : "• Discovery: no agent protocol endpoints found");
+        }
+
+        if (check == HealthCheckType.SITEMAP && data is SitemapAnalysis sitemap)
+        {
+            status = sitemap.RedirectLoopCount > 0 || sitemap.ClientErrorCount > 0 || sitemap.ServerErrorCount > 0 || sitemap.InvalidLocationCount > 0
+                ? "❌ Failed"
+                : sitemap.RedirectCount > 0 || sitemap.NoIndexCount > 0 || sitemap.CanonicalMismatchCount > 0 || sitemap.DuplicateLocationCount > 0
+                    ? "⚠️  Warning"
+                    : sitemap.Documents.Count > 0
+                        ? "✅ OK"
+                        : "⚠️  Warning";
+
+            findings.Add($"• Documents: {sitemap.Documents.Count}; URLs: {sitemap.Entries.Count}; Probed: {sitemap.UrlProbes.Count}");
+            if (sitemap.RedirectLoopCount > 0) findings.Add($"• Redirect loops: {sitemap.RedirectLoopCount}");
+            if (sitemap.RedirectCount > 0) findings.Add($"• Redirects: {sitemap.RedirectCount}");
+            if (sitemap.ClientErrorCount > 0 || sitemap.ServerErrorCount > 0) findings.Add($"• HTTP errors: 4xx={sitemap.ClientErrorCount}; 5xx={sitemap.ServerErrorCount}");
+            if (sitemap.NoIndexCount > 0 || sitemap.CanonicalMismatchCount > 0) findings.Add($"• Indexing signals: noindex={sitemap.NoIndexCount}; canonical mismatch={sitemap.CanonicalMismatchCount}");
+            if (sitemap.DuplicateLocationCount > 0 || sitemap.InvalidLocationCount > 0) findings.Add($"• Sitemap loc issues: duplicates={sitemap.DuplicateLocationCount}; invalid={sitemap.InvalidLocationCount}");
+        }
+
         // Inline Autodiscover endpoint verdict summary
         if (check == HealthCheckType.AUTODISCOVER)
         {
@@ -466,6 +514,8 @@ internal static class OutputFormatters {
             HealthCheckType.EDNSSUPPORT => hc.EdnsSupportAnalysis,
             HealthCheckType.DNSAMPLIFICATION => hc.DnsAmplificationAnalysis,
             HealthCheckType.DNSOVERTLS => hc.DnsOverTlsAnalysis,
+            HealthCheckType.AGENTREADINESS => hc.AgentReadinessAnalysis,
+            HealthCheckType.SITEMAP => hc.SitemapAnalysis,
             _ => null
         };
     }

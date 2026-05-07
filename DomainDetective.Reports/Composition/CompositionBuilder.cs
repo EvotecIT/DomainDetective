@@ -45,6 +45,8 @@ public static class CompositionBuilder
 	        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
 	        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
 	        public DomainDetective.Views.HttpInfo? Http { get; set; }
+        public DomainDetective.Views.AgentReadinessInfo? AgentReadiness { get; set; }
+        public DomainDetective.Views.SitemapInfo? Sitemap { get; set; }
 	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
         public DomainDetective.Views.Microsoft365TenantInfo? Microsoft365 { get; set; }
         public DomainDetective.Views.TyposquattingInfo? Typosquatting { get; set; }
@@ -234,6 +236,26 @@ public static class CompositionBuilder
 	                    }
 	                    break;
 	                }
+                case DomainDetective.Views.AgentReadinessInfo agent when !string.IsNullOrWhiteSpace(agent.Subject):
+                {
+                    var subject = NormalizeHttpSubject(agent.Subject);
+                    if (!string.IsNullOrWhiteSpace(subject))
+                    {
+                        Ensure(subject!);
+                        map[subject!].AgentReadiness = agent;
+                    }
+                    break;
+                }
+                case DomainDetective.Views.SitemapInfo sitemap when !string.IsNullOrWhiteSpace(sitemap.Subject):
+                {
+                    var subject = NormalizeHttpSubject(sitemap.Subject);
+                    if (!string.IsNullOrWhiteSpace(subject))
+                    {
+                        Ensure(subject!);
+                        map[subject!].Sitemap = sitemap;
+                    }
+                    break;
+                }
 	                case DomainDetective.Views.IpEnrichmentInfo ip when !string.IsNullOrWhiteSpace(ip.Subject):
 	                {
 	                    Ensure(ip.Subject!);

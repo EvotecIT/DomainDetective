@@ -201,6 +201,12 @@ namespace DomainDetective.PowerShell {
                                         items.Add(DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis));
                                     }
                                     break;
+                                case DomainDetective.HealthCheckType.AGENTREADINESS:
+                                    if (!string.IsNullOrWhiteSpace(healthCheck.AgentReadinessAnalysis.Subject))
+                                    {
+                                        items.Add(DomainDetective.Views.Converters.Convert(healthCheck.AgentReadinessAnalysis));
+                                    }
+                                    break;
                                 case DomainDetective.HealthCheckType.DNSTRACE:
                                     items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis));
                                     break;

@@ -73,6 +73,8 @@ public class TestGetAnalysisMap
                 return healthCheck.SecurityTXTAnalysis;
             case HealthCheckType.ROBOTS:
                 return healthCheck.RobotsTxtAnalysis;
+            case HealthCheckType.SITEMAP:
+                return healthCheck.SitemapAnalysis;
             case HealthCheckType.SOA:
                 return healthCheck.SOAAnalysis;
             case HealthCheckType.OPENRELAY:
@@ -141,6 +143,8 @@ public class TestGetAnalysisMap
                 return healthCheck.DirectoryExposureAnalysis;
             case HealthCheckType.NTP:
                 return healthCheck.NtpAnalysis;
+            case HealthCheckType.AGENTREADINESS:
+                return healthCheck.AgentReadinessAnalysis;
             case HealthCheckType.WHOIS:
                 return healthCheck.WhoisAnalysis;
             case HealthCheckType.APEXADDRESS:

@@ -111,6 +111,12 @@
             "security-txt" => "Install-Module DomainDetective -Scope CurrentUser\n" +
                 "Import-Module DomainDetective\n" +
                 $"Test-DDDomainSecurityTxt -DomainName \"{sampleDomain}\"",
+            "sitemap" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"Test-DDSitemap -Subject \"{sampleDomain}\"",
+            "agent-readiness" => "Install-Module DomainDetective -Scope CurrentUser\n" +
+                "Import-Module DomainDetective\n" +
+                $"Test-DDAgentReadiness -Subject \"{sampleDomain}\"",
             "rdap" => "Install-Module DomainDetective -Scope CurrentUser\n" +
                 "Import-Module DomainDetective\n" +
                 $"Get-DDRdap -DomainName \"{sampleDomain}\"",

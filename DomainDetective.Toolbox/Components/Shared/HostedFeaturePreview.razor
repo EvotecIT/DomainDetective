@@ -43,6 +43,8 @@
         return tool.Slug switch {
             "http-headers" => "Inspects live web responses, header behavior, redirects, and security policy details.",
             "security-txt" => "Retrieves and validates the published security.txt file, including disclosure fields, canonical location, expiry, and signing details.",
+            "sitemap" => "Retrieves sitemap XML, follows sitemap indexes, validates sitemap protocol shape, and samples listed URLs for crawler-facing problems.",
+            "agent-readiness" => "Checks whether a website exposes the machine-readable resources, policies, and trust signals useful to AI crawlers and web agents.",
             "rdap" => "Analyzes live domain registration records, registrar details, status flags, and expiry data.",
             "cert-check" => "Inspects the live TLS handshake, certificate chain, protocol posture, and revocation details.",
             "ct-subdomains" => "Discovers subdomains using historical certificate transparency evidence.",
@@ -61,6 +63,16 @@
                 "Published disclosure file retrieval",
                 "Contact, canonical, expiry, and optional directives",
                 "Signing and lifecycle guidance"
+            },
+            "sitemap" => new[] {
+                "Sitemap XML and namespace validation",
+                "Sitemap index and URL entry parsing",
+                "Duplicate URLs, redirects, loops, HTTP errors, noindex, and canonical drift"
+            },
+            "agent-readiness" => new[] {
+                "robots.txt, sitemap, llms.txt, markdown, and Content-Signal discovery",
+                "Link header, API catalog, agent skills, agents.json, OpenAPI, A2A, and MCP hints",
+                "HTTPS and trust-header signals"
             },
             "rdap" => new[] {
                 "Registrar and registration status",
@@ -92,6 +104,16 @@
                 ("Domain Overview", "/tools/domain-overview/"),
                 ("CAA Lookup", "/tools/caa/"),
                 ("DNS Lookup", "/tools/dns-lookup/")
+            },
+            "sitemap" => new[] {
+                ("AI Agent Readiness", "/tools/agent-readiness/"),
+                ("HTTP Headers", "/tools/http-headers/"),
+                ("Domain Overview", "/tools/domain-overview/")
+            },
+            "agent-readiness" => new[] {
+                ("Sitemap XML Analyzer", "/tools/sitemap/"),
+                ("Security.txt", "/tools/security-txt/"),
+                ("HTTP Headers", "/tools/http-headers/")
             },
             "rdap" => new[] {
                 ("Domain Overview", "/tools/domain-overview/"),

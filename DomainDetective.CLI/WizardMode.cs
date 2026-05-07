@@ -630,6 +630,7 @@ internal static class WizardMode {
             HealthCheckType.EDNSSUPPORT => hc.EdnsSupportAnalysis,
             HealthCheckType.DNSAMPLIFICATION => hc.DnsAmplificationAnalysis,
             HealthCheckType.DNSOVERTLS => hc.DnsOverTlsAnalysis,
+            HealthCheckType.AGENTREADINESS => hc.AgentReadinessAnalysis,
             _ => null
         };
     }

@@ -47,6 +47,8 @@ public enum HealthCheckType {
     SECURITYTXT,
     /// <summary>Check for robots.txt presence.</summary>
     ROBOTS,
+    /// <summary>Validate sitemap XML and sitemap-listed URLs.</summary>
+    SITEMAP,
     /// <summary>Inspect SOA records.</summary>
     SOA,
     /// <summary>Detect open SMTP relay.</summary>
@@ -117,6 +119,8 @@ public enum HealthCheckType {
     NTP,
     /// <summary>Composite website check (certificate + HTTP security).</summary>
     WEBSITE,
+    /// <summary>Assess AI crawler and agent readiness for a website.</summary>
+    AGENTREADINESS,
     /// <summary>WHOIS registration lookup.</summary>
     WHOIS,
     /// <summary>Apex A/AAAA analysis (SMTP fallback posture).</summary>

@@ -35,6 +35,12 @@ Custom baselines (desired state configuration) for drift/non-conformance detecti
 ### 11. [CERTIFICATE_INVENTORY.MD](CERTIFICATE_INVENTORY.MD)
 End-to-end certificate inventory/discovery usage (live capture, snapshots, risk/drift/policy) with PowerShell and C# examples.
 
+### 12. [AGENT_READINESS.MD](AGENT_READINESS.MD)
+Assessment plan for AI crawler and agent readiness checks, including robots, llms.txt, Link headers, markdown negotiation, API discovery, agent skills, MCP/A2A, and scoring profiles.
+
+### 13. [SITEMAP.MD](SITEMAP.MD)
+Sitemap XML discovery, validation, URL probing, indexing signals, canonical mismatches, and report output.
+
 ## Main TODO
 The comprehensive TODO for the reporting system is located at:
 **[../TODO.md](../TODO.md)**

@@ -464,6 +464,140 @@ public static partial class SectionProjectors
         public List<string> References { get; } = new();
     }
 
+    public sealed class AgentReadinessSection
+    {
+        public sealed class CategoryRow
+        {
+            public string Category { get; set; } = string.Empty;
+            public double Score { get; set; }
+            public double MaxScore { get; set; }
+            public double WeightedScore { get; set; }
+            public double Weight { get; set; }
+            public int Passed { get; set; }
+            public int Warnings { get; set; }
+            public int Failed { get; set; }
+        }
+
+        public sealed class CheckRow
+        {
+            public string Id { get; set; } = string.Empty;
+            public string Category { get; set; } = string.Empty;
+            public string Name { get; set; } = string.Empty;
+            public string Status { get; set; } = string.Empty;
+            public double Score { get; set; }
+            public double MaxScore { get; set; }
+            public string Evidence { get; set; } = string.Empty;
+            public string Code { get; set; } = string.Empty;
+        }
+
+        public sealed class EndpointRow
+        {
+            public string Kind { get; set; } = string.Empty;
+            public string Url { get; set; } = string.Empty;
+            public int? StatusCode { get; set; }
+            public string ContentType { get; set; } = string.Empty;
+            public bool Present { get; set; }
+            public bool ValidJson { get; set; }
+            public bool ShapeValid { get; set; }
+            public string Shape { get; set; } = string.Empty;
+            public string DiscoverySource { get; set; } = string.Empty;
+            public string Error { get; set; } = string.Empty;
+        }
+
+        public sealed class LinkRow
+        {
+            public string Relation { get; set; } = string.Empty;
+            public string Target { get; set; } = string.Empty;
+            public string Type { get; set; } = string.Empty;
+            public string SourceUrl { get; set; } = string.Empty;
+        }
+
+        public sealed class ContentSignalRow
+        {
+            public string Source { get; set; } = string.Empty;
+            public string Search { get; set; } = string.Empty;
+            public string AiInput { get; set; } = string.Empty;
+            public string AiTrain { get; set; } = string.Empty;
+            public string RawValue { get; set; } = string.Empty;
+        }
+
+        public string Status { get; set; } = "-";
+        public double Score { get; set; }
+        public bool RobotsPresent { get; set; }
+        public int SitemapCount { get; set; }
+        public bool LlmsTxtPresent { get; set; }
+        public bool MarkdownAvailable { get; set; }
+        public string? MarkdownAlternateUrl { get; set; }
+        public string? Origin { get; set; }
+        public string? MainPageUrl { get; set; }
+        public int WarningCount { get; set; }
+        public int ErrorCount { get; set; }
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<CategoryRow> Categories { get; } = new();
+        public List<CheckRow> Checks { get; } = new();
+        public List<EndpointRow> Endpoints { get; } = new();
+        public List<LinkRow> Links { get; } = new();
+        public List<ContentSignalRow> ContentSignals { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+        public List<string> Highlights { get; } = new();
+    }
+
+    public sealed class SitemapSection
+    {
+        public sealed class DocumentRow
+        {
+            public string Url { get; set; } = string.Empty;
+            public int? StatusCode { get; set; }
+            public string ContentType { get; set; } = string.Empty;
+            public bool Present { get; set; }
+            public bool XmlValid { get; set; }
+            public bool NamespaceValid { get; set; }
+            public string Kind { get; set; } = string.Empty;
+            public int UrlCount { get; set; }
+            public int SitemapCount { get; set; }
+            public string Error { get; set; } = string.Empty;
+        }
+
+        public sealed class ProblemUrlRow
+        {
+            public string Url { get; set; } = string.Empty;
+            public string FinalUrl { get; set; } = string.Empty;
+            public int? StatusCode { get; set; }
+            public string ContentType { get; set; } = string.Empty;
+            public bool Success { get; set; }
+            public bool WasRedirected { get; set; }
+            public bool RedirectLoop { get; set; }
+            public int RedirectHopCount { get; set; }
+            public bool NoIndex { get; set; }
+            public string CanonicalUrl { get; set; } = string.Empty;
+            public bool CanonicalMismatch { get; set; }
+            public string Error { get; set; } = string.Empty;
+        }
+
+        public string Status { get; set; } = "-";
+        public int WarningCount { get; set; }
+        public int ErrorCount { get; set; }
+        public int DocumentCount { get; set; }
+        public int UrlCount { get; set; }
+        public int ProbeCount { get; set; }
+        public int DuplicateLocationCount { get; set; }
+        public int InvalidLocationCount { get; set; }
+        public int RedirectCount { get; set; }
+        public int RedirectLoopCount { get; set; }
+        public int ClientErrorCount { get; set; }
+        public int ServerErrorCount { get; set; }
+        public int NoIndexCount { get; set; }
+        public int CanonicalMismatchCount { get; set; }
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<DocumentRow> Documents { get; } = new();
+        public List<ProblemUrlRow> ProblemUrls { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+    }
+
     public sealed class Microsoft365Section
     {
         public sealed class ServiceRow

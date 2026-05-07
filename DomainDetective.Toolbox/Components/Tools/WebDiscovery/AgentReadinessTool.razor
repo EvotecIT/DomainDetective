@@ -1,0 +1,340 @@
+@using System.Globalization
+@using System.Collections.Generic
+@using System.Linq
+@using DomainDetective
+@using DomainDetective.Toolbox.Components.Shared
+@using DomainDetective.Views
+
+@if (Info is { } view) {
+    <ResultCard Title="AI agent readiness" Status="@GetStatus(view)">
+        <div class="tool-summary-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Score</span>
+                <strong class="tool-summary-value">@view.Score.ToString("0.##", CultureInfo.InvariantCulture)/100</strong>
+                <p class="tool-summary-note">@FormatValue(view.Status, "Unknown")</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Discovery</span>
+                <strong class="tool-summary-value">@(view.RobotsPresent ? "robots.txt" : "No robots")</strong>
+                <p class="tool-summary-note">Sitemaps: @view.SitemapCount.ToString(CultureInfo.InvariantCulture)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Agent files</span>
+                <strong class="tool-summary-value">@(view.LlmsTxtPresent ? "llms.txt" : "Missing")</strong>
+                <p class="tool-summary-note">Markdown: @FormatMarkdown(view)</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Findings</span>
+                <strong class="tool-summary-value">@view.WarningCount.ToString(CultureInfo.InvariantCulture) / @view.ErrorCount.ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">Warnings / errors</p>
+            </div>
+        </div>
+
+        <div class="tool-callout">
+            <strong>Summary</strong>
+            <p>@BuildSummary(view)</p>
+            <div class="tool-chip-list">
+                <span class="tool-chip">Origin: @FormatValue(view.Origin, "-")</span>
+                <span class="tool-chip">@view.ContentSignals.Length.ToString(CultureInfo.InvariantCulture) Content-Signal policie(s)</span>
+                <span class="tool-chip">@view.LinkRelations.Length.ToString(CultureInfo.InvariantCulture) link relation(s)</span>
+                <span class="tool-chip">@view.EndpointProbes.Length.ToString(CultureInfo.InvariantCulture) endpoint probe(s)</span>
+            </div>
+        </div>
+
+        <div class="tool-section-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Main page</span>
+                <a class="tool-inline-link web-discovery-url" href="@view.MainPageUrl" target="_blank" rel="noopener">@FormatValue(view.MainPageUrl, "-")</a>
+                <p class="tool-summary-note">Primary origin used for agent-discovery evidence.</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Discovery files</span>
+                <strong class="tool-summary-value">@GetDiscoveryFileSummary(view)</strong>
+                <p class="tool-summary-note">robots.txt, llms.txt, markdown alternate, and sitemap hints.</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Machine-readable API</span>
+                <strong class="tool-summary-value">@GetApiEvidenceSummary(view)</strong>
+                <p class="tool-summary-note">API catalog, agent skills, agents.json, and OpenAPI evidence.</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Trust headers</span>
+                <strong class="tool-summary-value">@view.TrustHeaderCount.ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">Security and trust headers observed on the main page.</p>
+            </div>
+        </div>
+    </ResultCard>
+
+    @if (view.CategoryScores.Length > 0) {
+        <ResultCard Title="Category scores" Status="ResultCard.ResultStatus.Info">
+            <div class="web-discovery-card-list">
+                @foreach (var category in view.CategoryScores) {
+                    <article class="tool-summary-card web-discovery-score-card">
+                        <div class="web-discovery-card-heading">
+                            <span class="tool-summary-label">@category.Category</span>
+                            <strong class="tool-summary-value">@category.Score.ToString("0.##", CultureInfo.InvariantCulture) / @category.MaxScore.ToString("0.##", CultureInfo.InvariantCulture)</strong>
+                        </div>
+                        <div class="web-discovery-meter" aria-hidden="true">
+                            <span class="web-discovery-meter-fill" style="@GetScoreStyle(category.Score, category.MaxScore)"></span>
+                        </div>
+                        <div class="tool-chip-list">
+                            <span class="tool-chip">@category.Passed.ToString(CultureInfo.InvariantCulture) passed</span>
+                            <span class="tool-chip">@category.Warnings.ToString(CultureInfo.InvariantCulture) warnings</span>
+                            <span class="tool-chip">@category.Failed.ToString(CultureInfo.InvariantCulture) failed</span>
+                            <span class="tool-chip">Weighted @category.WeightedScore.ToString("0.##", CultureInfo.InvariantCulture) / @category.Weight.ToString("0.##", CultureInfo.InvariantCulture)</span>
+                        </div>
+                    </article>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    @if (view.Checks.Length > 0) {
+        <ResultCard Title="Readiness checks" Status="ResultCard.ResultStatus.Info">
+            <div class="web-discovery-card-list">
+                @foreach (var check in view.Checks.Take(24)) {
+                    <article class="tool-summary-card web-discovery-check-card">
+                        <div class="web-discovery-card-heading">
+                            <span class="tool-summary-label">@check.Category</span>
+                            <strong class="tool-summary-value">@check.Name</strong>
+                        </div>
+                        <div class="tool-chip-list">
+                            <span class="tool-chip">@check.Status</span>
+                            <span class="tool-chip">@check.Score.ToString("0.##", CultureInfo.InvariantCulture) / @check.MaxScore.ToString("0.##", CultureInfo.InvariantCulture)</span>
+                        </div>
+                        <p class="tool-summary-note">@FormatValue(check.Evidence, "No evidence captured.")</p>
+                    </article>
+                }
+            </div>
+            @if (view.Checks.Length > 24) {
+                <p class="tool-mini-note">Showing the first 24 readiness checks. Use CLI, PowerShell, or C# output for the complete check list.</p>
+            }
+        </ResultCard>
+    }
+
+    @if (view.EndpointProbes.Length > 0 || view.LinkRelations.Length > 0 || view.ContentSignals.Length > 0) {
+        <ResultCard Title="Discovery evidence" Status="ResultCard.ResultStatus.Info">
+            @if (view.EndpointProbes.Length > 0) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">Endpoint probes</span>
+                    <div class="web-discovery-card-list">
+                        @foreach (var probe in view.EndpointProbes.Take(20)) {
+                            <article class="tool-summary-card web-discovery-check-card">
+                                <div class="web-discovery-card-heading">
+                                    <span class="tool-summary-label">@probe.Kind</span>
+                                    <a class="tool-inline-link web-discovery-url" href="@probe.Url" target="_blank" rel="noopener">@probe.Url</a>
+                                </div>
+                                <div class="tool-chip-list">
+                                    <span class="tool-chip">HTTP @FormatStatusCode(probe.StatusCode)</span>
+                                    <span class="tool-chip">Present @FormatBool(probe.Present)</span>
+                                    <span class="tool-chip">Shape @FormatValue(probe.Shape, "-")</span>
+                                    <span class="tool-chip">@FormatValue(probe.ContentType, "-")</span>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(probe.Error)) {
+                                    <p class="sitemap-error-text">@probe.Error</p>
+                                }
+                            </article>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (view.LinkRelations.Length > 0) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">Link header relations</span>
+                    <ul class="tool-link-list">
+                        @foreach (var link in view.LinkRelations.Take(10)) {
+                            <li><strong>@link.Relation</strong>: <a href="@link.Target" target="_blank" rel="noopener">@link.Target</a></li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (view.ContentSignals.Length > 0) {
+                <div class="tool-detail-item">
+                    <span class="tool-detail-term">Content-Signal policies</span>
+                    <div class="tool-chip-list">
+                        @foreach (var signal in view.ContentSignals.Take(8)) {
+                            <span class="tool-chip">@signal.Source: @signal.RawValue</span>
+                        }
+                    </div>
+                </div>
+            }
+        </ResultCard>
+    }
+
+    @if (view.Positives.Count > 0 || view.Recommendations.Count > 0) {
+        <ResultCard Title="Readiness guidance" Status="ResultCard.ResultStatus.Info">
+            <div class="tool-section-grid">
+                @if (view.Positives.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Positive signals</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Positives.Take(5)) {
+                                <li>@(item.Title ?? item.Code)</li>
+                            }
+                        </ul>
+                    </div>
+                }
+                @if (view.Recommendations.Count > 0) {
+                    <div class="tool-summary-card">
+                        <span class="tool-summary-label">Follow-up guidance</span>
+                        <ul class="tool-bullet-list">
+                            @foreach (var item in view.Recommendations.Take(5)) {
+                                <li>@(item.Title ?? item.Code)</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ResultCard>
+    }
+
+    <ResultCard Title="Actionable findings" Status="@GetStatus(view)">
+        <AssessmentList Assessments="GetActionableAssessments(view)" EmptyMessage="@($"No AI agent readiness warnings or errors found for {Domain}.")" />
+        @if (GetInfoAssessmentCount(view) > 0) {
+            <p class="tool-mini-note">
+                @GetInfoAssessmentCount(view).ToString(CultureInfo.InvariantCulture) informational evidence item(s) were summarized so successful discovery signals do not bury the follow-up work.
+            </p>
+        }
+    </ResultCard>
+
+    <ResultCard Title="Evidence scope" Status="ResultCard.ResultStatus.Info">
+        <div class="tool-section-grid">
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Info evidence summarized</span>
+                <strong class="tool-summary-value">@GetInfoAssessmentCount(view).ToString(CultureInfo.InvariantCulture)</strong>
+                <p class="tool-summary-note">Positive and neutral agent-readiness signals are retained in raw output and summarized in the cards above.</p>
+            </div>
+            <div class="tool-summary-card">
+                <span class="tool-summary-label">Raw exports</span>
+                <strong class="tool-summary-value">CLI / PowerShell / C#</strong>
+                <p class="tool-summary-note">Use local output when you need every check, endpoint probe, and assessment entry for audit evidence.</p>
+            </div>
+        </div>
+    </ResultCard>
+}
+
+@code {
+    [Parameter] public AgentReadinessInfo? Info { get; set; }
+    [Parameter] public required string Domain { get; set; }
+
+    private const int FindingExamplesPerCode = 8;
+
+    private static string BuildSummary(AgentReadinessInfo view) {
+        var score = view.Score.ToString("0.##", CultureInfo.InvariantCulture);
+        if (view.ErrorCount > 0) {
+            return $"DD scored this site {score}/100 and found blocking agent-readiness gaps.";
+        }
+
+        if (view.WarningCount > 0) {
+            return $"DD scored this site {score}/100 and found readiness improvements to review.";
+        }
+
+        return $"DD scored this site {score}/100 with no warning or error findings.";
+    }
+
+    private static string FormatBool(bool value) {
+        return value ? "Yes" : "No";
+    }
+
+    private static string FormatMarkdown(AgentReadinessInfo view) {
+        if (view.MarkdownDirect) {
+            return "Direct";
+        }
+
+        return string.IsNullOrWhiteSpace(view.MarkdownAlternateUrl) ? "Missing" : "Alternate";
+    }
+
+    private static string GetDiscoveryFileSummary(AgentReadinessInfo view) {
+        var found = 0;
+        if (view.RobotsPresent) {
+            found++;
+        }
+
+        if (view.LlmsTxtPresent) {
+            found++;
+        }
+
+        if (view.MarkdownDirect || !string.IsNullOrWhiteSpace(view.MarkdownAlternateUrl)) {
+            found++;
+        }
+
+        if (view.SitemapCount > 0) {
+            found++;
+        }
+
+        return found.ToString(CultureInfo.InvariantCulture) + " / 4";
+    }
+
+    private static string GetApiEvidenceSummary(AgentReadinessInfo view) {
+        var found = view.EndpointProbes.Count(static probe => probe.Present);
+        return found.ToString(CultureInfo.InvariantCulture) + " present";
+    }
+
+    private static string GetScoreStyle(double score, double maxScore) {
+        var percent = maxScore <= 0 ? 0 : Math.Max(0, Math.Min(100, score / maxScore * 100));
+        return "--score-width:" + percent.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+    }
+
+    private static IReadOnlyList<Assessment> GetActionableAssessments(AgentReadinessInfo view) {
+        var grouped = view.Assessments
+            .Where(static assessment => assessment.Severity != AssessmentSeverity.Info)
+            .GroupBy(static assessment => $"{assessment.Severity}|{assessment.Code ?? assessment.Category}", StringComparer.OrdinalIgnoreCase);
+        var assessments = new List<Assessment>();
+
+        foreach (var group in grouped) {
+            var items = group.ToArray();
+            if (items.Length > FindingExamplesPerCode) {
+                assessments.Add(new Assessment {
+                    Severity = items[0].Severity,
+                    Code = items[0].Code,
+                    Category = items[0].Category,
+                    Source = items[0].Source,
+                    Target = items[0].Target,
+                    Message = $"{items.Length.ToString(CultureInfo.InvariantCulture)} {FormatFindingFamily(items[0])} finding(s) were found. Showing {FindingExamplesPerCode.ToString(CultureInfo.InvariantCulture)} examples here; raw exports keep the complete list."
+                });
+            }
+
+            assessments.AddRange(items.Take(FindingExamplesPerCode));
+        }
+
+        return assessments.ToArray();
+    }
+
+    private static string FormatFindingFamily(Assessment assessment) {
+        if (!string.IsNullOrWhiteSpace(assessment.Code)) {
+            return assessment.Code;
+        }
+
+        if (!string.IsNullOrWhiteSpace(assessment.Category)) {
+            return assessment.Category;
+        }
+
+        return assessment.Severity.ToString();
+    }
+
+    private static int GetInfoAssessmentCount(AgentReadinessInfo view) {
+        return view.Assessments.Count(static assessment => assessment.Severity == AssessmentSeverity.Info);
+    }
+
+    private static string FormatStatusCode(int? statusCode) {
+        return statusCode.HasValue ? statusCode.Value.ToString(CultureInfo.InvariantCulture) : "-";
+    }
+
+    private static string FormatValue(string? value, string fallback) {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static ResultCard.ResultStatus GetStatus(AgentReadinessInfo view) {
+        if (view.ErrorCount > 0) {
+            return ResultCard.ResultStatus.Fail;
+        }
+
+        if (view.WarningCount > 0) {
+            return ResultCard.ResultStatus.Warning;
+        }
+
+        return ResultCard.ResultStatus.Pass;
+    }
+}

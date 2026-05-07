@@ -2029,6 +2029,96 @@ a:hover { color: var(--dd-accent-light); }
     font-size: 0.85rem;
 }
 
+.sitemap-evidence-list {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.sitemap-document-card,
+.sitemap-probe-card {
+    gap: 0.9rem;
+}
+
+.sitemap-card-header {
+    display: grid;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+.sitemap-url-link {
+    display: block;
+    max-width: 100%;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.sitemap-error-text {
+    margin: 0;
+    padding: 0.7rem 0.8rem;
+    border-radius: var(--dd-radius-sm);
+    border: 1px solid rgba(239, 68, 68, 0.28);
+    background: rgba(127, 29, 29, 0.18);
+    color: #fecaca;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+[data-theme="light"] .sitemap-error-text {
+    background: rgba(254, 226, 226, 0.72);
+    color: #991b1b;
+}
+
+.web-discovery-url {
+    display: block;
+    max-width: 100%;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.web-discovery-card-list {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.web-discovery-score-card,
+.web-discovery-check-card {
+    gap: 0.9rem;
+}
+
+.web-discovery-card-heading {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.web-discovery-meter {
+    position: relative;
+    height: 0.55rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.16);
+    border: 1px solid rgba(0, 217, 255, 0.08);
+}
+
+.web-discovery-meter-fill {
+    display: block;
+    height: 100%;
+    width: var(--score-width, 0%);
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--dd-accent), var(--dd-accent2));
+    box-shadow: 0 0 18px rgba(0, 217, 255, 0.2);
+}
+
+[data-theme="light"] .web-discovery-meter {
+    background: rgba(203, 213, 225, 0.5);
+    border-color: rgba(15, 143, 176, 0.12);
+}
+
 .overview-quick-nav {
     display: flex;
     flex-wrap: wrap;

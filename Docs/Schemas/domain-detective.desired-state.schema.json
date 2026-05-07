@@ -223,6 +223,9 @@
         "robots": {
           "$ref": "#/$defs/robotsPolicy"
         },
+        "agentReadiness": {
+          "$ref": "#/$defs/agentReadinessPolicy"
+        },
         "certificateInventory": {
           "$ref": "#/$defs/certificateInventoryPolicy"
         }
@@ -2257,6 +2260,105 @@
         }
       }
     },
+    "agentReadinessPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minimumScore": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "requireRobotsTxt": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireSitemap": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireLinkHeaders": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireLlmsTxt": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireMarkdown": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireContentSignals": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAiBotRules": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireApiCatalog": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAgentSkills": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAgentsJson": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireOpenApi": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireHttps": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minTrustHeaders": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
     "serviceType": {
       "type": "string",
       "enum": [
@@ -2337,6 +2439,7 @@
         "CERT",
         "SECURITYTXT",
         "ROBOTS",
+        "AGENTREADINESS",
         "SOA",
         "OPENRELAY",
         "OPENRESOLVER",

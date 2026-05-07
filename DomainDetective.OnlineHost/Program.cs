@@ -62,6 +62,8 @@ app.MapGet("/tools/data/tools-runtime.json", () => TypedResults.Ok(new {
 
 app.MapPost("/tool-api/http-headers", AnalyzeHttpHeadersAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/security-txt", AnalyzeSecurityTxtAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/sitemap", AnalyzeSitemapAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/agent-readiness", AnalyzeAgentReadinessAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/cert-check", AnalyzeCertificateAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/bimi", AnalyzeBimiAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/mta-sts", AnalyzeMtastsAsync).RequireRateLimiting("tool-api");
@@ -106,6 +108,67 @@ static async Task<Results<Ok<SecurityTxtInfo>, ValidationProblem>> AnalyzeSecuri
     var healthCheck = new DomainHealthCheck();
     await healthCheck.VerifySecurityTxt(domainName, cancellationToken).ConfigureAwait(false);
     return TypedResults.Ok(Converters.Convert(healthCheck.SecurityTXTAnalysis));
+}
+
+static async Task<Results<Ok<SitemapInfo>, ValidationProblem>> AnalyzeSitemapAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
+    if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
+        return TypedResults.ValidationProblem(errors);
+    }
+
+    var cachedResult = await GetOrCreateCachedWithStateAsync(
+        cache,
+        "sitemap",
+        domainName,
+        request.ForceRefresh,
+        TimeSpan.FromMinutes(10),
+        async ct => {
+            var analysis = new SitemapAnalysis();
+            await analysis.AnalyzeAsync(
+                domainName,
+                options: new SitemapAnalysisOptions {
+                    Timeout = TimeSpan.FromSeconds(20),
+                    MaxSitemapDocuments = 20,
+                    MaxEntries = 10000,
+                    MaxUrlProbes = 100,
+                    MaxRedirects = 10,
+                    ProbeUrls = true,
+                    CheckCanonical = true
+                },
+                cancellationToken: ct).ConfigureAwait(false);
+            return Converters.Convert(analysis);
+        },
+        cancellationToken).ConfigureAwait(false);
+
+    return TypedResults.Ok(cachedResult.Result);
+}
+
+static async Task<Results<Ok<AgentReadinessInfo>, ValidationProblem>> AnalyzeAgentReadinessAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
+    if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
+        return TypedResults.ValidationProblem(errors);
+    }
+
+    var cachedResult = await GetOrCreateCachedWithStateAsync(
+        cache,
+        "agent-readiness",
+        domainName,
+        request.ForceRefresh,
+        TimeSpan.FromMinutes(10),
+        async ct => {
+            var analysis = new AgentReadinessAnalysis();
+            await analysis.AnalyzeAsync(
+                domainName,
+                options: new AgentReadinessOptions {
+                    Timeout = TimeSpan.FromSeconds(20),
+                    ScoreProfile = AgentReadinessScoreProfile.DomainDetectiveDefault,
+                    AllowHttpFallback = true,
+                    MaxBodyCharacters = 256 * 1024
+                },
+                cancellationToken: ct).ConfigureAwait(false);
+            return Converters.Convert(analysis);
+        },
+        cancellationToken).ConfigureAwait(false);
+
+    return TypedResults.Ok(cachedResult.Result);
 }
 
 static async Task<Results<Ok<CertificateInfo>, ValidationProblem>> AnalyzeCertificateAsync(AnalyzeDomainRequest request, CancellationToken cancellationToken) {
