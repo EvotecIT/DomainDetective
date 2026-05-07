@@ -101,6 +101,10 @@ public static class DomainPortfolioSnapshotDiffer {
         Dictionary<string, DomainPortfolioFact>? previousFacts,
         Dictionary<string, DomainPortfolioFact>? currentFacts,
         DomainPortfolioChangeKind kind) {
+        if (kind == DomainPortfolioChangeKind.Changed) {
+            throw new ArgumentOutOfRangeException(nameof(kind), kind, "Use AddChangedFacts for changed fact comparisons.");
+        }
+
         var facts = kind == DomainPortfolioChangeKind.Added
             ? currentFacts ?? new Dictionary<string, DomainPortfolioFact>(StringComparer.OrdinalIgnoreCase)
             : previousFacts ?? new Dictionary<string, DomainPortfolioFact>(StringComparer.OrdinalIgnoreCase);

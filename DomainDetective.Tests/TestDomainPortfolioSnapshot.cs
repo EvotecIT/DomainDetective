@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace DomainDetective.Tests {
     public class TestDomainPortfolioSnapshot {
@@ -44,15 +45,35 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public void BuildUsesGeneralAreaFallback() {
-            var healthCheck = new DomainHealthCheck();
-            healthCheck.HPKPAnalysis.Subject = "example.com";
+        public void BuildMapsKnownPortfolioAreas() {
+            Assert.Equal("DNS", ResolveArea(HealthCheckType.DELEGATION));
+            Assert.Equal("Web", ResolveArea(HealthCheckType.ROBOTS));
+            Assert.Equal("Web", ResolveArea(HealthCheckType.HPKP));
+            Assert.Equal("Mail", ResolveArea(HealthCheckType.MESSAGEHEADER));
+            Assert.Equal("Security", ResolveArea(HealthCheckType.OPENRESOLVER));
+            Assert.Equal("Security", ResolveArea(HealthCheckType.DANGLINGCNAME));
+            Assert.Equal("Security", ResolveArea(HealthCheckType.SNMP));
+            Assert.Equal("Security", ResolveArea(HealthCheckType.NTP));
+            Assert.Equal("Security", ResolveArea(HealthCheckType.TYPOSQUATTING));
+            Assert.Equal("Security", ResolveArea(HealthCheckType.FLATTENINGSERVICE));
+            Assert.Equal("General", ResolveArea((HealthCheckType)int.MaxValue));
+        }
 
-            var snapshot = healthCheck.ToPortfolioSnapshot("example.com", new[] { HealthCheckType.HPKP });
+        [Fact]
+        public void BuildSkipsDateSentinelsAndNormalizesUnspecifiedDateTimeAsUtc() {
+            var facts = ExtractFactsFor(new FactExtractionFixture());
 
-            var section = Assert.Single(snapshot.Sections);
-            Assert.Equal("HPKP", section.Key);
-            Assert.Equal("General", section.Area);
+            Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultDate));
+            Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultOffset));
+            Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.Assessments));
+            Assert.Contains(facts, fact =>
+                fact.Key == nameof(FactExtractionFixture.UnspecifiedUtc) &&
+                fact.Value == "2026-05-07T12:00:00.0000000Z" &&
+                fact.Kind == DomainPortfolioFactKind.DateTime);
+            Assert.Contains(facts, fact =>
+                fact.Key == nameof(FactExtractionFixture.Endpoints) &&
+                fact.Value == "https://example.com/a|https://example.com/b" &&
+                fact.Kind == DomainPortfolioFactKind.Collection);
         }
 
         [Fact]
@@ -229,5 +250,34 @@ namespace DomainDetective.Tests {
                     }
                 }
             };
+
+        private static string ResolveArea(HealthCheckType check) {
+            var method = typeof(DomainPortfolioSnapshotBuilder).GetMethod("ResolveArea", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(method);
+            return (string)method!.Invoke(null, new object[] { check })!;
+        }
+
+        private static List<DomainPortfolioFact> ExtractFactsFor(object analysis) {
+            var method = typeof(DomainPortfolioSnapshotBuilder).GetMethod("ExtractFacts", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(method);
+            return ((IEnumerable<DomainPortfolioFact>)method!.Invoke(null, new[] { analysis })!).ToList();
+        }
+
+        private sealed class FactExtractionFixture {
+            public DateTime DefaultDate { get; set; }
+
+            public DateTimeOffset DefaultOffset { get; set; }
+
+            public DateTime UnspecifiedUtc { get; set; } = new(2026, 5, 7, 12, 0, 0, DateTimeKind.Unspecified);
+
+            public List<Uri> Endpoints { get; set; } = new() {
+                new("https://example.com/b"),
+                new("https://example.com/a")
+            };
+
+            public List<string> Assessments { get; set; } = new() {
+                "ignore-me"
+            };
+        }
     }
 }

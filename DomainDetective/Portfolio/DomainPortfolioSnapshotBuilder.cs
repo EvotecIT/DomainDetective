@@ -50,11 +50,13 @@ public static class DomainPortfolioSnapshotBuilder {
             EvaluatorVersion = typeof(DomainHealthCheck).Assembly.GetName().Version?.ToString() ?? string.Empty
         };
 
-        foreach (var pair in healthCheck.GetAnalysisMap().OrderBy(static item => item.Key.ToString(), StringComparer.OrdinalIgnoreCase)) {
-            if (selected != null && !selected.Contains(pair.Key)) continue;
-            if (pair.Value == null) continue;
+        var analyses = healthCheck.GetAnalysisMap()
+            .Where(item => selected == null || selected.Contains(item.Key))
+            .Where(static item => item.Value != null)
+            .OrderBy(static item => item.Key.ToString(), StringComparer.OrdinalIgnoreCase);
 
-            var section = BuildSection(pair.Key, pair.Value);
+        foreach (var pair in analyses) {
+            var section = BuildSection(pair.Key, pair.Value!);
             if (section.Facts.Count == 0 && section.Assessments.Count == 0) continue;
             snapshot.Sections.Add(section);
             snapshot.Assessments.AddRange(section.Assessments);
@@ -126,6 +128,7 @@ public static class DomainPortfolioSnapshotBuilder {
     private static string ResolveArea(HealthCheckType check)
         => check switch {
             HealthCheckType.NS or
+            HealthCheckType.DELEGATION or
             HealthCheckType.SOA or
             HealthCheckType.EDNSSUPPORT or
             HealthCheckType.REVERSEDNS or
@@ -167,6 +170,8 @@ public static class DomainPortfolioSnapshotBuilder {
             HealthCheckType.CERT or
             HealthCheckType.DANE or
             HealthCheckType.SECURITYTXT or
+            HealthCheckType.ROBOTS or
+            HealthCheckType.HPKP or
             HealthCheckType.DIRECTORYEXPOSURE or
             HealthCheckType.WEBSITE or
             HealthCheckType.CTTIMELINE => "Web",
@@ -176,6 +181,11 @@ public static class DomainPortfolioSnapshotBuilder {
             HealthCheckType.RPKI or
             HealthCheckType.DNSBL or
             HealthCheckType.WHOIS or
+            HealthCheckType.OPENRESOLVER or
+            HealthCheckType.DANGLINGCNAME or
+            HealthCheckType.SNMP or
+            HealthCheckType.NTP or
+            HealthCheckType.TYPOSQUATTING or
             HealthCheckType.THREATINTEL or
             HealthCheckType.THREATFEED or
             HealthCheckType.IPNEIGHBOR or
@@ -183,7 +193,9 @@ public static class DomainPortfolioSnapshotBuilder {
             HealthCheckType.PORTSCAN or
             HealthCheckType.PORTAVAILABILITY or
             HealthCheckType.DNSTUNNELING or
+            HealthCheckType.FLATTENINGSERVICE or
             HealthCheckType.CONTACT => "Security",
+            HealthCheckType.MESSAGEHEADER => "Mail",
             _ => "General"
         };
 
@@ -195,8 +207,7 @@ public static class DomainPortfolioSnapshotBuilder {
                 .OrderBy(static property => property.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray());
 
-        foreach (var property in properties) {
-            if (IgnoredPropertyNames.Contains(property.Name)) continue;
+        foreach (var property in properties.Where(static property => !IgnoredPropertyNames.Contains(property.Name))) {
             if (!TryRead(property, analysis, out var value)) continue;
             if (!TryFormat(value, out var formatted, out var kind)) continue;
 
@@ -252,14 +263,23 @@ public static class DomainPortfolioSnapshotBuilder {
         }
 
         if (type == typeof(DateTime)) {
-            var dateTime = ((DateTime)value).ToUniversalTime();
+            var dateTime = NormalizeDateTime((DateTime)value);
+            if (dateTime == DateTime.MinValue) {
+                return false;
+            }
+
             formatted = dateTime.ToString("O", CultureInfo.InvariantCulture);
             kind = DomainPortfolioFactKind.DateTime;
             return true;
         }
 
         if (type == typeof(DateTimeOffset)) {
-            formatted = ((DateTimeOffset)value).ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+            var dateTimeOffset = ((DateTimeOffset)value).ToUniversalTime();
+            if (dateTimeOffset == DateTimeOffset.MinValue) {
+                return false;
+            }
+
+            formatted = dateTimeOffset.ToString("O", CultureInfo.InvariantCulture);
             kind = DomainPortfolioFactKind.DateTime;
             return true;
         }
@@ -320,12 +340,24 @@ public static class DomainPortfolioSnapshotBuilder {
         }
 
         if (type == typeof(DateTime)) {
-            value = ((DateTime)item).ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+            var dateTime = NormalizeDateTime((DateTime)item);
+            if (dateTime == DateTime.MinValue) {
+                value = string.Empty;
+                return false;
+            }
+
+            value = dateTime.ToString("O", CultureInfo.InvariantCulture);
             return true;
         }
 
         if (type == typeof(DateTimeOffset)) {
-            value = ((DateTimeOffset)item).ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+            var dateTimeOffset = ((DateTimeOffset)item).ToUniversalTime();
+            if (dateTimeOffset == DateTimeOffset.MinValue) {
+                value = string.Empty;
+                return false;
+            }
+
+            value = dateTimeOffset.ToString("O", CultureInfo.InvariantCulture);
             return true;
         }
 
@@ -334,8 +366,23 @@ public static class DomainPortfolioSnapshotBuilder {
             return true;
         }
 
+        if (item is Uri uri) {
+            value = uri.ToString();
+            return value.Length > 0;
+        }
+
         value = string.Empty;
         return false;
+    }
+
+    private static DateTime NormalizeDateTime(DateTime value) {
+        if (value == DateTime.MinValue) {
+            return DateTime.MinValue;
+        }
+
+        return value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            : value.ToUniversalTime();
     }
 
     private static bool IsNumeric(Type type)
@@ -477,12 +524,9 @@ public static class DomainPortfolioSnapshotBuilder {
         }
 
         public string? String(string sectionKey, params string[] keys) {
-            foreach (var key in keys) {
-                var value = Value(sectionKey, key);
-                if (!string.IsNullOrWhiteSpace(value)) return value;
-            }
-
-            return null;
+            return keys
+                .Select(key => Value(sectionKey, key))
+                .FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value));
         }
 
         public List<string> List(string sectionKey, params string[] keys) {
@@ -507,6 +551,10 @@ public static class DomainPortfolioSnapshotBuilder {
 
         public int? Int(string sectionKey, params string[] keys) {
             var value = String(sectionKey, keys);
+            if (string.IsNullOrWhiteSpace(value)) {
+                return null;
+            }
+
             if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)) return parsed;
             return null;
         }
