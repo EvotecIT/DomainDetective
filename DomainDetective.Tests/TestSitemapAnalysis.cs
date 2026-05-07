@@ -179,7 +179,7 @@ public class TestSitemapAnalysis {
                     var response = new HttpResponseMessage(HttpStatusCode.OK) {
                         Content = new ByteArrayContent(new byte[] { 0x1f, 0x8b, 0x08, 0x00 })
                     };
-                    response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/gzip");
+                    response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
                     return response;
                 }
 

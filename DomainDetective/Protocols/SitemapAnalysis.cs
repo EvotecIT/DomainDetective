@@ -592,15 +592,15 @@ public sealed class SitemapAnalysis : IHasAssessments {
 
                 result.FinalUri = current;
                 if (readBody && response.Content != null) {
-                    var shouldDecompressGzip = IsGzipEncoded(response.Content);
+                    var shouldDecompressGzip = HasGzipHeader(response.Content);
                     try {
                         result.Body = await ReadLimitedBodyAsync(response.Content, maxBodyCharacters ?? 262144, shouldDecompressGzip, cancellationToken).ConfigureAwait(false);
-                        if (shouldDecompressGzip && string.IsNullOrEmpty(result.Body)) {
+                        if ((shouldDecompressGzip || current.AbsolutePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)) && string.IsNullOrEmpty(result.Body)) {
                             result.Error = "Sitemap response gzip body could not be decompressed or was empty.";
                         }
                     } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                         throw;
-                    } catch (InvalidDataException ex) when (shouldDecompressGzip) {
+                    } catch (InvalidDataException ex) {
                         result.Error = "Sitemap response gzip body could not be decompressed: " + ex.Message;
                     }
                 }
@@ -695,7 +695,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
         return prefixedStream;
     }
 
-    private static bool IsGzipEncoded(HttpContent content) {
+    private static bool HasGzipHeader(HttpContent content) {
         if (content.Headers.ContentEncoding.Any(value => value.Equals("gzip", StringComparison.OrdinalIgnoreCase))) {
             return true;
         }
