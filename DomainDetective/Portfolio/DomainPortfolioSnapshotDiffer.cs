@@ -18,10 +18,15 @@ public static class DomainPortfolioSnapshotDiffer {
     public static DomainPortfolioChangeSet Compare(DomainPortfolioSnapshot previous, DomainPortfolioSnapshot current) {
         if (previous == null) throw new ArgumentNullException(nameof(previous));
         if (current == null) throw new ArgumentNullException(nameof(current));
+        var previousSubject = previous.Subject?.Trim() ?? string.Empty;
+        var currentSubject = current.Subject?.Trim() ?? string.Empty;
+        if (!string.Equals(previousSubject, currentSubject, StringComparison.OrdinalIgnoreCase)) {
+            throw new ArgumentException("Portfolio snapshots must have the same subject.", nameof(current));
+        }
 
         var result = new DomainPortfolioChangeSet {
-            PreviousSubject = previous.Subject,
-            CurrentSubject = current.Subject,
+            PreviousSubject = previousSubject,
+            CurrentSubject = currentSubject,
             PreviousCapturedAtUtc = previous.CapturedAtUtc,
             CurrentCapturedAtUtc = current.CapturedAtUtc
         };
@@ -133,6 +138,7 @@ public static class DomainPortfolioSnapshotDiffer {
             }
 
             if (previousFact == null || currentFact == null) continue;
+            // Fact values are normalized storage values; preserve case-sensitive changes.
             if (!string.Equals(previousFact.Value, currentFact.Value, StringComparison.Ordinal)) {
                 changes.Add(BuildFactChange(sectionKey, factKey, DomainPortfolioChangeKind.Changed, previousFact.Value, currentFact.Value));
             }

@@ -36,6 +36,26 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRejectsInvalidArguments() {
+            var healthCheck = new DomainHealthCheck();
+
+            Assert.Throws<ArgumentException>(() => DomainPortfolioSnapshotBuilder.Build("", healthCheck));
+            Assert.Throws<ArgumentNullException>(() => DomainPortfolioSnapshotBuilder.Build("example.com", null!));
+        }
+
+        [Fact]
+        public void BuildUsesGeneralAreaFallback() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.HPKPAnalysis.Subject = "example.com";
+
+            var snapshot = healthCheck.ToPortfolioSnapshot("example.com", new[] { HealthCheckType.HPKP });
+
+            var section = Assert.Single(snapshot.Sections);
+            Assert.Equal("HPKP", section.Key);
+            Assert.Equal("General", section.Area);
+        }
+
+        [Fact]
         public void BuildSummariesProjectsTypedPortfolioFields() {
             var capturedAt = new DateTimeOffset(2026, 5, 7, 0, 0, 0, TimeSpan.Zero);
             var snapshot = new DomainPortfolioSnapshot {
@@ -91,6 +111,32 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildSummariesWithoutMatchingSectionsReturnsEmptySummaries() {
+            var snapshot = new DomainPortfolioSnapshot {
+                Subject = "example.com",
+                CapturedAtUtc = new DateTimeOffset(2026, 5, 7, 0, 0, 0, TimeSpan.Zero),
+                Sections = new List<DomainPortfolioSection> {
+                    new() {
+                        Key = "UNKNOWN",
+                        Area = "General",
+                        Facts = new List<DomainPortfolioFact> {
+                            new() { Key = "OtherValue", Value = "value" }
+                        }
+                    }
+                }
+            };
+
+            var summaries = DomainPortfolioSnapshotBuilder.BuildSummaries(snapshot);
+
+            Assert.Null(summaries.Registration.Registrar);
+            Assert.Empty(summaries.Registration.Statuses);
+            Assert.Empty(summaries.Dns.NameServers);
+            Assert.Null(summaries.Certificate.Fingerprint);
+            Assert.Null(summaries.Mail.Provider);
+            Assert.Null(summaries.Website.StatusCode);
+        }
+
+        [Fact]
         public void CompareDetectsAddedRemovedAndChangedFacts() {
             var previous = CreateSnapshot(
                 "example.com",
@@ -137,6 +183,36 @@ namespace DomainDetective.Tests {
                 change.Kind == DomainPortfolioChangeKind.Changed &&
                 change.PreviousValue == "OK" &&
                 change.CurrentValue == "Error");
+        }
+
+        [Fact]
+        public void CompareEmptySnapshotsProducesNoChanges() {
+            var previous = new DomainPortfolioSnapshot {
+                Subject = "example.com"
+            };
+            var current = new DomainPortfolioSnapshot {
+                Subject = "example.com"
+            };
+
+            var changes = DomainPortfolioSnapshotDiffer.Compare(previous, current);
+
+            Assert.Empty(changes.Changes);
+        }
+
+        [Fact]
+        public void CompareRejectsInvalidArguments() {
+            var snapshot = CreateSnapshot("example.com");
+
+            Assert.Throws<ArgumentNullException>(() => DomainPortfolioSnapshotDiffer.Compare(null!, snapshot));
+            Assert.Throws<ArgumentNullException>(() => DomainPortfolioSnapshotDiffer.Compare(snapshot, null!));
+        }
+
+        [Fact]
+        public void CompareRejectsDifferentSubjects() {
+            var previous = CreateSnapshot("example.com");
+            var current = CreateSnapshot("contoso.com");
+
+            Assert.Throws<ArgumentException>(() => DomainPortfolioSnapshotDiffer.Compare(previous, current));
         }
 
         private static DomainPortfolioSnapshot CreateSnapshot(string subject, params DomainPortfolioFact[] facts)

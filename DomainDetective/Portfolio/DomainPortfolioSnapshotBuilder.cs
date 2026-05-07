@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 
 namespace DomainDetective;
 
@@ -12,6 +14,8 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public static class DomainPortfolioSnapshotBuilder {
+    private static readonly ConcurrentDictionary<Type, PropertyInfo[]> PropertyCache = new();
+
     private static readonly HashSet<string> IgnoredPropertyNames = new(StringComparer.OrdinalIgnoreCase) {
         "Assessments",
         "Recommendations",
@@ -184,35 +188,36 @@ public static class DomainPortfolioSnapshotBuilder {
         };
 
     private static IEnumerable<DomainPortfolioFact> ExtractFacts(object analysis) {
-        var properties = analysis.GetType()
-            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(static property => property.GetMethod != null && property.GetIndexParameters().Length == 0)
-            .OrderBy(static property => property.Name, StringComparer.OrdinalIgnoreCase);
+        var properties = PropertyCache.GetOrAdd(
+            analysis.GetType(),
+            static type => type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Where(static property => property.GetMethod != null && property.GetIndexParameters().Length == 0)
+                .OrderBy(static property => property.Name, StringComparer.OrdinalIgnoreCase)
+                .ToArray());
 
         foreach (var property in properties) {
             if (IgnoredPropertyNames.Contains(property.Name)) continue;
             if (!TryRead(property, analysis, out var value)) continue;
-            if (value == null) continue;
             if (!TryFormat(value, out var formatted, out var kind)) continue;
 
             yield return new DomainPortfolioFact {
                 Key = property.Name,
-                Label = property.Name,
+                Label = ToDisplayLabel(property.Name),
                 Value = formatted,
                 Kind = kind
             };
         }
     }
 
-    private static bool TryRead(PropertyInfo property, object instance, out object? value) {
+    private static bool TryRead(PropertyInfo property, object instance, out object value) {
         try {
-            value = property.GetValue(instance);
+            value = property.GetValue(instance)!;
             return value != null;
         } catch (TargetInvocationException) {
-            value = null;
+            value = null!;
             return false;
         } catch (InvalidOperationException) {
-            value = null;
+            value = null!;
             return false;
         }
     }
@@ -285,8 +290,9 @@ public static class DomainPortfolioSnapshotBuilder {
                 return false;
             }
 
-            items.Sort(StringComparer.OrdinalIgnoreCase);
-            formatted = string.Join("|", items.Distinct(StringComparer.OrdinalIgnoreCase));
+            formatted = string.Join("|", items
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase));
             kind = DomainPortfolioFactKind.Collection;
             return true;
         }
@@ -344,6 +350,39 @@ public static class DomainPortfolioSnapshotBuilder {
            type == typeof(float) ||
            type == typeof(double) ||
            type == typeof(decimal);
+
+    private static string ToDisplayLabel(string key) {
+        if (string.IsNullOrWhiteSpace(key)) return string.Empty;
+
+        var builder = new StringBuilder(key.Length + 8);
+        for (var i = 0; i < key.Length; i++) {
+            var current = key[i];
+            if (current == '_' || current == '-') {
+                AppendSpace(builder);
+                continue;
+            }
+
+            if (builder.Length > 0 && char.IsUpper(current)) {
+                var previous = key[i - 1];
+                var next = i + 1 < key.Length ? key[i + 1] : '\0';
+                if (char.IsLower(previous) ||
+                    char.IsDigit(previous) ||
+                    (char.IsUpper(previous) && char.IsLower(next))) {
+                    AppendSpace(builder);
+                }
+            }
+
+            builder.Append(current);
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private static void AppendSpace(StringBuilder builder) {
+        if (builder.Length == 0) return;
+        if (builder[builder.Length - 1] == ' ') return;
+        builder.Append(' ');
+    }
 
     private static DomainRegistrationPortfolioSummary BuildRegistrationSummary(DomainPortfolioSnapshot snapshot, SnapshotFactLookup facts) {
         var expiresAt = facts.Date("WHOIS", "Expires", "ExpirationDate", "ExpiryDate", "RegistryExpiryDate", "RegistrarRegistrationExpirationDate")
