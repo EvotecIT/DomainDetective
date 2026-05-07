@@ -7,6 +7,8 @@ using System.Linq;
 namespace DomainDetective;
 
 public static partial class DomainPortfolioSnapshotBuilder {
+    private static readonly string[] MxHostFactKeys = { "Hosts", "MxHosts", "MailServers", "Exchanges" };
+
     private static DomainRegistrationPortfolioSummary BuildRegistrationSummary(DomainPortfolioSnapshot snapshot, SnapshotFactLookup facts) {
         var expiresAt = facts.Date("WHOIS", "Expires", "ExpirationDate", "ExpiryDate", "RegistryExpiryDate", "RegistrarRegistrationExpirationDate")
             ?? facts.Date("RDAP", "ExpiresAt", "ExpirationDate", "ExpiryDate");
@@ -35,7 +37,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
     private static DomainDnsPortfolioSummary BuildDnsSummary(SnapshotFactLookup facts)
         => new() {
             NameServers = facts.List("NS", "NameServers", "Hosts", "Servers"),
-            MxHosts = facts.List("MX", "Hosts", "MxHosts", "MailServers", "Exchanges"),
+            MxHosts = facts.List("MX", MxHostFactKeys),
             IPv4Addresses = facts.List("APEXADDRESS", "IPv4Addresses", "Ipv4Addresses", "ARecords", "Addresses"),
             IPv6Addresses = facts.List("APEXADDRESS", "IPv6Addresses", "Ipv6Addresses", "AAAARecords"),
             DnssecEnabled = facts.Bool("DNSSEC", "ChainValid", "IsSigned", "HasDnssec", "DnssecEnabled"),
@@ -58,7 +60,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
 
     private static DomainMailPortfolioSummary BuildMailSummary(SnapshotFactLookup facts)
         => new() {
-            MxHosts = facts.List("MX", "Hosts", "MxHosts", "MailServers", "Exchanges"),
+            MxHosts = facts.List("MX", MxHostFactKeys),
             Provider = facts.String("MX", "ProviderPrimary", "MailProvider", "Provider")
                 ?? facts.String("DNSINVENTORY", "MailProvider", "MailProviderName"),
             SpfRecord = facts.String("SPF", "SpfRecord", "Record", "RecordValue"),

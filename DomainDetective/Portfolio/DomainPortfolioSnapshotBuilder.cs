@@ -7,7 +7,6 @@ namespace DomainDetective;
 /// <summary>
 /// Builds storage-free portfolio snapshots from DomainDetective analysis results.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public static partial class DomainPortfolioSnapshotBuilder {
     /// <summary>
     /// Builds a portfolio snapshot from a populated <see cref="DomainHealthCheck"/>.

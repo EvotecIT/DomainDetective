@@ -6,7 +6,6 @@ namespace DomainDetective;
 /// <summary>
 /// Storage-free aggregate view of domain evidence suitable for persistence by higher-level products.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainPortfolioSnapshot {
     private DomainPortfolioSummaries? _summaries;
 
@@ -38,7 +37,6 @@ public sealed class DomainPortfolioSnapshot {
 /// <summary>
 /// A check-oriented evidence section inside a <see cref="DomainPortfolioSnapshot"/>.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainPortfolioSection {
     /// <summary>Stable section key, normally a <see cref="HealthCheckType"/> name.</summary>
     public string Key { get; set; } = string.Empty;
@@ -68,7 +66,6 @@ public sealed class DomainPortfolioSection {
 /// <summary>
 /// A stable scalar value captured from an analysis result.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainPortfolioFact {
     /// <summary>Stable fact key within the section.</summary>
     public string Key { get; set; } = string.Empty;
@@ -86,7 +83,6 @@ public sealed class DomainPortfolioFact {
 /// <summary>
 /// Storage-oriented type hint for a portfolio snapshot fact.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public enum DomainPortfolioFactKind {
     /// <summary>Text value.</summary>
     String,

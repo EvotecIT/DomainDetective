@@ -377,7 +377,7 @@ namespace DomainDetective.Tests {
                     new() {
                         Key = "WHOIS",
                         DisplayName = "WHOIS",
-                        Area = "Security",
+                        Area = "Registration",
                         Status = "OK",
                         Facts = facts.ToList()
                     }

@@ -6,7 +6,6 @@ namespace DomainDetective;
 /// <summary>
 /// Compact typed summary projections for common portfolio workflows.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainPortfolioSummaries {
     /// <summary>Registration and registrar lifecycle summary.</summary>
     public DomainRegistrationPortfolioSummary Registration { get; set; } = new();
@@ -27,7 +26,6 @@ public sealed class DomainPortfolioSummaries {
 /// <summary>
 /// Registration lifecycle fields that are useful to portfolio storage.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainRegistrationPortfolioSummary {
     /// <summary>Registrar name when available.</summary>
     public string? Registrar { get; set; }
@@ -54,7 +52,6 @@ public sealed class DomainRegistrationPortfolioSummary {
 /// <summary>
 /// DNS infrastructure fields that are useful to portfolio storage.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainDnsPortfolioSummary {
     /// <summary>Authoritative name servers.</summary>
     public List<string> NameServers { get; set; } = new();
@@ -78,7 +75,6 @@ public sealed class DomainDnsPortfolioSummary {
 /// <summary>
 /// Certificate fields that are useful to portfolio storage.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainCertificatePortfolioSummary {
     /// <summary>Certificate fingerprint or thumbprint.</summary>
     public string? Fingerprint { get; set; }
@@ -108,7 +104,6 @@ public sealed class DomainCertificatePortfolioSummary {
 /// <summary>
 /// Mail posture fields that are useful to portfolio storage.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainMailPortfolioSummary {
     /// <summary>MX hostnames mirrored from DNS evidence for mail-focused consumers.</summary>
     public List<string> MxHosts { get; set; } = new();
@@ -138,7 +133,6 @@ public sealed class DomainMailPortfolioSummary {
 /// <summary>
 /// Website and HTTP posture fields that are useful to portfolio storage.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainWebsitePortfolioSummary {
     /// <summary>HTTP status code when available.</summary>
     public int? StatusCode { get; set; }

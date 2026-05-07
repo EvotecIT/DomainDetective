@@ -8,7 +8,6 @@ namespace DomainDetective;
 /// <summary>
 /// Compares portfolio snapshots and emits deterministic storage-friendly change rows.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public static class DomainPortfolioSnapshotDiffer {
     private const int SupportedSchemaVersion = 1;
 

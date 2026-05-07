@@ -6,7 +6,6 @@ namespace DomainDetective;
 /// <summary>
 /// Classification of a portfolio snapshot change.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public enum DomainPortfolioChangeKind {
     /// <summary>A section or fact appears only in the current snapshot.</summary>
     Added,
@@ -21,7 +20,6 @@ public enum DomainPortfolioChangeKind {
 /// <summary>
 /// Deterministic change row between two portfolio snapshots.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainPortfolioChange {
     /// <summary>Stable change key.</summary>
     public string Key { get; set; } = string.Empty;
@@ -45,7 +43,6 @@ public sealed class DomainPortfolioChange {
 /// <summary>
 /// Change set produced by comparing two portfolio snapshots.
 /// </summary>
-/// <para>Part of the DomainDetective project.</para>
 public sealed class DomainPortfolioChangeSet {
     /// <summary>Snapshot subject.</summary>
     public string Subject { get; set; } = string.Empty;
