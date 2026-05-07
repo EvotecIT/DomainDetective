@@ -78,9 +78,31 @@ public sealed class SitemapAnalysis : IHasAssessments {
         Reset(subject);
 
         using var client = CreateClient(options);
-        var seeds = await DiscoverSeedSitemapsAsync(client, subject.Trim(), options, cancellationToken).ConfigureAwait(false);
-        var pending = new Queue<Uri>(seeds);
+        var trimmedSubject = subject.Trim();
+        var seeds = await DiscoverSeedSitemapsAsync(client, trimmedSubject, options, cancellationToken).ConfigureAwait(false);
         var seenDocs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenFinalDocs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await ProcessSitemapQueueAsync(client, seeds, seenDocs, seenFinalDocs, options, cancellationToken).ConfigureAwait(false);
+
+        if (options.AllowHttpFallback &&
+            IsHostSubject(trimmedSubject) &&
+            !Documents.Any(document => document.Present && document.XmlValid)) {
+            var fallbackSeeds = await DiscoverHttpFallbackSeedSitemapsAsync(client, trimmedSubject, options, cancellationToken).ConfigureAwait(false);
+            await ProcessSitemapQueueAsync(client, fallbackSeeds, seenDocs, seenFinalDocs, options, cancellationToken).ConfigureAwait(false);
+        }
+
+        MarkDuplicateLocations();
+        AddSummaryAssessments();
+
+        if (options.ProbeUrls) {
+            await ProbeSitemapUrlsAsync(client, options, cancellationToken).ConfigureAwait(false);
+        }
+
+        logger?.WriteVerbose("Sitemap analysis completed for {0}: {1} document(s), {2} URL entrie(s), {3} probe(s)", Subject, Documents.Count, Entries.Count, UrlProbes.Count);
+    }
+
+    private async Task ProcessSitemapQueueAsync(HttpClient client, IEnumerable<Uri> seeds, HashSet<string> seenDocs, HashSet<string> seenFinalDocs, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
+        var pending = new Queue<Uri>(seeds);
 
         while (pending.Count > 0 && Documents.Count < Math.Max(1, options.MaxSitemapDocuments)) {
             cancellationToken.ThrowIfCancellationRequested();
@@ -89,7 +111,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
                 continue;
             }
 
-            var parsed = await FetchAndParseSitemapAsync(client, sitemapUri, options, cancellationToken).ConfigureAwait(false);
+            var parsed = await FetchAndParseSitemapAsync(client, sitemapUri, seenFinalDocs, options, cancellationToken).ConfigureAwait(false);
             if (parsed.Document != null) {
                 Documents.Add(parsed.Document);
             }
@@ -111,15 +133,6 @@ public sealed class SitemapAnalysis : IHasAssessments {
                 break;
             }
         }
-
-        MarkDuplicateLocations();
-        AddSummaryAssessments();
-
-        if (options.ProbeUrls) {
-            await ProbeSitemapUrlsAsync(client, options, cancellationToken).ConfigureAwait(false);
-        }
-
-        logger?.WriteVerbose("Sitemap analysis completed for {0}: {1} document(s), {2} URL entrie(s), {3} probe(s)", Subject, Documents.Count, Entries.Count, UrlProbes.Count);
     }
 
     private void Reset(string subject) {
@@ -170,16 +183,21 @@ public sealed class SitemapAnalysis : IHasAssessments {
         }
 
         var host = subject.Trim().TrimEnd('/');
-        var origins = options.AllowHttpFallback
-            ? new[] { new Uri("https://" + host + "/"), new Uri("http://" + host + "/") }
-            : new[] { new Uri("https://" + host + "/") };
+        var origin = new Uri("https://" + host + "/");
+        OriginUri ??= origin;
+        await AddRobotsSitemapsAsync(client, origin, seeds, options, cancellationToken).ConfigureAwait(false);
+        AddSeed(seeds, new Uri(origin, "/sitemap.xml"));
 
-        foreach (var origin in origins) {
-            OriginUri ??= origin;
-            await AddRobotsSitemapsAsync(client, origin, seeds, options, cancellationToken).ConfigureAwait(false);
-            AddSeed(seeds, new Uri(origin, "/sitemap.xml"));
-        }
+        return seeds;
+    }
 
+    private async Task<List<Uri>> DiscoverHttpFallbackSeedSitemapsAsync(HttpClient client, string subject, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
+        var seeds = new List<Uri>();
+        var host = subject.Trim().TrimEnd('/');
+        var origin = new Uri("http://" + host + "/");
+        OriginUri ??= origin;
+        await AddRobotsSitemapsAsync(client, origin, seeds, options, cancellationToken).ConfigureAwait(false);
+        AddSeed(seeds, new Uri(origin, "/sitemap.xml"));
         return seeds;
     }
 
@@ -212,7 +230,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
         }
     }
 
-    private async Task<SitemapParseResult> FetchAndParseSitemapAsync(HttpClient client, Uri sitemapUri, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
+    private async Task<SitemapParseResult> FetchAndParseSitemapAsync(HttpClient client, Uri sitemapUri, HashSet<string> seenFinalDocs, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
         var result = new SitemapParseResult();
         var docInfo = new SitemapDocument {
             Url = sitemapUri.AbsoluteUri
@@ -229,6 +247,11 @@ public sealed class SitemapAnalysis : IHasAssessments {
             Math.Max(1024, options.MaxSitemapBodyCharacters)).ConfigureAwait(false);
         docInfo.StatusCode = response.StatusCode;
         docInfo.ContentType = response.ContentType;
+        var finalUri = response.FinalUri ?? sitemapUri;
+        if (!seenFinalDocs.Add(finalUri.AbsoluteUri)) {
+            return result;
+        }
+
         docInfo.Present = response.StatusCode >= 200 && response.StatusCode < 300;
         if (!docInfo.Present) {
             docInfo.Error = response.Error ?? "Sitemap fetch did not return 2xx.";
@@ -562,7 +585,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
 
                 result.FinalUri = current;
                 if (readBody && response.Content != null) {
-                    var shouldDecompressGzip = IsGzipEncoded(response.Content, current);
+                    var shouldDecompressGzip = IsGzipEncoded(response.Content);
                     result.Body = await ReadLimitedBodyAsync(response.Content, maxBodyCharacters ?? 262144, shouldDecompressGzip, cancellationToken).ConfigureAwait(false);
                 }
                 return result;
@@ -631,14 +654,13 @@ public sealed class SitemapAnalysis : IHasAssessments {
         return builder.ToString();
     }
 
-    private static bool IsGzipEncoded(HttpContent content, Uri uri) {
+    private static bool IsGzipEncoded(HttpContent content) {
         if (content.Headers.ContentEncoding.Any(value => value.Equals("gzip", StringComparison.OrdinalIgnoreCase))) {
             return true;
         }
 
         var mediaType = content.Headers.ContentType?.MediaType ?? string.Empty;
-        return uri.AbsolutePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) ||
-               mediaType.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0;
+        return mediaType.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool HasNoIndex(Dictionary<string, string> headers, string? body) {
@@ -687,6 +709,11 @@ public sealed class SitemapAnalysis : IHasAssessments {
     private static Uri GetOrigin(Uri uri) {
         var builder = new UriBuilder(uri.Scheme, uri.Host, uri.IsDefaultPort ? -1 : uri.Port);
         return builder.Uri;
+    }
+
+    private static bool IsHostSubject(string subject) {
+        return !Uri.TryCreate(subject, UriKind.Absolute, out var absolute) ||
+               (absolute.Scheme != Uri.UriSchemeHttp && absolute.Scheme != Uri.UriSchemeHttps);
     }
 
     private void AddCrossHostSitemapAssessment(Uri sitemapUri) {

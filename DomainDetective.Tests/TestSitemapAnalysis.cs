@@ -194,6 +194,71 @@ public class TestSitemapAnalysis {
     }
 
     [Fact]
+    public async Task AnalyzeAsyncDoesNotProbeHttpFallbackWhenHttpsSitemapIsHealthy() {
+        var requestedUrls = new List<string>();
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                requestedUrls.Add(url);
+                if (url.Equals("https://fallback.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://fallback.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://fallback.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", "<?xml version=\"1.0\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><url><loc>https://fallback.example/</loc></url></urlset>");
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "fallback.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = true,
+                ProbeUrls = false
+            });
+
+        Assert.DoesNotContain(requestedUrls, url => url.StartsWith("http://fallback.example/", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(analysis.Documents, document => document.Url == "https://fallback.example/sitemap.xml" && document.XmlValid);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncDeduplicatesRedirectedSitemapDocumentsByFinalUri() {
+        var sitemap = "<?xml version=\"1.0\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><url><loc>https://dedupe.example/</loc></url></urlset>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://dedupe.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://dedupe.example/final.xml\n");
+                }
+
+                if (url.Equals("https://dedupe.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    var response = new HttpResponseMessage(HttpStatusCode.MovedPermanently);
+                    response.Headers.Location = new Uri("https://dedupe.example/final.xml");
+                    return response;
+                }
+
+                if (url.Equals("https://dedupe.example/final.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemap);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "dedupe.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false
+            });
+
+        Assert.Single(analysis.Entries);
+        Assert.Equal(0, analysis.DuplicateLocationCount);
+    }
+
+    [Fact]
     public async Task AnalyzeAsyncPropagatesCancellation() {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
