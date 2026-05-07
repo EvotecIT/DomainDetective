@@ -59,7 +59,7 @@ public sealed class DomainDnsPortfolioSummary {
     /// <summary>Authoritative name servers.</summary>
     public List<string> NameServers { get; set; } = new();
 
-    /// <summary>MX hostnames.</summary>
+    /// <summary>DNS-level MX hostnames, mirrored in the mail summary for mail-focused consumers.</summary>
     public List<string> MxHosts { get; set; } = new();
 
     /// <summary>A records or observed IPv4 values.</summary>
@@ -110,7 +110,7 @@ public sealed class DomainCertificatePortfolioSummary {
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public sealed class DomainMailPortfolioSummary {
-    /// <summary>MX hostnames.</summary>
+    /// <summary>MX hostnames mirrored from DNS evidence for mail-focused consumers.</summary>
     public List<string> MxHosts { get; set; } = new();
 
     /// <summary>Primary detected mail provider, when available.</summary>

@@ -51,6 +51,7 @@ namespace DomainDetective.Tests {
             Assert.Equal("Registration", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.RDAP));
             Assert.Equal("Web", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.ROBOTS));
             Assert.Equal("Web", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.HPKP));
+            Assert.Equal("Identity", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.CONTACT));
             Assert.Equal("Mail", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.MESSAGEHEADER));
             Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.OPENRESOLVER));
             Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.DANGLINGCNAME));
@@ -86,6 +87,7 @@ namespace DomainDetective.Tests {
                 fact.Value == "01:00:00" &&
                 fact.Kind == DomainPortfolioFactKind.Collection);
             Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultDuration));
+            Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.Unreadable));
         }
 
         [Fact]
@@ -414,6 +416,8 @@ namespace DomainDetective.Tests {
             public Dictionary<string, string> Metadata { get; set; } = new() {
                 ["key"] = "value"
             };
+
+            public string Unreadable => throw new NotSupportedException("Synthetic unreadable property.");
         }
     }
 }

@@ -14,6 +14,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
     private const char CollectionSeparator = '|';
 
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> PropertyCache = new();
+    private static readonly ConcurrentDictionary<string, string> LabelCache = new(StringComparer.Ordinal);
 
     private static readonly HashSet<string> IgnoredPropertyNames = new(StringComparer.OrdinalIgnoreCase) {
         "Assessments",
@@ -59,16 +60,45 @@ public static partial class DomainPortfolioSnapshotBuilder {
         try {
             value = property.GetValue(instance)!;
             return value != null;
-        } catch (TargetInvocationException) {
-            value = null!;
-            return false;
-        } catch (InvalidOperationException) {
+        } catch (Exception ex) when (ex is TargetInvocationException || ex is InvalidOperationException || ex is NotSupportedException) {
             value = null!;
             return false;
         }
     }
 
     private static bool TryFormat(object value, out string formatted, out DomainPortfolioFactKind kind) {
+        formatted = string.Empty;
+        kind = DomainPortfolioFactKind.String;
+
+        if (value is IDictionary) {
+            return false;
+        }
+
+        if (value is IEnumerable enumerable && value is not string) {
+            var items = new List<string>();
+            foreach (var item in enumerable) {
+                if (item == null) continue;
+                if (!TryFormatScalar(item, out var itemValue, out _)) continue;
+                if (!string.IsNullOrWhiteSpace(itemValue)) items.Add(itemValue);
+            }
+
+            if (items.Count == 0) {
+                formatted = string.Empty;
+                return false;
+            }
+
+            formatted = string.Join("|", items
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
+                .Select(EscapeCollectionItem));
+            kind = DomainPortfolioFactKind.Collection;
+            return true;
+        }
+
+        return TryFormatScalar(value, out formatted, out kind);
+    }
+
+    private static bool TryFormatScalar(object value, out string formatted, out DomainPortfolioFactKind kind) {
         formatted = string.Empty;
         kind = DomainPortfolioFactKind.String;
 
@@ -136,92 +166,6 @@ public static partial class DomainPortfolioSnapshotBuilder {
             return formatted.Length > 0;
         }
 
-        if (value is IDictionary) {
-            return false;
-        }
-
-        if (value is IEnumerable enumerable && value is not string) {
-            var items = new List<string>();
-            foreach (var item in enumerable) {
-                if (item == null) continue;
-                if (!TryFormatScalarCollectionItem(item, out var itemValue)) continue;
-                if (!string.IsNullOrWhiteSpace(itemValue)) items.Add(itemValue);
-            }
-
-            if (items.Count == 0) {
-                formatted = string.Empty;
-                return false;
-            }
-
-            formatted = string.Join("|", items
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
-                .Select(EscapeCollectionItem));
-            kind = DomainPortfolioFactKind.Collection;
-            return true;
-        }
-
-        formatted = string.Empty;
-        kind = DomainPortfolioFactKind.String;
-        return false;
-    }
-
-    private static bool TryFormatScalarCollectionItem(object item, out string value) {
-        var type = Nullable.GetUnderlyingType(item.GetType()) ?? item.GetType();
-        if (type == typeof(string)) {
-            value = ((string)item).Trim();
-            return true;
-        }
-
-        if (type == typeof(bool)) {
-            value = ((bool)item) ? "true" : "false";
-            return true;
-        }
-
-        if (type.IsEnum || IsNumeric(type)) {
-            value = Convert.ToString(item, CultureInfo.InvariantCulture) ?? string.Empty;
-            return true;
-        }
-
-        if (type == typeof(DateTime)) {
-            var dateTime = NormalizeDateTime((DateTime)item);
-            if (dateTime == DateTime.MinValue) {
-                value = string.Empty;
-                return false;
-            }
-
-            value = dateTime.ToString("O", CultureInfo.InvariantCulture);
-            return true;
-        }
-
-        if (type == typeof(DateTimeOffset)) {
-            var dateTimeOffset = ((DateTimeOffset)item).ToUniversalTime();
-            if (dateTimeOffset == DateTimeOffset.MinValue) {
-                value = string.Empty;
-                return false;
-            }
-
-            value = dateTimeOffset.ToString("O", CultureInfo.InvariantCulture);
-            return true;
-        }
-
-        if (type == typeof(TimeSpan)) {
-            var duration = (TimeSpan)item;
-            if (duration == TimeSpan.Zero) {
-                value = string.Empty;
-                return false;
-            }
-
-            value = duration.ToString("c", CultureInfo.InvariantCulture);
-            return true;
-        }
-
-        if (item is Uri uri) {
-            value = uri.ToString();
-            return value.Length > 0;
-        }
-
-        value = string.Empty;
         return false;
     }
 
@@ -306,21 +250,24 @@ public static partial class DomainPortfolioSnapshotBuilder {
 
     internal static string ToDisplayLabel(string key) {
         if (string.IsNullOrWhiteSpace(key)) return string.Empty;
+        return LabelCache.GetOrAdd(key, static value => BuildDisplayLabel(value));
+    }
 
-        var builder = new StringBuilder(key.Length + 8);
-        for (var i = 0; i < key.Length; i++) {
-            var current = key[i];
+    private static string BuildDisplayLabel(string value) {
+        var builder = new StringBuilder(value.Length + 8);
+        for (var i = 0; i < value.Length; i++) {
+            var current = value[i];
             if (current == '_' || current == '-') {
                 AppendSpace(builder);
                 continue;
             }
 
             if (builder.Length > 0 && char.IsUpper(current)) {
-                var previous = key[i - 1];
-                var next = i + 1 < key.Length ? key[i + 1] : '\0';
+                var previous = value[i - 1];
+                var next = i + 1 < value.Length ? value[i + 1] : '\0';
                 if (char.IsLower(previous) ||
                     char.IsDigit(previous) && !char.IsDigit(next) ||
-                    char.IsUpper(previous) && char.IsLower(next) && HasAcronymPrefix(key, i)) {
+                    char.IsUpper(previous) && char.IsLower(next) && HasAcronymPrefix(value, i)) {
                     AppendSpace(builder);
                 }
             }

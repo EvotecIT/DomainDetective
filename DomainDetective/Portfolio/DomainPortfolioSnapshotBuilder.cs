@@ -177,6 +177,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
             HealthCheckType.WEBSITE or
             HealthCheckType.CTTIMELINE => "Web",
             HealthCheckType.IDENTITYPROVIDER or
+            HealthCheckType.CONTACT or
             HealthCheckType.MICROSOFT365 => "Identity",
             HealthCheckType.RPKI or
             HealthCheckType.DNSBL or
@@ -192,8 +193,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
             HealthCheckType.PORTSCAN or
             HealthCheckType.PORTAVAILABILITY or
             HealthCheckType.DNSTUNNELING or
-            HealthCheckType.FLATTENINGSERVICE or
-            HealthCheckType.CONTACT => "Security",
+            HealthCheckType.FLATTENINGSERVICE => "Security",
             _ => "General"
         };
 }
