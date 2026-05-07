@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 namespace DomainDetective;
@@ -78,19 +77,19 @@ public static class DomainPortfolioSnapshotDiffer {
         => (snapshot.Sections ?? new List<DomainPortfolioSection>())
             .Where(static section => section != null && !string.IsNullOrWhiteSpace(section.Key))
             .GroupBy(static section => section.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(static group => group.Key, static group => {
-                Debug.Assert(!group.Skip(1).Any(), $"Duplicate portfolio section key '{group.Key}' encountered.");
-                return group.First();
-            }, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(
+                static group => group.Key,
+                static group => SinglePortfolioItem(group, "section", group.Key),
+                StringComparer.OrdinalIgnoreCase);
 
     private static Dictionary<string, DomainPortfolioFact> BuildFactMap(DomainPortfolioSection section)
         => (section.Facts ?? new List<DomainPortfolioFact>())
             .Where(static fact => fact != null && !string.IsNullOrWhiteSpace(fact.Key))
             .GroupBy(static fact => fact.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(static group => group.Key, static group => {
-                Debug.Assert(!group.Skip(1).Any(), $"Duplicate portfolio fact key '{group.Key}' encountered.");
-                return group.First();
-            }, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(
+                static group => group.Key,
+                static group => SinglePortfolioItem(group, "fact", group.Key),
+                StringComparer.OrdinalIgnoreCase);
 
     private static DomainPortfolioChange BuildSectionChange(string sectionKey, DomainPortfolioChangeKind kind, string? previousValue, string? currentValue)
         => new() {
@@ -117,9 +116,8 @@ public static class DomainPortfolioSnapshotDiffer {
         Dictionary<string, DomainPortfolioFact>? previousFacts,
         Dictionary<string, DomainPortfolioFact>? currentFacts,
         DomainPortfolioChangeKind kind) {
-        Debug.Assert(kind != DomainPortfolioChangeKind.Changed, "Use AddChangedFacts for changed fact comparisons.");
         if (kind == DomainPortfolioChangeKind.Changed) {
-            return;
+            throw new ArgumentException("Use AddChangedFacts for changed fact comparisons.", nameof(kind));
         }
 
         var facts = kind == DomainPortfolioChangeKind.Added
@@ -164,5 +162,19 @@ public static class DomainPortfolioSnapshotDiffer {
                 changes.Add(BuildFactChange(sectionKey, factKey, DomainPortfolioChangeKind.Changed, previousFact.Value, currentFact.Value));
             }
         }
+    }
+
+    private static T SinglePortfolioItem<T>(IEnumerable<T> items, string itemKind, string key) {
+        using var enumerator = items.GetEnumerator();
+        if (!enumerator.MoveNext()) {
+            throw new InvalidOperationException($"No portfolio {itemKind} for key '{key}' was found.");
+        }
+
+        var first = enumerator.Current;
+        if (enumerator.MoveNext()) {
+            throw new InvalidOperationException($"Duplicate portfolio {itemKind} key '{key}' encountered.");
+        }
+
+        return first;
     }
 }

@@ -87,6 +87,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
                 return false;
             }
 
+            // Portfolio collection facts are canonical sets; string variants differing only by case are equivalent.
             formatted = string.Join("|", items
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
@@ -229,10 +230,12 @@ public static partial class DomainPortfolioSnapshotBuilder {
             return DateTime.MinValue;
         }
 
-        // Analysis objects that do not set Kind are expected to carry UTC values already.
-        return value.Kind == DateTimeKind.Unspecified
-            ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
-            : value.ToUniversalTime();
+        if (value.Kind == DateTimeKind.Unspecified) {
+            // Analysis objects that do not set Kind are expected to carry UTC values already.
+            return DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        }
+
+        return value.ToUniversalTime();
     }
 
     private static bool IsNumeric(Type type)

@@ -44,22 +44,23 @@ namespace DomainDetective.Tests {
             Assert.Throws<ArgumentNullException>(() => DomainPortfolioSnapshotBuilder.Build("example.com", null!));
         }
 
-        [Fact]
-        public void BuildMapsKnownPortfolioAreas() {
-            Assert.Equal("DNS", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.DELEGATION));
-            Assert.Equal("Registration", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.WHOIS));
-            Assert.Equal("Registration", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.RDAP));
-            Assert.Equal("Web", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.ROBOTS));
-            Assert.Equal("Web", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.HPKP));
-            Assert.Equal("Identity", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.CONTACT));
-            Assert.Equal("Mail", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.MESSAGEHEADER));
-            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.OPENRESOLVER));
-            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.DANGLINGCNAME));
-            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.SNMP));
-            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.NTP));
-            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.TYPOSQUATTING));
-            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.FLATTENINGSERVICE));
-            Assert.Equal("General", DomainPortfolioSnapshotBuilder.ResolveArea((HealthCheckType)int.MaxValue));
+        [Theory]
+        [InlineData(HealthCheckType.DELEGATION, "DNS")]
+        [InlineData(HealthCheckType.WHOIS, "Registration")]
+        [InlineData(HealthCheckType.RDAP, "Registration")]
+        [InlineData(HealthCheckType.ROBOTS, "Web")]
+        [InlineData(HealthCheckType.HPKP, "Web")]
+        [InlineData(HealthCheckType.CONTACT, "Identity")]
+        [InlineData(HealthCheckType.MESSAGEHEADER, "Mail")]
+        [InlineData(HealthCheckType.OPENRESOLVER, "Security")]
+        [InlineData(HealthCheckType.DANGLINGCNAME, "Security")]
+        [InlineData(HealthCheckType.SNMP, "Security")]
+        [InlineData(HealthCheckType.NTP, "Security")]
+        [InlineData(HealthCheckType.TYPOSQUATTING, "Security")]
+        [InlineData(HealthCheckType.FLATTENINGSERVICE, "Security")]
+        [InlineData((HealthCheckType)int.MaxValue, "General")]
+        public void BuildMapsKnownPortfolioAreas(HealthCheckType check, string expectedArea) {
+            Assert.Equal(expectedArea, DomainPortfolioSnapshotBuilder.ResolveArea(check));
         }
 
         [Fact]
@@ -75,6 +76,10 @@ namespace DomainDetective.Tests {
                 fact.Value == "2026-05-07T12:00:00.0000000Z" &&
                 fact.Kind == DomainPortfolioFactKind.DateTime);
             Assert.Contains(facts, fact =>
+                fact.Key == nameof(FactExtractionFixture.LocalTime) &&
+                fact.Value == FactExtractionFixture.ExpectedLocalTimeUtc &&
+                fact.Kind == DomainPortfolioFactKind.DateTime);
+            Assert.Contains(facts, fact =>
                 fact.Key == nameof(FactExtractionFixture.Endpoints) &&
                 fact.Value == "https://example.com/a|https://example.com/b" &&
                 fact.Kind == DomainPortfolioFactKind.Collection);
@@ -88,6 +93,18 @@ namespace DomainDetective.Tests {
                 fact.Kind == DomainPortfolioFactKind.Collection);
             Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultDuration));
             Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.Unreadable));
+        }
+
+        [Fact]
+        public void BuildSkipsKnownNoisyAnalysisProperties() {
+            var facts = DomainPortfolioSnapshotBuilder.ExtractFacts(new DmarcAnalysis {
+                Subject = "example.com"
+            }).ToList();
+
+            Assert.DoesNotContain(facts, fact => fact.Key == "Assessments");
+            Assert.DoesNotContain(facts, fact => fact.Key == "Recommendations");
+            Assert.DoesNotContain(facts, fact => fact.Key == "DnsConfiguration");
+            Assert.DoesNotContain(facts, fact => fact.Key == "QueryDnsOverride");
         }
 
         [Fact]
@@ -281,6 +298,16 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildSummariesNormalizesNullSummariesAssignment() {
+            var snapshot = new DomainPortfolioSnapshot {
+                Summaries = null!
+            };
+
+            Assert.NotNull(snapshot.Summaries);
+            Assert.NotNull(snapshot.Summaries.Registration);
+        }
+
+        [Fact]
         public void CompareDetectsAddedRemovedAndChangedFacts() {
             var previous = CreateSnapshot(
                 "example.com",
@@ -328,6 +355,56 @@ namespace DomainDetective.Tests {
                 change.Kind == DomainPortfolioChangeKind.Changed &&
                 change.PreviousValue == "OK" &&
                 change.CurrentValue == "Error");
+        }
+
+        [Fact]
+        public void CompareDetectsEntireAddedAndRemovedSectionsWithFacts() {
+            var empty = new DomainPortfolioSnapshot {
+                Subject = "example.com"
+            };
+            var populated = CreateSnapshot(
+                "example.com",
+                new DomainPortfolioFact { Key = "Registrar", Value = "Example Registrar", Kind = DomainPortfolioFactKind.String },
+                new DomainPortfolioFact { Key = "Locked", Value = "true", Kind = DomainPortfolioFactKind.Boolean });
+
+            var added = DomainPortfolioSnapshotDiffer.Compare(empty, populated);
+            var removed = DomainPortfolioSnapshotDiffer.Compare(populated, empty);
+
+            Assert.Contains(added.Changes, change =>
+                change.Key == "section:WHOIS:status" &&
+                change.Kind == DomainPortfolioChangeKind.Added &&
+                change.CurrentValue == "OK");
+            Assert.Contains(added.Changes, change =>
+                change.Key == "fact:WHOIS:Registrar" &&
+                change.Kind == DomainPortfolioChangeKind.Added &&
+                change.CurrentValue == "Example Registrar");
+            Assert.Contains(removed.Changes, change =>
+                change.Key == "section:WHOIS:status" &&
+                change.Kind == DomainPortfolioChangeKind.Removed &&
+                change.PreviousValue == "OK");
+            Assert.Contains(removed.Changes, change =>
+                change.Key == "fact:WHOIS:Locked" &&
+                change.Kind == DomainPortfolioChangeKind.Removed &&
+                change.PreviousValue == "true");
+        }
+
+        [Fact]
+        public void CompareRejectsDuplicatePortfolioKeys() {
+            var previous = CreateSnapshot("example.com");
+            var duplicateSection = CreateSnapshot("example.com");
+            duplicateSection.Sections.Add(new DomainPortfolioSection {
+                Key = "WHOIS",
+                Status = "OK"
+            });
+            var duplicateFact = CreateSnapshot(
+                "example.com",
+                new DomainPortfolioFact { Key = "Registrar", Value = "A" },
+                new DomainPortfolioFact { Key = "Registrar", Value = "B" });
+
+            Assert.Throws<InvalidOperationException>(() => DomainPortfolioSnapshotDiffer.Compare(previous, duplicateSection));
+            Assert.Throws<InvalidOperationException>(() => DomainPortfolioSnapshotDiffer.Compare(previous, duplicateFact));
+            Assert.Throws<InvalidOperationException>(() => DomainPortfolioSnapshotBuilder.BuildSummaries(duplicateSection));
+            Assert.Throws<InvalidOperationException>(() => DomainPortfolioSnapshotBuilder.BuildSummaries(duplicateFact));
         }
 
         [Fact]
@@ -390,6 +467,12 @@ namespace DomainDetective.Tests {
             public DateTimeOffset DefaultOffset { get; set; }
 
             public DateTime UnspecifiedUtc { get; set; } = new(2026, 5, 7, 12, 0, 0, DateTimeKind.Unspecified);
+
+            public DateTime LocalTime { get; set; } = new(2026, 5, 7, 12, 0, 0, DateTimeKind.Local);
+
+            public static string ExpectedLocalTimeUtc => new DateTime(2026, 5, 7, 12, 0, 0, DateTimeKind.Local)
+                .ToUniversalTime()
+                .ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 
             public TimeSpan DefaultDuration { get; set; }
 
