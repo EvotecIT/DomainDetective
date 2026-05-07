@@ -80,8 +80,8 @@ public sealed class SitemapAnalysis : IHasAssessments {
         using var client = CreateClient(options);
         var trimmedSubject = subject.Trim();
         var seeds = await DiscoverSeedSitemapsAsync(client, trimmedSubject, options, cancellationToken).ConfigureAwait(false);
-        var seenDocs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var seenFinalDocs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenDocs = new HashSet<string>(StringComparer.Ordinal);
+        var seenFinalDocs = new HashSet<string>(StringComparer.Ordinal);
         await ProcessSitemapQueueAsync(client, seeds, seenDocs, seenFinalDocs, options, cancellationToken).ConfigureAwait(false);
 
         if (options.AllowHttpFallback &&
@@ -221,11 +221,11 @@ public sealed class SitemapAnalysis : IHasAssessments {
     }
 
     private void AddSeed(List<Uri> seeds, Uri uri) {
-        if (seeds.Any(existing => string.Equals(existing.AbsoluteUri, uri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))) {
+        if (seeds.Any(existing => string.Equals(existing.AbsoluteUri, uri.AbsoluteUri, StringComparison.Ordinal))) {
             return;
         }
         seeds.Add(uri);
-        if (!SitemapUrls.Contains(uri.AbsoluteUri, StringComparer.OrdinalIgnoreCase)) {
+        if (!SitemapUrls.Contains(uri.AbsoluteUri, StringComparer.Ordinal)) {
             SitemapUrls.Add(uri.AbsoluteUri);
         }
     }
@@ -510,6 +510,11 @@ public sealed class SitemapAnalysis : IHasAssessments {
             return;
         }
 
+        if (probe.StatusCode.Value >= 300 && probe.StatusCode.Value < 400) {
+            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlFetchFailed, probe.Error ?? "Sitemap URL redirect could not be followed.", probe.Url);
+            return;
+        }
+
         if (probe.StatusCode.Value >= 500) {
             ServerErrorCount++;
             AddAssessment(AssessmentSeverity.Error, SitemapCodes.UrlServerError, "Sitemap URL returned HTTP " + probe.StatusCode.Value.ToString(CultureInfo.InvariantCulture) + ".", probe.Url);
@@ -602,6 +607,8 @@ public sealed class SitemapAnalysis : IHasAssessments {
                         throw;
                     } catch (InvalidDataException ex) {
                         result.Error = "Sitemap response gzip body could not be decompressed: " + ex.Message;
+                    } catch (Exception ex) when (ex is IOException || ex is HttpRequestException) {
+                        result.Error = "Sitemap response body could not be read: " + ex.Message;
                     }
                 }
                 return result;

@@ -138,6 +138,18 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
 
     private HttpClient CreateClient(AgentReadinessOptions options) {
         if (HttpHandlerFactory == null) {
+            if (options.RestrictEndpointProbesToOriginHost) {
+                NetFrameworkTls.EnsureEnabled();
+                var restrictedClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) {
+                    Timeout = options.Timeout
+                };
+                if (!string.IsNullOrWhiteSpace(options.UserAgent)) {
+                    restrictedClient.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
+                }
+
+                return restrictedClient;
+            }
+
             var platformClient = HttpClientPlatformFactory.CreateRedirectClient(userAgent: options.UserAgent);
             platformClient.Timeout = options.Timeout;
             return platformClient;

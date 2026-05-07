@@ -292,6 +292,75 @@ public class TestSitemapAnalysis {
     }
 
     [Fact]
+    public async Task AnalyzeAsyncPreservesCaseSensitiveSitemapDocuments() {
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://case.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://case.example/SiteMap.xml\n");
+                }
+
+                if (url.Equals("https://case.example/SiteMap.xml", StringComparison.Ordinal)) {
+                    return CreateResponse("application/xml", "<?xml version=\"1.0\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><url><loc>https://case.example/upper/</loc></url></urlset>");
+                }
+
+                if (url.Equals("https://case.example/sitemap.xml", StringComparison.Ordinal)) {
+                    return CreateResponse("application/xml", "<?xml version=\"1.0\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><url><loc>https://case.example/lower/</loc></url></urlset>");
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "case.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false
+            });
+
+        Assert.Contains(analysis.Documents, document => document.Url == "https://case.example/SiteMap.xml" && document.XmlValid);
+        Assert.Contains(analysis.Documents, document => document.Url == "https://case.example/sitemap.xml" && document.XmlValid);
+        Assert.Contains(analysis.Entries, entry => entry.Location == "https://case.example/upper/");
+        Assert.Contains(analysis.Entries, entry => entry.Location == "https://case.example/lower/");
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncReportsBlockedUrlRedirectAsFetchFailure() {
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://redirectblock.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://redirectblock.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://redirectblock.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", "<?xml version=\"1.0\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><url><loc>https://redirectblock.example/offhost/</loc></url></urlset>");
+                }
+
+                if (url.Equals("https://redirectblock.example/offhost/", StringComparison.OrdinalIgnoreCase)) {
+                    var response = new HttpResponseMessage(HttpStatusCode.MovedPermanently);
+                    response.Headers.Location = new Uri("https://other.example/");
+                    return response;
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "redirectblock.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                MaxUrlProbes = 5,
+                RestrictRemoteFetchesToOriginHost = true
+            });
+
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.UrlFetchFailed && assessment.Target == "https://redirectblock.example/offhost/");
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.UrlOk && assessment.Target == "https://redirectblock.example/offhost/");
+    }
+
+    [Fact]
     public async Task AnalyzeAsyncPropagatesCancellation() {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
