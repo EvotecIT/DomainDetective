@@ -161,6 +161,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
             HealthCheckType.AUTODISCOVER or
             HealthCheckType.OPENRELAY or
             HealthCheckType.SPFFLATTENED or
+            HealthCheckType.FLATTENINGSERVICE or
             HealthCheckType.MAILCLASSIFICATION or
             HealthCheckType.MESSAGEHEADER or
             HealthCheckType.ARC => "Mail",
@@ -191,8 +192,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
             HealthCheckType.IPENRICHMENT or
             HealthCheckType.PORTSCAN or
             HealthCheckType.PORTAVAILABILITY or
-            HealthCheckType.DNSTUNNELING or
-            HealthCheckType.FLATTENINGSERVICE => "Security",
+            HealthCheckType.DNSTUNNELING => "Security",
             _ => "General"
         };
 }

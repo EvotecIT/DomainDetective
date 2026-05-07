@@ -24,6 +24,12 @@ public static partial class DomainPortfolioSnapshotBuilder {
         "Logger"
     };
 
+    /// <summary>
+    /// Extracts storage-friendly scalar facts from public analysis properties.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="DateTime"/> values with <see cref="DateTimeKind.Unspecified"/> are treated as UTC because analysis objects are expected to store captured timestamps in UTC.
+    /// </remarks>
     internal static IEnumerable<DomainPortfolioFact> ExtractFacts(object analysis) {
         var properties = PropertyCache.GetOrAdd(
             analysis.GetType(),

@@ -57,7 +57,7 @@ namespace DomainDetective.Tests {
         [InlineData(HealthCheckType.SNMP, "Security")]
         [InlineData(HealthCheckType.NTP, "Security")]
         [InlineData(HealthCheckType.TYPOSQUATTING, "Security")]
-        [InlineData(HealthCheckType.FLATTENINGSERVICE, "Security")]
+        [InlineData(HealthCheckType.FLATTENINGSERVICE, "Mail")]
         [InlineData((HealthCheckType)int.MaxValue, "General")]
         public void BuildMapsKnownPortfolioAreas(HealthCheckType check, string expectedArea) {
             Assert.Equal(expectedArea, DomainPortfolioSnapshotBuilder.ResolveArea(check));
@@ -477,6 +477,7 @@ namespace DomainDetective.Tests {
             public TimeSpan DefaultDuration { get; set; }
 
             public List<Uri> Endpoints { get; set; } = new() {
+                // Intentionally out of order to pin deterministic collection sorting.
                 new("https://example.com/b"),
                 new("https://example.com/a")
             };

@@ -24,7 +24,7 @@ public sealed class DomainPortfolioSnapshot {
     /// <summary>Evidence sections keyed by health check or product-neutral domain area.</summary>
     public List<DomainPortfolioSection> Sections { get; set; } = new();
 
-    /// <summary>Typed high-value summaries for storage and dashboard projections.</summary>
+    /// <summary>Typed high-value summaries for storage and dashboard projections. Null assignments are normalized to an empty summary set.</summary>
     public DomainPortfolioSummaries Summaries {
         get => _summaries ??= new DomainPortfolioSummaries();
         set => _summaries = value ?? new DomainPortfolioSummaries();
@@ -99,6 +99,6 @@ public enum DomainPortfolioFactKind {
     /// <summary>Time span value.</summary>
     Duration,
 
-    /// <summary>Deterministically joined scalar collection.</summary>
+    /// <summary>Deterministically joined scalar collection with escaped separators and case-insensitive duplicate removal.</summary>
     Collection
 }

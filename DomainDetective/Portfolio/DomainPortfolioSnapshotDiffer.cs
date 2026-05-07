@@ -11,7 +11,7 @@ public static class DomainPortfolioSnapshotDiffer {
     private const int SupportedSchemaVersion = 1;
 
     /// <summary>
-    /// Compares two portfolio snapshots.
+    /// Compares two portfolio snapshots with the supported schema version. Persisted snapshots should be migrated before diffing after a schema bump.
     /// </summary>
     /// <param name="previous">Previous snapshot.</param>
     /// <param name="current">Current snapshot.</param>
@@ -46,13 +46,13 @@ public static class DomainPortfolioSnapshotDiffer {
 
             if (!hasPrevious && hasCurrent) {
                 result.Changes.Add(BuildSectionChange(sectionKey, DomainPortfolioChangeKind.Added, null, currentSection!.Status));
-                AddFactChanges(result.Changes, sectionKey, null, BuildFactMap(currentSection), DomainPortfolioChangeKind.Added);
+                AddAddedFactChanges(result.Changes, sectionKey, BuildFactMap(currentSection));
                 continue;
             }
 
             if (hasPrevious && !hasCurrent) {
                 result.Changes.Add(BuildSectionChange(sectionKey, DomainPortfolioChangeKind.Removed, previousSection!.Status, null));
-                AddFactChanges(result.Changes, sectionKey, BuildFactMap(previousSection), null, DomainPortfolioChangeKind.Removed);
+                AddRemovedFactChanges(result.Changes, sectionKey, BuildFactMap(previousSection));
                 continue;
             }
 
@@ -79,7 +79,7 @@ public static class DomainPortfolioSnapshotDiffer {
             .GroupBy(static section => section.Key, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 static group => group.Key,
-                static group => SinglePortfolioItem(group, "section", group.Key),
+                static group => DomainPortfolioUtilities.SinglePortfolioItem(group, "section", group.Key),
                 StringComparer.OrdinalIgnoreCase);
 
     private static Dictionary<string, DomainPortfolioFact> BuildFactMap(DomainPortfolioSection section)
@@ -88,7 +88,7 @@ public static class DomainPortfolioSnapshotDiffer {
             .GroupBy(static fact => fact.Key, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 static group => group.Key,
-                static group => SinglePortfolioItem(group, "fact", group.Key),
+                static group => DomainPortfolioUtilities.SinglePortfolioItem(group, "fact", group.Key),
                 StringComparer.OrdinalIgnoreCase);
 
     private static DomainPortfolioChange BuildSectionChange(string sectionKey, DomainPortfolioChangeKind kind, string? previousValue, string? currentValue)
@@ -110,27 +110,31 @@ public static class DomainPortfolioSnapshotDiffer {
             CurrentValue = currentValue
         };
 
-    private static void AddFactChanges(
+    private static void AddAddedFactChanges(
         List<DomainPortfolioChange> changes,
         string sectionKey,
-        Dictionary<string, DomainPortfolioFact>? previousFacts,
-        Dictionary<string, DomainPortfolioFact>? currentFacts,
-        DomainPortfolioChangeKind kind) {
-        if (kind == DomainPortfolioChangeKind.Changed) {
-            throw new ArgumentException("Use AddChangedFacts for changed fact comparisons.", nameof(kind));
-        }
-
-        var facts = kind == DomainPortfolioChangeKind.Added
-            ? currentFacts ?? new Dictionary<string, DomainPortfolioFact>(StringComparer.OrdinalIgnoreCase)
-            : previousFacts ?? new Dictionary<string, DomainPortfolioFact>(StringComparer.OrdinalIgnoreCase);
-
+        Dictionary<string, DomainPortfolioFact> facts) {
         foreach (var pair in facts.OrderBy(static item => item.Key, StringComparer.OrdinalIgnoreCase)) {
             changes.Add(BuildFactChange(
                 sectionKey,
                 pair.Key,
-                kind,
-                kind == DomainPortfolioChangeKind.Removed ? pair.Value.Value : null,
-                kind == DomainPortfolioChangeKind.Added ? pair.Value.Value : null));
+                DomainPortfolioChangeKind.Added,
+                null,
+                pair.Value.Value));
+        }
+    }
+
+    private static void AddRemovedFactChanges(
+        List<DomainPortfolioChange> changes,
+        string sectionKey,
+        Dictionary<string, DomainPortfolioFact> facts) {
+        foreach (var pair in facts.OrderBy(static item => item.Key, StringComparer.OrdinalIgnoreCase)) {
+            changes.Add(BuildFactChange(
+                sectionKey,
+                pair.Key,
+                DomainPortfolioChangeKind.Removed,
+                pair.Value.Value,
+                null));
         }
     }
 
@@ -164,17 +168,4 @@ public static class DomainPortfolioSnapshotDiffer {
         }
     }
 
-    private static T SinglePortfolioItem<T>(IEnumerable<T> items, string itemKind, string key) {
-        using var enumerator = items.GetEnumerator();
-        if (!enumerator.MoveNext()) {
-            throw new InvalidOperationException($"No portfolio {itemKind} for key '{key}' was found.");
-        }
-
-        var first = enumerator.Current;
-        if (enumerator.MoveNext()) {
-            throw new InvalidOperationException($"Duplicate portfolio {itemKind} key '{key}' encountered.");
-        }
-
-        return first;
-    }
 }

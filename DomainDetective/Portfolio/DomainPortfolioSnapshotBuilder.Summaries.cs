@@ -94,13 +94,13 @@ public static partial class DomainPortfolioSnapshotBuilder {
                 .ToDictionary(
                     static group => group.Key,
                     static group => {
-                        var section = SinglePortfolioItem(group, "section", group.Key);
+                        var section = DomainPortfolioUtilities.SinglePortfolioItem(group, "section", group.Key);
                         return (section.Facts ?? new List<DomainPortfolioFact>())
                             .Where(static fact => fact != null && !string.IsNullOrWhiteSpace(fact.Key))
                             .GroupBy(static fact => fact.Key, StringComparer.OrdinalIgnoreCase)
                             .ToDictionary(
                                 static factGroup => factGroup.Key,
-                                static factGroup => SinglePortfolioItem(factGroup, "fact", factGroup.Key),
+                                static factGroup => DomainPortfolioUtilities.SinglePortfolioItem(factGroup, "fact", factGroup.Key),
                                 StringComparer.OrdinalIgnoreCase);
                     },
                     StringComparer.OrdinalIgnoreCase);
@@ -154,19 +154,5 @@ public static partial class DomainPortfolioSnapshotBuilder {
             if (!_sections.TryGetValue(sectionKey, out var section)) return null;
             return section.TryGetValue(key, out var fact) ? fact.Value : null;
         }
-    }
-
-    private static T SinglePortfolioItem<T>(IEnumerable<T> items, string itemKind, string key) {
-        using var enumerator = items.GetEnumerator();
-        if (!enumerator.MoveNext()) {
-            throw new InvalidOperationException($"No portfolio {itemKind} for key '{key}' was found.");
-        }
-
-        var first = enumerator.Current;
-        if (enumerator.MoveNext()) {
-            throw new InvalidOperationException($"Duplicate portfolio {itemKind} key '{key}' encountered.");
-        }
-
-        return first;
     }
 }

@@ -105,7 +105,7 @@ public sealed class DomainCertificatePortfolioSummary {
 /// Mail posture fields that are useful to portfolio storage.
 /// </summary>
 public sealed class DomainMailPortfolioSummary {
-    /// <summary>MX hostnames mirrored from DNS evidence for mail-focused consumers.</summary>
+    /// <summary>MX hostnames mirrored from <see cref="DomainDnsPortfolioSummary.MxHosts"/> for mail-focused consumers.</summary>
     public List<string> MxHosts { get; set; } = new();
 
     /// <summary>Primary detected mail provider, when available.</summary>
