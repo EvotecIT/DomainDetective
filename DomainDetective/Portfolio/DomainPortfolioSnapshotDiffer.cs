@@ -9,6 +9,8 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public static class DomainPortfolioSnapshotDiffer {
+    private const int SupportedSchemaVersion = 1;
+
     /// <summary>
     /// Compares two portfolio snapshots.
     /// </summary>
@@ -18,6 +20,9 @@ public static class DomainPortfolioSnapshotDiffer {
     public static DomainPortfolioChangeSet Compare(DomainPortfolioSnapshot previous, DomainPortfolioSnapshot current) {
         if (previous == null) throw new ArgumentNullException(nameof(previous));
         if (current == null) throw new ArgumentNullException(nameof(current));
+        ValidateSchemaVersion(previous, nameof(previous));
+        ValidateSchemaVersion(current, nameof(current));
+
         var previousSubject = previous.Subject?.Trim() ?? string.Empty;
         var currentSubject = current.Subject?.Trim() ?? string.Empty;
         if (!string.Equals(previousSubject, currentSubject, StringComparison.OrdinalIgnoreCase)) {
@@ -25,8 +30,7 @@ public static class DomainPortfolioSnapshotDiffer {
         }
 
         var result = new DomainPortfolioChangeSet {
-            PreviousSubject = previousSubject,
-            CurrentSubject = currentSubject,
+            Subject = previousSubject,
             PreviousCapturedAtUtc = previous.CapturedAtUtc,
             CurrentCapturedAtUtc = current.CapturedAtUtc
         };
@@ -62,6 +66,12 @@ public static class DomainPortfolioSnapshotDiffer {
         }
 
         return result;
+    }
+
+    private static void ValidateSchemaVersion(DomainPortfolioSnapshot snapshot, string parameterName) {
+        if (snapshot.SchemaVersion != SupportedSchemaVersion) {
+            throw new NotSupportedException($"Portfolio snapshot schema version {snapshot.SchemaVersion} is not supported for {parameterName}.");
+        }
     }
 
     private static Dictionary<string, DomainPortfolioSection> BuildSectionMap(DomainPortfolioSnapshot snapshot)

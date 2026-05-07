@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 
 namespace DomainDetective.Tests {
     public class TestDomainPortfolioSnapshot {
@@ -41,29 +40,30 @@ namespace DomainDetective.Tests {
             var healthCheck = new DomainHealthCheck();
 
             Assert.Throws<ArgumentException>(() => DomainPortfolioSnapshotBuilder.Build("", healthCheck));
+            Assert.Throws<ArgumentException>(() => DomainPortfolioSnapshotBuilder.Build("   ", healthCheck));
             Assert.Throws<ArgumentNullException>(() => DomainPortfolioSnapshotBuilder.Build("example.com", null!));
         }
 
         [Fact]
         public void BuildMapsKnownPortfolioAreas() {
-            Assert.Equal("DNS", ResolveArea(HealthCheckType.DELEGATION));
-            Assert.Equal("Registration", ResolveArea(HealthCheckType.WHOIS));
-            Assert.Equal("Registration", ResolveArea(HealthCheckType.RDAP));
-            Assert.Equal("Web", ResolveArea(HealthCheckType.ROBOTS));
-            Assert.Equal("Web", ResolveArea(HealthCheckType.HPKP));
-            Assert.Equal("Mail", ResolveArea(HealthCheckType.MESSAGEHEADER));
-            Assert.Equal("Security", ResolveArea(HealthCheckType.OPENRESOLVER));
-            Assert.Equal("Security", ResolveArea(HealthCheckType.DANGLINGCNAME));
-            Assert.Equal("Security", ResolveArea(HealthCheckType.SNMP));
-            Assert.Equal("Security", ResolveArea(HealthCheckType.NTP));
-            Assert.Equal("Security", ResolveArea(HealthCheckType.TYPOSQUATTING));
-            Assert.Equal("Security", ResolveArea(HealthCheckType.FLATTENINGSERVICE));
-            Assert.Equal("General", ResolveArea((HealthCheckType)int.MaxValue));
+            Assert.Equal("DNS", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.DELEGATION));
+            Assert.Equal("Registration", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.WHOIS));
+            Assert.Equal("Registration", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.RDAP));
+            Assert.Equal("Web", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.ROBOTS));
+            Assert.Equal("Web", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.HPKP));
+            Assert.Equal("Mail", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.MESSAGEHEADER));
+            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.OPENRESOLVER));
+            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.DANGLINGCNAME));
+            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.SNMP));
+            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.NTP));
+            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.TYPOSQUATTING));
+            Assert.Equal("Security", DomainPortfolioSnapshotBuilder.ResolveArea(HealthCheckType.FLATTENINGSERVICE));
+            Assert.Equal("General", DomainPortfolioSnapshotBuilder.ResolveArea((HealthCheckType)int.MaxValue));
         }
 
         [Fact]
         public void BuildSkipsDateSentinelsAndNormalizesUnspecifiedDateTimeAsUtc() {
-            var facts = ExtractFactsFor(new FactExtractionFixture());
+            var facts = DomainPortfolioSnapshotBuilder.ExtractFacts(new FactExtractionFixture()).ToList();
 
             Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultDate));
             Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultOffset));
@@ -85,6 +85,47 @@ namespace DomainDetective.Tests {
                 fact.Value == "01:00:00" &&
                 fact.Kind == DomainPortfolioFactKind.Collection);
             Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultDuration));
+        }
+
+        [Fact]
+        public void BuildFormatsAcronymLabels() {
+            Assert.Equal("IPv4 Addresses", DomainPortfolioSnapshotBuilder.ToDisplayLabel("IPv4Addresses"));
+            Assert.Equal("SPF Record", DomainPortfolioSnapshotBuilder.ToDisplayLabel("SPFRecord"));
+            Assert.Equal("DNSSEC Enabled", DomainPortfolioSnapshotBuilder.ToDisplayLabel("DNSSECEnabled"));
+            Assert.Equal("MX Hosts", DomainPortfolioSnapshotBuilder.ToDisplayLabel("MXHosts"));
+        }
+
+        [Fact]
+        public void BuildFiltersRequestedChecksAndPopulatesEvaluatorVersion() {
+            var capturedAt = new DateTimeOffset(2026, 5, 5, 12, 0, 0, TimeSpan.Zero);
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.DmarcAnalysis.Subject = "example.com";
+            healthCheck.SpfAnalysis.Subject = "example.com";
+
+            var snapshot = DomainPortfolioSnapshotBuilder.Build(
+                "example.com",
+                healthCheck,
+                new[] { HealthCheckType.DMARC },
+                capturedAt);
+
+            Assert.NotEmpty(snapshot.EvaluatorVersion);
+            Assert.Single(snapshot.Sections);
+            Assert.Equal("DMARC", snapshot.Sections[0].Key);
+        }
+
+        [Fact]
+        public void BuildWithEmptyCheckFilterProducesEmptySnapshot() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.DmarcAnalysis.Subject = "example.com";
+
+            var snapshot = DomainPortfolioSnapshotBuilder.Build(
+                "example.com",
+                healthCheck,
+                Array.Empty<HealthCheckType>(),
+                new DateTimeOffset(2026, 5, 5, 12, 0, 0, TimeSpan.Zero));
+
+            Assert.Empty(snapshot.Sections);
+            Assert.Empty(snapshot.Assessments);
         }
 
         [Fact]
@@ -206,6 +247,7 @@ namespace DomainDetective.Tests {
 
             var changes = DomainPortfolioSnapshotDiffer.Compare(previous, current);
 
+            Assert.Equal("example.com", changes.Subject);
             Assert.Equal(4, changes.Changes.Count);
             Assert.Contains(changes.Changes, change =>
                 change.Kind == DomainPortfolioChangeKind.Changed &&
@@ -270,10 +312,19 @@ namespace DomainDetective.Tests {
             Assert.Throws<ArgumentException>(() => DomainPortfolioSnapshotDiffer.Compare(previous, current));
         }
 
+        [Fact]
+        public void CompareRejectsUnsupportedSchemaVersions() {
+            var previous = CreateSnapshot("example.com");
+            var current = CreateSnapshot("example.com");
+            current.SchemaVersion = 2;
+
+            Assert.Throws<NotSupportedException>(() => DomainPortfolioSnapshotDiffer.Compare(previous, current));
+        }
+
         private static DomainPortfolioSnapshot CreateSnapshot(string subject, params DomainPortfolioFact[] facts)
             => new() {
                 Subject = subject,
-                CapturedAtUtc = DateTimeOffset.UtcNow,
+                CapturedAtUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
                 Sections = new List<DomainPortfolioSection> {
                     new() {
                         Key = "WHOIS",
@@ -284,18 +335,6 @@ namespace DomainDetective.Tests {
                     }
                 }
             };
-
-        private static string ResolveArea(HealthCheckType check) {
-            var method = typeof(DomainPortfolioSnapshotBuilder).GetMethod("ResolveArea", BindingFlags.NonPublic | BindingFlags.Static);
-            Assert.NotNull(method);
-            return (string)method!.Invoke(null, new object[] { check })!;
-        }
-
-        private static List<DomainPortfolioFact> ExtractFactsFor(object analysis) {
-            var method = typeof(DomainPortfolioSnapshotBuilder).GetMethod("ExtractFacts", BindingFlags.NonPublic | BindingFlags.Static);
-            Assert.NotNull(method);
-            return ((IEnumerable<DomainPortfolioFact>)method!.Invoke(null, new[] { analysis })!).ToList();
-        }
 
         private sealed class FactExtractionFixture {
             public DateTime DefaultDate { get; set; }

@@ -128,7 +128,7 @@ public static class DomainPortfolioSnapshotBuilder {
         return check.ToString();
     }
 
-    private static string ResolveArea(HealthCheckType check)
+    internal static string ResolveArea(HealthCheckType check)
         => check switch {
             HealthCheckType.NS or
             HealthCheckType.DELEGATION or
@@ -202,7 +202,7 @@ public static class DomainPortfolioSnapshotBuilder {
             _ => "General"
         };
 
-    private static IEnumerable<DomainPortfolioFact> ExtractFacts(object analysis) {
+    internal static IEnumerable<DomainPortfolioFact> ExtractFacts(object analysis) {
         var properties = PropertyCache.GetOrAdd(
             analysis.GetType(),
             static type => type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
@@ -478,7 +478,7 @@ public static class DomainPortfolioSnapshotBuilder {
            type == typeof(double) ||
            type == typeof(decimal);
 
-    private static string ToDisplayLabel(string key) {
+    internal static string ToDisplayLabel(string key) {
         if (string.IsNullOrWhiteSpace(key)) return string.Empty;
 
         var builder = new StringBuilder(key.Length + 8);
@@ -493,8 +493,8 @@ public static class DomainPortfolioSnapshotBuilder {
                 var previous = key[i - 1];
                 var next = i + 1 < key.Length ? key[i + 1] : '\0';
                 if (char.IsLower(previous) ||
-                    char.IsDigit(previous) ||
-                    (char.IsUpper(previous) && char.IsLower(next))) {
+                    char.IsDigit(previous) && !char.IsDigit(next) ||
+                    char.IsUpper(previous) && char.IsLower(next) && HasAcronymPrefix(key, i)) {
                     AppendSpace(builder);
                 }
             }
@@ -503,6 +503,15 @@ public static class DomainPortfolioSnapshotBuilder {
         }
 
         return builder.ToString().Trim();
+    }
+
+    private static bool HasAcronymPrefix(string value, int index) {
+        var uppercaseCount = 0;
+        for (var i = index - 1; i >= 0 && char.IsUpper(value[i]); i--) {
+            uppercaseCount++;
+        }
+
+        return uppercaseCount >= 2;
     }
 
     private static void AppendSpace(StringBuilder builder) {

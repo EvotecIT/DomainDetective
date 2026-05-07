@@ -47,11 +47,8 @@ public sealed class DomainPortfolioChange {
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public sealed class DomainPortfolioChangeSet {
-    /// <summary>Previous snapshot subject.</summary>
-    public string PreviousSubject { get; set; } = string.Empty;
-
-    /// <summary>Current snapshot subject.</summary>
-    public string CurrentSubject { get; set; } = string.Empty;
+    /// <summary>Snapshot subject.</summary>
+    public string Subject { get; set; } = string.Empty;
 
     /// <summary>Previous snapshot capture time.</summary>
     public DateTimeOffset PreviousCapturedAtUtc { get; set; }

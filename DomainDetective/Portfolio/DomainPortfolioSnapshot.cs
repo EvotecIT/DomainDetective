@@ -8,6 +8,8 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public sealed class DomainPortfolioSnapshot {
+    private DomainPortfolioSummaries? _summaries;
+
     /// <summary>Snapshot contract version for persistence and migration.</summary>
     public int SchemaVersion { get; set; } = 1;
 
@@ -24,7 +26,10 @@ public sealed class DomainPortfolioSnapshot {
     public List<DomainPortfolioSection> Sections { get; set; } = new();
 
     /// <summary>Typed high-value summaries for storage and dashboard projections.</summary>
-    public DomainPortfolioSummaries Summaries { get; set; } = new();
+    public DomainPortfolioSummaries Summaries {
+        get => _summaries ??= new DomainPortfolioSummaries();
+        set => _summaries = value ?? throw new ArgumentNullException(nameof(value));
+    }
 
     /// <summary>Flattened assessments from all snapshot sections.</summary>
     public List<Assessment> Assessments { get; set; } = new();
