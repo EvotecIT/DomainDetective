@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace DomainDetective;
@@ -78,13 +79,19 @@ public static class DomainPortfolioSnapshotDiffer {
         => (snapshot.Sections ?? new List<DomainPortfolioSection>())
             .Where(static section => section != null && !string.IsNullOrWhiteSpace(section.Key))
             .GroupBy(static section => section.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(static group => group.Key, static group => group.First(), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(static group => group.Key, static group => {
+                Debug.Assert(!group.Skip(1).Any(), $"Duplicate portfolio section key '{group.Key}' encountered.");
+                return group.First();
+            }, StringComparer.OrdinalIgnoreCase);
 
     private static Dictionary<string, DomainPortfolioFact> BuildFactMap(DomainPortfolioSection section)
         => (section.Facts ?? new List<DomainPortfolioFact>())
             .Where(static fact => fact != null && !string.IsNullOrWhiteSpace(fact.Key))
             .GroupBy(static fact => fact.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(static group => group.Key, static group => group.First(), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(static group => group.Key, static group => {
+                Debug.Assert(!group.Skip(1).Any(), $"Duplicate portfolio fact key '{group.Key}' encountered.");
+                return group.First();
+            }, StringComparer.OrdinalIgnoreCase);
 
     private static DomainPortfolioChange BuildSectionChange(string sectionKey, DomainPortfolioChangeKind kind, string? previousValue, string? currentValue)
         => new() {

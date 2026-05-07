@@ -68,6 +68,7 @@ namespace DomainDetective.Tests {
             Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultDate));
             Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultOffset));
             Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.Assessments));
+            Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.Metadata));
             Assert.Contains(facts, fact =>
                 fact.Key == nameof(FactExtractionFixture.UnspecifiedUtc) &&
                 fact.Value == "2026-05-07T12:00:00.0000000Z" &&
@@ -111,6 +112,23 @@ namespace DomainDetective.Tests {
             Assert.NotEmpty(snapshot.EvaluatorVersion);
             Assert.Single(snapshot.Sections);
             Assert.Equal("DMARC", snapshot.Sections[0].Key);
+        }
+
+        [Fact]
+        public void BuildWithNullCheckFilterIncludesPopulatedChecks() {
+            var capturedAt = new DateTimeOffset(2026, 5, 5, 12, 0, 0, TimeSpan.Zero);
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.DmarcAnalysis.Subject = "example.com";
+            healthCheck.SpfAnalysis.Subject = "example.com";
+
+            var snapshot = DomainPortfolioSnapshotBuilder.Build(
+                "example.com",
+                healthCheck,
+                null,
+                capturedAt);
+
+            Assert.Contains(snapshot.Sections, section => section.Key == "DMARC");
+            Assert.Contains(snapshot.Sections, section => section.Key == "SPF");
         }
 
         [Fact]
@@ -204,6 +222,34 @@ namespace DomainDetective.Tests {
             Assert.Equal("Example CA", summaries.Certificate.Issuer);
             Assert.Equal(30, summaries.Certificate.DaysToExpiry);
             Assert.True(summaries.Certificate.Valid);
+        }
+
+        [Fact]
+        public void BuildSummariesPreservesNegativeDaysToExpiry() {
+            var capturedAt = new DateTimeOffset(2026, 5, 7, 0, 0, 0, TimeSpan.Zero);
+            var snapshot = new DomainPortfolioSnapshot {
+                Subject = "example.com",
+                CapturedAtUtc = capturedAt,
+                Sections = new List<DomainPortfolioSection> {
+                    new() {
+                        Key = "WHOIS",
+                        Facts = new List<DomainPortfolioFact> {
+                            new() { Key = "ExpirationDate", Value = "2026-05-02T00:00:00.0000000Z", Kind = DomainPortfolioFactKind.DateTime }
+                        }
+                    },
+                    new() {
+                        Key = "CERT",
+                        Facts = new List<DomainPortfolioFact> {
+                            new() { Key = "NotAfter", Value = "2026-05-05T00:00:00.0000000Z", Kind = DomainPortfolioFactKind.DateTime }
+                        }
+                    }
+                }
+            };
+
+            var summaries = DomainPortfolioSnapshotBuilder.BuildSummaries(snapshot);
+
+            Assert.Equal(-5, summaries.Registration.DaysToExpiry);
+            Assert.Equal(-2, summaries.Certificate.DaysToExpiry);
         }
 
         [Fact]
@@ -363,6 +409,10 @@ namespace DomainDetective.Tests {
 
             public List<string> Assessments { get; set; } = new() {
                 "ignore-me"
+            };
+
+            public Dictionary<string, string> Metadata { get; set; } = new() {
+                ["key"] = "value"
             };
         }
     }

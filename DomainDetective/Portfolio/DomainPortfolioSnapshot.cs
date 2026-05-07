@@ -28,7 +28,7 @@ public sealed class DomainPortfolioSnapshot {
     /// <summary>Typed high-value summaries for storage and dashboard projections.</summary>
     public DomainPortfolioSummaries Summaries {
         get => _summaries ??= new DomainPortfolioSummaries();
-        set => _summaries = value ?? throw new ArgumentNullException(nameof(value));
+        set => _summaries = value;
     }
 
     /// <summary>Flattened assessments from all snapshot sections.</summary>

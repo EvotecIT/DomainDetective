@@ -28,7 +28,7 @@ public partial class DomainHealthCheck
         return map;
     }
 
-    private object? GetAnalysisFor(HealthCheckType type)
+    internal object? GetAnalysisFor(HealthCheckType type)
     {
         switch (type)
         {
