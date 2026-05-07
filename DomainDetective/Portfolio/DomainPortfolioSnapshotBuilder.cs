@@ -178,6 +178,8 @@ public static partial class DomainPortfolioSnapshotBuilder {
             HealthCheckType.DANE or
             HealthCheckType.SECURITYTXT or
             HealthCheckType.ROBOTS or
+            HealthCheckType.SITEMAP or
+            HealthCheckType.AGENTREADINESS or
             HealthCheckType.HPKP or
             HealthCheckType.DIRECTORYEXPOSURE or
             HealthCheckType.WEBSITE or

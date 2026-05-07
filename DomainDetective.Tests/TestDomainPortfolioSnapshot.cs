@@ -49,6 +49,8 @@ namespace DomainDetective.Tests {
         [InlineData(HealthCheckType.WHOIS, "Registration")]
         [InlineData(HealthCheckType.RDAP, "Registration")]
         [InlineData(HealthCheckType.ROBOTS, "Web")]
+        [InlineData(HealthCheckType.SITEMAP, "Web")]
+        [InlineData(HealthCheckType.AGENTREADINESS, "Web")]
         [InlineData(HealthCheckType.HPKP, "Web")]
         [InlineData(HealthCheckType.CONTACT, "Identity")]
         [InlineData(HealthCheckType.MESSAGEHEADER, "Mail")]
