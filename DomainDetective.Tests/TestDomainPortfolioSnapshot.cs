@@ -65,6 +65,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public void BuildMapsEveryCurrentHealthCheckToSpecificPortfolioArea() {
+            // New checks should choose an explicit portfolio area instead of drifting into General.
             var mapped = Enum.GetValues(typeof(HealthCheckType))
                 .Cast<HealthCheckType>()
                 .Where(check => DomainPortfolioSnapshotBuilder.ResolveArea(check) == "General")
@@ -90,6 +91,10 @@ namespace DomainDetective.Tests {
                 fact.Key == nameof(FactExtractionFixture.LocalTime) &&
                 fact.Value == FactExtractionFixture.ExpectedLocalTimeUtc &&
                 fact.Kind == DomainPortfolioFactKind.DateTime);
+            Assert.Contains(facts, fact =>
+                fact.Key == nameof(FactExtractionFixture.PositiveDuration) &&
+                fact.Value == "00:00:00.0250000" &&
+                fact.Kind == DomainPortfolioFactKind.Duration);
             Assert.Contains(facts, fact =>
                 fact.Key == nameof(FactExtractionFixture.Endpoints) &&
                 fact.Value == "https://example.com/a|https://example.com/b" &&
@@ -510,6 +515,8 @@ namespace DomainDetective.Tests {
                 .ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 
             public TimeSpan DefaultDuration { get; set; }
+
+            public TimeSpan PositiveDuration { get; set; } = TimeSpan.FromMilliseconds(25);
 
             public List<Uri> Endpoints { get; set; } = new() {
                 // Intentionally out of order to pin deterministic collection sorting.

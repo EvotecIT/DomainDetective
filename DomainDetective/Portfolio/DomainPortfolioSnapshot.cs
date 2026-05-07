@@ -30,7 +30,10 @@ public sealed class DomainPortfolioSnapshot {
         set => _summaries = value ?? new DomainPortfolioSummaries();
     }
 
-    /// <summary>Flattened assessments from all snapshot sections.</summary>
+    /// <summary>Flattened snapshot-time copy of assessments from all sections.</summary>
+    /// <remarks>
+    /// Mutating section assessments after construction does not automatically update this list; rebuild the snapshot to keep the aggregate synchronized.
+    /// </remarks>
     public List<Assessment> Assessments { get; set; } = new();
 }
 
@@ -47,7 +50,7 @@ public sealed class DomainPortfolioSection {
     /// <summary>High-level area such as DNS, Mail, Web, Security, Identity, or General.</summary>
     public string Area { get; set; } = string.Empty;
 
-    /// <summary>Computed section status based on collected assessments.</summary>
+    /// <summary>Computed section status based on collected assessments. Builder-created sections use OK, Warning, or Error; externally constructed sections may retain Unknown.</summary>
     public string Status { get; set; } = "Unknown";
 
     /// <summary>Number of warning assessments in this section.</summary>
