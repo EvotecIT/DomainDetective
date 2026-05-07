@@ -132,7 +132,8 @@ static async Task<Results<Ok<SitemapInfo>, ValidationProblem>> AnalyzeSitemapAsy
                     MaxUrlProbes = 100,
                     MaxRedirects = 10,
                     ProbeUrls = true,
-                    CheckCanonical = true
+                    CheckCanonical = true,
+                    RestrictRemoteFetchesToOriginHost = true
                 },
                 cancellationToken: ct).ConfigureAwait(false);
             return Converters.Convert(analysis);
@@ -161,7 +162,8 @@ static async Task<Results<Ok<AgentReadinessInfo>, ValidationProblem>> AnalyzeAge
                     Timeout = TimeSpan.FromSeconds(20),
                     ScoreProfile = AgentReadinessScoreProfile.DomainDetectiveDefault,
                     AllowHttpFallback = true,
-                    MaxBodyCharacters = 256 * 1024
+                    MaxBodyCharacters = 256 * 1024,
+                    RestrictEndpointProbesToOriginHost = true
                 },
                 cancellationToken: ct).ConfigureAwait(false);
             return Converters.Convert(analysis);
@@ -1017,7 +1019,7 @@ static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>
     TimeSpan ttl,
     Func<CancellationToken, Task<T>> factory,
     CancellationToken cancellationToken) {
-    var cacheKey = $"{prefix}:{domainName.ToLowerInvariant()}";
+    var cacheKey = $"{prefix}:{NormalizeCacheSubject(domainName)}";
     if (!forceRefresh && cache.TryGetValue(cacheKey, out T? cached) && cached is not null) {
         return (cached, true);
     }
@@ -1030,6 +1032,19 @@ static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>
     var created = await factory(cancellationToken).ConfigureAwait(false);
     cache.Set(cacheKey, created, ttl);
     return (created, false);
+}
+
+static string NormalizeCacheSubject(string subject) {
+    if (Uri.TryCreate(subject, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)) {
+        var builder = new UriBuilder(uri) {
+            Scheme = uri.Scheme.ToLowerInvariant(),
+            Host = uri.Host.ToLowerInvariant()
+        };
+        return builder.Uri.AbsoluteUri;
+    }
+
+    return subject.ToLowerInvariant();
 }
 
 static AggregateCheckStatusInfo[] MarkPendingChecks(IReadOnlyList<AggregateCheckStatusInfo> checks, params string[] pendingKeys) {

@@ -138,6 +138,37 @@ public class TestAgentReadinessAnalysis {
         }
     }
 
+    [Fact]
+    public async Task AnalyzeAsyncDoesNotScoreHttpErrorMainPage() {
+        using var listener = StartListener(out var prefix);
+        using var cts = new CancellationTokenSource();
+        var serverTask = RunAgentReadyServer(listener, cts.Token);
+
+        try {
+            var analysis = new AgentReadinessAnalysis();
+            await analysis.AnalyzeAsync(prefix + "missing", cancellationToken: cts.Token);
+
+            Assert.Equal(404, analysis.MainPageStatusCode);
+            Assert.Equal(0, analysis.Score);
+            Assert.Contains(analysis.Checks, check => check.Code == AgentReadinessCodes.MainPageFailed && check.Status == AgentReadinessCheckStatus.Fail);
+            Assert.Empty(analysis.EndpointProbes);
+        } finally {
+            cts.Cancel();
+            listener.Stop();
+            await serverTask;
+        }
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncPropagatesCancellation() {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var analysis = new AgentReadinessAnalysis();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            analysis.AnalyzeAsync("https://example.com/", cancellationToken: cts.Token));
+    }
+
     private static async Task RunAgentReadyServer(HttpListener listener, CancellationToken cancellationToken) {
         while (!cancellationToken.IsCancellationRequested) {
             HttpListenerContext ctx;

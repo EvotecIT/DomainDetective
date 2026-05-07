@@ -1,3 +1,5 @@
+using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -128,6 +130,79 @@ public class TestSitemapAnalysis {
         Assert.True(analysis.Documents[0].XmlValid);
         Assert.Equal(4500, analysis.Entries.Count);
         Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.XmlInvalid);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncParsesGzipSitemapDocuments() {
+        var sitemap = "<?xml version=\"1.0\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><url><loc>https://gzip.example/</loc></url></urlset>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://gzip.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://gzip.example/sitemap.xml.gz\n");
+                }
+
+                if (url.Equals("https://gzip.example/sitemap.xml.gz", StringComparison.OrdinalIgnoreCase)) {
+                    var response = new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new ByteArrayContent(CompressUtf8(sitemap))
+                    };
+                    response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/gzip");
+                    return response;
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "gzip.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false
+            });
+
+        Assert.Contains(analysis.Documents, document => document.Url == "https://gzip.example/sitemap.xml.gz" && document.XmlValid);
+        Assert.Single(analysis.Entries);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.XmlInvalid);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncRestrictsRobotsSitemapsWhenRequested() {
+        var requestedUrls = new List<string>();
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                requestedUrls.Add(url);
+                if (url.Equals("https://safe.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://other.example/sitemap.xml\n");
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "safe.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false,
+                RestrictRemoteFetchesToOriginHost = true
+            });
+
+        Assert.DoesNotContain(requestedUrls, url => url.Equals("https://other.example/sitemap.xml", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.CrossHostSitemap);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncPropagatesCancellation() {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => new HttpResponseMessage(HttpStatusCode.OK))
+        };
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            analysis.AnalyzeAsync("cancel.example", cancellationToken: cts.Token));
     }
 
     [Fact]
@@ -303,6 +378,15 @@ public class TestSitemapAnalysis {
         }
         builder.Append("</urlset>");
         return builder.ToString();
+    }
+
+    private static byte[] CompressUtf8(string content) {
+        using var output = new MemoryStream();
+        using (var gzip = new GZipStream(output, CompressionMode.Compress, leaveOpen: true)) {
+            var bytes = Encoding.UTF8.GetBytes(content);
+            gzip.Write(bytes, 0, bytes.Length);
+        }
+        return output.ToArray();
     }
 
     private static async Task Write(HttpListenerContext ctx, string content) {

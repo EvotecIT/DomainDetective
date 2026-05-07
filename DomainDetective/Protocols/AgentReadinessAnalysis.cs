@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
@@ -108,6 +109,12 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
         MainPageUrl = main.FinalUri.AbsoluteUri;
         MainPageStatusCode = main.StatusCode;
         MainPageContentType = main.ContentType;
+
+        if (main.StatusCode < 200 || main.StatusCode >= 300) {
+            AddCheck("main-page", CategoryTrust, "Main page reachable", AgentReadinessCheckStatus.Fail, 0, 5, "Main page returned HTTP " + main.StatusCode.ToString(CultureInfo.InvariantCulture) + ".", AgentReadinessCodes.MainPageFailed);
+            FinalizeScores(options.ScoreProfile);
+            return;
+        }
 
         CaptureLinkHeaders(main);
         CaptureContentSignals(main, "HTTP header");
@@ -251,13 +258,19 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
 
         foreach (var link in LinkRelations) {
             if (link.Relation.Equals("api-catalog", StringComparison.OrdinalIgnoreCase)) {
-                targets.Add(("api-catalog", new Uri(link.Target), "link-header"));
+                if (TryCreateAllowedEndpointUri(link.Target, options, out var uri)) {
+                    targets.Add(("api-catalog", uri, "link-header"));
+                }
             } else if (link.Relation.Equals("describedby", StringComparison.OrdinalIgnoreCase) &&
                        link.Target.IndexOf("agent-skills", StringComparison.OrdinalIgnoreCase) >= 0) {
-                targets.Add(("agent-skills", new Uri(link.Target), "link-header"));
+                if (TryCreateAllowedEndpointUri(link.Target, options, out var uri)) {
+                    targets.Add(("agent-skills", uri, "link-header"));
+                }
             } else if (link.Relation.Equals("service-doc", StringComparison.OrdinalIgnoreCase) &&
                        link.Target.EndsWith("/llms.txt", StringComparison.OrdinalIgnoreCase)) {
-                targets.Add(("llms.txt", new Uri(link.Target), "link-header"));
+                if (TryCreateAllowedEndpointUri(link.Target, options, out var uri)) {
+                    targets.Add(("llms.txt", uri, "link-header"));
+                }
             }
         }
 
@@ -277,7 +290,9 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
                     break;
                 }
 
-                targets.Add(discovered);
+                if (IsAllowedEndpointUri(discovered.uri, options)) {
+                    targets.Add(discovered);
+                }
             }
         }
     }
@@ -750,6 +765,30 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
         return new Uri(uri.GetLeftPart(UriPartial.Authority) + "/");
     }
 
+    private bool TryCreateAllowedEndpointUri(string value, AgentReadinessOptions options, out Uri uri) {
+        if (Uri.TryCreate(value, UriKind.Absolute, out var candidate) && IsAllowedEndpointUri(candidate, options)) {
+            uri = candidate;
+            return true;
+        }
+
+        uri = null!;
+        return false;
+    }
+
+    private bool IsAllowedEndpointUri(Uri uri, AgentReadinessOptions options) {
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) {
+            return false;
+        }
+
+        if (!options.RestrictEndpointProbesToOriginHost || OriginUri == null) {
+            return true;
+        }
+
+        return uri.Scheme.Equals(OriginUri.Scheme, StringComparison.OrdinalIgnoreCase) &&
+               uri.Port == OriginUri.Port &&
+               string.Equals(uri.Host.TrimEnd('.'), OriginUri.Host.TrimEnd('.'), StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task<AgentHttpProbe?> FetchAsync(HttpClient client, Uri uri, Dictionary<string, string>? headers, AgentReadinessOptions options, CancellationToken cancellationToken) {
         try {
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
@@ -781,6 +820,8 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
                 }
             }
             return probe;
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
         } catch {
             return null;
         }

@@ -364,7 +364,7 @@ internal static class OutputFormatters {
             var hasErrorAssessment = sitemap.Assessments.Any(assessment => assessment.Severity == AssessmentSeverity.Error);
             status = hasErrorAssessment || sitemap.RedirectLoopCount > 0 || sitemap.ServerErrorCount > 0 || sitemap.InvalidLocationCount > 0
                 ? "❌ Failed"
-                : sitemap.RedirectCount > 0 || sitemap.NoIndexCount > 0 || sitemap.CanonicalMismatchCount > 0 || sitemap.DuplicateLocationCount > 0
+                : sitemap.ClientErrorCount > 0 || sitemap.RedirectCount > 0 || sitemap.NoIndexCount > 0 || sitemap.CanonicalMismatchCount > 0 || sitemap.DuplicateLocationCount > 0
                     ? "⚠️  Warning"
                     : sitemap.Documents.Count > 0
                         ? "✅ OK"

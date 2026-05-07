@@ -43,6 +43,8 @@ public sealed class AgentReadinessOptions {
     public int MaxBodyCharacters { get; set; } = 256 * 1024;
     /// <summary>Maximum agent-facing endpoint probes, including endpoints discovered from Link headers and API catalogs.</summary>
     public int MaxEndpointProbes { get; set; } = 50;
+    /// <summary>When true, discovered endpoint probes are limited to the analyzed origin host.</summary>
+    public bool RestrictEndpointProbesToOriginHost { get; set; }
     /// <summary>Optional user agent sent with probes.</summary>
     public string UserAgent { get; set; } = "Mozilla/5.0 (compatible; DomainDetective-AgentReadiness)";
 }

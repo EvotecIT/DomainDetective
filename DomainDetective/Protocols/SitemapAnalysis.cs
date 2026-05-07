@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -98,6 +99,10 @@ public sealed class SitemapAnalysis : IHasAssessments {
                     AddAssessment(AssessmentSeverity.Warning, SitemapCodes.LimitReached, "Sitemap document limit reached before all sitemapindex entries were fetched.", sitemapUri.AbsoluteUri);
                     break;
                 }
+                if (!IsTrustedRemoteUri(nested, options)) {
+                    AddAssessment(AssessmentSeverity.Warning, SitemapCodes.CrossHostSitemap, "Skipped sitemap index entry outside the analyzed origin host: " + nested.Host + ".", nested.AbsoluteUri);
+                    continue;
+                }
                 pending.Enqueue(nested);
             }
 
@@ -188,6 +193,10 @@ public sealed class SitemapAnalysis : IHasAssessments {
         var robots = RobotsTxtParser.Parse(response.Body!);
         foreach (var sitemap in robots.Sitemaps) {
             if (Uri.TryCreate(origin, sitemap, out var uri)) {
+                if (!IsTrustedRemoteUri(uri, options)) {
+                    AddAssessment(AssessmentSeverity.Warning, SitemapCodes.CrossHostSitemap, "Skipped robots.txt sitemap outside the analyzed origin host: " + uri.Host + ".", uri.AbsoluteUri);
+                    continue;
+                }
                 AddSeed(seeds, uri);
             }
         }
@@ -411,6 +420,13 @@ public sealed class SitemapAnalysis : IHasAssessments {
 
         foreach (var entry in Entries.Where(entry => entry.LocationValid).Take(probeLimit)) {
             cancellationToken.ThrowIfCancellationRequested();
+            if (options.RestrictRemoteFetchesToOriginHost &&
+                Uri.TryCreate(entry.Location, UriKind.Absolute, out var entryUri) &&
+                !IsTrustedRemoteUri(entryUri, options)) {
+                AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlFetchFailed, "Skipped sitemap URL probe outside the analyzed origin host.", entry.Location);
+                continue;
+            }
+
             var probe = await ProbeUrlAsync(client, entry.Location, options, cancellationToken).ConfigureAwait(false);
             UrlProbes.Add(probe);
             AddProbeAssessment(probe);
@@ -510,6 +526,8 @@ public sealed class SitemapAnalysis : IHasAssessments {
             try {
                 using var request = new HttpRequestMessage(HttpMethod.Get, current);
                 response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                throw;
             } catch (Exception ex) {
                 result.FinalUri = current;
                 result.Error = ex.Message;
@@ -531,6 +549,12 @@ public sealed class SitemapAnalysis : IHasAssessments {
                     var next = response.Headers.Location.IsAbsoluteUri
                         ? response.Headers.Location
                         : new Uri(current, response.Headers.Location);
+                    if (!IsTrustedRemoteUri(next, options)) {
+                        result.FinalUri = current;
+                        result.Error = "Redirect target is outside the analyzed origin host.";
+                        return result;
+                    }
+
                     result.WasRedirected = true;
                     current = next;
                     continue;
@@ -538,7 +562,8 @@ public sealed class SitemapAnalysis : IHasAssessments {
 
                 result.FinalUri = current;
                 if (readBody && response.Content != null) {
-                    result.Body = await ReadLimitedBodyAsync(response.Content, maxBodyCharacters ?? 262144).ConfigureAwait(false);
+                    var shouldDecompressGzip = IsGzipEncoded(response.Content, current);
+                    result.Body = await ReadLimitedBodyAsync(response.Content, maxBodyCharacters ?? 262144, shouldDecompressGzip, cancellationToken).ConfigureAwait(false);
                 }
                 return result;
             }
@@ -568,7 +593,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
         return headers;
     }
 
-    private static async Task<string?> ReadLimitedBodyAsync(HttpContent content, int maxCharacters) {
+    private static async Task<string?> ReadLimitedBodyAsync(HttpContent content, int maxCharacters, bool decompressGzip, CancellationToken cancellationToken) {
         var limit = Math.Max(1024, maxCharacters);
 
         Encoding encoding;
@@ -587,11 +612,13 @@ public sealed class SitemapAnalysis : IHasAssessments {
         }
 
         using var stream = await content.ReadAsStreamAsync().ConfigureAwait(false);
-        using var reader = new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: true, bufferSize: 8192);
+        using var readableStream = decompressGzip ? new GZipStream(stream, CompressionMode.Decompress) : stream;
+        using var reader = new StreamReader(readableStream, encoding, detectEncodingFromByteOrderMarks: true, bufferSize: 8192);
         var builder = new StringBuilder(Math.Min(limit, 8192));
         var buffer = new char[Math.Min(limit, 8192)];
 
         while (builder.Length < limit) {
+            cancellationToken.ThrowIfCancellationRequested();
             var remaining = limit - builder.Length;
             var read = await reader.ReadAsync(buffer, 0, Math.Min(buffer.Length, remaining)).ConfigureAwait(false);
             if (read == 0) {
@@ -602,6 +629,16 @@ public sealed class SitemapAnalysis : IHasAssessments {
         }
 
         return builder.ToString();
+    }
+
+    private static bool IsGzipEncoded(HttpContent content, Uri uri) {
+        if (content.Headers.ContentEncoding.Any(value => value.Equals("gzip", StringComparison.OrdinalIgnoreCase))) {
+            return true;
+        }
+
+        var mediaType = content.Headers.ContentType?.MediaType ?? string.Empty;
+        return uri.AbsolutePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) ||
+               mediaType.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool HasNoIndex(Dictionary<string, string> headers, string? body) {
@@ -666,6 +703,18 @@ public sealed class SitemapAnalysis : IHasAssessments {
 
     private static bool IsSameHost(Uri left, Uri right) {
         return string.Equals(NormalizeComparableHost(left.Host), NormalizeComparableHost(right.Host), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsTrustedRemoteUri(Uri uri, SitemapAnalysisOptions options) {
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) {
+            return false;
+        }
+
+        if (!options.RestrictRemoteFetchesToOriginHost || OriginUri == null) {
+            return true;
+        }
+
+        return IsSameHost(OriginUri, uri);
     }
 
     private static string NormalizeComparableHost(string host) {

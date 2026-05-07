@@ -123,6 +123,8 @@ public sealed class SitemapAnalysisOptions {
     public int MaxRedirects { get; set; } = 10;
     /// <summary>Maximum sitemap XML response characters to read before parsing.</summary>
     public int MaxSitemapBodyCharacters { get; set; } = 20 * 1024 * 1024;
+    /// <summary>When true, discovered sitemap documents and URL probes are limited to the analyzed origin host or matching www host.</summary>
+    public bool RestrictRemoteFetchesToOriginHost { get; set; }
     /// <summary>User agent sent with sitemap and URL probes.</summary>
     public string UserAgent { get; set; } = "Mozilla/5.0 (compatible; DomainDetective-Sitemap)";
 }
