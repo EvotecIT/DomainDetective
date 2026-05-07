@@ -252,6 +252,13 @@ public sealed class SitemapAnalysis : IHasAssessments {
             return result;
         }
 
+        if (!string.IsNullOrWhiteSpace(response.Error)) {
+            docInfo.Error = response.Error ?? "Sitemap download failed.";
+            result.Document = docInfo;
+            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.DownloadFailed, docInfo.Error, sitemapUri.AbsoluteUri);
+            return result;
+        }
+
         docInfo.Present = response.StatusCode >= 200 && response.StatusCode < 300;
         if (!docInfo.Present) {
             docInfo.Error = response.Error ?? "Sitemap fetch did not return 2xx.";
@@ -586,7 +593,16 @@ public sealed class SitemapAnalysis : IHasAssessments {
                 result.FinalUri = current;
                 if (readBody && response.Content != null) {
                     var shouldDecompressGzip = IsGzipEncoded(response.Content);
-                    result.Body = await ReadLimitedBodyAsync(response.Content, maxBodyCharacters ?? 262144, shouldDecompressGzip, cancellationToken).ConfigureAwait(false);
+                    try {
+                        result.Body = await ReadLimitedBodyAsync(response.Content, maxBodyCharacters ?? 262144, shouldDecompressGzip, cancellationToken).ConfigureAwait(false);
+                        if (shouldDecompressGzip && string.IsNullOrEmpty(result.Body)) {
+                            result.Error = "Sitemap response gzip body could not be decompressed or was empty.";
+                        }
+                    } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                        throw;
+                    } catch (InvalidDataException ex) when (shouldDecompressGzip) {
+                        result.Error = "Sitemap response gzip body could not be decompressed: " + ex.Message;
+                    }
                 }
                 return result;
             }

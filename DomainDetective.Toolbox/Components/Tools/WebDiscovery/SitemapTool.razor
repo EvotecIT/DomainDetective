@@ -334,7 +334,22 @@
             return false;
         }
 
-        return !string.Equals(NormalizeComparableHost(uri.Host), NormalizeComparableHost(subject), StringComparison.OrdinalIgnoreCase);
+        if (!TryGetSubjectHost(subject, out var subjectHost)) {
+            return false;
+        }
+
+        return !string.Equals(NormalizeComparableHost(uri.Host), NormalizeComparableHost(subjectHost), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryGetSubjectHost(string subject, out string host) {
+        host = string.Empty;
+        if (Uri.TryCreate(subject, UriKind.Absolute, out var uri)) {
+            host = uri.Host;
+            return !string.IsNullOrWhiteSpace(host);
+        }
+
+        host = subject;
+        return !string.IsNullOrWhiteSpace(host);
     }
 
     private static string NormalizeComparableHost(string host) {

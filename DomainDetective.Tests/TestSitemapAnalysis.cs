@@ -167,6 +167,39 @@ public class TestSitemapAnalysis {
     }
 
     [Fact]
+    public async Task AnalyzeAsyncReportsMalformedGzipSitemapAsDownloadFailure() {
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://badgzip.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://badgzip.example/sitemap.xml.gz\n");
+                }
+
+                if (url.Equals("https://badgzip.example/sitemap.xml.gz", StringComparison.OrdinalIgnoreCase)) {
+                    var response = new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new ByteArrayContent(new byte[] { 0x1f, 0x8b, 0x08, 0x00 })
+                    };
+                    response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/gzip");
+                    return response;
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "badgzip.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false
+            });
+
+        Assert.Contains(analysis.Documents, document => document.Error != null && document.Error.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.DownloadFailed);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.XmlInvalid);
+    }
+
+    [Fact]
     public async Task AnalyzeAsyncRestrictsRobotsSitemapsWhenRequested() {
         var requestedUrls = new List<string>();
         var analysis = new SitemapAnalysis {

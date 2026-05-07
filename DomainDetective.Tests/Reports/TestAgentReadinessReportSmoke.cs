@@ -191,4 +191,33 @@ public class TestAgentReadinessReportSmoke
         Assert.Contains("Redirect loop", markdown, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("https://example.org/sitemap.xml", markdown, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void Composition_Preserves_Url_Specific_Web_Discovery_Subjects()
+    {
+        var agentHome = new AgentReadinessInfo
+        {
+            Subject = "https://example.org/"
+        };
+        var agentDocs = new AgentReadinessInfo
+        {
+            Subject = "https://example.org/docs/"
+        };
+        var sitemapHome = new SitemapInfo
+        {
+            Subject = "https://example.org/sitemap.xml"
+        };
+        var sitemapDocs = new SitemapInfo
+        {
+            Subject = "https://example.org/docs/sitemap.xml"
+        };
+
+        var map = CompositionBuilder.GroupBySubject(new object[] { agentHome, agentDocs, sitemapHome, sitemapDocs });
+
+        Assert.Equal(4, map.Count);
+        Assert.Same(agentHome, map["https://example.org/"].AgentReadiness);
+        Assert.Same(agentDocs, map["https://example.org/docs/"].AgentReadiness);
+        Assert.Same(sitemapHome, map["https://example.org/sitemap.xml"].Sitemap);
+        Assert.Same(sitemapDocs, map["https://example.org/docs/sitemap.xml"].Sitemap);
+    }
 }

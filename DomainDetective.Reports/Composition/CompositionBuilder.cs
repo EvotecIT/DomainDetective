@@ -238,7 +238,7 @@ public static class CompositionBuilder
 	                }
                 case DomainDetective.Views.AgentReadinessInfo agent when !string.IsNullOrWhiteSpace(agent.Subject):
                 {
-                    var subject = NormalizeHttpSubject(agent.Subject);
+                    var subject = NormalizeWebAnalysisSubject(agent.Subject);
                     if (!string.IsNullOrWhiteSpace(subject))
                     {
                         Ensure(subject!);
@@ -248,7 +248,7 @@ public static class CompositionBuilder
                 }
                 case DomainDetective.Views.SitemapInfo sitemap when !string.IsNullOrWhiteSpace(sitemap.Subject):
                 {
-                    var subject = NormalizeHttpSubject(sitemap.Subject);
+                    var subject = NormalizeWebAnalysisSubject(sitemap.Subject);
                     if (!string.IsNullOrWhiteSpace(subject))
                     {
                         Ensure(subject!);
@@ -307,6 +307,38 @@ public static class CompositionBuilder
         }
         catch { }
         return s;
+    }
+
+    private static string? NormalizeWebAnalysisSubject(string? raw)
+    {
+        if (raw == null)
+        {
+            return null;
+        }
+
+        var s = raw.Trim();
+        if (s.Length == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (Uri.TryCreate(s, UriKind.Absolute, out var uri) &&
+                (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                 uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+            {
+                var builder = new UriBuilder(uri)
+                {
+                    Scheme = uri.Scheme.ToLowerInvariant(),
+                    Host = uri.Host.ToLowerInvariant()
+                };
+                return builder.Uri.AbsoluteUri;
+            }
+        }
+        catch { }
+
+        return NormalizeHttpSubject(s);
     }
 
     private static bool PreferHttp(DomainDetective.Views.HttpInfo candidate, DomainDetective.Views.HttpInfo existing)
