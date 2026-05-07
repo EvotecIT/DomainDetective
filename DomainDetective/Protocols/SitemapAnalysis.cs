@@ -704,8 +704,11 @@ public sealed class SitemapAnalysis : IHasAssessments {
     }
 
     private static bool HasGzipMediaType(string? mediaType) {
-        return !string.IsNullOrWhiteSpace(mediaType) &&
-               mediaType.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (string.IsNullOrWhiteSpace(mediaType)) {
+            return false;
+        }
+
+        return mediaType!.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private sealed class PrefixedStream : Stream {
