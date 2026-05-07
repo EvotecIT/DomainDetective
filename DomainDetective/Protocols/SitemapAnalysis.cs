@@ -98,7 +98,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
             await ProbeSitemapUrlsAsync(client, options, cancellationToken).ConfigureAwait(false);
         }
 
-        logger?.WriteVerbose("Sitemap analysis completed for {0}: {1} document(s), {2} URL entrie(s), {3} probe(s)", Subject, Documents.Count, Entries.Count, UrlProbes.Count);
+        logger?.WriteVerbose("Sitemap analysis completed for {0}: {1} document(s), {2} URL entries, {3} probe(s)", Subject, Documents.Count, Entries.Count, UrlProbes.Count);
     }
 
     private async Task ProcessSitemapQueueAsync(HttpClient client, IEnumerable<Uri> seeds, HashSet<string> seenDocs, HashSet<string> seenFinalDocs, SitemapAnalysisOptions options, CancellationToken cancellationToken) {

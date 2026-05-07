@@ -303,9 +303,15 @@ public partial class DomainHealthCheck {
                 VerifyWebsiteHttps(domainName, cancellationToken)).ConfigureAwait(false);
         }
 
-        private async Task VerifyAgentReadinessAsync(string domainName, CancellationToken cancellationToken) {
+        /// <summary>
+        /// Assesses machine-readable discovery resources and AI-agent readiness for the specified domain or URL.
+        /// </summary>
+        /// <param name="domainName">Domain, host, or HTTP/HTTPS URL to analyze.</param>
+        /// <param name="cancellationToken">Token used to cancel the operation.</param>
+        /// <param name="options">Optional agent-readiness analysis options.</param>
+        public async Task VerifyAgentReadinessAsync(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) {
             AgentReadinessAnalysis = new AgentReadinessAnalysis();
-            await AgentReadinessAnalysis.AnalyzeAsync(domainName, _logger, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await AgentReadinessAnalysis.AnalyzeAsync(domainName, _logger, options, cancellationToken).ConfigureAwait(false);
         }
 
         private Task VerifySpfFlattenedAsync(string domainName, CancellationToken cancellationToken)

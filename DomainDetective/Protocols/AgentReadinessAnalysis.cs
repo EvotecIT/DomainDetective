@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -798,11 +800,10 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
                 }
             }
 
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
-            var body = response.Content != null ? await response.Content.ReadAsStringAsync().ConfigureAwait(false) : string.Empty;
-            if (body.Length > options.MaxBodyCharacters) {
-                body = body.Substring(0, options.MaxBodyCharacters);
-            }
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            var body = response.Content != null
+                ? await ReadLimitedBodyAsync(response.Content, options.MaxBodyCharacters, cancellationToken).ConfigureAwait(false)
+                : string.Empty;
             var finalUri = response.RequestMessage?.RequestUri ?? uri;
             var probe = new AgentHttpProbe {
                 RequestedUri = uri,
@@ -825,6 +826,43 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
         } catch {
             return null;
         }
+    }
+
+    private static async Task<string> ReadLimitedBodyAsync(HttpContent content, int maxCharacters, CancellationToken cancellationToken) {
+        var limit = Math.Max(1024, maxCharacters);
+
+        Encoding encoding;
+        try {
+            var charset = content.Headers.ContentType?.CharSet;
+            var trimmedCharset = string.Empty;
+            if (!string.IsNullOrWhiteSpace(charset)) {
+                trimmedCharset = charset!.Trim('"');
+            }
+
+            encoding = string.IsNullOrWhiteSpace(trimmedCharset)
+                ? Encoding.UTF8
+                : Encoding.GetEncoding(trimmedCharset);
+        } catch (ArgumentException) {
+            encoding = Encoding.UTF8;
+        }
+
+        using var stream = await content.ReadAsStreamAsync().ConfigureAwait(false);
+        using var reader = new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: true, bufferSize: 8192);
+        var builder = new StringBuilder(Math.Min(limit, 8192));
+        var buffer = new char[Math.Min(limit, 8192)];
+
+        while (builder.Length < limit) {
+            cancellationToken.ThrowIfCancellationRequested();
+            var remaining = limit - builder.Length;
+            var read = await reader.ReadAsync(buffer, 0, Math.Min(buffer.Length, remaining)).ConfigureAwait(false);
+            if (read == 0) {
+                break;
+            }
+
+            builder.Append(buffer, 0, read);
+        }
+
+        return builder.ToString();
     }
 
     private sealed class AgentHttpProbe {

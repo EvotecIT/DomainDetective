@@ -252,7 +252,7 @@ public static partial class HtmlCompositionReport
             return TablerColor.Green;
         }
 
-        if (score >= 60)
+        if (score >= 50)
         {
             return TablerColor.Orange;
         }

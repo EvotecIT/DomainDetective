@@ -2355,7 +2355,8 @@
             "integer",
             "null"
           ],
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 10
         }
       }
     },

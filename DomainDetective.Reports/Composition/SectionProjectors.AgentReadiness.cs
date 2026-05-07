@@ -6,7 +6,7 @@ namespace DomainDetective.Reports;
 
 public static partial class SectionProjectors
 {
-    public static AgentReadinessSection? BuildAgentReadiness(DomainDetective.Views.AgentReadinessInfo agent)
+    public static AgentReadinessSection? BuildAgentReadiness(DomainDetective.Views.AgentReadinessInfo? agent)
     {
         if (agent == null) return null;
 
@@ -133,15 +133,9 @@ public static partial class SectionProjectors
             if (!string.IsNullOrWhiteSpace(reference)) section.References.Add(reference);
         }
 
-        try
+        foreach (var highlight in agent.Narrative?.Highlights?.AsEnumerable() ?? Enumerable.Empty<string>())
         {
-            foreach (var highlight in agent.Narrative.Highlights?.AsEnumerable() ?? Enumerable.Empty<string>())
-            {
-                if (!string.IsNullOrWhiteSpace(highlight)) section.Highlights.Add(highlight);
-            }
-        }
-        catch
-        {
+            if (!string.IsNullOrWhiteSpace(highlight)) section.Highlights.Add(highlight);
         }
 
         return section;

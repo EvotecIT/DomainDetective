@@ -54,6 +54,8 @@ public static class ReferencesCollector
             Pull(b.DnsTrace?.References);
             Pull(b.CtTimeline?.References);
             Pull(b.Http?.References);
+            Pull(b.AgentReadiness?.References);
+            Pull(b.Sitemap?.References);
             Pull(b.IpEnrichment?.References);
             Pull(b.Microsoft365?.References);
             Pull(b.Typosquatting?.References);

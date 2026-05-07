@@ -197,7 +197,8 @@ public class TestAgentReadinessReportSmoke
     {
         var agentHome = new AgentReadinessInfo
         {
-            Subject = "https://example.org/"
+            Subject = "https://example.org/",
+            References = new[] { "https://example.org/agent-reference" }
         };
         var agentDocs = new AgentReadinessInfo
         {
@@ -205,7 +206,8 @@ public class TestAgentReadinessReportSmoke
         };
         var sitemapHome = new SitemapInfo
         {
-            Subject = "https://example.org/sitemap.xml"
+            Subject = "https://example.org/sitemap.xml",
+            References = new[] { "https://example.org/sitemap-reference" }
         };
         var sitemapDocs = new SitemapInfo
         {
@@ -219,5 +221,9 @@ public class TestAgentReadinessReportSmoke
         Assert.Same(agentDocs, map["https://example.org/docs/"].AgentReadiness);
         Assert.Same(sitemapHome, map["https://example.org/sitemap.xml"].Sitemap);
         Assert.Same(sitemapDocs, map["https://example.org/docs/sitemap.xml"].Sitemap);
+
+        var references = ReferencesCollector.CollectAll(map.Values);
+        Assert.Contains("https://example.org/agent-reference", references);
+        Assert.Contains("https://example.org/sitemap-reference", references);
     }
 }

@@ -298,14 +298,10 @@ public static class CompositionBuilder
         {
             return null;
         }
-        try
+        if (Uri.TryCreate(s, UriKind.Absolute, out var uri))
         {
-            if (Uri.TryCreate(s, UriKind.Absolute, out var uri))
-            {
-                return uri.Host;
-            }
+            return uri.Host;
         }
-        catch { }
         return s;
     }
 
@@ -322,21 +318,17 @@ public static class CompositionBuilder
             return null;
         }
 
-        try
+        if (Uri.TryCreate(s, UriKind.Absolute, out var uri) &&
+            (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+             uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
         {
-            if (Uri.TryCreate(s, UriKind.Absolute, out var uri) &&
-                (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
-                 uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+            var builder = new UriBuilder(uri)
             {
-                var builder = new UriBuilder(uri)
-                {
-                    Scheme = uri.Scheme.ToLowerInvariant(),
-                    Host = uri.Host.ToLowerInvariant()
-                };
-                return builder.Uri.AbsoluteUri;
-            }
+                Scheme = uri.Scheme.ToLowerInvariant(),
+                Host = uri.Host.ToLowerInvariant()
+            };
+            return builder.Uri.AbsoluteUri;
         }
-        catch { }
 
         return NormalizeHttpSubject(s);
     }

@@ -85,6 +85,31 @@ public class TestAgentReadinessAnalysis {
     }
 
     [Fact]
+    public async Task VerifyAgentReadinessAsyncRunsStandaloneCheckWithOptions() {
+        using var listener = StartListener(out var prefix);
+        using var cts = new CancellationTokenSource();
+        var serverTask = RunAgentReadyServer(listener, cts.Token);
+
+        try {
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.VerifyAgentReadinessAsync(
+                prefix,
+                cts.Token,
+                new AgentReadinessOptions {
+                    ScoreProfile = AgentReadinessScoreProfile.SeoAgentReadiness
+                });
+
+            Assert.Equal(prefix, healthCheck.AgentReadinessAnalysis.Subject);
+            Assert.True(healthCheck.AgentReadinessAnalysis.Score > 50);
+            Assert.Contains(healthCheck.AgentReadinessAnalysis.Checks, check => check.Code == AgentReadinessCodes.LlmsTxtPresent);
+        } finally {
+            cts.Cancel();
+            listener.Stop();
+            await serverTask;
+        }
+    }
+
+    [Fact]
     public void LinkHeaderParserHandlesQuotedCommasAndRelativeTargets() {
         var source = new Uri("https://example.com/docs/");
         var links = AgentReadinessLinkHeaderParser.Parse(
