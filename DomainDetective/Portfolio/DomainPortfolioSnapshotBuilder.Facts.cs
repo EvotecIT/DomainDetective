@@ -30,6 +30,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
     /// </summary>
     /// <remarks>
     /// <see cref="DateTime"/> values with <see cref="DateTimeKind.Unspecified"/> are treated as UTC because analysis objects are expected to store captured timestamps in UTC.
+    /// Property getters that signal <see cref="NotSupportedException"/> are skipped; other getter failures intentionally stop extraction.
     /// </remarks>
     internal static IEnumerable<DomainPortfolioFact> ExtractFacts(object analysis) {
         var properties = PropertyCache.GetOrAdd(

@@ -108,14 +108,21 @@ public static partial class DomainPortfolioSnapshotBuilder {
 
         public string? String(string sectionKey, params string[] keys) {
             return keys
-                .Select(key => Value(sectionKey, key))
+                .Select(key => Fact(sectionKey, key)?.Value)
                 .FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value));
         }
 
         public List<string> List(string sectionKey, params string[] keys) {
-            var value = String(sectionKey, keys);
-            if (string.IsNullOrWhiteSpace(value)) return new List<string>();
-            return SplitCollectionValue(value!)
+            var fact = keys
+                .Select(key => Fact(sectionKey, key))
+                .FirstOrDefault(static item => !string.IsNullOrWhiteSpace(item?.Value));
+
+            if (fact == null || string.IsNullOrWhiteSpace(fact.Value)) return new List<string>();
+            var values = fact.Kind == DomainPortfolioFactKind.Collection
+                ? SplitCollectionValue(fact.Value)
+                : new List<string> { fact.Value.Trim() };
+
+            return values
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -150,9 +157,9 @@ public static partial class DomainPortfolioSnapshotBuilder {
             return null;
         }
 
-        private string? Value(string sectionKey, string key) {
-            if (!_sections.TryGetValue(sectionKey, out var section)) return null;
-            return section.TryGetValue(key, out var fact) ? fact.Value : null;
-        }
+        private DomainPortfolioFact? Fact(string sectionKey, string key)
+            => _sections.TryGetValue(sectionKey, out var section) && section.TryGetValue(key, out var fact)
+                ? fact
+                : null;
     }
 }

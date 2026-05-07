@@ -64,6 +64,17 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildMapsEveryCurrentHealthCheckToSpecificPortfolioArea() {
+            var mapped = Enum.GetValues(typeof(HealthCheckType))
+                .Cast<HealthCheckType>()
+                .Where(check => DomainPortfolioSnapshotBuilder.ResolveArea(check) == "General")
+                .Select(static check => check.ToString())
+                .ToList();
+
+            Assert.Empty(mapped);
+        }
+
+        [Fact]
         public void BuildSkipsDateSentinelsAndNormalizesUnspecifiedDateTimeAsUtc() {
             var facts = DomainPortfolioSnapshotBuilder.ExtractFacts(new FactExtractionFixture()).ToList();
 
@@ -186,6 +197,29 @@ namespace DomainDetective.Tests {
             var summaries = DomainPortfolioSnapshotBuilder.BuildSummaries(snapshot);
 
             Assert.Equal(new[] { "ns1.example.com|backup", "ns2.example.com" }, summaries.Registration.NameServers);
+        }
+
+        [Fact]
+        public void BuildSummariesDoesNotSplitPlainStringFactsContainingSeparator() {
+            var snapshot = new DomainPortfolioSnapshot {
+                Subject = "example.com",
+                Sections = new List<DomainPortfolioSection> {
+                    new() {
+                        Key = "WHOIS",
+                        Facts = new List<DomainPortfolioFact> {
+                            new() {
+                                Key = "Status",
+                                Value = "clientTransferProhibited|serverHold",
+                                Kind = DomainPortfolioFactKind.String
+                            }
+                        }
+                    }
+                }
+            };
+
+            var summaries = DomainPortfolioSnapshotBuilder.BuildSummaries(snapshot);
+
+            Assert.Equal(new[] { "clientTransferProhibited|serverHold" }, summaries.Registration.Statuses);
         }
 
         [Fact]

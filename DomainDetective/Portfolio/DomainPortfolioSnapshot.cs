@@ -70,7 +70,7 @@ public sealed class DomainPortfolioFact {
     /// <summary>Stable fact key within the section.</summary>
     public string Key { get; set; } = string.Empty;
 
-    /// <summary>Human-readable fact label.</summary>
+    /// <summary>Human-readable fact label for display only; differ and summary logic use <see cref="Key"/>.</summary>
     public string Label { get; set; } = string.Empty;
 
     /// <summary>Normalized string value. Collections are joined deterministically.</summary>

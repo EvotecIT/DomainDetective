@@ -166,5 +166,4 @@ public static class DomainPortfolioSnapshotDiffer {
             }
         }
     }
-
 }
