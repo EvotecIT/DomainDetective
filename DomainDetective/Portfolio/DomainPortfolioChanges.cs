@@ -21,7 +21,10 @@ public enum DomainPortfolioChangeKind {
 /// Deterministic change row between two portfolio snapshots.
 /// </summary>
 public sealed class DomainPortfolioChange {
-    /// <summary>Stable change key using <c>section:{sectionKey}:status</c> or <c>fact:{sectionKey}:{factKey}</c>.</summary>
+    /// <summary>
+    /// Stable change key. Format: <c>section:{sectionKey}:status</c> for section-level changes,
+    /// or <c>fact:{sectionKey}:{factKey}</c> for fact-level changes.
+    /// </summary>
     public string Key { get; set; } = string.Empty;
 
     /// <summary>Type of change.</summary>
