@@ -47,8 +47,6 @@ public enum HealthCheckType {
     SECURITYTXT,
     /// <summary>Check for robots.txt presence.</summary>
     ROBOTS,
-    /// <summary>Validate sitemap XML and sitemap-listed URLs.</summary>
-    SITEMAP,
     /// <summary>Inspect SOA records.</summary>
     SOA,
     /// <summary>Detect open SMTP relay.</summary>
@@ -119,8 +117,6 @@ public enum HealthCheckType {
     NTP,
     /// <summary>Composite website check (certificate + HTTP security).</summary>
     WEBSITE,
-    /// <summary>Assess AI crawler and agent readiness for a website.</summary>
-    AGENTREADINESS,
     /// <summary>WHOIS registration lookup.</summary>
     WHOIS,
     /// <summary>Apex A/AAAA analysis (SMTP fallback posture).</summary>
@@ -146,5 +142,9 @@ public enum HealthCheckType {
     /// <summary>Probe Microsoft identity endpoints for tenant hints.</summary>
     IDENTITYPROVIDER,
     /// <summary>Aggregate Microsoft 365 tenant, service, identity, and DNS footprint.</summary>
-    MICROSOFT365
+    MICROSOFT365,
+    /// <summary>Validate sitemap XML and sitemap-listed URLs.</summary>
+    SITEMAP,
+    /// <summary>Assess AI crawler and agent readiness for a website.</summary>
+    AGENTREADINESS
 }

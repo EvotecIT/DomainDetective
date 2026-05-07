@@ -310,7 +310,10 @@ public partial class DomainHealthCheck {
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         /// <param name="options">Optional agent-readiness analysis options.</param>
         public async Task VerifyAgentReadinessAsync(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) {
-            AgentReadinessAnalysis = new AgentReadinessAnalysis();
+            var previous = AgentReadinessAnalysis;
+            AgentReadinessAnalysis = new AgentReadinessAnalysis {
+                HttpHandlerFactory = previous.HttpHandlerFactory
+            };
             await AgentReadinessAnalysis.AnalyzeAsync(domainName, _logger, options, cancellationToken).ConfigureAwait(false);
         }
 

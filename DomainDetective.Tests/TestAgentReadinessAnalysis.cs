@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using DomainDetective.DesiredState;
 using Xunit.Sdk;
@@ -182,6 +183,38 @@ public class TestAgentReadinessAnalysis {
             listener.Stop();
             await serverTask;
         }
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncFallsBackToHttpWhenHttpsMainPageIsNotSuccessful() {
+        var analysis = new AgentReadinessAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://fallback-agent.example/", StringComparison.OrdinalIgnoreCase)) {
+                    return new HttpResponseMessage(HttpStatusCode.Forbidden) {
+                        Content = new StringContent("Forbidden", Encoding.UTF8, "text/plain")
+                    };
+                }
+
+                if (url.Equals("http://fallback-agent.example/", StringComparison.OrdinalIgnoreCase)) {
+                    return new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new StringContent("<!doctype html><html><head><title>Fallback</title></head><body><h1>Fallback</h1></body></html>", Encoding.UTF8, "text/html")
+                    };
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "fallback-agent.example",
+            options: new AgentReadinessOptions {
+                AllowHttpFallback = true
+            });
+
+        Assert.Equal(200, analysis.MainPageStatusCode);
+        Assert.Equal("http://fallback-agent.example/", analysis.MainPageUrl);
+        Assert.DoesNotContain(analysis.Checks, check => check.Code == AgentReadinessCodes.MainPageFailed);
     }
 
     [Fact]

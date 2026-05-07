@@ -87,6 +87,8 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
     public List<Assessment> Assessments { get; } = new();
     /// <summary>Actionable recommendations derived from assessments.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+    /// <summary>Factory for HTTP message handlers; mainly useful for tests.</summary>
+    public Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 
     /// <summary>Executes the agent readiness scan.</summary>
     public async Task AnalyzeAsync(string subject, InternalLogger? logger = null, AgentReadinessOptions? options = null, CancellationToken cancellationToken = default) {
@@ -97,8 +99,7 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
         options ??= new AgentReadinessOptions();
         Reset(subject);
 
-        using var client = HttpClientPlatformFactory.CreateRedirectClient(userAgent: options.UserAgent);
-        client.Timeout = options.Timeout;
+        using var client = CreateClient(options);
 
         var main = await FetchMainPageAsync(client, subject, options, cancellationToken).ConfigureAwait(false);
         if (main == null) {
@@ -133,6 +134,23 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
         FinalizeScores(options.ScoreProfile);
 
         logger?.WriteVerbose("Agent readiness scan completed for {0}: {1:0.##}", Subject, Score);
+    }
+
+    private HttpClient CreateClient(AgentReadinessOptions options) {
+        if (HttpHandlerFactory == null) {
+            var platformClient = HttpClientPlatformFactory.CreateRedirectClient(userAgent: options.UserAgent);
+            platformClient.Timeout = options.Timeout;
+            return platformClient;
+        }
+
+        var client = new HttpClient(HttpHandlerFactory()) {
+            Timeout = options.Timeout
+        };
+        if (!string.IsNullOrWhiteSpace(options.UserAgent)) {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
+        }
+
+        return client;
     }
 
     private void Reset(string subject) {
@@ -170,16 +188,17 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
         var trimmed = subject.Trim().TrimEnd('/');
         var https = new Uri("https://" + trimmed + "/");
         var first = await FetchAsync(client, https, null, options, cancellationToken).ConfigureAwait(false);
-        if (first != null) {
+        if (first != null && first.StatusCode >= 200 && first.StatusCode < 300) {
             return first;
         }
 
         if (!options.AllowHttpFallback) {
-            return null;
+            return first;
         }
 
         var http = new Uri("http://" + trimmed + "/");
-        return await FetchAsync(client, http, null, options, cancellationToken).ConfigureAwait(false);
+        var fallback = await FetchAsync(client, http, null, options, cancellationToken).ConfigureAwait(false);
+        return fallback ?? first;
     }
 
     private async Task AnalyzeRobotsAsync(HttpClient client, AgentReadinessOptions options, CancellationToken cancellationToken) {

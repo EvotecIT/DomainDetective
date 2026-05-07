@@ -46,6 +46,16 @@ public class TestGetAnalysisMap
         Assert.Null(filtered.AgentReadinessAnalysis);
     }
 
+    [Fact]
+    public void WebDiscoveryChecksDoNotRenumberExistingHealthCheckTypes()
+    {
+        Assert.Equal(21, (int)HealthCheckType.SOA);
+        Assert.Equal(56, (int)HealthCheckType.WHOIS);
+        Assert.Equal(68, (int)HealthCheckType.MICROSOFT365);
+        Assert.Equal(69, (int)HealthCheckType.SITEMAP);
+        Assert.Equal(70, (int)HealthCheckType.AGENTREADINESS);
+    }
+
     private static object? GetExpectedAnalysis(DomainHealthCheck healthCheck, HealthCheckType type)
     {
         switch (type)

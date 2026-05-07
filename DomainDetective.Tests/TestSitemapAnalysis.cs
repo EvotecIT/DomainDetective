@@ -146,7 +146,7 @@ public class TestSitemapAnalysis {
                     var response = new HttpResponseMessage(HttpStatusCode.OK) {
                         Content = new ByteArrayContent(CompressUtf8(sitemap))
                     };
-                    response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/gzip");
+                    response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
                     return response;
                 }
 
