@@ -700,8 +700,12 @@ public sealed class SitemapAnalysis : IHasAssessments {
             return true;
         }
 
-        var mediaType = content.Headers.ContentType?.MediaType ?? string.Empty;
-        return mediaType.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0;
+        return HasGzipMediaType(content.Headers.ContentType?.MediaType);
+    }
+
+    private static bool HasGzipMediaType(string? mediaType) {
+        return !string.IsNullOrWhiteSpace(mediaType) &&
+               mediaType.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private sealed class PrefixedStream : Stream {
