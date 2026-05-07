@@ -47,6 +47,8 @@ namespace DomainDetective.Tests {
         [Fact]
         public void BuildMapsKnownPortfolioAreas() {
             Assert.Equal("DNS", ResolveArea(HealthCheckType.DELEGATION));
+            Assert.Equal("Registration", ResolveArea(HealthCheckType.WHOIS));
+            Assert.Equal("Registration", ResolveArea(HealthCheckType.RDAP));
             Assert.Equal("Web", ResolveArea(HealthCheckType.ROBOTS));
             Assert.Equal("Web", ResolveArea(HealthCheckType.HPKP));
             Assert.Equal("Mail", ResolveArea(HealthCheckType.MESSAGEHEADER));
@@ -74,6 +76,38 @@ namespace DomainDetective.Tests {
                 fact.Key == nameof(FactExtractionFixture.Endpoints) &&
                 fact.Value == "https://example.com/a|https://example.com/b" &&
                 fact.Kind == DomainPortfolioFactKind.Collection);
+            Assert.Contains(facts, fact =>
+                fact.Key == nameof(FactExtractionFixture.Statuses) &&
+                fact.Value == @"active\|pending|server\\hold" &&
+                fact.Kind == DomainPortfolioFactKind.Collection);
+            Assert.Contains(facts, fact =>
+                fact.Key == nameof(FactExtractionFixture.Durations) &&
+                fact.Value == "01:00:00" &&
+                fact.Kind == DomainPortfolioFactKind.Collection);
+            Assert.DoesNotContain(facts, fact => fact.Key == nameof(FactExtractionFixture.DefaultDuration));
+        }
+
+        [Fact]
+        public void BuildSummariesRoundTripsEscapedCollectionFacts() {
+            var snapshot = new DomainPortfolioSnapshot {
+                Subject = "example.com",
+                Sections = new List<DomainPortfolioSection> {
+                    new() {
+                        Key = "WHOIS",
+                        Facts = new List<DomainPortfolioFact> {
+                            new() {
+                                Key = "NameServers",
+                                Value = @"ns1.example.com\|backup|ns2.example.com",
+                                Kind = DomainPortfolioFactKind.Collection
+                            }
+                        }
+                    }
+                }
+            };
+
+            var summaries = DomainPortfolioSnapshotBuilder.BuildSummaries(snapshot);
+
+            Assert.Equal(new[] { "ns1.example.com|backup", "ns2.example.com" }, summaries.Registration.NameServers);
         }
 
         [Fact]
@@ -270,9 +304,22 @@ namespace DomainDetective.Tests {
 
             public DateTime UnspecifiedUtc { get; set; } = new(2026, 5, 7, 12, 0, 0, DateTimeKind.Unspecified);
 
+            public TimeSpan DefaultDuration { get; set; }
+
             public List<Uri> Endpoints { get; set; } = new() {
                 new("https://example.com/b"),
                 new("https://example.com/a")
+            };
+
+            public List<string> Statuses { get; set; } = new() {
+                "active|pending",
+                @"server\hold",
+                "active|pending"
+            };
+
+            public List<TimeSpan> Durations { get; set; } = new() {
+                TimeSpan.Zero,
+                TimeSpan.FromHours(1)
             };
 
             public List<string> Assessments { get; set; } = new() {

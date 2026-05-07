@@ -14,6 +14,9 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public static class DomainPortfolioSnapshotBuilder {
+    private const char CollectionEscape = '\\';
+    private const char CollectionSeparator = '|';
+
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> PropertyCache = new();
 
     private static readonly HashSet<string> IgnoredPropertyNames = new(StringComparer.OrdinalIgnoreCase) {
@@ -166,6 +169,8 @@ public static class DomainPortfolioSnapshotBuilder {
             HealthCheckType.SPFFLATTENED or
             HealthCheckType.MAILCLASSIFICATION or
             HealthCheckType.ARC => "Mail",
+            HealthCheckType.RDAP or
+            HealthCheckType.WHOIS => "Registration",
             HealthCheckType.HTTP or
             HealthCheckType.CERT or
             HealthCheckType.DANE or
@@ -177,10 +182,8 @@ public static class DomainPortfolioSnapshotBuilder {
             HealthCheckType.CTTIMELINE => "Web",
             HealthCheckType.IDENTITYPROVIDER or
             HealthCheckType.MICROSOFT365 => "Identity",
-            HealthCheckType.RDAP or
             HealthCheckType.RPKI or
             HealthCheckType.DNSBL or
-            HealthCheckType.WHOIS or
             HealthCheckType.OPENRESOLVER or
             HealthCheckType.DANGLINGCNAME or
             HealthCheckType.SNMP or
@@ -296,7 +299,12 @@ public static class DomainPortfolioSnapshotBuilder {
         }
 
         if (type == typeof(TimeSpan)) {
-            formatted = ((TimeSpan)value).ToString("c", CultureInfo.InvariantCulture);
+            var duration = (TimeSpan)value;
+            if (duration == TimeSpan.Zero) {
+                return false;
+            }
+
+            formatted = duration.ToString("c", CultureInfo.InvariantCulture);
             kind = DomainPortfolioFactKind.Duration;
             return true;
         }
@@ -311,19 +319,19 @@ public static class DomainPortfolioSnapshotBuilder {
             var items = new List<string>();
             foreach (var item in enumerable) {
                 if (item == null) continue;
-                if (!TryFormatScalarCollectionItem(item, out var itemValue)) return false;
+                if (!TryFormatScalarCollectionItem(item, out var itemValue)) continue;
                 if (!string.IsNullOrWhiteSpace(itemValue)) items.Add(itemValue);
             }
 
             if (items.Count == 0) {
                 formatted = string.Empty;
-                kind = DomainPortfolioFactKind.Collection;
                 return false;
             }
 
             formatted = string.Join("|", items
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase));
+                .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
+                .Select(EscapeCollectionItem));
             kind = DomainPortfolioFactKind.Collection;
             return true;
         }
@@ -373,7 +381,13 @@ public static class DomainPortfolioSnapshotBuilder {
         }
 
         if (type == typeof(TimeSpan)) {
-            value = ((TimeSpan)item).ToString("c", CultureInfo.InvariantCulture);
+            var duration = (TimeSpan)item;
+            if (duration == TimeSpan.Zero) {
+                value = string.Empty;
+                return false;
+            }
+
+            value = duration.ToString("c", CultureInfo.InvariantCulture);
             return true;
         }
 
@@ -384,6 +398,61 @@ public static class DomainPortfolioSnapshotBuilder {
 
         value = string.Empty;
         return false;
+    }
+
+    private static string EscapeCollectionItem(string value) {
+        var builder = new StringBuilder(value.Length);
+        foreach (var character in value) {
+            if (character == CollectionEscape || character == CollectionSeparator) {
+                builder.Append(CollectionEscape);
+            }
+
+            builder.Append(character);
+        }
+
+        return builder.ToString();
+    }
+
+    private static List<string> SplitCollectionValue(string value) {
+        var items = new List<string>();
+        var builder = new StringBuilder(value.Length);
+        var escaped = false;
+
+        foreach (var character in value) {
+            if (escaped) {
+                builder.Append(character);
+                escaped = false;
+                continue;
+            }
+
+            if (character == CollectionEscape) {
+                escaped = true;
+                continue;
+            }
+
+            if (character == CollectionSeparator) {
+                AddCollectionValue(items, builder);
+                continue;
+            }
+
+            builder.Append(character);
+        }
+
+        if (escaped) {
+            builder.Append(CollectionEscape);
+        }
+
+        AddCollectionValue(items, builder);
+        return items;
+    }
+
+    private static void AddCollectionValue(List<string> items, StringBuilder builder) {
+        var item = builder.ToString().Trim();
+        if (item.Length > 0) {
+            items.Add(item);
+        }
+
+        builder.Clear();
     }
 
     private static DateTime NormalizeDateTime(DateTime value) {
@@ -543,9 +612,7 @@ public static class DomainPortfolioSnapshotBuilder {
         public List<string> List(string sectionKey, params string[] keys) {
             var value = String(sectionKey, keys);
             if (string.IsNullOrWhiteSpace(value)) return new List<string>();
-            return value!.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(static item => item.Trim())
-                .Where(static item => item.Length > 0)
+            return SplitCollectionValue(value!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(static item => item, StringComparer.OrdinalIgnoreCase)
                 .ToList();
