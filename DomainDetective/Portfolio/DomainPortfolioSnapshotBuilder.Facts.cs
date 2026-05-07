@@ -16,6 +16,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> PropertyCache = new();
     private static readonly ConcurrentDictionary<string, string> LabelCache = new(StringComparer.Ordinal);
 
+    // Infrastructure and recommendation surfaces are intentionally excluded from flat fact storage.
     private static readonly HashSet<string> IgnoredPropertyNames = new(StringComparer.OrdinalIgnoreCase) {
         "Assessments",
         "Recommendations",
@@ -66,7 +67,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
         try {
             value = property.GetValue(instance)!;
             return value != null;
-        } catch (Exception ex) when (ex is TargetInvocationException || ex is InvalidOperationException || ex is NotSupportedException) {
+        } catch (TargetInvocationException ex) when (ex.InnerException is NotSupportedException) {
             value = null!;
             return false;
         }
@@ -159,6 +160,7 @@ public static partial class DomainPortfolioSnapshotBuilder {
         if (type == typeof(TimeSpan)) {
             var duration = (TimeSpan)value;
             if (duration == TimeSpan.Zero) {
+                // Analysis duration fields use zero as the default not-collected value.
                 return false;
             }
 

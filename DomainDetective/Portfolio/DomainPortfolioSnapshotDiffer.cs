@@ -160,9 +160,8 @@ public static class DomainPortfolioSnapshotDiffer {
                 continue;
             }
 
-            if (previousFact == null || currentFact == null) continue;
             // Fact values are normalized storage values; preserve case-sensitive changes.
-            if (!string.Equals(previousFact.Value, currentFact.Value, StringComparison.Ordinal)) {
+            if (!string.Equals(previousFact!.Value, currentFact!.Value, StringComparison.Ordinal)) {
                 changes.Add(BuildFactChange(sectionKey, factKey, DomainPortfolioChangeKind.Changed, previousFact.Value, currentFact.Value));
             }
         }

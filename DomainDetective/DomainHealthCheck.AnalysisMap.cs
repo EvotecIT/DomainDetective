@@ -29,7 +29,7 @@ public partial class DomainHealthCheck
     }
 
     /// <summary>
-    /// Gets the analysis instance for a single health check type without materializing the full analysis map.
+    /// Gets the analysis result instance for a single health check type.
     /// </summary>
     internal object? GetAnalysisFor(HealthCheckType type)
     {
