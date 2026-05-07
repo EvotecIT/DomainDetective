@@ -108,8 +108,14 @@ public static partial class DomainPortfolioSnapshotBuilder {
             Assessments = assessments
         };
 
-        section.WarningCount = assessments.Count(static item => item.Severity == AssessmentSeverity.Warning);
-        section.ErrorCount = assessments.Count(static item => item.Severity == AssessmentSeverity.Error);
+        foreach (var assessment in assessments) {
+            if (assessment.Severity == AssessmentSeverity.Warning) {
+                section.WarningCount++;
+            } else if (assessment.Severity == AssessmentSeverity.Error) {
+                section.ErrorCount++;
+            }
+        }
+
         section.Status = section.ErrorCount > 0 ? "Error" : section.WarningCount > 0 ? "Warning" : "OK";
         section.Facts.AddRange(ExtractFacts(analysis));
         return section;

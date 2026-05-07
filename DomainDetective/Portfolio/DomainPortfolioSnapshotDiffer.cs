@@ -57,6 +57,7 @@ public static class DomainPortfolioSnapshotDiffer {
             }
 
             if (previousSection == null || currentSection == null) continue;
+            // Status values are controlled by the snapshot builder, so case-only changes are not meaningful.
             if (!string.Equals(previousSection.Status, currentSection.Status, StringComparison.OrdinalIgnoreCase)) {
                 result.Changes.Add(BuildSectionChange(sectionKey, DomainPortfolioChangeKind.Changed, previousSection.Status, currentSection.Status));
             }

@@ -504,6 +504,7 @@ namespace DomainDetective.Tests {
 
             public DateTime LocalTime { get; set; } = new(2026, 5, 7, 12, 0, 0, DateTimeKind.Local);
 
+            // Expected value uses the runtime local offset so the test stays stable across CI time zones.
             public static string ExpectedLocalTimeUtc => new DateTime(2026, 5, 7, 12, 0, 0, DateTimeKind.Local)
                 .ToUniversalTime()
                 .ToString("O", System.Globalization.CultureInfo.InvariantCulture);
