@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -568,12 +569,39 @@ public sealed class SitemapAnalysis : IHasAssessments {
     }
 
     private static async Task<string?> ReadLimitedBodyAsync(HttpContent content, int maxCharacters) {
-        var text = await content.ReadAsStringAsync().ConfigureAwait(false);
         var limit = Math.Max(1024, maxCharacters);
-        if (text.Length > limit) {
-            return text.Substring(0, limit);
+
+        Encoding encoding;
+        try {
+            var charset = content.Headers.ContentType?.CharSet;
+            var trimmedCharset = string.Empty;
+            if (!string.IsNullOrWhiteSpace(charset)) {
+                trimmedCharset = charset!.Trim('"');
+            }
+
+            encoding = string.IsNullOrWhiteSpace(trimmedCharset)
+                ? Encoding.UTF8
+                : Encoding.GetEncoding(trimmedCharset);
+        } catch (ArgumentException) {
+            encoding = Encoding.UTF8;
         }
-        return text;
+
+        using var stream = await content.ReadAsStreamAsync().ConfigureAwait(false);
+        using var reader = new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: true, bufferSize: 8192);
+        var builder = new StringBuilder(Math.Min(limit, 8192));
+        var buffer = new char[Math.Min(limit, 8192)];
+
+        while (builder.Length < limit) {
+            var remaining = limit - builder.Length;
+            var read = await reader.ReadAsync(buffer, 0, Math.Min(buffer.Length, remaining)).ConfigureAwait(false);
+            if (read == 0) {
+                break;
+            }
+
+            builder.Append(buffer, 0, read);
+        }
+
+        return builder.ToString();
     }
 
     private static bool HasNoIndex(Dictionary<string, string> headers, string? body) {

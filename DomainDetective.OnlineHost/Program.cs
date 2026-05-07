@@ -111,7 +111,7 @@ static async Task<Results<Ok<SecurityTxtInfo>, ValidationProblem>> AnalyzeSecuri
 }
 
 static async Task<Results<Ok<SitemapInfo>, ValidationProblem>> AnalyzeSitemapAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
-    if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
+    if (!TryNormalizeWebSubject(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
 
@@ -143,7 +143,7 @@ static async Task<Results<Ok<SitemapInfo>, ValidationProblem>> AnalyzeSitemapAsy
 }
 
 static async Task<Results<Ok<AgentReadinessInfo>, ValidationProblem>> AnalyzeAgentReadinessAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
-    if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
+    if (!TryNormalizeWebSubject(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
 
@@ -904,6 +904,30 @@ static bool TryNormalizeDomain(AnalyzeDomainRequest request, out string domainNa
 
     domainName = string.Empty;
     errors["domain"] = new[] { errorMessage };
+    return false;
+}
+
+static bool TryNormalizeWebSubject(AnalyzeDomainRequest request, out string subject, out Dictionary<string, string[]> errors) {
+    if (TryNormalizeDomain(request, out subject, out errors)) {
+        return true;
+    }
+
+    var requestedSubject = request.Domain?.Trim() ?? string.Empty;
+    if (Uri.TryCreate(requestedSubject, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)) {
+        if (TryNormalizeDomainName(uri.Host, out _, out var urlErrorMessage)) {
+            subject = uri.AbsoluteUri;
+            errors.Clear();
+            return true;
+        }
+
+        subject = string.Empty;
+        errors["domain"] = new[] { urlErrorMessage };
+        return false;
+    }
+
+    subject = string.Empty;
+    errors["domain"] = new[] { "Enter a valid public domain name or HTTP/HTTPS URL." };
     return false;
 }
 

@@ -26,6 +26,26 @@ public class TestGetAnalysisMap
         }
     }
 
+    [Fact]
+    public void FilterAnalysesPreservesSelectedSitemap()
+    {
+        var healthCheck = new DomainHealthCheck();
+        healthCheck.SitemapAnalysis.Documents.Add(new SitemapDocument {
+            Url = "https://example.com/sitemap.xml",
+            Present = true,
+            XmlValid = true,
+            NamespaceValid = true,
+            Kind = SitemapDocumentKind.UrlSet
+        });
+
+        var filtered = healthCheck.FilterAnalyses(new[] { HealthCheckType.SITEMAP });
+
+        Assert.NotNull(filtered.SitemapAnalysis);
+        Assert.Single(filtered.SitemapAnalysis.Documents);
+        Assert.Equal("https://example.com/sitemap.xml", filtered.SitemapAnalysis.Documents[0].Url);
+        Assert.Null(filtered.AgentReadinessAnalysis);
+    }
+
     private static object? GetExpectedAnalysis(DomainHealthCheck healthCheck, HealthCheckType type)
     {
         switch (type)

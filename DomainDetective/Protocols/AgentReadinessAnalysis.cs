@@ -27,6 +27,22 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
         "X-Frame-Options",
         "Referrer-Policy"
     };
+    private static readonly HashSet<string> _knownAiBotNames = new(StringComparer.OrdinalIgnoreCase) {
+        "gptbot",
+        "chatgpt",
+        "oai-searchbot",
+        "claudebot",
+        "anthropic",
+        "google-extended",
+        "perplexitybot",
+        "ccbot",
+        "bytespider",
+        "facebookbot"
+    };
+    private static readonly Regex _htmlTitleRegex = new("<title>\\s*[^<]+\\s*</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex _htmlDescriptionRegex = new("<meta\\s+[^>]*(name|property)=[\"'](?:description|og:description)[\"'][^>]*content=[\"'][^\"']+", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex _htmlLanguageRegex = new("<html\\s+[^>]*lang=[\"'][^\"']+", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex _htmlHeadingRegex = new("<h1\\b[^>]*>.*?</h1>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
     /// <summary>Subject that was analyzed.</summary>
     public string Subject { get; private set; } = string.Empty;
@@ -246,7 +262,8 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
         }
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < targets.Count; i++) {
+        var maxEndpointProbes = Math.Max(1, options.MaxEndpointProbes);
+        for (var i = 0; i < targets.Count && EndpointProbes.Count < maxEndpointProbes; i++) {
             var target = targets[i];
             var key = target.kind + "|" + target.uri.AbsoluteUri;
             if (!seen.Add(key)) {
@@ -256,6 +273,10 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
             var outcome = await ProbeEndpointAsync(client, target.kind, target.uri, target.source, options, cancellationToken).ConfigureAwait(false);
             EndpointProbes.Add(outcome.Probe);
             foreach (var discovered in outcome.DiscoveredTargets) {
+                if (targets.Count >= maxEndpointProbes) {
+                    break;
+                }
+
                 targets.Add(discovered);
             }
         }
@@ -293,10 +314,10 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
 
     private void AddMainPageChecks(AgentHttpProbe main) {
         var body = main.Body ?? string.Empty;
-        var hasTitle = Regex.IsMatch(body, "(?is)<title>\\s*[^<]+\\s*</title>");
-        var hasDescription = Regex.IsMatch(body, "(?is)<meta\\s+[^>]*(name|property)=[\"'](?:description|og:description)[\"'][^>]*content=[\"'][^\"']+");
-        var hasLanguage = Regex.IsMatch(body, "(?is)<html\\s+[^>]*lang=[\"'][^\"']+");
-        var hasHeading = Regex.IsMatch(body, "(?is)<h1\\b[^>]*>.*?</h1>");
+        var hasTitle = _htmlTitleRegex.IsMatch(body);
+        var hasDescription = _htmlDescriptionRegex.IsMatch(body);
+        var hasLanguage = _htmlLanguageRegex.IsMatch(body);
+        var hasHeading = _htmlHeadingRegex.IsMatch(body);
         var score = new[] { hasTitle, hasDescription, hasLanguage, hasHeading }.Count(v => v) * 2.5;
         AddCheck(
             "raw-html",
@@ -484,19 +505,9 @@ public sealed class AgentReadinessAnalysis : IHasAssessments {
     }
 
     private static bool IsKnownAiBot(string value) {
-        var names = new[] {
-            "gptbot",
-            "chatgpt",
-            "oai-searchbot",
-            "claudebot",
-            "anthropic",
-            "google-extended",
-            "perplexitybot",
-            "ccbot",
-            "bytespider",
-            "facebookbot"
-        };
-        return names.Any(name => value.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
+        var trimmed = value.Trim();
+        return _knownAiBotNames.Contains(trimmed) ||
+               _knownAiBotNames.Any(name => trimmed.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
     }
 
     private bool EndpointPresent(string kind) {

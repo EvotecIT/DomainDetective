@@ -234,8 +234,8 @@ public static partial class MarkdownCompositionReport
                     var rows = sec.Categories.Select(c => (IReadOnlyList<string>)new[]
                     {
                         c.Category,
-                        string.Create(CultureInfo.InvariantCulture, $"{c.Score:0.##}/{c.MaxScore:0.##}"),
-                        string.Create(CultureInfo.InvariantCulture, $"{c.WeightedScore:0.##}/{c.Weight:0.##}"),
+                        FormatScorePair(c.Score, c.MaxScore),
+                        FormatScorePair(c.WeightedScore, c.Weight),
                         c.Passed.ToString(CultureInfo.InvariantCulture),
                         c.Warnings.ToString(CultureInfo.InvariantCulture),
                         c.Failed.ToString(CultureInfo.InvariantCulture)
@@ -250,7 +250,7 @@ public static partial class MarkdownCompositionReport
                         c.Category,
                         c.Name,
                         c.Status,
-                        string.Create(CultureInfo.InvariantCulture, $"{c.Score:0.##}/{c.MaxScore:0.##}"),
+                        FormatScorePair(c.Score, c.MaxScore),
                         c.Code,
                         c.Evidence
                     }).ToList();
@@ -1203,5 +1203,10 @@ public static partial class MarkdownCompositionReport
         if (b.Dnssec != null) list.Add("DNSSEC");
         if (b.Dane != null) list.Add("DANE");
         return list;
+    }
+
+    private static string FormatScorePair(double score, double maxScore)
+    {
+        return score.ToString("0.##", CultureInfo.InvariantCulture) + "/" + maxScore.ToString("0.##", CultureInfo.InvariantCulture);
     }
 }

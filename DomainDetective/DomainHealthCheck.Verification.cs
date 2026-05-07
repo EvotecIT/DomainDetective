@@ -618,6 +618,7 @@ public partial class DomainHealthCheck {
             filtered.DirectoryExposureAnalysis = active.Contains(HealthCheckType.DIRECTORYEXPOSURE) ? CloneAnalysis(DirectoryExposureAnalysis) : null!;
             filtered.NtpAnalysis = active.Contains(HealthCheckType.NTP) ? CloneAnalysis(NtpAnalysis) : null!;
             filtered.AgentReadinessAnalysis = active.Contains(HealthCheckType.AGENTREADINESS) ? CloneAnalysis(AgentReadinessAnalysis) : null!;
+            filtered.SitemapAnalysis = active.Contains(HealthCheckType.SITEMAP) ? CloneAnalysis(SitemapAnalysis) : null!;
             filtered.ApexAddressAnalysis = active.Contains(HealthCheckType.APEXADDRESS) ? CloneAnalysis(ApexAddressAnalysis) : null!;
             var mailDomainClassification = MailDomainClassification;
             filtered.MailDomainClassification =

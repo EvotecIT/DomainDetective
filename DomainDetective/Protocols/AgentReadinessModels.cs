@@ -41,6 +41,8 @@ public sealed class AgentReadinessOptions {
     public bool AllowHttpFallback { get; set; } = true;
     /// <summary>Maximum response body characters retained per probe.</summary>
     public int MaxBodyCharacters { get; set; } = 256 * 1024;
+    /// <summary>Maximum agent-facing endpoint probes, including endpoints discovered from Link headers and API catalogs.</summary>
+    public int MaxEndpointProbes { get; set; } = 50;
     /// <summary>Optional user agent sent with probes.</summary>
     public string UserAgent { get; set; } = "Mozilla/5.0 (compatible; DomainDetective-AgentReadiness)";
 }

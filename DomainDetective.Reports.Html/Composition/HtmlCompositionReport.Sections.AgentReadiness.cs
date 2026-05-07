@@ -32,7 +32,7 @@ public static partial class HtmlCompositionReport
             {
                 c.Badge(agent.ErrorCount > 0 ? $"{agent.ErrorCount} Error" + (agent.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                 c.Badge(agent.WarningCount > 0 ? $"{agent.WarningCount} Warning" + (agent.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                c.Badge(string.Create(CultureInfo.InvariantCulture, $"{agent.Score:0.##}/100"), TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(agent.Score.ToString("0.##", CultureInfo.InvariantCulture) + "/100", TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                 c.Badge(status, ColorForStatus(status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
             });
             item.Content(content =>
@@ -82,8 +82,8 @@ public static partial class HtmlCompositionReport
                                         var rows = sec.Categories.Select(category => new
                                         {
                                             category.Category,
-                                            Score = string.Create(CultureInfo.InvariantCulture, $"{category.Score:0.##}/{category.MaxScore:0.##}"),
-                                            Weighted = string.Create(CultureInfo.InvariantCulture, $"{category.WeightedScore:0.##}/{category.Weight:0.##}"),
+                                            Score = FormatScorePair(category.Score, category.MaxScore),
+                                            Weighted = FormatScorePair(category.WeightedScore, category.Weight),
                                             category.Passed,
                                             category.Warnings,
                                             category.Failed
@@ -120,7 +120,7 @@ public static partial class HtmlCompositionReport
                                             check.Category,
                                             check.Name,
                                             check.Status,
-                                            Score = string.Create(CultureInfo.InvariantCulture, $"{check.Score:0.##}/{check.MaxScore:0.##}"),
+                                            Score = FormatScorePair(check.Score, check.MaxScore),
                                             check.Code,
                                             check.Evidence
                                         }).ToList();
@@ -247,8 +247,21 @@ public static partial class HtmlCompositionReport
 
     private static TablerColor ScoreColor(double score)
     {
-        if (score >= 80) return TablerColor.Green;
-        if (score >= 60) return TablerColor.Orange;
+        if (score >= 80)
+        {
+            return TablerColor.Green;
+        }
+
+        if (score >= 60)
+        {
+            return TablerColor.Orange;
+        }
+
         return TablerColor.Red;
+    }
+
+    private static string FormatScorePair(double score, double maxScore)
+    {
+        return score.ToString("0.##", CultureInfo.InvariantCulture) + "/" + maxScore.ToString("0.##", CultureInfo.InvariantCulture);
     }
 }

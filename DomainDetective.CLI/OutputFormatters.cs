@@ -361,7 +361,8 @@ internal static class OutputFormatters {
 
         if (check == HealthCheckType.SITEMAP && data is SitemapAnalysis sitemap)
         {
-            status = sitemap.RedirectLoopCount > 0 || sitemap.ClientErrorCount > 0 || sitemap.ServerErrorCount > 0 || sitemap.InvalidLocationCount > 0
+            var hasErrorAssessment = sitemap.Assessments.Any(assessment => assessment.Severity == AssessmentSeverity.Error);
+            status = hasErrorAssessment || sitemap.RedirectLoopCount > 0 || sitemap.ServerErrorCount > 0 || sitemap.InvalidLocationCount > 0
                 ? "❌ Failed"
                 : sitemap.RedirectCount > 0 || sitemap.NoIndexCount > 0 || sitemap.CanonicalMismatchCount > 0 || sitemap.DuplicateLocationCount > 0
                     ? "⚠️  Warning"
@@ -372,7 +373,7 @@ internal static class OutputFormatters {
             findings.Add($"• Documents: {sitemap.Documents.Count}; URLs: {sitemap.Entries.Count}; Probed: {sitemap.UrlProbes.Count}");
             if (sitemap.RedirectLoopCount > 0) findings.Add($"• Redirect loops: {sitemap.RedirectLoopCount}");
             if (sitemap.RedirectCount > 0) findings.Add($"• Redirects: {sitemap.RedirectCount}");
-            if (sitemap.ClientErrorCount > 0 || sitemap.ServerErrorCount > 0) findings.Add($"• HTTP errors: 4xx={sitemap.ClientErrorCount}; 5xx={sitemap.ServerErrorCount}");
+            if (sitemap.ClientErrorCount > 0 || sitemap.ServerErrorCount > 0) findings.Add($"• HTTP probe issues: 4xx/access={sitemap.ClientErrorCount}; 5xx={sitemap.ServerErrorCount}");
             if (sitemap.NoIndexCount > 0 || sitemap.CanonicalMismatchCount > 0) findings.Add($"• Indexing signals: noindex={sitemap.NoIndexCount}; canonical mismatch={sitemap.CanonicalMismatchCount}");
             if (sitemap.DuplicateLocationCount > 0 || sitemap.InvalidLocationCount > 0) findings.Add($"• Sitemap loc issues: duplicates={sitemap.DuplicateLocationCount}; invalid={sitemap.InvalidLocationCount}");
         }
