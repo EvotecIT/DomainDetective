@@ -6,6 +6,7 @@
   <xsd:element name="sitemapindex">
     <xsd:complexType>
       <xsd:sequence>
+        <!-- Mirrors the published sitemaps.org siteindex.xsd wildcard ordering and strict extension processing. -->
         <xsd:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="strict"/>
         <xsd:element name="sitemap" type="tSitemap" maxOccurs="unbounded"/>
       </xsd:sequence>
@@ -16,6 +17,7 @@
     <xsd:sequence>
       <xsd:element name="loc" type="tLocSitemap"/>
       <xsd:element name="lastmod" type="tLastmodSitemap" minOccurs="0"/>
+      <!-- Mirrors the published sitemaps.org siteindex.xsd strict extension processing. -->
       <xsd:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="strict"/>
     </xsd:sequence>
   </xsd:complexType>

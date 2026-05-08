@@ -161,7 +161,7 @@ public class TestSitemapAnalysis {
         Assert.True(analysis.Documents[0].XmlValid);
         Assert.False(analysis.Documents[0].SchemaValid);
         Assert.Equal(SitemapDocumentKind.SitemapIndex, analysis.Documents[0].Kind);
-        Assert.True(analysis.Documents[0].SchemaValidationErrorCount > 0);
+        Assert.Equal(1, analysis.Documents[0].SchemaValidationErrorCount);
         Assert.Contains("loc", analysis.Documents[0].SchemaValidationError, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.SchemaInvalid && assessment.Severity == AssessmentSeverity.Error);
     }

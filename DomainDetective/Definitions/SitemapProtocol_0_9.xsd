@@ -6,6 +6,7 @@
   <xsd:element name="urlset">
     <xsd:complexType>
       <xsd:sequence>
+        <!-- Mirrors the published sitemaps.org sitemap.xsd wildcard ordering and strict extension processing. -->
         <xsd:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="strict"/>
         <xsd:element name="url" type="tUrl" maxOccurs="unbounded"/>
       </xsd:sequence>
@@ -18,6 +19,7 @@
       <xsd:element name="lastmod" type="tLastmod" minOccurs="0"/>
       <xsd:element name="changefreq" type="tChangeFreq" minOccurs="0"/>
       <xsd:element name="priority" type="tPriority" minOccurs="0"/>
+      <!-- Mirrors the published sitemaps.org sitemap.xsd strict extension processing. -->
       <xsd:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="strict"/>
     </xsd:sequence>
   </xsd:complexType>
