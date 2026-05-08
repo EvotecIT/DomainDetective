@@ -361,10 +361,14 @@ public sealed class SitemapAnalysis : IHasAssessments {
         };
         settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
 
-        using var reader = new StringReader(body.TrimStart('\uFEFF'));
-        using var xmlReader = XmlReader.Create(reader, settings);
-        while (xmlReader.Read()) {
-            // Reading the full document drives XmlReader schema validation events.
+        try {
+            using var reader = new StringReader(body.TrimStart('\uFEFF'));
+            using var xmlReader = XmlReader.Create(reader, settings);
+            while (xmlReader.Read()) {
+                // Reading the full document drives XmlReader schema validation events.
+            }
+        } catch (XmlException ex) {
+            errors.Add(ex.Message);
         }
 
         return errors;

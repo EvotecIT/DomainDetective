@@ -89,7 +89,9 @@
                             <span class="tool-chip">HTTP @FormatStatusCode(document.StatusCode)</span>
                             <span class="tool-chip">XML @FormatBool(document.XmlValid)</span>
                             <span class="tool-chip">Namespace @FormatBool(document.NamespaceValid)</span>
-                            <span class="tool-chip">Schema @FormatBool(document.SchemaValid)</span>
+                            @if (document.XmlValid) {
+                                <span class="tool-chip">Schema @FormatBool(document.SchemaValid)</span>
+                            }
                             @if (document.SchemaValidationErrorCount > 0) {
                                 <span class="tool-chip">@document.SchemaValidationErrorCount.ToString(CultureInfo.InvariantCulture) schema error(s)</span>
                             }
@@ -219,8 +221,9 @@
             return $"Sitemap XML parsed successfully across {GetValidDocumentCount(view).ToString(CultureInfo.InvariantCulture)} document(s), but sampled URL probes found {view.ErrorCount.ToString(CultureInfo.InvariantCulture)} blocking fetch issue(s).";
         }
 
-        if (GetSchemaInvalidDocumentCount(view) > 0) {
-            return $"Sitemap XML parsed, but {GetSchemaInvalidDocumentCount(view).ToString(CultureInfo.InvariantCulture)} document(s) failed official Sitemap protocol schema validation.";
+        var schemaInvalidCount = GetSchemaInvalidDocumentCount(view);
+        if (schemaInvalidCount > 0) {
+            return $"Sitemap XML parsed, but {schemaInvalidCount.ToString(CultureInfo.InvariantCulture)} document(s) failed official Sitemap protocol schema validation.";
         }
 
         if (view.ErrorCount > 0) {

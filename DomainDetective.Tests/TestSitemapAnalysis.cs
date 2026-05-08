@@ -130,6 +130,43 @@ public class TestSitemapAnalysis {
     }
 
     [Fact]
+    public async Task AnalyzeAsyncReportsSchemaInvalidForMalformedSitemapIndex() {
+        var sitemapIndex = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                           "<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                           "<sitemap><lastmod>2026-05-07</lastmod></sitemap>" +
+                           "</sitemapindex>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://invalid-index.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://invalid-index.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://invalid-index.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemapIndex);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "invalid-index.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false
+            });
+
+        Assert.Single(analysis.Documents);
+        Assert.True(analysis.Documents[0].XmlValid);
+        Assert.False(analysis.Documents[0].SchemaValid);
+        Assert.Equal(SitemapDocumentKind.SitemapIndex, analysis.Documents[0].Kind);
+        Assert.True(analysis.Documents[0].SchemaValidationErrorCount > 0);
+        Assert.Contains("loc", analysis.Documents[0].SchemaValidationError, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.SchemaInvalid && assessment.Severity == AssessmentSeverity.Error);
+    }
+
+    [Fact]
     public async Task VerifyIncludesSitemapAssessmentsInAggregateRecommendations() {
         using var listener = StartListener(out var prefix);
         using var cts = new CancellationTokenSource();
