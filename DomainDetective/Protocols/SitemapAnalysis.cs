@@ -25,6 +25,12 @@ public sealed class SitemapAnalysis : IHasAssessments {
     private static readonly Lazy<XmlSchemaSet> _protocolSchemas = new(LoadProtocolSchemas);
     private static readonly XNamespace _sitemapNs = SitemapNamespace;
     private static readonly XNamespace _xhtmlNs = "http://www.w3.org/1999/xhtml";
+    private static readonly XNamespace _imageNs = "http://www.google.com/schemas/sitemap-image/1.1";
+    private static readonly XNamespace _newsNs = "http://www.google.com/schemas/sitemap-news/0.9";
+    private static readonly XNamespace _videoNs = "http://www.google.com/schemas/sitemap-video/1.1";
+    private static readonly XName _imageElementName = _imageNs + "image";
+    private static readonly XName _newsElementName = _newsNs + "news";
+    private static readonly XName _videoElementName = _videoNs + "video";
     private static readonly HashSet<string> _validChangeFrequencies = new(StringComparer.OrdinalIgnoreCase) {
         "always",
         "hourly",
@@ -303,6 +309,8 @@ public sealed class SitemapAnalysis : IHasAssessments {
             AddAssessment(AssessmentSeverity.Warning, SitemapCodes.NamespaceInvalid, "Sitemap root namespace is not the standard sitemap namespace.", sitemapUri.AbsoluteUri);
         }
 
+        RecordGoogleExtensionCounts(root, docInfo, sitemapUri);
+
         var schemaErrors = ValidateProtocolSchema(response.Body!, Math.Max(1024, options.MaxSitemapBodyCharacters));
         docInfo.SchemaValidationErrorCount = schemaErrors.Count;
         if (schemaErrors.Count == 0) {
@@ -450,6 +458,42 @@ public sealed class SitemapAnalysis : IHasAssessments {
             docInfo.XhtmlAlternateLinkCount += entry.Alternates.Count;
             Entries.Add(entry);
             docInfo.UrlCount++;
+        }
+    }
+
+    private void RecordGoogleExtensionCounts(XElement root, SitemapDocument docInfo, Uri sitemapUri) {
+        foreach (var element in root.Descendants()) {
+            if (element.Name == _imageElementName) {
+                docInfo.ImageExtensionElementCount++;
+            } else if (element.Name == _newsElementName) {
+                docInfo.NewsExtensionElementCount++;
+            } else if (element.Name == _videoElementName) {
+                docInfo.VideoExtensionElementCount++;
+            }
+        }
+
+        if (docInfo.ImageExtensionElementCount > 0) {
+            AddAssessment(
+                AssessmentSeverity.Warning,
+                SitemapCodes.ImageExtension,
+                "Sitemap contains " + docInfo.ImageExtensionElementCount.ToString(CultureInfo.InvariantCulture) + " Google image sitemap extension element(s). Strict base sitemap schema validation may report these separately from Google crawler support.",
+                sitemapUri.AbsoluteUri);
+        }
+
+        if (docInfo.NewsExtensionElementCount > 0) {
+            AddAssessment(
+                AssessmentSeverity.Warning,
+                SitemapCodes.NewsExtension,
+                "Sitemap contains " + docInfo.NewsExtensionElementCount.ToString(CultureInfo.InvariantCulture) + " Google News sitemap extension element(s). Strict base sitemap schema validation may report these separately from Google crawler support.",
+                sitemapUri.AbsoluteUri);
+        }
+
+        if (docInfo.VideoExtensionElementCount > 0) {
+            AddAssessment(
+                AssessmentSeverity.Warning,
+                SitemapCodes.VideoExtension,
+                "Sitemap contains " + docInfo.VideoExtensionElementCount.ToString(CultureInfo.InvariantCulture) + " Google video sitemap extension element(s). Strict base sitemap schema validation may report these separately from Google crawler support.",
+                sitemapUri.AbsoluteUri);
         }
     }
 

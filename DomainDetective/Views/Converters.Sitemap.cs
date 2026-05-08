@@ -49,6 +49,9 @@ public static partial class Converters {
                     UrlCount = document.UrlCount,
                     SitemapCount = document.SitemapCount,
                     XhtmlAlternateLinkCount = document.XhtmlAlternateLinkCount,
+                    ImageExtensionElementCount = document.ImageExtensionElementCount,
+                    NewsExtensionElementCount = document.NewsExtensionElementCount,
+                    VideoExtensionElementCount = document.VideoExtensionElementCount,
                     Error = document.Error
                 })
                 .ToArray(),
@@ -167,6 +170,12 @@ public sealed class SitemapDocumentInfo {
     public int SitemapCount { get; set; }
     /// <summary>Number of XHTML alternate links in this document.</summary>
     public int XhtmlAlternateLinkCount { get; set; }
+    /// <summary>Number of Google image sitemap extension elements in this document.</summary>
+    public int ImageExtensionElementCount { get; set; }
+    /// <summary>Number of Google news sitemap extension elements in this document.</summary>
+    public int NewsExtensionElementCount { get; set; }
+    /// <summary>Number of Google video sitemap extension elements in this document.</summary>
+    public int VideoExtensionElementCount { get; set; }
     /// <summary>Fetch or parse error when available.</summary>
     public string? Error { get; set; }
 }
