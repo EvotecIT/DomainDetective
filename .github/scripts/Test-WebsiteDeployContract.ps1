@@ -67,17 +67,72 @@ if (-not (Test-Path -LiteralPath $DeployWorkflowPath)) {
     throw "Deploy workflow not found: $DeployWorkflowPath"
 }
 
-$deployWorkflow = Get-Content -LiteralPath $DeployWorkflowPath -Raw
-if ($deployWorkflow -notmatch 'powerforge-website-deploy\.yml@') {
-    throw "Deploy workflow must call the PowerForge website deploy reusable workflow."
+$deployWorkflowLines = @(Get-Content -LiteralPath $DeployWorkflowPath)
+$expectedDeployWorkflowUses = 'EvotecIT/PSPublishModule/.github/workflows/powerforge-website-deploy.yml@3c671c874bb90ad83741f42d6ad6106320c52502'
+$deployWorkflowUses = $null
+$guardrailValue = $null
+$inDeployJob = $false
+$deployJobIndent = -1
+$inDeployWith = $false
+$deployWithIndent = -1
+
+for ($lineIndex = 0; $lineIndex -lt $deployWorkflowLines.Count; $lineIndex++) {
+    $line = $deployWorkflowLines[$lineIndex]
+
+    if ($line -match '^\s*(#.*)?$') {
+        continue
+    }
+
+    if (-not $inDeployJob) {
+        $jobMatch = [regex]::Match($line, '^(?<indent>\s*)website-deploy:\s*(?:#.*)?$')
+        if ($jobMatch.Success) {
+            $inDeployJob = $true
+            $deployJobIndent = $jobMatch.Groups['indent'].Value.Length
+        }
+
+        continue
+    }
+
+    $keyMatch = [regex]::Match($line, '^(?<indent>\s*)(?<key>[A-Za-z0-9_-]+):')
+    if ($keyMatch.Success -and $keyMatch.Groups['indent'].Value.Length -le $deployJobIndent) {
+        break
+    }
+
+    $usesMatch = [regex]::Match($line, '^\s*uses:\s*(?<value>\S+)\s*(?:#.*)?$')
+    if ($usesMatch.Success) {
+        $deployWorkflowUses = $usesMatch.Groups['value'].Value
+        continue
+    }
+
+    $withMatch = [regex]::Match($line, '^(?<indent>\s*)with:\s*(?:#.*)?$')
+    if ($withMatch.Success) {
+        $inDeployWith = $true
+        $deployWithIndent = $withMatch.Groups['indent'].Value.Length
+        continue
+    }
+
+    if ($inDeployWith) {
+        if ($keyMatch.Success -and $keyMatch.Groups['indent'].Value.Length -le $deployWithIndent) {
+            $inDeployWith = $false
+            continue
+        }
+
+        $guardrailMatch = [regex]::Match($line, '^\s*require_seo_doctor_guardrail:\s*(?<value>true|false)\s*(?:#.*)?$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($guardrailMatch.Success) {
+            $guardrailValue = $guardrailMatch.Groups['value'].Value
+        }
+    }
 }
 
-$guardrailMatch = [regex]::Match($deployWorkflow, '(?m)^\s*require_seo_doctor_guardrail:\s*(true|false)\s*(?:#.*)?$')
-$requiresSeoDoctorGuardrail = $true
-if ($guardrailMatch.Success) {
-    $requiresSeoDoctorGuardrail = [bool]::Parse($guardrailMatch.Groups[1].Value)
+if (-not [string]::Equals($deployWorkflowUses, $expectedDeployWorkflowUses, [System.StringComparison]::Ordinal)) {
+    throw "Deploy workflow must call $expectedDeployWorkflowUses from the website-deploy job."
 }
 
+if ([string]::IsNullOrWhiteSpace($guardrailValue)) {
+    throw "Deploy workflow website-deploy job must explicitly set require_seo_doctor_guardrail to true or false."
+}
+
+$requiresSeoDoctorGuardrail = [bool]::Parse($guardrailValue)
 $visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $steps = @(Get-ResolvedPipelineSteps -PipelinePath $PipelinePath -Visited $visited)
 $pipelineMode = 'ci'
