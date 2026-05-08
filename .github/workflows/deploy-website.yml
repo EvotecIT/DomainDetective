@@ -28,5 +28,7 @@ jobs:
       powerforge_repository: EvotecIT/PSPublishModule
       powerforge_ref: 3c671c874bb90ad83741f42d6ad6106320c52502
       powerforge_web_tag: PowerForgeWeb-v1.0.0-preview-202604140746
+      # DomainDetective uses the PowerForge doctor audit step rather than the localized seo-doctor guardrail contract.
+      require_seo_doctor_guardrail: false
     secrets:
       indexnow_key: ${{ secrets.INDEXNOW_KEY }}
