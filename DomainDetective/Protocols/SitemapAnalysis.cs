@@ -364,6 +364,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
         using var reader = new StringReader(body.TrimStart('\uFEFF'));
         using var xmlReader = XmlReader.Create(reader, settings);
         while (xmlReader.Read()) {
+            // Reading the full document drives XmlReader schema validation events.
         }
 
         return errors;
