@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            targetNamespace="http://www.sitemaps.org/schemas/sitemap/0.9"
+            xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+            elementFormDefault="qualified">
+  <xsd:element name="sitemapindex">
+    <xsd:complexType>
+      <xsd:sequence>
+        <!-- Mirrors the published sitemaps.org siteindex.xsd wildcard ordering and strict extension processing. -->
+        <xsd:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="strict"/>
+        <xsd:element name="sitemap" type="tSitemap" maxOccurs="unbounded"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+
+  <xsd:complexType name="tSitemap">
+    <xsd:sequence>
+      <xsd:element name="loc" type="tLocSitemap"/>
+      <xsd:element name="lastmod" type="tLastmodSitemap" minOccurs="0"/>
+      <!-- Mirrors the published sitemaps.org siteindex.xsd strict extension processing. -->
+      <xsd:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="strict"/>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:simpleType name="tLocSitemap">
+    <xsd:restriction base="xsd:anyURI">
+      <xsd:minLength value="12"/>
+      <xsd:maxLength value="2048"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="tLastmodSitemap">
+    <xsd:union>
+      <xsd:simpleType>
+        <xsd:restriction base="xsd:date"/>
+      </xsd:simpleType>
+      <xsd:simpleType>
+        <xsd:restriction base="xsd:dateTime"/>
+      </xsd:simpleType>
+    </xsd:union>
+  </xsd:simpleType>
+</xsd:schema>

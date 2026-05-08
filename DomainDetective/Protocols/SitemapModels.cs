@@ -25,6 +25,12 @@ public sealed class SitemapDocument {
     public bool Present { get; set; }
     /// <summary>True when the sitemap document is well-formed XML.</summary>
     public bool XmlValid { get; set; }
+    /// <summary>True when the sitemap document validates against the official Sitemap protocol XML schema.</summary>
+    public bool SchemaValid { get; set; }
+    /// <summary>Number of Sitemap protocol XML schema validation errors.</summary>
+    public int SchemaValidationErrorCount { get; set; }
+    /// <summary>First Sitemap protocol XML schema validation error, when available.</summary>
+    public string? SchemaValidationError { get; set; }
     /// <summary>True when the root element uses the standard sitemap namespace.</summary>
     public bool NamespaceValid { get; set; }
     /// <summary>Detected sitemap document kind.</summary>
@@ -35,6 +41,8 @@ public sealed class SitemapDocument {
     public int UrlCount { get; set; }
     /// <summary>Number of nested sitemap entries parsed from this document.</summary>
     public int SitemapCount { get; set; }
+    /// <summary>Number of XHTML alternate links parsed from this document.</summary>
+    public int XhtmlAlternateLinkCount { get; set; }
 }
 
 /// <summary>Represents one URL entry from a sitemap urlset.</summary>

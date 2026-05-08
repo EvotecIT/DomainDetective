@@ -26,6 +26,28 @@ internal sealed class SitemapRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Medium,
             Verify = "Parse the sitemap with an XML parser and confirm the root is urlset or sitemapindex."
         };
+        map[SitemapCodes.SchemaInvalid] = new RecommendationAdvice {
+            Code = SitemapCodes.SchemaInvalid,
+            Title = "Sitemap does not match the protocol schema",
+            Why = "A sitemap can be well-formed XML but still violate the official Sitemap protocol schema. Schema-level issues can cause search tools to classify or consume the sitemap inconsistently.",
+            How = "Validate the document against sitemap.xsd or siteindex.xsd, then fix unsupported elements, element ordering, required loc entries, lastmod values, priority values, and extension namespaces.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "sitemap", "xml-schema", "seo", "crawl" },
+            Impact = "Search engines may ignore entries, report stale discovery counts, or treat the sitemap differently than a simple XML parser.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Validate the sitemap against the official schema from https://www.sitemaps.org/schemas/sitemap/0.9/."
+        };
+        map[SitemapCodes.XhtmlAlternateExtension] = new RecommendationAdvice {
+            Code = SitemapCodes.XhtmlAlternateExtension,
+            Title = "XHTML alternate links affect strict sitemap validation",
+            Why = "Google supports xhtml:link hreflang annotations in sitemaps, but the base sitemaps.org schema does not declare the XHTML extension. Generic XML schema validators and Chrome's XML tree viewer can therefore treat the document differently than a plain sitemap.",
+            How = "Decide whether this sitemap is meant to be a strict generic sitemap or a Google hreflang sitemap. For strict sitemap consumers, remove xhtml:link entries or publish a separate plain sitemap. For Google hreflang, validate reciprocal/self-referencing hreflang rules and monitor Search Console.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "sitemap", "hreflang", "xhtml", "xml-schema", "seo" },
+            Impact = "Diagnostics may report strict schema failures even though Google supports the hreflang extension; separating the signals makes the crawler behavior easier to explain.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Compare strict sitemap schema validation with Google Search Central hreflang sitemap guidance."
+        };
         map[SitemapCodes.CrossHostSitemap] = new RecommendationAdvice {
             Code = SitemapCodes.CrossHostSitemap,
             Title = "Cross-host sitemap advertised",

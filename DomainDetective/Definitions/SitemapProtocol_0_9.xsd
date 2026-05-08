@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            targetNamespace="http://www.sitemaps.org/schemas/sitemap/0.9"
+            xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+            elementFormDefault="qualified">
+  <xsd:element name="urlset">
+    <xsd:complexType>
+      <xsd:sequence>
+        <!-- Mirrors the published sitemaps.org sitemap.xsd wildcard ordering and strict extension processing. -->
+        <xsd:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="strict"/>
+        <xsd:element name="url" type="tUrl" maxOccurs="unbounded"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+
+  <xsd:complexType name="tUrl">
+    <xsd:sequence>
+      <xsd:element name="loc" type="tLoc"/>
+      <xsd:element name="lastmod" type="tLastmod" minOccurs="0"/>
+      <xsd:element name="changefreq" type="tChangeFreq" minOccurs="0"/>
+      <xsd:element name="priority" type="tPriority" minOccurs="0"/>
+      <!-- Mirrors the published sitemaps.org sitemap.xsd strict extension processing. -->
+      <xsd:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="strict"/>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:simpleType name="tLoc">
+    <xsd:restriction base="xsd:anyURI">
+      <xsd:minLength value="12"/>
+      <xsd:maxLength value="2048"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="tLastmod">
+    <xsd:union>
+      <xsd:simpleType>
+        <xsd:restriction base="xsd:date"/>
+      </xsd:simpleType>
+      <xsd:simpleType>
+        <xsd:restriction base="xsd:dateTime"/>
+      </xsd:simpleType>
+    </xsd:union>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="tChangeFreq">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="always"/>
+      <xsd:enumeration value="hourly"/>
+      <xsd:enumeration value="daily"/>
+      <xsd:enumeration value="weekly"/>
+      <xsd:enumeration value="monthly"/>
+      <xsd:enumeration value="yearly"/>
+      <xsd:enumeration value="never"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="tPriority">
+    <xsd:restriction base="xsd:decimal">
+      <xsd:minInclusive value="0.0"/>
+      <xsd:maxInclusive value="1.0"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+</xsd:schema>

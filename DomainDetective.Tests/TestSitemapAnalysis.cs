@@ -27,6 +27,7 @@ public class TestSitemapAnalysis {
 
             Assert.Single(analysis.Documents);
             Assert.True(analysis.Documents[0].XmlValid);
+            Assert.True(analysis.Documents[0].SchemaValid);
             Assert.Equal(SitemapDocumentKind.UrlSet, analysis.Documents[0].Kind);
             Assert.Equal(6, analysis.Entries.Count);
             Assert.Equal(1, analysis.DuplicateLocationCount);
@@ -44,6 +45,125 @@ public class TestSitemapAnalysis {
             listener.Stop();
             await serverTask;
         }
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncReportsSchemaInvalidForUndeclaredExtensionElements() {
+        var sitemap = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                      "<urlset xmlns:xhtml=\"http://www.w3.org/1999/xhtml\" xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                      "<url><loc>https://schema.example/</loc><xhtml:link rel=\"alternate\" hreflang=\"de\" href=\"https://schema.example/de/\" /></url>" +
+                      "</urlset>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://schema.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://schema.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://schema.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemap);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "schema.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false
+            });
+
+        Assert.Single(analysis.Documents);
+        Assert.True(analysis.Documents[0].XmlValid);
+        Assert.False(analysis.Documents[0].SchemaValid);
+        Assert.Equal(1, analysis.Documents[0].SchemaValidationErrorCount);
+        Assert.Equal(1, analysis.Documents[0].XhtmlAlternateLinkCount);
+        Assert.Contains("xhtml", analysis.Documents[0].SchemaValidationError, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.SchemaInvalid && assessment.Severity == AssessmentSeverity.Error);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.XhtmlAlternateExtension && assessment.Severity == AssessmentSeverity.Warning);
+        Assert.Contains(analysis.Recommendations, recommendation => recommendation.Code == SitemapCodes.SchemaInvalid);
+        Assert.Contains(analysis.Recommendations, recommendation => recommendation.Code == SitemapCodes.XhtmlAlternateExtension);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncSchemaValidatesSitemapIndexes() {
+        var sitemapIndex = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                           "<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                           "<sitemap><loc>https://index.example/child.xml</loc><lastmod>2026-05-07</lastmod></sitemap>" +
+                           "</sitemapindex>";
+        var childSitemap = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                           "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                           "<url><loc>https://index.example/</loc></url>" +
+                           "</urlset>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://index.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://index.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://index.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemapIndex);
+                }
+
+                if (url.Equals("https://index.example/child.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", childSitemap);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "index.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false
+            });
+
+        Assert.Equal(2, analysis.Documents.Count);
+        Assert.All(analysis.Documents, document => Assert.True(document.SchemaValid));
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.SchemaValid);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.SchemaInvalid);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncReportsSchemaInvalidForMalformedSitemapIndex() {
+        var sitemapIndex = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                           "<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                           "<sitemap><lastmod>2026-05-07</lastmod></sitemap>" +
+                           "</sitemapindex>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://invalid-index.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://invalid-index.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://invalid-index.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemapIndex);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "invalid-index.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false
+            });
+
+        Assert.Single(analysis.Documents);
+        Assert.True(analysis.Documents[0].XmlValid);
+        Assert.False(analysis.Documents[0].SchemaValid);
+        Assert.Equal(SitemapDocumentKind.SitemapIndex, analysis.Documents[0].Kind);
+        Assert.Equal(1, analysis.Documents[0].SchemaValidationErrorCount);
+        Assert.Contains("loc", analysis.Documents[0].SchemaValidationError, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.SchemaInvalid && assessment.Severity == AssessmentSeverity.Error);
     }
 
     [Fact]

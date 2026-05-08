@@ -41,10 +41,14 @@ public static partial class Converters {
                     ContentType = document.ContentType,
                     Present = document.Present,
                     XmlValid = document.XmlValid,
+                    SchemaValid = document.SchemaValid,
+                    SchemaValidationErrorCount = document.SchemaValidationErrorCount,
+                    SchemaValidationError = document.SchemaValidationError,
                     NamespaceValid = document.NamespaceValid,
                     Kind = document.Kind.ToString(),
                     UrlCount = document.UrlCount,
                     SitemapCount = document.SitemapCount,
+                    XhtmlAlternateLinkCount = document.XhtmlAlternateLinkCount,
                     Error = document.Error
                 })
                 .ToArray(),
@@ -147,6 +151,12 @@ public sealed class SitemapDocumentInfo {
     public bool Present { get; set; }
     /// <summary>True when the sitemap XML was well formed.</summary>
     public bool XmlValid { get; set; }
+    /// <summary>True when the sitemap XML validates against the official Sitemap protocol schema.</summary>
+    public bool SchemaValid { get; set; }
+    /// <summary>Number of Sitemap protocol schema validation errors.</summary>
+    public int SchemaValidationErrorCount { get; set; }
+    /// <summary>First Sitemap protocol schema validation error, when available.</summary>
+    public string? SchemaValidationError { get; set; }
     /// <summary>True when the root namespace matches the sitemap protocol namespace.</summary>
     public bool NamespaceValid { get; set; }
     /// <summary>Detected root document kind.</summary>
@@ -155,6 +165,8 @@ public sealed class SitemapDocumentInfo {
     public int UrlCount { get; set; }
     /// <summary>Number of nested sitemap entries in this document.</summary>
     public int SitemapCount { get; set; }
+    /// <summary>Number of XHTML alternate links in this document.</summary>
+    public int XhtmlAlternateLinkCount { get; set; }
     /// <summary>Fetch or parse error when available.</summary>
     public string? Error { get; set; }
 }
