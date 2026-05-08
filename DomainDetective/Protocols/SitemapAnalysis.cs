@@ -309,8 +309,6 @@ public sealed class SitemapAnalysis : IHasAssessments {
             AddAssessment(AssessmentSeverity.Warning, SitemapCodes.NamespaceInvalid, "Sitemap root namespace is not the standard sitemap namespace.", sitemapUri.AbsoluteUri);
         }
 
-        RecordGoogleExtensionCounts(root, docInfo, sitemapUri);
-
         var schemaErrors = ValidateProtocolSchema(response.Body!, Math.Max(1024, options.MaxSitemapBodyCharacters));
         docInfo.SchemaValidationErrorCount = schemaErrors.Count;
         if (schemaErrors.Count == 0) {
@@ -327,6 +325,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
 
         if (root.Name.LocalName.Equals("urlset", StringComparison.OrdinalIgnoreCase)) {
             docInfo.Kind = SitemapDocumentKind.UrlSet;
+            RecordGoogleExtensionCounts(root, docInfo, sitemapUri);
             ParseUrlSet(root, sitemapUri, docInfo, options);
             if (docInfo.XhtmlAlternateLinkCount > 0) {
                 AddAssessment(

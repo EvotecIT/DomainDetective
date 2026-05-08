@@ -128,6 +128,41 @@ public class TestSitemapAnalysis {
     }
 
     [Fact]
+    public async Task AnalyzeAsyncDoesNotReportGoogleExtensionWarningsForSitemapIndex() {
+        var sitemapIndex = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                           "<sitemapindex xmlns:image=\"http://www.google.com/schemas/sitemap-image/1.1\" xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                           "<sitemap><loc>https://index-extension.example/child.xml</loc><image:image><image:loc>https://index-extension.example/image.jpg</image:loc></image:image></sitemap>" +
+                           "</sitemapindex>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://index-extension.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://index-extension.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://index-extension.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemapIndex);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "index-extension.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false,
+                MaxSitemapDocuments = 1
+            });
+
+        Assert.Single(analysis.Documents);
+        Assert.Equal(SitemapDocumentKind.SitemapIndex, analysis.Documents[0].Kind);
+        Assert.Equal(0, analysis.Documents[0].ImageExtensionElementCount);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.ImageExtension);
+    }
+
+    [Fact]
     public async Task AnalyzeAsyncSchemaValidatesSitemapIndexes() {
         var sitemapIndex = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
                            "<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +

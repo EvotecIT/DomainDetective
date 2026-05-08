@@ -36,7 +36,7 @@ function Get-ResolvedPipelineSteps {
 
     $resolvedPath = [System.IO.Path]::GetFullPath($PipelinePath)
     if (-not $Visited.Add($resolvedPath)) {
-        @()
+        throw "Pipeline config inheritance cycle detected: $resolvedPath"
     } else {
         if (-not (Test-Path -LiteralPath $resolvedPath)) {
             throw "Pipeline config not found: $resolvedPath"
@@ -80,8 +80,35 @@ if ($guardrailMatch.Success) {
 
 $visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $steps = @(Get-ResolvedPipelineSteps -PipelinePath $PipelinePath -Visited $visited)
+$pipelineMode = 'ci'
 
-[array] $seoDoctorSteps = foreach ($step in $steps) {
+[array] $activeSteps = foreach ($step in $steps) {
+    $stepProperties = @($step.PSObject.Properties.Name)
+    $runsInMode = $true
+
+    if ($stepProperties -contains 'modes' -and $null -ne $step.modes) {
+        $runsInMode = $false
+        foreach ($mode in @($step.modes)) {
+            if ([string]::Equals([string] $mode, $pipelineMode, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $runsInMode = $true
+            }
+        }
+    }
+
+    if ($runsInMode -and $stepProperties -contains 'skipModes' -and $null -ne $step.skipModes) {
+        foreach ($mode in @($step.skipModes)) {
+            if ([string]::Equals([string] $mode, $pipelineMode, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $runsInMode = $false
+            }
+        }
+    }
+
+    if ($runsInMode) {
+        $step
+    }
+}
+
+[array] $seoDoctorSteps = foreach ($step in $activeSteps) {
     $stepProperties = @($step.PSObject.Properties.Name)
     if ($stepProperties -contains 'task' -and
         [string]::Equals([string] $step.task, 'seo-doctor', [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -115,7 +142,7 @@ if ($requiresSeoDoctorGuardrail) {
 
     Write-Host "Deploy contract validated with $($fullyConfiguredSeoDoctorSteps.Count) fully configured seo-doctor step(s)."
 } else {
-    [array] $doctorSteps = foreach ($step in $steps) {
+    [array] $doctorSteps = foreach ($step in $activeSteps) {
         $stepProperties = @($step.PSObject.Properties.Name)
         if ($stepProperties -contains 'task' -and
             [string]::Equals([string] $step.task, 'doctor', [System.StringComparison]::OrdinalIgnoreCase)) {
