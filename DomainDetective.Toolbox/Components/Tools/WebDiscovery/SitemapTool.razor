@@ -52,7 +52,7 @@
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Document health</span>
                 <strong class="tool-summary-value">@GetValidDocumentCount(view).ToString(CultureInfo.InvariantCulture) / @view.DocumentCount.ToString(CultureInfo.InvariantCulture)</strong>
-                <p class="tool-summary-note">Well-formed XML documents. @GetInvalidDocumentCount(view).ToString(CultureInfo.InvariantCulture) document(s) need review.</p>
+                <p class="tool-summary-note">XML, namespace, and schema-valid documents. @GetInvalidDocumentCount(view).ToString(CultureInfo.InvariantCulture) document(s) need review.</p>
             </div>
             <div class="tool-summary-card">
                 <span class="tool-summary-label">URL hygiene</span>
@@ -89,6 +89,13 @@
                             <span class="tool-chip">HTTP @FormatStatusCode(document.StatusCode)</span>
                             <span class="tool-chip">XML @FormatBool(document.XmlValid)</span>
                             <span class="tool-chip">Namespace @FormatBool(document.NamespaceValid)</span>
+                            <span class="tool-chip">Schema @FormatBool(document.SchemaValid)</span>
+                            @if (document.SchemaValidationErrorCount > 0) {
+                                <span class="tool-chip">@document.SchemaValidationErrorCount.ToString(CultureInfo.InvariantCulture) schema error(s)</span>
+                            }
+                            @if (document.XhtmlAlternateLinkCount > 0) {
+                                <span class="tool-chip">@document.XhtmlAlternateLinkCount.ToString(CultureInfo.InvariantCulture) xhtml alternate(s)</span>
+                            }
                             <span class="tool-chip">@document.UrlCount.ToString(CultureInfo.InvariantCulture) URLs</span>
                             <span class="tool-chip">@document.SitemapCount.ToString(CultureInfo.InvariantCulture) child sitemaps</span>
                             @if (IsCrossHost(document.Url, view.Subject ?? Domain)) {
@@ -97,6 +104,9 @@
                         </div>
                         @if (!string.IsNullOrWhiteSpace(document.Error)) {
                             <p class="sitemap-error-text">@document.Error</p>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(document.SchemaValidationError)) {
+                            <p class="sitemap-error-text">@document.SchemaValidationError</p>
                         }
                     </article>
                 }
@@ -209,8 +219,12 @@
             return $"Sitemap XML parsed successfully across {GetValidDocumentCount(view).ToString(CultureInfo.InvariantCulture)} document(s), but sampled URL probes found {view.ErrorCount.ToString(CultureInfo.InvariantCulture)} blocking fetch issue(s).";
         }
 
+        if (GetSchemaInvalidDocumentCount(view) > 0) {
+            return $"Sitemap XML parsed, but {GetSchemaInvalidDocumentCount(view).ToString(CultureInfo.InvariantCulture)} document(s) failed official Sitemap protocol schema validation.";
+        }
+
         if (view.ErrorCount > 0) {
-            return $"DD found {view.ErrorCount.ToString(CultureInfo.InvariantCulture)} sitemap error(s), including XML, redirect-loop, or HTTP failure findings.";
+            return $"DD found {view.ErrorCount.ToString(CultureInfo.InvariantCulture)} sitemap error(s), including XML, schema, redirect-loop, or HTTP failure findings.";
         }
 
         if (view.WarningCount > 0) {
@@ -274,11 +288,15 @@
     }
 
     private static int GetValidDocumentCount(SitemapInfo view) {
-        return view.Documents.Count(static document => document.XmlValid && document.NamespaceValid);
+        return view.Documents.Count(static document => document.XmlValid && document.NamespaceValid && document.SchemaValid);
     }
 
     private static int GetInvalidDocumentCount(SitemapInfo view) {
-        return view.Documents.Count(static document => !document.XmlValid || !document.NamespaceValid);
+        return view.Documents.Count(static document => !document.XmlValid || !document.NamespaceValid || !document.SchemaValid);
+    }
+
+    private static int GetSchemaInvalidDocumentCount(SitemapInfo view) {
+        return view.Documents.Count(static document => document.XmlValid && !document.SchemaValid);
     }
 
     private static int GetCrossHostDocumentCount(SitemapInfo view) {

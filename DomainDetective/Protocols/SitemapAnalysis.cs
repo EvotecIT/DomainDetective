@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
+using System.Xml.Schema;
 using DomainDetective.Helpers;
 
 namespace DomainDetective;
@@ -21,6 +22,7 @@ namespace DomainDetective;
 /// </summary>
 public sealed class SitemapAnalysis : IHasAssessments {
     private const string SitemapNamespace = "http://www.sitemaps.org/schemas/sitemap/0.9";
+    private static readonly Lazy<XmlSchemaSet> _protocolSchemas = new(LoadProtocolSchemas);
     private static readonly XNamespace _sitemapNs = SitemapNamespace;
     private static readonly XNamespace _xhtmlNs = "http://www.w3.org/1999/xhtml";
     private static readonly HashSet<string> _validChangeFrequencies = new(StringComparer.OrdinalIgnoreCase) {
@@ -301,9 +303,30 @@ public sealed class SitemapAnalysis : IHasAssessments {
             AddAssessment(AssessmentSeverity.Warning, SitemapCodes.NamespaceInvalid, "Sitemap root namespace is not the standard sitemap namespace.", sitemapUri.AbsoluteUri);
         }
 
+        var schemaErrors = ValidateProtocolSchema(response.Body!, Math.Max(1024, options.MaxSitemapBodyCharacters));
+        docInfo.SchemaValidationErrorCount = schemaErrors.Count;
+        if (schemaErrors.Count == 0) {
+            docInfo.SchemaValid = true;
+            AddAssessment(AssessmentSeverity.Info, SitemapCodes.SchemaValid, "Sitemap XML matches the official Sitemap protocol schema.", sitemapUri.AbsoluteUri);
+        } else {
+            docInfo.SchemaValidationError = schemaErrors[0];
+            AddAssessment(
+                AssessmentSeverity.Error,
+                SitemapCodes.SchemaInvalid,
+                "Sitemap XML does not match the official Sitemap protocol schema: " + schemaErrors[0] + " (" + schemaErrors.Count.ToString(CultureInfo.InvariantCulture) + " validation error(s)).",
+                sitemapUri.AbsoluteUri);
+        }
+
         if (root.Name.LocalName.Equals("urlset", StringComparison.OrdinalIgnoreCase)) {
             docInfo.Kind = SitemapDocumentKind.UrlSet;
             ParseUrlSet(root, sitemapUri, docInfo, options);
+            if (docInfo.XhtmlAlternateLinkCount > 0) {
+                AddAssessment(
+                    AssessmentSeverity.Warning,
+                    SitemapCodes.XhtmlAlternateExtension,
+                    "Sitemap contains " + docInfo.XhtmlAlternateLinkCount.ToString(CultureInfo.InvariantCulture) + " xhtml:link alternate entries. Google supports hreflang sitemap extensions, but the base sitemaps.org schema and Chrome XML tree rendering may not treat this as a plain sitemap.",
+                    sitemapUri.AbsoluteUri);
+            }
         } else if (root.Name.LocalName.Equals("sitemapindex", StringComparison.OrdinalIgnoreCase)) {
             docInfo.Kind = SitemapDocumentKind.SitemapIndex;
             ParseSitemapIndex(root, sitemapUri, docInfo, result.NestedSitemaps);
@@ -325,6 +348,41 @@ public sealed class SitemapAnalysis : IHasAssessments {
         using var reader = new StringReader(body.TrimStart('\uFEFF'));
         using var xmlReader = XmlReader.Create(reader, settings);
         return XDocument.Load(xmlReader, LoadOptions.None);
+    }
+
+    private static List<string> ValidateProtocolSchema(string body, int maxCharactersInDocument) {
+        var errors = new List<string>();
+        var settings = new XmlReaderSettings {
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null,
+            MaxCharactersInDocument = maxCharactersInDocument,
+            ValidationType = ValidationType.Schema,
+            Schemas = _protocolSchemas.Value
+        };
+        settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+
+        using var reader = new StringReader(body.TrimStart('\uFEFF'));
+        using var xmlReader = XmlReader.Create(reader, settings);
+        while (xmlReader.Read()) {
+        }
+
+        return errors;
+    }
+
+    private static XmlSchemaSet LoadProtocolSchemas() {
+        var schemas = new XmlSchemaSet();
+        AddProtocolSchema(schemas, "DomainDetective.Definitions.SitemapProtocol_0_9.xsd");
+        AddProtocolSchema(schemas, "DomainDetective.Definitions.SitemapIndexProtocol_0_9.xsd");
+        schemas.Compile();
+        return schemas;
+    }
+
+    private static void AddProtocolSchema(XmlSchemaSet schemas, string resourceName) {
+        var assembly = typeof(SitemapAnalysis).Assembly;
+        using var stream = assembly.GetManifestResourceStream(resourceName) ??
+            throw new InvalidOperationException("Schema resource '" + resourceName + "' not found.");
+        using var reader = XmlReader.Create(stream);
+        schemas.Add(SitemapNamespace, reader);
     }
 
     private void ParseUrlSet(XElement root, Uri sitemapUri, SitemapDocument docInfo, SitemapAnalysisOptions options) {
@@ -384,6 +442,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
                 });
             }
 
+            docInfo.XhtmlAlternateLinkCount += entry.Alternates.Count;
             Entries.Add(entry);
             docInfo.UrlCount++;
         }

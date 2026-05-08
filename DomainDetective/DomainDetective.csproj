@@ -69,6 +69,8 @@
     <ItemGroup>
         <EmbeddedResource Include="Definitions\DmarcAggregateReport_v1.xsd" />  
         <EmbeddedResource Include="Definitions\DmarcAggregateReport_v2.xsd" />  
+        <EmbeddedResource Include="Definitions\SitemapProtocol_0_9.xsd" />
+        <EmbeddedResource Include="Definitions\SitemapIndexProtocol_0_9.xsd" />
     </ItemGroup>
 
     <ItemGroup>

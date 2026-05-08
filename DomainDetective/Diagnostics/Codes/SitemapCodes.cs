@@ -6,6 +6,9 @@ internal static class SitemapCodes {
     public const string DownloadFailed = "SITEMAP.Download.Failed";
     public const string XmlValid = "SITEMAP.Xml.Valid";
     public const string XmlInvalid = "SITEMAP.Xml.Invalid";
+    public const string SchemaValid = "SITEMAP.Schema.Valid";
+    public const string SchemaInvalid = "SITEMAP.Schema.Invalid";
+    public const string XhtmlAlternateExtension = "SITEMAP.Extension.XhtmlAlternate";
     public const string RootInvalid = "SITEMAP.Root.Invalid";
     public const string NamespaceInvalid = "SITEMAP.Namespace.Invalid";
     public const string UrlEntryPresent = "SITEMAP.UrlEntry.Present";
