@@ -25,12 +25,18 @@ public sealed class SitemapAnalysis : IHasAssessments {
     private static readonly Lazy<XmlSchemaSet> _protocolSchemas = new(LoadProtocolSchemas);
     private static readonly XNamespace _sitemapNs = SitemapNamespace;
     private static readonly XNamespace _xhtmlNs = "http://www.w3.org/1999/xhtml";
-    private static readonly XNamespace _imageNs = "http://www.google.com/schemas/sitemap-image/1.1";
-    private static readonly XNamespace _newsNs = "http://www.google.com/schemas/sitemap-news/0.9";
-    private static readonly XNamespace _videoNs = "http://www.google.com/schemas/sitemap-video/1.1";
-    private static readonly XName _imageElementName = _imageNs + "image";
-    private static readonly XName _newsElementName = _newsNs + "news";
-    private static readonly XName _videoElementName = _videoNs + "video";
+    private static readonly HashSet<string> _imageNamespaces = new(StringComparer.OrdinalIgnoreCase) {
+        "http://www.google.com/schemas/sitemap-image/1.1",
+        "https://www.google.com/schemas/sitemap-image/1.1"
+    };
+    private static readonly HashSet<string> _newsNamespaces = new(StringComparer.OrdinalIgnoreCase) {
+        "http://www.google.com/schemas/sitemap-news/0.9",
+        "https://www.google.com/schemas/sitemap-news/0.9"
+    };
+    private static readonly HashSet<string> _videoNamespaces = new(StringComparer.OrdinalIgnoreCase) {
+        "http://www.google.com/schemas/sitemap-video/1.1",
+        "https://www.google.com/schemas/sitemap-video/1.1"
+    };
     private static readonly HashSet<string> _validChangeFrequencies = new(StringComparer.OrdinalIgnoreCase) {
         "always",
         "hourly",
@@ -325,8 +331,8 @@ public sealed class SitemapAnalysis : IHasAssessments {
 
         if (root.Name.LocalName.Equals("urlset", StringComparison.OrdinalIgnoreCase)) {
             docInfo.Kind = SitemapDocumentKind.UrlSet;
-            RecordGoogleExtensionCounts(root, docInfo, sitemapUri);
             ParseUrlSet(root, sitemapUri, docInfo, options);
+            AddGoogleExtensionAssessments(docInfo, sitemapUri);
             if (docInfo.XhtmlAlternateLinkCount > 0) {
                 AddAssessment(
                     AssessmentSeverity.Warning,
@@ -455,22 +461,30 @@ public sealed class SitemapAnalysis : IHasAssessments {
             }
 
             docInfo.XhtmlAlternateLinkCount += entry.Alternates.Count;
+            RecordGoogleExtensionCounts(urlElement, docInfo);
             Entries.Add(entry);
             docInfo.UrlCount++;
         }
     }
 
-    private void RecordGoogleExtensionCounts(XElement root, SitemapDocument docInfo, Uri sitemapUri) {
-        foreach (var element in root.Descendants()) {
-            if (element.Name == _imageElementName) {
+    private static void RecordGoogleExtensionCounts(XElement urlElement, SitemapDocument docInfo) {
+        foreach (var element in urlElement.Descendants()) {
+            if (IsGoogleExtensionElement(element, "image", _imageNamespaces)) {
                 docInfo.ImageExtensionElementCount++;
-            } else if (element.Name == _newsElementName) {
+            } else if (IsGoogleExtensionElement(element, "news", _newsNamespaces)) {
                 docInfo.NewsExtensionElementCount++;
-            } else if (element.Name == _videoElementName) {
+            } else if (IsGoogleExtensionElement(element, "video", _videoNamespaces)) {
                 docInfo.VideoExtensionElementCount++;
             }
         }
+    }
 
+    private static bool IsGoogleExtensionElement(XElement element, string localName, HashSet<string> namespaces) {
+        return element.Name.LocalName.Equals(localName, StringComparison.OrdinalIgnoreCase) &&
+               namespaces.Contains(element.Name.NamespaceName);
+    }
+
+    private void AddGoogleExtensionAssessments(SitemapDocument docInfo, Uri sitemapUri) {
         if (docInfo.ImageExtensionElementCount > 0) {
             AddAssessment(
                 AssessmentSeverity.Warning,

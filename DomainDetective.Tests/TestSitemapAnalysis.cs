@@ -91,6 +91,9 @@ public class TestSitemapAnalysis {
     [InlineData("image", "http://www.google.com/schemas/sitemap-image/1.1", "image", "loc", "https://image.example/photo.jpg", SitemapCodes.ImageExtension)]
     [InlineData("news", "http://www.google.com/schemas/sitemap-news/0.9", "news", "title", "Example title", SitemapCodes.NewsExtension)]
     [InlineData("video", "http://www.google.com/schemas/sitemap-video/1.1", "video", "title", "Example video", SitemapCodes.VideoExtension)]
+    [InlineData("image", "https://www.google.com/schemas/sitemap-image/1.1", "image", "loc", "https://image.example/photo.jpg", SitemapCodes.ImageExtension)]
+    [InlineData("news", "https://www.google.com/schemas/sitemap-news/0.9", "news", "title", "Example title", SitemapCodes.NewsExtension)]
+    [InlineData("video", "https://www.google.com/schemas/sitemap-video/1.1", "video", "title", "Example video", SitemapCodes.VideoExtension)]
     public async Task AnalyzeAsyncReportsKnownGoogleSitemapExtensionsSeparately(string prefix, string extensionNamespace, string wrapperElement, string childElement, string childValue, string expectedCode) {
         var sitemap = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
                       "<urlset xmlns:" + prefix + "=\"" + extensionNamespace + "\" xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
@@ -158,6 +161,42 @@ public class TestSitemapAnalysis {
 
         Assert.Single(analysis.Documents);
         Assert.Equal(SitemapDocumentKind.SitemapIndex, analysis.Documents[0].Kind);
+        Assert.Equal(0, analysis.Documents[0].ImageExtensionElementCount);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.ImageExtension);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncCountsGoogleExtensionsOnlyForParsedUrlEntries() {
+        var sitemap = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                      "<urlset xmlns:image=\"http://www.google.com/schemas/sitemap-image/1.1\" xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                      "<url><loc>https://entry-limit.example/first/</loc></url>" +
+                      "<url><loc>https://entry-limit.example/second/</loc><image:image><image:loc>https://entry-limit.example/image.jpg</image:loc></image:image></url>" +
+                      "</urlset>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://entry-limit.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://entry-limit.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://entry-limit.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemap);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "entry-limit.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                MaxEntries = 1,
+                ProbeUrls = false
+            });
+
+        Assert.Single(analysis.Documents);
+        Assert.Equal(1, analysis.Documents[0].UrlCount);
         Assert.Equal(0, analysis.Documents[0].ImageExtensionElementCount);
         Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.ImageExtension);
     }
