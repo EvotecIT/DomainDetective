@@ -70,11 +70,16 @@ $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
 $rootPath = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot (Get-ConfigValue -Config $config -Name 'RootPath')))
 $solutionPath = Resolve-SolutionPath -Config $config -RootPath $rootPath
 $cliProject = Get-ConfigValue -Config $config -Name 'CliProject'
+if (-not $cliProject) {
+    throw "CliProject is required in $ConfigPath"
+}
+
 $cliProjectPath = Join-Path $rootPath ([string] $cliProject)
 $effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] (Get-ConfigValue -Config $config -Name 'Configuration') }
 $effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-ConfigValue -Config $config -Name 'StagingPath') }
 $defaultVersion = Get-ConfigValue -Config $config -Name 'DefaultVersion'
 $expectedVersion = Get-ConfigValue -Config $config -Name 'ExpectedVersion'
+# X-pattern versions are resolved by PSPublishModule; local wrappers only pass exact versions.
 $effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($defaultVersion) { [string] $defaultVersion } elseif ($expectedVersion -and ([string] $expectedVersion) -notmatch '[Xx]') { [string] $expectedVersion } else { $null }
 $cliRootPath = Join-Path $rootPath (Join-Path $effectiveArtifactsPath 'CLI')
 $createCliZip = Get-ConfigValue -Config $config -Name 'CreateCliZip'

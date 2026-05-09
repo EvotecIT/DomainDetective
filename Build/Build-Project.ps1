@@ -58,10 +58,10 @@ $effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -a
 $effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-ConfigValue -Config $config -Name 'StagingPath') }
 $defaultVersion = Get-ConfigValue -Config $config -Name 'DefaultVersion'
 $expectedVersion = Get-ConfigValue -Config $config -Name 'ExpectedVersion'
+# X-pattern versions are resolved by PSPublishModule; local wrappers only pass exact versions.
 $effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($defaultVersion) { [string] $defaultVersion } elseif ($expectedVersion -and ([string] $expectedVersion) -notmatch '[Xx]') { [string] $expectedVersion } else { $null }
 $stagingPath = Join-Path $rootPath $effectiveArtifactsPath
 $cleanStagingValue = Get-ConfigValue -Config $config -Name 'CleanStaging'
-$buildValue = Get-ConfigValue -Config $config -Name 'Build'
 $publishNugetValue = Get-ConfigValue -Config $config -Name 'PublishNuget'
 $configuredNuGetProjects = Get-ConfigValue -Config $config -Name 'NuGetProjects'
 $publishCliValue = Get-ConfigValue -Config $config -Name 'PublishCli'
@@ -72,7 +72,7 @@ $resolvedCliConfigPath = if ([System.IO.Path]::IsPathRooted($CliConfigPath)) {
     [System.IO.Path]::GetFullPath((Join-Path $scriptRoot $CliConfigPath))
 }
 $cleanStaging = if ($null -ne $cleanStagingValue) { [bool] $cleanStagingValue } else { $true }
-$shouldRunNuGet = if ($null -ne $PublishNuget) { [bool] $PublishNuget } elseif ($configuredNuGetProjects -and $null -ne $publishNugetValue) { [bool] $publishNugetValue } elseif ($null -ne $buildValue) { [bool] $buildValue } else { $true }
+$shouldRunNuGet = if ($null -ne $PublishNuget) { [bool] $PublishNuget } elseif ($configuredNuGetProjects -and $null -ne $publishNugetValue) { [bool] $publishNugetValue } else { $true }
 $shouldRunCli = if ($null -ne $PublishCli) { [bool] $PublishCli } elseif ($null -ne $publishCliValue) { [bool] $publishCliValue } else { Test-Path -LiteralPath $resolvedCliConfigPath }
 $resolvedPlanPath = if ($PSBoundParameters.ContainsKey('PlanPath') -and $PlanPath) { $PlanPath } elseif ($planOutputPath) { [string] $planOutputPath } else { $null }
 

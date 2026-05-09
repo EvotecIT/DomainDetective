@@ -109,6 +109,7 @@ $effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -a
 $effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-ConfigValue -Config $config -Name 'StagingPath') }
 $defaultVersion = Get-ConfigValue -Config $config -Name 'DefaultVersion'
 $expectedVersion = Get-ConfigValue -Config $config -Name 'ExpectedVersion'
+# X-pattern versions are resolved by PSPublishModule; local wrappers only pass exact versions.
 $effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($defaultVersion) { [string] $defaultVersion } elseif ($expectedVersion -and ([string] $expectedVersion) -notmatch '[Xx]') { [string] $expectedVersion } else { $null }
 $packageOutputPath = Join-Path $rootPath (Join-Path $effectiveArtifactsPath 'NuGet')
 $nugetProjects = @(Resolve-NuGetProjects -Config $config -RootPath $rootPath)

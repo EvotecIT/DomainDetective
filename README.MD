@@ -762,6 +762,8 @@ Invoke-ProjectBuild -ConfigPath .\Build\project.build.json -Plan
 Invoke-ProjectBuild -ConfigPath .\Build\project.build.json -Build
 ```
 
+NuGet and GitHub publish credentials are resolved from `NUGET_API_KEY` and `GITHUB_TOKEN` when publishing is enabled.
+
 Preview the plan without executing:
 
 ```powershell
