@@ -9,6 +9,9 @@ internal static class SitemapCodes {
     public const string SchemaValid = "SITEMAP.Schema.Valid";
     public const string SchemaInvalid = "SITEMAP.Schema.Invalid";
     public const string XhtmlAlternateExtension = "SITEMAP.Extension.XhtmlAlternate";
+    public const string ImageExtension = "SITEMAP.Extension.Image";
+    public const string NewsExtension = "SITEMAP.Extension.News";
+    public const string VideoExtension = "SITEMAP.Extension.Video";
     public const string RootInvalid = "SITEMAP.Root.Invalid";
     public const string NamespaceInvalid = "SITEMAP.Namespace.Invalid";
     public const string UrlEntryPresent = "SITEMAP.UrlEntry.Present";

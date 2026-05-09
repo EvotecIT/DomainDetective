@@ -9,6 +9,7 @@ The sitemap check validates XML sitemap discovery, sitemap protocol shape, and t
 | Discovery | `robots.txt` `Sitemap:` directives, conventional `/sitemap.xml`, sitemap indexes, nested sitemap documents |
 | XML shape | well-formed XML, expected sitemap namespace, sitemap.org XSD validation, `urlset` vs `sitemapindex`, missing or invalid `loc` |
 | Entry metadata | invalid `lastmod`, invalid `changefreq`, invalid `priority`, duplicate `loc` values |
+| Extensions | `xhtml:link` alternate/hreflang entries and common Google image/news/video sitemap extensions counted separately from strict XSD validity |
 | URL probes | redirect chains, redirect loops, HTTP 4xx/5xx, failed fetches |
 | Indexing signals | `X-Robots-Tag` and HTML meta robots `noindex` |
 | Canonical signals | HTML `rel=canonical` mismatches against the final URL |
@@ -45,4 +46,4 @@ Useful tuning options:
 
 The analysis is intentionally bounded by default. Large sites should raise `MaxEntries` and `MaxUrlProbes` deliberately, especially when probing URL reachability, because every probed sitemap URL results in an HTTP request.
 
-The sitemap.org schema permits extension elements from other namespaces through strict XML Schema wildcards. In practice, that means documents with `xhtml:link` alternates can be well-formed XML and accepted by Google for hreflang purposes while still failing strict sitemap.org XSD validation unless the extension schema is available to the validator. DomainDetective keeps those signals separate: XML well-formedness, sitemap XSD validity, and XHTML alternate counts are reported independently so callers can decide how strict a site should be.
+The sitemap.org schema permits extension elements from other namespaces through strict XML Schema wildcards. In practice, that means documents with `xhtml:link`, Google image, Google News, or Google video sitemap extensions can be well-formed XML and accepted by specific crawlers while still failing strict sitemap.org XSD validation unless the extension schema is available to the validator. DomainDetective keeps those signals separate: XML well-formedness, sitemap XSD validity, and known extension counts are reported independently so callers can decide how strict a site should be.

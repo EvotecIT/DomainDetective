@@ -87,6 +87,120 @@ public class TestSitemapAnalysis {
         Assert.Contains(analysis.Recommendations, recommendation => recommendation.Code == SitemapCodes.XhtmlAlternateExtension);
     }
 
+    [Theory]
+    [InlineData("image", "http://www.google.com/schemas/sitemap-image/1.1", "image", "loc", "https://image.example/photo.jpg", SitemapCodes.ImageExtension)]
+    [InlineData("news", "http://www.google.com/schemas/sitemap-news/0.9", "news", "title", "Example title", SitemapCodes.NewsExtension)]
+    [InlineData("video", "http://www.google.com/schemas/sitemap-video/1.1", "video", "title", "Example video", SitemapCodes.VideoExtension)]
+    [InlineData("image", "https://www.google.com/schemas/sitemap-image/1.1", "image", "loc", "https://image.example/photo.jpg", SitemapCodes.ImageExtension)]
+    [InlineData("news", "https://www.google.com/schemas/sitemap-news/0.9", "news", "title", "Example title", SitemapCodes.NewsExtension)]
+    [InlineData("video", "https://www.google.com/schemas/sitemap-video/1.1", "video", "title", "Example video", SitemapCodes.VideoExtension)]
+    public async Task AnalyzeAsyncReportsKnownGoogleSitemapExtensionsSeparately(string prefix, string extensionNamespace, string wrapperElement, string childElement, string childValue, string expectedCode) {
+        var sitemap = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                      "<urlset xmlns:" + prefix + "=\"" + extensionNamespace + "\" xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                      "<url><loc>https://extension.example/</loc><" + prefix + ":" + wrapperElement + "><" + prefix + ":" + childElement + ">" + childValue + "</" + prefix + ":" + childElement + "></" + prefix + ":" + wrapperElement + "></url>" +
+                      "</urlset>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://extension.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://extension.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://extension.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemap);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "extension.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false
+            });
+
+        Assert.Single(analysis.Documents);
+        Assert.True(analysis.Documents[0].XmlValid);
+        Assert.False(analysis.Documents[0].SchemaValid);
+        Assert.Equal(1, GetGoogleExtensionCount(analysis.Documents[0], expectedCode));
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.SchemaInvalid && assessment.Severity == AssessmentSeverity.Error);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == expectedCode && assessment.Severity == AssessmentSeverity.Warning);
+        Assert.Contains(analysis.Recommendations, recommendation => recommendation.Code == expectedCode);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncDoesNotReportGoogleExtensionWarningsForSitemapIndex() {
+        var sitemapIndex = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                           "<sitemapindex xmlns:image=\"http://www.google.com/schemas/sitemap-image/1.1\" xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                           "<sitemap><loc>https://index-extension.example/child.xml</loc><image:image><image:loc>https://index-extension.example/image.jpg</image:loc></image:image></sitemap>" +
+                           "</sitemapindex>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://index-extension.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://index-extension.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://index-extension.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemapIndex);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "index-extension.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                ProbeUrls = false,
+                MaxSitemapDocuments = 1
+            });
+
+        Assert.Single(analysis.Documents);
+        Assert.Equal(SitemapDocumentKind.SitemapIndex, analysis.Documents[0].Kind);
+        Assert.Equal(0, analysis.Documents[0].ImageExtensionElementCount);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.ImageExtension);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsyncCountsGoogleExtensionsOnlyForParsedUrlEntries() {
+        var sitemap = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                      "<urlset xmlns:image=\"http://www.google.com/schemas/sitemap-image/1.1\" xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+                      "<url><loc>https://entry-limit.example/first/</loc></url>" +
+                      "<url><loc>https://entry-limit.example/second/</loc><image:image><image:loc>https://entry-limit.example/image.jpg</image:loc></image:image></url>" +
+                      "</urlset>";
+        var analysis = new SitemapAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                var url = request.RequestUri?.AbsoluteUri ?? string.Empty;
+                if (url.Equals("https://entry-limit.example/robots.txt", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("text/plain", "User-agent: *\nAllow: /\nSitemap: https://entry-limit.example/sitemap.xml\n");
+                }
+
+                if (url.Equals("https://entry-limit.example/sitemap.xml", StringComparison.OrdinalIgnoreCase)) {
+                    return CreateResponse("application/xml", sitemap);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            })
+        };
+
+        await analysis.AnalyzeAsync(
+            "entry-limit.example",
+            options: new SitemapAnalysisOptions {
+                AllowHttpFallback = false,
+                MaxEntries = 1,
+                ProbeUrls = false
+            });
+
+        Assert.Single(analysis.Documents);
+        Assert.Equal(1, analysis.Documents[0].UrlCount);
+        Assert.Equal(0, analysis.Documents[0].ImageExtensionElementCount);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == SitemapCodes.ImageExtension);
+    }
+
     [Fact]
     public async Task AnalyzeAsyncSchemaValidatesSitemapIndexes() {
         var sitemapIndex = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
@@ -164,6 +278,14 @@ public class TestSitemapAnalysis {
         Assert.Equal(1, analysis.Documents[0].SchemaValidationErrorCount);
         Assert.Contains("loc", analysis.Documents[0].SchemaValidationError, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(analysis.Assessments, assessment => assessment.Code == SitemapCodes.SchemaInvalid && assessment.Severity == AssessmentSeverity.Error);
+    }
+
+    [Fact]
+    public void SitemapProtocolSchemasAreEmbeddedResources() {
+        var resourceNames = typeof(SitemapAnalysis).Assembly.GetManifestResourceNames();
+
+        Assert.Contains("DomainDetective.Definitions.SitemapProtocol_0_9.xsd", resourceNames);
+        Assert.Contains("DomainDetective.Definitions.SitemapIndexProtocol_0_9.xsd", resourceNames);
     }
 
     [Fact]
@@ -674,6 +796,22 @@ public class TestSitemapAnalysis {
             gzip.Write(bytes, 0, bytes.Length);
         }
         return output.ToArray();
+    }
+
+    private static int GetGoogleExtensionCount(SitemapDocument document, string code) {
+        if (code == SitemapCodes.ImageExtension) {
+            return document.ImageExtensionElementCount;
+        }
+
+        if (code == SitemapCodes.NewsExtension) {
+            return document.NewsExtensionElementCount;
+        }
+
+        if (code == SitemapCodes.VideoExtension) {
+            return document.VideoExtensionElementCount;
+        }
+
+        return 0;
     }
 
     private static async Task Write(HttpListenerContext ctx, string content) {

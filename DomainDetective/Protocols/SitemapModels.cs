@@ -43,6 +43,12 @@ public sealed class SitemapDocument {
     public int SitemapCount { get; set; }
     /// <summary>Number of XHTML alternate links parsed from this document.</summary>
     public int XhtmlAlternateLinkCount { get; set; }
+    /// <summary>Number of Google image sitemap extension elements parsed from this document.</summary>
+    public int ImageExtensionElementCount { get; set; }
+    /// <summary>Number of Google news sitemap extension elements parsed from this document.</summary>
+    public int NewsExtensionElementCount { get; set; }
+    /// <summary>Number of Google video sitemap extension elements parsed from this document.</summary>
+    public int VideoExtensionElementCount { get; set; }
 }
 
 /// <summary>Represents one URL entry from a sitemap urlset.</summary>

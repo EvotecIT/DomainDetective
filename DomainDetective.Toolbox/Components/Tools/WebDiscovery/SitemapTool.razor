@@ -98,6 +98,15 @@
                             @if (document.XhtmlAlternateLinkCount > 0) {
                                 <span class="tool-chip">@document.XhtmlAlternateLinkCount.ToString(CultureInfo.InvariantCulture) xhtml alternate(s)</span>
                             }
+                            @if (document.ImageExtensionElementCount > 0) {
+                                <span class="tool-chip">@document.ImageExtensionElementCount.ToString(CultureInfo.InvariantCulture) image extension(s)</span>
+                            }
+                            @if (document.NewsExtensionElementCount > 0) {
+                                <span class="tool-chip">@document.NewsExtensionElementCount.ToString(CultureInfo.InvariantCulture) news extension(s)</span>
+                            }
+                            @if (document.VideoExtensionElementCount > 0) {
+                                <span class="tool-chip">@document.VideoExtensionElementCount.ToString(CultureInfo.InvariantCulture) video extension(s)</span>
+                            }
                             <span class="tool-chip">@document.UrlCount.ToString(CultureInfo.InvariantCulture) URLs</span>
                             <span class="tool-chip">@document.SitemapCount.ToString(CultureInfo.InvariantCulture) child sitemaps</span>
                             @if (IsCrossHost(document.Url, view.Subject ?? Domain)) {

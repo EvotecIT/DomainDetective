@@ -7,6 +7,8 @@ on:
       - "DomainDetective.Website/**"
       - "DomainDetective.Toolbox/**"
       - "DomainDetective.Website.Tests/**"
+      - ".github/scripts/Test-WebsiteDeployContract.ps1"
+      - ".github/workflows/deploy-website.yml"
       - ".github/workflows/website-ci.yml"
   workflow_dispatch:
 
@@ -35,8 +37,20 @@ jobs:
       - name: Run website regression tests
         run: dotnet test DomainDetective.Website.Tests/DomainDetective.Website.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net10.0 --verbosity minimal --logger "console;verbosity=minimal" --logger trx --collect:"XPlat Code Coverage"
 
+  deploy-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate deploy contract
+        shell: pwsh
+        run: ./.github/scripts/Test-WebsiteDeployContract.ps1 -DeployWorkflowPath .github/workflows/deploy-website.yml -PipelinePath Website/pipeline.json
+
   website-build:
-    needs: website-tests
+    needs:
+      - website-tests
+      - deploy-contract
     uses: EvotecIT/PSPublishModule/.github/workflows/powerforge-website-ci.yml@3c671c874bb90ad83741f42d6ad6106320c52502
     with:
       website_root: Website

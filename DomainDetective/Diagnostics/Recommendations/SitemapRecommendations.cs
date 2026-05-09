@@ -48,6 +48,39 @@ internal sealed class SitemapRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Compare strict sitemap schema validation with Google Search Central hreflang sitemap guidance."
         };
+        map[SitemapCodes.ImageExtension] = new RecommendationAdvice {
+            Code = SitemapCodes.ImageExtension,
+            Title = "Image sitemap extension affects strict validation",
+            Why = "Google image sitemap elements are crawler-specific extensions. They are useful for Google discovery, but a strict base Sitemap protocol schema validation pass reports them separately from plain sitemap validity.",
+            How = "Keep image sitemap extensions when Google image discovery is intentional, and validate image metadata against Google Search Central guidance. Publish a separate plain sitemap if a consumer requires only the base Sitemap protocol schema.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "sitemap", "image-sitemap", "xml-schema", "seo" },
+            Impact = "Strict schema validation can fail even though Google can consume the image extension.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Check image sitemap entries against Google Search Central image sitemap guidance."
+        };
+        map[SitemapCodes.NewsExtension] = new RecommendationAdvice {
+            Code = SitemapCodes.NewsExtension,
+            Title = "News sitemap extension affects strict validation",
+            Why = "Google News sitemap elements are crawler-specific extensions. They should be distinguished from generic schema failures so operators can tell extension usage from malformed base sitemap XML.",
+            How = "Keep news sitemap extensions when Google News discovery is intentional, and validate publication metadata against Google Search Central guidance. Publish a separate plain sitemap if a consumer requires only the base Sitemap protocol schema.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "sitemap", "news-sitemap", "xml-schema", "seo" },
+            Impact = "Strict schema validation can fail even though Google can consume the news extension.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Check news sitemap entries against Google Search Central news sitemap guidance."
+        };
+        map[SitemapCodes.VideoExtension] = new RecommendationAdvice {
+            Code = SitemapCodes.VideoExtension,
+            Title = "Video sitemap extension affects strict validation",
+            Why = "Google video sitemap elements are crawler-specific extensions. They should be reported as extension usage rather than leaving the operator with only a generic schema error.",
+            How = "Keep video sitemap extensions when Google video discovery is intentional, and validate video metadata against Google Search Central guidance. Publish a separate plain sitemap if a consumer requires only the base Sitemap protocol schema.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "sitemap", "video-sitemap", "xml-schema", "seo" },
+            Impact = "Strict schema validation can fail even though Google can consume the video extension.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Check video sitemap entries against Google Search Central video sitemap guidance."
+        };
         map[SitemapCodes.CrossHostSitemap] = new RecommendationAdvice {
             Code = SitemapCodes.CrossHostSitemap,
             Title = "Cross-host sitemap advertised",
