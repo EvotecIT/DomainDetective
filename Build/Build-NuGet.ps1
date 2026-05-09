@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $ConfigPath = (Join-Path $PSScriptRoot 'project.build.json'),
+    [string] $ConfigPath,
     [string] $Configuration,
     [string] $ArtifactsPath,
     [string] $Version,
@@ -12,19 +12,108 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+$scriptRoot = if ($PSScriptRoot) {
+    $PSScriptRoot
+} else {
+    Split-Path -Path $PSCommandPath -Parent
+}
+
+if (-not $ConfigPath) {
+    $ConfigPath = Join-Path $scriptRoot 'project.build.json'
+}
+
+function Get-ConfigValue {
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject] $Config,
+
+        [Parameter(Mandatory)]
+        [string] $Name
+    )
+
+    $property = $Config.PSObject.Properties[$Name]
+    if ($null -ne $property) {
+        $property.Value
+    }
+}
+
+function Resolve-SolutionPath {
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject] $Config,
+
+        [Parameter(Mandatory)]
+        [string] $RootPath
+    )
+
+    $configuredSolutionPath = Get-ConfigValue -Config $Config -Name 'SolutionPath'
+    if ($configuredSolutionPath) {
+        Join-Path $RootPath ([string] $configuredSolutionPath)
+        return
+    }
+
+    $solutions = @(Get-ChildItem -LiteralPath $RootPath -Filter '*.sln' -File)
+    if ($solutions.Count -eq 1) {
+        $solutions[0].FullName
+        return
+    }
+
+    throw "Unable to resolve a single solution file under $RootPath."
+}
+
+function Resolve-NuGetProjects {
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject] $Config,
+
+        [Parameter(Mandatory)]
+        [string] $RootPath
+    )
+
+    $configuredProjects = Get-ConfigValue -Config $Config -Name 'NuGetProjects'
+    if ($configuredProjects) {
+        @($configuredProjects)
+        return
+    }
+
+    $expectedVersionMap = Get-ConfigValue -Config $Config -Name 'ExpectedVersionMap'
+    $expectedVersionMapAsInclude = Get-ConfigValue -Config $Config -Name 'ExpectedVersionMapAsInclude'
+    if ($expectedVersionMapAsInclude -and $expectedVersionMap) {
+        $projects = [System.Collections.Generic.List[string]]::new()
+        foreach ($entry in $expectedVersionMap.PSObject.Properties) {
+            $projectName = [string] $entry.Name
+            $relativeProjectPath = Join-Path $projectName ($projectName + '.csproj')
+            $projectPath = Join-Path $RootPath $relativeProjectPath
+            if (-not (Test-Path -LiteralPath $projectPath)) {
+                throw "ExpectedVersionMap project '$projectName' was not found at $relativeProjectPath."
+            }
+
+            $projects.Add($relativeProjectPath)
+        }
+
+        $projects.ToArray()
+        return
+    }
+
+    throw "No NuGet projects were configured in $ConfigPath"
+}
+
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
     throw "Build configuration file not found: $ConfigPath"
 }
 
 $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-$rootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $config.RootPath))
-$solutionPath = Join-Path $rootPath $config.SolutionPath
-$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] $config.Configuration }
-$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] $config.StagingPath }
-$effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($config.DefaultVersion) { [string] $config.DefaultVersion } else { $null }
+$rootPath = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot (Get-ConfigValue -Config $config -Name 'RootPath')))
+$solutionPath = Resolve-SolutionPath -Config $config -RootPath $rootPath
+$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] (Get-ConfigValue -Config $config -Name 'Configuration') }
+$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-ConfigValue -Config $config -Name 'StagingPath') }
+$defaultVersion = Get-ConfigValue -Config $config -Name 'DefaultVersion'
+$expectedVersion = Get-ConfigValue -Config $config -Name 'ExpectedVersion'
+$effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($defaultVersion) { [string] $defaultVersion } elseif ($expectedVersion -and ([string] $expectedVersion) -notmatch '[Xx]') { [string] $expectedVersion } else { $null }
 $packageOutputPath = Join-Path $rootPath (Join-Path $effectiveArtifactsPath 'NuGet')
+$nugetProjects = @(Resolve-NuGetProjects -Config $config -RootPath $rootPath)
 
-if (-not $config.NuGetProjects -or $config.NuGetProjects.Count -eq 0) {
+if ($nugetProjects.Count -eq 0) {
     throw "No NuGet projects were configured in $ConfigPath"
 }
 
@@ -38,7 +127,7 @@ if ($Plan) {
         Version = $effectiveVersion
         SkipRestore = $SkipRestore.IsPresent
         SkipBuild = $SkipBuild.IsPresent
-        Projects = @($config.NuGetProjects)
+        Projects = $nugetProjects
     }
     return
 }
@@ -80,7 +169,7 @@ try {
         }
     }
 
-    foreach ($project in $config.NuGetProjects) {
+    foreach ($project in $nugetProjects) {
         $projectPath = Join-Path $rootPath $project
         $packArguments = [System.Collections.Generic.List[string]]::new()
         $packArguments.Add('pack')

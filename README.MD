@@ -735,7 +735,7 @@ pwsh ./Module/DomainDetective.Tests.ps1
 
 ## Packaging and Publish
 
-`Build/project.build.json` is the single place for staged output defaults, packed projects, CLI runtimes, and the default plan-file path.
+`Build/project.build.json` follows the shared PSPublishModule project-build schema and is the source of truth for NuGet package selection, version tracks, signing, and publish/release defaults. `Build/cli.build.json` keeps the CLI runtime matrix used by the local CLI publish wrapper.
 
 NuGet packages:
 
@@ -753,6 +753,13 @@ Run both through the shared build driver:
 
 ```powershell
 pwsh ./Build/Build-Project.ps1 -Version 0.2.0
+```
+
+Preview or execute only the schema-driven NuGet/release pipeline through PSPublishModule:
+
+```powershell
+Invoke-ProjectBuild -ConfigPath .\Build\project.build.json -Plan
+Invoke-ProjectBuild -ConfigPath .\Build\project.build.json -Build
 ```
 
 Preview the plan without executing:
@@ -777,6 +784,8 @@ pwsh ./Build/Build-Project.ps1 -PublishNuget $false
 Outputs are staged under `Artifacts/ProjectBuild`:
 
 - `Artifacts/ProjectBuild/NuGet` for `.nupkg` files
+- `Artifacts/ProjectBuild/packages` for PSPublishModule project-build packages
+- `Artifacts/ProjectBuild/releases` for PSPublishModule release archives
 - `Artifacts/ProjectBuild/CLI/<runtime>` for published CLI folders
 - `Artifacts/ProjectBuild/CLI/*.zip` for runtime archives when zipping is enabled
 - `Artifacts/ProjectBuild/build.plan.json` for the default resolved build plan

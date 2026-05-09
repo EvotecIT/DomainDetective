@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string] $ConfigPath = (Join-Path $PSScriptRoot 'project.build.json'),
+    [string] $ConfigPath,
+    [string] $CliConfigPath,
     [string] $Configuration,
     [string] $ArtifactsPath,
     [string] $Version,
@@ -18,20 +19,62 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+$scriptRoot = if ($PSScriptRoot) {
+    $PSScriptRoot
+} else {
+    Split-Path -Path $PSCommandPath -Parent
+}
+
+if (-not $ConfigPath) {
+    $ConfigPath = Join-Path $scriptRoot 'project.build.json'
+}
+
+if (-not $CliConfigPath) {
+    $CliConfigPath = Join-Path $scriptRoot 'cli.build.json'
+}
+
+function Get-ConfigValue {
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject] $Config,
+
+        [Parameter(Mandatory)]
+        [string] $Name
+    )
+
+    $property = $Config.PSObject.Properties[$Name]
+    if ($null -ne $property) {
+        $property.Value
+    }
+}
+
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
     throw "Build configuration file not found: $ConfigPath"
 }
 
 $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-$rootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $config.RootPath))
-$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] $config.Configuration }
-$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] $config.StagingPath }
-$effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($config.DefaultVersion) { [string] $config.DefaultVersion } else { $null }
+$rootPath = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot (Get-ConfigValue -Config $config -Name 'RootPath')))
+$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] (Get-ConfigValue -Config $config -Name 'Configuration') }
+$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-ConfigValue -Config $config -Name 'StagingPath') }
+$defaultVersion = Get-ConfigValue -Config $config -Name 'DefaultVersion'
+$expectedVersion = Get-ConfigValue -Config $config -Name 'ExpectedVersion'
+$effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($defaultVersion) { [string] $defaultVersion } elseif ($expectedVersion -and ([string] $expectedVersion) -notmatch '[Xx]') { [string] $expectedVersion } else { $null }
 $stagingPath = Join-Path $rootPath $effectiveArtifactsPath
-$cleanStaging = if ($null -ne $config.CleanStaging) { [bool] $config.CleanStaging } else { $true }
-$shouldRunNuGet = if ($null -ne $PublishNuget) { [bool] $PublishNuget } elseif ($null -ne $config.PublishNuget) { [bool] $config.PublishNuget } else { $true }
-$shouldRunCli = if ($null -ne $PublishCli) { [bool] $PublishCli } elseif ($null -ne $config.PublishCli) { [bool] $config.PublishCli } else { $true }
-$resolvedPlanPath = if ($PSBoundParameters.ContainsKey('PlanPath') -and $PlanPath) { $PlanPath } elseif ($config.PlanOutputPath) { [string] $config.PlanOutputPath } else { $null }
+$cleanStagingValue = Get-ConfigValue -Config $config -Name 'CleanStaging'
+$buildValue = Get-ConfigValue -Config $config -Name 'Build'
+$publishNugetValue = Get-ConfigValue -Config $config -Name 'PublishNuget'
+$configuredNuGetProjects = Get-ConfigValue -Config $config -Name 'NuGetProjects'
+$publishCliValue = Get-ConfigValue -Config $config -Name 'PublishCli'
+$planOutputPath = Get-ConfigValue -Config $config -Name 'PlanOutputPath'
+$resolvedCliConfigPath = if ([System.IO.Path]::IsPathRooted($CliConfigPath)) {
+    [System.IO.Path]::GetFullPath($CliConfigPath)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $scriptRoot $CliConfigPath))
+}
+$cleanStaging = if ($null -ne $cleanStagingValue) { [bool] $cleanStagingValue } else { $true }
+$shouldRunNuGet = if ($null -ne $PublishNuget) { [bool] $PublishNuget } elseif ($configuredNuGetProjects -and $null -ne $publishNugetValue) { [bool] $publishNugetValue } elseif ($null -ne $buildValue) { [bool] $buildValue } else { $true }
+$shouldRunCli = if ($null -ne $PublishCli) { [bool] $PublishCli } elseif ($null -ne $publishCliValue) { [bool] $publishCliValue } else { Test-Path -LiteralPath $resolvedCliConfigPath }
+$resolvedPlanPath = if ($PSBoundParameters.ContainsKey('PlanPath') -and $PlanPath) { $PlanPath } elseif ($planOutputPath) { [string] $planOutputPath } else { $null }
 
 if ($SkipNuGet) {
     $shouldRunNuGet = $false
@@ -39,6 +82,10 @@ if ($SkipNuGet) {
 
 if ($SkipCli) {
     $shouldRunCli = $false
+}
+
+if ($shouldRunCli -and -not (Test-Path -LiteralPath $resolvedCliConfigPath)) {
+    throw "CLI build configuration file not found: $resolvedCliConfigPath"
 }
 
 if ($Plan) {
@@ -57,7 +104,7 @@ if ($Plan) {
     }
 
     if ($shouldRunNuGet) {
-        $nugetPlan = & (Join-Path $PSScriptRoot 'Build-NuGet.ps1') `
+        $nugetPlan = & (Join-Path $scriptRoot 'Build-NuGet.ps1') `
             -ConfigPath $ConfigPath `
             -Configuration $effectiveConfiguration `
             -ArtifactsPath $effectiveArtifactsPath `
@@ -69,8 +116,8 @@ if ($Plan) {
     }
 
     if ($shouldRunCli) {
-        $cliPlan = & (Join-Path $PSScriptRoot 'Publish-CLI.ps1') `
-            -ConfigPath $ConfigPath `
+        $cliPlan = & (Join-Path $scriptRoot 'Publish-CLI.ps1') `
+            -ConfigPath $resolvedCliConfigPath `
             -Configuration $effectiveConfiguration `
             -ArtifactsPath $effectiveArtifactsPath `
             -Version $effectiveVersion `
@@ -122,12 +169,12 @@ if ($shouldRunNuGet) {
     if ($SkipBuild) {
         $nugetArguments.SkipBuild = $true
     }
-    & (Join-Path $PSScriptRoot 'Build-NuGet.ps1') @nugetArguments
+    & (Join-Path $scriptRoot 'Build-NuGet.ps1') @nugetArguments
 }
 
 if ($shouldRunCli) {
     $cliArguments = @{
-        ConfigPath = $ConfigPath
+        ConfigPath = $resolvedCliConfigPath
         Configuration = $effectiveConfiguration
         ArtifactsPath = $effectiveArtifactsPath
     }
@@ -143,5 +190,5 @@ if ($shouldRunCli) {
     if ($SkipZip) {
         $cliArguments.SkipZip = $true
     }
-    & (Join-Path $PSScriptRoot 'Publish-CLI.ps1') @cliArguments
+    & (Join-Path $scriptRoot 'Publish-CLI.ps1') @cliArguments
 }

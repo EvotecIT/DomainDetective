@@ -1,45 +1,62 @@
 {
+  "$schema": "https://raw.githubusercontent.com/EvotecIT/PSPublishModule/main/Schemas/project.build.schema.json",
   "RootPath": "..",
-  "SolutionPath": "DomainDetective.sln",
+  "ExpectedVersion": null,
+  "ExpectedVersionMap": {
+    "DomainDetective": "0.2.X",
+    "DomainDetective.CtSql": "0.2.X",
+    "DomainDetective.Pgp": "0.2.X",
+    "DomainDetective.Reports": "0.2.X",
+    "DomainDetective.Reports.Html": "0.2.X",
+    "DomainDetective.Reports.Markdown": "0.2.X",
+    "DomainDetective.Reports.Office": "0.2.X",
+    "DomainDetective.Reports.Pdf": "0.2.X",
+    "DomainDetective.Visual": "0.2.X"
+  },
+  "ExpectedVersionMapAsInclude": true,
+  "ExpectedVersionMapUseWildcards": false,
+  "ExcludeProjects": [
+    "DomainDetective.Benchmarks",
+    "DomainDetective.CLI",
+    "DomainDetective.CLI.Tests",
+    "DomainDetective.CtSql.Tests",
+    "DomainDetective.Example",
+    "DomainDetective.Generators",
+    "DomainDetective.OnlineHost",
+    "DomainDetective.PowerShell",
+    "DomainDetective.Tests",
+    "DomainDetective.Toolbox",
+    "DomainDetective.Website",
+    "DomainDetective.Website.Tests"
+  ],
+  "NugetSource": [],
+  "IncludePrerelease": false,
   "Configuration": "Release",
-  "PlanOutputPath": "Artifacts/ProjectBuild/build.plan.json",
+  "OutputPath": null,
   "StagingPath": "Artifacts/ProjectBuild",
   "CleanStaging": true,
-  "DefaultVersion": null,
-  "PublishNuget": true,
-  "PublishCli": true,
-  "NuGetProjects": [
-    "DomainDetective/DomainDetective.csproj",
-    "DomainDetective.Pgp/DomainDetective.Pgp.csproj",
-    "DomainDetective.Visual/DomainDetective.Visual.csproj",
-    "DomainDetective.CtSql/DomainDetective.CtSql.csproj",
-    "DomainDetective.Reports/DomainDetective.Reports.csproj",
-    "DomainDetective.Reports.Html/DomainDetective.Reports.Html.csproj",
-    "DomainDetective.Reports.Markdown/DomainDetective.Reports.Markdown.csproj",
-    "DomainDetective.Reports.Office/DomainDetective.Reports.Office.csproj",
-    "DomainDetective.Reports.Pdf/DomainDetective.Reports.Pdf.csproj"
-  ],
-  "CliProject": "DomainDetective.CLI/DomainDetective.CLI.csproj",
-  "CliExecutableBaseName": "DomainDetective.CLI",
-  "CliRuntimes": [
-    "win-x64",
-    "linux-x64",
-    "osx-x64",
-    "osx-arm64"
-  ],
-  "CliAliasMap": {
-    "win-x64": [
-      "DD.exe"
-    ],
-    "linux-x64": [
-      "DD"
-    ],
-    "osx-x64": [
-      "DD"
-    ],
-    "osx-arm64": [
-      "DD"
-    ]
-  },
-  "CreateCliZip": true
+  "PlanOutputPath": "Artifacts/ProjectBuild/build.plan.json",
+  "UpdateVersions": true,
+  "Build": true,
+  "PackStrategy": "MSBuild",
+  "PublishNuget": false,
+  "PublishGitHub": false,
+  "CreateReleaseZip": true,
+  "CertificateThumbprint": "483292C9E317AA13B07BB7A96AE9D1A5ED9E7703",
+  "CertificateStore": "CurrentUser",
+  "TimeStampServer": "http://timestamp.digicert.com",
+  "PublishSource": "https://api.nuget.org/v3/index.json",
+  "PublishApiKeyFilePath": "C:\\Support\\Important\\NugetOrgEvotec.txt",
+  "SkipDuplicate": true,
+  "PublishFailFast": true,
+  "GitHubAccessTokenFilePath": "C:\\Support\\Important\\GithubAPI.txt",
+  "GitHubUsername": "EvotecIT",
+  "GitHubRepositoryName": "DomainDetective",
+  "GitHubIsPreRelease": false,
+  "GitHubIncludeProjectNameInTag": true,
+  "GitHubGenerateReleaseNotes": true,
+  "GitHubReleaseMode": "Single",
+  "GitHubPrimaryProject": "DomainDetective",
+  "GitHubTagTemplate": "{Repo}-v{UtcTimestamp}",
+  "GitHubReleaseName": "{Repo} {UtcDateTime}"
 }
