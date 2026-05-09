@@ -53,7 +53,7 @@ internal sealed class ImportRegistrationSnapshotSettings : CommandSettings {
 internal sealed class ImportRegistrationSnapshotCommand : AsyncCommand<ImportRegistrationSnapshotSettings> {
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override async Task<int> ExecuteAsync(CommandContext context, ImportRegistrationSnapshotSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, ImportRegistrationSnapshotSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }

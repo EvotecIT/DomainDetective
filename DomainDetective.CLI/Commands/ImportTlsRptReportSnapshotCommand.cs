@@ -113,7 +113,7 @@ internal sealed class ImportTlsRptReportSnapshotSettings : CommandSettings {
 internal sealed class ImportTlsRptReportSnapshotCommand : AsyncCommand<ImportTlsRptReportSnapshotSettings> {
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override async Task<int> ExecuteAsync(CommandContext context, ImportTlsRptReportSnapshotSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, ImportTlsRptReportSnapshotSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }

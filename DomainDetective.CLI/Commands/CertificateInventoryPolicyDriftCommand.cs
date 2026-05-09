@@ -91,7 +91,7 @@ internal sealed class CertificateInventoryPolicyDriftSettings : CommandSettings 
 internal sealed class CertificateInventoryPolicyDriftCommand : AsyncCommand<CertificateInventoryPolicyDriftSettings> {
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryPolicyDriftSettings settings) {
+    protected override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryPolicyDriftSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }

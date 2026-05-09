@@ -749,13 +749,14 @@ CLI publish artifacts:
 pwsh ./Build/Publish-CLI.ps1 -Version 0.2.0
 ```
 
-Run both through the shared build driver:
+Run the schema-driven NuGet/release pipeline through the PSPublishModule wrapper:
 
 ```powershell
-pwsh ./Build/Build-Project.ps1 -Version 0.2.0
+pwsh ./Build/Build-Project.ps1 -Plan
+pwsh ./Build/Build-Project.ps1 -Build
 ```
 
-Preview or execute only the schema-driven NuGet/release pipeline through PSPublishModule:
+The wrapper is intentionally small and delegates to PSPublishModule:
 
 ```powershell
 Invoke-ProjectBuild -ConfigPath .\Build\project.build.json -Plan
@@ -776,11 +777,11 @@ Write the resolved plan to a file:
 pwsh ./Build/Build-Project.ps1 -Plan -PlanPath .\Artifacts\ProjectBuild\custom-build-plan.json
 ```
 
-Run only one side of the shared build driver when needed:
+Enable publish actions explicitly when needed:
 
 ```powershell
-pwsh ./Build/Build-Project.ps1 -PublishCli $false
-pwsh ./Build/Build-Project.ps1 -PublishNuget $false
+pwsh ./Build/Build-Project.ps1 -Build -PublishNuget
+pwsh ./Build/Build-Project.ps1 -PublishGitHub
 ```
 
 Outputs are staged under `Artifacts/ProjectBuild`:

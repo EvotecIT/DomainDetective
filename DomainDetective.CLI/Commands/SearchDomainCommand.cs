@@ -61,7 +61,7 @@ internal sealed class SearchDomainCommand : AsyncCommand<SearchDomainSettings>
     /// <inheritdoc />
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize")]
-    public override async Task<int> ExecuteAsync(CommandContext context, SearchDomainSettings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, SearchDomainSettings settings, CancellationToken cancellationToken)
     {
         if (settings.Keywords.Length == 0)
         {

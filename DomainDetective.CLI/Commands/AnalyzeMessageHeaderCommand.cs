@@ -27,7 +27,7 @@ internal sealed class AnalyzeMessageHeaderCommand : Command<AnalyzeMessageHeader
     [RequiresDynamicCode("Calls DomainDetective.CLI.CommandUtilities.AnalyzeMessageHeader(FileInfo, String, Boolean)")]
     [RequiresUnreferencedCode("Calls DomainDetective.CLI.CommandUtilities.AnalyzeMessageHeader(FileInfo, String, Boolean)")]
     /// <inheritdoc/>
-    public override int Execute(CommandContext context, AnalyzeMessageHeaderSettings settings) {
+    protected override int Execute(CommandContext context, AnalyzeMessageHeaderSettings settings, CancellationToken cancellationToken) {
         CommandUtilities.AnalyzeMessageHeader(settings.File, settings.Header, settings.Json);
         return 0;
     }

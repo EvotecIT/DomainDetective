@@ -48,7 +48,7 @@ internal sealed class SearchEngineInfoCommand : AsyncCommand<SearchEngineInfoSet
     /// <inheritdoc />
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override async Task<int> ExecuteAsync(CommandContext context, SearchEngineInfoSettings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, SearchEngineInfoSettings settings, CancellationToken cancellationToken)
     {
         var analysis = new SearchEngineAnalysis
         {

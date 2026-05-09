@@ -108,7 +108,7 @@ internal sealed class ImportDmarcAggregateSnapshotSettings : CommandSettings {
 internal sealed class ImportDmarcAggregateSnapshotCommand : AsyncCommand<ImportDmarcAggregateSnapshotSettings> {
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override async Task<int> ExecuteAsync(CommandContext context, ImportDmarcAggregateSnapshotSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, ImportDmarcAggregateSnapshotSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }

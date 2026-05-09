@@ -26,7 +26,7 @@ internal sealed class AnalyzeDnsTunnelingSettings : CommandSettings {
 internal sealed class AnalyzeDnsTunnelingCommand : Command<AnalyzeDnsTunnelingSettings> {
     [RequiresUnreferencedCode("Calls DomainDetective.CLI.CommandUtilities.AnalyzeDnsTunneling(String, String, Boolean)")]
     /// <inheritdoc/>
-    public override int Execute(CommandContext context, AnalyzeDnsTunnelingSettings settings) {
+    protected override int Execute(CommandContext context, AnalyzeDnsTunnelingSettings settings, CancellationToken cancellationToken) {
         var domain = CliHelpers.ToAscii(settings.Domain);
         CommandUtilities.AnalyzeDnsTunneling(domain, settings.File.FullName, settings.Json);
         return 0;

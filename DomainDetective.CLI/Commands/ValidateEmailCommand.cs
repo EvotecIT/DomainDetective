@@ -157,7 +157,7 @@ internal sealed class ValidateEmailSettings : CommandSettings {
 /// </summary>
 internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings> {
     /// <inheritdoc/>
-    public override async Task<int> ExecuteAsync(CommandContext context, ValidateEmailSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, ValidateEmailSettings settings, CancellationToken cancellationToken) {
         if (settings.SmtpPort < 1 || settings.SmtpPort > 65535) {
             AnsiConsole.MarkupLine("[red]Invalid SMTP port. Must be between 1 and 65535.[/]");
             return 1;

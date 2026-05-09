@@ -82,7 +82,7 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
         public int? MultiResolverMaxParallelism { get; set; }
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken) {
         var config = LoadConfiguration(settings.DesiredStatePath);
         var mode = ResolveMode(settings.Mode, config.Mode);
         var wantsClassification = !settings.NoClassification && config.RequiresMailClassification();

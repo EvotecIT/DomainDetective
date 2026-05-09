@@ -68,7 +68,7 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresAssemblyFiles("Calls System.Reflection.Assembly.Location")]
-    public override async Task<int> ExecuteAsync(CommandContext context, DnsPropagationSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, DnsPropagationSettings settings, CancellationToken cancellationToken) {
         var analysis = new DnsPropagationAnalysis { SnapshotDirectory = settings.SnapshotPath?.FullName };
         if (settings.ServersFile != null) {
             var inputPath = settings.ServersFile.ToString();

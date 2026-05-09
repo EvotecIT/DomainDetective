@@ -94,7 +94,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         public int? MultiResolverMaxParallelism { get; set; }
     }
     
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken) {
         try {
             // Show progress
             await AnsiConsole.Progress()

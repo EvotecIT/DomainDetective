@@ -16,7 +16,7 @@ namespace DomainDetective.CLI;
 /// </summary>
 internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
     /// <inheritdoc/>
-    public override async Task<int> ExecuteAsync(CommandContext context, CheckDomainSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, CheckDomainSettings settings, CancellationToken cancellationToken) {
         var dnsEndpoint = settings.DnsEndpoint;
         var dnsEndpoints = CommandUtilities.ParseDnsEndpoints(settings.DnsEndpoints, out var invalidDnsEndpoints);
         if (invalidDnsEndpoints.Count > 0)

@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using OfficeIMO.Excel;
 using OfficeIMO.Excel.Fluent;
+using OfficeIMO.Drawing;
 using DocumentFormat.OpenXml.Spreadsheet;
-using SixLabors.ImageSharp;
 
 namespace DomainDetective.Reports.Office;
 
@@ -49,8 +49,8 @@ public static partial class ExcelCompositionReport
 
         var range = overview.TableFrom(sumRows, title: "Domains", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => {
             v.NumericColumnFormats["Warnings"] = "0"; v.NumericColumnFormats["Errors"] = "0";
-            v.DataBars["Warnings"] = SixLabors.ImageSharp.Color.ParseHex("#FFA500");
-            v.DataBars["Errors"] = SixLabors.ImageSharp.Color.ParseHex("#DC3545");
+            v.DataBars["Warnings"] = OfficeColor.ParseHex("#FFA500");
+            v.DataBars["Errors"] = OfficeColor.ParseHex("#DC3545");
             var ok = "#D1E7DD"; var warn = "#FFF4CE"; var err = "#F8D7DA"; var none = "#E9ECEF";
             foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT", "DNSSEC", "RPKI", "M365" })
             {

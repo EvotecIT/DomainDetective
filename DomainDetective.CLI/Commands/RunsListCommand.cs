@@ -58,7 +58,7 @@ internal sealed class RunsListCommand : AsyncCommand<RunsListCommand.Settings>
 
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize")] 
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize")] 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         var root = !string.IsNullOrWhiteSpace(settings.ArtifactsDir)
             ? settings.ArtifactsDir!

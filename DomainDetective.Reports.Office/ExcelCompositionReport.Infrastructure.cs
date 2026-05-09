@@ -7,7 +7,6 @@ using System.IO;
 using OfficeIMO.Excel;
 using OfficeIMO.Excel.Fluent;
 using DocumentFormat.OpenXml.Spreadsheet;
-using SixLabors.ImageSharp;
 
 namespace DomainDetective.Reports.Office;
 

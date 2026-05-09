@@ -20,7 +20,7 @@ internal sealed class SuggestDomainSettings : CommandSettings
 internal sealed class SuggestDomainCommand : AsyncCommand<SuggestDomainSettings>
 {
     /// <inheritdoc />
-    public override async Task<int> ExecuteAsync(CommandContext context, SuggestDomainSettings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, SuggestDomainSettings settings, CancellationToken cancellationToken)
     {
         var search = new DomainAvailabilitySearch();
         await foreach (var result in search.CheckTldAlternativesAsync(settings.Domain, Program.CancellationToken))

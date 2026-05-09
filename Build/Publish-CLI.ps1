@@ -15,77 +15,42 @@ Set-StrictMode -Version Latest
 
 $scriptRoot = if ($PSScriptRoot) {
     $PSScriptRoot
-} else {
+} elseif ($PSCommandPath) {
     Split-Path -Path $PSCommandPath -Parent
+} else {
+    (Get-Location).Path
 }
 
 if (-not $ConfigPath) {
     $ConfigPath = Join-Path $scriptRoot 'cli.build.json'
 }
 
-function Get-ConfigValue {
-    param(
-        [Parameter(Mandatory)]
-        [pscustomobject] $Config,
-
-        [Parameter(Mandatory)]
-        [string] $Name
-    )
-
-    $property = $Config.PSObject.Properties[$Name]
-    if ($null -ne $property) {
-        $property.Value
-    }
-}
-
-function Resolve-SolutionPath {
-    param(
-        [Parameter(Mandatory)]
-        [pscustomobject] $Config,
-
-        [Parameter(Mandatory)]
-        [string] $RootPath
-    )
-
-    $configuredSolutionPath = Get-ConfigValue -Config $Config -Name 'SolutionPath'
-    if ($configuredSolutionPath) {
-        Join-Path $RootPath ([string] $configuredSolutionPath)
-        return
-    }
-
-    $solutions = @(Get-ChildItem -LiteralPath $RootPath -Filter '*.sln' -File)
-    if ($solutions.Count -eq 1) {
-        $solutions[0].FullName
-        return
-    }
-
-    throw "Unable to resolve a single solution file under $RootPath."
-}
+. (Join-Path $scriptRoot 'BuildHelpers.ps1')
 
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
     throw "Build configuration file not found: $ConfigPath"
 }
 
 $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-$rootPath = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot (Get-ConfigValue -Config $config -Name 'RootPath')))
-$solutionPath = Resolve-SolutionPath -Config $config -RootPath $rootPath
-$cliProject = Get-ConfigValue -Config $config -Name 'CliProject'
+$rootPath = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot (Get-BuildConfigValue -Config $config -Name 'RootPath')))
+$solutionPath = Resolve-BuildSolutionPath -Config $config -RootPath $rootPath
+$cliProject = Get-BuildConfigValue -Config $config -Name 'CliProject'
 if (-not $cliProject) {
     throw "CliProject is required in $ConfigPath"
 }
 
 $cliProjectPath = Join-Path $rootPath ([string] $cliProject)
-$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] (Get-ConfigValue -Config $config -Name 'Configuration') }
-$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-ConfigValue -Config $config -Name 'StagingPath') }
-$defaultVersion = Get-ConfigValue -Config $config -Name 'DefaultVersion'
-$expectedVersion = Get-ConfigValue -Config $config -Name 'ExpectedVersion'
+$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] (Get-BuildConfigValue -Config $config -Name 'Configuration') }
+$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-BuildConfigValue -Config $config -Name 'StagingPath') }
+$defaultVersion = Get-BuildConfigValue -Config $config -Name 'DefaultVersion'
+$expectedVersion = Get-BuildConfigValue -Config $config -Name 'ExpectedVersion'
 # X-pattern versions are resolved by PSPublishModule; local wrappers only pass exact versions.
 $effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($defaultVersion) { [string] $defaultVersion } elseif ($expectedVersion -and ([string] $expectedVersion) -notmatch '[Xx]') { [string] $expectedVersion } else { $null }
 $cliRootPath = Join-Path $rootPath (Join-Path $effectiveArtifactsPath 'CLI')
-$createCliZip = Get-ConfigValue -Config $config -Name 'CreateCliZip'
-$cliExecutableBaseName = Get-ConfigValue -Config $config -Name 'CliExecutableBaseName'
-$cliRuntimes = @(Get-ConfigValue -Config $config -Name 'CliRuntimes')
-$cliAliasMap = Get-ConfigValue -Config $config -Name 'CliAliasMap'
+$createCliZip = Get-BuildConfigValue -Config $config -Name 'CreateCliZip'
+$cliExecutableBaseName = Get-BuildConfigValue -Config $config -Name 'CliExecutableBaseName'
+$cliRuntimes = ConvertTo-BuildArray -Value (Get-BuildConfigValue -Config $config -Name 'CliRuntimes')
+$cliAliasMap = Get-BuildConfigValue -Config $config -Name 'CliAliasMap'
 $createZip = if ($SkipZip) { $false } elseif ($null -ne $createCliZip) { [bool] $createCliZip } else { $true }
 $executableBaseName = if ($cliExecutableBaseName) { [string] $cliExecutableBaseName } else { [System.IO.Path]::GetFileNameWithoutExtension($cliProjectPath) }
 

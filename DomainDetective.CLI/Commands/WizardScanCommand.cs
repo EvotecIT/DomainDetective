@@ -90,7 +90,7 @@ internal sealed class WizardScanSettings : CommandSettings
 internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
 {
     [RequiresDynamicCode("Calls JSON serialization")]
-    public override async Task<int> ExecuteAsync(CommandContext context, WizardScanSettings s)
+    protected override async Task<int> ExecuteAsync(CommandContext context, WizardScanSettings s, CancellationToken cancellationToken)
     {
         // Note: Spectre.Console global profile is read-only in this version.
         // We skip toggling ANSI here and rely on environment/terminal settings.
