@@ -66,6 +66,7 @@ function Resolve-NuGetProjects {
         $projects = [System.Collections.Generic.List[string]]::new()
         foreach ($entry in $expectedVersionMap.PSObject.Properties) {
             $projectName = [string] $entry.Name
+            # ExpectedVersionMap-derived projects follow the repository convention: <ProjectName>/<ProjectName>.csproj.
             $relativeProjectPath = Join-Path $projectName ($projectName + '.csproj')
             $projectPath = Join-Path $RootPath $relativeProjectPath
             if (-not (Test-Path -LiteralPath $projectPath)) {

@@ -1,5 +1,3 @@
-#Requires -Modules PSPublishModule
-
 [CmdletBinding()]
 param(
     [string] $ConfigPath,
@@ -26,7 +24,11 @@ if (-not $ConfigPath) {
     $ConfigPath = Join-Path $scriptRoot 'project.build.json'
 }
 
-Import-Module PSPublishModule -Force -ErrorAction Stop
+try {
+    Import-Module PSPublishModule -Force -ErrorAction Stop
+} catch {
+    throw "PSPublishModule is required for Build-Project.ps1. Install it with 'Install-Module PSPublishModule -Scope CurrentUser' and retry. $($_.Exception.Message)"
+}
 
 $invokeParams = @{
     ConfigPath = $ConfigPath
