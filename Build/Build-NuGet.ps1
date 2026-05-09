@@ -70,7 +70,7 @@ function Resolve-NuGetProjects {
             $relativeProjectPath = Join-Path $projectName ($projectName + '.csproj')
             $projectPath = Join-Path $RootPath $relativeProjectPath
             if (-not (Test-Path -LiteralPath $projectPath)) {
-                throw "ExpectedVersionMap project '$projectName' was not found at $relativeProjectPath."
+                throw "ExpectedVersionMap project '$projectName' was not found at $projectPath."
             }
 
             $projects.Add($relativeProjectPath)
