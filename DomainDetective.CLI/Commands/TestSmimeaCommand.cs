@@ -26,7 +26,7 @@ namespace DomainDetective.CLI {
                 var domain = email[(at + 1)..];
                 email = $"{local}@{CliHelpers.ToAscii(domain)}";
             }
-            await hc.VerifySMIMEA(email, Program.CancellationToken);
+            await hc.VerifySMIMEA(email, cancellationToken);
             CliHelpers.ShowPropertiesTable($"SMIMEA for {settings.Email}", hc.SmimeaAnalysis, false);
             return 0;
         }

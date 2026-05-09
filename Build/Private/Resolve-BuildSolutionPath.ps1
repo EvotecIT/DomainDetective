@@ -32,5 +32,5 @@ function Resolve-BuildSolutionPath {
         return
     }
 
-    throw "Unable to resolve a single solution file under $RootPath."
+    throw "Expected exactly 1 solution file under $RootPath but found $($solutions.Count)."
 }

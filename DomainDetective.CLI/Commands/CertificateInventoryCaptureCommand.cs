@@ -611,7 +611,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         var logger = new InternalLogger(false);
         CertificateInventoryCaptureResult result;
         try {
-            result = await capture.CaptureAsync(domains, options, logger, Program.CancellationToken).ConfigureAwait(false);
+            result = await capture.CaptureAsync(domains, options, logger, cancellationToken).ConfigureAwait(false);
         } catch (OperationCanceledException) {
             AnsiConsole.MarkupLine("[yellow]Capture canceled.[/]");
             return 1;

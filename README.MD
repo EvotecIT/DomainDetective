@@ -737,6 +737,12 @@ pwsh ./Module/DomainDetective.Tests.ps1
 
 `Build/project.build.json` follows the shared PSPublishModule project-build schema and is the source of truth for NuGet package selection, version tracks, signing, and publish/release defaults. `Build/cli.build.json` keeps the CLI runtime matrix used by the local CLI publish wrapper.
 
+The PSPublishModule wrapper requires PSPublishModule to be available in the running PowerShell session:
+
+```powershell
+Install-Module PSPublishModule -Scope CurrentUser
+```
+
 NuGet packages:
 
 ```powershell

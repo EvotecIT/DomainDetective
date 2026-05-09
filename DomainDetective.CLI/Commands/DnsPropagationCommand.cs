@@ -88,12 +88,12 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
 
         List<DnsPropagationResult> results = new();
         if (settings.NoProgress) {
-            results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, null, settings.MaxParallelism, settings.Geo);
+            results = await analysis.QueryAsync(domain, settings.RecordType, servers, cancellationToken, null, settings.MaxParallelism, settings.Geo);
         } else {
             await AnsiConsole.Progress().StartAsync(async ctx => {
                 var task = ctx.AddTask($"Query {domain}", maxValue: 100);
                 var progress = new Progress<double>(p => task.Value = p);
-                results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, progress, settings.MaxParallelism, settings.Geo);
+                results = await analysis.QueryAsync(domain, settings.RecordType, servers, cancellationToken, progress, settings.MaxParallelism, settings.Geo);
             });
         }
         IEnumerable<string>? changes = null;

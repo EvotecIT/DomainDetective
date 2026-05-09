@@ -84,14 +84,14 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
                 var httpUrl = $"http://{raw}";
                 var httpsUrl = $"https://{raw}";
                 try {
-                    await hc.VerifyWebStaticScan(httpUrl, Program.CancellationToken);
+                    await hc.VerifyWebStaticScan(httpUrl, cancellationToken);
                     startUrl = httpUrl;
                 } catch {
-                    await hc.VerifyWebStaticScan(httpsUrl, Program.CancellationToken);
+                    await hc.VerifyWebStaticScan(httpsUrl, cancellationToken);
                     startUrl = httpsUrl;
                 }
             } else {
-                await hc.VerifyWebStaticScan(startUrl, Program.CancellationToken);
+                await hc.VerifyWebStaticScan(startUrl, cancellationToken);
             }
             var view = DomainDetective.Views.Converters.Convert(hc.WebStaticScanAnalysis);
             CliHelpers.ShowPropertiesTable($"WEB STATIC for {startUrl}", view, settings.Unicode);
@@ -101,7 +101,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
         if (settings.Domains.Length == 0) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.InputEncoding = System.Text.Encoding.UTF8;
-            return await WizardMode.RunInteractiveWizard(Program.CancellationToken);
+            return await WizardMode.RunInteractiveWizard(cancellationToken);
         }
 
         settings.Domains = settings.Domains
@@ -160,7 +160,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             subdomainsMaxResolutionChecks: settings.SubdomainsMaxResolutionChecks,
             subdomainsResolutionConcurrency: settings.SubdomainsResolutionConcurrency,
             subdomainsResolutionMinIntervalMs: settings.SubdomainsResolutionMinIntervalMs,
-            cancellationToken: Program.CancellationToken);
+            cancellationToken: cancellationToken);
 
         return 0;
     }

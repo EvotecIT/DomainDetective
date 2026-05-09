@@ -162,7 +162,7 @@ internal sealed class ImportDmarcAggregateSnapshotCommand : AsyncCommand<ImportD
             }
 
             try {
-                result = await DmarcAggregateIngestion.IngestFromImapAsync(options, store, deduplicate, Program.CancellationToken);
+                result = await DmarcAggregateIngestion.IngestFromImapAsync(options, store, deduplicate, cancellationToken);
             }
             catch (Exception ex) {
                 AnsiConsole.MarkupLine($"[red]IMAP ingestion failed:[/] {Markup.Escape(ex.Message)}");

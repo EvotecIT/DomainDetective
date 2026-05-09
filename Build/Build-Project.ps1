@@ -1,3 +1,5 @@
+#Requires -Modules PSPublishModule
+
 [CmdletBinding()]
 param(
     [string] $ConfigPath,

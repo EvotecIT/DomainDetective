@@ -84,7 +84,7 @@ internal sealed class SearchDomainCommand : AsyncCommand<SearchDomainSettings>
             search.TldPreset = settings.Preset;
         }
 
-        var results = search.SearchAsync(settings.Keywords, Program.CancellationToken);
+        var results = search.SearchAsync(settings.Keywords, cancellationToken);
 
         switch (settings.Output.ToLowerInvariant())
         {

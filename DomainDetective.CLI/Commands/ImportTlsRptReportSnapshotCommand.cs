@@ -172,7 +172,7 @@ internal sealed class ImportTlsRptReportSnapshotCommand : AsyncCommand<ImportTls
             }
 
             try {
-                result = await TlsRptIngestion.IngestFromImapAsync(domain, options, store, deduplicate, Program.CancellationToken);
+                result = await TlsRptIngestion.IngestFromImapAsync(domain, options, store, deduplicate, cancellationToken);
             }
             catch (Exception ex) {
                 AnsiConsole.MarkupLine($"[red]IMAP ingestion failed:[/] {Markup.Escape(ex.Message)}");

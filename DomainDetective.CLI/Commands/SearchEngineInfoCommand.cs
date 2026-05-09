@@ -61,8 +61,8 @@ internal sealed class SearchEngineInfoCommand : AsyncCommand<SearchEngineInfoSet
 
         object result = settings.Engine.ToLowerInvariant() switch
         {
-            "bing" => await analysis.SearchBing(settings.Query, Program.CancellationToken),
-            "google" => await analysis.SearchGoogle(settings.Query, Program.CancellationToken),
+            "bing" => await analysis.SearchBing(settings.Query, cancellationToken),
+            "google" => await analysis.SearchGoogle(settings.Query, cancellationToken),
             _ => throw new InvalidOperationException("Engine must be 'google' or 'bing'.")
         };
 

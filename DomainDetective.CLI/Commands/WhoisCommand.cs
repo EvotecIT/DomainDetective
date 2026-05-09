@@ -30,7 +30,7 @@ internal sealed class WhoisCommand : AsyncCommand<WhoisSettings> {
     protected override async Task<int> ExecuteAsync(CommandContext context, WhoisSettings settings, CancellationToken cancellationToken) {
         var analysis = new WhoisAnalysis { SnapshotDirectory = settings.SnapshotPath?.FullName };
         var domain = CliHelpers.ToAscii(settings.Domain);
-        await analysis.QueryWhoisServer(domain, Program.CancellationToken);
+        await analysis.QueryWhoisServer(domain, cancellationToken);
         IEnumerable<string>? changes = null;
         if (settings.Diff && settings.SnapshotPath != null) {
             changes = analysis.GetWhoisChanges();

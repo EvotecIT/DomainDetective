@@ -24,7 +24,7 @@ internal sealed class TestOpenResolverCommand : AsyncCommand<TestOpenResolverSet
     /// <inheritdoc/>
     protected override async Task<int> ExecuteAsync(CommandContext context, TestOpenResolverSettings settings, CancellationToken cancellationToken) {
         var hc = new DomainHealthCheck();
-        await hc.CheckOpenResolverHost(settings.Server, settings.Port, Program.CancellationToken);
+        await hc.CheckOpenResolverHost(settings.Server, settings.Port, cancellationToken);
         CliHelpers.ShowPropertiesTable($"OPENRESOLVER for {settings.Server}", hc.OpenResolverAnalysis.ServerResults, false);
         return 0;
     }

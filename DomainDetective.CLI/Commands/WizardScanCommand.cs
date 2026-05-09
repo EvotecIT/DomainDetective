@@ -284,7 +284,7 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
             DisableLive = s.SimpleUi || !s.LiveUi
         });
 
-            var hc = await wizard.RunAsync(Program.CancellationToken);
+            var hc = await wizard.RunAsync(cancellationToken);
             // Save domain to recent list
             RecentDomains.Add(s.Domain);
 
@@ -348,7 +348,7 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
                 }
             }
 
-        } while (runAgain && !Program.CancellationToken.IsCancellationRequested);
+        } while (runAgain && !cancellationToken.IsCancellationRequested);
 
         return 0;
     }

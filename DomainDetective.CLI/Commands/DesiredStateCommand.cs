@@ -123,7 +123,7 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
                 DomainDetective.Definitions.MailDomainClassificationCategory? classification = null;
                 if (wantsClassification) {
                     var classifier = new MailDomainClassifier(healthCheck, logger);
-                    var mc = await classifier.ClassifyAsync(domain, Program.CancellationToken);
+                    var mc = await classifier.ClassifyAsync(domain, cancellationToken);
                     classification = mc.Classification;
                 }
 
@@ -150,7 +150,7 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
                     healthCheckTypes: toRun,
                     dkimSelectors: dkimSelectors,
                     daneServiceType: daneServiceTypes,
-                    cancellationToken: Program.CancellationToken,
+                    cancellationToken: cancellationToken,
                     useDefaultChecksWhenEmpty: false);
 
                 var desired = DesiredStateEvaluator.Evaluate(domain, healthCheck, profile, classification, new DesiredStateEvaluationOptions {
@@ -192,7 +192,7 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
                 ExportPath = settings.OutputPath,
                 OpenInBrowser = settings.OpenInBrowser
             };
-            var result = await CompositionExportService.ExportAsync(request, null, Program.CancellationToken).ConfigureAwait(false);
+            var result = await CompositionExportService.ExportAsync(request, null, cancellationToken).ConfigureAwait(false);
             var failed = result.Reports.Where(r => !r.Success).ToList();
             if (failed.Count > 0) {
                 foreach (var r in failed) {

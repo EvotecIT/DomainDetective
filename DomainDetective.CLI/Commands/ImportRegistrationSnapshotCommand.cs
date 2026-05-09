@@ -81,7 +81,7 @@ internal sealed class ImportRegistrationSnapshotCommand : AsyncCommand<ImportReg
 
         if (!settings.SkipRdap) {
             try {
-                await healthCheck.QueryRDAP(domain, Program.CancellationToken);
+                await healthCheck.QueryRDAP(domain, cancellationToken);
                 rdap = healthCheck.RdapAnalysis;
             }
             catch (Exception ex) {
@@ -91,7 +91,7 @@ internal sealed class ImportRegistrationSnapshotCommand : AsyncCommand<ImportReg
 
         if (!settings.SkipWhois) {
             try {
-                await healthCheck.CheckWHOIS(domain, Program.CancellationToken);
+                await healthCheck.CheckWHOIS(domain, cancellationToken);
                 whois = healthCheck.WhoisAnalysis;
             }
             catch (Exception ex) {

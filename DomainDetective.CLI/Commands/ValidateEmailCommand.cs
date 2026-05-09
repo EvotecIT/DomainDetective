@@ -234,7 +234,7 @@ internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings>
             };
         }
 
-        await hc.VerifyEmailAddress(settings.Email, options, Program.CancellationToken);
+        await hc.VerifyEmailAddress(settings.Email, options, cancellationToken);
         var result = hc.EmailAddressValidationAnalysis;
         if (result == null) {
             AnsiConsole.MarkupLine("[red]Email validation results are unavailable.[/]");
