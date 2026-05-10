@@ -11,7 +11,7 @@ public class TestCertificateInventoryCaptureCommand {
         var command = new CertificateInventoryCaptureCommand();
         var settings = new CertificateInventoryCaptureSettings();
 
-        var exitCode = await command.ExecuteAsync(null!, settings);
+        var exitCode = await command.ExecuteForTestingAsync(null!, settings);
 
         Assert.Equal(1, exitCode);
     }
@@ -32,7 +32,7 @@ public class TestCertificateInventoryCaptureCommand {
             Json = true
         };
 
-        var exitCode = await command.ExecuteAsync(null!, settings);
+        var exitCode = await command.ExecuteForTestingAsync(null!, settings);
 
         Assert.Equal(0, exitCode);
     }
@@ -55,7 +55,7 @@ public class TestCertificateInventoryCaptureCommand {
             Json = true
         };
 
-        var exitCode = await command.ExecuteAsync(null!, settings);
+        var exitCode = await command.ExecuteForTestingAsync(null!, settings);
 
         Assert.Equal(0, exitCode);
     }
@@ -81,7 +81,7 @@ public class TestCertificateInventoryCaptureCommand {
                 CsvPath = csvPath
             };
 
-            var exitCode = await command.ExecuteAsync(null!, settings);
+            var exitCode = await command.ExecuteForTestingAsync(null!, settings);
 
             Assert.Equal(0, exitCode);
             Assert.True(File.Exists(csvPath));
@@ -125,7 +125,7 @@ public class TestCertificateInventoryCaptureCommand {
                 NdjsonPath = ndjsonPath
             };
 
-            var exitCode = await command.ExecuteAsync(null!, settings);
+            var exitCode = await command.ExecuteForTestingAsync(null!, settings);
 
             Assert.Equal(0, exitCode);
             Assert.True(File.Exists(ndjsonPath));
@@ -162,7 +162,7 @@ public class TestCertificateInventoryCaptureCommand {
             Json = true
         };
 
-        var exitCode = await command.ExecuteAsync(null!, settings);
+        var exitCode = await command.ExecuteForTestingAsync(null!, settings);
 
         Assert.Equal(2, exitCode);
     }

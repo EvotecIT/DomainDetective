@@ -9,8 +9,6 @@ using DomainDetective.CLI.Wizard;
 namespace DomainDetective.CLI;
 
 internal static class Program {
-    internal static CancellationToken CancellationToken { get; private set; }
-
     [RequiresDynamicCode("Calls Spectre.Console.Cli.CommandApp.CommandApp(ITypeRegistrar)")]
     public static async Task<int> Main(string[] args) {
         DomainDetectivePgpRegistration.Register();
@@ -22,7 +20,6 @@ internal static class Program {
             Console.InputEncoding = System.Text.Encoding.UTF8;
         } catch { /* ignore if not supported */ }
         using var cts = new CancellationTokenSource();
-        CancellationToken = cts.Token;
         Console.CancelKeyPress += (_, e) => {
             e.Cancel = true;
             cts.Cancel();
@@ -335,7 +332,7 @@ internal static class Program {
                 .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots (alias)");
         });
         try {
-            return await app.RunAsync(args).WaitAsync(cts.Token);
+            return await app.RunAsync(args, cts.Token);
         } catch (FileNotFoundException ex) {
             AnsiConsole.MarkupLine($"[red]{ex.Message}[/]");
             return 1;

@@ -58,9 +58,16 @@ internal sealed class CertificateInventorySummarySettings : CommandSettings {
 /// Displays aggregate insights from persisted certificate inventory snapshots.
 /// </summary>
 internal sealed class CertificateInventorySummaryCommand : AsyncCommand<CertificateInventorySummarySettings> {
+    /// <summary>Runs the command implementation from tests without going through the Spectre command app.</summary>
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override Task<int> ExecuteAsync(CommandContext context, CertificateInventorySummarySettings settings) {
+    internal Task<int> ExecuteForTestingAsync(CommandContext context, CertificateInventorySummarySettings settings, CancellationToken cancellationToken = default) {
+        return ExecuteAsync(context, settings, cancellationToken);
+    }
+
+    [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+    [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+    protected override Task<int> ExecuteAsync(CommandContext context, CertificateInventorySummarySettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }

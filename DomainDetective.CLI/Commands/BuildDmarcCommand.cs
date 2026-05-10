@@ -8,7 +8,7 @@ namespace DomainDetective.CLI;
 /// </summary>
 internal sealed class BuildDmarcCommand : Command<CommandSettings> {
     /// <inheritdoc/>
-    public override int Execute(CommandContext context, CommandSettings settings) {
+    protected override int Execute(CommandContext context, CommandSettings settings, CancellationToken cancellationToken) {
         var policy = AnsiConsole.Prompt(new SelectionPrompt<string>()
             .Title("Select policy (p)")
             .AddChoices("none", "quarantine", "reject"));

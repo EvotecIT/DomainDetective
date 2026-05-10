@@ -74,7 +74,7 @@ public class TestCertificateInventoryExports {
                 Json = true
             };
 
-            var result = await command.ExecuteAsync(null!, settings);
+            var result = await command.ExecuteForTestingAsync(null!, settings);
 
             Assert.Equal(0, result);
             Assert.True(File.Exists(csvPath));
@@ -156,7 +156,7 @@ public class TestCertificateInventoryExports {
                 MaxEndpoints = 100
             };
 
-            var result = await command.ExecuteAsync(null!, settings);
+            var result = await command.ExecuteForTestingAsync(null!, settings);
 
             Assert.Equal(0, result);
             Assert.True(File.Exists(csvPath));
@@ -225,7 +225,7 @@ public class TestCertificateInventoryExports {
                 Json = true
             };
 
-            var result = await command.ExecuteAsync(null!, settings);
+            var result = await command.ExecuteForTestingAsync(null!, settings);
 
             Assert.Equal(0, result);
             Assert.True(File.Exists(csvPath));
@@ -333,7 +333,7 @@ public class TestCertificateInventoryExports {
                 MaxEndpoints = 100
             };
 
-            var result = await command.ExecuteAsync(null!, settings);
+            var result = await command.ExecuteForTestingAsync(null!, settings);
 
             Assert.Equal(0, result);
             Assert.True(File.Exists(csvPath));

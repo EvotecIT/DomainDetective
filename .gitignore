@@ -367,9 +367,13 @@ FodyWeavers.xsd
 
 Build/*
 !Build/Build-Project.ps1
+!Build/BuildHelpers.ps1
 !Build/Build-NuGet.ps1
 !Build/Publish-CLI.ps1
+!Build/cli.build.json
 !Build/project.build.json
+!Build/Private/
+!Build/Private/*.ps1
 
 /.idea/
 

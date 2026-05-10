@@ -28,7 +28,7 @@ internal sealed class SpfTestHostCommand : AsyncCommand<SpfTestHostSettings>
 {
     [RequiresDynamicCode("Calls DomainDetective.SpfAnalysis.EvaluateHostAsync")]
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize")] 
-    public override async Task<int> ExecuteAsync(CommandContext context, SpfTestHostSettings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, SpfTestHostSettings settings, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(settings.Domain))
         {

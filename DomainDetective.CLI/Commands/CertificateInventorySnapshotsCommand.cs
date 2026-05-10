@@ -58,6 +58,13 @@ internal sealed class CertificateInventorySnapshotsSettings : CommandSettings {
 /// Lists persisted certificate inventory snapshots with high-level metrics.
 /// </summary>
 internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<CertificateInventorySnapshotsSettings> {
+    /// <summary>Runs the command implementation from tests without going through the Spectre command app.</summary>
+    [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+    [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+    internal Task<int> ExecuteForTestingAsync(CommandContext context, CertificateInventorySnapshotsSettings settings, CancellationToken cancellationToken = default) {
+        return ExecuteAsync(context, settings, cancellationToken);
+    }
+
     private sealed class SnapshotCatalogResult {
         public DateTimeOffset? SinceUtc { get; set; }
         public DateTimeOffset? UntilUtc { get; set; }
@@ -85,7 +92,7 @@ internal sealed class CertificateInventorySnapshotsCommand : AsyncCommand<Certif
 
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override Task<int> ExecuteAsync(CommandContext context, CertificateInventorySnapshotsSettings settings) {
+    protected override Task<int> ExecuteAsync(CommandContext context, CertificateInventorySnapshotsSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }

@@ -116,7 +116,7 @@ internal sealed class CertificateInventoryCtDiagnosticsCommand : AsyncCommand<Ce
 
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryCtDiagnosticsSettings settings) {
+    protected override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryCtDiagnosticsSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }

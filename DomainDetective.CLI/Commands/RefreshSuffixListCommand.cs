@@ -22,7 +22,7 @@ internal sealed class RefreshSuffixListSettings : CommandSettings {
 /// </summary>
 internal sealed class RefreshSuffixListCommand : AsyncCommand<RefreshSuffixListSettings> {
     /// <inheritdoc/>
-    public override async Task<int> ExecuteAsync(CommandContext context, RefreshSuffixListSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, RefreshSuffixListSettings settings, CancellationToken cancellationToken) {
         var hc = new DomainHealthCheck();
         if (settings.CacheDirectory != null) {
             hc.CacheDirectory = settings.CacheDirectory.FullName;

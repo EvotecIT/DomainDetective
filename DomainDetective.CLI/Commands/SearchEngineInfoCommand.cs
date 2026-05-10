@@ -48,7 +48,7 @@ internal sealed class SearchEngineInfoCommand : AsyncCommand<SearchEngineInfoSet
     /// <inheritdoc />
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override async Task<int> ExecuteAsync(CommandContext context, SearchEngineInfoSettings settings)
+    protected override async Task<int> ExecuteAsync(CommandContext context, SearchEngineInfoSettings settings, CancellationToken cancellationToken)
     {
         var analysis = new SearchEngineAnalysis
         {
@@ -61,8 +61,8 @@ internal sealed class SearchEngineInfoCommand : AsyncCommand<SearchEngineInfoSet
 
         object result = settings.Engine.ToLowerInvariant() switch
         {
-            "bing" => await analysis.SearchBing(settings.Query, Program.CancellationToken),
-            "google" => await analysis.SearchGoogle(settings.Query, Program.CancellationToken),
+            "bing" => await analysis.SearchBing(settings.Query, cancellationToken),
+            "google" => await analysis.SearchGoogle(settings.Query, cancellationToken),
             _ => throw new InvalidOperationException("Engine must be 'google' or 'bing'.")
         };
 

@@ -1,0 +1,30 @@
+{
+  "RootPath": "..",
+  "SolutionPath": "DomainDetective.sln",
+  "Configuration": "Release",
+  "StagingPath": "Artifacts/ProjectBuild",
+  "DefaultVersion": null,
+  "CliProject": "DomainDetective.CLI/DomainDetective.CLI.csproj",
+  "CliExecutableBaseName": "DomainDetective.CLI",
+  "CliRuntimes": [
+    "win-x64",
+    "linux-x64",
+    "osx-x64",
+    "osx-arm64"
+  ],
+  "CliAliasMap": {
+    "win-x64": [
+      "DD.exe"
+    ],
+    "linux-x64": [
+      "DD"
+    ],
+    "osx-x64": [
+      "DD"
+    ],
+    "osx-arm64": [
+      "DD"
+    ]
+  },
+  "CreateCliZip": true
+}

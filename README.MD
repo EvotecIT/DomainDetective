@@ -735,7 +735,13 @@ pwsh ./Module/DomainDetective.Tests.ps1
 
 ## Packaging and Publish
 
-`Build/project.build.json` is the single place for staged output defaults, packed projects, CLI runtimes, and the default plan-file path.
+`Build/project.build.json` follows the shared PSPublishModule project-build schema and is the source of truth for NuGet package selection, version tracks, signing, and publish/release defaults. `Build/cli.build.json` keeps the CLI runtime matrix used by the local CLI publish wrapper.
+
+The PSPublishModule wrapper requires PSPublishModule to be available in the running PowerShell session:
+
+```powershell
+Install-Module PSPublishModule -Scope CurrentUser
+```
 
 NuGet packages:
 
@@ -749,11 +755,21 @@ CLI publish artifacts:
 pwsh ./Build/Publish-CLI.ps1 -Version 0.2.0
 ```
 
-Run both through the shared build driver:
+Run the schema-driven NuGet/release pipeline through the PSPublishModule wrapper:
 
 ```powershell
-pwsh ./Build/Build-Project.ps1 -Version 0.2.0
+pwsh ./Build/Build-Project.ps1 -Plan
+pwsh ./Build/Build-Project.ps1 -Build
 ```
+
+The wrapper is intentionally small and delegates to PSPublishModule:
+
+```powershell
+Invoke-ProjectBuild -ConfigPath .\Build\project.build.json -Plan
+Invoke-ProjectBuild -ConfigPath .\Build\project.build.json -Build
+```
+
+NuGet and GitHub publish credentials are resolved from `NUGET_API_KEY` and `GITHUB_TOKEN` when publishing is enabled.
 
 Preview the plan without executing:
 
@@ -767,16 +783,18 @@ Write the resolved plan to a file:
 pwsh ./Build/Build-Project.ps1 -Plan -PlanPath .\Artifacts\ProjectBuild\custom-build-plan.json
 ```
 
-Run only one side of the shared build driver when needed:
+Enable publish actions explicitly when needed:
 
 ```powershell
-pwsh ./Build/Build-Project.ps1 -PublishCli $false
-pwsh ./Build/Build-Project.ps1 -PublishNuget $false
+pwsh ./Build/Build-Project.ps1 -Build -PublishNuget
+pwsh ./Build/Build-Project.ps1 -PublishGitHub
 ```
 
 Outputs are staged under `Artifacts/ProjectBuild`:
 
 - `Artifacts/ProjectBuild/NuGet` for `.nupkg` files
+- `Artifacts/ProjectBuild/packages` for PSPublishModule project-build packages
+- `Artifacts/ProjectBuild/releases` for PSPublishModule release archives
 - `Artifacts/ProjectBuild/CLI/<runtime>` for published CLI folders
 - `Artifacts/ProjectBuild/CLI/*.zip` for runtime archives when zipping is enabled
 - `Artifacts/ProjectBuild/build.plan.json` for the default resolved build plan

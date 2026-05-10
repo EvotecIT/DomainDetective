@@ -18,9 +18,9 @@ internal sealed class TestRpkiSettings : CommandSettings {
 /// </summary>
 internal sealed class TestRpkiCommand : AsyncCommand<TestRpkiSettings> {
     /// <inheritdoc/>
-    public override async Task<int> ExecuteAsync(CommandContext context, TestRpkiSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, TestRpkiSettings settings, CancellationToken cancellationToken) {
         var hc = new DomainHealthCheck();
-        await hc.VerifyRPKI(settings.Domain, Program.CancellationToken);
+        await hc.VerifyRPKI(settings.Domain, cancellationToken);
         CliHelpers.ShowPropertiesTable($"RPKI for {settings.Domain}", hc.RpkiAnalysis.Results, false);
         return 0;
     }

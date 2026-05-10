@@ -94,7 +94,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         public int? MultiResolverMaxParallelism { get; set; }
     }
     
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken) {
         try {
             // Show progress
             await AnsiConsole.Progress()
@@ -161,10 +161,11 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     if (settings.IncludeDnsPropagation) {
                         reportChecks.Add(HealthCheckType.DNSPROPAGATION);
                     }
-                    await healthCheck.Verify(settings.Domain, reportChecks.ToArray());
+                    await healthCheck.Verify(settings.Domain, reportChecks.ToArray(), cancellationToken: cancellationToken);
                     analyzeTask.Value = 100;
                     
                     // Step 2: Generate report + artifacts
+                    cancellationToken.ThrowIfCancellationRequested();
                     var generateTask = ctx.AddTask("[yellow]Generating report + artifacts[/]");
                     
                     // Determine output path

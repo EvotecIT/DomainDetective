@@ -9,6 +9,10 @@ using Xunit.Sdk;
 namespace DomainDetective.Tests {
     [Collection("HttpListener")]
     public class TestHPKPAnalysis {
+        public TestHPKPAnalysis() {
+            HPKPAnalysis.ClearCache();
+        }
+
         [Fact]
         public async Task DetectsHeaderAndValidPins() {
             Skip.If(!HttpListener.IsSupported, "HttpListener not supported");

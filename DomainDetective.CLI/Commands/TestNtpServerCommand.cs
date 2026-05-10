@@ -27,12 +27,12 @@ internal sealed class TestNtpServerSettings : CommandSettings {
 /// </summary>
 internal sealed class TestNtpServerCommand : AsyncCommand<TestNtpServerSettings> {
     /// <inheritdoc/>
-    public override async Task<int> ExecuteAsync(CommandContext context, TestNtpServerSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, TestNtpServerSettings settings, CancellationToken cancellationToken) {
         var hc = new DomainHealthCheck();
         string host = !string.IsNullOrWhiteSpace(settings.Server)
             ? settings.Server!
             : (settings.Builtin ?? NtpServer.Pool).ToHost();
-        await hc.TestNtpServer(host, settings.Port, Program.CancellationToken);
+        await hc.TestNtpServer(host, settings.Port, cancellationToken);
         CliHelpers.ShowPropertiesTable($"NTP {host}", hc.NtpAnalysis.ServerResults, false);
         return 0;
     }

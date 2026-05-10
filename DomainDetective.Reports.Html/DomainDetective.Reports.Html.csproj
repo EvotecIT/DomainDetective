@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj" Condition="'$(UseLocalHtmlForgeX)' == 'true' And Exists('..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj')" />
-    <PackageReference Include="HtmlForgeX" Version="0.38.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj')" />
+    <PackageReference Include="HtmlForgeX" Version="0.39.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj')" />
   </ItemGroup>
 
 </Project>

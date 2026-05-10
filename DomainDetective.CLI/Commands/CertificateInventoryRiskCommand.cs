@@ -19,7 +19,7 @@ namespace DomainDetective.CLI.Commands;
 internal sealed class CertificateInventoryRiskCommand : AsyncCommand<CertificateInventoryRiskSettings> {
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryRiskSettings settings) {
+    protected override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryRiskSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }

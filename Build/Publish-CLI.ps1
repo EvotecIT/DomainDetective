@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $ConfigPath = (Join-Path $PSScriptRoot 'project.build.json'),
+    [string] $ConfigPath,
     [string] $Configuration,
     [string] $ArtifactsPath,
     [string] $Version,
@@ -13,30 +13,56 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+$scriptRoot = if ($PSScriptRoot) {
+    $PSScriptRoot
+} elseif ($PSCommandPath) {
+    Split-Path -Path $PSCommandPath -Parent
+} else {
+    (Get-Location).Path
+}
+
+if (-not $ConfigPath) {
+    $ConfigPath = Join-Path $scriptRoot 'cli.build.json'
+}
+
+. (Join-Path $scriptRoot 'BuildHelpers.ps1')
+
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
     throw "Build configuration file not found: $ConfigPath"
 }
 
 $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-$rootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $config.RootPath))
-$solutionPath = Join-Path $rootPath $config.SolutionPath
-$cliProjectPath = Join-Path $rootPath $config.CliProject
-$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] $config.Configuration }
-$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] $config.StagingPath }
-$effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($config.DefaultVersion) { [string] $config.DefaultVersion } else { $null }
-$cliRootPath = Join-Path $rootPath (Join-Path $effectiveArtifactsPath 'CLI')
-$createZip = if ($SkipZip) { $false } elseif ($null -ne $config.CreateCliZip) { [bool] $config.CreateCliZip } else { $true }
-$executableBaseName = if ($config.CliExecutableBaseName) { [string] $config.CliExecutableBaseName } else { [System.IO.Path]::GetFileNameWithoutExtension($cliProjectPath) }
+$rootPath = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot (Get-BuildConfigValue -Config $config -Name 'RootPath')))
+$solutionPath = Resolve-BuildSolutionPath -Config $config -RootPath $rootPath
+$cliProject = Get-BuildConfigValue -Config $config -Name 'CliProject'
+if (-not $cliProject) {
+    throw "CliProject is required in $ConfigPath"
+}
 
-if (-not $config.CliRuntimes -or $config.CliRuntimes.Count -eq 0) {
+$cliProjectPath = Join-Path $rootPath ([string] $cliProject)
+$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] (Get-BuildConfigValue -Config $config -Name 'Configuration') }
+$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-BuildConfigValue -Config $config -Name 'StagingPath') }
+$defaultVersion = Get-BuildConfigValue -Config $config -Name 'DefaultVersion'
+$expectedVersion = Get-BuildConfigValue -Config $config -Name 'ExpectedVersion'
+# X-pattern versions are resolved by PSPublishModule; local wrappers only pass exact versions.
+$effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($defaultVersion) { [string] $defaultVersion } elseif ($expectedVersion -and ([string] $expectedVersion) -notmatch '[Xx]') { [string] $expectedVersion } else { $null }
+$cliRootPath = Join-Path $rootPath (Join-Path $effectiveArtifactsPath 'CLI')
+$createCliZip = Get-BuildConfigValue -Config $config -Name 'CreateCliZip'
+$cliExecutableBaseName = Get-BuildConfigValue -Config $config -Name 'CliExecutableBaseName'
+$cliRuntimes = ConvertTo-BuildArray -Value (Get-BuildConfigValue -Config $config -Name 'CliRuntimes')
+$cliAliasMap = Get-BuildConfigValue -Config $config -Name 'CliAliasMap'
+$createZip = if ($SkipZip) { $false } elseif ($null -ne $createCliZip) { [bool] $createCliZip } else { $true }
+$executableBaseName = if ($cliExecutableBaseName) { [string] $cliExecutableBaseName } else { [System.IO.Path]::GetFileNameWithoutExtension($cliProjectPath) }
+
+if ($cliRuntimes.Count -eq 0) {
     throw "No CLI runtimes were configured in $ConfigPath"
 }
 
 if ($Plan) {
     $runtimePlans = [System.Collections.Generic.List[object]]::new()
-    foreach ($runtime in $config.CliRuntimes) {
+    foreach ($runtime in $cliRuntimes) {
         $aliases = @()
-        $aliasesProperty = $config.CliAliasMap.PSObject.Properties[$runtime]
+        $aliasesProperty = if ($cliAliasMap) { $cliAliasMap.PSObject.Properties[$runtime] } else { $null }
         if ($aliasesProperty) {
             $aliases = @($aliasesProperty.Value)
         }
@@ -99,7 +125,7 @@ try {
         }
     }
 
-    foreach ($runtime in $config.CliRuntimes) {
+    foreach ($runtime in $cliRuntimes) {
         $runtimeOutputPath = Join-Path $cliRootPath $runtime
         if (Test-Path -LiteralPath $runtimeOutputPath) {
             Remove-Item -LiteralPath $runtimeOutputPath -Recurse -Force
@@ -140,7 +166,7 @@ try {
             throw "Expected published executable was not found: $sourceExecutablePath"
         }
 
-        $aliasesProperty = $config.CliAliasMap.PSObject.Properties[$runtime]
+        $aliasesProperty = if ($cliAliasMap) { $cliAliasMap.PSObject.Properties[$runtime] } else { $null }
         if ($aliasesProperty) {
             foreach ($aliasName in $aliasesProperty.Value) {
                 Copy-Item -LiteralPath $sourceExecutablePath -Destination (Join-Path $runtimeOutputPath $aliasName) -Force

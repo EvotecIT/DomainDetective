@@ -53,7 +53,7 @@ internal sealed class ImportRegistrationSnapshotSettings : CommandSettings {
 internal sealed class ImportRegistrationSnapshotCommand : AsyncCommand<ImportRegistrationSnapshotSettings> {
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override async Task<int> ExecuteAsync(CommandContext context, ImportRegistrationSnapshotSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, ImportRegistrationSnapshotSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }
@@ -81,7 +81,7 @@ internal sealed class ImportRegistrationSnapshotCommand : AsyncCommand<ImportReg
 
         if (!settings.SkipRdap) {
             try {
-                await healthCheck.QueryRDAP(domain, Program.CancellationToken);
+                await healthCheck.QueryRDAP(domain, cancellationToken);
                 rdap = healthCheck.RdapAnalysis;
             }
             catch (Exception ex) {
@@ -91,7 +91,7 @@ internal sealed class ImportRegistrationSnapshotCommand : AsyncCommand<ImportReg
 
         if (!settings.SkipWhois) {
             try {
-                await healthCheck.CheckWHOIS(domain, Program.CancellationToken);
+                await healthCheck.CheckWHOIS(domain, cancellationToken);
                 whois = healthCheck.WhoisAnalysis;
             }
             catch (Exception ex) {

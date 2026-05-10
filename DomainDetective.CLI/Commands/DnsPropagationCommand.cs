@@ -68,7 +68,7 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresAssemblyFiles("Calls System.Reflection.Assembly.Location")]
-    public override async Task<int> ExecuteAsync(CommandContext context, DnsPropagationSettings settings) {
+    protected override async Task<int> ExecuteAsync(CommandContext context, DnsPropagationSettings settings, CancellationToken cancellationToken) {
         var analysis = new DnsPropagationAnalysis { SnapshotDirectory = settings.SnapshotPath?.FullName };
         if (settings.ServersFile != null) {
             var inputPath = settings.ServersFile.ToString();
@@ -88,12 +88,12 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
 
         List<DnsPropagationResult> results = new();
         if (settings.NoProgress) {
-            results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, null, settings.MaxParallelism, settings.Geo);
+            results = await analysis.QueryAsync(domain, settings.RecordType, servers, cancellationToken, null, settings.MaxParallelism, settings.Geo);
         } else {
             await AnsiConsole.Progress().StartAsync(async ctx => {
                 var task = ctx.AddTask($"Query {domain}", maxValue: 100);
                 var progress = new Progress<double>(p => task.Value = p);
-                results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, progress, settings.MaxParallelism, settings.Geo);
+                results = await analysis.QueryAsync(domain, settings.RecordType, servers, cancellationToken, progress, settings.MaxParallelism, settings.Geo);
             });
         }
         IEnumerable<string>? changes = null;

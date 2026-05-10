@@ -362,9 +362,16 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
 /// Captures one certificate inventory snapshot from domains and discovered service endpoints.
 /// </summary>
 internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<CertificateInventoryCaptureSettings> {
+    /// <summary>Runs the command implementation from tests without going through the Spectre command app.</summary>
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    public override async Task<int> ExecuteAsync(CommandContext context, CertificateInventoryCaptureSettings settings) {
+    internal Task<int> ExecuteForTestingAsync(CommandContext context, CertificateInventoryCaptureSettings settings, CancellationToken cancellationToken = default) {
+        return ExecuteAsync(context, settings, cancellationToken);
+    }
+
+    [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+    [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+    protected override async Task<int> ExecuteAsync(CommandContext context, CertificateInventoryCaptureSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }
@@ -604,7 +611,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         var logger = new InternalLogger(false);
         CertificateInventoryCaptureResult result;
         try {
-            result = await capture.CaptureAsync(domains, options, logger, Program.CancellationToken).ConfigureAwait(false);
+            result = await capture.CaptureAsync(domains, options, logger, cancellationToken).ConfigureAwait(false);
         } catch (OperationCanceledException) {
             AnsiConsole.MarkupLine("[yellow]Capture canceled.[/]");
             return 1;

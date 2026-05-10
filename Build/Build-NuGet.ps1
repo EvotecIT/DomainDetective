@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $ConfigPath = (Join-Path $PSScriptRoot 'project.build.json'),
+    [string] $ConfigPath,
     [string] $Configuration,
     [string] $ArtifactsPath,
     [string] $Version,
@@ -12,21 +12,92 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+$scriptRoot = if ($PSScriptRoot) {
+    $PSScriptRoot
+} elseif ($PSCommandPath) {
+    Split-Path -Path $PSCommandPath -Parent
+} else {
+    (Get-Location).Path
+}
+
+if (-not $ConfigPath) {
+    $ConfigPath = Join-Path $scriptRoot 'project.build.json'
+}
+
+. (Join-Path $scriptRoot 'BuildHelpers.ps1')
+
+function Resolve-NuGetProjects {
+    <#
+    .SYNOPSIS
+    Resolves NuGet project paths from build configuration.
+
+    .DESCRIPTION
+    Uses explicit NuGetProjects first and can derive project paths from ExpectedVersionMap when enabled.
+
+    .PARAMETER Config
+    The parsed project build configuration.
+
+    .PARAMETER RootPath
+    The repository root path used to resolve relative project paths.
+
+    .PARAMETER SourcePath
+    The configuration file path used in validation errors.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject] $Config,
+
+        [Parameter(Mandatory)]
+        [string] $RootPath,
+
+        [Parameter(Mandatory)]
+        [string] $SourcePath
+    )
+
+    $configuredProjects = Get-BuildConfigValue -Config $Config -Name 'NuGetProjects'
+    if ($configuredProjects) {
+        @($configuredProjects)
+        return
+    }
+
+    $expectedVersionMap = Get-BuildConfigValue -Config $Config -Name 'ExpectedVersionMap'
+    $expectedVersionMapAsInclude = Get-BuildConfigValue -Config $Config -Name 'ExpectedVersionMapAsInclude'
+    if ($expectedVersionMapAsInclude -and $expectedVersionMap) {
+        $projects = [System.Collections.Generic.List[string]]::new()
+        foreach ($entry in $expectedVersionMap.PSObject.Properties) {
+            $projectName = [string] $entry.Name
+            # ExpectedVersionMap-derived projects follow the repository convention: <ProjectName>/<ProjectName>.csproj.
+            $relativeProjectPath = Join-Path $projectName ($projectName + '.csproj')
+            $projectPath = Join-Path $RootPath $relativeProjectPath
+            if (-not (Test-Path -LiteralPath $projectPath)) {
+                throw "ExpectedVersionMap project '$projectName' was not found at $projectPath."
+            }
+
+            $projects.Add($relativeProjectPath)
+        }
+
+        $projects.ToArray()
+        return
+    }
+
+    throw "No NuGet projects were configured in $SourcePath"
+}
+
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
     throw "Build configuration file not found: $ConfigPath"
 }
 
 $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-$rootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $config.RootPath))
-$solutionPath = Join-Path $rootPath $config.SolutionPath
-$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] $config.Configuration }
-$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] $config.StagingPath }
-$effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($config.DefaultVersion) { [string] $config.DefaultVersion } else { $null }
+$rootPath = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot (Get-BuildConfigValue -Config $config -Name 'RootPath')))
+$solutionPath = Resolve-BuildSolutionPath -Config $config -RootPath $rootPath
+$effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] (Get-BuildConfigValue -Config $config -Name 'Configuration') }
+$effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-BuildConfigValue -Config $config -Name 'StagingPath') }
+$defaultVersion = Get-BuildConfigValue -Config $config -Name 'DefaultVersion'
+$expectedVersion = Get-BuildConfigValue -Config $config -Name 'ExpectedVersion'
+# X-pattern versions are resolved by PSPublishModule; local wrappers only pass exact versions.
+$effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version) { $Version } elseif ($defaultVersion) { [string] $defaultVersion } elseif ($expectedVersion -and ([string] $expectedVersion) -notmatch '[Xx]') { [string] $expectedVersion } else { $null }
 $packageOutputPath = Join-Path $rootPath (Join-Path $effectiveArtifactsPath 'NuGet')
-
-if (-not $config.NuGetProjects -or $config.NuGetProjects.Count -eq 0) {
-    throw "No NuGet projects were configured in $ConfigPath"
-}
+$nugetProjects = @(Resolve-NuGetProjects -Config $config -RootPath $rootPath -SourcePath $ConfigPath)
 
 if ($Plan) {
     [pscustomobject] @{
@@ -38,7 +109,7 @@ if ($Plan) {
         Version = $effectiveVersion
         SkipRestore = $SkipRestore.IsPresent
         SkipBuild = $SkipBuild.IsPresent
-        Projects = @($config.NuGetProjects)
+        Projects = $nugetProjects
     }
     return
 }
@@ -80,7 +151,7 @@ try {
         }
     }
 
-    foreach ($project in $config.NuGetProjects) {
+    foreach ($project in $nugetProjects) {
         $projectPath = Join-Path $rootPath $project
         $packArguments = [System.Collections.Generic.List[string]]::new()
         $packArguments.Add('pack')

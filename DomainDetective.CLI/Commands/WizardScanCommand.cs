@@ -90,7 +90,7 @@ internal sealed class WizardScanSettings : CommandSettings
 internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
 {
     [RequiresDynamicCode("Calls JSON serialization")]
-    public override async Task<int> ExecuteAsync(CommandContext context, WizardScanSettings s)
+    protected override async Task<int> ExecuteAsync(CommandContext context, WizardScanSettings s, CancellationToken cancellationToken)
     {
         // Note: Spectre.Console global profile is read-only in this version.
         // We skip toggling ANSI here and rely on environment/terminal settings.
@@ -284,7 +284,7 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
             DisableLive = s.SimpleUi || !s.LiveUi
         });
 
-            var hc = await wizard.RunAsync(Program.CancellationToken);
+            var hc = await wizard.RunAsync(cancellationToken);
             // Save domain to recent list
             RecentDomains.Add(s.Domain);
 
@@ -348,7 +348,7 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
                 }
             }
 
-        } while (runAgain && !Program.CancellationToken.IsCancellationRequested);
+        } while (runAgain && !cancellationToken.IsCancellationRequested);
 
         return 0;
     }
