@@ -176,7 +176,21 @@ public sealed class CtLogIngestionClient {
     private const int StaticCtTileWidth = 256;
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
+    private readonly HttpClient? _httpClient;
     private readonly ConcurrentDictionary<string, CachedSignedTreeHead> _signedTreeHeadCache = new();
+
+    /// <summary>
+    /// Initializes a CT log ingestion client that uses the shared DomainDetective HTTP client.
+    /// </summary>
+    public CtLogIngestionClient() {
+    }
+
+    /// <summary>
+    /// Initializes a CT log ingestion client that uses a host-managed HTTP client.
+    /// </summary>
+    public CtLogIngestionClient(HttpClient httpClient) {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    }
 
     /// <summary>Optional HTTP override used by tests and host applications.</summary>
     public Func<string, CancellationToken, Task<string>>? HttpGetOverride { get; set; }
@@ -573,7 +587,7 @@ public sealed class CtLogIngestionClient {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         using HttpResponseMessage response = SendOverride != null
             ? await SendOverride(request, effectiveToken).ConfigureAwait(false)
-            : await SharedHttpClient.Instance.SendAsync(request, effectiveToken).ConfigureAwait(false);
+            : await GetHttpClient().SendAsync(request, effectiveToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) {
             throw CreateRequestFailure(response);
         }
@@ -597,7 +611,7 @@ public sealed class CtLogIngestionClient {
         request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
         using HttpResponseMessage response = SendOverride != null
             ? await SendOverride(request, effectiveToken).ConfigureAwait(false)
-            : await SharedHttpClient.Instance.SendAsync(request, effectiveToken).ConfigureAwait(false);
+            : await GetHttpClient().SendAsync(request, effectiveToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) {
             throw CreateRequestFailure(response);
         }
@@ -611,6 +625,8 @@ public sealed class CtLogIngestionClient {
 
         return bytes;
     }
+
+    private HttpClient GetHttpClient() => _httpClient ?? SharedHttpClient.Instance;
 
     private static async Task<byte[]> ReadContentBytesWithLimitAsync(
         HttpContent content,
