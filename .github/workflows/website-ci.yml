@@ -51,13 +51,13 @@ jobs:
     needs:
       - website-tests
       - deploy-contract
-    uses: EvotecIT/PSPublishModule/.github/workflows/powerforge-website-ci.yml@3c671c874bb90ad83741f42d6ad6106320c52502
+    uses: EvotecIT/PSPublishModule/.github/workflows/powerforge-website-ci.yml@34482d1c64887f4767e4aca4a3c71fe65123eff0
     with:
       website_root: Website
       pipeline_config: Website/pipeline.json
       engine_mode: source
       runner_labels_json: ${{ github.event.repository.private && '["self-hosted","linux"]' || '["ubuntu-latest"]' }}
       powerforge_repository: EvotecIT/PSPublishModule
-      powerforge_ref: 3c671c874bb90ad83741f42d6ad6106320c52502
+      powerforge_ref: 34482d1c64887f4767e4aca4a3c71fe65123eff0
       powerforge_web_tag: PowerForgeWeb-v1.0.0-preview-202604140746
       report_artifact_name: powerforge-website-reports
