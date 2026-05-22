@@ -65,6 +65,7 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         PublicResponseSignals.Clear();
         OriginTlsEndpoints.Clear();
         Assessments.Clear();
+        PublicEndpoint = null;
 
         using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "WEBAVAILABILITY", target: url);
         PublicEndpoint = await ProbePublicEndpointAsync(url, options, logger, cancellationToken).ConfigureAwait(false);
@@ -243,6 +244,10 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
 
     private static HttpMethod GetRedirectMethod(HttpMethod method, HttpStatusCode statusCode) {
         if (statusCode == HttpStatusCode.SeeOther && method != HttpMethod.Head) {
+            return HttpMethod.Get;
+        }
+
+        if ((statusCode == HttpStatusCode.MovedPermanently || statusCode == HttpStatusCode.Found) && method == HttpMethod.Post) {
             return HttpMethod.Get;
         }
 

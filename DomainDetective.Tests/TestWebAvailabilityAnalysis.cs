@@ -204,6 +204,50 @@ public class TestWebAvailabilityAnalysis {
     }
 
     [Fact]
+    public async Task UsesGetAfterPostFoundRedirect() {
+        HttpMethod? redirectedMethod = null;
+        var options = new WebAvailabilityOptions {
+            Method = HttpMethod.Post,
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                if (request.RequestUri!.AbsoluteUri.Equals("https://post.example/start", StringComparison.Ordinal)) {
+                    var redirect = new HttpResponseMessage(HttpStatusCode.Found);
+                    redirect.Headers.Location = new Uri("https://post.example/complete");
+                    return redirect;
+                }
+
+                redirectedMethod = request.Method;
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            })
+        };
+
+        var analysis = new WebAvailabilityAnalysis();
+        await analysis.AnalyzeAsync("https://post.example/start", options);
+
+        Assert.True(analysis.PublicEndpointAvailable);
+        Assert.Equal(HttpMethod.Get, redirectedMethod);
+    }
+
+    [Fact]
+    public async Task ClearsPublicEndpointBeforeCancelledAnalysis() {
+        var analysis = new WebAvailabilityAnalysis();
+        var successfulOptions = new WebAvailabilityOptions {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => new HttpResponseMessage(HttpStatusCode.OK))
+        };
+        await analysis.AnalyzeAsync("https://ok.example/", successfulOptions);
+        Assert.NotNull(analysis.PublicEndpoint);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var cancelledOptions = new WebAvailabilityOptions {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => throw new TaskCanceledException("cancelled"))
+        };
+
+        await Assert.ThrowsAsync<TaskCanceledException>(() => analysis.AnalyzeAsync("https://cancelled.example/", cancelledOptions, cancellationToken: cts.Token));
+
+        Assert.Null(analysis.PublicEndpoint);
+    }
+
+    [Fact]
     public async Task EmitsTlsCodeForHttpRequestExceptionHandshakeFailure() {
         var options = new WebAvailabilityOptions {
             HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) =>
