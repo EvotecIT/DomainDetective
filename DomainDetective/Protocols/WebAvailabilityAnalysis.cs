@@ -91,10 +91,10 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         };
 
         try {
-            using var handler = options.HttpHandlerFactory?.Invoke() ?? new HttpClientHandler { AllowAutoRedirect = false };
+            using var handler = CreateHttpHandler(options);
             using var client = new HttpClient(handler) { Timeout = options.Timeout };
             var currentUri = new Uri(url, UriKind.Absolute);
-            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var visited = new HashSet<string>(StringComparer.Ordinal);
 
             while (true) {
                 if (!visited.Add(currentUri.AbsoluteUri)) {
@@ -113,6 +113,8 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
                 result.ReasonPhrase = response.ReasonPhrase;
                 result.ProtocolVersion = response.Version?.ToString();
                 result.FinalUrl = response.RequestMessage?.RequestUri?.AbsoluteUri ?? currentUri.AbsoluteUri;
+                result.ResponseHeaders.Clear();
+                PublicResponseSignals.Clear();
                 CaptureHeaders(response, result.ResponseHeaders);
                 CaptureSignalHeaders(response, PublicResponseSignals);
 
@@ -167,12 +169,31 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         return result;
     }
 
-    private static void ApplyRequestHeaders(HttpRequestMessage request, WebAvailabilityOptions options) {
-        foreach (var header in options.Headers) {
-            if (string.IsNullOrWhiteSpace(header.Key)) {
-                continue;
-            }
+    private static HttpMessageHandler CreateHttpHandler(WebAvailabilityOptions options) {
+        var handler = options.HttpHandlerFactory?.Invoke() ?? new HttpClientHandler();
+        DisableAutoRedirect(handler);
+        return handler;
+    }
 
+    private static void DisableAutoRedirect(HttpMessageHandler handler) {
+        if (handler == null) {
+            throw new ArgumentNullException(nameof(handler));
+        }
+
+        var type = handler.GetType();
+        var allowAutoRedirect = type.GetProperty("AllowAutoRedirect");
+        if (allowAutoRedirect != null && allowAutoRedirect.CanWrite && allowAutoRedirect.PropertyType == typeof(bool)) {
+            allowAutoRedirect.SetValue(handler, false, null);
+        }
+
+        var maxAutomaticRedirections = type.GetProperty("MaxAutomaticRedirections");
+        if (maxAutomaticRedirections != null && maxAutomaticRedirections.CanWrite && maxAutomaticRedirections.PropertyType == typeof(int)) {
+            maxAutomaticRedirections.SetValue(handler, 1, null);
+        }
+    }
+
+    private static void ApplyRequestHeaders(HttpRequestMessage request, WebAvailabilityOptions options) {
+        foreach (var header in options.Headers.Where(static header => !string.IsNullOrWhiteSpace(header.Key))) {
             request.Headers.TryAddWithoutValidation(header.Key, header.Value ?? string.Empty);
         }
     }

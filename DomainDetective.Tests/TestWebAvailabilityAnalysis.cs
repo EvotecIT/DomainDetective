@@ -5,9 +5,11 @@ using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Sdk;
 
 namespace DomainDetective.Tests;
 
+[Collection("HttpListener")]
 public class TestWebAvailabilityAnalysis {
     [Fact]
     public async Task CapturesPublicEndpointRedirectAndSignals() {
@@ -17,6 +19,7 @@ public class TestWebAvailabilityAnalysis {
                     var response = new HttpResponseMessage(HttpStatusCode.MovedPermanently);
                     response.Headers.Location = new Uri("https://example.test/");
                     response.Headers.TryAddWithoutValidation("Server", "edge");
+                    response.Headers.TryAddWithoutValidation("X-Cache", "redirect-hop");
                     return response;
                 }
 
@@ -39,6 +42,8 @@ public class TestWebAvailabilityAnalysis {
         Assert.Equal(200, analysis.PublicEndpoint!.StatusCode);
         Assert.Equal("https://example.test/", analysis.PublicEndpoint.FinalUrl);
         Assert.Equal(2, analysis.PublicEndpoint.RedirectChain.Count);
+        Assert.Equal("cloudflare", analysis.PublicEndpoint.ResponseHeaders["Server"]);
+        Assert.False(analysis.PublicEndpoint.ResponseHeaders.ContainsKey("X-Cache"));
         Assert.Equal("cloudflare", analysis.PublicResponseSignals["Server"]);
         Assert.Equal("abc-WAW", analysis.PublicResponseSignals["CF-Ray"]);
         Assert.Equal("DYNAMIC", analysis.PublicResponseSignals["CF-Cache-Status"]);
@@ -114,5 +119,71 @@ public class TestWebAvailabilityAnalysis {
         Assert.True(analysis.PublicEndpoint!.RedirectLoop);
         Assert.Equal(WebAvailabilityFailureKind.RedirectLoop, analysis.PublicEndpoint.FailureKind);
         Assert.Contains(analysis.Assessments, assessment => assessment.Code == WebAvailabilityCodes.RedirectLoop);
+    }
+
+    [Fact]
+    public async Task DoesNotTreatCaseVariantRedirectAsLoop() {
+        var options = new WebAvailabilityOptions {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                if (request.RequestUri!.AbsoluteUri.Equals("https://case.example/Login", StringComparison.Ordinal)) {
+                    var redirect = new HttpResponseMessage(HttpStatusCode.Found);
+                    redirect.Headers.Location = new Uri("https://case.example/login");
+                    return redirect;
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            })
+        };
+
+        var analysis = new WebAvailabilityAnalysis();
+        await analysis.AnalyzeAsync("https://case.example/Login", options);
+
+        Assert.True(analysis.PublicEndpointAvailable);
+        Assert.False(analysis.PublicEndpoint!.RedirectLoop);
+        Assert.Equal(2, analysis.PublicEndpoint.RedirectChain.Count);
+        Assert.Equal("https://case.example/login", analysis.PublicEndpoint.FinalUrl);
+    }
+
+    [Fact]
+    public async Task DisablesAutoRedirectOnInjectedHttpClientHandler() {
+        Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
+        using var listener = new HttpListener();
+        var port = GetFreePort();
+        var prefix = $"http://localhost:{port}/";
+        listener.Prefixes.Add(prefix);
+        listener.Start();
+        PortHelper.ReleasePort(port);
+        var serverTask = Task.Run(async () => {
+            for (var i = 0; i < 2; i++) {
+                var ctx = await listener.GetContextAsync();
+                if (ctx.Request.RawUrl == "/") {
+                    ctx.Response.StatusCode = (int)HttpStatusCode.Found;
+                    ctx.Response.RedirectLocation = prefix + "final";
+                } else {
+                    ctx.Response.StatusCode = (int)HttpStatusCode.OK;
+                }
+
+                ctx.Response.Close();
+            }
+        });
+
+        try {
+            var options = new WebAvailabilityOptions {
+                HttpHandlerFactory = () => new HttpClientHandler()
+            };
+            var analysis = new WebAvailabilityAnalysis();
+            await analysis.AnalyzeAsync(prefix, options);
+
+            Assert.True(analysis.PublicEndpointAvailable);
+            Assert.Equal(2, analysis.PublicEndpoint!.RedirectChain.Count);
+            Assert.Equal(prefix + "final", analysis.PublicEndpoint.FinalUrl);
+        } finally {
+            listener.Stop();
+            await serverTask;
+        }
+    }
+
+    private static int GetFreePort() {
+        return PortHelper.GetFreePort();
     }
 }
