@@ -93,7 +93,8 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         try {
             using var handler = CreateHttpHandler(options);
             using var client = new HttpClient(handler) { Timeout = options.Timeout };
-            var currentUri = new Uri(url, UriKind.Absolute);
+            var initialUri = new Uri(url, UriKind.Absolute);
+            var currentUri = initialUri;
             var visited = new HashSet<string>(StringComparer.Ordinal);
 
             while (true) {
@@ -107,7 +108,7 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
 
                 result.RedirectChain.Add(currentUri.AbsoluteUri);
                 using var request = new HttpRequestMessage(options.Method, currentUri);
-                ApplyRequestHeaders(request, options);
+                ApplyRequestHeaders(request, options, initialUri, currentUri);
                 using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 result.StatusCode = (int)response.StatusCode;
                 result.ReasonPhrase = response.ReasonPhrase;
@@ -192,10 +193,20 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         }
     }
 
-    private static void ApplyRequestHeaders(HttpRequestMessage request, WebAvailabilityOptions options) {
+    private static void ApplyRequestHeaders(HttpRequestMessage request, WebAvailabilityOptions options, Uri initialUri, Uri currentUri) {
+        if (!IsSameOrigin(initialUri, currentUri)) {
+            return;
+        }
+
         foreach (var header in options.Headers.Where(static header => !string.IsNullOrWhiteSpace(header.Key))) {
             request.Headers.TryAddWithoutValidation(header.Key, header.Value ?? string.Empty);
         }
+    }
+
+    private static bool IsSameOrigin(Uri left, Uri right) {
+        return left.Scheme.Equals(right.Scheme, StringComparison.OrdinalIgnoreCase)
+            && left.Host.Equals(right.Host, StringComparison.OrdinalIgnoreCase)
+            && left.Port == right.Port;
     }
 
     private async Task<WebAvailabilityOriginTlsResult> ProbeOriginTlsAsync(
@@ -259,12 +270,31 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
     }
 
     private static void CaptureSignalHeaders(HttpResponseMessage response, Dictionary<string, string> target) {
-        foreach (var headerName in WebAvailabilitySignalHeaders.Names) {
-            if (response.Headers.TryGetValues(headerName, out var values) ||
-                (response.Content != null && response.Content.Headers.TryGetValues(headerName, out values))) {
+        foreach (var headerName in WebAvailabilitySignalHeaders.Names.Where(headerName => HasHeader(response, headerName))) {
+            if (TryGetHeaderValues(response, headerName, out var values)) {
                 target[headerName] = string.Join(",", values);
             }
         }
+    }
+
+    private static bool HasHeader(HttpResponseMessage response, string headerName) {
+        return response.Headers.TryGetValues(headerName, out _)
+            || (response.Content != null && response.Content.Headers.TryGetValues(headerName, out _));
+    }
+
+    private static bool TryGetHeaderValues(HttpResponseMessage response, string headerName, out IEnumerable<string> values) {
+        if (response.Headers.TryGetValues(headerName, out var responseValues)) {
+            values = responseValues;
+            return true;
+        }
+
+        if (response.Content != null && response.Content.Headers.TryGetValues(headerName, out var contentValues)) {
+            values = contentValues;
+            return true;
+        }
+
+        values = Array.Empty<string>();
+        return false;
     }
 
     private static WebAvailabilityFailureKind MapHttpFailure(Exception exception) {

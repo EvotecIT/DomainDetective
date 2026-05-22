@@ -145,6 +145,37 @@ public class TestWebAvailabilityAnalysis {
     }
 
     [Fact]
+    public async Task DoesNotForwardCustomHeadersAcrossOrigins() {
+        var finalRequestHadAuthorization = false;
+        var finalRequestHadApiKey = false;
+        var initialRequestHadAuthorization = false;
+        var options = new WebAvailabilityOptions {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                if (request.RequestUri!.Host.Equals("source.example", StringComparison.OrdinalIgnoreCase)) {
+                    initialRequestHadAuthorization = request.Headers.Contains("Authorization");
+                    var redirect = new HttpResponseMessage(HttpStatusCode.Found);
+                    redirect.Headers.Location = new Uri("https://target.example/");
+                    return redirect;
+                }
+
+                finalRequestHadAuthorization = request.Headers.Contains("Authorization");
+                finalRequestHadApiKey = request.Headers.Contains("X-Api-Key");
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            })
+        };
+        options.Headers["Authorization"] = "Bearer secret";
+        options.Headers["X-Api-Key"] = "secret";
+
+        var analysis = new WebAvailabilityAnalysis();
+        await analysis.AnalyzeAsync("https://source.example/", options);
+
+        Assert.True(analysis.PublicEndpointAvailable);
+        Assert.True(initialRequestHadAuthorization);
+        Assert.False(finalRequestHadAuthorization);
+        Assert.False(finalRequestHadApiKey);
+    }
+
+    [Fact]
     public async Task DisablesAutoRedirectOnInjectedHttpClientHandler() {
         Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
         using var listener = new HttpListener();
