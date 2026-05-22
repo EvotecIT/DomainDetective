@@ -13,6 +13,7 @@ namespace DomainDetective.Tests;
 public class TestWebAvailabilityAnalysis {
     [Fact]
     public async Task CapturesPublicEndpointRedirectAndSignals() {
+        var finalRequestHadApiKey = false;
         var options = new WebAvailabilityOptions {
             HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
                 if (request.RequestUri!.AbsoluteUri.Equals("http://example.test/", StringComparison.OrdinalIgnoreCase)) {
@@ -23,6 +24,7 @@ public class TestWebAvailabilityAnalysis {
                     return response;
                 }
 
+                finalRequestHadApiKey = request.Headers.Contains("X-Api-Key");
                 var ok = new HttpResponseMessage(HttpStatusCode.OK) {
                     ReasonPhrase = "OK"
                 };
@@ -33,6 +35,7 @@ public class TestWebAvailabilityAnalysis {
                 return ok;
             })
         };
+        options.Headers["X-Api-Key"] = "secret";
 
         var analysis = new WebAvailabilityAnalysis();
         await analysis.AnalyzeAsync("http://example.test/", options);
@@ -48,6 +51,7 @@ public class TestWebAvailabilityAnalysis {
         Assert.Equal("abc-WAW", analysis.PublicResponseSignals["CF-Ray"]);
         Assert.Equal("DYNAMIC", analysis.PublicResponseSignals["CF-Cache-Status"]);
         Assert.Equal("request-id", analysis.PublicResponseSignals["X-GitHub-Request-Id"]);
+        Assert.True(finalRequestHadApiKey);
         Assert.Contains(analysis.Assessments, assessment => assessment.Code == WebAvailabilityCodes.PublicEndpointAvailable);
     }
 
@@ -176,7 +180,46 @@ public class TestWebAvailabilityAnalysis {
     }
 
     [Fact]
-    public async Task DisablesAutoRedirectOnInjectedHttpClientHandler() {
+    public async Task UsesGetAfterSeeOtherRedirect() {
+        HttpMethod? redirectedMethod = null;
+        var options = new WebAvailabilityOptions {
+            Method = HttpMethod.Post,
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
+                if (request.RequestUri!.AbsoluteUri.Equals("https://post.example/submit", StringComparison.Ordinal)) {
+                    var redirect = new HttpResponseMessage(HttpStatusCode.SeeOther);
+                    redirect.Headers.Location = new Uri("https://post.example/status");
+                    return redirect;
+                }
+
+                redirectedMethod = request.Method;
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            })
+        };
+
+        var analysis = new WebAvailabilityAnalysis();
+        await analysis.AnalyzeAsync("https://post.example/submit", options);
+
+        Assert.True(analysis.PublicEndpointAvailable);
+        Assert.Equal(HttpMethod.Get, redirectedMethod);
+    }
+
+    [Fact]
+    public async Task EmitsTlsCodeForHttpRequestExceptionHandshakeFailure() {
+        var options = new WebAvailabilityOptions {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) =>
+                throw new HttpRequestException("TLS failed", new AuthenticationException("bad certificate")))
+        };
+
+        var analysis = new WebAvailabilityAnalysis();
+        await analysis.AnalyzeAsync("https://tls.example/", options);
+
+        Assert.False(analysis.PublicEndpointAvailable);
+        Assert.Equal(WebAvailabilityFailureKind.TlsHandshake, analysis.PublicEndpoint!.FailureKind);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == WebAvailabilityCodes.PublicEndpointTlsFailed);
+    }
+
+    [Fact]
+    public async Task DisablesAutoRedirectOnInjectedDelegatingHttpClientHandler() {
         Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
         using var listener = new HttpListener();
         var port = GetFreePort();
@@ -200,7 +243,7 @@ public class TestWebAvailabilityAnalysis {
 
         try {
             var options = new WebAvailabilityOptions {
-                HttpHandlerFactory = () => new HttpClientHandler()
+                HttpHandlerFactory = () => new PassThroughHandler(new HttpClientHandler())
             };
             var analysis = new WebAvailabilityAnalysis();
             await analysis.AnalyzeAsync(prefix, options);
@@ -216,5 +259,10 @@ public class TestWebAvailabilityAnalysis {
 
     private static int GetFreePort() {
         return PortHelper.GetFreePort();
+    }
+}
+
+internal sealed class PassThroughHandler : DelegatingHandler {
+    public PassThroughHandler(HttpMessageHandler innerHandler) : base(innerHandler) {
     }
 }

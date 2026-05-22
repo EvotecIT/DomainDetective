@@ -95,6 +95,7 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
             using var client = new HttpClient(handler) { Timeout = options.Timeout };
             var initialUri = new Uri(url, UriKind.Absolute);
             var currentUri = initialUri;
+            var currentMethod = options.Method;
             var visited = new HashSet<string>(StringComparer.Ordinal);
 
             while (true) {
@@ -107,7 +108,7 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
                 }
 
                 result.RedirectChain.Add(currentUri.AbsoluteUri);
-                using var request = new HttpRequestMessage(options.Method, currentUri);
+                using var request = new HttpRequestMessage(currentMethod, currentUri);
                 ApplyRequestHeaders(request, options, initialUri, currentUri);
                 using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 result.StatusCode = (int)response.StatusCode;
@@ -131,6 +132,7 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
                     currentUri = response.Headers.Location.IsAbsoluteUri
                         ? response.Headers.Location
                         : new Uri(currentUri, response.Headers.Location);
+                    currentMethod = GetRedirectMethod(currentMethod, response.StatusCode);
                     result.FinalUrl = currentUri.AbsoluteUri;
                     continue;
                 }
@@ -153,7 +155,10 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         } catch (HttpRequestException ex) {
             result.FailureKind = MapHttpFailure(ex);
             result.FailureReason = ex.Message;
-            logger.WriteErrorCode(WebAvailabilityCodes.PublicEndpointRequestFailed, "Public web endpoint request failed: {0}", ex.Message);
+            var code = result.FailureKind == WebAvailabilityFailureKind.TlsHandshake
+                ? WebAvailabilityCodes.PublicEndpointTlsFailed
+                : WebAvailabilityCodes.PublicEndpointRequestFailed;
+            logger.WriteErrorCode(code, "Public web endpoint request failed: {0}", ex.Message);
         } catch (AuthenticationException ex) {
             result.FailureKind = WebAvailabilityFailureKind.TlsHandshake;
             result.FailureReason = ex.Message;
@@ -191,10 +196,14 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         if (maxAutomaticRedirections != null && maxAutomaticRedirections.CanWrite && maxAutomaticRedirections.PropertyType == typeof(int)) {
             maxAutomaticRedirections.SetValue(handler, 1, null);
         }
+
+        if (handler is DelegatingHandler delegatingHandler && delegatingHandler.InnerHandler != null) {
+            DisableAutoRedirect(delegatingHandler.InnerHandler);
+        }
     }
 
     private static void ApplyRequestHeaders(HttpRequestMessage request, WebAvailabilityOptions options, Uri initialUri, Uri currentUri) {
-        if (!IsSameOrigin(initialUri, currentUri)) {
+        if (!ShouldSendRequestHeaders(initialUri, currentUri)) {
             return;
         }
 
@@ -203,10 +212,41 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         }
     }
 
+    private static bool ShouldSendRequestHeaders(Uri initialUri, Uri currentUri) {
+        return IsSameOrigin(initialUri, currentUri) || IsSameHostHttpToHttpsUpgrade(initialUri, currentUri);
+    }
+
     private static bool IsSameOrigin(Uri left, Uri right) {
+        return HasSameSchemeAndHost(left, right) && left.Port == right.Port;
+    }
+
+    private static bool IsSameHostHttpToHttpsUpgrade(Uri initialUri, Uri currentUri) {
+        return initialUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            && currentUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && initialUri.Host.Equals(currentUri.Host, StringComparison.OrdinalIgnoreCase)
+            && IsDefaultHttpPort(initialUri)
+            && IsDefaultHttpsPort(currentUri);
+    }
+
+    private static bool HasSameSchemeAndHost(Uri left, Uri right) {
         return left.Scheme.Equals(right.Scheme, StringComparison.OrdinalIgnoreCase)
-            && left.Host.Equals(right.Host, StringComparison.OrdinalIgnoreCase)
-            && left.Port == right.Port;
+            && left.Host.Equals(right.Host, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDefaultHttpPort(Uri uri) {
+        return uri.IsDefaultPort || uri.Port == 80;
+    }
+
+    private static bool IsDefaultHttpsPort(Uri uri) {
+        return uri.IsDefaultPort || uri.Port == 443;
+    }
+
+    private static HttpMethod GetRedirectMethod(HttpMethod method, HttpStatusCode statusCode) {
+        if (statusCode == HttpStatusCode.SeeOther && method != HttpMethod.Head) {
+            return HttpMethod.Get;
+        }
+
+        return method;
     }
 
     private async Task<WebAvailabilityOriginTlsResult> ProbeOriginTlsAsync(
@@ -270,31 +310,23 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
     }
 
     private static void CaptureSignalHeaders(HttpResponseMessage response, Dictionary<string, string> target) {
-        foreach (var headerName in WebAvailabilitySignalHeaders.Names.Where(headerName => HasHeader(response, headerName))) {
-            if (TryGetHeaderValues(response, headerName, out var values)) {
-                target[headerName] = string.Join(",", values);
-            }
+        foreach (var header in WebAvailabilitySignalHeaders.Names
+            .Select(headerName => new { Name = headerName, Values = GetHeaderValuesOrEmpty(response, headerName) })
+            .Where(static header => header.Values.Any())) {
+            target[header.Name] = string.Join(",", header.Values);
         }
     }
 
-    private static bool HasHeader(HttpResponseMessage response, string headerName) {
-        return response.Headers.TryGetValues(headerName, out _)
-            || (response.Content != null && response.Content.Headers.TryGetValues(headerName, out _));
-    }
-
-    private static bool TryGetHeaderValues(HttpResponseMessage response, string headerName, out IEnumerable<string> values) {
+    private static IEnumerable<string> GetHeaderValuesOrEmpty(HttpResponseMessage response, string headerName) {
         if (response.Headers.TryGetValues(headerName, out var responseValues)) {
-            values = responseValues;
-            return true;
+            return responseValues;
         }
 
         if (response.Content != null && response.Content.Headers.TryGetValues(headerName, out var contentValues)) {
-            values = contentValues;
-            return true;
+            return contentValues;
         }
 
-        values = Array.Empty<string>();
-        return false;
+        return Array.Empty<string>();
     }
 
     private static WebAvailabilityFailureKind MapHttpFailure(Exception exception) {
