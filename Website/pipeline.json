@@ -375,7 +375,7 @@
       "checkUtf8": true,
       "checkMetaCharset": true,
       "checkUnicodeReplacementChars": true,
-      "requiredRoutes": "/,/docs/,/tools/,/404.html,/search/,/sitemap/,/products/dnsclientx/,/docs/dnsclientx/"
+      "requiredRoutes": "/,/docs/,/tools/,/404.html,/search/,/sitemap/,/sitemap.xml,/products/dnsclientx/,/docs/dnsclientx/"
     }
   ]
 }
