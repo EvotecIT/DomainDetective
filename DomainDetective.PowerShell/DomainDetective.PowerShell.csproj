@@ -66,4 +66,18 @@
         <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
         <PackageReference Include="Spectre.Console" Version="0.55.2" />
     </ItemGroup>
+
+    <PropertyGroup Condition=" '$(TargetFramework)' == 'net472' ">
+        <XmlDocSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.7\lib\net462\System.Text.Json.dll</XmlDocSystemTextJsonAssembly>
+        <XmlDocSystemTextJsonAssembly Condition=" '$(Configuration)' == 'Release' ">$(NuGetPackageRoot)system.text.json\10.0.5\lib\net462\System.Text.Json.dll</XmlDocSystemTextJsonAssembly>
+        <ResolvedSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.8\lib\net462\System.Text.Json.dll</ResolvedSystemTextJsonAssembly>
+    </PropertyGroup>
+
+    <Target Name="UseCompatibleSystemTextJsonForXmlDoc2CmdletDoc" BeforeTargets="XmlDoc2CmdletDoc" Condition=" '$(TargetFramework)' == 'net472' And Exists('$(XmlDocSystemTextJsonAssembly)') ">
+        <Copy SourceFiles="$(XmlDocSystemTextJsonAssembly)" DestinationFiles="$(OutDir)System.Text.Json.dll" />
+    </Target>
+
+    <Target Name="RestoreResolvedSystemTextJsonAfterXmlDoc2CmdletDoc" AfterTargets="XmlDoc2CmdletDoc" Condition=" '$(TargetFramework)' == 'net472' And Exists('$(ResolvedSystemTextJsonAssembly)') ">
+        <Copy SourceFiles="$(ResolvedSystemTextJsonAssembly)" DestinationFiles="$(OutDir)System.Text.Json.dll" />
+    </Target>
 </Project>
