@@ -67,17 +67,13 @@
         <PackageReference Include="Spectre.Console" Version="0.55.2" />
     </ItemGroup>
 
-    <ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
-        <PackageReference Include="System.Text.Json" Version="10.0.8" />
-    </ItemGroup>
-
     <PropertyGroup Condition=" '$(TargetFramework)' == 'net472' ">
-        <DnsClientXSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.5\lib\net462\System.Text.Json.dll</DnsClientXSystemTextJsonAssembly>
+        <XmlDocSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.7\lib\net462\System.Text.Json.dll</XmlDocSystemTextJsonAssembly>
         <ResolvedSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.8\lib\net462\System.Text.Json.dll</ResolvedSystemTextJsonAssembly>
     </PropertyGroup>
 
-    <Target Name="UseDnsClientXSystemTextJsonForXmlDoc2CmdletDoc" BeforeTargets="XmlDoc2CmdletDoc" Condition=" '$(TargetFramework)' == 'net472' And Exists('$(DnsClientXSystemTextJsonAssembly)') ">
-        <Copy SourceFiles="$(DnsClientXSystemTextJsonAssembly)" DestinationFiles="$(OutDir)System.Text.Json.dll" />
+    <Target Name="UseCompatibleSystemTextJsonForXmlDoc2CmdletDoc" BeforeTargets="XmlDoc2CmdletDoc" Condition=" '$(TargetFramework)' == 'net472' And Exists('$(XmlDocSystemTextJsonAssembly)') ">
+        <Copy SourceFiles="$(XmlDocSystemTextJsonAssembly)" DestinationFiles="$(OutDir)System.Text.Json.dll" />
     </Target>
 
     <Target Name="RestoreResolvedSystemTextJsonAfterXmlDoc2CmdletDoc" AfterTargets="XmlDoc2CmdletDoc" Condition=" '$(TargetFramework)' == 'net472' And Exists('$(ResolvedSystemTextJsonAssembly)') ">
