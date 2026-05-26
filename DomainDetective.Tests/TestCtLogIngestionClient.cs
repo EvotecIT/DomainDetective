@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -648,11 +649,11 @@ public sealed class TestCtLogIngestionClient {
         var firstTileMayComplete = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         int activeTileFetches = 0;
         int maxActiveTileFetches = 0;
-        List<string> requestedUrls = [];
+        var requestedUrls = new ConcurrentQueue<string>();
         var client = new CtLogIngestionClient {
             SendOverride = async (request, cancellationToken) => {
                 string url = request.RequestUri?.ToString() ?? string.Empty;
-                requestedUrls.Add(url);
+                requestedUrls.Enqueue(url);
                 int active = Interlocked.Increment(ref activeTileFetches);
                 UpdateMaxActive(ref maxActiveTileFetches, active);
                 try {
