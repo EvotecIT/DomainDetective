@@ -641,6 +641,64 @@ public sealed class TestCtLogIngestionClient {
     }
 
     [Fact]
+    public async Task ReadBatchAsync_FetchesStaticCtDataTilesConcurrently_WhenConfigured() {
+        byte[] certificateDer = LoadCertificateDer("multi.pem");
+        byte[] firstTile = CreateStaticCtTile(certificateDer, DateTimeOffset.Parse("2026-01-02T03:04:05Z"), 256);
+        byte[] secondTile = CreateStaticCtTile(certificateDer, DateTimeOffset.Parse("2026-01-02T03:08:21Z"), 256);
+        var firstTileMayComplete = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int activeTileFetches = 0;
+        int maxActiveTileFetches = 0;
+        List<string> requestedUrls = [];
+        var client = new CtLogIngestionClient {
+            SendOverride = async (request, cancellationToken) => {
+                string url = request.RequestUri?.ToString() ?? string.Empty;
+                requestedUrls.Add(url);
+                int active = Interlocked.Increment(ref activeTileFetches);
+                UpdateMaxActive(ref maxActiveTileFetches, active);
+                try {
+                    if (url.EndsWith("/tile/data/000", StringComparison.Ordinal)) {
+                        await WaitForSignalAsync(firstTileMayComplete.Task, TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+                        return CreateBinaryResponse(firstTile);
+                    }
+
+                    if (url.EndsWith("/tile/data/001", StringComparison.Ordinal)) {
+                        firstTileMayComplete.TrySetResult(true);
+                        return CreateBinaryResponse(secondTile);
+                    }
+
+                    throw new InvalidOperationException("Unexpected URL: " + url);
+                } finally {
+                    Interlocked.Decrement(ref activeTileFetches);
+                }
+            }
+        };
+
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(
+            new CtLogIngestionBatchRequest {
+                LogUrl = "https://log.ct.example.test/2026h1/",
+                ApiKind = CtLogApiKind.StaticCt,
+                MonitoringUrl = "https://mon.ct.example.test/2026h1/",
+                StartIndex = 0,
+                BatchSize = 512,
+                KnownTreeSize = 512,
+                RequestTimeout = TimeSpan.FromSeconds(5),
+                StaticTileFetchConcurrency = 2,
+                CertificateDetailLevel = CtCertificateRecordDetailLevel.NamesOnly
+            },
+            CancellationToken.None);
+
+        Assert.Equal(512, batch.Entries.Count);
+        Assert.Equal(0L, batch.Entries[0].EntryIndex);
+        Assert.Equal(255L, batch.Entries[255].EntryIndex);
+        Assert.Equal(256L, batch.Entries[256].EntryIndex);
+        Assert.True(maxActiveTileFetches >= 2);
+        Assert.Equal([
+            "https://mon.ct.example.test/2026h1/tile/data/000",
+            "https://mon.ct.example.test/2026h1/tile/data/001"
+        ], requestedUrls.OrderBy(static item => item, StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
     public async Task ReadBatchAsync_RejectsStaticCtDataTileWithUnexpectedEntryCount() {
         byte[] certificateDer = LoadCertificateDer("multi.pem");
         byte[] first = CreateStaticCtX509Tile(certificateDer, DateTimeOffset.Parse("2026-01-02T03:04:05Z"));
@@ -796,6 +854,31 @@ public sealed class TestCtLogIngestionClient {
         WriteVector16(stream, Array.Empty<byte>());
         WriteVector16(stream, Array.Empty<byte>());
         return stream.ToArray();
+    }
+
+    private static byte[] CreateStaticCtTile(byte[] certificateDer, DateTimeOffset firstTimestampUtc, int count)
+        => Enumerable
+            .Range(0, count)
+            .SelectMany(index => CreateStaticCtX509Tile(certificateDer, firstTimestampUtc.AddSeconds(index)))
+            .ToArray();
+
+    private static void UpdateMaxActive(ref int maxActive, int observed) {
+        int snapshot;
+        do {
+            snapshot = Volatile.Read(ref maxActive);
+            if (observed <= snapshot) {
+                return;
+            }
+        } while (Interlocked.CompareExchange(ref maxActive, observed, snapshot) != snapshot);
+    }
+
+    private static async Task WaitForSignalAsync(Task signal, TimeSpan timeout, CancellationToken cancellationToken) {
+        Task completed = await Task.WhenAny(signal, Task.Delay(timeout, cancellationToken)).ConfigureAwait(false);
+        if (!ReferenceEquals(completed, signal)) {
+            throw new TimeoutException("The expected concurrent Static CT tile request did not start.");
+        }
+
+        await signal.ConfigureAwait(false);
     }
 
     private static byte[] CreateStaticCtPrecertificateTile(byte[] certificateDer, DateTimeOffset timestampUtc) {

@@ -162,6 +162,8 @@ public sealed class CtLogIngestionBatchRequest {
     public long? KnownTreeSize { get; init; }
     /// <summary>HTTP request timeout.</summary>
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    /// <summary>Maximum number of Static CT data tiles to fetch concurrently for one batch.</summary>
+    public int StaticTileFetchConcurrency { get; init; } = 1;
     /// <summary>How much certificate metadata to decode for each entry.</summary>
     public CtCertificateRecordDetailLevel CertificateDetailLevel { get; init; } = CtCertificateRecordDetailLevel.Full;
 }
@@ -440,22 +442,24 @@ public sealed class CtLogIngestionClient {
         long end = Math.Min(treeSize - 1, start + batchSize - 1);
         var entries = new List<CtLogIngestionEntry>();
         var diagnostics = new List<string>();
-        for (long tileIndex = start / StaticCtTileWidth; tileIndex <= end / StaticCtTileWidth; tileIndex++) {
+        IReadOnlyList<StaticCtDataTile> tiles = await GetStaticDataTilesAsync(
+            monitoringUrl,
+            start / StaticCtTileWidth,
+            end / StaticCtTileWidth,
+            treeSize,
+            timeout,
+            Math.Max(1, request.StaticTileFetchConcurrency),
+            cancellationToken).ConfigureAwait(false);
+        foreach (StaticCtDataTile tile in tiles) {
             cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<StaticCtTileEntry> tileEntries = await GetStaticDataTileEntriesAsync(
-                monitoringUrl,
-                tileIndex,
-                treeSize,
-                timeout,
-                cancellationToken).ConfigureAwait(false);
-            long tileStartIndex = tileIndex * StaticCtTileWidth;
-            for (int tileOffset = 0; tileOffset < tileEntries.Count; tileOffset++) {
+            long tileStartIndex = tile.TileIndex * StaticCtTileWidth;
+            for (int tileOffset = 0; tileOffset < tile.Entries.Count; tileOffset++) {
                 long entryIndex = tileStartIndex + tileOffset;
                 if (entryIndex < start || entryIndex > end) {
                     continue;
                 }
 
-                StaticCtTileEntry tileEntry = tileEntries[tileOffset];
+                StaticCtTileEntry tileEntry = tile.Entries[tileOffset];
                 try {
                     entries.Add(new CtLogIngestionEntry {
                         LogUrl = submissionUrl,
@@ -485,6 +489,55 @@ public sealed class CtLogIngestionClient {
             Entries = entries,
             Diagnostics = diagnostics
         };
+    }
+
+    private async Task<IReadOnlyList<StaticCtDataTile>> GetStaticDataTilesAsync(
+        string monitoringUrl,
+        long firstTileIndex,
+        long lastTileIndex,
+        long treeSize,
+        TimeSpan timeout,
+        int fetchConcurrency,
+        CancellationToken cancellationToken) {
+        if (lastTileIndex < firstTileIndex) {
+            return Array.Empty<StaticCtDataTile>();
+        }
+
+        int tileCount = checked((int)(lastTileIndex - firstTileIndex + 1));
+        int concurrency = Math.Max(1, Math.Min(fetchConcurrency, tileCount));
+        var tiles = new StaticCtDataTile[tileCount];
+        if (concurrency == 1) {
+            for (int offset = 0; offset < tileCount; offset++) {
+                long tileIndex = firstTileIndex + offset;
+                tiles[offset] = new StaticCtDataTile(
+                    tileIndex,
+                    await GetStaticDataTileEntriesAsync(monitoringUrl, tileIndex, treeSize, timeout, cancellationToken).ConfigureAwait(false));
+            }
+
+            return tiles;
+        }
+
+        using var gate = new SemaphoreSlim(concurrency);
+        var tasks = new List<Task>(tileCount);
+        for (int offset = 0; offset < tileCount; offset++) {
+            int tileOffset = offset;
+            long tileIndex = firstTileIndex + offset;
+            tasks.Add(FetchTileAsync(tileOffset, tileIndex));
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        return tiles;
+
+        async Task FetchTileAsync(int tileOffset, long tileIndex) {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try {
+                tiles[tileOffset] = new StaticCtDataTile(
+                    tileIndex,
+                    await GetStaticDataTileEntriesAsync(monitoringUrl, tileIndex, treeSize, timeout, cancellationToken).ConfigureAwait(false));
+            } finally {
+                gate.Release();
+            }
+        }
     }
 
     private async Task<CtSignedTreeHead> GetStaticSignedTreeHeadAsync(
@@ -587,7 +640,7 @@ public sealed class CtLogIngestionClient {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         using HttpResponseMessage response = SendOverride != null
             ? await SendOverride(request, effectiveToken).ConfigureAwait(false)
-            : await GetHttpClient().SendAsync(request, effectiveToken).ConfigureAwait(false);
+            : await GetHttpClient().SendAsync(request, HttpCompletionOption.ResponseHeadersRead, effectiveToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) {
             throw CreateRequestFailure(response);
         }
@@ -611,7 +664,7 @@ public sealed class CtLogIngestionClient {
         request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
         using HttpResponseMessage response = SendOverride != null
             ? await SendOverride(request, effectiveToken).ConfigureAwait(false)
-            : await GetHttpClient().SendAsync(request, effectiveToken).ConfigureAwait(false);
+            : await GetHttpClient().SendAsync(request, HttpCompletionOption.ResponseHeadersRead, effectiveToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) {
             throw CreateRequestFailure(response);
         }
@@ -1262,4 +1315,8 @@ public sealed class CtLogIngestionClient {
         DateTimeOffset? TimestampUtc,
         CtLogEntryType EntryType,
         byte[] CertificateDer);
+
+    private sealed record StaticCtDataTile(
+        long TileIndex,
+        IReadOnlyList<StaticCtTileEntry> Entries);
 }
