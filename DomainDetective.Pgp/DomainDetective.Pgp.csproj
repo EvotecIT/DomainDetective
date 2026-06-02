@@ -14,7 +14,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
-        <PackageReference Include="PgpCore" Version="7.0.0" />
+        <PackageReference Include="PgpCore" Version="7.1.0" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net472'">

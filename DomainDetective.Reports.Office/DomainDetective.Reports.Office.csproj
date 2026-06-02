@@ -12,7 +12,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="OfficeIMO.Word" Version="1.0.46" />
+        <PackageReference Include="OfficeIMO.Word" Version="1.0.59" />
         <PackageReference Include="OfficeIMO.Excel" Version="0.6.39" />
         <!-- <ProjectReference Include="..\..\OfficeIMO\OfficeIMO.Excel\OfficeIMO.Excel.csproj" /> -->
     </ItemGroup>
