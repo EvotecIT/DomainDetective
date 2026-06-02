@@ -17,3 +17,8 @@ updates:
               update-types:
                   - minor
                   - patch
+      ignore:
+          # SixLabors.ImageSharp 4.x has a license change; keep 3.x updates flowing.
+          - dependency-name: "SixLabors.ImageSharp"
+            update-types:
+                - "version-update:semver-major"
