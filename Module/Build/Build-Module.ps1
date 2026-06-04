@@ -64,24 +64,29 @@ Build-Module -ModuleName 'DomainDetective' {
     New-ConfigurationImportModule -ImportSelf -ImportRequiredModules
 
     $newConfigurationBuildSplat = @{
-        Enable                            = $true
-        SignModule                        = if ($Env:COMPUTERNAME -eq 'EVOMAGIC') { $true } else { $false }
-        MergeModuleOnBuild                = $true
-        MergeFunctionsFromApprovedModules = $true
-        CertificateThumbprint             = '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
-        NETProjectPath                    = "$PSScriptRoot\..\..\DomainDetective.PowerShell"
-        ResolveBinaryConflicts            = $true
-        ResolveBinaryConflictsName        = 'DomainDetective.PowerShell'
-        NETProjectName                    = 'DomainDetective.PowerShell'
-        NETBinaryModule                   = 'DomainDetective.PowerShell.dll'
-        NETConfiguration                  = 'Release'
-        NETFramework                      = 'net8.0', 'net472'
-        NETHandleAssemblyWithSameName     = $true
-        DotSourceLibraries                = $true
-        DotSourceClasses                  = $true
-        DeleteTargetModuleBeforeBuild     = $true
-        RefreshPSD1Only                   = $true
-        NETBinaryModuleDocumenation       = $true
+        Enable                               = $true
+        SignModule                           = if ($Env:COMPUTERNAME -eq 'EVOMAGIC') { $true } else { $false }
+        MergeModuleOnBuild                   = $true
+        MergeFunctionsFromApprovedModules    = $true
+        CertificateThumbprint                = '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
+        NETProjectPath                       = "$PSScriptRoot\..\..\DomainDetective.PowerShell"
+        ResolveBinaryConflicts               = $true
+        ResolveBinaryConflictsName           = 'DomainDetective.PowerShell'
+        NETProjectName                       = 'DomainDetective.PowerShell'
+        NETBinaryModule                      = 'DomainDetective.PowerShell.dll'
+        NETConfiguration                     = 'Release'
+        NETFramework                         = 'net8.0', 'net472'
+        NETHandleAssemblyWithSameName        = $true
+        NETAssemblyLoadContext               = $true
+        NETAssemblyTypeAcceleratorMode       = 'Assembly'
+        NETAssemblyTypeAcceleratorAssemblies = @(
+            'DomainDetective'
+        )
+        DotSourceLibraries                   = $true
+        DotSourceClasses                     = $true
+        DeleteTargetModuleBeforeBuild        = $true
+        RefreshPSD1Only                      = if ([string]::IsNullOrWhiteSpace($Env:RefreshPSD1Only)) { $true } else { [bool]::Parse($Env:RefreshPSD1Only) }
+        NETBinaryModuleDocumenation          = $true
     }
 
     New-ConfigurationBuild @newConfigurationBuildSplat
