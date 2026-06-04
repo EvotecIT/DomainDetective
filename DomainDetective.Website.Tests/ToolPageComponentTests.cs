@@ -50,6 +50,7 @@ public sealed class ToolPageComponentTests : TestContext {
             Assert.Equal("contoso.com", domainInput.GetAttribute("value"));
             Assert.Contains("Need raw record-by-record queries?", cut.Markup);
             Assert.Contains("Use <a href=\"/tools/raw-dns-query/\">Raw DNS Query</a>", cut.Markup);
+            Assert.Contains("/tools/dns-query-playground/", cut.Markup);
             Assert.Contains("Analyze", cut.Markup);
             Assert.DoesNotContain("Tool not found", cut.Markup);
             Assert.Contains(_dnsHandler.RequestUris, uri => uri.Host.Equals("cloudflare-dns.com", StringComparison.OrdinalIgnoreCase));
