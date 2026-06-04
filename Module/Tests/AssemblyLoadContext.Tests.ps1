@@ -27,8 +27,11 @@ Import-Module DomainDetective -Force
 `$commandAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext(`$commandAssembly)
 `$healthCheckAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext([DomainDetective.DomainHealthCheck].Assembly)
 `$captureOptionsAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext([DomainDetective.CertificateInventoryCaptureOptions].Assembly)
+`$exportDefaultsAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext([DomainDetective.PowerShell.ExportDefaults].Assembly)
+`$spfCmdletAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext([DomainDetective.PowerShell.CmdletTestSpfRecord].Assembly)
 `$healthCheck = [DomainDetective.DomainHealthCheck]::new()
 `$captureOptions = [DomainDetective.CertificateInventoryCaptureOptions]::new()
+`$spfCmdlet = [DomainDetective.PowerShell.CmdletTestSpfRecord]::new()
 
 [pscustomobject]@{
     CommandName = `$command.Name
@@ -42,8 +45,15 @@ Import-Module DomainDetective -Force
     CaptureOptionsType = [DomainDetective.CertificateInventoryCaptureOptions].FullName
     CaptureOptionsALC = `$captureOptionsAlc.Name
     CaptureOptionsALCIsDefault = [object]::ReferenceEquals(`$captureOptionsAlc, [System.Runtime.Loader.AssemblyLoadContext]::Default)
+    ExportDefaultsType = [DomainDetective.PowerShell.ExportDefaults].FullName
+    ExportDefaultsALC = `$exportDefaultsAlc.Name
+    ExportDefaultsALCIsDefault = [object]::ReferenceEquals(`$exportDefaultsAlc, [System.Runtime.Loader.AssemblyLoadContext]::Default)
+    SpfCmdletType = [DomainDetective.PowerShell.CmdletTestSpfRecord].FullName
+    SpfCmdletALC = `$spfCmdletAlc.Name
+    SpfCmdletALCIsDefault = [object]::ReferenceEquals(`$spfCmdletAlc, [System.Runtime.Loader.AssemblyLoadContext]::Default)
     HealthCheckCreated = `$null -ne `$healthCheck
     CaptureOptionsCreated = `$null -ne `$captureOptions
+    SpfCmdletCreated = `$null -ne `$spfCmdlet
 } | ConvertTo-Json -Compress
 "@
         $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
@@ -65,7 +75,14 @@ Import-Module DomainDetective -Force
         $result.CaptureOptionsType | Should -Be 'DomainDetective.CertificateInventoryCaptureOptions'
         $result.CaptureOptionsALC | Should -Be 'DomainDetective'
         $result.CaptureOptionsALCIsDefault | Should -BeFalse
+        $result.ExportDefaultsType | Should -Be 'DomainDetective.PowerShell.ExportDefaults'
+        $result.ExportDefaultsALC | Should -Be 'DomainDetective'
+        $result.ExportDefaultsALCIsDefault | Should -BeFalse
+        $result.SpfCmdletType | Should -Be 'DomainDetective.PowerShell.CmdletTestSpfRecord'
+        $result.SpfCmdletALC | Should -Be 'DomainDetective'
+        $result.SpfCmdletALCIsDefault | Should -BeFalse
         $result.HealthCheckCreated | Should -BeTrue
         $result.CaptureOptionsCreated | Should -BeTrue
+        $result.SpfCmdletCreated | Should -BeTrue
     }
 }

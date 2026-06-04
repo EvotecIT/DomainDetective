@@ -81,6 +81,7 @@ Build-Module -ModuleName 'DomainDetective' {
         NETAssemblyTypeAcceleratorMode       = 'Assembly'
         NETAssemblyTypeAcceleratorAssemblies = @(
             'DomainDetective'
+            'DomainDetective.PowerShell'
         )
         DotSourceLibraries                   = $true
         DotSourceClasses                     = $true
