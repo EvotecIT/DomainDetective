@@ -14,6 +14,7 @@ public sealed class CmdletSetExportOptions : PSCmdlet {
 
         /// <summary>Default format for exports.</summary>
         [Parameter(Mandatory = false)]
+        [ValidateSet("Html","Json","Word","Excel","Markdown","MarkdownHtml", IgnoreCase = true)]
         public ReportFormat? DefaultFormat { get; set; }
 
         /// <summary>Default output directory for exported reports.</summary>
@@ -134,6 +135,7 @@ public sealed class CmdletSetExportOptions : PSCmdlet {
             }
 
             if (DefaultFormat.HasValue) {
+                ValidateDefaultFormat(DefaultFormat.Value);
                 ExportDefaults.Format = DefaultFormat.Value;
                 WriteVerbose($"Default export format set to {ExportDefaults.Format}.");
             }
@@ -225,6 +227,13 @@ public sealed class CmdletSetExportOptions : PSCmdlet {
             if (this.MyInvocation.BoundParameters.ContainsKey(nameof(NoArtifacts))) {
                 ExportDefaults.EmitArtifacts = !NoArtifacts.IsPresent;
                 WriteVerbose($"Artifacts default set to {ExportDefaults.EmitArtifacts}.");
+            }
+        }
+
+        internal static void ValidateDefaultFormat(ReportFormat format)
+        {
+            if (format == ReportFormat.Pdf) {
+                throw new System.ArgumentException("PDF report generation is not currently shipped in DomainDetective. Generate Word output and convert it with OfficeIMO PDF support when that package path is available.", nameof(DefaultFormat));
             }
         }
     }

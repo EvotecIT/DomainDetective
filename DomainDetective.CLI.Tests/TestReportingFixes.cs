@@ -35,6 +35,14 @@ public sealed class TestReportingFixes
     }
 
     [Fact]
+    public void ResolveReportFormat_RejectsPdfBeforeAnalysisStarts()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => GenerateReportCommand.ResolveReportFormat("pdf"));
+
+        Assert.Contains("PDF report generation is not currently shipped", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ResolveOutputPath_CreatesParentDirectoryForExplicitFilePath()
     {
         var root = Path.Combine(Path.GetTempPath(), "dd-reporting-" + Guid.NewGuid().ToString("N"));
