@@ -3,8 +3,8 @@ param(
     [string] $ConfigPath,
     [switch] $UpdateVersions,
     [switch] $Build,
-    [switch] $PublishNuget,
-    [switch] $PublishGitHub,
+    [switch] $PublishNuget = $false,
+    [switch] $PublishGitHub = $false,
     [switch] $Plan,
     [string] $PlanPath
 )
