@@ -42,12 +42,6 @@
     <Description>Word and Excel reporting components for DomainDetective.</Description>
     <PackageTags>domain;dns;email;security;word;excel;reporting</PackageTags>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Reports.Pdf'">
-    <PackageId>DomainDetective.Reports.Pdf</PackageId>
-    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
-    <Description>PDF reporting components for DomainDetective.</Description>
-    <PackageTags>domain;dns;email;security;pdf;reporting</PackageTags>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'DomainDetective.Visual'">
     <PackageId>DomainDetective.Visual</PackageId>
     <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>

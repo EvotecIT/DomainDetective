@@ -72,6 +72,15 @@ public class TestPowerShellExportDefaults
         }
     }
 
+    [Fact]
+    public void SetExportOptionsRejectsPdfDefaultFormat()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => CmdletSetExportOptions.ValidateDefaultFormat(ReportFormat.Pdf));
+
+        Assert.Contains("PDF report generation is not currently shipped", ex.Message, StringComparison.Ordinal);
+    }
+
     private static ExportDefaultsSnapshot CaptureExportDefaults()
     {
         return new ExportDefaultsSnapshot

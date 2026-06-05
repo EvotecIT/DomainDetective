@@ -27,7 +27,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandArgument(0, "<domain>")]
         public string Domain { get; set; } = string.Empty;
         
-        [Description("Report output (html, json, word, excel, pdf, markdown, markdownhtml)")]
+        [Description("Report output (html, json, word, excel, markdown, markdownhtml). PDF is not currently shipped.")]
         [CommandOption("-f|--format|--report <FORMAT>")]
         [DefaultValue("html")]
         public string Format { get; set; } = "html";
@@ -96,6 +96,8 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
     
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken) {
         try {
+            var formatEnum = ResolveReportFormat(settings.Format);
+
             // Show progress
             await AnsiConsole.Progress()
                 .AutoClear(false)
@@ -169,17 +171,6 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     var generateTask = ctx.AddTask("[yellow]Generating report + artifacts[/]");
                     
                     // Determine output path
-                    var fmt = settings.Format?.ToLowerInvariant() ?? "html";
-                    var formatEnum = fmt switch {
-                        "html" => ReportFormat.Html,
-                        "json" => ReportFormat.Json,
-                        "word" => ReportFormat.Word,
-                        "excel" => ReportFormat.Excel,
-                        "pdf" => ReportFormat.Pdf,
-                        "markdown" => ReportFormat.Markdown,
-                        "markdownhtml" => ReportFormat.MarkdownHtml,
-                        _ => ReportFormat.Html
-                    };
                     var outputPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(settings.OutputPath, null, settings.Domain, formatEnum);
                     
                     // Always emit JSON artifacts for the run.
@@ -281,6 +272,22 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
             AnsiConsole.MarkupLine($"[red]Error generating report: {ex.Message}[/]");
             return 1;
         }
+    }
+
+    internal static ReportFormat ResolveReportFormat(string? format)
+    {
+        var fmt = format?.ToLowerInvariant() ?? "html";
+        return fmt switch
+        {
+            "html" => ReportFormat.Html,
+            "json" => ReportFormat.Json,
+            "word" => ReportFormat.Word,
+            "excel" => ReportFormat.Excel,
+            "pdf" => throw new InvalidOperationException("PDF report generation is not currently shipped in DomainDetective. Generate Word output and convert it with OfficeIMO PDF support when that package path is available."),
+            "markdown" => ReportFormat.Markdown,
+            "markdownhtml" => ReportFormat.MarkdownHtml,
+            _ => ReportFormat.Html
+        };
     }
 
     internal static void EnsureReportSucceeded(ReportResult result)

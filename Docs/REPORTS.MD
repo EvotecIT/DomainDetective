@@ -72,7 +72,7 @@ Narrative placement (`NarrativePlacement`):
 2. Implement SPF report (Word + HTML) using area builder and renderers.
 3. Extend to DMARC + DKIM; create aggregate report that composes area outputs.
 4. Add multi-domain aggregation (portfolio summary matrix + per-domain sections).
-5. Mirror in HTML (document + dashboard templates). Add PDF via QuestPDF or HTML→PDF later.
+5. Mirror in HTML (document + dashboard templates). Add PDF through OfficeIMO once the dependency-free package path is available.
 
 ## Notes
 - Reports should be consumable artifacts, not live UI only; dashboards provide interactive view.
