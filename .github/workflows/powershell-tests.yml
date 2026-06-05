@@ -165,6 +165,7 @@ jobs:
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
                 Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+                Install-Module -Name PSPublishModule -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: pwsh
 
 
@@ -205,6 +206,13 @@ jobs:
 
                   exit $exitCode
                 }
+
+            - name: Build packaged module for ALC tests
+              env:
+                RefreshPSD1Only: 'false'
+              run: .\Module\Build\Build-Module.ps1
+              shell: pwsh
+
             - name: Run PowerShell tests
               run: ./Module/DomainDetective.Tests.ps1
               shell: pwsh
