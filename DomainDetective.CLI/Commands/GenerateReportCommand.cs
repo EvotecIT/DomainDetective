@@ -27,7 +27,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandArgument(0, "<domain>")]
         public string Domain { get; set; } = string.Empty;
         
-        [Description("Report output (html, json, word, excel, pdf, markdown, markdownhtml)")]
+        [Description("Report output (html, json, word, excel, markdown, markdownhtml). PDF is not currently shipped.")]
         [CommandOption("-f|--format|--report <FORMAT>")]
         [DefaultValue("html")]
         public string Format { get; set; } = "html";
@@ -175,7 +175,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                         "json" => ReportFormat.Json,
                         "word" => ReportFormat.Word,
                         "excel" => ReportFormat.Excel,
-                        "pdf" => ReportFormat.Pdf,
+                        "pdf" => throw new InvalidOperationException("PDF report generation is not currently shipped in DomainDetective. Generate Word output and convert it with OfficeIMO PDF support when that package path is available."),
                         "markdown" => ReportFormat.Markdown,
                         "markdownhtml" => ReportFormat.MarkdownHtml,
                         _ => ReportFormat.Html

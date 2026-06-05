@@ -12,7 +12,6 @@
       "DomainDetective.Benchmarks\\DomainDetective.Benchmarks.csproj",
       "DomainDetective.Reports.Html\\DomainDetective.Reports.Html.csproj",
       "DomainDetective.Reports.Office\\DomainDetective.Reports.Office.csproj",
-      "DomainDetective.Reports.Pdf\\DomainDetective.Reports.Pdf.csproj",
       "DomainDetective.Reports.Markdown\\DomainDetective.Reports.Markdown.csproj"
     ]
   }

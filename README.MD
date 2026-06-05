@@ -28,7 +28,7 @@ Most PowerShell checks expose both a fully-prefixed cmdlet and a friendly alias.
 - **Web and certificates**: HTTP posture, certificate analysis, DANE/TLSA, S/MIMEA, static website scans, redirect chains, third-party inventory, header checks, tracker hints, and technology fingerprints.
 - **Registry, routing, and reputation**: WHOIS, RDAP, RPKI, DNSBL, threat intel hooks, VirusTotal helpers, search engine checks, and domain suggestions/search.
 - **Discovery and exposure**: CT timeline, subdomain discovery, certificate inventory, autodiscover, security.txt, contact TXT, directory exposure, and identity provider hints.
-- **Outputs and reporting**: JSON, HTML, Word, Excel, Markdown, MarkdownHtml, and PDF, plus JSON artifacts for repeated runs and time-series stores.
+- **Outputs and reporting**: JSON, HTML, Word, Excel, Markdown, and MarkdownHtml, plus JSON artifacts for repeated runs and time-series stores. PDF is planned through OfficeIMO once the dependency-free package path is available.
 
 ## How It Fits Together
 
@@ -38,7 +38,7 @@ flowchart LR
     B["CLI"] --> D
     C["C# library"] --> D
     D --> E["Views and JSON"]
-    D --> F["Reports: HTML, Word, Excel, Markdown, PDF"]
+    D --> F["Reports: HTML, Word, Excel, Markdown"]
     D --> G["Artifacts: scan.json, metrics.json, progress.jsonl"]
     D --> H["Stores: DMARC Aggregate, TLS-RPT, registration, cert inventory"]
 ```
@@ -543,7 +543,7 @@ dotnet run --project DomainDetective.CLI -- GenerateReport example.com --format 
 | Markdown | Lightweight document output |
 | MarkdownHtml | HTML generated from the Markdown-style layout |
 | JSON | Best for automation and downstream tooling |
-| PDF | Supported, but currently less feature-rich than HTML/Word/Excel |
+| PDF | Planned through OfficeIMO PDF after the dependency-free package path is available |
 
 ### Artifact Layout
 
@@ -706,7 +706,6 @@ DomainDetective.Reports/        Shared reporting abstractions and dispatch
 DomainDetective.Reports.Html/   HTML composition reports
 DomainDetective.Reports.Office/ Word and Excel reports
 DomainDetective.Reports.Markdown/ Markdown and MarkdownHtml reports
-DomainDetective.Reports.Pdf/    PDF report generator
 DomainDetective.Example/        C# usage samples
 Module/                         Importable module manifest, scripts, and PowerShell examples
 Docs/                           Focused feature documentation

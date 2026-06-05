@@ -64,7 +64,7 @@ This includes:
 
 ### Report Formats
 - HTML (interactive, default)
-- PDF (static document)
+- PDF (planned through OfficeIMO)
 - Word (editable document)
 - Excel (data analysis)
 - Markdown (documentation)

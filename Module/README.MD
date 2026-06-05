@@ -204,7 +204,7 @@ Test-DDDomainOverallHealth -DomainName "example.com"
 ```
 
 Notes:
-- `-ExportFormat` supports Html, Word, Excel, Pdf, Json, Markdown, and MarkdownHtml (availability depends on the cmdlet; composition-based exports support Word/Excel/Markdown).
+- `-ExportFormat` supports Html, Word, Excel, Json, Markdown, and MarkdownHtml (availability depends on the cmdlet; composition-based exports support Word/Excel/Markdown). PDF is planned through OfficeIMO once the dependency-free package path is available.
 - `-ExportPath` can be a file or a directory. When a directory is provided, a smart filename is generated automatically.
 - `-OpenInBrowser` (alias: `-OpenReport`) opens the generated report using the system shell (browser, Word, Excel, etc.).
 - Artifacts (scan.json, metrics.json, progress.jsonl, index.jsonl) are optional. Use `-Artifacts` per-call or `Set-DDExportOptions -Artifacts` to enable. Default artifacts path is `./artifacts` unless overridden via `-ArtifactsDirectory` on the cmdlet or `Set-DDExportOptions -ArtifactsDirectory`.

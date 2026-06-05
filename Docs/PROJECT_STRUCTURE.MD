@@ -30,12 +30,6 @@
 - Excel spreadsheet generation using OfficeIMO.Excel
 - Professional document templates
 
-#### 5. **DomainDetective.Reports.Pdf** (PDF Reports)
-- References: DomainDetective.Reports
-- PDF generation (using QuestPDF or similar)
-- Print-ready reports
-- Compliance documentation
-
 ### Integration Points
 
 #### CLI Integration
@@ -59,7 +53,7 @@ var report = await reportFactory.CreateReport(healthCheck, format: ReportFormat.
 
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Json -ExportPath "data.json"
-# Word/Excel/Markdown composition is available; PDF export remains planned.
+# Word/Excel/Markdown composition is available; PDF export remains planned through OfficeIMO.
 ```
 
 ## Benefits of This Structure

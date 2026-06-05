@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Desired export format(s). Accepts one or many values.</summary>
         [Parameter(Mandatory = false)]
         [Alias("Report")]
-        [ValidateSet("Html","Json","Pdf","Word","Excel","Markdown","MarkdownHtml", IgnoreCase = true)]
+        [ValidateSet("Html","Json","Word","Excel","Markdown","MarkdownHtml", IgnoreCase = true)]
         public ReportFormat[]? ExportFormat { get; set; }
 
         /// <summary>Output file path for export.</summary>

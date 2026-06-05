@@ -7,7 +7,7 @@ namespace DomainDetective.Reports;
 
 /// <summary>
 /// Dispatches report generation based on the requested <see cref="ReportFormat"/>.
-/// Resolves concrete generators (Html/Word/Excel/Pdf/Markdown/Json) and writes the output file.
+/// Resolves concrete generators (Html/Word/Excel/Markdown/Json) and writes the output file.
 /// </summary>
 public sealed class ReportDispatcher
 {
@@ -86,12 +86,6 @@ public sealed class ReportDispatcher
             case ReportFormat.MarkdownHtml:
             {
                 var gen = TryCreate("DomainDetective.Reports.Markdown.MarkdownHtmlReportGenerator, DomainDetective.Reports.Markdown");
-                if (gen != null) return gen;
-                break;
-            }
-            case ReportFormat.Pdf:
-            {
-                var gen = TryCreate("DomainDetective.Reports.Pdf.PdfReportGenerator, DomainDetective.Reports.Pdf");
                 if (gen != null) return gen;
                 break;
             }

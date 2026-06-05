@@ -10,7 +10,6 @@
     "DomainDetective.Reports.Html": "0.2.X",
     "DomainDetective.Reports.Markdown": "0.2.X",
     "DomainDetective.Reports.Office": "0.2.X",
-    "DomainDetective.Reports.Pdf": "0.2.X",
     "DomainDetective.Visual": "0.2.X"
   },
   "ExpectedVersionMapAsInclude": true,
