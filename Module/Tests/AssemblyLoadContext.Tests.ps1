@@ -25,13 +25,21 @@ Import-Module DomainDetective -Force
 `$command = Get-Command Test-DDEmailSpfRecord -Module DomainDetective -ErrorAction Stop
 `$commandAssembly = `$command.ImplementingType.Assembly
 `$commandAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext(`$commandAssembly)
-`$healthCheckAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext([DomainDetective.DomainHealthCheck].Assembly)
-`$captureOptionsAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext([DomainDetective.CertificateInventoryCaptureOptions].Assembly)
-`$exportDefaultsAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext([DomainDetective.PowerShell.ExportDefaults].Assembly)
-`$spfCmdletAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext([DomainDetective.PowerShell.CmdletTestSpfRecord].Assembly)
-`$healthCheck = [DomainDetective.DomainHealthCheck]::new()
-`$captureOptions = [DomainDetective.CertificateInventoryCaptureOptions]::new()
-`$spfCmdlet = [DomainDetective.PowerShell.CmdletTestSpfRecord]::new()
+`$coreAssembly = `$commandAlc.Assemblies | Where-Object { `$_.GetName().Name -eq 'DomainDetective' } | Select-Object -First 1
+if (`$null -eq `$coreAssembly) {
+    throw 'DomainDetective core assembly was not loaded in the module AssemblyLoadContext.'
+}
+
+`$healthCheckType = `$coreAssembly.GetType('DomainDetective.DomainHealthCheck', `$true)
+`$captureOptionsType = `$coreAssembly.GetType('DomainDetective.CertificateInventoryCaptureOptions', `$true)
+`$exportDefaultsType = `$commandAssembly.GetType('DomainDetective.PowerShell.ExportDefaults', `$true)
+`$spfCmdletType = `$commandAssembly.GetType('DomainDetective.PowerShell.CmdletTestSpfRecord', `$true)
+`$healthCheckAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext(`$healthCheckType.Assembly)
+`$captureOptionsAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext(`$captureOptionsType.Assembly)
+`$exportDefaultsAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext(`$exportDefaultsType.Assembly)
+`$spfCmdletAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext(`$spfCmdletType.Assembly)
+`$captureOptions = [Activator]::CreateInstance(`$captureOptionsType)
+`$spfCmdlet = [Activator]::CreateInstance(`$spfCmdletType)
 
 [pscustomobject]@{
     CommandName = `$command.Name
@@ -39,19 +47,20 @@ Import-Module DomainDetective -Force
     CommandAssemblyPath = `$commandAssembly.Location
     CommandALC = `$commandAlc.Name
     CommandALCIsDefault = [object]::ReferenceEquals(`$commandAlc, [System.Runtime.Loader.AssemblyLoadContext]::Default)
-    HealthCheckType = [DomainDetective.DomainHealthCheck].FullName
+    CoreAssembly = `$coreAssembly.GetName().Name
+    CoreAssemblyPath = `$coreAssembly.Location
+    HealthCheckType = `$healthCheckType.FullName
     HealthCheckALC = `$healthCheckAlc.Name
     HealthCheckALCIsDefault = [object]::ReferenceEquals(`$healthCheckAlc, [System.Runtime.Loader.AssemblyLoadContext]::Default)
-    CaptureOptionsType = [DomainDetective.CertificateInventoryCaptureOptions].FullName
+    CaptureOptionsType = `$captureOptionsType.FullName
     CaptureOptionsALC = `$captureOptionsAlc.Name
     CaptureOptionsALCIsDefault = [object]::ReferenceEquals(`$captureOptionsAlc, [System.Runtime.Loader.AssemblyLoadContext]::Default)
-    ExportDefaultsType = [DomainDetective.PowerShell.ExportDefaults].FullName
+    ExportDefaultsType = `$exportDefaultsType.FullName
     ExportDefaultsALC = `$exportDefaultsAlc.Name
     ExportDefaultsALCIsDefault = [object]::ReferenceEquals(`$exportDefaultsAlc, [System.Runtime.Loader.AssemblyLoadContext]::Default)
-    SpfCmdletType = [DomainDetective.PowerShell.CmdletTestSpfRecord].FullName
+    SpfCmdletType = `$spfCmdletType.FullName
     SpfCmdletALC = `$spfCmdletAlc.Name
     SpfCmdletALCIsDefault = [object]::ReferenceEquals(`$spfCmdletAlc, [System.Runtime.Loader.AssemblyLoadContext]::Default)
-    HealthCheckCreated = `$null -ne `$healthCheck
     CaptureOptionsCreated = `$null -ne `$captureOptions
     SpfCmdletCreated = `$null -ne `$spfCmdlet
 } | ConvertTo-Json -Compress
@@ -69,6 +78,8 @@ Import-Module DomainDetective -Force
         ($result.CommandAssemblyPath -replace '\\', '/') | Should -BeLike '*/Artefacts/Unpacked/Modules/DomainDetective/Lib/Core/DomainDetective.PowerShell.dll'
         $result.CommandALC | Should -Be 'DomainDetective'
         $result.CommandALCIsDefault | Should -BeFalse
+        $result.CoreAssembly | Should -Be 'DomainDetective'
+        ($result.CoreAssemblyPath -replace '\\', '/') | Should -BeLike '*/Artefacts/Unpacked/Modules/DomainDetective/Lib/Core/DomainDetective.dll'
         $result.HealthCheckType | Should -Be 'DomainDetective.DomainHealthCheck'
         $result.HealthCheckALC | Should -Be 'DomainDetective'
         $result.HealthCheckALCIsDefault | Should -BeFalse
@@ -81,7 +92,6 @@ Import-Module DomainDetective -Force
         $result.SpfCmdletType | Should -Be 'DomainDetective.PowerShell.CmdletTestSpfRecord'
         $result.SpfCmdletALC | Should -Be 'DomainDetective'
         $result.SpfCmdletALCIsDefault | Should -BeFalse
-        $result.HealthCheckCreated | Should -BeTrue
         $result.CaptureOptionsCreated | Should -BeTrue
         $result.SpfCmdletCreated | Should -BeTrue
     }

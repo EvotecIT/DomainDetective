@@ -78,11 +78,6 @@ Build-Module -ModuleName 'DomainDetective' {
         NETFramework                         = 'net8.0', 'net472'
         NETHandleAssemblyWithSameName        = $true
         NETAssemblyLoadContext               = $true
-        NETAssemblyTypeAcceleratorMode       = 'Assembly'
-        NETAssemblyTypeAcceleratorAssemblies = @(
-            'DomainDetective'
-            'DomainDetective.PowerShell'
-        )
         DotSourceLibraries                   = $true
         DotSourceClasses                     = $true
         DeleteTargetModuleBeforeBuild        = $true
