@@ -8,7 +8,7 @@
     Description          = 'DomainDetective is a PowerShell module that provides features to work with domains, DNS, and other related information.'
     FunctionsToExport    = @()
     GUID                 = 'a2986f0d-da11-43f5-a252-f9e1d1699776'
-    ModuleVersion        = '0.2.0'
+    ModuleVersion        = '1.0.0'
     PowerShellVersion    = '5.1'
     PrivateData          = @{
         PSData = @{
