@@ -3,7 +3,7 @@
 Build-Module -ModuleName 'DomainDetective' {
     # Usual defaults as per standard module
     $Manifest = [ordered] @{
-        ModuleVersion        = '0.2.0'
+        ModuleVersion        = '1.0.0'
         CompatiblePSEditions = @('Desktop', 'Core')
         GUID                 = 'a2986f0d-da11-43f5-a252-f9e1d1699776'
         Author               = 'Przemyslaw Klys'
@@ -68,7 +68,7 @@ Build-Module -ModuleName 'DomainDetective' {
         SignModule                           = if ($Env:COMPUTERNAME -eq 'EVOMAGIC') { $true } else { $false }
         MergeModuleOnBuild                   = $true
         MergeFunctionsFromApprovedModules    = $true
-        CertificateThumbprint                = '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
+        CertificateThumbprint                = '92e95fb58effa6a4a75e77a33cdd6bfe6dd30f1a'
         NETProjectPath                       = "$PSScriptRoot\..\..\DomainDetective.PowerShell"
         ResolveBinaryConflicts               = $true
         ResolveBinaryConflictsName           = 'DomainDetective.PowerShell'
@@ -81,7 +81,7 @@ Build-Module -ModuleName 'DomainDetective' {
         DotSourceLibraries                   = $true
         DotSourceClasses                     = $true
         DeleteTargetModuleBeforeBuild        = $true
-        RefreshPSD1Only                      = if ([string]::IsNullOrWhiteSpace($Env:RefreshPSD1Only)) { $false } else { [bool]::Parse($Env:RefreshPSD1Only) }
+        RefreshPSD1Only                      = if ([string]::IsNullOrWhiteSpace($Env:RefreshPSD1Only)) { $true } else { [bool]::Parse($Env:RefreshPSD1Only) }
         NETBinaryModuleDocumenation          = $true
     }
 
@@ -92,5 +92,5 @@ Build-Module -ModuleName 'DomainDetective' {
 
     # global options for publishing to github/psgallery
     #New-ConfigurationPublish -Type PowerShellGallery -FilePath 'C:\Support\Important\PowerShellGalleryAPI.txt' -Enabled:$false
-    #New-ConfigurationPublish -Type GitHub -FilePath 'C:\Support\Important\GitHubAPI.txt' -UserName 'EvotecIT' -Enabled:$false
+    #New-ConfigurationPublish -Type GitHub -FilePath 'C:\Support\Important\GitHubAPI.txt' -UserName 'EvotecIT' -Enabled:$false -GenerateReleaseNotes
 }
