@@ -81,7 +81,7 @@ Build-Module -ModuleName 'DomainDetective' {
         DotSourceLibraries                   = $true
         DotSourceClasses                     = $true
         DeleteTargetModuleBeforeBuild        = $true
-        RefreshPSD1Only                      = if ([string]::IsNullOrWhiteSpace($Env:RefreshPSD1Only)) { $true } else { [bool]::Parse($Env:RefreshPSD1Only) }
+        RefreshPSD1Only                      = if ([string]::IsNullOrWhiteSpace($Env:RefreshPSD1Only)) { $false } else { [bool]::Parse($Env:RefreshPSD1Only) }
         NETBinaryModuleDocumenation          = $true
     }
 
