@@ -16,6 +16,11 @@ public class TestMessageHeaderRecommendations
         Assert.Contains(MessageHeaderCodes.SpfPass, map.Keys);
         Assert.Contains(MessageHeaderCodes.DmarcPass, map.Keys);
         Assert.Contains(MessageHeaderCodes.ArcPass, map.Keys);
+        Assert.Contains(MessageHeaderCodes.DirectToExchangeOnlineObserved, map.Keys);
+        Assert.Contains(MessageHeaderCodes.AuthenticationFailedDeliveredToInbox, map.Keys);
+        Assert.Contains(MessageHeaderCodes.SelfSpoofDeliveredToInbox, map.Keys);
+        Assert.Contains(MessageHeaderCodes.GatewayLoopDetected, map.Keys);
+        Assert.Contains(MessageHeaderCodes.ExpectedMxBypassed, map.Keys);
     }
 
     [Fact]

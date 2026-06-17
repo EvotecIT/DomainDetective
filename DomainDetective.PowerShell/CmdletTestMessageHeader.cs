@@ -7,15 +7,19 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Analyze headers from a file.</summary>
-    ///   <code>Get-Content './headers.txt' -Raw | Get-DDEmailMessageHeaderInfo</code>
+    ///   <code>Get-Content './headers.txt' -Raw | Get-DDEmailMessageHeaderInfo -ExpectedMx 'mx1.gateway.example.net'</code>
     /// </example>
 [Cmdlet(VerbsCommon.Get, "DDEmailMessageHeaderInfo")]
 [Alias("Get-EmailHeaderInfo")]
     public sealed class CmdletTestMessageHeader : ExportableAsyncPSCmdlet {
         /// <summary>Raw header text.</summary>
-        [Parameter(Mandatory = true, Position = 0)]
+        [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true)]
         [ValidateNotNullOrEmpty]
         public string HeaderText = string.Empty;
+
+        /// <summary>Expected public MX hosts that should appear in the received path.</summary>
+        [Parameter]
+        public string[]? ExpectedMx { get; set; }
 
         private InternalLogger _logger = null!;
         private DomainHealthCheck _healthCheck = null!;
@@ -41,7 +45,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override Task ProcessRecordAsync() {
-            var result = _healthCheck.CheckMessageHeaders(HeaderText, CancelToken);
+            var result = _healthCheck.CheckMessageHeaders(HeaderText, ExpectedMx, CancelToken);
             WriteObject(result);
             if (IsExportRequested()) {
                 try {

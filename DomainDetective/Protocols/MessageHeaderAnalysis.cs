@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// Represents the results from parsing message headers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class MessageHeaderAnalysis : IHasAssessments {
+    public partial class MessageHeaderAnalysis : IHasAssessments {
         /// <summary>Raw headers supplied for parsing.</summary>
         public string? RawHeaders { get; private set; }
         /// <summary>All parsed headers keyed by header name.</summary>
@@ -80,6 +80,7 @@ namespace DomainDetective {
             SpfResult = null;
             DmarcResult = null;
             ArcResult = null;
+            ResetRouteDiagnostics();
             if (string.IsNullOrWhiteSpace(rawHeaders)) {
                 logger?.WriteVerbose("No headers supplied for parsing.");
                 return;
@@ -101,6 +102,7 @@ namespace DomainDetective {
                         logger?.WriteErrorCode(MessageHeaderCodes.MimeParseFailed, "MimeKit failed to parse headers: {0}", ex.Message);
                         ParseManually(rawHeaders, logger);
                         ComputeTransitTime();
+                        AnalyzeRouteHeaders(logger);
                         DetermineIssues();
                         return;
                     }
@@ -126,6 +128,7 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(MessageHeaderCodes.ArcPass, "ARC authentication passed");
             }
 
+            AnalyzeRouteHeaders(logger);
             DetermineIssues();
         }
 
@@ -342,6 +345,8 @@ namespace DomainDetective {
             } else if (!string.Equals(arcResult, "pass", StringComparison.OrdinalIgnoreCase)) {
                 AddIssue(MessageHeaderIssue.InvalidArc);
             }
+
+            DetermineRouteIssues();
         }
     }
 }
