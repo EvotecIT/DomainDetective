@@ -81,9 +81,6 @@ namespace DomainDetective {
             RemoveAssessment(MessageHeaderCodes.ExpectedMxBypassed);
 
             if (expectedMxHosts == null) {
-                if (DirectToExchangeOnlineObserved) {
-                    AddIssue(MessageHeaderIssue.DirectToExchangeOnline);
-                }
                 EmitRouteDiagnostics(logger);
                 return;
             }
@@ -96,24 +93,20 @@ namespace DomainDetective {
             }
 
             if (ExpectedMxHosts.Count == 0) {
-                if (DirectToExchangeOnlineObserved) {
-                    AddIssue(MessageHeaderIssue.DirectToExchangeOnline);
-                }
                 EmitRouteDiagnostics(logger);
                 return;
             }
 
-            ExpectedMxObserved = ExpectedMxHosts.Any(IsHostObserved);
+            ExpectedMxObserved = ExpectedMxHosts.Any(IsHostObservedAtMicrosoftIngress);
             if (ExpectedMxObserved) {
                 DirectToExchangeOnlineObserved = false;
                 Issues.Remove(MessageHeaderIssue.DirectToExchangeOnline);
                 RemoveAssessment(MessageHeaderCodes.DirectToExchangeOnlineObserved);
-            } else if (DirectToExchangeOnlineObserved) {
-                AddIssue(MessageHeaderIssue.DirectToExchangeOnline);
             }
 
             ExpectedMxBypassed = !ExpectedMxObserved && _rawDirectToExchangeOnlineObserved;
             if (ExpectedMxBypassed) {
+                AddIssue(MessageHeaderIssue.DirectToExchangeOnline);
                 AddIssue(MessageHeaderIssue.ExpectedMxBypassed);
             }
 
@@ -194,12 +187,11 @@ namespace DomainDetective {
             DmarcFailed = IsFailureResult(TrustedDmarcResult, treatMissingAsFailure: false);
             DkimMissingOrFailed = IsFailureResult(TrustedDkimResult, treatMissingAsFailure: true);
             SpfFailedOrSoftFailed = IsFailureResult(TrustedSpfResult, treatMissingAsFailure: false);
-            var dkimFailed = IsExplicitFailureResult(TrustedDkimResult);
             SameDomainSelfSpoof = TryGetDomain(From, out var fromDomain)
                 && TryGetDomain(To, out var toDomain)
                 && string.Equals(fromDomain, toDomain, StringComparison.OrdinalIgnoreCase);
 
-            AuthenticationFailedDeliveredToInbox = DeliveredToInbox && (DmarcFailed || dkimFailed || SpfFailedOrSoftFailed);
+            AuthenticationFailedDeliveredToInbox = DeliveredToInbox && DmarcFailed;
             SelfSpoofDeliveredToInbox = DeliveredToInbox
                 && SameDomainSelfSpoof
                 && (DirectToExchangeOnlineObserved || AuthenticationFailedDeliveredToInbox || IsAnonymousExchangeAuth());
@@ -210,7 +202,7 @@ namespace DomainDetective {
             if (GatewayLoopDetected) {
                 AddIssue(MessageHeaderIssue.GatewayLoopDetected);
             }
-            if (DirectToExchangeOnlineObserved) {
+            if (DirectToExchangeOnlineObserved && ExpectedMxBypassed) {
                 AddIssue(MessageHeaderIssue.DirectToExchangeOnline);
             }
             if (AuthenticationFailedDeliveredToInbox) {
@@ -244,10 +236,9 @@ namespace DomainDetective {
             return Headers.Keys.Any(key => key.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
-        private bool IsHostObserved(string host) {
-            return IsSameHost(ForefrontHost, host)
-                || ReceivedHops.Any(hop => IsSameHost(hop.FromHost, host)
-                    || IsSameHost(hop.ByHost, host));
+        private bool IsHostObservedAtMicrosoftIngress(string host) {
+            var ingressHop = ReceivedHops.FirstOrDefault(hop => IsMicrosoftEopHost(hop.ByHost));
+            return ingressHop != null && IsSameHost(ingressHop.FromHost, host);
         }
 
         private static string? ExtractToken(string? value, string key) {
@@ -305,7 +296,7 @@ namespace DomainDetective {
             if (GatewayLoopDetected) {
                 WriteRouteWarning(logger, MessageHeaderCodes.GatewayLoopDetected, "Message headers show Exchange Online routing to Proofpoint and returning to Exchange Online.");
             }
-            if (DirectToExchangeOnlineObserved) {
+            if (DirectToExchangeOnlineObserved && ExpectedMxBypassed) {
                 WriteRouteWarning(logger, MessageHeaderCodes.DirectToExchangeOnlineObserved, "Message appears to have entered Exchange Online directly from {0}.", ForefrontSourceIp);
             }
             if (AuthenticationFailedDeliveredToInbox) {
