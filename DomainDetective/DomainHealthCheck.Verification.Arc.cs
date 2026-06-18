@@ -32,6 +32,9 @@ namespace DomainDetective {
             var analysis = new MessageHeaderAnalysis();
             analysis.Parse(rawHeaders, _logger, emitRouteDiagnostics: false);
             analysis.CompareExpectedMx(expectedMxHosts, _logger);
+            _logger.ClearLoggedMessages();
+            using var collector = AssessmentCollector.ForAnalysis(_logger, analysis, category: "HEADERS");
+            analysis.EmitNonMxRouteDiagnostics(_logger);
             return analysis;
         }
 

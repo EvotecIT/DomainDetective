@@ -752,6 +752,34 @@ public class TestMessageHeaderIssues {
     }
 
     [Fact]
+    public void ExpectedMxHealthCheckPreservesNonMxRouteAssessments() {
+        var raw = string.Join("\r\n", new[] {
+            "Message-ID: <healthcheck-non-mx-route@example.com>",
+            "From: spoofed@example.com",
+            "To: target@example.com",
+            "Subject: Health check non MX route",
+            "Authentication-Results: mx.example.com; dkim=none; spf=fail smtp.mailfrom=example.com; dmarc=fail header.from=example.com",
+            "X-MS-Exchange-Organization-AuthAs: Anonymous",
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I",
+            "X-Forefront-Antispam-Report: CIP:192.0.2.25;SCL:1;SFV:NSPM;H:sender.example.net",
+            "Received: from sender.example.net (sender.example.net [192.0.2.25]) by example-com.mail.protection.outlook.com with SMTP id abc; Wed, 17 Jun 2026 12:00:00 +0000",
+            string.Empty
+        });
+
+        var healthCheck = new DomainHealthCheck(internalLogger: new InternalLogger());
+
+        var analysis = healthCheck.CheckMessageHeaders(raw, new[] { "mail-gateway.example.com" });
+
+        Assert.True(analysis.AuthenticationFailedDeliveredToInbox);
+        Assert.True(analysis.SelfSpoofDeliveredToInbox);
+        Assert.True(analysis.ExpectedMxBypassed);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == MessageHeaderCodes.AuthenticationFailedDeliveredToInbox);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == MessageHeaderCodes.SelfSpoofDeliveredToInbox);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == MessageHeaderCodes.DirectToExchangeOnlineObserved);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == MessageHeaderCodes.ExpectedMxBypassed);
+    }
+
+    [Fact]
     public void GatewayLoopIsReported() {
         var raw = string.Join("\r\n", new[] {
             "Message-ID: <loop-test@example.net>",

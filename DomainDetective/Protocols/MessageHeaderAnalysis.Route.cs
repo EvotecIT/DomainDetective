@@ -116,6 +116,18 @@ namespace DomainDetective {
             EmitExpectedMxDiagnostics(logger);
         }
 
+        internal void EmitNonMxRouteDiagnostics(InternalLogger? logger = null) {
+            if (GatewayLoopDetected) {
+                WriteRouteWarning(logger, MessageHeaderCodes.GatewayLoopDetected, "Message headers show Exchange Online routing to Proofpoint and returning to Exchange Online.");
+            }
+            if (AuthenticationFailedDeliveredToInbox) {
+                WriteRouteWarning(logger, MessageHeaderCodes.AuthenticationFailedDeliveredToInbox, "Message reached Inbox even though SPF, DKIM, or DMARC did not pass.");
+            }
+            if (SelfSpoofDeliveredToInbox) {
+                WriteRouteWarning(logger, MessageHeaderCodes.SelfSpoofDeliveredToInbox, "Message appears to be same-domain self-spoofing and was delivered to Inbox.");
+            }
+        }
+
         private void ResetRouteDiagnostics() {
             MessageId = null;
             NetworkMessageId = null;
@@ -321,16 +333,8 @@ namespace DomainDetective {
         }
 
         internal void EmitRouteDiagnostics(InternalLogger? logger = null) {
-            if (GatewayLoopDetected) {
-                WriteRouteWarning(logger, MessageHeaderCodes.GatewayLoopDetected, "Message headers show Exchange Online routing to Proofpoint and returning to Exchange Online.");
-            }
+            EmitNonMxRouteDiagnostics(logger);
             EmitExpectedMxDiagnostics(logger);
-            if (AuthenticationFailedDeliveredToInbox) {
-                WriteRouteWarning(logger, MessageHeaderCodes.AuthenticationFailedDeliveredToInbox, "Message reached Inbox even though SPF, DKIM, or DMARC did not pass.");
-            }
-            if (SelfSpoofDeliveredToInbox) {
-                WriteRouteWarning(logger, MessageHeaderCodes.SelfSpoofDeliveredToInbox, "Message appears to be same-domain self-spoofing and was delivered to Inbox.");
-            }
         }
 
         private void EmitExpectedMxDiagnostics(InternalLogger? logger = null) {
