@@ -95,7 +95,7 @@ jobs:
                         throw "Failed to commit regenerated DomainDetective.psd1."
                       }
 
-                      git push origin HEAD:$branch
+                      git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:$branch
                       if ($LASTEXITCODE -eq 0) {
                         exit 0
                       }
