@@ -18,7 +18,7 @@ namespace DomainDetective {
         public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Duplicate header values keyed by header name.</summary>
         public Dictionary<string, List<string>> DuplicateHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
-        /// <summary>List of parsed <c>Received</c> header hops in order.</summary>
+        /// <summary>List of parsed <c>Received</c> header hops. Use <see cref="ReceivedHop.HeaderIndex"/> for original header order.</summary>
         public List<ReceivedHop> ReceivedHops { get; } = new();
         /// <summary>Total message transit time across all hops.</summary>
         public TimeSpan? TotalTransitTime { get; private set; }
@@ -181,7 +181,9 @@ namespace DomainDetective {
 
             switch (lower) {
                 case "received":
-                    ReceivedHops.Add(ReceivedHop.Parse(value));
+                    var hop = ReceivedHop.Parse(value);
+                    hop.HeaderIndex = ReceivedHops.Count;
+                    ReceivedHops.Add(hop);
                     break;
                 case "from":
                     From = value;

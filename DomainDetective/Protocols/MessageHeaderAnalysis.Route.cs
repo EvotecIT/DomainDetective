@@ -78,7 +78,9 @@ namespace DomainDetective {
             ExpectedMxBypassed = false;
             DirectToExchangeOnlineObserved = _rawDirectToExchangeOnlineObserved;
             Issues.Remove(MessageHeaderIssue.ExpectedMxBypassed);
+            Issues.Remove(MessageHeaderIssue.DirectToExchangeOnline);
             RemoveAssessment(MessageHeaderCodes.ExpectedMxBypassed);
+            RemoveAssessment(MessageHeaderCodes.DirectToExchangeOnlineObserved);
 
             if (expectedMxHosts == null) {
                 EmitRouteDiagnostics(logger);
@@ -237,8 +239,13 @@ namespace DomainDetective {
         }
 
         private bool IsHostObservedAtMicrosoftIngress(string host) {
-            var ingressHop = ReceivedHops.FirstOrDefault(hop => IsMicrosoftEopHost(hop.ByHost));
-            return ingressHop != null && IsSameHost(ingressHop.FromHost, host);
+            var ingressHop = ReceivedHops
+                .Where(hop => IsMicrosoftEopHost(hop.ByHost))
+                .OrderBy(hop => hop.HeaderIndex)
+                .FirstOrDefault();
+            return ingressHop != null
+                && (IsSameHost(ingressHop.FromHost, host)
+                    || (IsMicrosoftEopHost(host) && IsSameHost(ingressHop.ByHost, host)));
         }
 
         private static string? ExtractToken(string? value, string key) {
