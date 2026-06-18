@@ -69,7 +69,9 @@ namespace DomainDetective {
         /// Compares the observed message path with expected public MX host names.
         /// </summary>
         /// <param name="expectedMxHosts">Public MX host names expected to process inbound mail first.</param>
-        public void CompareExpectedMx(IEnumerable<string>? expectedMxHosts) {
+        /// <param name="logger">Optional logger used to attach expected-MX route findings to assessments.</param>
+        public void CompareExpectedMx(IEnumerable<string>? expectedMxHosts, InternalLogger? logger = null) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "HEADERS") : null;
             ExpectedMxHosts.Clear();
             ExpectedMxObserved = false;
             ExpectedMxBypassed = false;
@@ -78,9 +80,10 @@ namespace DomainDetective {
                 return;
             }
 
-            foreach (var host in expectedMxHosts) {
-                if (!string.IsNullOrWhiteSpace(host)) {
-                    ExpectedMxHosts.Add(host.Trim());
+            foreach (var host in expectedMxHosts.Where(static host => !string.IsNullOrWhiteSpace(host))) {
+                var normalized = NormalizeHost(host);
+                if (normalized.Length > 0 && !ExpectedMxHosts.Contains(normalized, StringComparer.OrdinalIgnoreCase)) {
+                    ExpectedMxHosts.Add(normalized);
                 }
             }
 
@@ -89,9 +92,16 @@ namespace DomainDetective {
             }
 
             ExpectedMxObserved = ExpectedMxHosts.Any(IsHostObserved);
+            if (ExpectedMxObserved) {
+                DirectToExchangeOnlineObserved = false;
+                Issues.Remove(MessageHeaderIssue.DirectToExchangeOnline);
+                Assessments.RemoveAll(static assessment => string.Equals(assessment.Code, MessageHeaderCodes.DirectToExchangeOnlineObserved, StringComparison.Ordinal));
+            }
+
             ExpectedMxBypassed = !ExpectedMxObserved && DirectToExchangeOnlineObserved;
             if (ExpectedMxBypassed) {
                 AddIssue(MessageHeaderIssue.ExpectedMxBypassed);
+                WriteRouteWarning(logger, MessageHeaderCodes.ExpectedMxBypassed, "Expected public MX hosts were not observed in the message route.");
             }
         }
 
@@ -159,7 +169,7 @@ namespace DomainDetective {
 
             RedirectedToProofpoint = HasHeaderContaining("RedirectToProofpoint");
             ReceivedFromProofpoint = HasHeaderContaining("EmailReceivedFromPP");
-            GatewayLoopDetected = RedirectedToProofpoint && ReceivedFromProofpoint;
+            GatewayLoopDetected = (RedirectedToProofpoint && ReceivedFromProofpoint) || HasGatewayLoopInReceivedRoute();
             DirectToExchangeOnlineObserved = SeenMicrosoftEop
                 && !string.IsNullOrWhiteSpace(ForefrontSourceIp)
                 && string.Equals(ExchangeAuthAs, "Anonymous", StringComparison.OrdinalIgnoreCase);
@@ -167,18 +177,21 @@ namespace DomainDetective {
             DmarcFailed = IsFailureResult(DmarcResult, treatMissingAsFailure: false);
             DkimMissingOrFailed = IsFailureResult(DkimResult, treatMissingAsFailure: true);
             SpfFailedOrSoftFailed = IsFailureResult(SpfResult, treatMissingAsFailure: false);
+            var dkimFailed = IsExplicitFailureResult(DkimResult);
             SameDomainSelfSpoof = TryGetDomain(From, out var fromDomain)
                 && TryGetDomain(To, out var toDomain)
                 && string.Equals(fromDomain, toDomain, StringComparison.OrdinalIgnoreCase);
 
-            AuthenticationFailedDeliveredToInbox = DeliveredToInbox && (DmarcFailed || DkimMissingOrFailed || SpfFailedOrSoftFailed);
-            SelfSpoofDeliveredToInbox = DeliveredToInbox && SameDomainSelfSpoof;
+            AuthenticationFailedDeliveredToInbox = DeliveredToInbox && (DmarcFailed || dkimFailed || SpfFailedOrSoftFailed);
+            SelfSpoofDeliveredToInbox = DeliveredToInbox
+                && SameDomainSelfSpoof
+                && (DirectToExchangeOnlineObserved || AuthenticationFailedDeliveredToInbox || string.Equals(ExchangeAuthAs, "Anonymous", StringComparison.OrdinalIgnoreCase));
 
             if (GatewayLoopDetected) {
                 logger?.WriteWarningCode(MessageHeaderCodes.GatewayLoopDetected, "Message headers show Exchange Online routing to Proofpoint and returning to Exchange Online.");
             }
             if (DirectToExchangeOnlineObserved) {
-                logger?.WriteWarningCode(MessageHeaderCodes.DirectToExchangeOnlineObserved, "Message appears to have entered Exchange Online directly from {0}.", ForefrontSourceIp ?? "unknown source");
+                logger?.WriteWarningCode(MessageHeaderCodes.DirectToExchangeOnlineObserved, "Message appears to have entered Exchange Online directly from {0}.", ForefrontSourceIp);
             }
             if (AuthenticationFailedDeliveredToInbox) {
                 logger?.WriteWarningCode(MessageHeaderCodes.AuthenticationFailedDeliveredToInbox, "Message reached Inbox even though SPF, DKIM, or DMARC did not pass.");
@@ -219,8 +232,10 @@ namespace DomainDetective {
         }
 
         private bool IsHostObserved(string host) {
-            return Headers.Any(header => ContainsProvider(header.Value, host))
-                || ReceivedHops.Any(hop => ContainsProvider(hop.Raw, host));
+            return ContainsProvider(ForefrontHost, host)
+                || ReceivedHops.Any(hop => ContainsProvider(hop.Raw, host)
+                    || ContainsProvider(hop.FromHost, host)
+                    || ContainsProvider(hop.ByHost, host));
         }
 
         private static string? ExtractToken(string? value, string key) {
@@ -228,17 +243,72 @@ namespace DomainDetective {
                 return null;
             }
 
-            foreach (Match match in SemicolonTokenRegex.Matches(value)) {
-                if (string.Equals(match.Groups["key"].Value, key, StringComparison.OrdinalIgnoreCase)) {
-                    return match.Groups["value"].Value.Trim();
-                }
+            foreach (Match match in SemicolonTokenRegex.Matches(value).Cast<Match>().Where(match => string.Equals(match.Groups["key"].Value, key, StringComparison.OrdinalIgnoreCase))) {
+                return match.Groups["value"].Value.Trim();
             }
 
             return null;
         }
 
-        private static bool ContainsProvider(string value, string provider) {
-            return value.IndexOf(provider, StringComparison.OrdinalIgnoreCase) >= 0;
+        private bool HasGatewayLoopInReceivedRoute() {
+            var seenMicrosoftEopToGateway = false;
+            foreach (var hop in ReceivedHops) {
+                var fromMicrosoftEop = IsMicrosoftEopHost(hop.FromHost);
+                var byMicrosoftEop = IsMicrosoftEopHost(hop.ByHost);
+                var fromProofpoint = IsProofpointHost(hop.FromHost);
+                var byProofpoint = IsProofpointHost(hop.ByHost);
+
+                if (seenMicrosoftEopToGateway && fromProofpoint && byMicrosoftEop) {
+                    return true;
+                }
+
+                if (fromMicrosoftEop && byProofpoint) {
+                    seenMicrosoftEopToGateway = true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsMicrosoftEopHost(string? value) {
+            return ContainsProvider(value, "protection.outlook.com")
+                || ContainsProvider(value, "prod.outlook.com");
+        }
+
+        private static bool IsProofpointHost(string? value) {
+            return ContainsProvider(value, "pphosted.com")
+                || ContainsProvider(value, "proofpoint");
+        }
+
+        private static string NormalizeHost(string host) {
+            return host.Trim().TrimEnd('.');
+        }
+
+        private void WriteRouteWarning(InternalLogger? logger, string code, string message) {
+            if (logger != null) {
+                logger.WriteWarningCode(code, message);
+                return;
+            }
+
+            if (Assessments.Any(assessment => string.Equals(assessment.Code, code, StringComparison.Ordinal))) {
+                return;
+            }
+
+            Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "HEADERS",
+                Code = code,
+                Message = message,
+                Timestamp = DateTimeOffset.UtcNow
+            });
+        }
+
+        private static bool ContainsProvider(string? value, string provider) {
+            if (string.IsNullOrWhiteSpace(value)) {
+                return false;
+            }
+
+            return value!.IndexOf(provider, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static bool IsFailureResult(string? result, bool treatMissingAsFailure) {
@@ -252,6 +322,18 @@ namespace DomainDetective {
                 || normalized.StartsWith("permerror", StringComparison.OrdinalIgnoreCase)
                 || normalized.StartsWith("temperror", StringComparison.OrdinalIgnoreCase)
                 || normalized.StartsWith("none", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsExplicitFailureResult(string? result) {
+            if (string.IsNullOrWhiteSpace(result)) {
+                return false;
+            }
+
+            var normalized = result!.Trim();
+            return normalized.StartsWith("fail", StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith("softfail", StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith("permerror", StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith("temperror", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool TryGetDomain(string? value, out string? domain) {

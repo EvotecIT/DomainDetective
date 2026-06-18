@@ -30,10 +30,7 @@ namespace DomainDetective {
             ct.ThrowIfCancellationRequested();
 
             var analysis = CheckMessageHeaders(rawHeaders, ct);
-            analysis.CompareExpectedMx(expectedMxHosts);
-            if (analysis.ExpectedMxBypassed) {
-                _logger.WriteWarningCode(MessageHeaderCodes.ExpectedMxBypassed, "Expected public MX hosts were not observed in the message route.");
-            }
+            analysis.CompareExpectedMx(expectedMxHosts, _logger);
             return analysis;
         }
 
