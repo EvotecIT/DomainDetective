@@ -170,10 +170,11 @@ namespace DomainDetective {
                 Scl = forefrontScl;
             }
 
+            var hasMicrosoftEopReceivedHop = HasMicrosoftEopReceivedHop();
             SeenMicrosoftEop = HasHeaderPrefix("X-MS-Exchange-")
                 || HasHeaderPrefix("X-Microsoft-Antispam")
                 || HasHeaderPrefix("X-Forefront-")
-                || ReceivedHops.Any(static hop => ContainsProvider(hop.Raw, "protection.outlook.com") || ContainsProvider(hop.Raw, "prod.outlook.com"));
+                || hasMicrosoftEopReceivedHop;
             SeenProofpoint = HasHeaderPrefix("X-Proofpoint")
                 || HasHeaderContaining("Proofpoint")
                 || ReceivedHops.Any(static hop => ContainsProvider(hop.Raw, "pphosted.com") || ContainsProvider(hop.Raw, "proofpoint"));
@@ -181,7 +182,7 @@ namespace DomainDetective {
             RedirectedToProofpoint = HasHeaderContaining("RedirectToProofpoint");
             ReceivedFromProofpoint = HasHeaderContaining("EmailReceivedFromPP");
             GatewayLoopDetected = (RedirectedToProofpoint && ReceivedFromProofpoint) || HasGatewayLoopInReceivedRoute();
-            _rawDirectToExchangeOnlineObserved = SeenMicrosoftEop
+            _rawDirectToExchangeOnlineObserved = hasMicrosoftEopReceivedHop
                 && !string.IsNullOrWhiteSpace(ForefrontSourceIp)
                 && IsAnonymousExchangeAuth();
             DirectToExchangeOnlineObserved = _rawDirectToExchangeOnlineObserved;
@@ -239,13 +240,21 @@ namespace DomainDetective {
         }
 
         private bool IsHostObservedAtMicrosoftIngress(string host) {
-            var ingressHop = ReceivedHops
-                .Where(hop => IsMicrosoftEopHost(hop.ByHost))
-                .OrderBy(hop => hop.HeaderIndex)
-                .FirstOrDefault();
+            var ingressHop = GetExternalMicrosoftIngressHop();
             return ingressHop != null
                 && (IsSameHost(ingressHop.FromHost, host)
                     || (IsMicrosoftEopHost(host) && IsSameHost(ingressHop.ByHost, host)));
+        }
+
+        private bool HasMicrosoftEopReceivedHop() {
+            return ReceivedHops.Any(hop => IsMicrosoftEopHost(hop.FromHost) || IsMicrosoftEopHost(hop.ByHost));
+        }
+
+        private ReceivedHop? GetExternalMicrosoftIngressHop() {
+            return ReceivedHops
+                .Where(hop => IsMicrosoftEopHost(hop.ByHost) && !IsMicrosoftEopHost(hop.FromHost))
+                .OrderBy(hop => hop.HeaderIndex)
+                .FirstOrDefault();
         }
 
         private static string? ExtractToken(string? value, string key) {
@@ -261,19 +270,26 @@ namespace DomainDetective {
         }
 
         private bool HasGatewayLoopInReceivedRoute() {
-            var seenMicrosoftEopToGateway = false;
+            var microsoftEopToGatewayHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var hop in ReceivedHops) {
                 var fromMicrosoftEop = IsMicrosoftEopHost(hop.FromHost);
                 var byMicrosoftEop = IsMicrosoftEopHost(hop.ByHost);
                 var fromProofpoint = IsProofpointHost(hop.FromHost);
                 var byProofpoint = IsProofpointHost(hop.ByHost);
 
-                if (seenMicrosoftEopToGateway && fromProofpoint && byMicrosoftEop) {
-                    return true;
+                if (fromProofpoint && byMicrosoftEop) {
+                    var byHost = hop.ByHost;
+                    if (!string.IsNullOrWhiteSpace(byHost)
+                        && microsoftEopToGatewayHosts.Contains(NormalizeHost(byHost!))) {
+                        return true;
+                    }
                 }
 
                 if (fromMicrosoftEop && byProofpoint) {
-                    seenMicrosoftEopToGateway = true;
+                    var fromHost = hop.FromHost;
+                    if (!string.IsNullOrWhiteSpace(fromHost)) {
+                        microsoftEopToGatewayHosts.Add(NormalizeHost(fromHost!));
+                    }
                 }
             }
 
