@@ -84,7 +84,7 @@ namespace DomainDetective {
             logger?.ClearLoggedMessages();
 
             if (expectedMxHosts == null) {
-                EmitRouteDiagnostics(logger);
+                EmitExpectedMxDiagnostics(logger);
                 return;
             }
 
@@ -96,7 +96,7 @@ namespace DomainDetective {
             }
 
             if (ExpectedMxHosts.Count == 0) {
-                EmitRouteDiagnostics(logger);
+                EmitExpectedMxDiagnostics(logger);
                 return;
             }
 
@@ -113,7 +113,7 @@ namespace DomainDetective {
                 AddIssue(MessageHeaderIssue.ExpectedMxBypassed);
             }
 
-            EmitRouteDiagnostics(logger);
+            EmitExpectedMxDiagnostics(logger);
         }
 
         private void ResetRouteDiagnostics() {
@@ -172,18 +172,19 @@ namespace DomainDetective {
             }
 
             var hasMicrosoftEopReceivedHop = HasMicrosoftEopReceivedHop();
+            var hasMicrosoftEopIngressHop = HasMicrosoftEopIngressHop();
             SeenMicrosoftEop = HasHeaderPrefix("X-MS-Exchange-")
                 || HasHeaderPrefix("X-Microsoft-Antispam")
                 || HasHeaderPrefix("X-Forefront-")
                 || hasMicrosoftEopReceivedHop;
             SeenProofpoint = HasHeaderPrefix("X-Proofpoint")
                 || HasHeaderContaining("Proofpoint")
-                || ReceivedHops.Any(static hop => ContainsProvider(hop.Raw, "pphosted.com") || ContainsProvider(hop.Raw, "proofpoint"));
+                || ReceivedHops.Any(hop => IsProofpointHost(hop.FromHost) || IsProofpointHost(hop.ByHost));
 
             RedirectedToProofpoint = HasHeaderContaining("RedirectToProofpoint");
             ReceivedFromProofpoint = HasHeaderContaining("EmailReceivedFromPP");
             GatewayLoopDetected = (RedirectedToProofpoint && ReceivedFromProofpoint) || HasGatewayLoopInReceivedRoute();
-            _rawDirectToExchangeOnlineObserved = hasMicrosoftEopReceivedHop
+            _rawDirectToExchangeOnlineObserved = hasMicrosoftEopIngressHop
                 && !string.IsNullOrWhiteSpace(ForefrontSourceIp)
                 && IsAnonymousExchangeAuth();
             DirectToExchangeOnlineObserved = _rawDirectToExchangeOnlineObserved;
@@ -250,6 +251,10 @@ namespace DomainDetective {
             return ReceivedHops.Any(hop => IsMicrosoftEopHost(hop.FromHost) || IsMicrosoftEopHost(hop.ByHost));
         }
 
+        private bool HasMicrosoftEopIngressHop() {
+            return ReceivedHops.Any(hop => IsMicrosoftEopHost(hop.ByHost));
+        }
+
         private ReceivedHop? GetExternalMicrosoftIngressHop() {
             return ReceivedHops
                 .Where(hop => IsMicrosoftEopHost(hop.ByHost) && !IsMicrosoftEopHost(hop.FromHost))
@@ -303,7 +308,7 @@ namespace DomainDetective {
 
         private static bool IsProofpointHost(string? value) {
             return ContainsProvider(value, "pphosted.com")
-                || ContainsProvider(value, "proofpoint");
+                || ContainsProvider(value, "proofpoint.com");
         }
 
         private bool IsAnonymousExchangeAuth() {
@@ -319,14 +324,18 @@ namespace DomainDetective {
             if (GatewayLoopDetected) {
                 WriteRouteWarning(logger, MessageHeaderCodes.GatewayLoopDetected, "Message headers show Exchange Online routing to Proofpoint and returning to Exchange Online.");
             }
-            if (DirectToExchangeOnlineObserved && ExpectedMxBypassed) {
-                WriteRouteWarning(logger, MessageHeaderCodes.DirectToExchangeOnlineObserved, "Message appears to have entered Exchange Online directly from {0}.", ForefrontSourceIp);
-            }
+            EmitExpectedMxDiagnostics(logger);
             if (AuthenticationFailedDeliveredToInbox) {
                 WriteRouteWarning(logger, MessageHeaderCodes.AuthenticationFailedDeliveredToInbox, "Message reached Inbox even though SPF, DKIM, or DMARC did not pass.");
             }
             if (SelfSpoofDeliveredToInbox) {
                 WriteRouteWarning(logger, MessageHeaderCodes.SelfSpoofDeliveredToInbox, "Message appears to be same-domain self-spoofing and was delivered to Inbox.");
+            }
+        }
+
+        private void EmitExpectedMxDiagnostics(InternalLogger? logger = null) {
+            if (DirectToExchangeOnlineObserved && ExpectedMxBypassed) {
+                WriteRouteWarning(logger, MessageHeaderCodes.DirectToExchangeOnlineObserved, "Message appears to have entered Exchange Online directly from {0}.", ForefrontSourceIp);
             }
             if (ExpectedMxBypassed) {
                 WriteRouteWarning(logger, MessageHeaderCodes.ExpectedMxBypassed, "Expected public MX hosts were not observed in the message route.");
