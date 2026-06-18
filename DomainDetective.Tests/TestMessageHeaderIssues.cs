@@ -326,6 +326,34 @@ public class TestMessageHeaderIssues {
     }
 
     [Fact]
+    public void ExpectedMxComparisonPreservesAssessmentsWhenRepeatedWithSameLogger() {
+        var raw = string.Join("\r\n", new[] {
+            "Message-ID: <gateway-repeat-assessments@example.net>",
+            "From: sender@example.net",
+            "To: recipient@example.com",
+            "Subject: Gateway repeat assessments",
+            "Authentication-Results: mx.example.com; dkim=none; spf=fail smtp.mailfrom=example.net; dmarc=fail header.from=example.net",
+            "X-MS-Exchange-Organization-AuthAs: Anonymous",
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I",
+            "X-Forefront-Antispam-Report: CIP:198.51.100.7;SCL:1;SFV:NSPM;H:sender.example.net",
+            "Received: from sender.example.net (sender.example.net [198.51.100.7]) by example-com.mail.protection.outlook.com with SMTP id abc; Wed, 17 Jun 2026 12:00:00 +0000",
+            string.Empty
+        });
+        var logger = new InternalLogger();
+
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse(raw, logger);
+        analysis.CompareExpectedMx(new[] { "first-gateway.example.com" }, logger);
+        analysis.CompareExpectedMx(new[] { "second-gateway.example.com" }, logger);
+
+        Assert.True(analysis.ExpectedMxBypassed);
+        Assert.Contains(MessageHeaderIssue.DirectToExchangeOnline, analysis.Issues);
+        Assert.Contains(MessageHeaderIssue.ExpectedMxBypassed, analysis.Issues);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == MessageHeaderCodes.DirectToExchangeOnlineObserved);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == MessageHeaderCodes.ExpectedMxBypassed);
+    }
+
+    [Fact]
     public void ExpectedMxComparisonIgnoresSpoofedMicrosoftHeadersWithoutEopHop() {
         var raw = string.Join("\r\n", new[] {
             "Message-ID: <spoofed-microsoft-headers@example.net>",
@@ -349,6 +377,34 @@ public class TestMessageHeaderIssues {
         Assert.False(analysis.ExpectedMxBypassed);
         Assert.DoesNotContain(MessageHeaderIssue.DirectToExchangeOnline, analysis.Issues);
         Assert.DoesNotContain(MessageHeaderIssue.ExpectedMxBypassed, analysis.Issues);
+    }
+
+    [Fact]
+    public void ProviderDetectionUsesDnsBoundaryMatching() {
+        var raw = string.Join("\r\n", new[] {
+            "Message-ID: <provider-boundary@example.net>",
+            "From: sender@example.net",
+            "To: recipient@example.com",
+            "Subject: Provider boundary",
+            "Authentication-Results: mx.example.com; dkim=none; spf=fail smtp.mailfrom=example.net; dmarc=fail header.from=example.net",
+            "X-MS-Exchange-Organization-AuthAs: Anonymous",
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I",
+            "X-Forefront-Antispam-Report: CIP:198.51.100.7;SCL:1;SFV:NSPM;H:sender.example.net",
+            "Received: from sender.example.net (sender.example.net [198.51.100.7]) by example-com.mail.protection.outlook.com.evil.net with SMTP id abc; Wed, 17 Jun 2026 12:00:00 +0000",
+            "Received: from sender.example.net by mx.pphosted.com.evil.net with ESMTPS id def; Wed, 17 Jun 2026 12:01:00 +0000",
+            string.Empty
+        });
+
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse(raw, new InternalLogger());
+        analysis.CompareExpectedMx(new[] { "mail-gateway.example.com" });
+
+        Assert.False(analysis.DirectToExchangeOnlineObserved);
+        Assert.False(analysis.ExpectedMxBypassed);
+        Assert.False(analysis.GatewayLoopDetected);
+        Assert.DoesNotContain(MessageHeaderIssue.DirectToExchangeOnline, analysis.Issues);
+        Assert.DoesNotContain(MessageHeaderIssue.ExpectedMxBypassed, analysis.Issues);
+        Assert.DoesNotContain(MessageHeaderIssue.GatewayLoopDetected, analysis.Issues);
     }
 
     [Fact]
@@ -596,6 +652,29 @@ public class TestMessageHeaderIssues {
         Assert.True(analysis.SameDomainSelfSpoof);
         Assert.False(analysis.SelfSpoofDeliveredToInbox);
         Assert.DoesNotContain(MessageHeaderIssue.SelfSpoofDeliveredToInbox, analysis.Issues);
+    }
+
+    [Fact]
+    public void SameDomainSelfSpoofChecksAllRecipients() {
+        var raw = string.Join("\r\n", new[] {
+            "Message-ID: <recipient-list@example.com>",
+            "From: spoofed@example.com",
+            "To: user@example.net, target@example.com",
+            "Subject: Recipient list",
+            "Authentication-Results: mx.example.com; dkim=none; spf=fail smtp.mailfrom=example.com; dmarc=fail header.from=example.com",
+            "X-MS-Exchange-Organization-AuthAs: Anonymous",
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I",
+            "X-Forefront-Antispam-Report: CIP:192.0.2.25;SCL:1;SFV:NSPM;H:sender.example.net",
+            "Received: from sender.example.net (sender.example.net [192.0.2.25]) by example-com.mail.protection.outlook.com with SMTP id abc; Wed, 17 Jun 2026 12:00:00 +0000",
+            string.Empty
+        });
+
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse(raw, new InternalLogger());
+
+        Assert.True(analysis.SameDomainSelfSpoof);
+        Assert.True(analysis.SelfSpoofDeliveredToInbox);
+        Assert.Contains(MessageHeaderIssue.SelfSpoofDeliveredToInbox, analysis.Issues);
     }
 
     [Fact]

@@ -81,6 +81,7 @@ namespace DomainDetective {
             Issues.Remove(MessageHeaderIssue.DirectToExchangeOnline);
             RemoveAssessment(MessageHeaderCodes.ExpectedMxBypassed);
             RemoveAssessment(MessageHeaderCodes.DirectToExchangeOnlineObserved);
+            logger?.ClearLoggedMessages();
 
             if (expectedMxHosts == null) {
                 EmitRouteDiagnostics(logger);
@@ -191,8 +192,7 @@ namespace DomainDetective {
             DkimMissingOrFailed = IsFailureResult(TrustedDkimResult, treatMissingAsFailure: true);
             SpfFailedOrSoftFailed = IsFailureResult(TrustedSpfResult, treatMissingAsFailure: false);
             SameDomainSelfSpoof = TryGetDomain(From, out var fromDomain)
-                && TryGetDomain(To, out var toDomain)
-                && string.Equals(fromDomain, toDomain, StringComparison.OrdinalIgnoreCase);
+                && HasRecipientDomain(To, fromDomain);
 
             AuthenticationFailedDeliveredToInbox = DeliveredToInbox && DmarcFailed;
             SelfSpoofDeliveredToInbox = DeliveredToInbox
@@ -407,7 +407,7 @@ namespace DomainDetective {
         }
 
         private static bool HasHostBoundary(string value, int start, int length) {
-            if (start > 0 && IsDnsHostCharacter(value[start - 1])) {
+            if (start > 0 && IsDnsHostCharacter(value[start - 1]) && value[start - 1] != '.') {
                 return false;
             }
 
@@ -434,11 +434,11 @@ namespace DomainDetective {
         private string? TrustedDmarcResult => _hasTrustedAuthenticationResults ? _trustedDmarcResult : DmarcResult;
 
         private static bool ContainsProvider(string? value, string provider) {
-            if (string.IsNullOrWhiteSpace(value)) {
+            if (string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(provider)) {
                 return false;
             }
 
-            return value!.IndexOf(provider, StringComparison.OrdinalIgnoreCase) >= 0;
+            return ContainsHostWithBoundary(value, NormalizeHost(provider));
         }
 
         private static bool IsFailureResult(string? result, bool treatMissingAsFailure) {
@@ -482,6 +482,39 @@ namespace DomainDetective {
             }
 
             domain = address.Address.Substring(at + 1);
+            return true;
+        }
+
+        private static bool HasRecipientDomain(string? value, string? domain) {
+            if (string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(domain)) {
+                return false;
+            }
+
+            if (InternetAddressList.TryParse(value, out var addresses)) {
+                foreach (var mailbox in addresses.Mailboxes) {
+                    if (TryGetAddressDomain(mailbox.Address, out var recipientDomain)
+                        && string.Equals(recipientDomain, domain, StringComparison.OrdinalIgnoreCase)) {
+                        return true;
+                    }
+                }
+            }
+
+            return TryGetDomain(value, out var singleDomain)
+                && string.Equals(singleDomain, domain, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryGetAddressDomain(string? address, out string? domain) {
+            domain = null;
+            if (string.IsNullOrWhiteSpace(address)) {
+                return false;
+            }
+
+            var at = address!.LastIndexOf('@');
+            if (at < 0 || at == address.Length - 1) {
+                return false;
+            }
+
+            domain = address.Substring(at + 1);
             return true;
         }
     }

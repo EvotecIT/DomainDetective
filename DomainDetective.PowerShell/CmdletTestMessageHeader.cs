@@ -1,4 +1,5 @@
 using DnsClientX;
+using System.Collections.Generic;
 using System.Management.Automation;
 using System.Threading.Tasks;
 
@@ -23,6 +24,7 @@ namespace DomainDetective.PowerShell {
 
         private InternalLogger _logger = null!;
         private DomainHealthCheck _healthCheck = null!;
+        private readonly List<object> _items = new();
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
@@ -49,25 +51,37 @@ namespace DomainDetective.PowerShell {
             var result = _healthCheck.CheckMessageHeaders(HeaderText, ExpectedMx, CancelToken);
             WriteObject(result);
             if (IsExportRequested()) {
-                try {
-                    var hadUnsupportedFormats = false;
-                    CompositionExportHelper.WriteReports(
-                        new System.Collections.Generic.List<object> { result },
-                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
-                        ExportPath,
-                        "message-header",
-                        DomainDetective.Reports.ReportScope.Normal,
-                        "Email Message Header Report",
-                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                        TryOpenReport,
-                        out hadUnsupportedFormats);
+                _items.Add(result);
+            }
+            return Task.CompletedTask;
+        }
 
-                    if (hadUnsupportedFormats) {
-                        return ExportNotImplementedAsync("Get-DDEmailMessageHeaderInfo");
-                    }
-                } catch (System.Exception ex) {
-                    WriteWarning($"Message header export failed: {ex.Message}");
+        /// <summary>Writes a single export for all piped message header results.</summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        protected override Task EndProcessingAsync() {
+            if (_items.Count == 0) {
+                return Task.CompletedTask;
+            }
+
+            var label = _items.Count == 1 ? "message-header" : "message-headers";
+            try {
+                var hadUnsupportedFormats = false;
+                CompositionExportHelper.WriteReports(
+                    _items,
+                    GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                    ExportPath,
+                    label,
+                    DomainDetective.Reports.ReportScope.Normal,
+                    "Email Message Header Report",
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    TryOpenReport,
+                    out hadUnsupportedFormats);
+
+                if (hadUnsupportedFormats) {
+                    return ExportNotImplementedAsync("Get-DDEmailMessageHeaderInfo");
                 }
+            } catch (System.Exception ex) {
+                WriteWarning($"Message header export failed: {ex.Message}");
             }
             return Task.CompletedTask;
         }
