@@ -66,6 +66,10 @@ namespace DomainDetective {
         /// <param name="rawHeaders">Unparsed header text.</param>
         /// <param name="logger">Logger used for diagnostics.</param>
         public void Parse(string rawHeaders, InternalLogger? logger = null) {
+            Parse(rawHeaders, logger, emitRouteDiagnostics: true);
+        }
+
+        internal void Parse(string rawHeaders, InternalLogger? logger, bool emitRouteDiagnostics) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "HEADERS") : null;
             RawHeaders = rawHeaders;
             Headers.Clear();
@@ -113,7 +117,9 @@ namespace DomainDetective {
                         ComputeTransitTime();
                         AnalyzeRouteHeaders(logger);
                         DetermineIssues();
-                        EmitRouteDiagnostics(logger);
+                        if (emitRouteDiagnostics) {
+                            EmitRouteDiagnostics(logger);
+                        }
                         return;
                     }
                 }
@@ -140,7 +146,9 @@ namespace DomainDetective {
 
             AnalyzeRouteHeaders(logger);
             DetermineIssues();
-            EmitRouteDiagnostics(logger);
+            if (emitRouteDiagnostics) {
+                EmitRouteDiagnostics(logger);
+            }
         }
 
         private static readonly Regex FoldingWhitespace = new("\r?\n[ \t]+", RegexOptions.Compiled);

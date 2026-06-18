@@ -153,21 +153,21 @@ namespace DomainDetective {
 
         private void AnalyzeRouteHeaders(InternalLogger? logger) {
             MessageId = GetHeaderValue("Message-ID");
-            NetworkMessageId = GetHeaderValue("X-MS-Exchange-Organization-Network-Message-Id");
-            CrossTenantNetworkMessageId = GetHeaderValue("X-MS-Exchange-CrossTenant-Network-Message-Id");
-            ExchangeAuthAs = GetHeaderValue("X-MS-Exchange-Organization-AuthAs");
-            CrossTenantAuthAs = GetHeaderValue("X-MS-Exchange-CrossTenant-AuthAs");
-            ExternalInOutlookResult = GetHeaderValue("X-MS-Exchange-ExternalInOutlookResult");
+            NetworkMessageId = GetTrustedHeaderValue("X-MS-Exchange-Organization-Network-Message-Id");
+            CrossTenantNetworkMessageId = GetTrustedHeaderValue("X-MS-Exchange-CrossTenant-Network-Message-Id");
+            ExchangeAuthAs = GetTrustedHeaderValue("X-MS-Exchange-Organization-AuthAs");
+            CrossTenantAuthAs = GetTrustedHeaderValue("X-MS-Exchange-CrossTenant-AuthAs");
+            ExternalInOutlookResult = GetTrustedHeaderValue("X-MS-Exchange-ExternalInOutlookResult");
 
-            if (int.TryParse(GetHeaderValue("X-MS-Exchange-Organization-SCL"), out var scl)) {
+            if (int.TryParse(GetTrustedHeaderValue("X-MS-Exchange-Organization-SCL"), out var scl)) {
                 Scl = scl;
             }
 
-            var delivery = GetHeaderValue("X-Microsoft-Antispam-Mailbox-Delivery");
+            var delivery = GetTrustedHeaderValue("X-Microsoft-Antispam-Mailbox-Delivery");
             MailboxDestination = ExtractToken(delivery, "dest");
             DeliveredToInbox = string.Equals(MailboxDestination, "I", StringComparison.OrdinalIgnoreCase);
 
-            var forefront = GetHeaderValue("X-Forefront-Antispam-Report");
+            var forefront = GetTrustedHeaderValue("X-Forefront-Antispam-Report");
             ForefrontSourceIp = ExtractToken(forefront, "CIP");
             ForefrontHost = ExtractToken(forefront, "H");
             ForefrontSfv = ExtractToken(forefront, "SFV");
@@ -226,6 +226,14 @@ namespace DomainDetective {
 
         private string? GetHeaderValue(string name) {
             return Headers.TryGetValue(name, out var value) ? value : null;
+        }
+
+        private string? GetTrustedHeaderValue(string name) {
+            if (DuplicateHeaders.TryGetValue(name, out var values) && values.Count > 0) {
+                return values[0];
+            }
+
+            return GetHeaderValue(name);
         }
 
         private bool HasHeaderPrefix(string prefix) {

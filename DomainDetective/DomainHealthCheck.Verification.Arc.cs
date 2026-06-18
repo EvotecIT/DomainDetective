@@ -30,7 +30,7 @@ namespace DomainDetective {
             ct.ThrowIfCancellationRequested();
 
             var analysis = new MessageHeaderAnalysis();
-            analysis.Parse(rawHeaders);
+            analysis.Parse(rawHeaders, _logger, emitRouteDiagnostics: false);
             analysis.CompareExpectedMx(expectedMxHosts, _logger);
             return analysis;
         }
