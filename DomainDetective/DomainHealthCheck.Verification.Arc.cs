@@ -29,7 +29,8 @@ namespace DomainDetective {
         public MessageHeaderAnalysis CheckMessageHeaders(string rawHeaders, IEnumerable<string>? expectedMxHosts, CancellationToken ct = default) {
             ct.ThrowIfCancellationRequested();
 
-            var analysis = CheckMessageHeaders(rawHeaders, ct);
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse(rawHeaders);
             analysis.CompareExpectedMx(expectedMxHosts, _logger);
             return analysis;
         }
