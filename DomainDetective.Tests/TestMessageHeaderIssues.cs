@@ -703,6 +703,30 @@ public class TestMessageHeaderIssues {
     }
 
     [Fact]
+    public void SameDomainAnonymousAuthenticatedDeliveryIsNotSelfSpoof() {
+        var raw = string.Join("\r\n", new[] {
+            "Message-ID: <anonymous-aligned@example.com>",
+            "From: user@example.com",
+            "To: colleague@example.com",
+            "Subject: External aligned sender",
+            "Authentication-Results: mx.example.com; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com; dmarc=pass header.from=example.com",
+            "X-MS-Exchange-Organization-AuthAs: Anonymous",
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I",
+            "Received: from trusted-gateway.example.net by mx.example.com with SMTP id abc; Wed, 17 Jun 2026 12:00:00 +0000",
+            string.Empty
+        });
+
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse(raw, new InternalLogger());
+
+        Assert.True(analysis.SameDomainSelfSpoof);
+        Assert.False(analysis.AuthenticationFailedDeliveredToInbox);
+        Assert.False(analysis.DirectToExchangeOnlineObserved);
+        Assert.False(analysis.SelfSpoofDeliveredToInbox);
+        Assert.DoesNotContain(MessageHeaderIssue.SelfSpoofDeliveredToInbox, analysis.Issues);
+    }
+
+    [Fact]
     public void SameDomainSelfSpoofChecksAllRecipients() {
         var raw = string.Join("\r\n", new[] {
             "Message-ID: <recipient-list@example.com>",

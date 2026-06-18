@@ -210,7 +210,7 @@ namespace DomainDetective {
             AuthenticationFailedDeliveredToInbox = DeliveredToInbox && DmarcFailed;
             SelfSpoofDeliveredToInbox = DeliveredToInbox
                 && SameDomainSelfSpoof
-                && (DirectToExchangeOnlineObserved || AuthenticationFailedDeliveredToInbox || IsAnonymousExchangeAuth());
+                && (DirectToExchangeOnlineObserved || AuthenticationFailedDeliveredToInbox);
 
         }
 
