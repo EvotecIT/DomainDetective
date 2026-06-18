@@ -154,6 +154,31 @@ public class TestMessageHeaderIssues {
     }
 
     [Fact]
+    public void ExpectedMxComparisonIgnoresReceivedRawMentionsOutsideRouteHosts() {
+        var raw = string.Join("\r\n", new[] {
+            "Message-ID: <gateway-raw-mention@example.net>",
+            "From: sender@example.net",
+            "To: recipient@example.com",
+            "Subject: Gateway raw mention",
+            "Authentication-Results: mx.example.com; dkim=none; spf=fail smtp.mailfrom=example.net; dmarc=fail header.from=example.net",
+            "X-MS-Exchange-Organization-AuthAs: Anonymous",
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I",
+            "X-Forefront-Antispam-Report: CIP:198.51.100.7;SCL:1;SFV:NSPM;H:sender.example.net",
+            "Received: from sender.example.net (sender.example.net [198.51.100.7]) by example-com.mail.protection.outlook.com for <mail-gateway.example.com>; Wed, 17 Jun 2026 12:00:00 +0000",
+            string.Empty
+        });
+
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse(raw, new InternalLogger());
+        analysis.CompareExpectedMx(new[] { "mail-gateway.example.com" });
+
+        Assert.False(analysis.ExpectedMxObserved);
+        Assert.True(analysis.ExpectedMxBypassed);
+        Assert.True(analysis.DirectToExchangeOnlineObserved);
+        Assert.Contains(MessageHeaderIssue.ExpectedMxBypassed, analysis.Issues);
+    }
+
+    [Fact]
     public void ExpectedMxComparisonCanBeRepeatedWithDifferentHost() {
         var raw = string.Join("\r\n", new[] {
             "Message-ID: <gateway-repeat@example.net>",
@@ -264,6 +289,32 @@ public class TestMessageHeaderIssues {
         Assert.False(analysis.ExpectedMxObserved);
         Assert.True(analysis.ExpectedMxBypassed);
         Assert.True(analysis.DirectToExchangeOnlineObserved);
+    }
+
+    [Fact]
+    public void DirectExchangeOnlineUsesCrossTenantAuthAsFallback() {
+        var raw = string.Join("\r\n", new[] {
+            "Message-ID: <cross-tenant-authas@example.net>",
+            "From: sender@example.net",
+            "To: recipient@example.com",
+            "Subject: CrossTenant AuthAs",
+            "Authentication-Results: mx.example.com; dkim=none; spf=fail smtp.mailfrom=example.net; dmarc=fail header.from=example.net",
+            "X-MS-Exchange-CrossTenant-AuthAs: Anonymous",
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I",
+            "X-Forefront-Antispam-Report: CIP:198.51.100.7;SCL:1;SFV:NSPM;H:sender.example.net",
+            "Received: from sender.example.net (sender.example.net [198.51.100.7]) by example-com.mail.protection.outlook.com with SMTP id abc; Wed, 17 Jun 2026 12:00:00 +0000",
+            string.Empty
+        });
+
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse(raw, new InternalLogger());
+        analysis.CompareExpectedMx(new[] { "mail-gateway.example.com" });
+
+        Assert.Equal("Anonymous", analysis.CrossTenantAuthAs);
+        Assert.True(analysis.DirectToExchangeOnlineObserved);
+        Assert.True(analysis.ExpectedMxBypassed);
+        Assert.Contains(MessageHeaderIssue.DirectToExchangeOnline, analysis.Issues);
+        Assert.Contains(MessageHeaderIssue.ExpectedMxBypassed, analysis.Issues);
     }
 
     [Fact]

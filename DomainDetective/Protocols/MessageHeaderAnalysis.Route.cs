@@ -188,7 +188,7 @@ namespace DomainDetective {
             GatewayLoopDetected = (RedirectedToProofpoint && ReceivedFromProofpoint) || HasGatewayLoopInReceivedRoute();
             _rawDirectToExchangeOnlineObserved = SeenMicrosoftEop
                 && !string.IsNullOrWhiteSpace(ForefrontSourceIp)
-                && string.Equals(ExchangeAuthAs, "Anonymous", StringComparison.OrdinalIgnoreCase);
+                && IsAnonymousExchangeAuth();
             DirectToExchangeOnlineObserved = _rawDirectToExchangeOnlineObserved;
 
             DmarcFailed = IsFailureResult(TrustedDmarcResult, treatMissingAsFailure: false);
@@ -202,7 +202,7 @@ namespace DomainDetective {
             AuthenticationFailedDeliveredToInbox = DeliveredToInbox && (DmarcFailed || dkimFailed || SpfFailedOrSoftFailed);
             SelfSpoofDeliveredToInbox = DeliveredToInbox
                 && SameDomainSelfSpoof
-                && (DirectToExchangeOnlineObserved || AuthenticationFailedDeliveredToInbox || string.Equals(ExchangeAuthAs, "Anonymous", StringComparison.OrdinalIgnoreCase));
+                && (DirectToExchangeOnlineObserved || AuthenticationFailedDeliveredToInbox || IsAnonymousExchangeAuth());
 
         }
 
@@ -246,8 +246,7 @@ namespace DomainDetective {
 
         private bool IsHostObserved(string host) {
             return IsSameHost(ForefrontHost, host)
-                || ReceivedHops.Any(hop => ContainsHostWithBoundary(hop.Raw, host)
-                    || IsSameHost(hop.FromHost, host)
+                || ReceivedHops.Any(hop => IsSameHost(hop.FromHost, host)
                     || IsSameHost(hop.ByHost, host));
         }
 
@@ -291,6 +290,11 @@ namespace DomainDetective {
         private static bool IsProofpointHost(string? value) {
             return ContainsProvider(value, "pphosted.com")
                 || ContainsProvider(value, "proofpoint");
+        }
+
+        private bool IsAnonymousExchangeAuth() {
+            return string.Equals(ExchangeAuthAs, "Anonymous", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(CrossTenantAuthAs, "Anonymous", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string NormalizeHost(string host) {

@@ -45,6 +45,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override Task ProcessRecordAsync() {
+            _logger.ClearLoggedMessages();
             var result = _healthCheck.CheckMessageHeaders(HeaderText, ExpectedMx, CancelToken);
             WriteObject(result);
             if (IsExportRequested()) {
