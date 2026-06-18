@@ -58,9 +58,56 @@ jobs:
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git add Module/DomainDetective.psd1
-                  git commit -m "chore: regenerate psd1" || echo "No changes to commit"
-                  git push origin HEAD:$Env:HEAD_BRANCH
+
+                  $branch = $Env:HEAD_BRANCH
+                  $pushRoot = Join-Path $Env:RUNNER_TEMP "domain-detective-psd1-refresh-push"
+                  $repositoryUrl = "https://github.com/$Env:GITHUB_REPOSITORY.git"
+                  $auth = [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("x-access-token:$Env:GITHUB_TOKEN"))
+
+                  for ($attempt = 1; $attempt -le 3; $attempt++) {
+                    if (Test-Path -LiteralPath $pushRoot) {
+                      Remove-Item -LiteralPath $pushRoot -Recurse -Force
+                    }
+
+                    Write-Host "Refreshing PSD1 from latest origin/$branch in a temporary clone (attempt $attempt of 3)."
+                    git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" clone --no-tags --depth 1 --branch $branch $repositoryUrl $pushRoot
+                    if ($LASTEXITCODE -ne 0) {
+                      throw "Failed to clone origin/$branch."
+                    }
+
+                    Push-Location $pushRoot
+                    try {
+                      git config user.name "github-actions[bot]"
+                      git config user.email "github-actions[bot]@users.noreply.github.com"
+
+                      $Env:RefreshPSD1Only = 'true'
+                      .\Module\Build\Build-Module.ps1
+
+                      git add Module/DomainDetective.psd1
+                      git diff --cached --quiet -- Module/DomainDetective.psd1
+                      if ($LASTEXITCODE -eq 0) {
+                        Write-Host "DomainDetective.psd1 is already current."
+                        exit 0
+                      }
+
+                      git commit -m "chore: regenerate psd1"
+                      if ($LASTEXITCODE -ne 0) {
+                        throw "Failed to commit regenerated DomainDetective.psd1."
+                      }
+
+                      git push origin HEAD:$branch
+                      if ($LASTEXITCODE -eq 0) {
+                        exit 0
+                      }
+                    } finally {
+                      Pop-Location
+                    }
+
+                    Write-Warning "Push to $branch failed, likely because the branch moved. Retrying from the latest branch tip."
+                    Start-Sleep -Seconds ([Math]::Min(30, 5 * $attempt))
+                  }
+
+                  throw "Failed to push regenerated DomainDetective.psd1 after 3 attempts."
 
 
             - name: Upload refreshed manifest
