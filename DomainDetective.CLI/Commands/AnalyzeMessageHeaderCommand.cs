@@ -18,17 +18,21 @@ internal sealed class AnalyzeMessageHeaderSettings : CommandSettings {
     /// <summary>Output JSON results.</summary>
     [CommandOption("--json")]
     public bool Json { get; set; }
+
+    /// <summary>Expected public MX host. May be supplied multiple times.</summary>
+    [CommandOption("--expected-mx <HOST>")]
+    public string[]? ExpectedMx { get; set; }
 }
 
 /// <summary>
 /// Analyzes standard message headers for DMARC and authentication issues.
 /// </summary>
 internal sealed class AnalyzeMessageHeaderCommand : Command<AnalyzeMessageHeaderSettings> {
-    [RequiresDynamicCode("Calls DomainDetective.CLI.CommandUtilities.AnalyzeMessageHeader(FileInfo, String, Boolean)")]
-    [RequiresUnreferencedCode("Calls DomainDetective.CLI.CommandUtilities.AnalyzeMessageHeader(FileInfo, String, Boolean)")]
+    [RequiresDynamicCode("Calls DomainDetective.CLI.CommandUtilities.AnalyzeMessageHeader(FileInfo, String, Boolean, String[])")]
+    [RequiresUnreferencedCode("Calls DomainDetective.CLI.CommandUtilities.AnalyzeMessageHeader(FileInfo, String, Boolean, String[])")]
     /// <inheritdoc/>
     protected override int Execute(CommandContext context, AnalyzeMessageHeaderSettings settings, CancellationToken cancellationToken) {
-        CommandUtilities.AnalyzeMessageHeader(settings.File, settings.Header, settings.Json);
+        CommandUtilities.AnalyzeMessageHeader(settings.File, settings.Header, settings.Json, settings.ExpectedMx);
         return 0;
     }
 }

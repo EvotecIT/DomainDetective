@@ -1,4 +1,5 @@
 using DnsClientX;
+using System.Collections.Generic;
 using System.Management.Automation;
 using System.Threading.Tasks;
 
@@ -7,18 +8,23 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Analyze headers from a file.</summary>
-    ///   <code>Get-Content './headers.txt' -Raw | Get-DDEmailMessageHeaderInfo</code>
+    ///   <code>Get-Content './headers.txt' -Raw | Get-DDEmailMessageHeaderInfo -ExpectedMx 'mx1.gateway.example.net'</code>
     /// </example>
 [Cmdlet(VerbsCommon.Get, "DDEmailMessageHeaderInfo")]
 [Alias("Get-EmailHeaderInfo")]
     public sealed class CmdletTestMessageHeader : ExportableAsyncPSCmdlet {
         /// <summary>Raw header text.</summary>
-        [Parameter(Mandatory = true, Position = 0)]
+        [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true)]
         [ValidateNotNullOrEmpty]
         public string HeaderText = string.Empty;
 
+        /// <summary>Expected public MX hosts that should appear in the received path.</summary>
+        [Parameter]
+        public string[]? ExpectedMx { get; set; }
+
         private InternalLogger _logger = null!;
         private DomainHealthCheck _healthCheck = null!;
+        private readonly List<object> _items = new();
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
@@ -41,28 +47,41 @@ namespace DomainDetective.PowerShell {
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override Task ProcessRecordAsync() {
-            var result = _healthCheck.CheckMessageHeaders(HeaderText, CancelToken);
+            _logger.ClearLoggedMessages();
+            var result = _healthCheck.CheckMessageHeaders(HeaderText, ExpectedMx, CancelToken);
             WriteObject(result);
             if (IsExportRequested()) {
-                try {
-                    var hadUnsupportedFormats = false;
-                    CompositionExportHelper.WriteReports(
-                        new System.Collections.Generic.List<object> { result },
-                        GetRequestedFormatsOrDefault(ExportDefaults.Format),
-                        ExportPath,
-                        "message-header",
-                        DomainDetective.Reports.ReportScope.Normal,
-                        "Email Message Header Report",
-                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                        TryOpenReport,
-                        out hadUnsupportedFormats);
+                _items.Add(result);
+            }
+            return Task.CompletedTask;
+        }
 
-                    if (hadUnsupportedFormats) {
-                        return ExportNotImplementedAsync("Get-DDEmailMessageHeaderInfo");
-                    }
-                } catch (System.Exception ex) {
-                    WriteWarning($"Message header export failed: {ex.Message}");
+        /// <summary>Writes a single export for all piped message header results.</summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        protected override Task EndProcessingAsync() {
+            if (_items.Count == 0) {
+                return Task.CompletedTask;
+            }
+
+            var label = _items.Count == 1 ? "message-header" : "message-headers";
+            try {
+                var hadUnsupportedFormats = false;
+                CompositionExportHelper.WriteReports(
+                    _items,
+                    GetRequestedFormatsOrDefault(ExportDefaults.Format),
+                    ExportPath,
+                    label,
+                    DomainDetective.Reports.ReportScope.Normal,
+                    "Email Message Header Report",
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    TryOpenReport,
+                    out hadUnsupportedFormats);
+
+                if (hadUnsupportedFormats) {
+                    return ExportNotImplementedAsync("Get-DDEmailMessageHeaderInfo");
                 }
+            } catch (System.Exception ex) {
+                WriteWarning($"Message header export failed: {ex.Message}");
             }
             return Task.CompletedTask;
         }

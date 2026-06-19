@@ -10,7 +10,7 @@ namespace DomainDetective.PowerShell;
 /// <example>
 ///   <summary>Classify a single domain</summary>
 ///   <prefix>PS&gt; </prefix>
-///   <code>Get-DDMailDomainClassification -DomainName example.com</code>
+///   <code>Test-DDMailDomainClassification -DomainName example.com</code>
 ///   <para>Returns category, confidence, signals, score, and RFC references.</para>
 /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDMailDomainClassification", DefaultParameterSetName = "ByName")]

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,6 +16,25 @@ namespace DomainDetective {
 
             var analysis = new MessageHeaderAnalysis();
             analysis.Parse(rawHeaders, _logger);
+            return analysis;
+        }
+
+        /// <summary>
+        /// Parses raw message headers and compares the observed route with expected public MX hosts.
+        /// </summary>
+        /// <param name="rawHeaders">Unparsed header text.</param>
+        /// <param name="expectedMxHosts">Public MX hosts expected to process inbound mail.</param>
+        /// <param name="ct">Token to cancel the operation.</param>
+        /// <returns>Populated <see cref="MessageHeaderAnalysis"/> instance.</returns>
+        public MessageHeaderAnalysis CheckMessageHeaders(string rawHeaders, IEnumerable<string>? expectedMxHosts, CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
+
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse(rawHeaders, _logger, emitRouteDiagnostics: false);
+            analysis.CompareExpectedMx(expectedMxHosts, _logger);
+            _logger.ClearLoggedMessages();
+            using var collector = AssessmentCollector.ForAnalysis(_logger, analysis, category: "HEADERS");
+            analysis.EmitNonMxRouteDiagnostics(_logger);
             return analysis;
         }
 

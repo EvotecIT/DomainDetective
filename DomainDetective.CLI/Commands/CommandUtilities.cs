@@ -100,7 +100,7 @@ internal static class CommandUtilities {
 
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    internal static void AnalyzeMessageHeader(FileInfo? file, string? header, bool json) {
+    internal static void AnalyzeMessageHeader(FileInfo? file, string? header, bool json, string[]? expectedMx = null) {
         string? headerText = null;
         if (file != null) {
             if (!file.Exists) {
@@ -117,7 +117,9 @@ internal static class CommandUtilities {
         }
 
         var hc = new DomainHealthCheck();
-        var result = hc.CheckMessageHeaders(headerText);
+        var result = expectedMx != null && expectedMx.Length > 0
+            ? hc.CheckMessageHeaders(headerText, expectedMx)
+            : hc.CheckMessageHeaders(headerText);
 
         if (json) {
             var jsonText = JsonSerializer.Serialize(result, JsonOptions.Default);

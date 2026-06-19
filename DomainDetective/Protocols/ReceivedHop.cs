@@ -24,6 +24,8 @@ public class ReceivedHop {
     public DateTimeOffset? Timestamp { get; set; }
     /// <summary>Delay since the previous hop.</summary>
     public TimeSpan? HopDelay { get; set; }
+    /// <summary>Zero-based order in which the header appeared in the message.</summary>
+    public int HeaderIndex { get; set; }
     /// <summary>Raw header value.</summary>
     public string Raw { get; set; } = string.Empty;
 

@@ -11,14 +11,14 @@ namespace DomainDetective {
     /// Represents the results from parsing message headers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class MessageHeaderAnalysis : IHasAssessments {
+    public partial class MessageHeaderAnalysis : IHasAssessments {
         /// <summary>Raw headers supplied for parsing.</summary>
         public string? RawHeaders { get; private set; }
         /// <summary>All parsed headers keyed by header name.</summary>
         public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Duplicate header values keyed by header name.</summary>
         public Dictionary<string, List<string>> DuplicateHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
-        /// <summary>List of parsed <c>Received</c> header hops in order.</summary>
+        /// <summary>List of parsed <c>Received</c> header hops. Use <see cref="ReceivedHop.HeaderIndex"/> for original header order.</summary>
         public List<ReceivedHop> ReceivedHops { get; } = new();
         /// <summary>Total message transit time across all hops.</summary>
         public TimeSpan? TotalTransitTime { get; private set; }
@@ -47,6 +47,11 @@ namespace DomainDetective {
         /// <summary>Ignored DKIM-Signature headers with invalid signature values.</summary>
         public List<string> InvalidDkimSignatures { get; } = new();
 
+        private bool _hasTrustedAuthenticationResults;
+        private string? _trustedDkimResult;
+        private string? _trustedSpfResult;
+        private string? _trustedDmarcResult;
+
         /// <summary>Collection of detected issues.</summary>
         public List<MessageHeaderIssue> Issues { get; } = new();
 
@@ -61,6 +66,10 @@ namespace DomainDetective {
         /// <param name="rawHeaders">Unparsed header text.</param>
         /// <param name="logger">Logger used for diagnostics.</param>
         public void Parse(string rawHeaders, InternalLogger? logger = null) {
+            Parse(rawHeaders, logger, emitRouteDiagnostics: true);
+        }
+
+        internal void Parse(string rawHeaders, InternalLogger? logger, bool emitRouteDiagnostics) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "HEADERS") : null;
             RawHeaders = rawHeaders;
             Headers.Clear();
@@ -80,6 +89,11 @@ namespace DomainDetective {
             SpfResult = null;
             DmarcResult = null;
             ArcResult = null;
+            _hasTrustedAuthenticationResults = false;
+            _trustedDkimResult = null;
+            _trustedSpfResult = null;
+            _trustedDmarcResult = null;
+            ResetRouteDiagnostics();
             if (string.IsNullOrWhiteSpace(rawHeaders)) {
                 logger?.WriteVerbose("No headers supplied for parsing.");
                 return;
@@ -101,7 +115,11 @@ namespace DomainDetective {
                         logger?.WriteErrorCode(MessageHeaderCodes.MimeParseFailed, "MimeKit failed to parse headers: {0}", ex.Message);
                         ParseManually(rawHeaders, logger);
                         ComputeTransitTime();
+                        AnalyzeRouteHeaders(logger);
                         DetermineIssues();
+                        if (emitRouteDiagnostics) {
+                            EmitRouteDiagnostics(logger);
+                        }
                         return;
                     }
                 }
@@ -126,7 +144,11 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(MessageHeaderCodes.ArcPass, "ARC authentication passed");
             }
 
+            AnalyzeRouteHeaders(logger);
             DetermineIssues();
+            if (emitRouteDiagnostics) {
+                EmitRouteDiagnostics(logger);
+            }
         }
 
         private static readonly Regex FoldingWhitespace = new("\r?\n[ \t]+", RegexOptions.Compiled);
@@ -159,7 +181,9 @@ namespace DomainDetective {
 
             switch (lower) {
                 case "received":
-                    ReceivedHops.Add(ReceivedHop.Parse(value));
+                    var hop = ReceivedHop.Parse(value);
+                    hop.HeaderIndex = ReceivedHops.Count;
+                    ReceivedHops.Add(hop);
                     break;
                 case "from":
                     From = value;
@@ -229,17 +253,42 @@ namespace DomainDetective {
         }
 
         private void ParseAuthenticationResults(string value) {
+            string? dkim = null;
+            string? spf = null;
+            string? dmarc = null;
+            string? arc = null;
+
             foreach (var part in value.Split(';')) {
                 var trimmed = part.Trim();
                 if (trimmed.StartsWith("dkim=", StringComparison.OrdinalIgnoreCase)) {
-                    DkimResult = trimmed.Substring(5).Trim();
+                    dkim = trimmed.Substring(5).Trim();
                 } else if (trimmed.StartsWith("spf=", StringComparison.OrdinalIgnoreCase)) {
-                    SpfResult = trimmed.Substring(4).Trim();
+                    spf = trimmed.Substring(4).Trim();
                 } else if (trimmed.StartsWith("dmarc=", StringComparison.OrdinalIgnoreCase)) {
-                    DmarcResult = trimmed.Substring(6).Trim();
+                    dmarc = trimmed.Substring(6).Trim();
                 } else if (trimmed.StartsWith("arc=", StringComparison.OrdinalIgnoreCase)) {
-                    ArcResult = trimmed.Substring(4).Trim();
+                    arc = trimmed.Substring(4).Trim();
                 }
+            }
+
+            if (dkim != null) {
+                DkimResult = dkim;
+            }
+            if (spf != null) {
+                SpfResult = spf;
+            }
+            if (dmarc != null) {
+                DmarcResult = dmarc;
+            }
+            if (arc != null) {
+                ArcResult = arc;
+            }
+
+            if (!_hasTrustedAuthenticationResults && (dkim != null || spf != null || dmarc != null || arc != null)) {
+                _hasTrustedAuthenticationResults = true;
+                _trustedDkimResult = dkim;
+                _trustedSpfResult = spf;
+                _trustedDmarcResult = dmarc;
             }
         }
 
@@ -342,6 +391,8 @@ namespace DomainDetective {
             } else if (!string.Equals(arcResult, "pass", StringComparison.OrdinalIgnoreCase)) {
                 AddIssue(MessageHeaderIssue.InvalidArc);
             }
+
+            DetermineRouteIssues();
         }
     }
 }

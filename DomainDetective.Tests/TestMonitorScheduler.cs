@@ -30,7 +30,8 @@ public class TestMonitorScheduler
                 Expired = true,
                 ExpiryDate = System.DateTime.UtcNow.AddDays(-1),
                 Analysis = new CertificateAnalysis()
-            })
+            }),
+            BgpOverride = (_, _) => Task.FromResult(new System.Collections.Generic.Dictionary<string, int>())
         };
         scheduler.Domains.Add("example.com");
         await scheduler.RunAsync();
@@ -63,7 +64,8 @@ public class TestMonitorScheduler
                 Expired = true,
                 ExpiryDate = System.DateTime.UtcNow.AddDays(-1),
                 Analysis = new CertificateAnalysis()
-            })
+            }),
+            BgpOverride = (_, _) => Task.FromResult(new System.Collections.Generic.Dictionary<string, int>())
         };
         scheduler.Domains.Add("example.com");
 
