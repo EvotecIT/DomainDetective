@@ -63,7 +63,7 @@
 
     <ItemGroup>
         <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
-        <PackageReference Include="Spectre.Console" Version="0.57.1" />
+        <PackageReference Include="Spectre.Console" Version="0.57.2" />
     </ItemGroup>
 
     <PropertyGroup Condition=" '$(TargetFramework)' == 'net472' ">
