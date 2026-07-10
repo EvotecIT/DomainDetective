@@ -22,7 +22,28 @@ namespace DomainDetective {
                 return;
             }
             CAAAnalysis.Subject = domainName;
-            var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA, cancellationToken: cancellationToken);
+            DnsAnswer[] caa = Array.Empty<DnsAnswer>();
+            var candidate = domainName;
+            while (!string.IsNullOrWhiteSpace(candidate)) {
+                caa = await DnsConfiguration.QueryDNS(candidate, DnsRecordType.CAA, cancellationToken: cancellationToken);
+                caa = caa.Where(answer => answer.Type == DnsRecordType.CAA).ToArray();
+                if (caa.Length > 0) {
+                    for (var index = 0; index < caa.Length; index++) {
+                        if (string.IsNullOrWhiteSpace(caa[index].Name)) {
+                            var answer = caa[index];
+                            answer.Name = candidate;
+                            caa[index] = answer;
+                        }
+                    }
+                    break;
+                }
+
+                var separator = candidate.IndexOf('.');
+                if (separator < 0 || separator == candidate.Length - 1) {
+                    break;
+                }
+                candidate = candidate.Substring(separator + 1);
+            }
             await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
         }
 
@@ -48,6 +69,7 @@ namespace DomainDetective {
         public async Task CheckCAA(List<string> caaRecords, CancellationToken cancellationToken = default) {
             var dnsResults = caaRecords.Select(record => new DnsAnswer {
                 DataRaw = record,
+                Type = DnsRecordType.CAA
             }).ToList();
 
             await CAAAnalysis.AnalyzeCAARecords(dnsResults, _logger);

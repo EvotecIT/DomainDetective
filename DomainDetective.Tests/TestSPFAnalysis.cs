@@ -425,6 +425,45 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task CountsBareAndQualifiedDnsLookupMechanisms() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["included.example"] = "v=spf1 -all";
+
+            await healthCheck.CheckSPF("v=spf1 a ~mx ?ptr -include:included.example exists:probe.example -all");
+
+            Assert.Equal(5, healthCheck.SpfAnalysis.DnsLookupsCount);
+            Assert.Single(healthCheck.SpfAnalysis.ARecords);
+            Assert.Single(healthCheck.SpfAnalysis.MxRecords);
+            Assert.Single(healthCheck.SpfAnalysis.PtrRecords);
+            Assert.Single(healthCheck.SpfAnalysis.IncludeRecords);
+            Assert.Single(healthCheck.SpfAnalysis.ExistsRecords);
+        }
+
+        [Fact]
+        public async Task RepeatedIncludeTargetIsCountedWithoutFalseCycle() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["shared.example"] = "v=spf1 -all";
+
+            await healthCheck.CheckSPF("v=spf1 include:shared.example include:shared.example -all");
+
+            Assert.Equal(2, healthCheck.SpfAnalysis.DnsLookupsCount);
+            Assert.False(healthCheck.SpfAnalysis.CycleDetected);
+            Assert.False(healthCheck.SpfAnalysis.PermError);
+        }
+
+        [Theory]
+        [InlineData("v=spf1 ip4:192.0.2.0/-1 -all")]
+        [InlineData("v=spf1 ip4:192.0.2.0/33 -all")]
+        [InlineData("v=spf1 ip4:192.0.2.0/ -all")]
+        public async Task InvalidIpv4PrefixIsRejected(string record) {
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(record);
+
+            Assert.True(healthCheck.SpfAnalysis.InvalidIpSyntax);
+        }
+
+        [Fact]
         public async Task GetFlattenedSpfResolvesIncludes() {
             var healthCheck = new DomainHealthCheck();
             healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 ip4:192.0.2.1 -all";

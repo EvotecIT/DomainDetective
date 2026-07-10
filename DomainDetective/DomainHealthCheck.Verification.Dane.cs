@@ -77,6 +77,7 @@ namespace DomainDetective {
                 cancellationToken.ThrowIfCancellationRequested();
                 _logger.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
+                await ValidateDaneCertificateAssociationsAsync(cancellationToken);
             } else {
                 _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
@@ -129,6 +130,7 @@ namespace DomainDetective {
                 cancellationToken.ThrowIfCancellationRequested();
                 _logger.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
+                await ValidateDaneCertificateAssociationsAsync(cancellationToken);
             } else {
                 _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
@@ -214,6 +216,7 @@ namespace DomainDetective {
                 cancellationToken.ThrowIfCancellationRequested();
                 _logger.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
+                await ValidateDaneCertificateAssociationsAsync(cancellationToken);
             } else {
                 _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }

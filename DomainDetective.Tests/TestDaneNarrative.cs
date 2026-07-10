@@ -20,6 +20,7 @@ public class TestDaneNarrative
 
         var positives = RecommendationEngine.FromPositives(healthCheck.DaneAnalysis.Assessments);
         Assert.Contains(positives, p => p.Code == DaneCodes.RecordValid);
-        Assert.Contains(positives, p => p.Code == DaneCodes.CertificateMatches);
+        Assert.DoesNotContain(positives, p => p.Code == DaneCodes.CertificateMatches);
+        Assert.Contains(sections.Highlights, h => h.Contains("not checked", System.StringComparison.OrdinalIgnoreCase));
     }
 }

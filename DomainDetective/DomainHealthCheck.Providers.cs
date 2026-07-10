@@ -54,7 +54,7 @@ public partial class DomainHealthCheck
                 if (minSel > 0 && DKIMAnalysis?.AnalysisResults != null)
                 {
                     int validSel = DKIMAnalysis.AnalysisResults.Values.Count(v =>
-                        v.DkimRecordExists && v.StartsCorrectly && v.PublicKeyExists && v.ValidPublicKey && v.ValidRsaKeyLength);
+                        v.DkimRecordExists && !v.MultipleRecords && v.VersionValid && v.PublicKeyExists && v.ValidPublicKey && v.ValidKeyLength);
                     if (validSel >= minSel)
                     {
                         DKIMAnalysis.Assessments.Add(new Assessment

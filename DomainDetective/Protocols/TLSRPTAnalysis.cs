@@ -46,7 +46,8 @@ public class TLSRPTAnalysis : IHasAssessments {
         public List<string> UnknownTags { get; private set; } = new();
 
         /// <summary>Represents the policy valid value.</summary>
-        public bool PolicyValid => TlsRptRecordExists && StartsCorrectly && RuaDefined;
+        public bool PolicyValid => TlsRptRecordExists && !MultipleRecords && StartsCorrectly && RuaDefined &&
+                                   InvalidRua.Count == 0 && MailtoRua.Count + HttpRua.Count > 0;
 
         /// <summary>Optional: when true, attempts a lightweight HEAD to HTTPS RUA endpoints to verify reachability.</summary>
         public bool CheckEndpoints { get; set; }
@@ -99,10 +100,12 @@ public class TLSRPTAnalysis : IHasAssessments {
                 CnameTtl = cnameRecords.Min(r => r.TTL);
             }
 
-            var recordList = allRecords
-                .Where(r => r.Type != DnsRecordType.CNAME)
+            var allTxtRecords = allRecords.Where(r => r.Type == DnsRecordType.TXT).ToList();
+            var recordList = allTxtRecords
+                .Where(r => r.Type == DnsRecordType.TXT &&
+                            r.TxtConcatenatedData.StartsWith("v=TLSRPTv1;", StringComparison.Ordinal))
                 .ToList();
-            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(recordList, expectedType: DnsRecordType.TXT);
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(allTxtRecords, expectedType: DnsRecordType.TXT);
             TlsRptRecordExists = recordList.Any();
             MultipleRecords = recordList.Count > 1;
             if (!TlsRptRecordExists) {
@@ -112,10 +115,15 @@ public class TLSRPTAnalysis : IHasAssessments {
 
             logger.WriteInformationCode(TlsRptCodes.RecordPresent, "TLSRPT record present");
 
-            TlsRptRecord = string.Join(" ", recordList.Select(r => r.Data));
+            TlsRptRecord = recordList[0].TxtConcatenatedData;
             logger.WriteVerbose($"Analyzing TLSRPT record {TlsRptRecord}");
 
-            StartsCorrectly = TlsRptRecord?.StartsWith("v=TLSRPTv1", StringComparison.OrdinalIgnoreCase) == true;
+            if (MultipleRecords) {
+                logger.WriteWarningCode(TlsRptCodes.MultipleRecords, "Multiple TLSRPT TXT records found; reporting policy discovery is invalid.");
+                return;
+            }
+
+            StartsCorrectly = TlsRptRecord?.StartsWith("v=TLSRPTv1;", StringComparison.Ordinal) == true;
             if (StartsCorrectly) {
                 logger.WriteInformationCode(TlsRptCodes.RecordStartsV1, "TLSRPT starts with v=TLSRPTv1");
             }
@@ -156,6 +164,9 @@ public class TLSRPTAnalysis : IHasAssessments {
 
             if (!RuaDefined) {
                 logger.WriteWarningCode(TlsRptCodes.MissingRua, "TLSRPT record missing rua tag.");
+            }
+            if (InvalidRua.Count > 0) {
+                logger.WriteWarningCode(TlsRptCodes.InvalidRua, "TLSRPT record contains {0} invalid rua destination(s).", InvalidRua.Count);
             }
 
             if (CheckEndpoints && HttpRua.Count > 0)

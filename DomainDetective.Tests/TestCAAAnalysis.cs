@@ -159,9 +159,8 @@ namespace DomainDetective.Tests {
 
             Assert.True(healthCheck.CAAAnalysis.Valid == true);
             Assert.True(healthCheck.CAAAnalysis.ReportViolationEmail.Count == 0);
-            Assert.True(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count == 0);
-
-            Assert.True(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count == 0);
+            Assert.Single(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain);
+            Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain[0]);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Flag == "128");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Tag == CAATagType.Issue);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Value == "letsencrypt.org");
@@ -272,6 +271,71 @@ namespace DomainDetective.Tests {
 
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidFlag);
             Assert.Contains(warnings, w => w.FullMessage.Contains("reserved flag bits"));
+        }
+
+        [Fact]
+        public async Task EmptyAndNonEmptyIssuePropertiesAreAdditiveNotConflicting() {
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckCAA(new List<string> {
+                "0 issue \";\"",
+                "0 issue \"letsencrypt.org\""
+            });
+
+            Assert.False(healthCheck.CAAAnalysis.Conflicting);
+            Assert.True(healthCheck.CAAAnalysis.Valid);
+            Assert.Equal(new[] { "letsencrypt.org" }, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain);
+        }
+
+        [Fact]
+        public async Task EmptyIssuerWithoutSemicolonDeniesIssuance() {
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckCAA("0 issue \"\"");
+
+            var result = Assert.Single(healthCheck.CAAAnalysis.AnalysisResults);
+            Assert.True(result.DenyCertificateIssuance);
+            Assert.False(result.AllowCertificateIssuance);
+            Assert.Null(result.Issuer);
+            Assert.False(result.Invalid);
+        }
+
+        [Theory]
+        [InlineData("0 issue \"https://ca.example\"")]
+        [InlineData("0 issue \"-ca.example\"")]
+        [InlineData("0 issue \"ca..example\"")]
+        public async Task InvalidIssuerDomainIsRejected(string record) {
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckCAA(record);
+
+            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidValueWrongDomain);
+            Assert.False(healthCheck.CAAAnalysis.Valid);
+        }
+
+        [Fact]
+        public async Task VerifyCaaUsesFirstParentRrset() {
+            var queries = new List<string>();
+            var healthCheck = new DomainHealthCheck {
+                DnsConfiguration = {
+                    QueryDnsOverride = (name, type) => {
+                        queries.Add(name);
+                        if (type == DnsRecordType.CAA && name == "example.com") {
+                            return Task.FromResult(new[] {
+                                new DnsAnswer { Name = name, Type = type, DataRaw = "0 issue \"letsencrypt.org\"" }
+                            });
+                        }
+                        return Task.FromResult(Array.Empty<DnsAnswer>());
+                    }
+                }
+            };
+
+            await healthCheck.VerifyCAA("www.mail.example.com");
+
+            Assert.Equal(new[] { "www.mail.example.com", "mail.example.com", "example.com" }, queries);
+            Assert.Equal("example.com", healthCheck.CAAAnalysis.DomainName);
+            Assert.True(healthCheck.CAAAnalysis.PolicyInherited);
+            Assert.Equal(new[] { "letsencrypt.org" }, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain);
         }
     }
 }

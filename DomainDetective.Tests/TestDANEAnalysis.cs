@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -482,6 +484,137 @@ namespace DomainDetective.Tests {
             Assert.Equal(
                 "SHA-256: SHA-256 of Certificate or SPKI",
                 TlsaMatchingType.Sha256.GetDescription());
+        }
+
+        [Fact]
+        public async Task SyntaxValidationDoesNotClaimCertificateMatch() {
+            var record = new DnsAnswer {
+                Name = "_443._tcp.example.com",
+                Type = DnsRecordType.TLSA,
+                DataRaw = $"3 1 1 {new string('0', 64)}"
+            };
+            var analysis = new DANEAnalysis();
+
+            await analysis.AnalyzeDANERecords(new[] { record }, new InternalLogger());
+
+            var result = Assert.Single(analysis.AnalysisResults);
+            Assert.True(result.ValidDANERecord);
+            Assert.Equal(DaneAssociationMatchStatus.NotChecked, result.AssociationMatchStatus);
+            Assert.False(result.CertificateMatches);
+            Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == DaneCodes.CertificateMatches);
+        }
+
+        [Fact]
+        public async Task SpkiSha256AssociationMatchesLiveCertificateEvidence() {
+            using var certificate = CreateDaneCertificate();
+            var spki = new Org.BouncyCastle.X509.X509CertificateParser().ReadCertificate(certificate.RawData)
+                .CertificateStructure.SubjectPublicKeyInfo.GetEncoded();
+            string digest;
+            using (var sha256 = SHA256.Create()) {
+                digest = BitConverter.ToString(sha256.ComputeHash(spki)).Replace("-", string.Empty);
+            }
+            var owner = "_443._tcp.example.com";
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(new[] {
+                new DnsAnswer { Name = owner, Type = DnsRecordType.TLSA, DataRaw = $"3 1 1 {digest}" }
+            }, new InternalLogger());
+
+            analysis.ValidateCertificateAssociations(new[] {
+                new DaneCertificateEvidence {
+                    TlsaOwnerName = owner,
+                    EndEntityCertificate = certificate,
+                    CertificateChain = new[] { certificate },
+                    DnssecValidated = true,
+                    PkixValidated = false
+                }
+            }, new InternalLogger());
+
+            var result = Assert.Single(analysis.AnalysisResults);
+            Assert.Equal(DaneAssociationMatchStatus.Match, result.AssociationMatchStatus);
+            Assert.True(result.CertificateMatches);
+            Assert.True(analysis.AllCertificateAssociationsMatch);
+            Assert.Contains(analysis.Assessments, assessment => assessment.Code == DaneCodes.CertificateMatches);
+        }
+
+        [Fact]
+        public async Task AssociationMismatchIsNotReportedAsValidCertificateEvidence() {
+            using var certificate = CreateDaneCertificate();
+            var owner = "_443._tcp.example.com";
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(new[] {
+                new DnsAnswer { Name = owner, Type = DnsRecordType.TLSA, DataRaw = $"3 1 1 {new string('0', 64)}" }
+            }, new InternalLogger());
+
+            analysis.ValidateCertificateAssociations(new[] {
+                new DaneCertificateEvidence {
+                    TlsaOwnerName = owner,
+                    EndEntityCertificate = certificate,
+                    CertificateChain = new[] { certificate },
+                    DnssecValidated = true
+                }
+            }, new InternalLogger());
+
+            var result = Assert.Single(analysis.AnalysisResults);
+            Assert.Equal(DaneAssociationMatchStatus.NoMatch, result.AssociationMatchStatus);
+            Assert.False(result.CertificateMatches);
+            Assert.False(analysis.AllCertificateAssociationsMatch);
+            Assert.Contains(analysis.Assessments, assessment => assessment.Code == DaneCodes.CertificateMismatch);
+        }
+
+        [Fact]
+        public async Task UnvalidatedDnssecPreventsAssociationClaim() {
+            using var certificate = CreateDaneCertificate();
+            var owner = "_443._tcp.example.com";
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(new[] {
+                new DnsAnswer { Name = owner, Type = DnsRecordType.TLSA, DataRaw = $"3 0 1 {new string('0', 64)}" }
+            }, new InternalLogger());
+
+            analysis.ValidateCertificateAssociations(new[] {
+                new DaneCertificateEvidence {
+                    TlsaOwnerName = owner,
+                    EndEntityCertificate = certificate,
+                    CertificateChain = new[] { certificate },
+                    DnssecValidated = false
+                }
+            }, new InternalLogger());
+
+            Assert.Equal(DaneAssociationMatchStatus.CheckFailed, analysis.AnalysisResults[0].AssociationMatchStatus);
+            Assert.Contains(analysis.Assessments, assessment => assessment.Code == DaneCodes.DnssecNotValidated);
+        }
+
+        [Fact]
+        public async Task VerifyDaneUsesCertificateEvidenceProviderEndToEnd() {
+            using var certificate = CreateDaneCertificate();
+            var spki = new Org.BouncyCastle.X509.X509CertificateParser().ReadCertificate(certificate.RawData)
+                .CertificateStructure.SubjectPublicKeyInfo.GetEncoded();
+            string digest;
+            using (var sha256 = SHA256.Create()) {
+                digest = BitConverter.ToString(sha256.ComputeHash(spki)).Replace("-", string.Empty);
+            }
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.DaneDnsOverride = (name, type) => Task.FromResult(
+                name == "_443._tcp.example.com" && type == DnsRecordType.TLSA
+                    ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = $"3 1 1 {digest}" } }
+                    : Array.Empty<DnsAnswer>());
+            healthCheck.DaneCertificateEvidenceOverride = (host, port, _) => Task.FromResult<DaneCertificateEvidence?>(new DaneCertificateEvidence {
+                EndEntityCertificate = certificate,
+                CertificateChain = new[] { certificate },
+                PkixValidated = true,
+                DnssecValidated = true
+            });
+
+            await healthCheck.VerifyDANE("example.com", new[] { 443 });
+
+            var result = Assert.Single(healthCheck.DaneAnalysis.AnalysisResults);
+            Assert.Equal(DaneAssociationMatchStatus.Match, result.AssociationMatchStatus);
+            Assert.True(healthCheck.DaneAnalysis.AllCertificateAssociationsMatch);
+        }
+
+        private static X509Certificate2 CreateDaneCertificate() {
+            using var rsa = RSA.Create(2048);
+            var request = new CertificateRequest("CN=example.com", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
         }
     }
 }

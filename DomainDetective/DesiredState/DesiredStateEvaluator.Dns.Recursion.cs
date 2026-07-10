@@ -8,6 +8,7 @@ public static partial class DesiredStateEvaluator {
         if (analysis == null) return;
 
         var results = analysis.ServerResults ?? new Dictionary<string, bool>();
+        var details = analysis.ServerDetails ?? new Dictionary<string, OpenResolverResult>();
 
         if (desired.RequireAtLeastOneResult == true && results.Count == 0) {
             sink.Assessments.Add(new Assessment {
@@ -20,8 +21,19 @@ public static partial class DesiredStateEvaluator {
             return;
         }
 
-        if (results.Count == 0) {
+        if (results.Count == 0 && details.Count == 0) {
             return;
+        }
+
+        foreach (var kvp in details) {
+            if (kvp.Value.Status != OpenResolverStatus.Failed && kvp.Value.Status != OpenResolverStatus.Unknown) continue;
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.OpenResolverCheckFailed,
+                Message = $"Open-recursion state for '{kvp.Key}' could not be established: {kvp.Value.Error ?? "the probe was inconclusive"}."
+            });
         }
 
         if (desired.DisallowOpenResolver != true) {
@@ -29,7 +41,7 @@ public static partial class DesiredStateEvaluator {
         }
 
         foreach (var kvp in results) {
-            if (!kvp.Value) continue;
+            if (!kvp.Value || (details.TryGetValue(kvp.Key, out var detail) && detail.Status != OpenResolverStatus.Open)) continue;
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Error,
                 Category = "DesiredState",

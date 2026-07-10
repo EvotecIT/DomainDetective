@@ -26,7 +26,16 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task AnalysisWithoutDsRecordsSetsDsMatchFalse() {
-            var analysis = new DnsSecAnalysis();
+            var analysis = new DnsSecAnalysis {
+                QueryDnsResponseOverride = (_, type, _) => Task.FromResult(type == DnsRecordType.DNSKEY
+                    ? new DnsResponse {
+                        AuthenticData = true,
+                        Answers = new[] {
+                            new DnsAnswer { Type = DnsRecordType.DNSKEY, DataRaw = "257 3 13 AQID" }
+                        }
+                    }
+                    : new DnsResponse { AuthenticData = true, Answers = System.Array.Empty<DnsAnswer>() })
+            };
             await analysis.Analyze("cisco.com", null!);
             Assert.False(analysis.DsMatch);
             Assert.Empty(analysis.DsRecords);

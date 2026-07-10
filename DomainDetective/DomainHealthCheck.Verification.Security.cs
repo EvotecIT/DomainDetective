@@ -7,7 +7,7 @@ namespace DomainDetective {
         /// <summary>Executes the verify security txt operation.</summary>
         public async Task VerifySecurityTxt(string domainName, CancellationToken cancellationToken = default) {
             SecurityTXTAnalysis = new SecurityTXTAnalysis();
-            await SecurityTXTAnalysis.AnalyzeSecurityTxtRecord(domainName, _logger);
+            await SecurityTXTAnalysis.AnalyzeSecurityTxtRecord(domainName, _logger, cancellationToken: cancellationToken);
         }
 
         private Task VerifyHpkpAsync(string domainName, CancellationToken cancellationToken) {

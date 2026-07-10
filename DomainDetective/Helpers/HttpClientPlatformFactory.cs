@@ -29,6 +29,27 @@ internal static class HttpClientPlatformFactory {
         return client;
     }
 
+    internal static HttpClient CreateNoRedirectClient(string? userAgent = null) {
+        NetFrameworkTls.EnsureEnabled();
+
+        HttpClient client;
+        if (IsBrowserRuntime()) {
+            client = new HttpClient();
+        } else {
+            client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }, disposeHandler: true);
+        }
+
+        if (!string.IsNullOrWhiteSpace(userAgent)) {
+            try {
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+            } catch {
+                // Ignore invalid user agent formats in restricted runtimes.
+            }
+        }
+
+        return client;
+    }
+
     private static bool IsBrowserRuntime() {
 #if NET5_0_OR_GREATER
         return OperatingSystem.IsBrowser();

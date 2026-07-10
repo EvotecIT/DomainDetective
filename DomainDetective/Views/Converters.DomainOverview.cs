@@ -203,8 +203,8 @@ public static partial class Converters {
                          dmarc.ValidSpfAlignment;
 
         var dkimValid = dkim.Any(static item =>
-            item.DkimRecordExists && item.StartsCorrectly && item.PublicKeyExists &&
-            item.ValidPublicKey && item.KeyTypeExists && item.ValidKeyType && item.ValidFlags);
+            item.DkimRecordExists && !item.MultipleRecords && item.VersionValid && item.PublicKeyExists &&
+            item.ValidPublicKey && item.ValidKeyLength && item.ValidKeyType && item.ValidFlags);
 
         var hints = new List<string>();
         AddHintIfNeeded(hints, !spfValid, HealthCheckType.SPF);
@@ -312,7 +312,7 @@ public static partial class Converters {
     private static AggregateCheckStatusInfo BuildDomainCaaStatus(CaaInfo info) => new AggregateCheckStatusInfo {
         Key = "caa",
         Label = "CAA",
-        State = info.ValidRecords == 0 ? AggregateCheckState.Fail : info.ErrorCount > 0 || info.InvalidRecords > 0 ? AggregateCheckState.Fail : info.WarningCount > 0 ? AggregateCheckState.Warning : AggregateCheckState.Pass,
+        State = info.ValidRecords == 0 ? AggregateCheckState.Info : info.ErrorCount > 0 || info.InvalidRecords > 0 ? AggregateCheckState.Fail : info.WarningCount > 0 ? AggregateCheckState.Warning : AggregateCheckState.Pass,
         Value = info.ValidRecords > 0 ? $"{info.ValidRecords} valid" : "Missing",
         Detail = info.ValidRecords > 0 ? $"{info.CanIssueCertificatesForDomain.Count} issuer authorization(s)" : "No CAA restrictions published."
     };
@@ -320,7 +320,7 @@ public static partial class Converters {
     private static AggregateCheckStatusInfo BuildDomainDaneStatus(DaneRecordInfo info) => new AggregateCheckStatusInfo {
         Key = "dane",
         Label = "DANE",
-        State = info.NumberOfRecords == 0 ? AggregateCheckState.Fail : info.ErrorCount > 0 ? AggregateCheckState.Fail : info.WarningCount > 0 || info.ValidRecordCount == 0 || info.HasInvalidRecords ? AggregateCheckState.Warning : AggregateCheckState.Pass,
+        State = info.NumberOfRecords == 0 ? AggregateCheckState.Info : info.ErrorCount > 0 || info.AssociationValidationPerformed && !info.AllCertificateAssociationsMatch ? AggregateCheckState.Fail : info.WarningCount > 0 || info.ValidRecordCount == 0 || info.HasInvalidRecords || !info.AssociationValidationPerformed ? AggregateCheckState.Warning : AggregateCheckState.Pass,
         Value = info.NumberOfRecords > 0 ? $"{info.ValidRecordCount} valid" : "Missing",
         Detail = info.NumberOfRecords > 0 ? $"{info.RecommendedRecordCount} recommended TLSA record(s)" : "No TLSA records published."
     };
@@ -328,9 +328,14 @@ public static partial class Converters {
     private static AggregateCheckStatusInfo BuildDomainDnssecStatus(DnsSecInfo info) => new AggregateCheckStatusInfo {
         Key = "dnssec",
         Label = "DNSSEC",
-        State = info.ChainValid ? (info.KeyExpiresSoon ? AggregateCheckState.Warning : AggregateCheckState.Pass) : AggregateCheckState.Fail,
-        Value = info.ChainValid ? "Valid" : "Broken",
-        Detail = $"{info.DsRecords.Count} DS, {info.DnsKeys.Count} DNSKEY"
+        State = info.ValidationStatus switch {
+            DnssecValidationStatus.Secure => info.KeyExpiresSoon ? AggregateCheckState.Warning : AggregateCheckState.Pass,
+            DnssecValidationStatus.Bogus => AggregateCheckState.Fail,
+            DnssecValidationStatus.Insecure => AggregateCheckState.Info,
+            _ => AggregateCheckState.Unknown
+        },
+        Value = info.ValidationStatus.ToString(),
+        Detail = $"Zone {info.ValidatedZone}; {info.DsRecords.Count} DS, {info.DnsKeys.Count} DNSKEY"
     };
 
     private static AggregateCheckStatusInfo BuildDomainNsStatus(NsInfo info) => new AggregateCheckStatusInfo {

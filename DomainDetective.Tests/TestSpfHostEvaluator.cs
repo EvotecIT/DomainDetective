@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
@@ -48,6 +49,7 @@ namespace DomainDetective.Tests
             var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("203.0.113.10"), "postmaster@example.com", "mail.example.com");
             Assert.Equal("pass", eval.Verdict);
             Assert.Equal("include", eval.MatchedType);
+            Assert.Equal(1, eval.DnsLookups);
             Assert.NotNull(eval.Chain);
             Assert.Contains("_spf.inc.test", eval.Chain);
         }
@@ -85,6 +87,114 @@ namespace DomainDetective.Tests
             var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("192.0.2.10"), "postmaster@example.com", "mail.example.com");
             Assert.Equal("fail", eval.Verdict);
             Assert.Equal("all", eval.MatchedType);
+        }
+
+        [Fact]
+        public async Task EvaluateHost_RedirectAppliesAfterMechanismsDoNotMatch()
+        {
+            var hc = new DomainDetective.DomainHealthCheck();
+            hc.SpfAnalysis.TestSpfRecords["redirect.example"] = "v=spf1 ip4:203.0.113.0/24 -all";
+            await hc.CheckSPF("v=spf1 ip4:192.0.2.0/24 redirect=redirect.example");
+
+            var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("203.0.113.10"), "postmaster@example.com", "mail.example.com");
+
+            Assert.Equal("pass", eval.Verdict);
+            Assert.Equal("ip4", eval.MatchedType);
+            Assert.Equal("redirect.example", eval.MatchedDomain);
+            Assert.Equal(1, eval.DnsLookups);
+            Assert.Contains("redirect.example", eval.Chain);
+        }
+
+        [Fact]
+        public async Task EvaluateHost_InvalidCidrReturnsPermErrorWithoutThrowing()
+        {
+            var hc = new DomainDetective.DomainHealthCheck();
+            await hc.CheckSPF("v=spf1 ip4:192.0.2.0/33 -all");
+
+            var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("192.0.2.10"), "postmaster@example.com", "mail.example.com");
+
+            Assert.Equal("permerror", eval.Verdict);
+            Assert.Equal("ip4", eval.MatchedType);
+        }
+
+        [Fact]
+        public async Task EvaluateHost_AUsesCidrPrefixMatching()
+        {
+            var hc = new DomainDetective.DomainHealthCheck();
+            await hc.CheckSPF("v=spf1 a:mail.example/24 -all");
+            hc.SpfAnalysis.QueryDnsOverride = (name, type) => Task.FromResult(
+                name == "mail.example" && type == DnsClientX.DnsRecordType.A
+                    ? new[] { new DnsClientX.DnsAnswer { Type = type, DataRaw = "192.0.2.200" } }
+                    : System.Array.Empty<DnsClientX.DnsAnswer>());
+
+            var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("192.0.2.10"), "postmaster@example.com", "mail.example.com");
+
+            Assert.Equal("pass", eval.Verdict);
+            Assert.Equal("a", eval.MatchedType);
+            Assert.Equal(1, eval.DnsLookups);
+        }
+
+        [Fact]
+        public async Task EvaluateHost_ExistsQueriesOnlyARecords()
+        {
+            var queries = new List<DnsClientX.DnsRecordType>();
+            var hc = new DomainDetective.DomainHealthCheck();
+            await hc.CheckSPF("v=spf1 exists:probe.example -all");
+            hc.SpfAnalysis.QueryDnsOverride = (name, type) => {
+                queries.Add(type);
+                return Task.FromResult(type == DnsClientX.DnsRecordType.AAAA
+                    ? new[] { new DnsClientX.DnsAnswer { Type = type, DataRaw = "2001:db8::1" } }
+                    : System.Array.Empty<DnsClientX.DnsAnswer>());
+            };
+
+            var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("192.0.2.10"), "postmaster@example.com", "mail.example.com");
+
+            Assert.Equal("fail", eval.Verdict);
+            Assert.Equal(new[] { DnsClientX.DnsRecordType.A }, queries);
+        }
+
+        [Fact]
+        public async Task EvaluateHost_IncludeLookupFailureReturnsTempError()
+        {
+            var hc = new DomainDetective.DomainHealthCheck();
+            await hc.CheckSPF("v=spf1 include:unavailable.example -all");
+            hc.SpfAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("simulated DNS timeout");
+
+            var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("192.0.2.10"), "postmaster@example.com", "mail.example.com");
+
+            Assert.Equal("temperror", eval.Verdict);
+            Assert.Equal("include", eval.MatchedType);
+        }
+
+        [Fact]
+        public async Task EvaluateHost_MultipleIncludedPoliciesReturnPermError()
+        {
+            var hc = new DomainDetective.DomainHealthCheck();
+            await hc.CheckSPF("v=spf1 include:multiple.example -all");
+            hc.SpfAnalysis.QueryDnsOverride = (name, type) => Task.FromResult(
+                name == "multiple.example" && type == DnsClientX.DnsRecordType.TXT
+                    ? new[] {
+                        new DnsClientX.DnsAnswer { Type = type, DataRaw = "v=spf1 ip4:192.0.2.1 -all" },
+                        new DnsClientX.DnsAnswer { Type = type, DataRaw = "v=spf1 ip4:192.0.2.2 -all" }
+                    }
+                    : System.Array.Empty<DnsClientX.DnsAnswer>());
+
+            var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("192.0.2.1"), "postmaster@example.com", "mail.example.com");
+
+            Assert.Equal("permerror", eval.Verdict);
+            Assert.Equal("include", eval.MatchedType);
+        }
+
+        [Fact]
+        public async Task EvaluateHost_UnknownMechanismReturnsPermError()
+        {
+            var hc = new DomainDetective.DomainHealthCheck();
+            await hc.CheckSPF("v=spf1 madeup:value -all");
+
+            var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("192.0.2.1"), "postmaster@example.com", "mail.example.com");
+
+            Assert.Equal("permerror", eval.Verdict);
+            Assert.Equal("unknown", eval.MatchedType);
         }
     }
 }

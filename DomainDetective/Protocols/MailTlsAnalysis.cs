@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Net;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
@@ -111,6 +112,8 @@ public class MailTlsAnalysis : IHasAssessments {
     public Dictionary<string, TlsResult> ServerResults { get; } = new();
     /// <summary>Timeout for connections.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
+    public Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? OutboundAddressResolver { get; set; }
 
     /// <summary>Structured assessments captured during mail TLS checks.</summary>
     public List<Assessment> Assessments { get; } = new();
@@ -155,12 +158,7 @@ public class MailTlsAnalysis : IHasAssessments {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(Timeout);
         try {
-            using var client = new TcpClient();
-#if NET8_0_OR_GREATER
-            await client.ConnectAsync(host, port, timeoutCts.Token);
-#else
-            await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
-#endif
+            using var client = await ConnectAsync(host, port, timeoutCts.Token).ConfigureAwait(false);
             using NetworkStream network = client.GetStream();
             bool directTls = (protocol == MailProtocol.Imap && port == 993) || (protocol == MailProtocol.Pop3 && port == 995);
             if (directTls) {
@@ -489,7 +487,9 @@ public class MailTlsAnalysis : IHasAssessments {
                 if (result.LegacyEnabled) {
                     logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                 }
-                await ProbeOcspStaplingWithOpenSsl(host, port, result, logger, cancellationToken);
+                if (OutboundAddressResolver == null) {
+                    await ProbeOcspStaplingWithOpenSsl(host, port, result, logger, cancellationToken);
+                }
             }
         } catch (Exception ex) {
             SetFailure(result, ex);
@@ -508,11 +508,10 @@ public class MailTlsAnalysis : IHasAssessments {
         result.FailureKind = CertificateFailureClassifier.Classify(exception);
     }
 
-    private static async Task ProbeProtocolSupport(string host, int port, TlsResult result, CancellationToken token) {
+    private async Task ProbeProtocolSupport(string host, int port, TlsResult result, CancellationToken token) {
         async Task<bool> TryHandshake(SslProtocols proto) {
             try {
-                using var client = new TcpClient();
-                await client.ConnectAsync(host, port).WaitWithCancellation(token);
+                using var client = await ConnectAsync(host, port, token).ConfigureAwait(false);
                 using var ssl = new SslStream(client.GetStream(), false, static (_, _, _, _) => true);
                 await ssl.AuthenticateAsClientAsync(host, null, proto, false).WaitWithCancellation(token);
                 return ssl.SslProtocol == proto;
@@ -525,6 +524,28 @@ public class MailTlsAnalysis : IHasAssessments {
         result.SupportsTls11 = await TryHandshake(SslProtocols.Tls11);
         result.SupportsTls10 = await TryHandshake(SslProtocols.Tls);
 #pragma warning restore SYSLIB0039
+    }
+
+    internal async Task<TcpClient> ConnectAsync(string host, int port, CancellationToken cancellationToken) {
+        if (OutboundAddressResolver == null) {
+            var client = new TcpClient();
+            await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+            return client;
+        }
+
+        var addresses = await OutboundAddressResolver(host, cancellationToken).ConfigureAwait(false);
+        Exception? lastError = null;
+        foreach (var address in addresses) {
+            var client = new TcpClient(address.AddressFamily);
+            try {
+                await client.ConnectAsync(address, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+                return client;
+            } catch (Exception ex) when (ex is not OperationCanceledException) {
+                lastError = ex;
+                client.Dispose();
+            }
+        }
+        throw new SocketException(lastError is SocketException socketError ? socketError.ErrorCode : (int)SocketError.HostUnreachable);
     }
 
     private static async Task ProbeOcspStaplingWithOpenSsl(string host, int port, TlsResult result, InternalLogger? logger, CancellationToken token) {

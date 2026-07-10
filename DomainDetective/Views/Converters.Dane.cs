@@ -29,6 +29,8 @@ public static partial class Converters
             Records = records,
             ValidRecordCount = validRecordCount,
             RecommendedRecordCount = recommendedRecordCount,
+            AssociationValidationPerformed = analysis.AssociationValidationPerformed,
+            AllCertificateAssociationsMatch = analysis.AllCertificateAssociationsMatch,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
@@ -74,6 +76,10 @@ public class DaneRecordInfo
     public int ValidRecordCount { get; set; }
     /// <summary>Gets or sets the recommended record count value.</summary>
     public int RecommendedRecordCount { get; set; }
+    /// <summary>True when live certificate association matching was attempted.</summary>
+    public bool AssociationValidationPerformed { get; set; }
+    /// <summary>True when all syntactically valid TLSA records matched live certificate evidence.</summary>
+    public bool AllCertificateAssociationsMatch { get; set; }
     /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Gets or sets the status value.</summary>

@@ -15,6 +15,8 @@ public static partial class Converters
             Check = HealthCheckType.CAA,
             Area = AreaForKind(HealthCheckType.CAA),
             Subject = analysis.Subject ?? analysis.DomainName ?? string.Empty,
+            PolicyDomain = analysis.DomainName ?? string.Empty,
+            PolicyInherited = analysis.PolicyInherited,
             ValidRecords = analysis.ValidRecords,
             InvalidRecords = analysis.InvalidRecords,
             Conflicting = analysis.Conflicting,
@@ -47,6 +49,10 @@ public class CaaInfo
     public AnalysisArea Area { get; set; }
     /// <summary>Subject domain.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>DNS name that supplied the applicable CAA RRset.</summary>
+    public string PolicyDomain { get; set; } = string.Empty;
+    /// <summary>True when the applicable CAA RRset was inherited from a parent name.</summary>
+    public bool PolicyInherited { get; set; }
     /// <summary>Gets or sets the valid records value.</summary>
     public int ValidRecords { get; set; }
     /// <summary>Gets or sets the invalid records value.</summary>

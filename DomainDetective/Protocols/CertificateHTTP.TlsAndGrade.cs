@@ -131,13 +131,13 @@ namespace DomainDetective {
         }
 
 #pragma warning disable CA2000 // Dispose objects before losing scope - returned TcpClient is disposed by caller
-        private static async Task<TcpClient> ConnectWithProxy(string host, int port, CancellationToken token) {
+        private async Task<TcpClient> ConnectWithProxy(string host, int port, CancellationToken token) {
             var proxy = Environment.GetEnvironmentVariable("HTTPS_PROXY") ??
                         Environment.GetEnvironmentVariable("https_proxy") ??
                         Environment.GetEnvironmentVariable("HTTP_PROXY") ??
                         Environment.GetEnvironmentVariable("http_proxy");
-            TcpClient tcp = new();
             if (!string.IsNullOrEmpty(proxy)) {
+                TcpClient tcp = new();
                 var p = new Uri(proxy);
                 await tcp.ConnectAsync(p.Host, p.Port).WaitWithCancellation(token);
                 var stream = tcp.GetStream();
@@ -151,10 +151,9 @@ namespace DomainDetective {
                     throw new IOException($"Proxy CONNECT failed: {line}");
                 }
                 while (!string.IsNullOrEmpty(await reader.ReadLineAsync())) { }
-            } else {
-                await tcp.ConnectAsync(host, port).WaitWithCancellation(token);
+                return tcp;
             }
-            return tcp;
+            return await ConnectDirectAsync(host, port, token).ConfigureAwait(false);
         }
 #pragma warning restore CA2000
 

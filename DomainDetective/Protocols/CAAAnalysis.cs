@@ -21,6 +21,9 @@ namespace DomainDetective {
         public string? Subject { get; set; }
         /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string? DomainName { get; set; }
+        /// <summary>Gets a value indicating whether the applicable CAA RRset was inherited from a parent name.</summary>
+        public bool PolicyInherited => !string.IsNullOrWhiteSpace(Subject) && !string.IsNullOrWhiteSpace(DomainName) &&
+                                       !string.Equals(Subject, DomainName, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Gets a short explanation of CAA record purpose.
@@ -130,7 +133,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                 analysis.CAARecord = caaRecord;
 
                 var properties = caaRecord.Split(new[] { ' ' }, 3); // Split into 3 parts at most
-                // RFC 6844 section 5 specifies that the flag field must be a
+                    // RFC 8659 section 4.1 specifies that the flag field must be a
                 // single unsigned octet in the range 0-255.  We validate the
                 // numeric value before processing the remaining parts.
                 if (properties.Length == 3 && int.TryParse(properties[0].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var flag)) {
@@ -191,49 +194,33 @@ As an illustration, a CAA record that is set on example.com is also applicable t
 
                     // Additional validation for issue, issuewild, and issuemail tags
                     if (tagType == CAATagType.Issue || tagType == CAATagType.IssueWildcard || tagType == CAATagType.IssueMail) {
-                        var isValueOnlySemicolon = value == ";";
-                        if (isValueOnlySemicolon) {
-                            analysis.Value = value;
-                            analysis.Issuer = null;
-                            // Don't continue here - we still need to add this analysis to the results
-                        } else {
-                            var parts = value.Split(new[] { ';' }, 2); // Split into 2 parts at most
-                            var domainName = parts[0].Trim();
-                            if (string.IsNullOrEmpty(domainName)) {
-                                // The domain name can be left empty, which must be indicated providing just ";" as a value
-                                if (parts.Length > 1) {
-                                    analysis.InvalidValueWrongParameters = true;
-                                    // continue;
-                                }
-
-                            } else {
-                                // It must contain a domain name
-                                if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
-                                    analysis.InvalidValueWrongDomain = true;
-                                    // continue;
-                                }
-                            }
-
-                            analysis.Issuer = string.IsNullOrWhiteSpace(domainName) ? null : domainName;
-
-                            // Parse additional parameters
-                            var parameters = new Dictionary<string, string>();
-                            if (parts.Length > 1) {
-                                var paramParts = parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                                for (int i = 0; i < paramParts.Length; i++) {
-                                    var trimmedPart = paramParts[i].Trim();
-                                    var keyValue = trimmedPart.Split('=');
-                                    if (keyValue.Length == 2) {
-                                        parameters[keyValue[0].Trim()] = keyValue[1].Trim(); // Trim the keys and values
-                                    } else {
-                                        analysis.InvalidValueWrongParameters = true;
-                                        // continue;
-                                    }
-                                }
-                            }
-
-                            analysis.Parameters = parameters;
+                        var parts = value.Split(new[] { ';' }, 2); // Split into issuer and parameters
+                        var domainName = parts[0].Trim();
+                        if (!string.IsNullOrEmpty(domainName) && !IsValidIssuerDomainName(domainName)) {
+                            analysis.InvalidValueWrongDomain = true;
                         }
+
+                        analysis.Issuer = string.IsNullOrWhiteSpace(domainName) ? null : domainName;
+
+                        // Parse additional parameters. Parameters on an empty issuer do not
+                        // authorize issuance, but remain syntactically inspectable.
+                        var parameters = new Dictionary<string, string>();
+                        if (parts.Length > 1) {
+                            var paramParts = parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                            for (int i = 0; i < paramParts.Length; i++) {
+                                var trimmedPart = paramParts[i].Trim();
+                                if (trimmedPart.Length == 0) {
+                                    continue;
+                                }
+                                var keyValue = trimmedPart.Split(new[] { '=' }, 2);
+                                if (keyValue.Length == 2 && keyValue[0].Trim().Length > 0) {
+                                    parameters[keyValue[0].Trim()] = keyValue[1].Trim();
+                                } else {
+                                    analysis.InvalidValueWrongParameters = true;
+                                }
+                            }
+                        }
+                        analysis.Parameters = parameters;
                     }
                     analysis.Value = value;
                 } else {
@@ -251,19 +238,19 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                 }
 
                 if (analysis.Tag == CAATagType.IssueMail) {
-                    if (analysis.Value == ";") {
+                    if (analysis.Issuer == null) {
                         analysis.DenyMailCertificateIssuance = true;
                     } else {
                         analysis.AllowMailCertificateIssuance = true;
                     }
                 } else if (analysis.Tag == CAATagType.Issue) {
-                    if (analysis.Value == ";") {
+                    if (analysis.Issuer == null) {
                         analysis.DenyCertificateIssuance = true;
                     } else {
                         analysis.AllowCertificateIssuance = true;
                     }
                 } else if (analysis.Tag == CAATagType.IssueWildcard) {
-                    if (analysis.Value == ";") {
+                    if (analysis.Issuer == null) {
                         analysis.DenyWildcardCertificateIssuance = true;
                     } else {
                         analysis.AllowWildcardCertificateIssuance = true;
@@ -318,7 +305,10 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             }
 
             CanIssueCertificatesForDomain = certificateIssuers.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            CanIssueWildcardCertificatesForDomain = wildcardIssuers.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var hasIssueWildProperty = AnalysisResults.Any(a => !a.Invalid && a.Tag == CAATagType.IssueWildcard);
+            CanIssueWildcardCertificatesForDomain = (hasIssueWildProperty ? wildcardIssuers : certificateIssuers)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             CanIssueMail = mailIssuers.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             ReportViolationEmail = emails.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
@@ -335,32 +325,31 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         /// Sets conflict flags based on <see cref="AnalysisResults"/> content.
         /// </summary>
         public void CheckForConflicts() {
-            var allowCertificateIssuanceRecords = AnalysisResults.Where(a => a.AllowCertificateIssuance);
-            var denyCertificateIssuanceRecords = AnalysisResults.Where(a => a.DenyCertificateIssuance);
-            var conflictingCertificateIssuance = allowCertificateIssuanceRecords.Any() && denyCertificateIssuanceRecords.Any();
+            // CAA issuer authorizations are additive. An empty issuer value only
+            // denies issuance when no non-empty issuer is authorized for that property.
+            Conflicting = false;
+            ConflictingCertificateIssuance = false;
+            ConflictingWildcardCertificateIssuance = false;
+            ConflictingMailIssuance = false;
+        }
 
-            var allowWildcardCertificateIssuanceRecords = AnalysisResults.Where(a => a.AllowWildcardCertificateIssuance);
-            var denyWildcardCertificateIssuanceRecords = AnalysisResults.Where(a => a.DenyWildcardCertificateIssuance);
-            var conflictingWildcardCertificateIssuance = allowWildcardCertificateIssuanceRecords.Any() && denyWildcardCertificateIssuanceRecords.Any();
-
-            var allowMailCertificateIssuanceRecords = AnalysisResults.Where(a => a.AllowMailCertificateIssuance);
-            var denyMailCertificateIssuanceRecords = AnalysisResults.Where(a => a.DenyMailCertificateIssuance);
-            var conflictingMailCertificateIssuance = allowMailCertificateIssuanceRecords.Any() && denyMailCertificateIssuanceRecords.Any();
-
-            if (conflictingCertificateIssuance || conflictingWildcardCertificateIssuance || conflictingMailCertificateIssuance) {
-                Conflicting = true;
-            }
-
-            if (conflictingCertificateIssuance) {
-                ConflictingCertificateIssuance = true;
-            }
-
-            if (conflictingWildcardCertificateIssuance) {
-                ConflictingWildcardCertificateIssuance = true;
-            }
-
-            if (conflictingMailCertificateIssuance) {
-                ConflictingMailIssuance = true;
+        private static bool IsValidIssuerDomainName(string value) {
+            try {
+                var ascii = new IdnMapping().GetAscii(value.TrimEnd('.'));
+                if (ascii.Length == 0 || ascii.Length > 253) {
+                    return false;
+                }
+                foreach (var label in ascii.Split('.')) {
+                    if (label.Length == 0 || label.Length > 63 || label[0] == '-' || label[label.Length - 1] == '-') {
+                        return false;
+                    }
+                    if (label.Any(character => !char.IsLetterOrDigit(character) && character != '-')) {
+                        return false;
+                    }
+                }
+                return true;
+            } catch (ArgumentException) {
+                return false;
             }
         }
 

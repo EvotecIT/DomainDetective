@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Mail;
+using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Helpers;
 
@@ -68,12 +69,14 @@ public class SecurityTXTAnalysis : IHasAssessments {
         public List<Assessment> Assessments { get; } = new();
         /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+        /// <summary>Optional factory used to create a constrained outbound HTTP handler.</summary>
+        public Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 
 
         /// <summary>
         /// Retrieves and parses the security.txt file for the given domain.
         /// </summary>
-        public async Task AnalyzeSecurityTxtRecord(string domainName, InternalLogger logger, string? pgpPublicKey = null) {
+        public async Task AnalyzeSecurityTxtRecord(string domainName, InternalLogger logger, string? pgpPublicKey = null, CancellationToken cancellationToken = default) {
             Logger = logger;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SECURITYTXT", target: domainName);
 
@@ -92,11 +95,11 @@ public class SecurityTXTAnalysis : IHasAssessments {
             }
 
             string url = $"https://{domainName}/.well-known/security.txt";
-            string? response = await GetSecurityTxt(url);
+            string? response = await GetSecurityTxt(url, cancellationToken);
             bool fallback = false;
             if (response == null) {
                 url = $"http://{domainName}/security.txt";
-                response = await GetSecurityTxt(url);
+                response = await GetSecurityTxt(url, cancellationToken);
                 fallback = true;
             }
 
@@ -128,14 +131,18 @@ public class SecurityTXTAnalysis : IHasAssessments {
                 userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537");
         }
 
-        private async Task<string?> GetSecurityTxt(string url) {
+        private async Task<string?> GetSecurityTxt(string url, CancellationToken cancellationToken) {
             try {
-                var response = await _client.GetAsync(url);
+                var client = HttpHandlerFactory == null ? _client : new HttpClient(HttpHandlerFactory(), disposeHandler: true);
+                using var disposableClient = HttpHandlerFactory == null ? null : client;
+                using var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType == "text/plain") {
-                    return await response.Content.ReadAsStringAsync();
+                    return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 } else {
                     return null;
                 }
+            } catch (OperationCanceledException) {
+                throw;
             } catch (Exception ex) {
                 Logger?.WriteDebug("Failed to download security.txt from {0}: {1}", url, ex.Message);
                 return null;

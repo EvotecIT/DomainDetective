@@ -8,7 +8,7 @@ namespace DomainDetective.Tests {
             var hc = new DomainHealthCheck(DnsEndpoint.CloudflareWireFormat) { Verbose = false };
 
             // 2048-bit RSA public key sample (valid)
-            const string key2048 = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw+P1f6bJUYj3nO4cWcFvE6C2d3aWlWq3C2QxO2Wg1N3xwJxL4XxT3Cwqf8nZp7c0Q2eXv2yZ6QHP0y3Y0h3aH5n5f1J5Q0QpK2x3Q7o7q+F6dD9l0w2C4vFNYu4d0Y5u3F/0kq1oV2x7Yh5aC3cZkK3P1P9Z8d2G7n8E6t9bJbY7qQK2R5d2b8V4yM4sYxW7X8EwIDAQAB";
+            const string key2048 = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA21OfspkRgPHhdCgu3kWgBX+xLyw7wRqM+Y4KaX82Pul9ikEDfZCJ35siFzV2WMH9Od/yM2TtMnubRqm9QN6paEB0VhNgNURQMmyTVsBO1usTJS9IvkIt3JtTFEinzVJLEaOC/F3d6bJaW9MMKUTBra9RcUf/E6dWAaJX8lrK8SefL9adNTwED8ZgFBnFcoJJn6e1W2WyIZ/8XAk+5Jwc7JMFZsdjFYdBSDPNyEfhNsKahVdRvdCG+OeDHyLSiNuFE27wtXaUI2TySDcfSSzE8k8z/Td9mMb0DQ2qaJ6xxk/5cwzwYSXr3sdGp++mHpGOJm18OwfsJmFCuSEcFGrHAQIDAQAB";
             // 1024-bit RSA public key sample (valid but weak)
             const string key1024 = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB";
 

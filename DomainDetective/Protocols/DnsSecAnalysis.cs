@@ -67,6 +67,18 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether the DS record matches the DNSKEY.</summary>
         public bool DsMatch { get; private set; }
 
+        /// <summary>Gets the closest enclosing signed zone whose DNSKEY RRset was evaluated.</summary>
+        public string? ValidatedZone { get; private set; }
+
+        /// <summary>Gets a value indicating whether a response for the requested subject carried authenticated-data evidence.</summary>
+        public bool SubjectAuthenticData { get; private set; }
+
+        /// <summary>Describes the evidence used for the DNSSEC result.</summary>
+        public string ValidationMethod { get; private set; } = string.Empty;
+
+        /// <summary>Gets the evidence-backed DNSSEC state for the requested subject.</summary>
+        public DnssecValidationStatus ValidationStatus { get; private set; }
+
         /// <summary>Gets a value indicating whether the full DNSSEC chain is valid.</summary>
         public bool ChainValid { get; private set; }
 
@@ -121,131 +133,146 @@ namespace DomainDetective {
             _warnings.Clear();
             KeyExpiresSoon = false;
             RootAnchorExpiration = null;
-            bool chainValid = true;
-            bool first = true;
-            string current = domainName;
-            List<string> dnsKeys = new();
-            List<string> signatures = new();
-            List<string> dsRecords = new();
-            List<int> dsTtls = new();
+            ChainValid = false;
+            DsMatch = false;
+            AuthenticData = false;
+            DsAuthenticData = false;
+            SubjectAuthenticData = false;
+            ValidatedZone = null;
+            ValidationMethod = "ResolverAuthenticatedDataAndExactDsMatch";
+            ValidationStatus = DnssecValidationStatus.NotChecked;
+            DnsKeys = Array.Empty<string>();
+            Signatures = Array.Empty<string>();
+            Rrsigs = Array.Empty<RrsigInfo>();
+            DsRecords = Array.Empty<string>();
+            DsTtls = Array.Empty<int>();
             int rootKeyTag = 0;
 
-            while (true) {
-                // Query DNSKEY with DO=1 to retrieve keys and signatures
-                DnsResponse dnskeyResp = await ResolveWithFallback(endpoints, current, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: UseLocalDnssecValidation, responseOverride, ct).ConfigureAwait(false);
+            var subjectResponse = await ResolveWithFallback(
+                endpoints,
+                domainName,
+                DnsRecordType.SOA,
+                requestDnsSec: true,
+                validateDnsSec: UseLocalDnssecValidation,
+                responseOverride,
+                ct).ConfigureAwait(false);
+            SubjectAuthenticData = subjectResponse.AuthenticData;
+            if (!SubjectAuthenticData && !hasResponseOverride) {
+                SubjectAuthenticData = await ProbeRecordAdStatusAsync(domainName, DnsRecordType.SOA, ct).ConfigureAwait(false);
+            }
 
-                bool keyAd = dnskeyResp.AuthenticData;
-
-                List<string> zoneKeys = new();
-                List<string> zoneSigs = new();
-                List<RrsigInfo> zoneSigInfos = new();
-                foreach (var answer in dnskeyResp.Answers ?? Array.Empty<DnsAnswer>()) {
-                    if (answer.Type == DnsRecordType.DNSKEY) {
-                        var data = answer.Data ?? answer.DataRaw;
-                        if (!string.IsNullOrWhiteSpace(data)) zoneKeys.Add(data);
-                    } else if (answer.Type == DnsRecordType.RRSIG) {
-                        var data = answer.Data ?? answer.DataRaw;
-                        if (!string.IsNullOrWhiteSpace(data)) {
-                            zoneSigs.Add(data);
-                            var sig = ParseRrsig(data);
-                            zoneSigInfos.Add(sig);
-                            if (sig.Expiration != DateTimeOffset.MinValue &&
-                                sig.Expiration - DateTimeOffset.UtcNow <= KeyExpirationWarningThreshold) {
-                                double days = (sig.Expiration - DateTimeOffset.UtcNow).TotalDays;
-                                string message = string.Format(CultureInfo.InvariantCulture,
-                                    "RRSIG for {0} expires in {1:F0} days", current, Math.Ceiling(days));
-                                effectiveLogger.WriteWarningCode(DnssecCodes.RrsigExpiring, message);
-                                _warnings.Add(message);
-                                KeyExpiresSoon = true;
-                            }
-                        }
-                    }
-                }
-
-                var dsResult = await FetchDsRecordsWithFallback(current, endpoints, responseOverride, ct).ConfigureAwait(false);
-                // Some system resolvers clear AD even when data validates. Probe well-known
-                // public validating resolvers to augment AD signals so tests/environment
-                // differences don't flip ChainValid.
-                if ((!keyAd || !dsResult.ad) && !hasResponseOverride)
-                {
-                    try {
-                        var (probeKeyAd, probeDsAd) = await ProbeAdStatusAsync(current, ct).ConfigureAwait(false);
-                        if (!keyAd && probeKeyAd) keyAd = true;
-                        if (!dsResult.ad && probeDsAd) dsResult = (dsResult.records, dsResult.ttl, ad: true);
-                    } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) { /* non-fatal */ }
-                }
-                dsTtls.Add(dsResult.ttl);
-
-                List<string> currentDsRecords = dsResult.records ?? new List<string>();
-
-                bool dsMatch = false;
-                if (zoneKeys.Count > 0 && currentDsRecords.Count > 0) {
-                    var ksk = zoneKeys.FirstOrDefault(k => k.StartsWith("257")) ?? zoneKeys[0];
-                    dsMatch = VerifyDsMatch(ksk, currentDsRecords[0], current);
-                }
-
-                foreach (string rec in currentDsRecords) {
-                    if (!IsDsDigestLengthValid(rec)) {
-                        effectiveLogger.WriteWarningCode(DnssecCodes.DsDigestLengthUnexpected, "DS record for {0} has unexpected digest length", current);
-                    }
-                    var parts = rec.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 2) {
-                        int alg = AlgorithmNumber(parts[1]);
-                        if (!DNSKeyAnalysis.IsValidAlgorithmNumber(alg)) {
-                            effectiveLogger.WriteWarningCode(DnssecCodes.DsAlgorithmUnknown, "DS record for {0} contains unknown algorithm {1}", current, parts[1]);
-                        } else if (DNSKeyAnalysis.IsDeprecatedAlgorithmNumber(alg)) {
-                            effectiveLogger.WriteWarningCode(DnssecCodes.DsAlgorithmDeprecated, "DS record for {0} uses deprecated algorithm {1}", current, parts[1]);
-                        }
-                    }
-                }
-
-                if (!keyAd) {
-                    var msg = $"DNSKEY for {current} not authenticated";
-                    _mismatchSummary.Add(msg);
-                    effectiveLogger.WriteWarningCode(DnssecCodes.DnskeyNotAuthenticated, msg);
-                }
-                if (currentDsRecords.Count == 0) {
-                    var msg = $"No DS record for {current}";
-                    _mismatchSummary.Add(msg);
-                    effectiveLogger.WriteWarningCode(DnssecCodes.DsMissing, msg);
-                } else {
-                    if (!dsResult.ad) {
-                        var msg = $"DS for {current} not authenticated";
-                        _mismatchSummary.Add(msg);
-                        effectiveLogger.WriteWarningCode(DnssecCodes.DsNotAuthenticated, msg);
-                    }
-                    if (!dsMatch) {
-                        var msg = $"DS mismatch for {current}";
-                        _mismatchSummary.Add(msg);
-                        effectiveLogger.WriteWarningCode(DnssecCodes.DsMismatch, msg);
-                    }
-                }
-
-                if (first) {
-                    DnsKeys = zoneKeys;
-                    Signatures = zoneSigs;
-                    Rrsigs = zoneSigInfos;
-                    DsRecords = currentDsRecords;
-                    AuthenticData = keyAd;
-                    DsAuthenticData = dsResult.ad;
-                    DsMatch = dsMatch;
-                }
-
-                chainValid &= keyAd && dsResult.ad && dsMatch;
-
-                int dot = current.IndexOf('.');
-                if (dot == -1) {
-                    if (currentDsRecords.Count > 0) {
-                        string[] rootParts = currentDsRecords[0].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (rootParts.Length > 0 && int.TryParse(rootParts[0], out int tag)) {
-                            rootKeyTag = tag;
-                        }
-                    }
+            var current = domainName.TrimEnd('.');
+            DnsResponse? dnskeyResponse = null;
+            List<string> zoneKeys = new();
+            while (!string.IsNullOrWhiteSpace(current)) {
+                var candidateResponse = await ResolveWithFallback(
+                    endpoints,
+                    current,
+                    DnsRecordType.DNSKEY,
+                    requestDnsSec: true,
+                    validateDnsSec: UseLocalDnssecValidation,
+                    responseOverride,
+                    ct).ConfigureAwait(false);
+                var candidateKeys = (candidateResponse.Answers ?? Array.Empty<DnsAnswer>())
+                    .Where(answer => answer.Type == DnsRecordType.DNSKEY)
+                    .Select(answer => answer.Data ?? answer.DataRaw)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToList();
+                if (candidateKeys.Count > 0) {
+                    ValidatedZone = current;
+                    dnskeyResponse = candidateResponse;
+                    zoneKeys = candidateKeys;
                     break;
                 }
 
-                current = current.Substring(dot + 1);
-                first = false;
+                var separator = current.IndexOf('.');
+                if (separator < 0 || separator == current.Length - 1) {
+                    break;
+                }
+                current = current.Substring(separator + 1);
+            }
+
+            if (dnskeyResponse == null || string.IsNullOrWhiteSpace(ValidatedZone)) {
+                var message = $"No enclosing DNSKEY RRset found for {domainName}";
+                _mismatchSummary.Add(message);
+                effectiveLogger.WriteWarningCode(DnssecCodes.DnskeyNotAuthenticated, message);
+            } else {
+                var zoneSignatures = (dnskeyResponse.Answers ?? Array.Empty<DnsAnswer>())
+                    .Where(answer => answer.Type == DnsRecordType.RRSIG)
+                    .Select(answer => answer.Data ?? answer.DataRaw)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToList();
+                var signatureInfo = zoneSignatures.Select(ParseRrsig).ToList();
+                foreach (var signature in signatureInfo) {
+                    if (signature.Expiration != DateTimeOffset.MinValue &&
+                        signature.Expiration - DateTimeOffset.UtcNow <= KeyExpirationWarningThreshold) {
+                        var days = (signature.Expiration - DateTimeOffset.UtcNow).TotalDays;
+                        var message = string.Format(CultureInfo.InvariantCulture,
+                            "RRSIG for {0} expires in {1:F0} days", ValidatedZone, Math.Ceiling(days));
+                        effectiveLogger.WriteWarningCode(DnssecCodes.RrsigExpiring, message);
+                        _warnings.Add(message);
+                        KeyExpiresSoon = true;
+                    }
+                }
+
+                var keyAd = dnskeyResponse.AuthenticData;
+                var dsResult = await FetchDsRecordsWithFallback(ValidatedZone!, endpoints, responseOverride, ct).ConfigureAwait(false);
+                if ((!keyAd || !dsResult.ad) && !hasResponseOverride) {
+                    try {
+                        var probe = await ProbeAdStatusAsync(ValidatedZone!, ct).ConfigureAwait(false);
+                        keyAd |= probe.keyAd;
+                        if (!dsResult.ad && probe.dsAd) {
+                            dsResult = (dsResult.records, dsResult.ttl, true);
+                        }
+                    } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) {
+                        effectiveLogger.WriteDebug("DNSSEC AD fallback skipped: {0}", ex.Message);
+                    }
+                }
+
+                var currentDsRecords = dsResult.records ?? new List<string>();
+                var dsMatch = zoneKeys.Any(key => currentDsRecords.Any(ds => VerifyDsMatch(key, ds, ValidatedZone!)));
+
+                foreach (var record in currentDsRecords) {
+                    if (!IsDsDigestLengthValid(record)) {
+                        effectiveLogger.WriteWarningCode(DnssecCodes.DsDigestLengthUnexpected, "DS record for {0} has an unsupported digest type or unexpected digest length", ValidatedZone);
+                    }
+                    var parts = record.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2) {
+                        var algorithm = AlgorithmNumber(parts[1]);
+                        if (!DNSKeyAnalysis.IsValidAlgorithmNumber(algorithm)) {
+                            effectiveLogger.WriteWarningCode(DnssecCodes.DsAlgorithmUnknown, "DS record for {0} contains unknown algorithm {1}", ValidatedZone, parts[1]);
+                        } else if (DNSKeyAnalysis.IsDeprecatedAlgorithmNumber(algorithm)) {
+                            effectiveLogger.WriteWarningCode(DnssecCodes.DsAlgorithmDeprecated, "DS record for {0} uses deprecated algorithm {1}", ValidatedZone, parts[1]);
+                        }
+                    }
+                }
+
+                DnsKeys = zoneKeys;
+                Signatures = zoneSignatures;
+                Rrsigs = signatureInfo;
+                DsRecords = currentDsRecords;
+                DsTtls = new[] { dsResult.ttl };
+                AuthenticData = keyAd;
+                DsAuthenticData = dsResult.ad;
+                DsMatch = dsMatch;
+
+                AddDnssecFailure(!SubjectAuthenticData, $"DNS response for {domainName} not authenticated", DnssecCodes.DnskeyNotAuthenticated, effectiveLogger);
+                AddDnssecFailure(!keyAd, $"DNSKEY for {ValidatedZone} not authenticated", DnssecCodes.DnskeyNotAuthenticated, effectiveLogger);
+                AddDnssecFailure(currentDsRecords.Count == 0, $"No DS record for {ValidatedZone}", DnssecCodes.DsMissing, effectiveLogger);
+                AddDnssecFailure(currentDsRecords.Count > 0 && !dsResult.ad, $"DS for {ValidatedZone} not authenticated", DnssecCodes.DsNotAuthenticated, effectiveLogger);
+                AddDnssecFailure(currentDsRecords.Count > 0 && !dsMatch, $"No DS record matches any DNSKEY for {ValidatedZone}", DnssecCodes.DsMismatch, effectiveLogger);
+                ChainValid = SubjectAuthenticData && keyAd && dsResult.ad && dsMatch;
+                ValidationStatus = ChainValid
+                    ? DnssecValidationStatus.Secure
+                    : keyAd && dsResult.ad && dsMatch && !SubjectAuthenticData
+                        ? DnssecValidationStatus.Insecure
+                        : currentDsRecords.Count > 0 && (!dsMatch || !keyAd || !dsResult.ad)
+                            ? DnssecValidationStatus.Bogus
+                            : DnssecValidationStatus.Indeterminate;
+            }
+
+            if (ValidatedZone == null) {
+                ValidationStatus = DnssecValidationStatus.Indeterminate;
             }
 
             var anchorResult = await DownloadTrustAnchors(effectiveLogger, ct).ConfigureAwait(false);
@@ -279,8 +306,6 @@ namespace DomainDetective {
                 }
             }
 
-            ChainValid = chainValid;
-            DsTtls = dsTtls;
             RootKeyTag = rootKeyTag;
 
             effectiveLogger.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}", domainName, AuthenticData, ChainValid);
@@ -303,8 +328,8 @@ namespace DomainDetective {
             }
 
             if (ChainValid) {
-                effectiveLogger.WriteInformationCode(DnssecCodes.SignaturesValid, "DNSSEC signatures validated");
-                effectiveLogger.WriteInformationCode(DnssecCodes.ChainValid, "DNSSEC chain validated");
+                effectiveLogger.WriteInformationCode(DnssecCodes.SignaturesValid, "Validating resolver authenticated the subject response and DNSKEY/DS evidence");
+                effectiveLogger.WriteInformationCode(DnssecCodes.ChainValid, "DNSSEC chain authenticated with resolver AD evidence and an exact DS/DNSKEY match");
             }
 
             // Positive posture: DS present at parent for the subject
@@ -321,6 +346,41 @@ namespace DomainDetective {
         }
 
         // Probes DS and DNSKEY AD bits using multiple public resolvers and aggregates results.
+        private void AddDnssecFailure(bool condition, string message, string code, InternalLogger logger) {
+            if (!condition) {
+                return;
+            }
+            _mismatchSummary.Add(message);
+            logger.WriteWarningCode(code, message);
+        }
+
+        private static async Task<bool> ProbeRecordAdStatusAsync(string domain, DnsRecordType type, CancellationToken ct) {
+            foreach (var endpoint in new[] { DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 }) {
+                ct.ThrowIfCancellationRequested();
+                try {
+                    using var client = new ClientX(endpoint: endpoint);
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    timeout.CancelAfter(TimeSpan.FromSeconds(5));
+                    var response = await client.Resolve(
+                        domain,
+                        type,
+                        requestDnsSec: true,
+                        validateDnsSec: false,
+                        cancellationToken: timeout.Token).ConfigureAwait(false);
+                    if (response.AuthenticData) {
+                        return true;
+                    }
+                } catch (OperationCanceledException) {
+                    if (ct.IsCancellationRequested) {
+                        throw;
+                    }
+                } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) {
+                    // Try the next validating resolver.
+                }
+            }
+            return false;
+        }
+
         private static async Task<(bool keyAd, bool dsAd)> ProbeAdStatusAsync(string domain, CancellationToken ct)
         {
             bool anyKeyAd = false, anyDsAd = false;
@@ -527,7 +587,7 @@ namespace DomainDetective {
                 _ => -1,
             };
 
-            return expected < 0 || parts[3].Length == expected;
+            return expected >= 0 && parts[3].Length == expected && DNSKeyAnalysis.IsHexadecimal(parts[3]);
         }
 
         /// <summary>
@@ -584,21 +644,27 @@ namespace DomainDetective {
                     return false;
                 }
 
-                byte[] digestBytes;
-                using HashAlgorithm hasher = digestType switch {
+                HashAlgorithm? hasher = digestType switch {
                     1 => SHA1.Create(),
                     2 => SHA256.Create(),
                     4 => SHA384.Create(),
-                    _ => SHA256.Create(),
+                    _ => null,
                 };
+                if (hasher == null || !IsDsDigestLengthValid(dsRecord)) {
+                    hasher?.Dispose();
+                    return false;
+                }
+                byte[] digestBytes;
+                using (hasher) {
                 byte[] nameWire = ToWireFormat(domainName);
                 var data = new byte[nameWire.Length + rdata.Count];
                 nameWire.CopyTo(data, 0);
                 rdata.ToArray().CopyTo(data, nameWire.Length);
                 digestBytes = hasher.ComputeHash(data);
+                }
                 var digestHex = BitConverter.ToString(digestBytes).Replace("-", string.Empty).ToLowerInvariant();
 
-                return digestHex.StartsWith(digest.ToLowerInvariant());
+                return digestHex.Equals(digest.ToLowerInvariant(), StringComparison.Ordinal);
             } catch (Exception) {
                 // Any parsing/crypto error => treat as mismatch.
                 return false;

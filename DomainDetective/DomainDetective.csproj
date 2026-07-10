@@ -58,8 +58,11 @@
         <EmbeddedResource Include="..\Data\email_smtp_rules.json" LogicalName="DomainDetective.email_smtp_rules.json" />
         <EmbeddedResource Include="..\Data\takeover.json" />
         <EmbeddedResource Include="..\Data\directory_paths.json" />
-        <None Include="..\Data\hsts_preload.json">
+        <None Include="..\Data\hsts_preload.json.gz">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Pack>true</Pack>
+            <PackagePath>contentFiles\any\any\</PackagePath>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
         </None>
     </ItemGroup>
 

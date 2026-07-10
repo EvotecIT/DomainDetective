@@ -28,10 +28,14 @@ public static partial class Converters
                 IsCnameResolved = result.IsCnameResolved,
                 DkimRecord = result.DkimRecord,
                 DkimRecordExists = result.DkimRecordExists,
+                MultipleRecords = result.MultipleRecords,
                 StartsCorrectly = result.StartsCorrectly,
+                VersionTagPresent = result.VersionTagPresent,
+                VersionValid = result.VersionValid,
                 PublicKeyExists = result.PublicKeyExists,
                 ValidPublicKey = result.ValidPublicKey,
                 ValidRsaKeyLength = result.ValidRsaKeyLength,
+                ValidKeyLength = result.ValidKeyLength,
                 KeyLength = result.KeyLength,
                 WeakKey = result.WeakKey,
                 KeyTypeExists = result.KeyTypeExists,
@@ -90,14 +94,22 @@ public class DkimRecordInfo
     public string DkimRecord { get; set; } = string.Empty;
     /// <summary>Gets or sets the dkim record exists value.</summary>
     public bool DkimRecordExists { get; set; }
+    /// <summary>True when more than one DKIM TXT resource record was returned.</summary>
+    public bool MultipleRecords { get; set; }
     /// <summary>Gets or sets the starts correctly value.</summary>
     public bool StartsCorrectly { get; set; }
+    /// <summary>True when an explicit DKIM version tag was present.</summary>
+    public bool VersionTagPresent { get; set; }
+    /// <summary>True when the optional DKIM version tag is absent or valid and first.</summary>
+    public bool VersionValid { get; set; }
     /// <summary>Gets or sets the public key exists value.</summary>
     public bool PublicKeyExists { get; set; }
     /// <summary>Gets or sets the valid public key value.</summary>
     public bool ValidPublicKey { get; set; }
     /// <summary>Gets or sets the valid rsa key length value.</summary>
     public bool ValidRsaKeyLength { get; set; }
+    /// <summary>True when key material has the required length for its declared key type.</summary>
+    public bool ValidKeyLength { get; set; }
     /// <summary>Gets or sets the key length value.</summary>
     public int KeyLength { get; set; }
     /// <summary>Gets or sets the weak key value.</summary>

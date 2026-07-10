@@ -29,5 +29,14 @@ namespace DomainDetective.Tests {
             bool result = (bool)method.Invoke(null, new object[] { "2371 ECDSAP256SHA256 4 " + new string('a', 96) })!;
             Assert.True(result);
         }
+
+        [Fact]
+        public void UnsupportedDigestTypeReturnsFalse() {
+            var method = typeof(DnsSecAnalysis).GetMethod("IsDsDigestLengthValid", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+            bool result = (bool)method.Invoke(null, new object[] { "2371 ECDSAP256SHA256 3 " + new string('a', 64) })!;
+
+            Assert.False(result);
+        }
     }
 }

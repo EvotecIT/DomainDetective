@@ -1,5 +1,6 @@
 using DomainDetective;
 using DomainDetective.Pgp;
+using DomainDetective.Security;
 using DomainDetective.Views;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.RateLimiting;
@@ -25,6 +26,8 @@ builder.Services.AddCors(options => {
     });
 });
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<PublicNetworkTargetValidator>();
+builder.Services.AddSingleton<PublicNetworkHttpHandlerFactory>();
 builder.Services.AddRateLimiter(options => {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("tool-api", httpContext => {
@@ -60,11 +63,11 @@ app.MapGet("/tools/data/tools-runtime.json", () => TypedResults.Ok(new {
     mode = "HostedOnline"
 }));
 
-app.MapPost("/tool-api/http-headers", AnalyzeHttpHeadersAsync).RequireRateLimiting("tool-api");
-app.MapPost("/tool-api/security-txt", AnalyzeSecurityTxtAsync).RequireRateLimiting("tool-api");
-app.MapPost("/tool-api/sitemap", AnalyzeSitemapAsync).RequireRateLimiting("tool-api");
-app.MapPost("/tool-api/agent-readiness", AnalyzeAgentReadinessAsync).RequireRateLimiting("tool-api");
-app.MapPost("/tool-api/cert-check", AnalyzeCertificateAsync).RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/http-headers", AnalyzeHttpHeadersAsync).AddEndpointFilter<PublicTargetEndpointFilter>().RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/security-txt", AnalyzeSecurityTxtAsync).AddEndpointFilter<PublicTargetEndpointFilter>().RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/sitemap", AnalyzeSitemapAsync).AddEndpointFilter<PublicTargetEndpointFilter>().RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/agent-readiness", AnalyzeAgentReadinessAsync).AddEndpointFilter<PublicTargetEndpointFilter>().RequireRateLimiting("tool-api");
+app.MapPost("/tool-api/cert-check", AnalyzeCertificateAsync).AddEndpointFilter<PublicTargetEndpointFilter>().RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/bimi", AnalyzeBimiAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/mta-sts", AnalyzeMtastsAsync).RequireRateLimiting("tool-api");
 app.MapPost("/tool-api/rdap", AnalyzeRdapAsync).RequireRateLimiting("tool-api");
@@ -90,27 +93,29 @@ if (!string.IsNullOrWhiteSpace(siteRoot) && Directory.Exists(siteRoot)) {
 
 app.Run();
 
-static async Task<Results<Ok<HttpInfo>, ValidationProblem>> AnalyzeHttpHeadersAsync(AnalyzeDomainRequest request, CancellationToken cancellationToken) {
+static async Task<Results<Ok<HttpInfo>, ValidationProblem>> AnalyzeHttpHeadersAsync(AnalyzeDomainRequest request, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
 
     var healthCheck = new DomainHealthCheck();
+    ConfigureSafeHttp(healthCheck, safeHttp);
     await healthCheck.VerifyWebsiteHttps(domainName, cancellationToken).ConfigureAwait(false);
     return TypedResults.Ok(Converters.Convert(healthCheck.HttpAnalysis));
 }
 
-static async Task<Results<Ok<SecurityTxtInfo>, ValidationProblem>> AnalyzeSecurityTxtAsync(AnalyzeDomainRequest request, CancellationToken cancellationToken) {
+static async Task<Results<Ok<SecurityTxtInfo>, ValidationProblem>> AnalyzeSecurityTxtAsync(AnalyzeDomainRequest request, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
 
     var healthCheck = new DomainHealthCheck();
+    ConfigureSafeHttp(healthCheck, safeHttp);
     await healthCheck.VerifySecurityTxt(domainName, cancellationToken).ConfigureAwait(false);
     return TypedResults.Ok(Converters.Convert(healthCheck.SecurityTXTAnalysis));
 }
 
-static async Task<Results<Ok<SitemapInfo>, ValidationProblem>> AnalyzeSitemapAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
+static async Task<Results<Ok<SitemapInfo>, ValidationProblem>> AnalyzeSitemapAsync(AnalyzeDomainRequest request, IMemoryCache cache, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeWebSubject(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
@@ -122,7 +127,7 @@ static async Task<Results<Ok<SitemapInfo>, ValidationProblem>> AnalyzeSitemapAsy
         request.ForceRefresh,
         TimeSpan.FromMinutes(10),
         async ct => {
-            var analysis = new SitemapAnalysis();
+            var analysis = new SitemapAnalysis { HttpHandlerFactory = safeHttp.Create };
             await analysis.AnalyzeAsync(
                 domainName,
                 options: new SitemapAnalysisOptions {
@@ -143,7 +148,7 @@ static async Task<Results<Ok<SitemapInfo>, ValidationProblem>> AnalyzeSitemapAsy
     return TypedResults.Ok(cachedResult.Result);
 }
 
-static async Task<Results<Ok<AgentReadinessInfo>, ValidationProblem>> AnalyzeAgentReadinessAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
+static async Task<Results<Ok<AgentReadinessInfo>, ValidationProblem>> AnalyzeAgentReadinessAsync(AnalyzeDomainRequest request, IMemoryCache cache, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeWebSubject(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
@@ -155,7 +160,7 @@ static async Task<Results<Ok<AgentReadinessInfo>, ValidationProblem>> AnalyzeAge
         request.ForceRefresh,
         TimeSpan.FromMinutes(10),
         async ct => {
-            var analysis = new AgentReadinessAnalysis();
+            var analysis = new AgentReadinessAnalysis { HttpHandlerFactory = safeHttp.Create };
             await analysis.AnalyzeAsync(
                 domainName,
                 options: new AgentReadinessOptions {
@@ -173,7 +178,7 @@ static async Task<Results<Ok<AgentReadinessInfo>, ValidationProblem>> AnalyzeAge
     return TypedResults.Ok(cachedResult.Result);
 }
 
-static async Task<Results<Ok<CertificateInfo>, ValidationProblem>> AnalyzeCertificateAsync(AnalyzeDomainRequest request, CancellationToken cancellationToken) {
+static async Task<Results<Ok<CertificateInfo>, ValidationProblem>> AnalyzeCertificateAsync(AnalyzeDomainRequest request, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
@@ -183,22 +188,25 @@ static async Task<Results<Ok<CertificateInfo>, ValidationProblem>> AnalyzeCertif
     return TypedResults.Ok(Converters.Convert(healthCheck.CertificateAnalysis));
 }
 
-static async Task<Results<Ok<BimiRecordInfo>, ValidationProblem>> AnalyzeBimiAsync(AnalyzeDomainRequest request, CancellationToken cancellationToken) {
+static async Task<Results<Ok<BimiRecordInfo>, ValidationProblem>> AnalyzeBimiAsync(AnalyzeDomainRequest request, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
 
     var healthCheck = new DomainHealthCheck();
+    ConfigureSafeHttp(healthCheck, safeHttp);
+    ConfigureSafeHttp(healthCheck, safeHttp);
     await healthCheck.VerifyBIMI(domainName, skipIndicatorDownload: false, cancellationToken: cancellationToken).ConfigureAwait(false);
     return TypedResults.Ok(Converters.Convert(healthCheck.BimiAnalysis));
 }
 
-static async Task<Results<Ok<MtastsInfo>, ValidationProblem>> AnalyzeMtastsAsync(AnalyzeDomainRequest request, CancellationToken cancellationToken) {
+static async Task<Results<Ok<MtastsInfo>, ValidationProblem>> AnalyzeMtastsAsync(AnalyzeDomainRequest request, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
 
     var healthCheck = new DomainHealthCheck();
+    ConfigureSafeHttp(healthCheck, safeHttp);
     await healthCheck.VerifyMTASTS(domainName, cancellationToken).ConfigureAwait(false);
     return TypedResults.Ok(Converters.Convert(healthCheck.MTASTSAnalysis));
 }
@@ -241,7 +249,7 @@ static async Task<Results<Ok<SubdomainsInfo>, ValidationProblem>> AnalyzeCtSubdo
     return TypedResults.Ok(analysis.Result);
 }
 
-static async Task<Results<Ok<Microsoft365OverviewInfo>, ValidationProblem>> AnalyzeMicrosoft365OverviewAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
+static async Task<Results<Ok<Microsoft365OverviewInfo>, ValidationProblem>> AnalyzeMicrosoft365OverviewAsync(AnalyzeDomainRequest request, IMemoryCache cache, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
@@ -283,7 +291,8 @@ static async Task<Results<Ok<Microsoft365OverviewInfo>, ValidationProblem>> Anal
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyMTASTS(subject, token),
                 static healthCheck => Converters.Convert(healthCheck.MTASTSAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var tlsRptTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyTLSRPT(subject, token),
@@ -293,7 +302,8 @@ static async Task<Results<Ok<Microsoft365OverviewInfo>, ValidationProblem>> Anal
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyBIMI(subject, skipIndicatorDownload: false, cancellationToken: token),
                 static healthCheck => Converters.Convert(healthCheck.BimiAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var caaTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyCAA(subject, token),
@@ -303,7 +313,8 @@ static async Task<Results<Ok<Microsoft365OverviewInfo>, ValidationProblem>> Anal
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyDANE(subject, new[] { ServiceType.SMTP, ServiceType.HTTPS }, token),
                 static healthCheck => Converters.Convert(healthCheck.DaneAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var dnssecTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyDNSSEC(subject, token),
@@ -474,7 +485,7 @@ static async Task<Results<Ok<Microsoft365OverviewInfo>, ValidationProblem>> Anal
     return TypedResults.Ok(result);
 }
 
-static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDomainOverviewAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
+static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDomainOverviewAsync(AnalyzeDomainRequest request, IMemoryCache cache, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
@@ -525,7 +536,8 @@ static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDom
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyMTASTS(subject, token),
                 static healthCheck => Converters.Convert(healthCheck.MTASTSAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var tlsRptTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyTLSRPT(subject, token),
@@ -535,7 +547,8 @@ static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDom
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyBIMI(subject, skipIndicatorDownload: false, cancellationToken: token),
                 static healthCheck => Converters.Convert(healthCheck.BimiAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var caaTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyCAA(subject, token),
@@ -545,7 +558,8 @@ static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDom
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyDANE(subject, new[] { ServiceType.SMTP, ServiceType.HTTPS }, token),
                 static healthCheck => Converters.Convert(healthCheck.DaneAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var dnssecTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyDNSSEC(subject, token),
@@ -565,17 +579,20 @@ static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDom
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyWebsiteHttps(subject, token),
                 static healthCheck => Converters.Convert(healthCheck.HttpAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var certTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyWebsiteCertificate(subject, cancellationToken: token),
                 static healthCheck => Converters.Convert(healthCheck.CertificateAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var securityTxtTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifySecurityTxt(subject, token),
                 static healthCheck => Converters.Convert(healthCheck.SecurityTXTAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var rdapTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.QueryRDAP(subject, token),
@@ -666,7 +683,7 @@ static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDom
     return TypedResults.Ok(result);
 }
 
-static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDomainOverviewQuickAsync(AnalyzeDomainRequest request, IMemoryCache cache, CancellationToken cancellationToken) {
+static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDomainOverviewQuickAsync(AnalyzeDomainRequest request, IMemoryCache cache, PublicNetworkHttpHandlerFactory safeHttp, CancellationToken cancellationToken) {
     if (!TryNormalizeDomain(request, out string domainName, out Dictionary<string, string[]> errors)) {
         return TypedResults.ValidationProblem(errors);
     }
@@ -718,12 +735,14 @@ static async Task<Results<Ok<DomainOverviewInfo>, ValidationProblem>> AnalyzeDom
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifyWebsiteHttps(subject, token),
                 static healthCheck => Converters.Convert(healthCheck.HttpAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var securityTxtTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.VerifySecurityTxt(subject, token),
                 static healthCheck => Converters.Convert(healthCheck.SecurityTXTAnalysis),
-                ct);
+                ct,
+                healthCheck => ConfigureSafeHttp(healthCheck, safeHttp));
             var rdapTask = RunAnalysisAsync(
                 domainName,
                 static (healthCheck, subject, token) => healthCheck.QueryRDAP(subject, token),
@@ -917,6 +936,11 @@ static bool TryNormalizeWebSubject(AnalyzeDomainRequest request, out string subj
     var requestedSubject = request.Domain?.Trim() ?? string.Empty;
     if (Uri.TryCreate(requestedSubject, UriKind.Absolute, out var uri) &&
         (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)) {
+        if (!string.IsNullOrEmpty(uri.UserInfo) || !uri.IsDefaultPort || !string.IsNullOrEmpty(uri.Fragment)) {
+            subject = string.Empty;
+            errors["domain"] = new[] { "URLs cannot contain credentials, custom ports, or fragments." };
+            return false;
+        }
         if (TryNormalizeDomainName(uri.Host, out _, out var urlErrorMessage)) {
             subject = uri.AbsoluteUri;
             errors.Clear();
@@ -1011,6 +1035,18 @@ static async Task<(T Result, Assessment[] Assessments)> RunAnalysisAsync<T>(
     return (convert(healthCheck), healthCheck.GetAllAssessments().ToArray());
 }
 
+static void ConfigureSafeHttp(DomainHealthCheck healthCheck, PublicNetworkHttpHandlerFactory safeHttp) {
+    healthCheck.HttpAnalysis.HttpHandlerFactory = safeHttp.Create;
+    healthCheck.SecurityTXTAnalysis.HttpHandlerFactory = safeHttp.Create;
+    healthCheck.MTASTSAnalysis.HttpHandlerFactory = safeHttp.Create;
+    healthCheck.BimiAnalysis.HttpHandlerFactory = safeHttp.Create;
+    healthCheck.CertificateAnalysis.OutboundAddressResolver = safeHttp.ResolvePublicAddressesAsync;
+    healthCheck.CertificateAnalysis.PreferTlsHandshakeOnlyProbe = true;
+    healthCheck.CertificateAnalysis.CaptureExtendedMetadata = false;
+    healthCheck.CertificateAnalysis.CaptureTlsDetails = false;
+    healthCheck.OutboundAddressResolver = safeHttp.ResolvePublicAddressesAsync;
+}
+
 static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>(
     IMemoryCache cache,
     string prefix,
@@ -1020,13 +1056,16 @@ static async Task<(T Result, bool FromCache)> GetOrCreateCachedWithStateAsync<T>
     Func<CancellationToken, Task<T>> factory,
     CancellationToken cancellationToken) {
     var cacheKey = $"{prefix}:{NormalizeCacheSubject(domainName)}";
-    if (!forceRefresh && cache.TryGetValue(cacheKey, out T? cached) && cached is not null) {
-        return (cached, true);
+    var hadObservedValue = cache.TryGetValue(cacheKey, out object? observedValue) && observedValue is T;
+    if (!forceRefresh && hadObservedValue) {
+        return ((T)observedValue!, true);
     }
 
     using var cacheLease = await CacheStampedeLocks.AcquireAsync(cacheKey, cancellationToken).ConfigureAwait(false);
-    if (!forceRefresh && cache.TryGetValue(cacheKey, out cached) && cached is not null) {
-        return (cached, true);
+    if (cache.TryGetValue(cacheKey, out object? currentValue) && currentValue is T current) {
+        if (!forceRefresh || !hadObservedValue || !ReferenceEquals(currentValue, observedValue)) {
+            return (current, true);
+        }
     }
 
     var created = await factory(cancellationToken).ConfigureAwait(false);
@@ -1062,28 +1101,52 @@ static AggregateCheckStatusInfo[] MarkPendingChecks(IReadOnlyList<AggregateCheck
         .ToArray();
 }
 
-public sealed class AnalyzeDomainRequest {
-    public string Domain { get; set; } = string.Empty;
-    public bool ForceRefresh { get; set; }
+public sealed record AnalyzeDomainRequest {
+    /// <summary>Public domain name or supported HTTP/HTTPS URL to analyze.</summary>
+    public string Domain { get; init; } = string.Empty;
+    /// <summary>Requests a refresh instead of an existing cached result.</summary>
+    public bool ForceRefresh { get; init; }
 }
 
 file static class CacheStampedeLocks {
     private static readonly ConcurrentDictionary<string, RefCountedLock> PerKey = new(StringComparer.OrdinalIgnoreCase);
 
     internal static async Task<Lease> AcquireAsync(string key, CancellationToken cancellationToken) {
-        var created = new RefCountedLock();
-        var gate = PerKey.GetOrAdd(key, created);
-        if (!ReferenceEquals(gate, created)) {
-            Interlocked.Increment(ref gate.RefCount);
+        RefCountedLock gate;
+        while (true) {
+            gate = PerKey.GetOrAdd(key, static _ => new RefCountedLock());
+            lock (gate.SyncRoot) {
+                if (gate.Removed) continue;
+                gate.RefCount++;
+                break;
+            }
         }
 
-        await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-        return new Lease(key, gate);
+        try {
+            await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return new Lease(key, gate);
+        } catch {
+            ReleaseReference(key, gate);
+            throw;
+        }
     }
 
-    internal readonly struct Lease : IDisposable {
+    private static void ReleaseReference(string key, RefCountedLock gate) {
+        var dispose = false;
+        lock (gate.SyncRoot) {
+            gate.RefCount--;
+            if (gate.RefCount == 0) {
+                gate.Removed = true;
+                dispose = PerKey.TryRemove(new KeyValuePair<string, RefCountedLock>(key, gate));
+            }
+        }
+        if (dispose) gate.Semaphore.Dispose();
+    }
+
+    internal sealed class Lease : IDisposable {
         private readonly string _key;
         private readonly RefCountedLock _gate;
+        private int _disposed;
 
         internal Lease(string key, RefCountedLock gate) {
             _key = key;
@@ -1091,16 +1154,16 @@ file static class CacheStampedeLocks {
         }
 
         public void Dispose() {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             _gate.Semaphore.Release();
-            if (Interlocked.Decrement(ref _gate.RefCount) == 0 &&
-                PerKey.TryRemove(new KeyValuePair<string, RefCountedLock>(_key, _gate))) {
-                _gate.Semaphore.Dispose();
-            }
+            ReleaseReference(_key, _gate);
         }
     }
 
     internal sealed class RefCountedLock {
         internal readonly SemaphoreSlim Semaphore = new(1, 1);
-        internal int RefCount = 1;
+        internal readonly object SyncRoot = new();
+        internal int RefCount;
+        internal bool Removed;
     }
 }
