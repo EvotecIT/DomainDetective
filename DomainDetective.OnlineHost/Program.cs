@@ -184,6 +184,7 @@ static async Task<Results<Ok<CertificateInfo>, ValidationProblem>> AnalyzeCertif
     }
 
     var healthCheck = new DomainHealthCheck();
+    ConfigureSafeHttp(healthCheck, safeHttp);
     await healthCheck.VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken).ConfigureAwait(false);
     return TypedResults.Ok(Converters.Convert(healthCheck.CertificateAnalysis));
 }
@@ -194,7 +195,6 @@ static async Task<Results<Ok<BimiRecordInfo>, ValidationProblem>> AnalyzeBimiAsy
     }
 
     var healthCheck = new DomainHealthCheck();
-    ConfigureSafeHttp(healthCheck, safeHttp);
     ConfigureSafeHttp(healthCheck, safeHttp);
     await healthCheck.VerifyBIMI(domainName, skipIndicatorDownload: false, cancellationToken: cancellationToken).ConfigureAwait(false);
     return TypedResults.Ok(Converters.Convert(healthCheck.BimiAnalysis));

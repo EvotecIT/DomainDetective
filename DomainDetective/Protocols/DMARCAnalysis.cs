@@ -420,7 +420,7 @@ namespace DomainDetective {
                 var records = await QueryDns(authorizationName, DnsRecordType.TXT);
                 var authorized = records != null && records.Any(r =>
                     r.Type == DnsRecordType.TXT &&
-                    IsDmarcPolicyRecord(r.TxtConcatenatedData));
+                    IsDmarcReportAuthorizationRecord(r.TxtConcatenatedData));
                 ExternalReportAuthorization[domain] = authorized;
             }
             // verify mandatory tags
@@ -467,6 +467,20 @@ namespace DomainDetective {
             var separator = value!.IndexOf(';');
             if (separator < 0) return false;
             var versionTag = value.Substring(0, separator).Split(new[] { '=' }, 2);
+            return versionTag.Length == 2 &&
+                   versionTag[0].Trim().Equals("v", StringComparison.OrdinalIgnoreCase) &&
+                   versionTag[1].Trim().Equals("DMARC1", StringComparison.Ordinal);
+        }
+
+        private static bool IsDmarcReportAuthorizationRecord(string? value) {
+            if (string.IsNullOrWhiteSpace(value)) {
+                return false;
+            }
+
+            var candidate = value!.Trim();
+            var separator = candidate.IndexOf(';');
+            var firstTag = separator >= 0 ? candidate.Substring(0, separator) : candidate;
+            var versionTag = firstTag.Split(new[] { '=' }, 2);
             return versionTag.Length == 2 &&
                    versionTag[0].Trim().Equals("v", StringComparison.OrdinalIgnoreCase) &&
                    versionTag[1].Trim().Equals("DMARC1", StringComparison.Ordinal);

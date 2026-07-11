@@ -254,14 +254,18 @@ namespace DomainDetective {
             // Only mutate top-level collections for the subject domain (depth == 0)
             var isTopLevel = depth == 0 && (string.IsNullOrEmpty(sourceDomain) || string.Equals(sourceDomain, Subject, StringComparison.OrdinalIgnoreCase));
             if (isTopLevel) {
-                if (normalized.Equals("a", StringComparison.OrdinalIgnoreCase)) {
-                    ARecords.Add(string.Empty);
-                } else if (normalized.StartsWith("a:", StringComparison.OrdinalIgnoreCase) || normalized.StartsWith("a/", StringComparison.OrdinalIgnoreCase)) {
-                    ARecords.Add(normalized.Substring(1).TrimStart(':').Trim('"'));
-                } else if (normalized.Equals("mx", StringComparison.OrdinalIgnoreCase)) {
-                    MxRecords.Add(string.Empty);
-                } else if (normalized.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) || normalized.StartsWith("mx/", StringComparison.OrdinalIgnoreCase)) {
-                    MxRecords.Add(normalized.Substring(2).TrimStart(':').Trim('"'));
+                if (IsAddressMechanism(normalized, "a")) {
+                    if (TryParseAddressMechanism(normalized, "a", out var domain, out _, out _, out _, out _)) {
+                        ARecords.Add(domain);
+                    } else {
+                        InvalidIpSyntax = true;
+                    }
+                } else if (IsAddressMechanism(normalized, "mx")) {
+                    if (TryParseAddressMechanism(normalized, "mx", out var domain, out _, out _, out _, out _)) {
+                        MxRecords.Add(domain);
+                    } else {
+                        InvalidIpSyntax = true;
+                    }
                 } else if (normalized.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
                     PtrRecords.Add(normalized.Substring(4).Trim('"'));
                 } else if (normalized.Equals("ptr", StringComparison.OrdinalIgnoreCase)) {
@@ -315,14 +319,18 @@ namespace DomainDetective {
             if (mech != null) {
                 SpfPartAnalyses.Add(mech);
             }
-            if (normalized.Equals("a", StringComparison.OrdinalIgnoreCase)) {
-                ResolvedARecords.Add(string.Empty);
-            } else if (normalized.StartsWith("a:", StringComparison.OrdinalIgnoreCase) || normalized.StartsWith("a/", StringComparison.OrdinalIgnoreCase)) {
-                ResolvedARecords.Add(normalized.Substring(1).TrimStart(':').Trim('"'));
-            } else if (normalized.Equals("mx", StringComparison.OrdinalIgnoreCase)) {
-                ResolvedMxRecords.Add(string.Empty);
-            } else if (normalized.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) || normalized.StartsWith("mx/", StringComparison.OrdinalIgnoreCase)) {
-                ResolvedMxRecords.Add(normalized.Substring(2).TrimStart(':').Trim('"'));
+            if (IsAddressMechanism(normalized, "a")) {
+                if (TryParseAddressMechanism(normalized, "a", out var domain, out _, out _, out _, out _)) {
+                    ResolvedARecords.Add(domain);
+                } else {
+                    InvalidIpSyntax = true;
+                }
+            } else if (IsAddressMechanism(normalized, "mx")) {
+                if (TryParseAddressMechanism(normalized, "mx", out var domain, out _, out _, out _, out _)) {
+                    ResolvedMxRecords.Add(domain);
+                } else {
+                    InvalidIpSyntax = true;
+                }
             } else if (normalized.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
                 ResolvedPtrRecords.Add(normalized.Substring(4).Trim('"'));
             } else if (normalized.Equals("ptr", StringComparison.OrdinalIgnoreCase)) {
@@ -385,6 +393,8 @@ namespace DomainDetective {
             var trimmed = token.TrimStart('+', '-', '~', '?');
             string type;
             string value = string.Empty;
+            int? ipv4PrefixLength = null;
+            int? ipv6PrefixLength = null;
             if (trimmed.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase))
             {
                 type = "redirect"; value = trimmed.Substring(9);
@@ -405,13 +415,23 @@ namespace DomainDetective {
             {
                 type = "ip6"; value = trimmed.Substring(4);
             }
-            else if (trimmed.Equals("a", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("a:", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("a/", StringComparison.OrdinalIgnoreCase))
+            else if (IsAddressMechanism(trimmed, "a"))
             {
-                type = "a"; value = trimmed.Length > 2 ? trimmed.Substring(2) : string.Empty;
+                type = "a";
+                if (!TryParseAddressMechanism(trimmed, type, out value, out var ipv4Prefix, out var ipv6Prefix, out var hasIpv4Prefix, out var hasIpv6Prefix)) {
+                    return null;
+                }
+                ipv4PrefixLength = hasIpv4Prefix ? ipv4Prefix : null;
+                ipv6PrefixLength = hasIpv6Prefix ? ipv6Prefix : null;
             }
-            else if (trimmed.Equals("mx", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("mx/", StringComparison.OrdinalIgnoreCase))
+            else if (IsAddressMechanism(trimmed, "mx"))
             {
-                type = "mx"; value = trimmed.Length > 3 ? trimmed.Substring(3) : string.Empty;
+                type = "mx";
+                if (!TryParseAddressMechanism(trimmed, type, out value, out var ipv4Prefix, out var ipv6Prefix, out var hasIpv4Prefix, out var hasIpv6Prefix)) {
+                    return null;
+                }
+                ipv4PrefixLength = hasIpv4Prefix ? ipv4Prefix : null;
+                ipv6PrefixLength = hasIpv6Prefix ? ipv6Prefix : null;
             }
             else if (trimmed.StartsWith("exists:", StringComparison.OrdinalIgnoreCase))
             {
@@ -439,6 +459,8 @@ namespace DomainDetective {
                 Prefix = qualifier,
                 Type = type,
                 Value = value,
+                Ipv4PrefixLength = ipv4PrefixLength,
+                Ipv6PrefixLength = ipv6PrefixLength,
                 PrefixDesc = qualifier switch { 
                     "+" => "pass",
                     "-" => "fail",
@@ -457,6 +479,28 @@ namespace DomainDetective {
                 if (!string.IsNullOrEmpty(prov)) pa.Provider = prov;
             }
             return pa;
+        }
+
+        private static bool IsAddressMechanism(string token, string mechanism) {
+            return token.Equals(mechanism, StringComparison.OrdinalIgnoreCase) ||
+                   token.StartsWith(mechanism + ":", StringComparison.OrdinalIgnoreCase) ||
+                   token.StartsWith(mechanism + "/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryParseAddressMechanism(
+            string token,
+            string mechanism,
+            out string domain,
+            out int ipv4Prefix,
+            out int ipv6Prefix,
+            out bool hasIpv4Prefix,
+            out bool hasIpv6Prefix) {
+            var suffix = token.Substring(mechanism.Length);
+            var doubleSlash = suffix.IndexOf("//", StringComparison.Ordinal);
+            hasIpv6Prefix = doubleSlash >= 0;
+            var ipv4Portion = doubleSlash >= 0 ? suffix.Substring(0, doubleSlash) : suffix;
+            hasIpv4Prefix = ipv4Portion.LastIndexOf('/') >= 0;
+            return TryParseDualCidrMechanism(token, mechanism, string.Empty, out domain, out ipv4Prefix, out ipv6Prefix);
         }
 
         /// <summary>

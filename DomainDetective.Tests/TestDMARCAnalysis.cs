@@ -163,6 +163,42 @@ public class TestDMARCAnalysis {
         }
 
         [Fact]
+        public async Task VersionOnlyExternalAuthorizationIsAccepted() {
+            var answers = new[] {
+                new DnsAnswer {
+                    DataRaw = "v=DMARC1; p=none; rua=mailto:reports@external.com",
+                    Type = DnsRecordType.TXT
+                }
+            };
+            var list = PublicSuffixList.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat"));
+            var analysis = new DmarcAnalysis {
+                QueryDnsOverride = (name, type) => Task.FromResult(
+                    name == "example.com._report._dmarc.external.com" && type == DnsRecordType.TXT
+                        ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "v=DMARC1" } }
+                        : Array.Empty<DnsAnswer>())
+            };
+
+            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger(), "example.com", list.GetRegistrableDomain);
+
+            Assert.True(analysis.ExternalReportAuthorization["external.com"]);
+        }
+
+        [Fact]
+        public async Task OrganizationalFallbackEvaluatesInheritedSubdomainPolicy() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.DnsConfiguration.QueryDnsOverride = (name, type) => Task.FromResult(
+                name == "_dmarc.example.com" && type == DnsRecordType.TXT
+                    ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "v=DMARC1; p=none; sp=reject" } }
+                    : Array.Empty<DnsAnswer>());
+
+            await healthCheck.VerifyDMARC("mail.example.com");
+
+            Assert.Equal("example.com", healthCheck.DmarcAnalysis.PolicyDomain);
+            Assert.Equal("reject", healthCheck.DmarcAnalysis.SubPolicyShort);
+            Assert.False(healthCheck.DmarcAnalysis.WeakPolicy);
+        }
+
+        [Fact]
         public async Task SameOrganizationalDomainDoesNotRequireExternalAuthorization() {
             var answers = new[] {
                 new DnsAnswer { DataRaw = "v=DMARC1; p=none; rua=mailto:reports@reports.example.com", Type = DnsRecordType.TXT }

@@ -1,3 +1,4 @@
+using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,7 +44,7 @@ public partial class DomainHealthCheck {
                         UseLocalDnssecValidation = DnsSecValidateLocally,
                         QueryDnsResponseOverride = DnsConfiguration.QueryDnsResponseOverride
                     };
-                    await dnssec.Analyze(owner, _logger, DnsConfiguration, cancellationToken);
+                    await dnssec.AnalyzeRecord(owner, DnsRecordType.TLSA, _logger, DnsConfiguration, cancellationToken);
 
                     if (port == (int)ServiceType.SMTP) {
                         var mailTls = new MailTlsAnalysis { OutboundAddressResolver = OutboundAddressResolver };

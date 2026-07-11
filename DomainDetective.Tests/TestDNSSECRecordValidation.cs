@@ -40,5 +40,27 @@ namespace DomainDetective.Tests {
             Assert.False(analysis.DsMatch);
             Assert.Empty(analysis.DsRecords);
         }
+
+        [Fact]
+        public async Task RecordAnalysisAuthenticatesTheRequestedRrset() {
+            DnsRecordType? subjectType = null;
+            var analysis = new DnsSecAnalysis {
+                QueryDnsResponseOverride = (name, type, _) => {
+                    if (name == "_443._tcp.example.com") {
+                        subjectType ??= type;
+                    }
+                    return Task.FromResult(new DnsResponse {
+                        AuthenticData = type != DnsRecordType.TLSA,
+                        Answers = System.Array.Empty<DnsAnswer>()
+                    });
+                }
+            };
+
+            await analysis.AnalyzeRecord("_443._tcp.example.com", DnsRecordType.TLSA, null!);
+
+            Assert.Equal(DnsRecordType.TLSA, subjectType);
+            Assert.False(analysis.SubjectAuthenticData);
+            Assert.NotEqual(DnssecValidationStatus.Secure, analysis.ValidationStatus);
+        }
     }
 }

@@ -43,7 +43,8 @@ namespace DomainDetective {
                 }
             }
             await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger, domainName, _publicSuffixList.GetRegistrableDomain, policyDomain);
-            DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy);
+            var inheritedPolicy = !string.Equals(policyDomain, domainName, StringComparison.OrdinalIgnoreCase);
+            DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy || inheritedPolicy);
         }
 
         /// <summary>

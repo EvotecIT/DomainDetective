@@ -14,7 +14,9 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
 public class SecurityTXTAnalysis : IHasAssessments {
         private record CacheEntry(string Content, string Url, bool FallbackUsed, DateTimeOffset Expires);
+        private record DownloadResult(string Content, string Url);
         private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
+        private const int MaxRedirects = 10;
 
         /// <summary>
         /// Clears cached security.txt content used across instances.
@@ -95,15 +97,17 @@ public class SecurityTXTAnalysis : IHasAssessments {
             }
 
             string url = $"https://{domainName}/.well-known/security.txt";
-            string? response = await GetSecurityTxt(url, cancellationToken);
+            var download = await GetSecurityTxt(url, cancellationToken);
             bool fallback = false;
-            if (response == null) {
+            if (download == null) {
                 url = $"http://{domainName}/security.txt";
-                response = await GetSecurityTxt(url, cancellationToken);
+                download = await GetSecurityTxt(url, cancellationToken);
                 fallback = true;
             }
 
-            if (response != null) {
+            if (download != null) {
+                var response = download.Content;
+                url = download.Url;
                 RecordPresent = true;
                 Url = url;
                 FallbackUsed = fallback;
@@ -131,16 +135,45 @@ public class SecurityTXTAnalysis : IHasAssessments {
                 userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537");
         }
 
-        private async Task<string?> GetSecurityTxt(string url, CancellationToken cancellationToken) {
+        private async Task<DownloadResult?> GetSecurityTxt(string url, CancellationToken cancellationToken) {
             try {
-                var client = HttpHandlerFactory == null ? _client : new HttpClient(HttpHandlerFactory(), disposeHandler: true);
-                using var disposableClient = HttpHandlerFactory == null ? null : client;
-                using var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
-                if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType == "text/plain") {
-                    return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                } else {
+                if (HttpHandlerFactory == null) {
+                    using var response = await _client.GetAsync(url, cancellationToken).ConfigureAwait(false);
+                    if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType == "text/plain") {
+                        var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        return new DownloadResult(content, response.RequestMessage?.RequestUri?.AbsoluteUri ?? url);
+                    }
                     return null;
                 }
+
+                using var client = new HttpClient(HttpHandlerFactory(), disposeHandler: true);
+                var currentUri = new Uri(url);
+                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                for (var redirects = 0; redirects <= MaxRedirects; redirects++) {
+                    if (!visited.Add(currentUri.AbsoluteUri)) {
+                        throw new InvalidOperationException("security.txt redirect loop detected.");
+                    }
+
+                    using var response = await client.GetAsync(currentUri, cancellationToken).ConfigureAwait(false);
+                    if ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
+                        if (redirects == MaxRedirects) {
+                            throw new InvalidOperationException($"Maximum number of security.txt redirects ({MaxRedirects}) exceeded.");
+                        }
+                        currentUri = response.Headers.Location.IsAbsoluteUri
+                            ? response.Headers.Location
+                            : new Uri(currentUri, response.Headers.Location);
+                        continue;
+                    }
+
+                    if (!response.IsSuccessStatusCode || response.Content.Headers.ContentType?.MediaType != "text/plain") {
+                        return null;
+                    }
+
+                    var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    return new DownloadResult(content, currentUri.AbsoluteUri);
+                }
+
+                return null;
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {

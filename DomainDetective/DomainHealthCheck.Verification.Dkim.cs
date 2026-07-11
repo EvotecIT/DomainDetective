@@ -61,7 +61,7 @@ namespace DomainDetective {
                     results[index] = await DnsConfiguration.QueryDNS(
                         name: $"{selector}._domainkey.{domainName}",
                         recordType: DnsRecordType.TXT,
-                        filter: "DKIM1",
+                        filter: string.Empty,
                         includeAliasesInFilter: true,
                         cancellationToken: cancellationToken).ConfigureAwait(false);
                 } catch (Exception ex) when (!cancellationToken.IsCancellationRequested && (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException)) {

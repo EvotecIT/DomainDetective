@@ -117,7 +117,12 @@ namespace DomainDetective {
         /// <param name="logger">Logger used for diagnostics.</param>
         /// <param name="dnsConfiguration">Optional DNS configuration.</param>
         /// <param name="ct">Cancellation token.</param>
-        public async Task Analyze(string domainName, InternalLogger? logger, DnsConfiguration? dnsConfiguration = null, CancellationToken ct = default) {
+        public Task Analyze(string domainName, InternalLogger? logger, DnsConfiguration? dnsConfiguration = null, CancellationToken ct = default) {
+            return AnalyzeRecord(domainName, DnsRecordType.SOA, logger, dnsConfiguration, ct);
+        }
+
+        /// <summary>Validates DNSSEC evidence for the requested subject RRset.</summary>
+        internal async Task AnalyzeRecord(string domainName, DnsRecordType subjectRecordType, InternalLogger? logger, DnsConfiguration? dnsConfiguration = null, CancellationToken ct = default) {
             var effectiveLogger = logger ?? new InternalLogger();
             using var _collector = AssessmentCollector.ForAnalysis(effectiveLogger, this, category: "DNSSEC", target: domainName);
             Subject = domainName;
@@ -151,14 +156,14 @@ namespace DomainDetective {
             var subjectResponse = await ResolveWithFallback(
                 endpoints,
                 domainName,
-                DnsRecordType.SOA,
+                subjectRecordType,
                 requestDnsSec: true,
                 validateDnsSec: UseLocalDnssecValidation,
                 responseOverride,
                 ct).ConfigureAwait(false);
             SubjectAuthenticData = subjectResponse.AuthenticData;
             if (!SubjectAuthenticData && !hasResponseOverride) {
-                SubjectAuthenticData = await ProbeRecordAdStatusAsync(domainName, DnsRecordType.SOA, ct).ConfigureAwait(false);
+                SubjectAuthenticData = await ProbeRecordAdStatusAsync(domainName, subjectRecordType, ct).ConfigureAwait(false);
             }
 
             var current = domainName.TrimEnd('.');
