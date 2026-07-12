@@ -389,8 +389,8 @@ public partial class DomainHealthCheck {
                              dmarc.ValidSpfAlignment;
 
             var dkimValid = dkim != null && dkim.AnalysisResults.Values.Any(a =>
-                a.DkimRecordExists && a.StartsCorrectly && a.PublicKeyExists &&
-                a.ValidPublicKey && a.KeyTypeExists && a.ValidKeyType && a.ValidFlags);
+                a.DkimRecordExists && !a.MultipleRecords && a.VersionValid && a.PublicKeyExists &&
+                a.ValidPublicKey && a.ValidKeyLength && a.ValidKeyType && a.ValidFlags);
 
             var hints = new List<string>();
 

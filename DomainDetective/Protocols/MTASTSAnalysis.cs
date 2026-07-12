@@ -3,7 +3,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Helpers;
 
@@ -126,10 +128,18 @@ public class MTASTSAnalysis : IHasAssessments {
         /// </summary>
         public bool DnsRecordPresent { get; private set; }
 
+        /// <summary>Gets a value indicating whether multiple MTA-STS TXT resource records were returned.</summary>
+        public bool MultipleDnsRecords { get; private set; }
+
         /// <summary>
         /// Gets a value indicating whether the TXT record is valid.
         /// </summary>
         public bool DnsRecordValid { get; private set; }
+
+        /// <summary>HTTP client used to retrieve policy text without following redirects.</summary>
+        public HttpClient HttpClient { get; set; } = _client;
+        /// <summary>Optional factory used to create a constrained outbound HTTP handler.</summary>
+        public Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 
         /// <summary>
         /// Gets the policy ID extracted from the TXT record.
@@ -175,6 +185,7 @@ public class MTASTSAnalysis : IHasAssessments {
             Mx = new List<string>();
             Policy = string.Empty;
             DnsRecordPresent = false;
+            MultipleDnsRecords = false;
             DnsRecordValid = false;
             PolicyId = string.Empty;
             Advisory = string.Empty;
@@ -190,8 +201,9 @@ public class MTASTSAnalysis : IHasAssessments {
         /// </summary>
         /// <param name="domainName">The domain to query.</param>
         /// <param name="logger">A logger for warning messages.</param>
+        /// <param name="cancellationToken">Token used to cancel DNS and HTTP operations.</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
-        public async Task AnalyzePolicy(string domainName, InternalLogger logger) {
+        public async Task AnalyzePolicy(string domainName, InternalLogger logger, CancellationToken cancellationToken = default) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MTASTS", target: domainName);
             Reset();
             Logger = logger;
@@ -201,7 +213,7 @@ public class MTASTSAnalysis : IHasAssessments {
             }
             Domain = domainName;
 
-            var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
+            var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT, cancellationToken);
             var dnsList = dns?.ToList() ?? new List<DnsAnswer>();
 
             // Capture CNAME TTL before filtering
@@ -211,16 +223,25 @@ public class MTASTSAnalysis : IHasAssessments {
                 CnameTtl = cnameRecords.Min(r => r.TTL);
             }
 
-            var txtRecords = dnsList.Where(r => r.Type != DnsRecordType.CNAME).ToList();
-            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
+            var allTxtRecords = dnsList.Where(r => r.Type == DnsRecordType.TXT).ToList();
+            var txtRecords = allTxtRecords.Where(r =>
+                r.TxtConcatenatedData.StartsWith("v=STSv1;", StringComparison.Ordinal)).ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(allTxtRecords, expectedType: DnsRecordType.TXT);
             DnsRecordPresent = txtRecords.Any();
+            MultipleDnsRecords = txtRecords.Count > 1;
             if (!DnsRecordPresent) {
                 PolicyValid = false;
                 UpdateAdvisory();
                 return;
             }
 
-            ParseDnsRecord(string.Join(string.Empty, txtRecords.Select(r => r.Data ?? string.Empty)));
+            if (MultipleDnsRecords) {
+                PolicyValid = false;
+                UpdateAdvisory();
+                return;
+            }
+
+            ParseDnsRecord(txtRecords[0].TxtConcatenatedData);
             if (!DnsRecordValid) {
                 PolicyValid = false;
                 UpdateAdvisory();
@@ -239,7 +260,7 @@ public class MTASTSAnalysis : IHasAssessments {
                 return;
             }
 
-            string? content = await GetPolicy(url);
+            string? content = await GetPolicy(url, cancellationToken);
             if (content == null) {
                 PolicyPresent = false;
                 PolicyValid = false;
@@ -252,7 +273,7 @@ public class MTASTSAnalysis : IHasAssessments {
             Policy = content;
             ParsePolicy(content);
             PolicyValid = PolicyValid && DnsRecordValid;
-            await EvaluateMxAlignmentAsync(domainName);
+            await EvaluateMxAlignmentAsync(domainName, cancellationToken);
             var expiration = DateTimeOffset.UtcNow.Add(CacheDuration);
             if (ValidMaxAge && MaxAge > 0) {
                 var maxAgeExpiration = DateTimeOffset.UtcNow.Add(TimeSpan.FromSeconds(MaxAge));
@@ -270,8 +291,9 @@ public class MTASTSAnalysis : IHasAssessments {
         /// </summary>
         /// <param name="domainName">The domain to query.</param>
         /// <param name="logger">A logger for warning messages.</param>
+        /// <param name="cancellationToken">Token used to cancel the DNS operation.</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
-        public async Task AnalyzeDnsBootstrap(string domainName, InternalLogger logger) {
+        public async Task AnalyzeDnsBootstrap(string domainName, InternalLogger logger, CancellationToken cancellationToken = default) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MTASTS", target: domainName);
             Reset();
             Logger = logger;
@@ -281,7 +303,7 @@ public class MTASTSAnalysis : IHasAssessments {
             }
             Domain = domainName;
 
-            var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
+            var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT, cancellationToken);
             var dnsList = dns?.ToList() ?? new List<DnsAnswer>();
 
             var cnameRecords = dnsList.Where(r => r.Type == DnsRecordType.CNAME).ToList();
@@ -290,11 +312,14 @@ public class MTASTSAnalysis : IHasAssessments {
                 CnameTtl = cnameRecords.Min(r => r.TTL);
             }
 
-            var txtRecords = dnsList.Where(r => r.Type != DnsRecordType.CNAME).ToList();
-            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
+            var allTxtRecords = dnsList.Where(r => r.Type == DnsRecordType.TXT).ToList();
+            var txtRecords = allTxtRecords.Where(r =>
+                r.TxtConcatenatedData.StartsWith("v=STSv1;", StringComparison.Ordinal)).ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(allTxtRecords, expectedType: DnsRecordType.TXT);
             DnsRecordPresent = txtRecords.Any();
-            if (DnsRecordPresent) {
-                ParseDnsRecord(string.Join(string.Empty, txtRecords.Select(r => r.Data ?? string.Empty)));
+            MultipleDnsRecords = txtRecords.Count > 1;
+            if (DnsRecordPresent && !MultipleDnsRecords) {
+                ParseDnsRecord(txtRecords[0].TxtConcatenatedData);
             }
 
             PolicyFetchSkipped = true;
@@ -320,6 +345,9 @@ public class MTASTSAnalysis : IHasAssessments {
             if (!DnsRecordPresent) {
                 Advisory = "No MTA-STS record published.";
                 Logger?.WriteWarningCode(MtaStsCodes.MissingRecord, Advisory);
+            } else if (MultipleDnsRecords) {
+                Advisory = "Multiple MTA-STS DNS bootstrap records published; policy discovery is invalid.";
+                Logger?.WriteWarningCode(MtaStsCodes.PolicyInvalid, Advisory);
             } else if (!PolicyValid) {
                 Advisory = "MTA-STS policy invalid.";
                 Logger?.WriteWarningCode(MtaStsCodes.PolicyInvalid, Advisory);
@@ -339,6 +367,9 @@ public class MTASTSAnalysis : IHasAssessments {
             if (!DnsRecordPresent) {
                 Advisory = "No MTA-STS DNS bootstrap record published.";
                 Logger?.WriteWarningCode(MtaStsCodes.MissingRecord, Advisory);
+            } else if (MultipleDnsRecords) {
+                Advisory = "Multiple MTA-STS DNS bootstrap records published; policy discovery is invalid.";
+                Logger?.WriteWarningCode(MtaStsCodes.PolicyInvalid, Advisory);
             } else if (!DnsRecordValid) {
                 Advisory = "MTA-STS DNS bootstrap record is present but invalid.";
                 Logger?.WriteWarningCode(MtaStsCodes.PolicyInvalid, Advisory);
@@ -352,20 +383,33 @@ public class MTASTSAnalysis : IHasAssessments {
 
         static MTASTSAnalysis()
         {
-            _client = HttpClientPlatformFactory.CreateRedirectClient(userAgent: "Mozilla/5.0");
+            _client = HttpClientPlatformFactory.CreateNoRedirectClient(userAgent: "Mozilla/5.0");
         }
 
         /// <summary>
         /// Retrieves the policy contents from the specified URL.
         /// </summary>
         /// <param name="url">The policy URL.</param>
+        /// <param name="cancellationToken">Token used to cancel the HTTP request.</param>
         /// <returns>The policy text or <see langword="null"/> if the request failed.</returns>
-        private async Task<string?> GetPolicy(string url) {
+        private async Task<string?> GetPolicy(string url, CancellationToken cancellationToken) {
             try {
-                var response = await _client.GetAsync(url);
-                if (response.IsSuccessStatusCode) {
-                    return await response.Content.ReadAsStringAsync();
+                var requestedUri = new Uri(url, UriKind.Absolute);
+                var client = HttpHandlerFactory == null ? HttpClient : new HttpClient(HttpHandlerFactory(), disposeHandler: true);
+                using var disposableClient = HttpHandlerFactory == null ? null : client;
+                using var response = await client.GetAsync(requestedUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                if (response.StatusCode != HttpStatusCode.OK) {
+                    Logger?.WriteWarningCode(MtaStsCodes.FetchFailed, "MTA-STS policy fetch returned HTTP {0}; HTTP 200 is required.", (int)response.StatusCode);
+                    return null;
                 }
+                if (response.RequestMessage?.RequestUri is Uri finalUri && finalUri != requestedUri) {
+                    Logger?.WriteWarningCode(MtaStsCodes.FetchFailed, "MTA-STS policy retrieval followed a redirect, which RFC 8461 prohibits.");
+                    return null;
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                return await response.Content.ReadAsStringAsync();
+            } catch (OperationCanceledException) {
+                throw;
             } catch (Exception ex) {
                 Logger?.WriteWarningCode(MtaStsCodes.FetchFailed, $"Failed to fetch {url}: {ex.Message}");
             }
@@ -373,15 +417,18 @@ public class MTASTSAnalysis : IHasAssessments {
             return null;
         }
 
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken) {
+            cancellationToken.ThrowIfCancellationRequested();
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(name, type);
+                var result = await QueryDnsOverride(name, type);
+                cancellationToken.ThrowIfCancellationRequested();
+                return result;
             }
 
             if (type == DnsRecordType.TXT) {
-                return await DnsConfiguration.QueryDNS(name, type, filter: string.Empty, includeAliasesInFilter: true);
+                return await DnsConfiguration.QueryDNS(name, type, filter: string.Empty, includeAliasesInFilter: true, cancellationToken: cancellationToken);
             }
-            return await DnsConfiguration.QueryDNS(name, type);
+            return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken);
         }
 
         private void ParseDnsRecord(string record) {
@@ -496,12 +543,12 @@ public class MTASTSAnalysis : IHasAssessments {
             return string.Equals(p, h, StringComparison.OrdinalIgnoreCase);
         }
 
-        private async Task EvaluateMxAlignmentAsync(string domainName)
+        private async Task EvaluateMxAlignmentAsync(string domainName, CancellationToken cancellationToken)
         {
             try {
                 MissingMxFromPolicy = new List<string>();
                 MxAligned = false;
-                var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+                var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                 var hosts = CertificateAnalysis.ExtractMxHosts(mx).ToArray();
                 if (hosts.Length == 0 || Mx.Count == 0) { MxAligned = false; return; }
                 foreach (var h in hosts) {
@@ -517,7 +564,10 @@ public class MTASTSAnalysis : IHasAssessments {
                 if (ValidMaxAge && MaxAge > 0 && MaxAge < 86400) {
                     Logger?.WriteWarningCode(MtaStsCodes.MaxAgeLow, "MTA-STS max_age {0} is low; consider >= 86400", MaxAge);
                 }
-            } catch (Exception) {
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (Exception ex) {
+                Logger?.WriteWarningCode(MtaStsCodes.MxAlignmentFailed, "Failed to evaluate MTA-STS MX alignment: {0}", ex.Message);
             }
         }
     }

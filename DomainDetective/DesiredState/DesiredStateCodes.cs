@@ -147,6 +147,7 @@ internal static class DesiredStateCodes {
 
     public const string OpenResolverNoResults = "DesiredState.OPENRESOLVER.Results.None";
     public const string OpenResolverNotAllowed = "DesiredState.OPENRESOLVER.Open.NotAllowed";
+    public const string OpenResolverCheckFailed = "DesiredState.OPENRESOLVER.Check.Failed";
 
     public const string MxMissingRecord = "DesiredState.MX.Record.Missing";
     public const string MxNullMxRequired = "DesiredState.MX.NullMX.Required";

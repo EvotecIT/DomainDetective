@@ -3,12 +3,8 @@ using DomainDetective.Definitions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Text.RegularExpressions;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Security;
 using DomainDetective.Helpers;
 
 namespace DomainDetective {
@@ -20,9 +16,11 @@ namespace DomainDetective {
     /// DKIM selectors are queried for public keys and the syntax and key size
     /// are validated. Additional ADSP records are also parsed when present.
     /// </remarks>
-    public class DkimAnalysis : IHasAssessments {
+    public partial class DkimAnalysis : IHasAssessments {
         /// <summary>DNS configuration used for auxiliary lookups (e.g., CNAME for provider mapping).</summary>
         public DnsConfiguration? DnsConfiguration { get; set; }
+        /// <summary>Maximum number of DKIM selector DNS queries issued concurrently.</summary>
+        public int SelectorQueryConcurrency { get; set; } = 8;
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Minimum allowed RSA key size in bits.</summary>
@@ -91,16 +89,19 @@ namespace DomainDetective {
 
             analysis.DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
 
-            // create a single string from the list of DnsResult objects
+            analysis.MultipleRecords = txtRecords.Count > 1;
+
+            // A DKIM key is one TXT resource record. Character-strings within that
+            // resource record are concatenated without separators by DNS.
             foreach (var record in txtRecords) {
                 if (string.IsNullOrEmpty(analysis.Name) && !string.IsNullOrEmpty(record.Name)) {
                     analysis.Name = record.Name;
                 }
-                if (record.DataStringsEscaped != null && record.DataStringsEscaped.Length > 0) {
-                    analysis.DkimRecord += string.Join(string.Empty, record.DataStringsEscaped);
-                } else {
-                    analysis.DkimRecord += record.Data ?? record.DataRaw;
-                }
+            }
+
+            if (txtRecords.Count > 0) {
+                var record = txtRecords[0];
+                analysis.DkimRecord = record.TxtConcatenatedData;
             }
 
             if (string.IsNullOrWhiteSpace(analysis.Name) && !string.IsNullOrWhiteSpace(Subject)) {
@@ -123,11 +124,16 @@ namespace DomainDetective {
                 return;
             }
 
-            // check the DKIM record starts correctly
-            analysis.StartsCorrectly = analysis.DkimRecord.StartsWith("v=DKIM1");
+            if (analysis.MultipleRecords) {
+                logger?.WriteErrorCode(DkimCodes.MultipleRecords, "Multiple DKIM TXT records found for selector {0}; a unique key record is required.", selector);
+            }
+
+            var tags = analysis.DkimRecord.Split(';');
+            analysis.VersionTagPresent = tags.Any(tag => tag.TrimStart().StartsWith("v=", StringComparison.OrdinalIgnoreCase));
+            analysis.StartsCorrectly = analysis.DkimRecord.TrimStart().StartsWith("v=DKIM1", StringComparison.OrdinalIgnoreCase);
+            analysis.VersionValid = !analysis.VersionTagPresent || analysis.StartsCorrectly;
 
             // loop through the tags of the DKIM record
-            var tags = analysis.DkimRecord.Split(';');
             foreach (var tag in tags) {
                 var keyValue = tag.Split(new[] { '=' }, 2);
                 if (keyValue.Length == 2) {
@@ -136,116 +142,6 @@ namespace DomainDetective {
                     switch (key) {
                         case "p":
                             analysis.PublicKey = value;
-                            try {
-                                var b64 = (value ?? string.Empty).Trim();
-                                b64 = b64.Replace("\r", string.Empty).Replace("\n", string.Empty).Replace(" ", string.Empty);
-                                var mod = b64.Length % 4; if (mod > 0) b64 = b64 + new string('=', 4 - mod);
-                                var bytes = Convert.FromBase64String(b64);
-                                try {
-                                    using var sha = System.Security.Cryptography.SHA256.Create();
-                                    var fp = sha.ComputeHash(bytes);
-                                    analysis.KeyFingerprint = System.BitConverter.ToString(fp).Replace("-", string.Empty);
-                                } catch { }
-                                try {
-                                    var rsaKey = (RsaKeyParameters)PublicKeyFactory.CreateKey(bytes);
-                                    analysis.KeyLength = rsaKey.Modulus.BitLength;
-                                    analysis.ValidRsaKeyLength = analysis.KeyLength >= MinimumRsaKeyBits;
-                                    analysis.WeakKey = analysis.KeyLength > 0 && analysis.KeyLength < 2032;
-                                    // Some providers publish SPKI blobs where modulus parsing may under-report size.
-                                    // If decoded blob length strongly indicates a 2048-bit key, ensure WeakKey=false.
-                                    if (analysis.WeakKey && bytes.Length >= 256)
-                                    {
-                                        analysis.KeyLength = Math.Max(analysis.KeyLength, 2048);
-                                        analysis.WeakKey = false;
-                                    }
-                                    // Heuristic: common DER header prefix 'MIIBI' is typical for 2048-bit RSA SPKI.
-                                    // Apply regardless of initial WeakKey state to avoid false weak classification.
-                                    if (b64.StartsWith("MIIBI", StringComparison.Ordinal))
-                                    {
-                                        if (analysis.KeyLength < 2032)
-                                        {
-                                            analysis.KeyLength = Math.Max(analysis.KeyLength, 2048);
-                                            analysis.ValidRsaKeyLength = true;
-                                        }
-                                        analysis.WeakKey = false;
-                                    }
-                                    // Heuristic fallback: base64 length ~>=240 often corresponds to 2048-bit material
-                                    if (analysis.WeakKey && b64.Length >= 240)
-                                    {
-                                        analysis.KeyLength = Math.Max(analysis.KeyLength, 2048);
-                                        analysis.ValidRsaKeyLength = true;
-                                        analysis.ValidPublicKey = true;
-                                        analysis.WeakKey = false;
-                                    }
-                                    if (!analysis.ValidRsaKeyLength)
-                                    {
-                                        analysis.ValidPublicKey = false;
-                                        logger?.WriteErrorCode(DkimCodes.KeyTooShort, "DKIM key length {0} bits is below the minimum of {1} bits.", analysis.KeyLength, MinimumRsaKeyBits);
-                                    }
-                                    else
-                                    {
-                                        analysis.ValidPublicKey = true;
-                                        if (analysis.WeakKey)
-                                        {
-                                            logger?.WriteWarningCode(DkimCodes.KeyWeak, "DKIM key length {0} bits is weak, use at least 2048 bits.", analysis.KeyLength);
-                                        }
-                                    }
-                                } catch (Exception) {
-                                    // Fallback: approximate key length from blob size if parsing fails
-                                    analysis.KeyLength = bytes.Length >= 256 ? 2048 : bytes.Length * 8;
-                                    // Heuristics for common 2048-bit encodings when parser fails
-                                    if (analysis.KeyLength < 2032 && (b64.StartsWith("MIIBI", StringComparison.Ordinal) || b64.Length >= 240))
-                                    {
-                                        analysis.KeyLength = 2048;
-                                    }
-                                    if (analysis.KeyLength >= MinimumRsaKeyBits)
-                                    {
-                                        analysis.ValidPublicKey = true;
-                                        analysis.ValidRsaKeyLength = true;
-                                        analysis.WeakKey = analysis.KeyLength < 2032;
-                                    }
-                                    else
-                                    {
-                                        analysis.ValidPublicKey = false;
-                                        analysis.ValidRsaKeyLength = false;
-                                        analysis.KeyLength = 0;
-                                        analysis.WeakKey = false;
-                                    }
-                                }
-                            } catch (FormatException) {
-                                analysis.ValidPublicKey = false;
-                                analysis.ValidRsaKeyLength = false;
-                                analysis.KeyLength = 0;
-                                analysis.WeakKey = false;
-                            }
-                            // Secondary fallback: if still invalid but base64 decodes to a plausible size
-                            if (!analysis.ValidPublicKey && !string.IsNullOrWhiteSpace(analysis.PublicKey))
-                            {
-                                try {
-                                    var b64 = analysis.PublicKey.Trim(); var m = b64.Length % 4; if (m > 0) b64 = b64 + new string('=', 4 - m);
-                                    var b = Convert.FromBase64String(b64);
-                                    try {
-                                        using var sha = System.Security.Cryptography.SHA256.Create();
-                                        var fp = sha.ComputeHash(b);
-                                        analysis.KeyFingerprint = System.BitConverter.ToString(fp).Replace("-", string.Empty);
-                                    } catch { }
-                                    var approx = b.Length >= 256 ? 2048 : b.Length * 8;
-                                    if (approx >= MinimumRsaKeyBits)
-                                    {
-                                        analysis.KeyLength = approx;
-                                        analysis.ValidPublicKey = true;
-                                        analysis.ValidRsaKeyLength = true;
-                                    analysis.WeakKey = approx < 2032;
-                                    }
-                                    // If approx still seems short but the base64 itself is long, assume 2048
-                                    if (analysis.WeakKey && (analysis.PublicKey?.Length ?? 0) >= 240)
-                                    {
-                                        analysis.KeyLength = Math.Max(analysis.KeyLength, 2048);
-                                        analysis.ValidRsaKeyLength = true;
-                                        analysis.WeakKey = false;
-                                    }
-                                } catch { }
-                            }
                             break;
                         case "s":
                             analysis.ServiceType = value;
@@ -300,36 +196,13 @@ namespace DomainDetective {
                 }
             }
 
-            // attempt to parse creation timestamp from the full record
-            var match = Regex.Match(
-                analysis.DkimRecord,
-                "(?:n=|created=|creation=|date=|timestamp=)(?<date>\\d{4}-\\d{2}-\\d{2}|\\d{8})",
-                RegexOptions.IgnoreCase);
-            if (match.Success &&
-                DateTime.TryParseExact(
-                    match.Groups["date"].Value,
-                    new[] { "yyyy-MM-dd", "yyyyMMdd" },
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal |
-                        DateTimeStyles.AdjustToUniversal,
-                    out var parsed)) {
-                analysis.CreationDate = parsed;
-                analysis.KeyAgeDays = (int)(DateTime.UtcNow - parsed).TotalDays;
-                if (DateTime.UtcNow - parsed >= KeyAgeWarningThreshold) {
-                    analysis.OldKey = true;
-                    logger?.WriteWarningCode(
-                        DkimCodes.KeyOld,
-                        "DKIM key for selector {0} appears older than {1} days ({2:yyyy-MM-dd}).",
-                        selector,
-                        (int)KeyAgeWarningThreshold.TotalDays,
-                        parsed);
-                }
-            }
-
             // check the public key exists
             analysis.PublicKeyExists = !string.IsNullOrEmpty(analysis.PublicKey);
-            // check the service type exists
             analysis.KeyTypeExists = !string.IsNullOrEmpty(analysis.KeyType);
+            analysis.KeyType = analysis.KeyTypeExists ? analysis.KeyType : "rsa";
+            analysis.ValidKeyType = string.Equals(analysis.KeyType, "rsa", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(analysis.KeyType, "ed25519", StringComparison.OrdinalIgnoreCase);
+            ValidatePublicKey(selector, analysis, logger);
 
             AnalysisResults[selector] = analysis;
             // Info-level positives (posture signals)
@@ -354,8 +227,8 @@ namespace DomainDetective {
                 (analysis.SignatureAlgorithm.Equals("rsa-sha256", StringComparison.OrdinalIgnoreCase) ||
                  analysis.SignatureAlgorithm.Equals("ed25519-sha256", StringComparison.OrdinalIgnoreCase)))
                 logger?.WriteInformationCode(DkimCodes.AlgorithmRecommended, "DKIM signature algorithm {0} for selector {1}", analysis.SignatureAlgorithm, selector);
-            if (analysis.DkimRecordExists && analysis.StartsCorrectly && analysis.PublicKeyExists && analysis.ValidPublicKey && analysis.ValidKeyType && analysis.ValidRsaKeyLength)
-                logger?.WriteInformationCode(DkimCodes.SignatureValid, "DKIM selector {0} has a valid signature", selector);
+            if (IsValidKeyRecord(analysis))
+                logger?.WriteInformationCode(DkimCodes.PublicKeyValid, "DKIM selector {0} publishes valid {1} public key material", selector, analysis.KeyType);
 
             // Provider mapping via CNAME target when available (best-effort)
             try
@@ -389,7 +262,7 @@ namespace DomainDetective {
             }
 
             var issues = AnalysisResults
-                .Where(kvp => !kvp.Value.DkimRecordExists || !kvp.Value.StartsCorrectly || !kvp.Value.ValidPublicKey || kvp.Value.WeakKey)
+                .Where(kvp => !IsValidKeyRecord(kvp.Value) || kvp.Value.WeakKey)
                 .Select(kvp => kvp.Key)
                 .ToArray();
 
@@ -397,13 +270,13 @@ namespace DomainDetective {
                 Advisory = $"Issues detected with selector(s): {string.Join(", ", issues)}.";
             } else {
                 Advisory = "All DKIM selectors appear valid.";
-                logger?.WriteInformationCode(DkimCodes.SelectorAligned, "All DKIM selectors are aligned");
+                logger?.WriteInformationCode(DkimCodes.SelectorsValid, "All discovered DKIM selector key records are valid");
             }
 
             // Key reuse detection across selectors (same fingerprint)
             try {
                 var duplicates = AnalysisResults
-                    .Where(kvp => !string.IsNullOrWhiteSpace(kvp.Value?.KeyFingerprint))
+                    .Where(kvp => kvp.Value.ValidPublicKey && !string.IsNullOrWhiteSpace(kvp.Value.KeyFingerprint))
                     .GroupBy(kvp => kvp.Value!.KeyFingerprint!, StringComparer.OrdinalIgnoreCase)
                     .Where(g => g.Count() > 1);
                 foreach (var g in duplicates) {
@@ -472,15 +345,28 @@ namespace DomainDetective {
 
             string? firstFound = null;
             var found = new List<string>();
-            foreach (var selector in DKIMSelectors.GuessSelectors()) {
-                cancellationToken.ThrowIfCancellationRequested();
+            var selectors = DKIMSelectors.GuessSelectors().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var results = new DnsAnswer[selectors.Length][];
+            using var concurrency = new SemaphoreSlim(Math.Max(1, SelectorQueryConcurrency));
+            var queries = selectors.Select(async (selector, index) => {
                 logger.WriteVerbose("Trying DKIM selector '{0}'", selector);
-                var dkim = await dnsConfiguration.QueryDNS(
-                    $"{selector}._domainkey.{domainName}",
-                    DnsRecordType.TXT,
-                    "DKIM1",
-                    includeAliasesInFilter: true,
-                    cancellationToken: cancellationToken);
+                await concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try {
+                    results[index] = await dnsConfiguration.QueryDNS(
+                        $"{selector}._domainkey.{domainName}",
+                        DnsRecordType.TXT,
+                        "DKIM1",
+                        includeAliasesInFilter: true,
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                } finally {
+                    concurrency.Release();
+                }
+            }).ToArray();
+            await Task.WhenAll(queries).ConfigureAwait(false);
+
+            for (var index = 0; index < selectors.Length; index++) {
+                var selector = selectors[index];
+                var dkim = results[index] ?? Array.Empty<DnsAnswer>();
                 if (dkim.Any()) {
                     logger.WriteVerbose("Found DKIM record with selector '{0}'", selector);
                     await AnalyzeDkimRecords(selector, dkim, logger);
@@ -510,14 +396,22 @@ namespace DomainDetective {
         public string DkimRecord { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the record exists.</summary>
         public bool DkimRecordExists { get; set; }
+        /// <summary>Gets or sets a value indicating whether more than one TXT resource record was returned.</summary>
+        public bool MultipleRecords { get; set; }
         /// <summary>Gets or sets a value indicating whether the record starts with <c>v=DKIM1</c>.</summary>
         public bool StartsCorrectly { get; set; }
+        /// <summary>Gets or sets a value indicating whether an explicit version tag was present.</summary>
+        public bool VersionTagPresent { get; set; }
+        /// <summary>Gets or sets a value indicating whether the optional version tag is absent or valid and first.</summary>
+        public bool VersionValid { get; set; }
         /// <summary>Gets or sets a value indicating whether the public key value was present.</summary>
         public bool PublicKeyExists { get; set; }
         /// <summary>Gets or sets a value indicating whether a key type was specified.</summary>
         public bool ValidPublicKey { get; set; }
         /// <summary>True when the RSA key length meets <see cref="DkimAnalysis.MinimumRsaKeyBits"/>.</summary>
         public bool ValidRsaKeyLength { get; set; }
+        /// <summary>True when key material has the required length for its declared key type.</summary>
+        public bool ValidKeyLength { get; set; }
         /// <summary>Length of the RSA public key in bits.</summary>
         public int KeyLength { get; set; }
         /// <summary>True when the RSA key length is under 2048 bits.</summary>

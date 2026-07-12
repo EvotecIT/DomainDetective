@@ -1,15 +1,32 @@
 using DomainDetective;
 using DnsClientX;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Sdk;
 
 namespace DomainDetective.Tests {
     [Collection("HttpListener")]
-    public class TestMTASTSAnalysis {
+public class TestMTASTSAnalysis {
+        [Fact]
+        public async Task IgnoresUnrelatedTxtBeforeCountingBootstrapRecords() {
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(new[] {
+                    new DnsAnswer { Type = DnsRecordType.TXT, DataRaw = "unrelated=value" },
+                    new DnsAnswer { Type = DnsRecordType.TXT, DataRaw = "v=STSv1; id=policy-1" }
+                })
+            };
+
+            await analysis.AnalyzeDnsBootstrap("example.com", new InternalLogger());
+
+            Assert.False(analysis.MultipleDnsRecords);
+            Assert.True(analysis.DnsRecordValid);
+            Assert.Equal("policy-1", analysis.PolicyId);
+        }
         [Fact]
         public void ParseValidPolicy() {
             var policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
@@ -178,7 +195,7 @@ namespace DomainDetective.Tests {
             };
             await analysis.AnalyzePolicy("example.com", new InternalLogger());
 
-            Assert.True(analysis.DnsRecordPresent);
+            Assert.False(analysis.DnsRecordPresent);
             Assert.False(analysis.DnsRecordValid);
             Assert.False(analysis.PolicyValid);
         }
@@ -235,7 +252,7 @@ namespace DomainDetective.Tests {
             };
             await analysis.AnalyzePolicy("example.com", new InternalLogger());
 
-            Assert.True(analysis.DnsRecordPresent);
+            Assert.False(analysis.DnsRecordPresent);
             Assert.False(analysis.DnsRecordValid);
             Assert.False(analysis.PolicyValid);
         }
@@ -249,14 +266,14 @@ namespace DomainDetective.Tests {
             };
             await analysis.AnalyzePolicy("example.com", new InternalLogger());
 
-            Assert.True(analysis.DnsRecordPresent);
+            Assert.False(analysis.DnsRecordPresent);
             Assert.False(analysis.DnsRecordValid);
             Assert.False(analysis.PolicyValid);
         }
 
         [Fact]
         public async Task InvalidDnsRecordMissingIdFails() {
-            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1", Type = DnsRecordType.TXT } };
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; foo=bar", Type = DnsRecordType.TXT } };
             var analysis = new MTASTSAnalysis {
                 QueryDnsOverride = (_, _) => Task.FromResult(answers),
                 DnsConfiguration = new DnsConfiguration()
@@ -476,6 +493,89 @@ namespace DomainDetective.Tests {
             } finally {
                 listener.Stop();
                 await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task MultipleDnsBootstrapRecordsAreInvalid() {
+            var answers = new[] {
+                new DnsAnswer { DataRaw = "v=STSv1; id=one", Type = DnsRecordType.TXT },
+                new DnsAnswer { DataRaw = "v=STSv1; id=two", Type = DnsRecordType.TXT }
+            };
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(answers)
+            };
+
+            await analysis.AnalyzeDnsBootstrap("example.com", new InternalLogger());
+
+            Assert.True(analysis.MultipleDnsRecords);
+            Assert.False(analysis.DnsRecordValid);
+            Assert.Contains("Multiple MTA-STS", analysis.Advisory);
+        }
+
+        [Fact]
+        public async Task DnsBootstrapConcatenatesStringsWithinOneTxtRecord() {
+            var answers = new[] {
+                new DnsAnswer { DataRaw = "\"v=STSv1;\" \"id=abc\"", Type = DnsRecordType.TXT }
+            };
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(answers)
+            };
+
+            await analysis.AnalyzeDnsBootstrap("example.com", new InternalLogger());
+
+            Assert.False(analysis.MultipleDnsRecords);
+            Assert.True(analysis.DnsRecordValid);
+            Assert.Equal("abc", analysis.PolicyId);
+        }
+
+        [Fact]
+        public async Task PolicyFetchRejectsRedirectStatus() {
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
+            var handler = new StubHttpHandler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Found) {
+                RequestMessage = request,
+                Headers = { Location = new Uri("https://elsewhere.example/.well-known/mta-sts.txt") }
+            }));
+            var analysis = new MTASTSAnalysis {
+                PolicyUrlOverride = "https://mta-sts.example.com/.well-known/mta-sts.txt",
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                HttpClient = new HttpClient(handler)
+            };
+
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+            Assert.False(analysis.PolicyPresent);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task PolicyFetchHonorsCancellation() {
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
+            var handler = new StubHttpHandler(async (_, token) => {
+                await Task.Delay(Timeout.Infinite, token);
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            });
+            var analysis = new MTASTSAnalysis {
+                PolicyUrlOverride = "https://mta-sts.example.com/.well-known/mta-sts.txt",
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                HttpClient = new HttpClient(handler)
+            };
+            using var cancellation = new CancellationTokenSource();
+            cancellation.CancelAfter(TimeSpan.FromMilliseconds(50));
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                analysis.AnalyzePolicy("example.com", new InternalLogger(), cancellation.Token));
+        }
+
+        private sealed class StubHttpHandler : HttpMessageHandler {
+            private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _send;
+
+            public StubHttpHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) {
+                _send = send;
+            }
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+                return _send(request, cancellationToken);
             }
         }
 

@@ -22,7 +22,7 @@ namespace DomainDetective {
                 DnsConfiguration = DnsConfiguration
             };
             // Analyze policy (TXT + HTTPS fetch + syntax)
-            await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
+            await MTASTSAnalysis.AnalyzePolicy(domainName, _logger, cancellationToken);
 
             // Correlate with MX TLS posture: ensure MX advertise STARTTLS and negotiate modern TLS
             try {
@@ -85,6 +85,8 @@ namespace DomainDetective {
                         });
                     }
                 }
+            } catch (OperationCanceledException) {
+                throw;
             } catch (Exception ex) {
                 _logger.WriteVerbose("MTA-STS TLS correlation skipped for {0}: {1}", domainName, ex.Message);
             }
@@ -106,7 +108,7 @@ namespace DomainDetective {
                 PolicyUrlOverride = MtaStsPolicyUrlOverride,
                 DnsConfiguration = DnsConfiguration
             };
-            await MTASTSAnalysis.AnalyzeDnsBootstrap(domainName, _logger);
+            await MTASTSAnalysis.AnalyzeDnsBootstrap(domainName, _logger, cancellationToken);
         }
     }
 }

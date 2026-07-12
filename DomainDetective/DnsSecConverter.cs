@@ -22,7 +22,6 @@ namespace DomainDetective {
                 1 => DnsDigestType.Sha1,
                 2 => DnsDigestType.Sha256,
                 4 => DnsDigestType.Sha384,
-                5 => DnsDigestType.Sha512,
                 _ => DnsDigestType.Unknown,
             };
         }
@@ -61,6 +60,10 @@ namespace DomainDetective {
                 DsAuthenticData = analysis.DsAuthenticData,
                 DsMatch = analysis.DsMatch,
                 ChainValid = analysis.ChainValid,
+                ValidationStatus = analysis.ValidationStatus,
+                SubjectAuthenticData = analysis.SubjectAuthenticData,
+                ValidatedZone = analysis.ValidatedZone ?? string.Empty,
+                ValidationMethod = analysis.ValidationMethod,
                 DsTtls = analysis.DsTtls,
                 RootKeyTag = analysis.RootKeyTag,
                 RootAnchorExpiration = analysis.RootAnchorExpiration,
@@ -159,6 +162,18 @@ namespace DomainDetective {
 
         /// <summary>True when the entire DNSSEC chain validated.</summary>
         public bool ChainValid { get; set; }
+
+        /// <summary>Evidence-backed state for the requested DNS name.</summary>
+        public DnssecValidationStatus ValidationStatus { get; set; }
+
+        /// <summary>True when the requested subject response carried authenticated-data evidence.</summary>
+        public bool SubjectAuthenticData { get; set; }
+
+        /// <summary>Closest enclosing signed zone evaluated for the subject.</summary>
+        public string ValidatedZone { get; set; } = string.Empty;
+
+        /// <summary>Evidence method used to classify the result.</summary>
+        public string ValidationMethod { get; set; } = string.Empty;
 
         /// <summary>TTL values for each DS lookup in the validation chain.</summary>
         public IReadOnlyList<int> DsTtls { get; set; } = Array.Empty<int>();

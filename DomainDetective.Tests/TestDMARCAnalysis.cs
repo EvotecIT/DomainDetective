@@ -6,7 +6,21 @@ using DomainDetective;
 using Xunit.Sdk;
 
 namespace DomainDetective.Tests {
-    public class TestDMARCAnalysis {
+public class TestDMARCAnalysis {
+        [Fact]
+        public async Task IgnoresUnrelatedTxtBeforeCountingDmarcPolicies() {
+            var analysis = new DmarcAnalysis();
+            var records = new[] {
+                new DnsAnswer { Type = DnsRecordType.TXT, DataRaw = "unrelated=value" },
+                new DnsAnswer { Type = DnsRecordType.TXT, DataRaw = "v=DMARC1; p=reject" }
+            };
+
+            await analysis.AnalyzeDmarcRecords(records, new InternalLogger(), "example.com");
+
+            Assert.False(analysis.MultipleRecords);
+            Assert.True(analysis.HasMandatoryTags);
+            Assert.Equal("reject", analysis.PolicyShort);
+        }
 
         [Fact]
         public async Task TestDMARCByString() {
@@ -88,14 +102,10 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task ConcatenateMultipleTxtChunks() {
+        public async Task ConcatenatesCharacterStringsWithinOneTxtRecord() {
             var answers = new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = "v=DMARC1; p=none;",
-                    Type = DnsRecordType.TXT
-                },
-                new DnsAnswer {
-                    DataRaw = "rua=mailto:test@example.com",
+                    DataRaw = "\"v=DMARC1; p=none;\" \"rua=mailto:test@example.com\"",
                     Type = DnsRecordType.TXT
                 }
             };
@@ -104,10 +114,27 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeDmarcRecords(answers, new InternalLogger());
 
             Assert.True(analysis.DmarcRecordExists);
-            Assert.Equal("v=DMARC1; p=none; rua=mailto:test@example.com", analysis.DmarcRecord);
+            Assert.Equal("v=DMARC1; p=none;rua=mailto:test@example.com", analysis.DmarcRecord);
             Assert.Equal("none", analysis.PolicyShort);
             Assert.Single(analysis.MailtoRua);
             Assert.Equal("test@example.com", analysis.MailtoRua[0]);
+        }
+
+        [Fact]
+        public async Task MultipleDmarcRecordsDoNotProduceAnAppliedPolicy() {
+            var answers = new[] {
+                new DnsAnswer { DataRaw = "v=DMARC1; p=none", Type = DnsRecordType.TXT },
+                new DnsAnswer { DataRaw = "v=DMARC1; p=reject", Type = DnsRecordType.TXT }
+            };
+
+            var analysis = new DmarcAnalysis();
+            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.MultipleRecords);
+            Assert.False(analysis.HasMandatoryTags);
+            Assert.False(analysis.IsPolicyValid);
+            Assert.Equal(string.Empty, analysis.PolicyShort);
+            Assert.Equal("Multiple DMARC records found; no policy can be applied.", analysis.Advisory);
         }
 
         [Fact]
@@ -120,14 +147,75 @@ namespace DomainDetective.Tests {
             };
 
             var list = PublicSuffixList.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat"));
+            string? queryName = null;
             var analysis = new DmarcAnalysis {
                 DnsConfiguration = new DnsConfiguration(),
-                QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>())
+                QueryDnsOverride = (name, _) => {
+                    queryName = name;
+                    return Task.FromResult(Array.Empty<DnsAnswer>());
+                }
             };
             await analysis.AnalyzeDmarcRecords(answers, new InternalLogger(), "example.com", list.GetRegistrableDomain);
 
+            Assert.Equal("example.com._report._dmarc.external.com", queryName);
             Assert.True(analysis.ExternalReportAuthorization.ContainsKey("external.com"));
             Assert.False(analysis.ExternalReportAuthorization["external.com"]);
+        }
+
+        [Fact]
+        public async Task VersionOnlyExternalAuthorizationIsAccepted() {
+            var answers = new[] {
+                new DnsAnswer {
+                    DataRaw = "v=DMARC1; p=none; rua=mailto:reports@external.com",
+                    Type = DnsRecordType.TXT
+                }
+            };
+            var list = PublicSuffixList.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat"));
+            var analysis = new DmarcAnalysis {
+                QueryDnsOverride = (name, type) => Task.FromResult(
+                    name == "example.com._report._dmarc.external.com" && type == DnsRecordType.TXT
+                        ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "v=DMARC1" } }
+                        : Array.Empty<DnsAnswer>())
+            };
+
+            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger(), "example.com", list.GetRegistrableDomain);
+
+            Assert.True(analysis.ExternalReportAuthorization["external.com"]);
+        }
+
+        [Fact]
+        public async Task OrganizationalFallbackEvaluatesInheritedSubdomainPolicy() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.DnsConfiguration.QueryDnsOverride = (name, type) => Task.FromResult(
+                name == "_dmarc.example.com" && type == DnsRecordType.TXT
+                    ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "v=DMARC1; p=none; sp=reject" } }
+                    : Array.Empty<DnsAnswer>());
+
+            await healthCheck.VerifyDMARC("mail.example.com");
+
+            Assert.Equal("example.com", healthCheck.DmarcAnalysis.PolicyDomain);
+            Assert.Equal("reject", healthCheck.DmarcAnalysis.SubPolicyShort);
+            Assert.False(healthCheck.DmarcAnalysis.WeakPolicy);
+        }
+
+        [Fact]
+        public async Task SameOrganizationalDomainDoesNotRequireExternalAuthorization() {
+            var answers = new[] {
+                new DnsAnswer { DataRaw = "v=DMARC1; p=none; rua=mailto:reports@reports.example.com", Type = DnsRecordType.TXT }
+            };
+            var list = PublicSuffixList.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat"));
+            var queries = 0;
+            var analysis = new DmarcAnalysis {
+                QueryDnsOverride = (_, _) => {
+                    queries++;
+                    return Task.FromResult(Array.Empty<DnsAnswer>());
+                }
+            };
+
+            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger(), "mail.example.com", list.GetRegistrableDomain, "example.com");
+
+            Assert.Equal(0, queries);
+            Assert.Empty(analysis.ExternalReportAuthorization);
         }
 
         [Fact]

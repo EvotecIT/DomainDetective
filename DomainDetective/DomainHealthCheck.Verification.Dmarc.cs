@@ -28,8 +28,23 @@ namespace DomainDetective {
                 "DMARC1",
                 includeAliasesInFilter: true,
                 cancellationToken: cancellationToken);
-            await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger, domainName, _publicSuffixList.GetRegistrableDomain);
-            DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy);
+            var policyDomain = domainName;
+            if (!dmarc.Any(answer => answer.Type == DnsRecordType.TXT)) {
+                var organizationalDomain = _publicSuffixList.GetRegistrableDomain(domainName);
+                if (!string.IsNullOrWhiteSpace(organizationalDomain) &&
+                    !string.Equals(organizationalDomain, domainName, StringComparison.OrdinalIgnoreCase)) {
+                    policyDomain = organizationalDomain;
+                    dmarc = await DnsConfiguration.QueryDNS(
+                        "_dmarc." + policyDomain,
+                        DnsRecordType.TXT,
+                        "DMARC1",
+                        includeAliasesInFilter: true,
+                        cancellationToken: cancellationToken);
+                }
+            }
+            await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger, domainName, _publicSuffixList.GetRegistrableDomain, policyDomain);
+            var inheritedPolicy = !string.Equals(policyDomain, domainName, StringComparison.OrdinalIgnoreCase);
+            DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy || inheritedPolicy);
         }
 
         /// <summary>

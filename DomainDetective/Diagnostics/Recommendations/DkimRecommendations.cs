@@ -22,20 +22,20 @@ internal sealed class DkimRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Dkim,
             Tags = new [] { "email", "dkim", "keys" }
         };
-        map[DkimCodes.SignatureValid] = new RecommendationAdvice {
-            Code = DkimCodes.SignatureValid,
-            Title = "DKIM signature validated",
-            Why = "A valid DKIM signature helps receivers verify message authenticity.",
-            How = "Keep rotating keys regularly and monitor for verification failures.",
+        map[DkimCodes.PublicKeyValid] = new RecommendationAdvice {
+            Code = DkimCodes.PublicKeyValid,
+            Title = "DKIM public key record validated",
+            Why = "Receivers need well-formed public key material to verify messages signed with this selector.",
+            How = "Keep the selector published while it is in use and rotate key material according to your operational policy.",
             Links = new [] { "https://datatracker.ietf.org/doc/html/rfc6376" },
             Domain = RecommendationDomain.Dkim,
             Tags = new [] { "dkim", "email", "authentication" }
         };
-        map[DkimCodes.SelectorAligned] = new RecommendationAdvice {
-            Code = DkimCodes.SelectorAligned,
-            Title = "DKIM selectors aligned",
-            Why = "Aligned selectors simplify management and reduce deliverability issues.",
-            How = "Maintain consistent selector naming across all sending services.",
+        map[DkimCodes.SelectorsValid] = new RecommendationAdvice {
+            Code = DkimCodes.SelectorsValid,
+            Title = "DKIM selector key records validated",
+            Why = "Every discovered selector publishes parseable key material with supported parameters.",
+            How = "Continue monitoring published selectors and retire records that are no longer used.",
             Links = new [] { "https://datatracker.ietf.org/doc/html/rfc6376" },
             Domain = RecommendationDomain.Dkim,
             Tags = new [] { "dkim", "selectors" }

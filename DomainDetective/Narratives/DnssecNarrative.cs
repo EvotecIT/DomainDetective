@@ -79,7 +79,16 @@ public static class DnssecNarrative
             hi.Add("No DNSKEY records returned.");
         }
 
-        hi.Add(analysis.ChainValid ? "Chain of trust validated." : "Chain of trust invalid.");
+        hi.Add(analysis.ValidationStatus switch {
+            DnssecValidationStatus.Secure => "Validating resolver authenticated the subject response and enclosing-zone evidence.",
+            DnssecValidationStatus.Insecure => "The subject is not DNSSEC protected; no bogus chain was established.",
+            DnssecValidationStatus.Bogus => "DNSSEC evidence is present but failed authentication or DS/DNSKEY matching.",
+            _ => "DNSSEC state could not be established conclusively."
+        });
+        if (!string.IsNullOrWhiteSpace(analysis.ValidatedZone)) {
+            det.Add($"Closest enclosing DNSKEY zone: {analysis.ValidatedZone}");
+            det.Add($"Validation evidence: {analysis.ValidationMethod}");
+        }
         hi.Add(analysis.DsMatch ? "DS and DNSKEY match." : "DS and DNSKEY mismatch.");
         if (analysis.KeyExpiresSoon)
         {

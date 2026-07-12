@@ -44,6 +44,12 @@ public static class DaneNarrative
                 {
                     hi.Add("Certificate association data is valid.");
                 }
+                hi.Add(r.AssociationMatchStatus switch {
+                    DaneAssociationMatchStatus.Match => "Certificate association matches the observed TLS certificate evidence.",
+                    DaneAssociationMatchStatus.NoMatch => "Certificate association does not match the observed TLS certificate evidence.",
+                    DaneAssociationMatchStatus.CheckFailed => "Certificate association could not be checked.",
+                    _ => "Certificate association was not checked."
+                });
                 det.Add($"Usage: {r.CertificateUsage}; Selector: {r.SelectorField}; Matching: {r.MatchingTypeField}; Length: {r.LengthOfCertificateAssociationData}");
             }
         }

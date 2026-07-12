@@ -17,7 +17,7 @@ namespace DomainDetective {
     /// DANE policies are evaluated by querying TLSA records for the specified
     /// host and port combination.
     /// </remarks>
-    public class DANEAnalysis : IHasAssessments {
+    public partial class DANEAnalysis : IHasAssessments {
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Optional override for DNS queries.</summary>
@@ -30,6 +30,12 @@ namespace DomainDetective {
         public bool HasDuplicateRecords { get; private set; }
         /// <summary>Gets or sets the has invalid records value.</summary>
         public bool HasInvalidRecords { get; set; }
+        /// <summary>Gets a value indicating whether certificate association matching was attempted.</summary>
+        public bool AssociationValidationPerformed => AnalysisResults.Any(result => result.AssociationMatchStatus != DaneAssociationMatchStatus.NotChecked);
+        /// <summary>Gets a value indicating whether every syntactically valid TLSA record matched live certificate evidence.</summary>
+        public bool AllCertificateAssociationsMatch => AssociationValidationPerformed &&
+                                                       AnalysisResults.Where(result => result.ValidDANERecord)
+                                                           .All(result => result.AssociationMatchStatus == DaneAssociationMatchStatus.Match);
 
         /// <summary>Fully qualified TLSA owner names that were queried (e.g., _443._tcp.example.com).</summary>
         public List<string> QueriedNames { get; private set; } = new List<string>();
@@ -200,11 +206,7 @@ namespace DomainDetective {
                 analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData;
                 if (analysis.ValidDANERecord)
                 {
-                    logger.WriteInformationCode(DaneCodes.RecordValid, $"TLSA record valid for {record.Name}");
-                    if (analysis.ValidCertificateAssociationData && analysis.CorrectLengthOfCertificateAssociationData)
-                    {
-                        logger.WriteInformationCode(DaneCodes.CertificateMatches, $"TLSA certificate association data valid for {record.Name}");
-                    }
+                    logger.WriteInformationCode(DaneCodes.RecordValid, $"TLSA record syntax valid for {record.Name}");
                 }
 
                 // Add the analysis to the results
@@ -263,7 +265,10 @@ namespace DomainDetective {
         }
 
         private bool IsHexadecimal(string input) {
-            return System.Text.RegularExpressions.Regex.IsMatch(input, @"\A\b[0-9a-fA-F]+\b\Z");
+            return input.Length > 0 && input.Length % 2 == 0 && input.All(character =>
+                (character >= '0' && character <= '9') ||
+                (character >= 'a' && character <= 'f') ||
+                (character >= 'A' && character <= 'F'));
         }
     }
 
@@ -282,6 +287,10 @@ namespace DomainDetective {
         public string DANERecord { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the record passed all validations.</summary>
         public bool ValidDANERecord { get; set; }
+        /// <summary>Gets the result of comparing this TLSA record with live certificate evidence.</summary>
+        public DaneAssociationMatchStatus AssociationMatchStatus { get; set; }
+        /// <summary>Gets a value indicating whether live certificate evidence matched the association data.</summary>
+        public bool CertificateMatches => AssociationMatchStatus == DaneAssociationMatchStatus.Match;
         /// <summary>Gets or sets whether the usage field is valid.</summary>
         public bool ValidUsage { get; set; }
         /// <summary>Gets or sets whether the selector field is valid.</summary>
@@ -310,5 +319,17 @@ namespace DomainDetective {
         public int LengthOfCertificateAssociationData { get; set; }
         /// <summary>Gets or sets the total number of fields in the record.</summary>
         public int NumberOfFields { get; set; }
+    }
+
+    /// <summary>Describes the result of validating TLSA association data against live certificate evidence.</summary>
+    public enum DaneAssociationMatchStatus {
+        /// <summary>No certificate comparison was attempted.</summary>
+        NotChecked = 0,
+        /// <summary>The selected certificate material matched the TLSA association data.</summary>
+        Match = 1,
+        /// <summary>Certificate evidence was available but did not match.</summary>
+        NoMatch = 2,
+        /// <summary>The comparison could not be trusted or completed.</summary>
+        CheckFailed = 3
     }
 }

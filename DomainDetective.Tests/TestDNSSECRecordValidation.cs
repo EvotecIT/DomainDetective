@@ -26,10 +26,41 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task AnalysisWithoutDsRecordsSetsDsMatchFalse() {
-            var analysis = new DnsSecAnalysis();
+            var analysis = new DnsSecAnalysis {
+                QueryDnsResponseOverride = (_, type, _) => Task.FromResult(type == DnsRecordType.DNSKEY
+                    ? new DnsResponse {
+                        AuthenticData = true,
+                        Answers = new[] {
+                            new DnsAnswer { Type = DnsRecordType.DNSKEY, DataRaw = "257 3 13 AQID" }
+                        }
+                    }
+                    : new DnsResponse { AuthenticData = true, Answers = System.Array.Empty<DnsAnswer>() })
+            };
             await analysis.Analyze("cisco.com", null!);
             Assert.False(analysis.DsMatch);
             Assert.Empty(analysis.DsRecords);
+        }
+
+        [Fact]
+        public async Task RecordAnalysisAuthenticatesTheRequestedRrset() {
+            DnsRecordType? subjectType = null;
+            var analysis = new DnsSecAnalysis {
+                QueryDnsResponseOverride = (name, type, _) => {
+                    if (name == "_443._tcp.example.com") {
+                        subjectType ??= type;
+                    }
+                    return Task.FromResult(new DnsResponse {
+                        AuthenticData = type != DnsRecordType.TLSA,
+                        Answers = System.Array.Empty<DnsAnswer>()
+                    });
+                }
+            };
+
+            await analysis.AnalyzeRecord("_443._tcp.example.com", DnsRecordType.TLSA, null!);
+
+            Assert.Equal(DnsRecordType.TLSA, subjectType);
+            Assert.False(analysis.SubjectAuthenticData);
+            Assert.NotEqual(DnssecValidationStatus.Secure, analysis.ValidationStatus);
         }
     }
 }

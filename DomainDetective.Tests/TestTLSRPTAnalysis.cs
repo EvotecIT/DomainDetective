@@ -18,7 +18,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task MissingRuaInvalidatesPolicy() {
-            var record = "v=TLSRPTv1";
+            var record = "v=TLSRPTv1;foo=bar";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckTLSRPT(record);
             Assert.False(healthCheck.TLSRPTAnalysis.RuaDefined);
@@ -64,6 +64,7 @@ namespace DomainDetective.Tests {
 
             Assert.Single(analysis.InvalidRua);
             Assert.Equal("ftp://reports.example.com", analysis.InvalidRua[0]);
+            Assert.False(analysis.PolicyValid);
         }
 
         [Fact]
@@ -97,7 +98,37 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeTlsRptRecords(answers, new InternalLogger());
 
             Assert.True(analysis.MultipleRecords);
+            Assert.False(analysis.PolicyValid);
+            Assert.Empty(analysis.MailtoRua);
+        }
+
+        [Fact]
+        public async Task IgnoresUnrelatedTxtRecordsBeforeCountingPolicies() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "unrelated=value", Type = DnsRecordType.TXT },
+                new DnsAnswer { DataRaw = "v=TLSRPTv1;rua=mailto:a@example.com", Type = DnsRecordType.TXT }
+            };
+            var analysis = new TLSRPTAnalysis();
+
+            await analysis.AnalyzeTlsRptRecords(answers, new InternalLogger());
+
+            Assert.False(analysis.MultipleRecords);
             Assert.True(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task ConcatenatesCharacterStringsWithinOneTxtRecord() {
+            var answer = new DnsAnswer {
+                DataRaw = "\"v=TLSRPTv1;\" \"rua=mailto:reports@example.com\"",
+                Type = DnsRecordType.TXT
+            };
+            var analysis = new TLSRPTAnalysis();
+
+            await analysis.AnalyzeTlsRptRecords(new[] { answer }, new InternalLogger());
+
+            Assert.False(analysis.MultipleRecords);
+            Assert.True(analysis.PolicyValid);
+            Assert.Equal("v=TLSRPTv1;rua=mailto:reports@example.com", analysis.TlsRptRecord);
         }
 
         [Fact]
@@ -112,7 +143,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task MissingRuaLogsWarning() {
-            var record = "v=TLSRPTv1";
+            var record = "v=TLSRPTv1;foo=bar";
             var logger = new InternalLogger();
             var warnings = new List<LogEventArgs>();
             logger.OnWarningMessage += (_, e) => warnings.Add(e);

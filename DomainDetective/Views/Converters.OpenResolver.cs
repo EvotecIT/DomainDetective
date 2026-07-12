@@ -11,7 +11,8 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
         var positives = RecommendationEngine.FromPositives(analysis.Assessments);
-        var openCount = analysis.ServerDetails?.Values.Count(v => v.IsOpenResolver) ?? 0;
+        var openCount = analysis.ServerDetails?.Values.Count(v => v.Status == OpenResolverStatus.Open) ?? 0;
+        var failedCount = analysis.ServerDetails?.Values.Count(v => v.Status == OpenResolverStatus.Failed || v.Status == OpenResolverStatus.Unknown) ?? 0;
         var total = analysis.ServerDetails?.Count ?? 0;
         return new OpenResolverInfo
         {
@@ -20,12 +21,13 @@ public static partial class Converters
             Subject = analysis.Subject,
             TotalChecked = total,
             OpenResolvers = openCount,
+            FailedChecks = failedCount,
             Details = analysis.ServerDetails ?? new Dictionary<string, OpenResolverResult>(),
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"open {openCount}/{total}",
+            Summary = $"open {openCount}/{total}, failed {failedCount}",
             Recommendations = recs,
             Positives = positives,
             References = new [] { "https://www.us-cert.gov/ncas/alerts/TA13-088A" },
@@ -47,6 +49,8 @@ public class OpenResolverInfo
     public int TotalChecked { get; set; }
     /// <summary>Gets or sets the open resolvers value.</summary>
     public int OpenResolvers { get; set; }
+    /// <summary>Gets or sets the number of failed or inconclusive probes.</summary>
+    public int FailedChecks { get; set; }
     /// <summary>Gets or sets the details value.</summary>
     public IReadOnlyDictionary<string, OpenResolverResult> Details { get; set; } = null!;
     /// <summary>Gets or sets the assessments value.</summary>

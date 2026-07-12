@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
+using System.Net;
 
 namespace DomainDetective {
     /// <summary>
@@ -89,6 +90,10 @@ namespace DomainDetective {
         public DANEAnalysis DaneAnalysis { get; private set; } = new DANEAnalysis();
         /// <summary>Optional override for DNS queries used by DANE checks.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? DaneDnsOverride { get; set; }
+        /// <summary>Optional certificate/DNSSEC evidence provider used to validate DANE associations.</summary>
+        public Func<string, int, CancellationToken, Task<DaneCertificateEvidence?>>? DaneCertificateEvidenceOverride { get; set; }
+        /// <summary>Optional resolver that restricts direct outbound connections to approved addresses.</summary>
+        public Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? OutboundAddressResolver { get; set; }
 
         /// <summary>
         /// Gets the SMIMEA analysis.
@@ -438,7 +443,7 @@ namespace DomainDetective {
                 _publicSuffixList = new PublicSuffixList();
             }
 
-            var preloadPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hsts_preload.json");
+            var preloadPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hsts_preload.json.gz");
             if (File.Exists(preloadPath)) {
                 HttpAnalysis.LoadHstsPreloadList(preloadPath);
             }

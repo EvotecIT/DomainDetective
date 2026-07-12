@@ -19,12 +19,15 @@ public static partial class Converters
             DsAuthenticData = analysis.DsAuthenticData,
             DsMatch = analysis.DsMatch,
             ChainValid = analysis.ChainValid,
+            ValidationStatus = analysis.ValidationStatus,
+            ValidatedZone = analysis.ValidatedZone ?? string.Empty,
+            ValidationMethod = analysis.ValidationMethod,
             RootAnchorExpiration = analysis.RootAnchorExpiration,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"chain {(analysis.ChainValid ? "valid" : "invalid")}; DS {(analysis.DsMatch ? "match" : "check")}",
+            Summary = $"{analysis.ValidationStatus}; zone {analysis.ValidatedZone ?? "unknown"}; DS {(analysis.DsMatch ? "match" : "check")}",
             Recommendations = recs,
             Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc4035" },
@@ -50,6 +53,12 @@ public class DnssecStatusInfo
     public bool DsMatch { get; set; }
     /// <summary>Gets or sets the chain valid value.</summary>
     public bool ChainValid { get; set; }
+    /// <summary>Evidence-backed DNSSEC state.</summary>
+    public DnssecValidationStatus ValidationStatus { get; set; }
+    /// <summary>Closest enclosing signed zone evaluated for the subject.</summary>
+    public string ValidatedZone { get; set; } = string.Empty;
+    /// <summary>Evidence method used to classify the result.</summary>
+    public string ValidationMethod { get; set; } = string.Empty;
     /// <summary>Gets or sets the root anchor expiration value.</summary>
     public System.DateTimeOffset? RootAnchorExpiration { get; set; }
     /// <summary>Gets or sets the assessments value.</summary>

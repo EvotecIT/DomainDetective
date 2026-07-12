@@ -40,21 +40,28 @@ public static class OpenResolverNarrative
 
         var details = analysis?.ServerDetails ?? new Dictionary<string, OpenResolverResult>();
         var total = details.Count;
-        var openCount = details.Count(d => d.Value.IsOpenResolver);
-        var closedCount = total - openCount;
+        var openCount = details.Count(d => d.Value.Status == OpenResolverStatus.Open);
+        var closedCount = details.Count(d => d.Value.Status == OpenResolverStatus.Closed);
+        var failedCount = details.Count(d => d.Value.Status == OpenResolverStatus.Failed || d.Value.Status == OpenResolverStatus.Unknown);
 
         if (total > 0)
             hi.Add($"Servers tested: {total}");
         if (openCount > 0)
             hi.Add($"{openCount} server(s) allow recursion.");
-        else
+        else if (failedCount == 0)
             hi.Add("No open resolvers detected.");
-        if (closedCount > 0 && openCount > 0)
+        if (closedCount > 0)
             hi.Add($"{closedCount} server(s) refuse recursion.");
+        if (failedCount > 0)
+            hi.Add($"{failedCount} server probe(s) were inconclusive or failed.");
 
         foreach (var kv in details)
         {
-            var status = kv.Value.IsOpenResolver ? "open recursion" : "recursion disabled";
+            var status = kv.Value.Status switch {
+                OpenResolverStatus.Open => "open recursion",
+                OpenResolverStatus.Closed => "recursion disabled",
+                _ => $"probe failed{(string.IsNullOrWhiteSpace(kv.Value.Error) ? string.Empty : $": {kv.Value.Error}")}"
+            };
             det.Add($"{kv.Key}: {status}");
             if (kv.Value.ResponseBytes is int bytes)
                 det.Add($"  Response size: {bytes} bytes");

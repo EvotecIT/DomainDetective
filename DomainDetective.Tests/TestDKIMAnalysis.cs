@@ -69,14 +69,10 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task ConcatenateMultipleTxtChunks() {
+        public async Task ConcatenatesCharacterStringsWithinOneTxtRecord() {
             var answers = new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCB",
-                    Type = DnsRecordType.TXT
-                },
-                new DnsAnswer {
-                    DataRaw = "iQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;",
+                    DataRaw = "\"v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCB\" \"iQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;\"",
                     Type = DnsRecordType.TXT
                 }
             };
@@ -88,6 +84,23 @@ namespace DomainDetective.Tests {
             Assert.Equal(
                 "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;",
                 analysis.AnalysisResults["default"].DkimRecord);
+            Assert.False(analysis.AnalysisResults["default"].MultipleRecords);
+        }
+
+        [Fact]
+        public async Task SeparateTxtRecordsAreNotConcatenated() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "v=DKIM1; k=rsa; p=QUJD", Type = DnsRecordType.TXT },
+                new DnsAnswer { DataRaw = "v=DKIM1; k=rsa; p=REVG", Type = DnsRecordType.TXT }
+            };
+
+            var analysis = new DkimAnalysis();
+            await analysis.AnalyzeDkimRecords("default", answers, new InternalLogger());
+
+            var result = analysis.AnalysisResults["default"];
+            Assert.True(result.MultipleRecords);
+            Assert.False(result.ValidPublicKey);
+            Assert.Equal("Issues detected with selector(s): default.", analysis.Advisory);
         }
 
         [Fact]
@@ -271,7 +284,7 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task ParsesCreationDateAndDetectsOldKey() {
+        public async Task NoteTagIsNotInterpretedAsKeyCreationDate() {
             const string record =
                 "v=DKIM1; k=rsa; n=2000-01-01; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;";
 
@@ -279,15 +292,15 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDKIM(record);
 
             var result = healthCheck.DKIMAnalysis.AnalysisResults["default"];
-            Assert.Equal(new DateTime(2000, 1, 1), result.CreationDate!.Value.Date);
-            Assert.True(result.KeyAgeDays > 0);
-            Assert.True(result.OldKey);
+            Assert.Null(result.CreationDate);
+            Assert.Equal(0, result.KeyAgeDays);
+            Assert.False(result.OldKey);
         }
 
         [Fact]
-        public async Task RespectsKeyAgeWarningThreshold() {
+        public async Task NonStandardDateTagIsNotUsedToInferKeyAge() {
             const string record =
-                "v=DKIM1; k=rsa; n=2020-01-01; p=QUJD";
+                "v=DKIM1; k=rsa; created=2020-01-01; p=QUJD";
 
             var logger = new InternalLogger();
             var warnings = new List<LogEventArgs>();
@@ -299,9 +312,29 @@ namespace DomainDetective.Tests {
                 logger);
 
             var result = analysis.AnalysisResults["default"];
-            Assert.True(result.KeyAgeDays > 0);
-            Assert.True(result.OldKey);
-            Assert.Contains(warnings, w => w.FullMessage.Contains("older than"));
+            Assert.Null(result.CreationDate);
+            Assert.Equal(0, result.KeyAgeDays);
+            Assert.False(result.OldKey);
+            Assert.DoesNotContain(warnings, w => w.FullMessage.Contains("older than"));
+        }
+
+        [Fact]
+        public async Task Ed25519KeyAndDefaultVersionAreAccepted() {
+            const string record = "k=ed25519; p=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDKIM(record);
+
+            var result = healthCheck.DKIMAnalysis.AnalysisResults["default"];
+            Assert.False(result.VersionTagPresent);
+            Assert.False(result.StartsCorrectly);
+            Assert.True(result.VersionValid);
+            Assert.True(result.ValidPublicKey);
+            Assert.True(result.ValidKeyLength);
+            Assert.False(result.ValidRsaKeyLength);
+            Assert.Equal(256, result.KeyLength);
+            Assert.Equal("ed25519", result.KeyType);
+            Assert.Equal("All DKIM selectors appear valid.", healthCheck.DKIMAnalysis.Advisory);
         }
 
         [Fact]
@@ -346,9 +379,9 @@ namespace DomainDetective.Tests {
             var analysis = new DkimAnalysis();
             await analysis.AnalyzeDkimRecords("selector", new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } }, logger);
 
-            Assert.Contains(analysis.Assessments, a => a.Code == DkimCodes.SignatureValid);
+            Assert.Contains(analysis.Assessments, a => a.Code == DkimCodes.PublicKeyValid);
             Assert.Contains(analysis.Assessments, a => a.Code == DkimCodes.AlgorithmRecommended);
-            Assert.Contains(analysis.Assessments, a => a.Code == DkimCodes.SelectorAligned);
+            Assert.Contains(analysis.Assessments, a => a.Code == DkimCodes.SelectorsValid);
         }
     }
 }

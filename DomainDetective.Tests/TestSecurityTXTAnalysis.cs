@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit.Sdk;
@@ -236,6 +237,34 @@ namespace DomainDetective.Tests {
                 listener.Stop();
                 await serverTask;
             }
+        }
+
+        [Fact]
+        public async Task ConstrainedClientFollowsRedirectsThroughTheSameHandler() {
+            SecurityTXTAnalysis.ClearCache();
+            var requests = new List<Uri>();
+            var expires = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-ddTHH:mm:ssZ");
+            var content = $"Contact: mailto:admin@example.com\nExpires: {expires}";
+            var analysis = new SecurityTXTAnalysis {
+                HttpHandlerFactory = () => new HttpStubMessageHandler((request, _) => {
+                    requests.Add(request.RequestUri!);
+                    if (request.RequestUri!.Host == "example.com") {
+                        var redirect = new HttpResponseMessage(HttpStatusCode.Found);
+                        redirect.Headers.Location = new Uri("https://security.example.net/security.txt");
+                        return redirect;
+                    }
+                    return new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new StringContent(content, Encoding.UTF8, "text/plain")
+                    };
+                })
+            };
+
+            await analysis.AnalyzeSecurityTxtRecord("example.com", new InternalLogger());
+
+            Assert.Equal(2, requests.Count);
+            Assert.True(analysis.RecordPresent);
+            Assert.Equal("https://security.example.net/security.txt", analysis.Url);
+            Assert.Contains("admin@example.com", analysis.ContactEmail);
         }
 
         [Fact]

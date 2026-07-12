@@ -667,6 +667,33 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void HstsPreloadHonorsIncludeSubDomains() {
+            var preloadPath = Path.Combine(Path.GetTempPath(), $"hsts_preload_{Guid.NewGuid():N}.json");
+            File.WriteAllText(preloadPath, "{\"entries\":[{\"name\":\"parent.example\",\"includeSubDomains\":true},{\"name\":\"exact.example\",\"includeSubDomains\":false}]}");
+            try {
+                HttpAnalysis.LoadHstsPreloadList(preloadPath);
+
+                Assert.True(HttpAnalysis.IsHstsPreloadedHost("parent.example"));
+                Assert.True(HttpAnalysis.IsHstsPreloadedHost("child.parent.example"));
+                Assert.True(HttpAnalysis.IsHstsPreloadedHost("exact.example"));
+                Assert.False(HttpAnalysis.IsHstsPreloadedHost("child.exact.example"));
+            } finally {
+                File.Delete(preloadPath);
+                var bundled = Path.Combine(AppContext.BaseDirectory, "hsts_preload.json.gz");
+                if (File.Exists(bundled)) HttpAnalysis.LoadHstsPreloadList(bundled);
+            }
+        }
+
+        [Fact]
+        public void BundledHstsSnapshotContainsChromiumPublicSuffixEntries() {
+            var bundled = Path.Combine(AppContext.BaseDirectory, "hsts_preload.json.gz");
+
+            Assert.True(new FileInfo(bundled).Length > 500_000);
+            HttpAnalysis.LoadHstsPreloadList(bundled);
+            Assert.True(HttpAnalysis.IsHstsPreloadedHost("domain-detective-test.dev"));
+        }
+
+        [Fact]
         public async Task DetectsMixedContentOnHttpsPage() {
             var analysis = new HttpAnalysis();
             await analysis.AnalyzeUrl("https://www.w3.org/Protocols/rfc2616/rfc2616-sec1.html", false, new InternalLogger(), captureBody: true);

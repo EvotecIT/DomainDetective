@@ -10,6 +10,10 @@ internal static class DaneCodes {
     public const string MatchingTypeInvalid = "DANE.TLSA.MatchingType.Invalid";
     public const string RecordValid = "DANE.TLSA.RecordValid";
     public const string CertificateMatches = "DANE.TLSA.CertificateMatches";
+    public const string CertificateMismatch = "DANE.TLSA.CertificateMismatch";
+    public const string CertificateCheckFailed = "DANE.TLSA.CertificateCheckFailed";
+    public const string DnssecNotValidated = "DANE.TLSA.DnssecNotValidated";
+    public const string PkixNotValidated = "DANE.TLSA.PkixNotValidated";
     public const string ComboNotRecommended = "DANE.TLSA.Combo.NotRecommended";
     public const string AlignmentMissingForMx = "DANE.Alignment.MissingForMX";
     public const string AlignmentTlsWeak = "DANE.Alignment.TlsaPresentButTlsWeak";

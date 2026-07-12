@@ -16,7 +16,7 @@ public class TestDnssecNarrative
         var sections = DnssecNarrative.Build(hc.DnsSecAnalysis, hc.DnsSecAnalysis.Assessments);
         Assert.Contains(sections.Highlights, h => h.Contains("DS record"));
         Assert.Contains(sections.Highlights, h => h.Contains("Key algorithms"));
-        Assert.Contains(sections.Highlights, h => h.Contains("Chain of trust"));
+        Assert.Contains(sections.Highlights, h => h.Contains("authenticated", System.StringComparison.OrdinalIgnoreCase));
         Assert.NotEmpty(sections.Positives);
     }
 }

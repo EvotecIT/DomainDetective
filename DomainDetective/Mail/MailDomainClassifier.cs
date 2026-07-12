@@ -55,7 +55,9 @@ public sealed class MailDomainClassifier {
         var hasMxValid = (_health.MXAnalysis?.MxRecordExists ?? false) && !hasNullMx && !(_health.MXAnalysis?.PointsToLocalhost ?? false);
         var hasAorAAAA = _health.ApexAddressAnalysis?.HasAnyAddress == true;
         var effectiveSpfSends = _health.SpfAnalysis?.EffectiveSpfSends ?? false;
-        var hasDkim = _health.DKIMAnalysis?.AnalysisResults?.Values.Any(x => x.DkimRecordExists && x.StartsCorrectly && x.PublicKeyExists && x.ValidPublicKey) == true;
+        var hasDkim = _health.DKIMAnalysis?.AnalysisResults?.Values.Any(x =>
+            x.DkimRecordExists && !x.MultipleRecords && x.VersionValid && x.PublicKeyExists &&
+            x.ValidPublicKey && x.ValidKeyLength && x.ValidKeyType && x.ValidFlags) == true;
         var hasMtaSts = _health.MTASTSAnalysis?.PolicyValid == true;
         var hasTlsRpt = _health.TLSRPTAnalysis?.TlsRptRecordExists == true;
         var hasDaneSmtp = _health.DaneAnalysis?.AnalysisResults?.Any(x => x.ServiceType == ServiceType.SMTP) == true;

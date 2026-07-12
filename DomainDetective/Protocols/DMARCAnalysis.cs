@@ -63,6 +63,8 @@ namespace DomainDetective {
         public bool DmarcRecordExists { get; private set; } // should be true
         /// <summary>Gets or sets the multiple records value.</summary>
         public bool MultipleRecords { get; private set; }
+        /// <summary>Domain at which the applied DMARC policy was discovered.</summary>
+        public string? PolicyDomain { get; private set; }
         /// <summary>Gets or sets the starts correctly value.</summary>
         public bool StartsCorrectly { get; private set; } // should be true
         /// <summary>Gets or sets the exceeds character limit value.</summary>
@@ -172,13 +174,15 @@ namespace DomainDetective {
             IEnumerable<DnsAnswer> dnsResults,
             InternalLogger logger,
             string? domainName = null,
-            Func<string, string>? getOrgDomain = null) {
+            Func<string, string>? getOrgDomain = null,
+            string? policyDomainName = null) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DMARC", target: domainName);
             // reset all properties so repeated calls don't accumulate data
             DnsConfiguration ??= new DnsConfiguration();
             DmarcRecord = string.Empty;
             DmarcRecordExists = false;
             MultipleRecords = false;
+            PolicyDomain = policyDomainName ?? domainName;
             StartsCorrectly = false;
             ExceedsCharacterLimit = false;
             HasMandatoryTags = false;
@@ -227,15 +231,17 @@ namespace DomainDetective {
                 CnameTtl = cnameRecords.Min(r => r.TTL);
             }
 
-            var txtRecords = dmarcRecordList.Where(r => r.Type != DnsRecordType.CNAME).ToList();
-            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
+            var allTxtRecords = dmarcRecordList.Where(r => r.Type == DnsRecordType.TXT).ToList();
+            var txtRecords = allTxtRecords
+                .Where(r => r.Type == DnsRecordType.TXT && IsDmarcPolicyRecord(r.TxtConcatenatedData))
+                .ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(allTxtRecords, expectedType: DnsRecordType.TXT);
             DmarcRecordExists = txtRecords.Any();
             MultipleRecords = txtRecords.Count > 1;
 
-            // concatenate all TXT chunks into a single string separated by spaces
-            DmarcRecord = string.Join(" ", txtRecords.Select(record => record.Data));
+            DmarcRecord = txtRecords.Count > 0 ? txtRecords[0].TxtConcatenatedData : string.Empty;
 
-            if (!DmarcRecordExists || DmarcRecord == null) {
+            if (!DmarcRecordExists) {
                 logger.WriteVerbose("No DMARC record found.");
                 logger?.WriteWarningCode(DmarcCodes.MissingRecord, "No DMARC record found.");
                 return;
@@ -250,20 +256,22 @@ namespace DomainDetective {
             }
 
             // check the DMARC record starts correctly
-            StartsCorrectly = DmarcRecord.StartsWith("v=DMARC1");
+            StartsCorrectly = IsDmarcPolicyRecord(DmarcRecord);
             if (!StartsCorrectly) {
                 logger?.WriteWarningCode(DmarcCodes.StartsInvalid, "DMARC record does not start with v=DMARC1.");
             }
 
             if (MultipleRecords) {
                 logger?.WriteWarningCode(DmarcCodes.MultipleRecords, "Multiple DMARC records published.");
+                UpdateAdvisory();
+                return;
             }
 
             // loop through the tags of the DMARC record
             var tags = DmarcRecord.Split(';');
             var policyTagFound = false;
             foreach (var tag in tags) {
-                var keyValue = tag.Split('=');
+                var keyValue = tag.Split(new[] { '=' }, 2);
                 if (keyValue.Length == 2) {
                     var key = keyValue[0].Trim();
                     var value = keyValue[1].Trim();
@@ -392,12 +400,27 @@ namespace DomainDetective {
             }
 
             foreach (var domain in reportDomains) {
-                if (domainName != null && domain.Equals(domainName, StringComparison.OrdinalIgnoreCase)) {
+                var policyDomain = PolicyDomain ?? domainName;
+                if (policyDomain == null) {
                     continue;
                 }
 
-                var records = await QueryDns($"_report._dmarc.{domain}", DnsRecordType.TXT);
-                var authorized = records != null && records.Any(r => r.Data.StartsWith("v=DMARC1", StringComparison.OrdinalIgnoreCase));
+                if (getOrgDomain != null) {
+                    var policyOrgDomain = getOrgDomain(policyDomain);
+                    var destinationOrgDomain = getOrgDomain(domain);
+                    if (!string.IsNullOrWhiteSpace(policyOrgDomain) &&
+                        string.Equals(policyOrgDomain, destinationOrgDomain, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                } else if (domain.Equals(policyDomain, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                var authorizationName = $"{policyDomain}._report._dmarc.{domain}";
+                var records = await QueryDns(authorizationName, DnsRecordType.TXT);
+                var authorized = records != null && records.Any(r =>
+                    r.Type == DnsRecordType.TXT &&
+                    IsDmarcReportAuthorizationRecord(r.TxtConcatenatedData));
                 ExternalReportAuthorization[domain] = authorized;
             }
             // verify mandatory tags
@@ -421,9 +444,9 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DmarcCodes.Present, "DMARC record present");
             if (StartsCorrectly)
                 logger?.WriteInformationCode(DmarcCodes.StartsV1, "DMARC starts with v=DMARC1");
-            if (string.Equals(PolicyShort, "reject", StringComparison.OrdinalIgnoreCase))
+            if (HasMandatoryTags && IsPolicyValid && string.Equals(PolicyShort, "reject", StringComparison.OrdinalIgnoreCase))
                 logger?.WriteInformationCode(DmarcCodes.PolicyReject, "DMARC policy reject in effect");
-            else if (string.Equals(PolicyShort, "quarantine", StringComparison.OrdinalIgnoreCase))
+            else if (HasMandatoryTags && IsPolicyValid && string.Equals(PolicyShort, "quarantine", StringComparison.OrdinalIgnoreCase))
                 logger?.WriteInformationCode(DmarcCodes.PolicyQuarantine, "DMARC policy quarantine in effect");
             var ruaCount = MailtoRua?.Count ?? 0;
             if (ruaCount > 0)
@@ -437,6 +460,30 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DmarcCodes.AlignmentStrictSpf, "SPF alignment strict (aspf=s)");
             if (Pct.HasValue && Pct.Value >= 100)
                 logger?.WriteInformationCode(DmarcCodes.Percent100, "pct=100 (full enforcement)");
+        }
+
+        private static bool IsDmarcPolicyRecord(string? value) {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            var separator = value!.IndexOf(';');
+            if (separator < 0) return false;
+            var versionTag = value.Substring(0, separator).Split(new[] { '=' }, 2);
+            return versionTag.Length == 2 &&
+                   versionTag[0].Trim().Equals("v", StringComparison.OrdinalIgnoreCase) &&
+                   versionTag[1].Trim().Equals("DMARC1", StringComparison.Ordinal);
+        }
+
+        private static bool IsDmarcReportAuthorizationRecord(string? value) {
+            if (string.IsNullOrWhiteSpace(value)) {
+                return false;
+            }
+
+            var candidate = value!.Trim();
+            var separator = candidate.IndexOf(';');
+            var firstTag = separator >= 0 ? candidate.Substring(0, separator) : candidate;
+            var versionTag = firstTag.Split(new[] { '=' }, 2);
+            return versionTag.Length == 2 &&
+                   versionTag[0].Trim().Equals("v", StringComparison.OrdinalIgnoreCase) &&
+                   versionTag[1].Trim().Equals("DMARC1", StringComparison.Ordinal);
         }
 
         private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, InternalLogger? logger = null, bool isRuf = false) {
@@ -668,6 +715,8 @@ namespace DomainDetective {
         private void UpdateAdvisory() {
             if (!DmarcRecordExists) {
                 Advisory = "No DMARC record found.";
+            } else if (MultipleRecords) {
+                Advisory = "Multiple DMARC records found; no policy can be applied.";
             } else if (!StartsCorrectly || !HasMandatoryTags || !IsPolicyValid) {
                 Advisory = "DMARC record misconfigured.";
             } else if (WeakPolicy) {

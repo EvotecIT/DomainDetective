@@ -46,25 +46,42 @@ namespace DomainDetective {
                 await DKIMAnalysis.AnalyzeAdspRecord(adsp, _logger);
             }
 
-            foreach (var selector in selectors) {
-                var trimmedSelector = selector?.Trim();
-                if (trimmedSelector == null || trimmedSelector.Length == 0) {
-                    continue;
-                }
-                cancellationToken.ThrowIfCancellationRequested();
+            var normalizedSelectors = selectors
+                .Select(static selector => selector?.Trim())
+                .Where(static selector => !string.IsNullOrWhiteSpace(selector))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Cast<string>()
+                .ToArray();
+            var results = new DnsAnswer[normalizedSelectors.Length][];
+            var errors = new Exception?[normalizedSelectors.Length];
+            using var concurrency = new SemaphoreSlim(Math.Max(1, DKIMAnalysis.SelectorQueryConcurrency));
+            var queries = normalizedSelectors.Select(async (selector, index) => {
+                await concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try {
-                    var dkim = await DnsConfiguration.QueryDNS(
-                        name: $"{trimmedSelector}._domainkey.{domainName}",
+                    results[index] = await DnsConfiguration.QueryDNS(
+                        name: $"{selector}._domainkey.{domainName}",
                         recordType: DnsRecordType.TXT,
-                        filter: "DKIM1",
+                        filter: string.Empty,
                         includeAliasesInFilter: true,
-                        cancellationToken: cancellationToken);
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                } catch (Exception ex) when (!cancellationToken.IsCancellationRequested && (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException)) {
+                    errors[index] = ex;
+                } finally {
+                    concurrency.Release();
+                }
+            }).ToArray();
+            await Task.WhenAll(queries).ConfigureAwait(false);
+
+            for (var index = 0; index < normalizedSelectors.Length; index++) {
+                var trimmedSelector = normalizedSelectors[index];
+                if (errors[index] == null) {
+                    var dkim = results[index] ?? Array.Empty<DnsAnswer>();
                     if (dkim.Any() || includeMissingSelectors) {
                         await DKIMAnalysis.AnalyzeDkimRecords(trimmedSelector, dkim, logger: _logger);
                     }
-                } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+                } else {
                     // Treat network timeouts as transient in tests/CI: record no results and continue.
-                    _logger.WriteWarningCode(DkimCodes.QueryFailed, "DKIM DNS query failed for selector {0} on {1}: {2}", trimmedSelector, domainName, ex.Message);
+                    _logger.WriteWarningCode(DkimCodes.QueryFailed, "DKIM DNS query failed for selector {0} on {1}: {2}", trimmedSelector, domainName, errors[index]!.Message);
                 }
             }
         }

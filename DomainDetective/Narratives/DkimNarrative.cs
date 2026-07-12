@@ -48,17 +48,19 @@ public static class DkimNarrative
             : $"No DKIM record is published for selector '{sel}'.");
         if (dkim.DkimRecordExists)
         {
-            hi.Add(dkim.StartsCorrectly
-                ? "Record starts with v=DKIM1."
-                : "Record does not start with v=DKIM1.");
+            hi.Add(dkim.VersionTagPresent
+                ? dkim.VersionValid ? "Record declares DKIM1 as its first tag." : "Record contains an invalid or misplaced DKIM version tag."
+                : "Record omits the optional version tag; DKIM1 is the default.");
         }
 
         if (dkim.PublicKeyExists)
         {
             var keyBits = dkim.KeyLength > 0 ? $", {dkim.KeyLength} bits" : string.Empty;
             hi.Add($"Public key present{keyBits}{(dkim.WeakKey ? " (weak)" : string.Empty)}.");
-            if (dkim.ValidRsaKeyLength && dkim.KeyLength >= 2048)
+            if (string.Equals(dkim.KeyType, "rsa", StringComparison.OrdinalIgnoreCase) && dkim.ValidRsaKeyLength && dkim.KeyLength >= 2048)
                 hi.Add("RSA key strength: strong (>= 2048 bits).");
+            if (string.Equals(dkim.KeyType, "ed25519", StringComparison.OrdinalIgnoreCase) && dkim.ValidKeyLength)
+                hi.Add("Ed25519 public key has the required 256-bit length.");
         }
         else
         {

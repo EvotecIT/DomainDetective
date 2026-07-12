@@ -79,6 +79,8 @@ namespace DomainDetective {
         public bool? CrlRevoked { get; private set; }
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+        /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
+        public Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? OutboundAddressResolver { get; set; }
         /// <summary>Gets DNS names listed in the certificate subject alternative name extension.</summary>
         public List<string> SubjectAlternativeNames { get; } = new();
         /// <summary>Gets wildcard entries with matching subdomains.</summary>
@@ -321,10 +323,9 @@ namespace DomainDetective {
                             CancellationTokenSource? timeoutCts = null;
                             try {
                                 var uri = new Uri(url);
-                                using var tcp = new TcpClient();
                                 timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                                 timeoutCts.CancelAfter(Timeout);
-                                await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
+                                using var tcp = await ConnectDirectAsync(uri.Host, port, timeoutCts.Token).ConfigureAwait(false);
                                 using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
                                     HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                                     return errors == SslPolicyErrors.None;
@@ -370,10 +371,9 @@ namespace DomainDetective {
         private async Task AnalyzeWithTlsHandshakeOnlyAsync(string url, int port, CancellationToken cancellationToken)
         {
             var uri = new Uri(url);
-            using var tcp = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
-            await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token).ConfigureAwait(false);
+            using var tcp = await ConnectDirectAsync(uri.Host, port, timeoutCts.Token).ConfigureAwait(false);
             using var ssl = new SslStream(
                 tcp.GetStream(),
                 false,
@@ -405,6 +405,28 @@ namespace DomainDetective {
 
             RecordChainSource(ChainSourceSslStreamBuild);
             IsSelfSigned = IsSelfSignedCertificate(Certificate);
+        }
+
+        internal async Task<TcpClient> ConnectDirectAsync(string host, int port, CancellationToken cancellationToken) {
+            if (OutboundAddressResolver == null) {
+                var client = new TcpClient();
+                await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+                return client;
+            }
+
+            var addresses = await OutboundAddressResolver(host, cancellationToken).ConfigureAwait(false);
+            Exception? lastError = null;
+            foreach (var address in addresses) {
+                var client = new TcpClient(address.AddressFamily);
+                try {
+                    await client.ConnectAsync(address, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+                    return client;
+                } catch (Exception ex) when (ex is not OperationCanceledException) {
+                    lastError = ex;
+                    client.Dispose();
+                }
+            }
+            throw new SocketException(lastError is SocketException socketError ? socketError.ErrorCode : (int)SocketError.HostUnreachable);
         }
 
         internal static Exception NormalizeProbeException(

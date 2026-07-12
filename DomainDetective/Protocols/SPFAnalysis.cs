@@ -393,6 +393,10 @@ namespace DomainDetective {
         public string Type { get; set; } = string.Empty;
         /// <summary>Gets or sets the value value.</summary>
         public string Value { get; set; } = string.Empty;
+        /// <summary>Optional IPv4 prefix length supplied by an <c>a</c> or <c>mx</c> mechanism.</summary>
+        public int? Ipv4PrefixLength { get; set; }
+        /// <summary>Optional IPv6 prefix length supplied by an <c>a</c> or <c>mx</c> mechanism.</summary>
+        public int? Ipv6PrefixLength { get; set; }
         /// <summary>Gets or sets the prefix desc value.</summary>
         public string PrefixDesc { get; set; } = string.Empty;
         /// <summary>Gets or sets the description value.</summary>
@@ -421,11 +425,11 @@ namespace DomainDetective {
         public string Sender { get; set; } = string.Empty;
         /// <summary>HELO/EHLO name used for macro expansion.</summary>
         public string Helo { get; set; } = string.Empty;
-        /// <summary>Final result: pass, fail, softfail, neutral, or permerror.</summary>
+        /// <summary>Final RFC 7208 result: none, neutral, pass, fail, softfail, temperror, or permerror.</summary>
         public string Verdict { get; set; } = string.Empty;
         /// <summary>Token from the policy that matched and determined the verdict.</summary>
         public string? MatchedToken { get; set; }
-        /// <summary>Mechanism/modifier type that matched (ip4, ip6, a, mx, exists, include, all).</summary>
+        /// <summary>Mechanism/modifier type that determined the result.</summary>
         public string? MatchedType { get; set; }
         /// <summary>Domain whose record contained the matching token.</summary>
         public string? MatchedDomain { get; set; }

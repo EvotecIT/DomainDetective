@@ -2,6 +2,8 @@ namespace DomainDetective;
 
 internal static class TlsRptCodes {
     public const string MissingRua = "TLSRPT.RUA.Missing";
+    public const string InvalidRua = "TLSRPT.RUA.Invalid";
+    public const string MultipleRecords = "TLSRPT.Record.Multiple";
     public const string RuaHttpUnreachable = "TLSRPT.RUA.Http.Unreachable";
     public const string RuaHttpError = "TLSRPT.RUA.Http.Error";
     public const string RecordPresent = "TLSRPT.Record.Present";

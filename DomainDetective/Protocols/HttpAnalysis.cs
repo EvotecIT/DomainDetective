@@ -8,6 +8,8 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
+using System.IO.Compression;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -112,6 +114,8 @@ namespace DomainDetective {
 	        public List<string> VisitedUrls { get; } = new();
 	        /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
 	        public int MaxRedirects { get; set; } = 10;
+            /// <summary>Optional factory used to create a constrained outbound HTTP handler.</summary>
+            public Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 	        /// <summary>HTTP method used for the request.</summary>
 	        public HttpRequestMethod RequestMethodUsed { get; private set; } = HttpRequestMethod.Get;
 	        /// <summary>True when TLS validation was disabled for the request.</summary>
@@ -181,23 +185,63 @@ namespace DomainDetective {
 	            "ETag"
 	        };
 
-	        private static HashSet<string> _hstsPreload = new(StringComparer.OrdinalIgnoreCase);
+	        private static HashSet<string> _hstsPreloadExact = new(StringComparer.OrdinalIgnoreCase);
+	        private static HashSet<string> _hstsPreloadSubdomains = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Loads a JSON array of preloaded HSTS hosts.</summary>
+        /// <summary>Loads a Chromium-derived HSTS preload snapshot, optionally gzip-compressed.</summary>
         /// <param name="filePath">File path containing the preload list.</param>
         public static void LoadHstsPreloadList(string filePath) {
             if (!File.Exists(filePath)) {
                 return;
             }
             try {
-                using var stream = File.OpenRead(filePath);
-                var entries = JsonSerializer.DeserializeAsync<string[]>(stream)
-                    .GetAwaiter().GetResult()
-                    ?.Where(s => !string.IsNullOrWhiteSpace(s))
-                    ?? Enumerable.Empty<string>();
-                _hstsPreload = new HashSet<string>(entries, StringComparer.OrdinalIgnoreCase);
+                using var file = File.OpenRead(filePath);
+                using var stream = filePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
+                    ? (Stream)new GZipStream(file, CompressionMode.Decompress)
+                    : file;
+                using var document = JsonDocument.Parse(stream);
+                var exact = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var subdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var root = document.RootElement;
+                if (root.ValueKind == JsonValueKind.Array) {
+                    foreach (var item in root.EnumerateArray()) {
+                        if (item.ValueKind == JsonValueKind.String && NormalizeHstsHost(item.GetString()) is string host) exact.Add(host);
+                    }
+                } else if (root.TryGetProperty("entries", out var entries)) {
+                    foreach (var item in entries.EnumerateArray()) {
+                        if (!item.TryGetProperty("name", out var nameProperty) || NormalizeHstsHost(nameProperty.GetString()) is not string host) continue;
+                        exact.Add(host);
+                        if (item.TryGetProperty("includeSubDomains", out var includeProperty) && includeProperty.ValueKind == JsonValueKind.True) {
+                            subdomains.Add(host);
+                        }
+                    }
+                }
+                _hstsPreloadExact = exact;
+                _hstsPreloadSubdomains = subdomains;
             } catch {
                 // ignore malformed preload files
+            }
+        }
+
+        internal static bool IsHstsPreloadedHost(string host) {
+            var normalized = NormalizeHstsHost(host);
+            if (normalized == null) return false;
+            if (_hstsPreloadExact.Contains(normalized)) return true;
+            var offset = normalized.IndexOf('.');
+            while (offset >= 0 && offset + 1 < normalized.Length) {
+                var parent = normalized.Substring(offset + 1);
+                if (_hstsPreloadSubdomains.Contains(parent)) return true;
+                offset = normalized.IndexOf('.', offset + 1);
+            }
+            return false;
+        }
+
+        private static string? NormalizeHstsHost(string? host) {
+            if (string.IsNullOrWhiteSpace(host)) return null;
+            try {
+                return new IdnMapping().GetAscii(host!.Trim().TrimEnd('.')).ToLowerInvariant();
+            } catch (ArgumentException) {
+                return null;
             }
         }
 
@@ -229,29 +273,34 @@ namespace DomainDetective {
 	            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
 	            requestOptions ??= new HttpRequestOptions();
     #if NET8_0_OR_GREATER
-	            var manualRedirect = RequestVersion >= HttpVersion.Version30;
-	            using var handler = new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects };
+                var manualRedirect = HttpHandlerFactory != null || RequestVersion >= HttpVersion.Version30;
+                var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects } : null;
 	#else
-	            using var handler = new HttpClientHandler { AllowAutoRedirect = false, MaxAutomaticRedirections = MaxRedirects };
+	            var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = false, MaxAutomaticRedirections = MaxRedirects } : null;
 	#endif
+                using var handler = HttpHandlerFactory?.Invoke() ?? configurableHandler!;
 	            ProxyUsed = null;
 	            TlsValidationDisabled = requestOptions.DisableTlsValidation;
 	            if (!string.IsNullOrWhiteSpace(requestOptions.ProxyUrl)) {
 	                try {
-	                    handler.UseProxy = true;
-	                    handler.Proxy = new WebProxy(requestOptions.ProxyUrl);
+	                    if (configurableHandler == null) throw new InvalidOperationException("Proxy options cannot be combined with a custom HTTP handler.");
+	                    configurableHandler.UseProxy = true;
+	                    configurableHandler.Proxy = new WebProxy(requestOptions.ProxyUrl);
 	                    ProxyUsed = requestOptions.ProxyUrl;
 	                } catch {
-	                    handler.UseProxy = false;
-	                    handler.Proxy = null;
+	                    if (configurableHandler != null) {
+	                        configurableHandler.UseProxy = false;
+	                        configurableHandler.Proxy = null;
+	                    }
 	                    ProxyUsed = null;
 	                }
 	            }
 	            if (requestOptions.DisableTlsValidation) {
+                    if (configurableHandler == null) throw new InvalidOperationException("TLS validation options cannot be combined with a custom HTTP handler.");
     #if NET8_0_OR_GREATER
-	                handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+	                configurableHandler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
 	#else
-	                handler.ServerCertificateCustomValidationCallback = (req, cert, chain, errors) => true;
+	                configurableHandler.ServerCertificateCustomValidationCallback = (req, cert, chain, errors) => true;
 	#endif
 	            }
 	            using var client = new HttpClient(handler) { Timeout = Timeout };
@@ -338,7 +387,7 @@ namespace DomainDetective {
 	                if (!visited.Contains(currentUri.AbsoluteUri)) {
 	                    VisitedUrls.Add(currentUri.AbsoluteUri);
 	                }
-	                HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
+	                HstsPreloaded = IsHstsPreloadedHost(currentUri.Host);
 	                effectiveScheme = currentUri.Scheme;
 	#else
 	                var currentUri = new Uri(url);
@@ -376,7 +425,7 @@ namespace DomainDetective {
 	                if (!visited.Contains(currentUri.AbsoluteUri)) {
 	                    VisitedUrls.Add(currentUri.AbsoluteUri);
 	                }
-	                HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
+	                HstsPreloaded = IsHstsPreloadedHost(currentUri.Host);
 	                effectiveScheme = currentUri.Scheme;
 	#endif
 	                if (response == null) {

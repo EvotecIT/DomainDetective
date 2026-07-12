@@ -83,7 +83,7 @@ public partial class BimiAnalysis : IHasAssessments {
         /// platform TLS certificate validation and should remain unchanged for
         /// production checks.
         /// </remarks>
-        internal Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
+        public Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 
         /// <summary>Skip downloading the BIMI indicator image.</summary>
         public bool SkipIndicatorDownload { get; set; }
