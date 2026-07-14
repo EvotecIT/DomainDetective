@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj" Condition="'$(UseLocalHtmlForgeX)' == 'true' And Exists('..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj')" />
-    <PackageReference Include="HtmlForgeX" Version="0.46.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj')" />
+    <PackageReference Include="HtmlForgeX" Version="0.49.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj')" />
   </ItemGroup>
 
 </Project>

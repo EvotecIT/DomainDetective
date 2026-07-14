@@ -15,7 +15,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.0" />
         <PackageReference Include="MailKit" Version="4.17.0" />
         <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.9" />
         <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.3" Condition=" '$(TargetFramework)' != 'net472' " />
