@@ -26,6 +26,30 @@ namespace DomainDetective.Tests.Reports
             Assert.Contains("Warning", html, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Error", html, StringComparison.OrdinalIgnoreCase);
         }
+
+        [Fact]
+        public void Html_Report_Renders_Punycode_Domain_Without_Invalid_Comment_Syntax()
+        {
+            const string domain = "xn--bcher-kva.de";
+            var items = new List<object>
+            {
+                new DomainDetective.Views.MxInfo { Subject = domain, Status = "OK" }
+            };
+            var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".html");
+
+            try
+            {
+                HtmlCompositionReport.Generate(tmp, items, DomainDetective.Reports.ReportScope.Minimal);
+                var html = File.ReadAllText(tmp);
+
+                Assert.Contains(domain, html, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("<!-- DD:DOMAIN Mail & DNS -->", html, StringComparison.Ordinal);
+            }
+            finally
+            {
+                if (File.Exists(tmp)) File.Delete(tmp);
+            }
+        }
     }
 }
 

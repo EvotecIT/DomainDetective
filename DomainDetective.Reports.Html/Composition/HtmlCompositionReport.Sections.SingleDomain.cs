@@ -48,8 +48,8 @@ public static partial class HtmlCompositionReport
                              });
                         });
                     card.Body(body => {
-                        // Stable markers for tooling/tests: ensure domain titles are discoverable in raw HTML across HtmlForgeX versions.
-                        body.Add(new HtmlComment($" DD:DOMAIN Mail &amp; DNS - {d} "));
+                        // Fixed marker avoids treating dynamic domain data as HTML-comment syntax.
+                        body.Add(new HtmlComment(" DD:DOMAIN Mail & DNS "));
 
                         body.DataGrid(g =>
                         {
