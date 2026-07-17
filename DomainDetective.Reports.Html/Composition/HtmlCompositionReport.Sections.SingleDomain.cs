@@ -48,8 +48,7 @@ public static partial class HtmlCompositionReport
                              });
                         });
                     card.Body(body => {
-                        // Fixed marker avoids treating dynamic domain data as HTML-comment syntax.
-                        body.Add(new HtmlComment(" DD:DOMAIN Mail & DNS "));
+                        AddDomainMarker(body, d);
 
                         body.DataGrid(g =>
                         {

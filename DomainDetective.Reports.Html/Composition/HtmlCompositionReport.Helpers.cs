@@ -12,6 +12,17 @@ namespace DomainDetective.Reports.Html;
 /// HtmlCompositionReport partial: helpers, models, and enums.
 /// </summary>
 public static partial class HtmlCompositionReport {
+    private static void AddDomainMarker(Element container, string domain) {
+        if (container == null) throw new ArgumentNullException(nameof(container));
+        if (string.IsNullOrWhiteSpace(domain)) throw new ArgumentException("A domain is required.", nameof(domain));
+
+        container.Add(new HtmlComment(" DD:DOMAIN Mail & DNS "));
+        container.Add(new HtmlTag("span")
+            .Attribute("data-dd-domain", domain)
+            .Attribute("hidden", "hidden")
+            .Attribute("aria-hidden", "true"));
+    }
+
     private static string BuildSubjectTitle(List<string> domains)
         => CompositionBuilder.BuildSubjectTitle(domains);
 

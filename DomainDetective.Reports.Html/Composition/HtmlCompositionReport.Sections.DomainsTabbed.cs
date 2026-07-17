@@ -88,8 +88,7 @@ public static partial class HtmlCompositionReport
 
                                     domainCard.Body(bdy =>
                                     {
-                                        // Fixed marker avoids treating dynamic domain data as HTML-comment syntax.
-                                        bdy.Add(new HtmlComment(" DD:DOMAIN Mail & DNS "));
+                                        AddDomainMarker(bdy, domain);
 
                                         bdy.DataGrid(g =>
                                         {

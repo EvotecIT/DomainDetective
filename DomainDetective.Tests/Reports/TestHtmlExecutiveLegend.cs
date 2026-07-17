@@ -44,6 +44,7 @@ namespace DomainDetective.Tests.Reports
 
                 Assert.Contains(domain, html, StringComparison.OrdinalIgnoreCase);
                 Assert.Contains("<!-- DD:DOMAIN Mail & DNS -->", html, StringComparison.Ordinal);
+                Assert.Contains("data-dd-domain=\"xn--bcher-kva.de\"", html, StringComparison.Ordinal);
             }
             finally
             {
