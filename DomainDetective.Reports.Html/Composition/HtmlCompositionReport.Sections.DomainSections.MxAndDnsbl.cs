@@ -33,7 +33,7 @@ public static partial class HtmlCompositionReport
             });
             item.Content(content => {
                 // Stable marker for tooling/tests: keep a contiguous section title in the HTML output.
-                content.Add(new HtmlTag("div").ValueRaw("<!-- DD:SECTION MX (Mail Exchanger) -->"));
+                content.Add(new HtmlComment(" DD:SECTION MX (Mail Exchanger) "));
 
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {

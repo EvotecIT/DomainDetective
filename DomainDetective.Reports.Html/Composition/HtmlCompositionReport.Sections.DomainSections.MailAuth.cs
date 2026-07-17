@@ -138,7 +138,7 @@ public static partial class HtmlCompositionReport
             });
             item.Content(content => {
                 // Stable marker for tooling/tests: keep a contiguous section title in the HTML output.
-                content.Add(new HtmlTag("div").ValueRaw("<!-- DD:SECTION SPF (Sender Policy Framework) -->"));
+                content.Add(new HtmlComment(" DD:SECTION SPF (Sender Policy Framework) "));
 
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
@@ -276,7 +276,7 @@ public static partial class HtmlCompositionReport
             });
             item.Content(content => {
                 // Stable marker for tooling/tests: keep a contiguous section title in the HTML output.
-                content.Add(new HtmlTag("div").ValueRaw("<!-- DD:SECTION DMARC (Domain-based Message Authentication) -->"));
+                content.Add(new HtmlComment(" DD:SECTION DMARC (Domain-based Message Authentication) "));
 
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
