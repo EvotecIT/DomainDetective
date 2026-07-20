@@ -2,11 +2,38 @@ using DnsClientX;
 using DomainDetective;
 using System;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective.Tests {
     public class TestDnsConfiguration {
+        [Fact]
+        public void StandaloneConfigurationUsesOperationScopedResolver() {
+            var config = new DnsConfiguration();
+            MethodInfo acquire = typeof(DnsConfiguration).GetMethod(
+                "AcquireResolver", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            FieldInfo retained = typeof(DnsConfiguration).GetField(
+                "_resolver", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+            using var lease = (IDisposable)acquire.Invoke(config, null)!;
+
+            Assert.Null(retained.GetValue(config));
+        }
+
+        [Fact]
+        public void OwnedConfigurationCanRetainResolverUntilDisposal() {
+            using var config = new DnsConfiguration { ReuseResolverClients = true };
+            MethodInfo acquire = typeof(DnsConfiguration).GetMethod(
+                "AcquireResolver", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            FieldInfo retained = typeof(DnsConfiguration).GetField(
+                "_resolver", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+            using var lease = (IDisposable)acquire.Invoke(config, null)!;
+
+            Assert.NotNull(retained.GetValue(config));
+        }
+
         [Fact]
         public async Task QueryFullDNSThrowsIfNamesNull() {
             var config = new DnsConfiguration();
@@ -86,8 +113,11 @@ namespace DomainDetective.Tests {
             DnsConfiguration original = healthCheck.DnsConfiguration;
             var replacement = new DnsConfiguration();
 
+            Assert.True(original.ReuseResolverClients);
+
             healthCheck.DnsConfiguration = replacement;
 
+            Assert.True(replacement.ReuseResolverClients);
             Assert.Same(replacement, healthCheck.MXAnalysis.DnsConfiguration);
             await Assert.ThrowsAsync<ObjectDisposedException>(() =>
                 original.QueryDNS("example.com", DnsRecordType.A));

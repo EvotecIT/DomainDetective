@@ -44,7 +44,6 @@ public sealed class BrowserDnsService {
         healthCheck.DnsInventoryAnalysis.QueryOverride = doh.QueryInventoryResponseAsync;
         healthCheck.NSAnalysis.QueryDnsFullOverride = doh.QueryFullAsync;
         healthCheck.DNSBLAnalysis.QueryDnsFullOverride = doh.QueryBatchAsync;
-        healthCheck.DnsSecValidateLocally = false;
         healthCheck.NSAnalysis.EnableChaosFingerprinting = false;
 
         return healthCheck;

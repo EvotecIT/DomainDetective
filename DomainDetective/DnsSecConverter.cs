@@ -70,7 +70,7 @@ namespace DomainDetective {
                 KeyExpiresSoon = analysis.KeyExpiresSoon,
                 MismatchSummary = analysis.MismatchSummary,
                 Warnings = analysis.Warnings,
-                UsedLocalValidation = analysis.UseLocalDnssecValidation,
+                UsedLocalValidation = analysis.UsedLocalValidation,
                 Assessments = analysis.Assessments
             };
         }

@@ -31,6 +31,12 @@ namespace DomainDetective {
         /// <summary>Gets or sets an optional upper bound for cached response lifetimes.</summary>
         public TimeSpan? MaxCacheTtl { get; set; }
 
+        /// <summary>
+        /// Gets or sets whether resolver transports are retained between operations. Standalone analyses
+        /// leave this disabled; an owning host may enable reuse and dispose the configuration with its lifetime.
+        /// </summary>
+        public bool ReuseResolverClients { get; set; }
+
         /// <summary>Optional answer-only override used by tests and specialized consumers.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { get; set; }
 
@@ -205,6 +211,16 @@ namespace DomainDetective {
                 $"|{strategy}|{parallelism}|{ResolverMaxConcurrency}|{UserAgent}|{EnableResponseCache}|{MaxCacheTtl}";
             lock (_resolverGate) {
                 if (_disposed) throw new ObjectDisposedException(nameof(DnsConfiguration));
+                if (!ReuseResolverClients) {
+                    RetireResolver(_resolver);
+                    _resolver = null;
+                    _resolverKey = null;
+                    var transient = new ResolverEntry(new DnsMultiResolver(endpoints, options)) {
+                        ActiveLeases = 1,
+                        Retired = true
+                    };
+                    return new ResolverLease(this, transient);
+                }
                 if (_resolver == null || !string.Equals(_resolverKey, key, StringComparison.Ordinal)) {
                     RetireResolver(_resolver);
                     _resolver = new ResolverEntry(new DnsMultiResolver(endpoints, options));

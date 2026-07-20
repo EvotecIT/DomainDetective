@@ -102,7 +102,7 @@ namespace DomainDetective {
         /// <summary>Log lines used for DNS tunneling analysis.</summary>
         public IEnumerable<string>? DnsTunnelingLogs { get; set; }
 
-        private DnsConfiguration _dnsConfiguration = new DnsConfiguration();
+        private DnsConfiguration _dnsConfiguration = new DnsConfiguration { ReuseResolverClients = true };
 
         /// <summary>Holds DNS client configuration used throughout analyses.</summary>
         /// <value>The DNS configuration instance. The health check owns and disposes the assigned configuration.</value>
@@ -111,6 +111,7 @@ namespace DomainDetective {
             set {
                 if (value == null) throw new ArgumentNullException(nameof(value));
                 if (ReferenceEquals(_dnsConfiguration, value)) return;
+                value.ReuseResolverClients = true;
                 DnsConfiguration previous = _dnsConfiguration;
                 _dnsConfiguration = value;
                 ApplyDnsConfiguration(value);
@@ -255,11 +256,6 @@ namespace DomainDetective {
 
         /// <summary>Maximum number of visual assets compared per source or candidate page.</summary>
         public int TyposquattingVisualMaxAssetsPerPage { get; set; } = 3;
-
-        /// <summary>
-        /// When true, DNSSEC posture is derived from DnsClientX local validation rather than a resolver AD claim.
-        /// </summary>
-        public bool DnsSecValidateLocally { get; set; } = true;
 
         /// <summary>Record types tested for DNS propagation (multi-resolver) checks.</summary>
         public DnsRecordType[] DnsPropagationRecordTypes { get; set; } = new[] { DnsRecordType.A, DnsRecordType.AAAA };

@@ -26,8 +26,9 @@ namespace DomainDetective {
     public partial class DnsSecAnalysis : IHasAssessments {
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
-        /// <summary>When true, DnsClientX performs local DNSSEC validation.</summary>
-        public bool UseLocalDnssecValidation { get; set; } = true;
+        /// <summary>Gets whether DnsClientX actually performed local validation for the subject response.</summary>
+        public bool UsedLocalValidation => string.Equals(
+            ValidationMethod, "DnsClientXLocalValidation", StringComparison.Ordinal);
         /// <summary>Optional full-response DNS override used by browser-safe callers.</summary>
         public Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? QueryDnsResponseOverride { private get; set; }
         private readonly List<string> _mismatchSummary = new();
@@ -126,7 +127,7 @@ namespace DomainDetective {
                 ? dnsConfiguration.DnsEndpoints.Distinct().ToArray()
                 : new[] { dnsConfiguration?.DnsEndpoint ?? DnsEndpoint.System };
             using DnsMultiResolver? validationResolver = responseOverride == null
-                ? CreateResolver(endpoints, validateDnsSec: UseLocalDnssecValidation)
+                ? CreateResolver(endpoints, validateDnsSec: true)
                 : null;
             using DnsMultiResolver? metadataResolver = responseOverride == null
                 ? CreateResolver(endpoints, validateDnsSec: false)
@@ -188,9 +189,7 @@ namespace DomainDetective {
                 InspectDsMetadata(ValidatedZone!, effectiveLogger);
             }
 
-            RootKeyTag = DnsSecTrustAnchors.Current.Count == 0
-                ? 0
-                : DnsSecTrustAnchors.Current[DnsSecTrustAnchors.Current.Count - 1].KeyTag;
+            ApplyTrustAnchorMetadata(DnsSecTrustAnchors.Current, DateTimeOffset.UtcNow, effectiveLogger);
             effectiveLogger.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}",
                 domainName, ValidationStatus, ChainValid);
 
@@ -267,6 +266,49 @@ namespace DomainDetective {
                 string message = string.Format(CultureInfo.InvariantCulture,
                     "RRSIG for {0} expires in {1:F0} days", zone, Math.Ceiling(days));
                 logger.WriteWarningCode(DnssecCodes.RrsigExpiring, message);
+                _warnings.Add(message);
+                KeyExpiresSoon = true;
+            }
+        }
+
+        internal void ApplyTrustAnchorMetadata(IReadOnlyList<DnsSecTrustAnchor> anchors,
+            DateTimeOffset now, InternalLogger logger) {
+            if (anchors == null) throw new ArgumentNullException(nameof(anchors));
+            if (logger == null) throw new ArgumentNullException(nameof(logger));
+
+            DnsSecTrustAnchor[] active = anchors
+                .Where(anchor => anchor.IsValidAt(now))
+                .OrderBy(anchor => anchor.ValidFrom ?? DateTimeOffset.MinValue)
+                .ThenBy(anchor => anchor.KeyTag)
+                .ToArray();
+            if (active.Length > 0) {
+                DnsSecTrustAnchor current = active[active.Length - 1];
+                RootKeyTag = current.KeyTag;
+                RootAnchorExpiration = current.ValidUntil;
+            } else {
+                DnsSecTrustAnchor[] expired = anchors
+                    .Where(anchor => anchor.ValidUntil.HasValue && anchor.ValidUntil.Value <= now)
+                    .OrderBy(anchor => anchor.ValidUntil)
+                    .ToArray();
+                if (expired.Length > 0) {
+                    DnsSecTrustAnchor latest = expired[expired.Length - 1];
+                    RootKeyTag = latest.KeyTag;
+                    RootAnchorExpiration = latest.ValidUntil;
+                }
+            }
+
+            if (!RootAnchorExpiration.HasValue) return;
+            double days = (RootAnchorExpiration.Value - now).TotalDays;
+            if (days <= 0) {
+                string message = string.Format(CultureInfo.InvariantCulture,
+                    "Root trust anchor expired {0:F0} days ago", Math.Ceiling(Math.Abs(days)));
+                logger.WriteWarningCode(DnssecCodes.RootAnchorExpired, message);
+                _warnings.Add(message);
+                KeyExpiresSoon = true;
+            } else if (days <= KeyExpirationWarningThreshold.TotalDays) {
+                string message = string.Format(CultureInfo.InvariantCulture,
+                    "Root trust anchor expires in {0:F0} days", Math.Ceiling(days));
+                logger.WriteWarningCode(DnssecCodes.RootAnchorExpiring, message);
                 _warnings.Add(message);
                 KeyExpiresSoon = true;
             }
