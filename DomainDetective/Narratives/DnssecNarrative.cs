@@ -80,7 +80,7 @@ public static class DnssecNarrative
         }
 
         hi.Add(analysis.ValidationStatus switch {
-            DnssecValidationStatus.Secure => "Validating resolver authenticated the subject response and enclosing-zone evidence.",
+            DnssecValidationStatus.Secure => "DnsClientX locally authenticated the subject response and enclosing-zone evidence.",
             DnssecValidationStatus.Insecure => "The subject is not DNSSEC protected; no bogus chain was established.",
             DnssecValidationStatus.Bogus => "DNSSEC evidence is present but failed authentication or DS/DNSKEY matching.",
             _ => "DNSSEC state could not be established conclusively."

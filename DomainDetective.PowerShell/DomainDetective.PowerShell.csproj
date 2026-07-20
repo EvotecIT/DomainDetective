@@ -67,9 +67,8 @@
     </ItemGroup>
 
     <PropertyGroup Condition=" '$(TargetFramework)' == 'net472' ">
-        <XmlDocSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.7\lib\net462\System.Text.Json.dll</XmlDocSystemTextJsonAssembly>
-        <XmlDocSystemTextJsonAssembly Condition=" '$(Configuration)' == 'Release' ">$(NuGetPackageRoot)system.text.json\10.0.5\lib\net462\System.Text.Json.dll</XmlDocSystemTextJsonAssembly>
-        <ResolvedSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.8\lib\net462\System.Text.Json.dll</ResolvedSystemTextJsonAssembly>
+        <XmlDocSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.9\lib\net462\System.Text.Json.dll</XmlDocSystemTextJsonAssembly>
+        <ResolvedSystemTextJsonAssembly>$(XmlDocSystemTextJsonAssembly)</ResolvedSystemTextJsonAssembly>
     </PropertyGroup>
 
     <Target Name="UseCompatibleSystemTextJsonForXmlDoc2CmdletDoc" BeforeTargets="XmlDoc2CmdletDoc" Condition=" '$(TargetFramework)' == 'net472' And Exists('$(XmlDocSystemTextJsonAssembly)') ">

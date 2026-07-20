@@ -2,7 +2,6 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -71,236 +70,6 @@ public class EdnsSupportAnalysis : IHasAssessments
         return await DnsConfiguration.QueryDNS(name, type);
     }
 
-    private static byte[] EncodeDomainName(string domain)
-    {
-        var parts = domain.Split('.');
-        using var ms = new System.IO.MemoryStream();
-        foreach (var p in parts)
-        {
-            ms.WriteByte((byte)p.Length);
-            var bytes = System.Text.Encoding.ASCII.GetBytes(p);
-            ms.Write(bytes, 0, bytes.Length);
-        }
-        ms.WriteByte(0);
-        return ms.ToArray();
-    }
-
-    private static byte[] BuildQuery(string domain, ushort id, byte[]? clientCookie)
-    {
-        var qname = EncodeDomainName(domain);
-
-        bool includeCookie = clientCookie != null && clientCookie.Length == 8;
-        int optLen = includeCookie ? 12 : 0; // option header (4) + client cookie (8)
-        var query = new byte[12 + qname.Length + 4 + 11 + optLen];
-
-        query[0] = (byte)(id >> 8);
-        query[1] = (byte)id;
-        query[2] = 0x01; // recursion desired
-        query[5] = 0x01; // qdcount
-        query[10] = 0x00;
-        query[11] = 0x01; // arcount (OPT)
-
-        Buffer.BlockCopy(qname, 0, query, 12, qname.Length);
-        var offset = 12 + qname.Length;
-        query[offset] = 0x00;
-        query[offset + 1] = 0x01; // A
-        query[offset + 2] = 0x00;
-        query[offset + 3] = 0x01; // IN
-        offset += 4;
-
-        // OPT record
-        query[offset] = 0x00; // root name
-        query[offset + 1] = 0x00;
-        query[offset + 2] = 0x29; // OPT
-        query[offset + 3] = 0x10;
-        query[offset + 4] = 0x00; // UDP payload size (4096)
-        query[offset + 5] = 0x00;
-        query[offset + 6] = 0x00;
-        query[offset + 7] = 0x00;
-        query[offset + 8] = 0x00; // TTL (ext rcode + version + flags)
-        query[offset + 9] = 0x00;
-        query[offset + 10] = (byte)(includeCookie ? 0x0C : 0x00); // RDLEN
-
-        if (!includeCookie)
-        {
-            return query;
-        }
-
-        // COOKIE option (RFC 7873): code=10, len=8, client-cookie=8 bytes
-        var optOffset = offset + 11;
-        query[optOffset] = 0x00;
-        query[optOffset + 1] = 0x0A;
-        query[optOffset + 2] = 0x00;
-        query[optOffset + 3] = 0x08;
-        Buffer.BlockCopy(clientCookie!, 0, query, optOffset + 4, 8);
-        return query;
-    }
-
-    private static void SkipName(byte[] buffer, ref int offset)
-    {
-        int jumps = 0;
-        while (true)
-        {
-            if (offset >= buffer.Length)
-            {
-                offset = buffer.Length;
-                return;
-            }
-
-            var len = buffer[offset++];
-            if (len == 0)
-            {
-                break;
-            }
-
-            if ((len & 0xC0) == 0xC0)
-            {
-                // compression pointer (2 bytes total)
-                if (offset < buffer.Length)
-                {
-                    offset++;
-                }
-                break;
-            }
-
-            offset += len;
-            if (++jumps > 50)
-            {
-                break;
-            }
-        }
-    }
-
-    private static ushort ReadUInt16(byte[] buffer, ref int offset)
-    {
-        if (offset + 2 > buffer.Length)
-        {
-            offset = buffer.Length;
-            return 0;
-        }
-
-        var v = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
-        offset += 2;
-        return v;
-    }
-
-    private static uint ReadUInt32(byte[] buffer, ref int offset)
-    {
-        if (offset + 4 > buffer.Length)
-        {
-            offset = buffer.Length;
-            return 0;
-        }
-
-        uint v = (uint)((buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]);
-        offset += 4;
-        return v;
-    }
-
-    private static EdnsSupportInfo ParseEdns(byte[] data, byte[]? clientCookie)
-    {
-        if (data == null || data.Length < 12)
-        {
-            return new EdnsSupportInfo { Supported = false };
-        }
-
-        int offset = 0;
-        offset += 4; // id+flags
-        var qd = ReadUInt16(data, ref offset);
-        var an = ReadUInt16(data, ref offset);
-        var ns = ReadUInt16(data, ref offset);
-        var ar = ReadUInt16(data, ref offset);
-
-        // Skip questions
-        offset = 12;
-        for (int i = 0; i < qd; i++)
-        {
-            SkipName(data, ref offset);
-            offset += 4; // type + class
-            if (offset >= data.Length)
-            {
-                return new EdnsSupportInfo { Supported = false };
-            }
-        }
-
-        int rrCount = an + ns + ar;
-        for (int i = 0; i < rrCount; i++)
-        {
-            SkipName(data, ref offset);
-            var type = ReadUInt16(data, ref offset);
-            var rrClass = ReadUInt16(data, ref offset);
-            var ttl = ReadUInt32(data, ref offset);
-            var rdlen = ReadUInt16(data, ref offset);
-            if (offset + rdlen > data.Length)
-            {
-                return new EdnsSupportInfo { Supported = false };
-            }
-
-            if (type == 41)
-            {
-                // OPT RR
-                int udpPayload = rrClass;
-                int version = (int)((ttl >> 16) & 0xFF);
-                int flags = (int)(ttl & 0xFFFF);
-                bool doBit = (flags & 0x8000) != 0;
-
-                bool cookieSupported = false;
-                int cookieLen = 0;
-                int optOffset = offset;
-                int optEnd = offset + rdlen;
-                while (optOffset + 4 <= optEnd)
-                {
-                    var optCode = (ushort)((data[optOffset] << 8) | data[optOffset + 1]);
-                    var optLen = (ushort)((data[optOffset + 2] << 8) | data[optOffset + 3]);
-                    optOffset += 4;
-                    if (optOffset + optLen > optEnd)
-                    {
-                        break;
-                    }
-
-                    if (optCode == 10)
-                    {
-                        cookieSupported = true;
-                        cookieLen = optLen;
-                        // Best-effort validation: server echoes client cookie in first 8 bytes.
-                        if (clientCookie != null && clientCookie.Length == 8 && optLen >= 8)
-                        {
-                            // no-op: presence is enough; avoid strict matching to reduce false negatives
-                        }
-                    }
-
-                    optOffset += optLen;
-                }
-
-                return new EdnsSupportInfo
-                {
-                    Supported = true,
-                    UdpPayloadSize = udpPayload,
-                    DoBit = doBit,
-                    Version = version,
-                    CookieSupported = cookieSupported,
-                    CookieLength = cookieLen
-                };
-            }
-
-            offset += rdlen;
-        }
-
-        return new EdnsSupportInfo { Supported = false };
-    }
-
-    private static async Task<int> ReadExactAsync(System.IO.Stream stream, byte[] buffer, int offset, int count, CancellationToken ct)
-    {
-        int total = 0;
-        while (total < count)
-        {
-            int read = await stream.ReadAsync(buffer, offset + total, count - total, ct);
-            if (read == 0) break;
-            total += read;
-        }
-        return total;
-    }
-
     private static (string Host, int Port) ParseServerEndpoint(string server)
     {
         if (string.IsNullOrWhiteSpace(server))
@@ -343,63 +112,28 @@ public class EdnsSupportAnalysis : IHasAssessments
     private static async Task<EdnsSupportInfo> QueryServerAsync(string ip, string queryDomain)
     {
         var (host, port) = ParseServerEndpoint(ip);
-        var addressFamily = System.Net.IPAddress.TryParse(host, out var parsedAddress)
-            ? parsedAddress.AddressFamily
-            : AddressFamily.InterNetwork;
-
-        using var udp = new UdpClient(addressFamily);
-        var id = Helpers.DnsQueryIdGenerator.NextUShort();
         byte[] cookie = new byte[8];
         try {
             using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
             rng.GetBytes(cookie);
         } catch { /* best-effort */ }
-        var query = BuildQuery(queryDomain, id, cookie);
-        using var udpCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await udp.SendAsync(query, query.Length, host, port).WaitWithCancellation(udpCts.Token);
-        var resp = await udp.ReceiveAsync().WaitWithCancellation(udpCts.Token);
-        var data = resp.Buffer;
-        bool truncated = data.Length > 2 && (data[2] & 0x02) != 0;        
-        if (truncated)
-        {
-            using var tcp = parsedAddress != null
-                ? new TcpClient(parsedAddress.AddressFamily)
-                : new TcpClient();
-            using var tcpCts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
-            await tcp.ConnectAsync(host, port).WaitWithCancellation(tcpCts.Token);
-            using var stream = tcp.GetStream();
-            var len = (ushort)query.Length;
-            var prefix = new byte[] { (byte)(len >> 8), (byte)(len & 0xFF) };
-            await stream.WriteAsync(prefix, 0, 2, tcpCts.Token);
-            await stream.WriteAsync(query, 0, query.Length, tcpCts.Token);
-            await stream.FlushAsync(tcpCts.Token);
-            var buf = new byte[2];
-            if (await ReadExactAsync(stream, buf, 0, 2, tcpCts.Token) != 2)
-            {
-                return new EdnsSupportInfo { Supported = false };
-            }
-            int respLen = buf[0] << 8 | buf[1];
-            var respData = new byte[respLen];
-            int received = 0;
-            while (received < respLen)
-            {
-                var r = await stream.ReadAsync(respData, received, respLen - received, tcpCts.Token);
-                if (r == 0)
-                {
-                    break;
-                }
-                received += r;
-            }
-            if (received < respLen)
-            {
-                return new EdnsSupportInfo { Supported = false };
-            }
-            data = respData;
-        }
-
-        var info = ParseEdns(data, cookie);
-        // Map truncation hint
-        return info with { TruncatedUdp = truncated };
+        var query = new DnsMessage(queryDomain, DnsRecordType.A, new DnsMessageOptions(
+            EnableEdns: true,
+            UdpBufferSize: 4096,
+            Options: new[] { new CookieOption(cookie) },
+            RecursionDesired: false));
+        DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
+            host, port, query, 3000, useTcpFallback: true).ConfigureAwait(false);
+        DnsResponse response = result.Response;
+        return new EdnsSupportInfo {
+            Supported = response.EdnsUdpPayloadSize.HasValue,
+            UdpPayloadSize = response.EdnsUdpPayloadSize ?? 0,
+            DoBit = response.EdnsDnsSecOk,
+            TruncatedUdp = response.UsedTransport == Transport.Tcp,
+            Version = response.EdnsVersion ?? 0,
+            CookieSupported = response.EdnsCookie.Length > 0,
+            CookieLength = response.EdnsCookie.Length
+        };
     }
 
     /// <summary>

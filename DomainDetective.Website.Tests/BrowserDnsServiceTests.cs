@@ -25,14 +25,35 @@ public sealed class BrowserDnsServiceTests {
         Assert.Equal(BrowserDnsService.GetDefaultResolverName(), resolver.Name);
     }
 
+    [Fact]
+    public async Task BrowserDohMapsExtendedResponseCodesUsingWireWidth() {
+        var handler = new RecordingMessageHandler(status: 16);
+        using var httpClient = new HttpClient(handler);
+        var service = new BrowserDnsService(httpClient);
+        var healthCheck = service.CreateHealthCheck();
+
+        var responses = await healthCheck.DnsConfiguration.QueryFullDNS(new[] { "contoso.com" }, DnsClientX.DnsRecordType.A);
+
+        Assert.Equal(DnsClientX.DnsResponseCode.BadVersion, Assert.Single(responses).Status);
+    }
+
     private sealed class RecordingMessageHandler : HttpMessageHandler {
+        private readonly int _status;
+
+        public RecordingMessageHandler(int status = 0) {
+            _status = status;
+        }
+
         public List<Uri> RequestUris { get; } = new();
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
             RequestUris.Add(request.RequestUri!);
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
-                Content = new StringContent("{\"Status\":0,\"AD\":false,\"Answer\":[],\"Authority\":[]}")
+                Content = new StringContent(
+                    $"{{\"Status\":{_status},\"AD\":false,\"Answer\":[],\"Authority\":[]}}",
+                    System.Text.Encoding.UTF8,
+                    "application/dns-json")
             });
         }
     }

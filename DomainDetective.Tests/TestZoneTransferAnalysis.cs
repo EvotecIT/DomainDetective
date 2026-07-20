@@ -1,29 +1,65 @@
 namespace DomainDetective.Tests {
     public class TestZoneTransferAnalysis {
-        private static byte[] BuildMessage(ushort id, byte rcode, ushort answerType) {
-            var header = new byte[12];
-            header[0] = (byte)(id >> 8);
-            header[1] = (byte)(id & 0xFF);
-            header[2] = 0x80;
-            header[3] = rcode;
-            header[4] = 0x00;
-            header[5] = 0x01;
-            header[6] = 0x00;
-            header[7] = answerType == ushort.MaxValue ? (byte)0 : (byte)1;
-            var list = new System.Collections.Generic.List<byte>(32);
-            list.AddRange(header);
-            list.Add(0x00);
-            list.Add(0x00); list.Add(0xFC);
-            list.Add(0x00); list.Add(0x01);
-            if (answerType != ushort.MaxValue) {
-                list.Add(0x00);
-                list.Add((byte)(answerType >> 8));
-                list.Add((byte)(answerType & 0xFF));
-                list.Add(0x00); list.Add(0x01);
-                list.AddRange(new byte[4]);
-                list.Add(0x00); list.Add(0x00);
+        private static byte[] EncodeName(string name) {
+            using var stream = new System.IO.MemoryStream();
+            foreach (string label in name.Split('.')) {
+                byte[] bytes = System.Text.Encoding.ASCII.GetBytes(label);
+                stream.WriteByte((byte)bytes.Length);
+                stream.Write(bytes, 0, bytes.Length);
             }
-            var msg = list.ToArray();
+            stream.WriteByte(0);
+            return stream.ToArray();
+        }
+
+        private static void WriteUInt16(System.IO.Stream stream, ushort value) {
+            stream.WriteByte((byte)(value >> 8));
+            stream.WriteByte((byte)value);
+        }
+
+        private static void WriteUInt32(System.IO.Stream stream, uint value) {
+            stream.WriteByte((byte)(value >> 24));
+            stream.WriteByte((byte)(value >> 16));
+            stream.WriteByte((byte)(value >> 8));
+            stream.WriteByte((byte)value);
+        }
+
+        private static byte[] BuildMessage(ushort id, byte rcode, ushort answerType) {
+            using var message = new System.IO.MemoryStream();
+            WriteUInt16(message, id);
+            WriteUInt16(message, (ushort)(0x8400 | rcode));
+            WriteUInt16(message, 1);
+            WriteUInt16(message, answerType == ushort.MaxValue ? (ushort)0 : (ushort)1);
+            WriteUInt16(message, 0);
+            WriteUInt16(message, 0);
+            byte[] zone = EncodeName("example.com");
+            message.Write(zone, 0, zone.Length);
+            WriteUInt16(message, 252);
+            WriteUInt16(message, 1);
+            if (answerType != ushort.MaxValue) {
+                message.Write(zone, 0, zone.Length);
+                WriteUInt16(message, answerType);
+                WriteUInt16(message, 1);
+                WriteUInt32(message, 60);
+                byte[] rdata;
+                if (answerType == 6) {
+                    using var soa = new System.IO.MemoryStream();
+                    byte[] primary = EncodeName("ns1.example.com");
+                    byte[] responsible = EncodeName("hostmaster.example.com");
+                    soa.Write(primary, 0, primary.Length);
+                    soa.Write(responsible, 0, responsible.Length);
+                    WriteUInt32(soa, 1);
+                    WriteUInt32(soa, 3600);
+                    WriteUInt32(soa, 600);
+                    WriteUInt32(soa, 86400);
+                    WriteUInt32(soa, 60);
+                    rdata = soa.ToArray();
+                } else {
+                    rdata = new byte[] { 192, 0, 2, 1 };
+                }
+                WriteUInt16(message, (ushort)rdata.Length);
+                message.Write(rdata, 0, rdata.Length);
+            }
+            byte[] msg = message.ToArray();
             var resp = new byte[msg.Length + 2];
             resp[0] = (byte)(msg.Length >> 8);
             resp[1] = (byte)(msg.Length & 0xFF);

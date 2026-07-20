@@ -18,7 +18,7 @@ namespace DomainDetective.Example
             // Multi-resolver: try Cloudflare wire-format, then Google (FirstSuccess)
             hc.DnsEndpoints.Add(DnsEndpoint.CloudflareWireFormat);
             hc.DnsEndpoints.Add(DnsEndpoint.Google);
-            hc.MultiResolverStrategy = DomainDetective.MultiResolverStrategy.FirstSuccess;
+            hc.MultiResolverStrategy = MultiResolverStrategy.FirstSuccess;
 
             await hc.Verify("example.com", new[]
             {

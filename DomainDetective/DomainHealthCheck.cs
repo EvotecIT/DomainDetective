@@ -15,7 +15,7 @@ namespace DomainDetective {
     /// Performs a collection of DNS and security related checks for a domain.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public partial class DomainHealthCheck : Settings {
+    public partial class DomainHealthCheck : Settings, IDisposable {
         private PublicSuffixList _publicSuffixList;
         private const string DefaultPublicSuffixListUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/public_suffix_list.dat";
 
@@ -548,6 +548,11 @@ namespace DomainDetective {
             File.WriteAllBytes(cacheFile, bytes);
 
             TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
+        }
+
+        /// <summary>Releases the reusable DNS resolver owned by this health-check instance.</summary>
+        public void Dispose() {
+            DnsConfiguration.Dispose();
         }
 
     }}

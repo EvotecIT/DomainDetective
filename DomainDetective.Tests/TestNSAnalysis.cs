@@ -279,71 +279,18 @@ namespace DomainDetective.Tests {
                 };
             });
             analysis.EnableChaosFingerprinting = true;
-            analysis.QueryUdpOverride = (_, query, __) =>
+            analysis.QueryResponseOverride = (_, query, __) =>
             {
-                string ReadName(byte[] buf)
-                {
-                    int o = 12;
-                    var labels = new List<string>();
-                    while (o < buf.Length)
-                    {
-                        int len = buf[o++];
-                        if (len == 0) break;
-                        if (o + len > buf.Length) break;
-                        labels.Add(System.Text.Encoding.ASCII.GetString(buf, o, len));
-                        o += len;
-                    }
-                    return string.Join(".", labels);
-                }
-
-                byte[] BuildTxtResponse(byte[] req, string qname, string txt)
-                {
-                    var nameBytes = new List<byte>();
-                    foreach (var part in qname.Split('.'))
-                    {
-                        var b = System.Text.Encoding.ASCII.GetBytes(part);
-                        nameBytes.Add((byte)b.Length);
-                        nameBytes.AddRange(b);
-                    }
-                    nameBytes.Add(0);
-
-                    var txtBytes = System.Text.Encoding.ASCII.GetBytes(txt);
-                    var rdata = new byte[1 + txtBytes.Length];
-                    rdata[0] = (byte)txtBytes.Length;
-                    Buffer.BlockCopy(txtBytes, 0, rdata, 1, txtBytes.Length);
-
-                    var msg = new List<byte>();
-                    // Header
-                    msg.Add(req[0]); msg.Add(req[1]); // id
-                    msg.Add(0x81); msg.Add(0x80); // standard response, NOERROR
-                    msg.Add(0x00); msg.Add(0x01); // QDCOUNT
-                    msg.Add(0x00); msg.Add(0x01); // ANCOUNT
-                    msg.Add(0x00); msg.Add(0x00); // NSCOUNT
-                    msg.Add(0x00); msg.Add(0x00); // ARCOUNT
-                    // Question: QNAME + QTYPE=TXT + QCLASS=CH
-                    msg.AddRange(nameBytes);
-                    msg.Add(0x00); msg.Add(0x10);
-                    msg.Add(0x00); msg.Add(0x03);
-                    // Answer: NAME pointer to 0x0c
-                    msg.Add(0xC0); msg.Add(0x0C);
-                    msg.Add(0x00); msg.Add(0x10); // TXT
-                    msg.Add(0x00); msg.Add(0x03); // CH
-                    msg.Add(0x00); msg.Add(0x00); msg.Add(0x00); msg.Add(0x3C); // TTL
-                    msg.Add((byte)(rdata.Length >> 8)); msg.Add((byte)(rdata.Length & 0xFF));
-                    msg.AddRange(rdata);
-                    return msg.ToArray();
-                }
-
-                var q = ReadName(query);
-                if (q.Equals("version.bind", System.StringComparison.OrdinalIgnoreCase))
-                {
-                    return Task.FromResult<byte[]?>(BuildTxtResponse(query, "version.bind", "BIND 9.18.0"));
-                }
-                if (q.Equals("hostname.bind", System.StringComparison.OrdinalIgnoreCase))
-                {
-                    return Task.FromResult<byte[]?>(BuildTxtResponse(query, "hostname.bind", "ns1"));
-                }
-                return Task.FromResult<byte[]?>(null);
+                string queryName = query.Name.TrimEnd('.');
+                string? value = queryName.Equals("version.bind", System.StringComparison.OrdinalIgnoreCase)
+                    ? "BIND 9.18.0"
+                    : queryName.Equals("hostname.bind", System.StringComparison.OrdinalIgnoreCase)
+                        ? "ns1"
+                        : null;
+                return Task.FromResult(value == null ? null : new DnsResponse {
+                    Status = DnsResponseCode.NoError,
+                    Answers = new[] { new DnsAnswer { Name = query.Name, Type = DnsRecordType.TXT, TTL = 60, DataRaw = value } }
+                });
             };
 
             await analysis.AnalyzeNsRecords(answers, new InternalLogger());

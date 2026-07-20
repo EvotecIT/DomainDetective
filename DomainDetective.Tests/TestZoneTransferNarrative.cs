@@ -12,19 +12,19 @@ public class TestZoneTransferNarrative
 {
     private static byte[] BuildError(ushort id)
     {
-        var header = new byte[12];
-        header[0] = (byte)(id >> 8);
-        header[1] = (byte)(id & 0xFF);
-        header[2] = 0x80;
-        header[3] = 5;
-        header[5] = 0x01;
-        var msg = new byte[18];
-        Buffer.BlockCopy(header, 0, msg, 0, 12);
-        msg[12] = 0;
-        msg[13] = 0;
-        msg[14] = 0xFC;
-        msg[15] = 0;
-        msg[16] = 0x01;
+        byte[] zone = { 7, (byte)'e', (byte)'x', (byte)'a', (byte)'m', (byte)'p', (byte)'l', (byte)'e', 3, (byte)'c', (byte)'o', (byte)'m', 0 };
+        var msg = new byte[12 + zone.Length + 4];
+        msg[0] = (byte)(id >> 8);
+        msg[1] = (byte)id;
+        msg[2] = 0x84;
+        msg[3] = 5;
+        msg[5] = 1;
+        Buffer.BlockCopy(zone, 0, msg, 12, zone.Length);
+        int offset = 12 + zone.Length;
+        msg[offset] = 0;
+        msg[offset + 1] = 0xFC;
+        msg[offset + 2] = 0;
+        msg[offset + 3] = 1;
         var resp = new byte[msg.Length + 2];
         resp[0] = (byte)(msg.Length >> 8);
         resp[1] = (byte)(msg.Length & 0xFF);

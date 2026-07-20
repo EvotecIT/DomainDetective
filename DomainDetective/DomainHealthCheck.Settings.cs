@@ -102,9 +102,54 @@ namespace DomainDetective {
         /// <summary>Log lines used for DNS tunneling analysis.</summary>
         public IEnumerable<string>? DnsTunnelingLogs { get; set; }
 
+        private DnsConfiguration _dnsConfiguration = new DnsConfiguration();
+
         /// <summary>Holds DNS client configuration used throughout analyses.</summary>
-        /// <value>The DNS configuration instance.</value>
-        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
+        /// <value>The DNS configuration instance. The health check owns and disposes the assigned configuration.</value>
+        public DnsConfiguration DnsConfiguration {
+            get => _dnsConfiguration;
+            set {
+                if (value == null) throw new ArgumentNullException(nameof(value));
+                if (ReferenceEquals(_dnsConfiguration, value)) return;
+                DnsConfiguration previous = _dnsConfiguration;
+                _dnsConfiguration = value;
+                ApplyDnsConfiguration(value);
+                previous.Dispose();
+            }
+        }
+
+        private void ApplyDnsConfiguration(DnsConfiguration configuration) {
+            DmarcAnalysis.DnsConfiguration = configuration;
+            WhoisAnalysis.DnsConfiguration = configuration;
+            SpfAnalysis.DnsConfiguration = configuration;
+            MXAnalysis.DnsConfiguration = configuration;
+            ReverseDnsAnalysis.DnsConfiguration = configuration;
+            FcrDnsAnalysis.DnsConfiguration = configuration;
+            NSAnalysis.DnsConfiguration = configuration;
+            DNSBLAnalysis.DnsConfiguration = configuration;
+            MTASTSAnalysis.DnsConfiguration = configuration;
+            DanglingCnameAnalysis.DnsConfiguration = configuration;
+            SubdomainsAnalysis.DnsConfiguration = configuration;
+            DnsInventoryAnalysis.DnsConfiguration = configuration;
+            DnsTraceAnalysis.DnsConfiguration = configuration;
+            IpEnrichmentAnalysis.DnsConfiguration = configuration;
+            DnsTtlAnalysis.DnsConfiguration = configuration;
+            DKIMAnalysis.DnsConfiguration = configuration;
+            IPNeighborAnalysis.DnsConfiguration = configuration;
+            RpkiAnalysis.DnsConfiguration = configuration;
+            TyposquattingAnalysis.DnsConfiguration = configuration;
+            WildcardDnsAnalysis.DnsConfiguration = configuration;
+            EdnsSupportAnalysis.DnsConfiguration = configuration;
+            DnsAmplificationAnalysis.DnsConfiguration = configuration;
+            DnsOverTlsAnalysis.DnsConfiguration = configuration;
+            FlatteningServiceAnalysis.DnsConfiguration = configuration;
+            TakeoverCnameAnalysis.DnsConfiguration = configuration;
+            AutodiscoverAnalysis.DnsConfiguration = configuration;
+            WebStaticScanAnalysis.DnsConfiguration = configuration;
+            ApexAddressAnalysis.DnsConfiguration = configuration;
+            DnsHealthAnalysis.DnsConfiguration = configuration;
+            EmailAddressValidationAnalysis.DnsConfiguration = configuration;
+        }
 
         /// <summary>
         /// Directory used for caching downloaded data.
@@ -212,9 +257,9 @@ namespace DomainDetective {
         public int TyposquattingVisualMaxAssetsPerPage { get; set; } = 3;
 
         /// <summary>
-        /// When true, DNSSEC queries use local validation (validateDnsSec: true) in DnsClientX.
+        /// When true, DNSSEC posture is derived from DnsClientX local validation rather than a resolver AD claim.
         /// </summary>
-        public bool DnsSecValidateLocally { get; set; }
+        public bool DnsSecValidateLocally { get; set; } = true;
 
         /// <summary>Record types tested for DNS propagation (multi-resolver) checks.</summary>
         public DnsRecordType[] DnsPropagationRecordTypes { get; set; } = new[] { DnsRecordType.A, DnsRecordType.AAAA };
