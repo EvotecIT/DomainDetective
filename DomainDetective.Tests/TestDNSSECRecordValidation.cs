@@ -22,6 +22,32 @@ namespace DomainDetective.Tests {
         }
 
         [Theory]
+        [InlineData(MultiResolverStrategy.FirstSuccess)]
+        [InlineData(MultiResolverStrategy.FastestWins)]
+        public void DnssecResolverHonorsConfiguredMultiResolverPolicy(MultiResolverStrategy strategy) {
+            using var configuration = new DnsConfiguration {
+                MultiResolverStrategy = strategy,
+                MultiResolverMaxParallelism = 2
+            };
+            configuration.DnsEndpoints.Add(DnsEndpoint.Cloudflare);
+            configuration.DnsEndpoints.Add(DnsEndpoint.Google);
+
+            MultiResolverOptions validationOptions = DnsSecAnalysis.CreateResolverOptions(
+                endpointCount: 4, dnsConfiguration: configuration, validateDnsSec: true);
+            MultiResolverOptions metadataOptions = DnsSecAnalysis.CreateResolverOptions(
+                endpointCount: 4, dnsConfiguration: configuration, validateDnsSec: false);
+
+            Assert.Equal(strategy, validationOptions.Strategy);
+            Assert.Equal(2, validationOptions.MaxParallelism);
+            Assert.True(validationOptions.RequestDnsSec);
+            Assert.True(validationOptions.ValidateDnsSec);
+            Assert.Equal(strategy, metadataOptions.Strategy);
+            Assert.Equal(2, metadataOptions.MaxParallelism);
+            Assert.True(metadataOptions.RequestDnsSec);
+            Assert.False(metadataOptions.ValidateDnsSec);
+        }
+
+        [Theory]
         [InlineData("2371 ECDSAP256SHA256 1 9bacd9689f3c9eceb62e2e533ca7a87669f7e58b")]
         [InlineData("2371 ECDSAP256SHA256 2 c988ec423e3880eb8dd8a46fe06ca230ee23f35b578d64e78b29c3e1c83d245a")]
         [InlineData("2371 ECDSAP256SHA256 4 da0163a25f5219588189215e44b444102848e853ae6a78b96ae5c75a4df7c90bd1fbcd5761bd2aa4a477c5fe0b514312")]

@@ -189,12 +189,8 @@ namespace DomainDetective {
                 throw new InvalidOperationException($"DNS provider '{string.Join(", ", providers)}' does not expose a supported resolver endpoint.");
             }
 
-            MultiResolverStrategy strategy = DnsEndpoints.Count > 0
-                ? MultiResolverStrategy
-                : DnsSelectionStrategy == DnsSelectionStrategy.Random
-                    ? MultiResolverStrategy.Random
-                    : MultiResolverStrategy.SequentialFallback;
-            int parallelism = Math.Max(1, MultiResolverMaxParallelism ?? endpoints.Length);
+            MultiResolverStrategy strategy = GetEffectiveMultiResolverStrategy();
+            int parallelism = GetEffectiveMultiResolverMaxParallelism(endpoints.Length);
             var options = new MultiResolverOptions {
                 Strategy = strategy,
                 MaxParallelism = parallelism,
@@ -229,6 +225,20 @@ namespace DomainDetective {
                 _resolver.ActiveLeases++;
                 return new ResolverLease(this, _resolver);
             }
+        }
+
+        /// <summary>Resolves the DnsClientX strategy represented by this configuration.</summary>
+        internal MultiResolverStrategy GetEffectiveMultiResolverStrategy() {
+            return DnsEndpoints.Count > 0
+                ? MultiResolverStrategy
+                : DnsSelectionStrategy == DnsSelectionStrategy.Random
+                    ? MultiResolverStrategy.Random
+                    : MultiResolverStrategy.SequentialFallback;
+        }
+
+        /// <summary>Resolves the endpoint concurrency cap represented by this configuration.</summary>
+        internal int GetEffectiveMultiResolverMaxParallelism(int endpointCount) {
+            return Math.Max(1, MultiResolverMaxParallelism ?? endpointCount);
         }
 
         private void ReleaseResolver(ResolverEntry entry) {

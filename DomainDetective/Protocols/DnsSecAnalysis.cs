@@ -127,10 +127,10 @@ namespace DomainDetective {
                 ? dnsConfiguration.DnsEndpoints.Distinct().ToArray()
                 : new[] { dnsConfiguration?.DnsEndpoint ?? DnsEndpoint.System };
             using DnsMultiResolver? validationResolver = responseOverride == null
-                ? CreateResolver(endpoints, validateDnsSec: true)
+                ? CreateResolver(endpoints, dnsConfiguration, validateDnsSec: true)
                 : null;
             using DnsMultiResolver? metadataResolver = responseOverride == null
-                ? CreateResolver(endpoints, validateDnsSec: false)
+                ? CreateResolver(endpoints, dnsConfiguration, validateDnsSec: false)
                 : null;
 
             ResetValidationState();
@@ -365,17 +365,25 @@ namespace DomainDetective {
             return (records, ttl, ad);
         }
 
-        private static DnsMultiResolver CreateResolver(DnsEndpoint[] endpoints, bool validateDnsSec)
-        {
+        private static DnsMultiResolver CreateResolver(DnsEndpoint[] endpoints,
+            DnsConfiguration? dnsConfiguration, bool validateDnsSec) {
             DnsResolverEndpoint[] resolverEndpoints = DnsResolverEndpointFactory.From(endpoints);
-            return new DnsMultiResolver(resolverEndpoints, new MultiResolverOptions {
-                Strategy = MultiResolverStrategy.SequentialFallback,
-                MaxParallelism = 1,
+            return new DnsMultiResolver(resolverEndpoints, CreateResolverOptions(
+                resolverEndpoints.Length, dnsConfiguration, validateDnsSec));
+        }
+
+        /// <summary>Creates DNSSEC resolver options while honoring the shared multi-resolver policy.</summary>
+        internal static MultiResolverOptions CreateResolverOptions(int endpointCount,
+            DnsConfiguration? dnsConfiguration, bool validateDnsSec) {
+            return new MultiResolverOptions {
+                Strategy = dnsConfiguration?.GetEffectiveMultiResolverStrategy()
+                    ?? MultiResolverStrategy.SequentialFallback,
+                MaxParallelism = dnsConfiguration?.GetEffectiveMultiResolverMaxParallelism(endpointCount) ?? 1,
                 DefaultTimeout = TimeSpan.FromSeconds(5),
                 RequestDnsSec = true,
                 ValidateDnsSec = validateDnsSec,
                 TypedRecords = true
-            });
+            };
         }
 
         private static async Task<DnsResponse> Resolve(DnsMultiResolver? resolver, string name,

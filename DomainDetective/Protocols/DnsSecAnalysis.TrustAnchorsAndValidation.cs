@@ -200,7 +200,7 @@ namespace DomainDetective {
                 ? dnsConfiguration.DnsEndpoints.Distinct().ToArray()
                 : new[] { dnsConfiguration?.DnsEndpoint ?? DnsEndpoint.System };
             using DnsMultiResolver? resolver = responseOverride == null
-                ? CreateResolver(endpoints, validateDnsSec: true)
+                ? CreateResolver(endpoints, dnsConfiguration, validateDnsSec: true)
                 : null;
             DnsResponse response = await Resolve(
                 resolver, domain, type, responseOverride, ct).ConfigureAwait(false);
