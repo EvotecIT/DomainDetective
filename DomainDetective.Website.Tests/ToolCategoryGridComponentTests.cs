@@ -3,14 +3,14 @@ using DomainDetective.Toolbox.Models;
 
 namespace DomainDetective.Website.Tests;
 
-public sealed class ToolCategoryGridComponentTests : TestContext {
+public sealed class ToolCategoryGridComponentTests : BunitContext {
     [Fact]
     public void ShowsStaticOnlyAvailabilityDotForHostedOnlyTools() {
         var tools = new[] {
             CreateTool("ct-subdomains", ToolCategory.Subdomain, browserCompatible: false, hostedCompatible: true)
         };
 
-        var cut = RenderComponent<ToolCategoryGrid>(parameters => parameters
+        var cut = Render<ToolCategoryGrid>(parameters => parameters
             .Add(component => component.Tools, tools)
             .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly));
 
@@ -29,7 +29,7 @@ public sealed class ToolCategoryGridComponentTests : TestContext {
             CreateTool("spf", ToolCategory.EmailSecurity)
         };
 
-        var cut = RenderComponent<ToolCategoryGrid>(parameters => parameters
+        var cut = Render<ToolCategoryGrid>(parameters => parameters
             .Add(component => component.Tools, tools)
             .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly)
             .Add(component => component.Domain, "evotec.pl"));

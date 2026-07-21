@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using DomainDetective;
 using DomainDetective.Recommendations;
 using Xunit;
@@ -18,11 +17,22 @@ public class TestDnssecRecommendations
     }
 
     [Fact]
-    public async Task EmitsPositiveRecommendations()
+    public void EmitsPositiveRecommendations()
     {
-        var hc = new DomainHealthCheck { Verbose = false };
-        await hc.Verify("cloudflare.com", [HealthCheckType.DNSSEC]);
-        var positives = RecommendationEngine.FromPositives(hc.DnsSecAnalysis.Assessments);
+        var assessments = new[] {
+            new Assessment {
+                Severity = AssessmentSeverity.Info,
+                Code = DnssecCodes.SignaturesValid,
+                Message = "DNSSEC signatures are valid."
+            },
+            new Assessment {
+                Severity = AssessmentSeverity.Info,
+                Code = DnssecCodes.ChainValid,
+                Message = "The DNSSEC chain is valid."
+            }
+        };
+
+        var positives = RecommendationEngine.FromPositives(assessments);
         Assert.Contains(positives, p => p.Code == DnssecCodes.SignaturesValid);
         Assert.Contains(positives, p => p.Code == DnssecCodes.ChainValid);
     }

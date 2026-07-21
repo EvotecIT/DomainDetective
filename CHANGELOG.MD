@@ -1,3 +1,17 @@
+## Unreleased
+
+### DNS reliability and shared ownership
+- Centralized provider selection, concurrency, retries, response filtering, local DNSSEC validation, AXFR, and diagnostic wire queries on DnsClientX 2.0
+- Removed DomainDetective's duplicate multi-resolver, DNSSEC cryptography, and production UDP/TCP DNS implementations
+- Preserved full response metadata when filtering records and propagated cancellation through DNS operations
+- Stopped treating recursive-resolver fallback data as authoritative-server evidence in DNS health checks
+- Stopped combining AD claims from unrelated resolvers or treating a signed parent as proof for a private/unsigned child; DNSSEC summaries now use DnsClientX's local validation status
+- Reuse and safely dispose shared resolver clients, including operation-scoped DNSSEC resolvers and concurrent configuration replacement without terminating in-flight queries
+- Keep standalone DNSSEC validation on the system or caller-configured resolver instead of silently sending names to an implicit public fallback list
+- Added IPv6-aware authoritative probes, bounded shared concurrency, RFC-hardened AXFR validation, and reusable CHAOS/EDNS diagnostic queries
+- Corrected browser DoH response-code mapping for DnsClientX extended RCODEs and moved website tests to the supported, non-vulnerable bUnit package
+- `MultiResolverStrategy` now comes directly from the DnsClientX namespace; `SequentialAll` is renamed to `SequentialFallback`
+
 ## 1.0.0
 
 ### What's Changed

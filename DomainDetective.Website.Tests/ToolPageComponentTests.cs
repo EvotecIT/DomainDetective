@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DomainDetective.Website.Tests;
 
-public sealed class ToolPageComponentTests : TestContext {
+public sealed class ToolPageComponentTests : BunitContext {
     private static readonly TimeSpan AsyncToolRenderTimeout = TimeSpan.FromSeconds(10);
 
     private readonly ToolRegistry _registry = new();
@@ -41,7 +41,7 @@ public sealed class ToolPageComponentTests : TestContext {
         navigation.NavigateTo("http://localhost/tools/dns-lookup/?q=contoso.com&h=_dmarc&r=Cloudflare%20DNS&s=TXT");
 
         var tool = _registry.GetBySlug("dns-lookup")!;
-        var cut = RenderComponent<ToolPage>(parameters => parameters
+        var cut = Render<ToolPage>(parameters => parameters
             .Add(component => component.Definition, tool));
 
         cut.WaitForAssertion(() => {
@@ -62,7 +62,7 @@ public sealed class ToolPageComponentTests : TestContext {
         navigation.NavigateTo("http://localhost/tools/dns-lookup/?q=contoso.com&h=_dmarc&r=Cloudflaer&s=TXT");
 
         var tool = _registry.GetBySlug("dns-lookup")!;
-        var cut = RenderComponent<ToolPage>(parameters => parameters
+        var cut = Render<ToolPage>(parameters => parameters
             .Add(component => component.Definition, tool));
 
         cut.WaitForAssertion(() => {
@@ -80,7 +80,7 @@ public sealed class ToolPageComponentTests : TestContext {
         navigation.NavigateTo("http://localhost/tools/m365-overview/?q=contoso.com");
 
         var tool = _registry.GetBySlug("m365-overview")!;
-        var cut = RenderComponent<ToolPage>(parameters => parameters
+        var cut = Render<ToolPage>(parameters => parameters
             .Add(component => component.Definition, tool));
 
         cut.WaitForAssertion(() => {
@@ -92,7 +92,7 @@ public sealed class ToolPageComponentTests : TestContext {
             Assert.Contains("Get-DomainHealthCheck -Domain", cut.Markup);
             Assert.Contains("contoso.com", cut.Markup);
             Assert.DoesNotContain("Not detected", cut.Markup);
-        });
+        }, AsyncToolRenderTimeout);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class ToolPageComponentTests : TestContext {
         navigation.NavigateTo("http://localhost/tools/m365-overview/");
 
         var tool = _registry.GetBySlug("m365-overview")!;
-        var cut = RenderComponent<ToolPage>(parameters => parameters
+        var cut = Render<ToolPage>(parameters => parameters
             .Add(component => component.Definition, tool));
 
         var exampleButton = cut.FindAll("button.tool-example-chip")
@@ -121,7 +121,7 @@ public sealed class ToolPageComponentTests : TestContext {
         navigation.NavigateTo("http://localhost/tools/cert-check/");
 
         var tool = _registry.GetBySlug("cert-check")!;
-        var cut = RenderComponent<ToolPage>(parameters => parameters
+        var cut = Render<ToolPage>(parameters => parameters
             .Add(component => component.Definition, tool));
 
         Assert.Contains("Guided locally", cut.Markup);
@@ -138,7 +138,10 @@ public sealed class ToolPageComponentTests : TestContext {
             }
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
-                Content = new StringContent("{\"Status\":0,\"AD\":false,\"Answer\":[],\"Authority\":[]}")
+                Content = new StringContent(
+                    "{\"Status\":0,\"AD\":false,\"Answer\":[],\"Authority\":[]}",
+                    System.Text.Encoding.UTF8,
+                    "application/dns-json")
             });
         }
     }

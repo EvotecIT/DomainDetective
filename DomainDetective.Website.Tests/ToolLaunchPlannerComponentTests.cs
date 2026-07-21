@@ -3,12 +3,12 @@ using DomainDetective.Toolbox.Models;
 
 namespace DomainDetective.Website.Tests;
 
-public sealed class ToolLaunchPlannerComponentTests : TestContext {
+public sealed class ToolLaunchPlannerComponentTests : BunitContext {
     [Fact]
     public void RendersStarterPlanSummaryAndPrimaryActionWithSelectedDomain() {
         var tools = CreatePlannerTools();
 
-        var cut = RenderComponent<ToolLaunchPlanner>(parameters => parameters
+        var cut = Render<ToolLaunchPlanner>(parameters => parameters
             .Add(component => component.Tools, tools)
             .Add(component => component.Domain, "contoso.com")
             .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly));
@@ -25,7 +25,7 @@ public sealed class ToolLaunchPlannerComponentTests : TestContext {
     public void RendersOverviewToolsAsSeparateQuickStartCards() {
         var tools = CreatePlannerTools();
 
-        var cut = RenderComponent<ToolLaunchPlanner>(parameters => parameters
+        var cut = Render<ToolLaunchPlanner>(parameters => parameters
             .Add(component => component.Tools, tools)
             .Add(component => component.Domain, "contoso.com")
             .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly));
@@ -41,7 +41,7 @@ public sealed class ToolLaunchPlannerComponentTests : TestContext {
     public void SelectAllVisibleToolsShowsGuidedLocalSummaryAndLinks() {
         var tools = CreatePlannerTools();
 
-        var cut = RenderComponent<ToolLaunchPlanner>(parameters => parameters
+        var cut = Render<ToolLaunchPlanner>(parameters => parameters
             .Add(component => component.Tools, tools)
             .Add(component => component.Domain, "contoso.com")
             .Add(component => component.DeploymentMode, ToolsDeploymentMode.StaticOnly));

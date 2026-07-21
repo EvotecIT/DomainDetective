@@ -66,17 +66,11 @@
         <PackageReference Include="Spectre.Console" Version="0.57.2" />
     </ItemGroup>
 
-    <PropertyGroup Condition=" '$(TargetFramework)' == 'net472' ">
-        <XmlDocSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.7\lib\net462\System.Text.Json.dll</XmlDocSystemTextJsonAssembly>
-        <XmlDocSystemTextJsonAssembly Condition=" '$(Configuration)' == 'Release' ">$(NuGetPackageRoot)system.text.json\10.0.5\lib\net462\System.Text.Json.dll</XmlDocSystemTextJsonAssembly>
-        <ResolvedSystemTextJsonAssembly>$(NuGetPackageRoot)system.text.json\10.0.8\lib\net462\System.Text.Json.dll</ResolvedSystemTextJsonAssembly>
-    </PropertyGroup>
-
-    <Target Name="UseCompatibleSystemTextJsonForXmlDoc2CmdletDoc" BeforeTargets="XmlDoc2CmdletDoc" Condition=" '$(TargetFramework)' == 'net472' And Exists('$(XmlDocSystemTextJsonAssembly)') ">
-        <Copy SourceFiles="$(XmlDocSystemTextJsonAssembly)" DestinationFiles="$(OutDir)System.Text.Json.dll" />
-    </Target>
-
-    <Target Name="RestoreResolvedSystemTextJsonAfterXmlDoc2CmdletDoc" AfterTargets="XmlDoc2CmdletDoc" Condition=" '$(TargetFramework)' == 'net472' And Exists('$(ResolvedSystemTextJsonAssembly)') ">
-        <Copy SourceFiles="$(ResolvedSystemTextJsonAssembly)" DestinationFiles="$(OutDir)System.Text.Json.dll" />
+    <Target Name="StageResolvedSystemTextJsonForXmlDoc2CmdletDoc" BeforeTargets="XmlDoc2CmdletDoc" DependsOnTargets="ResolveReferences" Condition=" '$(TargetFramework)' == 'net472' ">
+        <ItemGroup>
+            <_XmlDocSystemTextJsonAssembly Include="@(ReferenceCopyLocalPaths)" Condition=" '%(Filename)%(Extension)' == 'System.Text.Json.dll' " />
+        </ItemGroup>
+        <Error Condition=" '@(_XmlDocSystemTextJsonAssembly)' == '' " Text="The resolved System.Text.Json assembly was not available for XmlDoc2CmdletDoc." />
+        <Copy SourceFiles="@(_XmlDocSystemTextJsonAssembly)" DestinationFolder="$(OutDir)" />
     </Target>
 </Project>

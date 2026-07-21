@@ -9,6 +9,30 @@ using System.Threading.Tasks;
 namespace DomainDetective.Tests;
 
 public class TestEdnsSupportAnalysis {
+    private static byte[] CreateResponse(byte[] query, bool truncated, bool includeOpt) {
+        int offset = 12;
+        while (query[offset] != 0) offset += 1 + query[offset];
+        offset++;
+        int questionEnd = offset + 4;
+        var response = new byte[questionEnd + (includeOpt ? 11 : 0)];
+        response[0] = query[0];
+        response[1] = query[1];
+        response[2] = (byte)(0x80 | (truncated ? 0x02 : 0) | (query[2] & 0x01));
+        response[4] = 0;
+        response[5] = 1;
+        Buffer.BlockCopy(query, 12, response, 12, questionEnd - 12);
+        if (includeOpt) {
+            response[10] = 0;
+            response[11] = 1;
+            int opt = questionEnd;
+            response[opt] = 0;
+            response[opt + 1] = 0;
+            response[opt + 2] = 0x29;
+            response[opt + 3] = 0x10;
+        }
+        return response;
+    }
+
     private static EdnsSupportAnalysis Create(bool support) {
         return new EdnsSupportAnalysis {
             QueryDnsOverride = (name, type) => {
@@ -76,11 +100,7 @@ public class TestEdnsSupportAnalysis {
             udpTask = Task.Run(async () => {
                 var r = await udp.ReceiveAsync();
                 var q = r.Buffer;
-                var resp = new byte[12];
-                resp[0] = q[0];
-                resp[1] = q[1];
-                resp[2] = (byte)(0x80 | 0x02 | (q[2] & 0x01));
-                resp[3] = 0x00;
+                byte[] resp = CreateResponse(q, truncated: true, includeOpt: false);
                 await udp.SendAsync(resp, resp.Length, r.RemoteEndPoint);
             });
 
@@ -97,24 +117,7 @@ public class TestEdnsSupportAnalysis {
                     await ReadExactlyAsync(stream, q, 0, q.Length);
                 }
 
-                var resp = new byte[23];
-                resp[0] = q[0];
-                resp[1] = q[1];
-                resp[2] = (byte)(0x80 | (q[2] & 0x01));
-                resp[3] = 0x00;
-                resp[10] = 0x00;
-                resp[11] = 0x01;
-                resp[12] = 0x00;
-                resp[13] = 0x00;
-                resp[14] = 0x29;
-                resp[15] = 0x10;
-                resp[16] = 0x00;
-                resp[17] = 0x00;
-                resp[18] = 0x00;
-                resp[19] = 0x00;
-                resp[20] = 0x00;
-                resp[21] = 0x00;
-                resp[22] = 0x00;
+                byte[] resp = CreateResponse(q, truncated: false, includeOpt: true);
 
                 var respPrefix = new[] { (byte)(resp.Length >> 8), (byte)(resp.Length & 0xFF) };
                 await stream.WriteAsync(respPrefix, 0, respPrefix.Length);
@@ -189,24 +192,7 @@ public class TestEdnsSupportAnalysis {
             var request = await udpServer.ReceiveAsync();
             queryName = ReadQueryName(request.Buffer);
             var q = request.Buffer;
-            var response = new byte[23];
-            response[0] = q[0];
-            response[1] = q[1];
-            response[2] = (byte)(0x80 | (q[2] & 0x01));
-            response[3] = 0x00;
-            response[10] = 0x00;
-            response[11] = 0x01;
-            response[12] = 0x00;
-            response[13] = 0x00;
-            response[14] = 0x29;
-            response[15] = 0x10;
-            response[16] = 0x00;
-            response[17] = 0x00;
-            response[18] = 0x00;
-            response[19] = 0x00;
-            response[20] = 0x00;
-            response[21] = 0x00;
-            response[22] = 0x00;
+            byte[] response = CreateResponse(q, truncated: false, includeOpt: true);
             await udpServer.SendAsync(response, response.Length, request.RemoteEndPoint);
         });
 

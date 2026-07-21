@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.IO;
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text;
 using System.Globalization;
@@ -181,19 +180,31 @@ namespace DomainDetective {
         /// <param name="ct">Cancellation token.</param>
         /// <returns><c>true</c> when the record is signed and validated; otherwise <c>false</c>.</returns>
         public async Task<bool> ValidateRecord(string domain, DnsRecordType type, CancellationToken ct = default) {
-            var endpoints = new[] { DnsEndpoint.System, DnsEndpoint.SystemTcp, DnsEndpoint.CloudflareWireFormat, DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 };
-            var resp = await ResolveWithFallback(endpoints, domain, type, requestDnsSec: true, validateDnsSec: false, responseOverride: null, ct).ConfigureAwait(false);
-            bool ad = resp.AuthenticData;
-            bool hasSig = (resp.Answers ?? Array.Empty<DnsAnswer>()).Any(a => a.Type == DnsRecordType.RRSIG);
-            if (ad && hasSig) return true;
+            return await ValidateRecord(domain, type, dnsConfiguration: null, ct).ConfigureAwait(false);
+        }
 
-            // As a conservative final check, perform a DNSSEC chain analysis for the domain
-            // and treat the record as valid if the zone validates.
-            try {
-                var logger = new InternalLogger();
-                await Analyze(domain, logger, dnsConfiguration: null, ct).ConfigureAwait(false);
-                return ChainValid;
-            } catch { return false; }
+        /// <summary>
+        /// Validates the specified record through the configured resolver without leaking private names
+        /// to an implicit list of public fallback services.
+        /// </summary>
+        /// <param name="domain">Domain name to query.</param>
+        /// <param name="type">Record type to validate.</param>
+        /// <param name="dnsConfiguration">Optional resolver configuration; the system resolver is used when omitted.</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns><c>true</c> only when DnsClientX reports a locally authenticated secure result.</returns>
+        public async Task<bool> ValidateRecord(string domain, DnsRecordType type,
+            DnsConfiguration? dnsConfiguration, CancellationToken ct = default) {
+            Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? responseOverride =
+                QueryDnsResponseOverride ?? dnsConfiguration?.QueryDnsResponseOverride;
+            DnsEndpoint[] endpoints = dnsConfiguration?.DnsEndpoints.Count > 0
+                ? dnsConfiguration.DnsEndpoints.Distinct().ToArray()
+                : new[] { dnsConfiguration?.DnsEndpoint ?? DnsEndpoint.System };
+            using DnsMultiResolver? resolver = responseOverride == null
+                ? CreateResolver(endpoints, dnsConfiguration, validateDnsSec: true)
+                : null;
+            DnsResponse response = await Resolve(
+                resolver, domain, type, responseOverride, ct).ConfigureAwait(false);
+            return response.DnsSecValidationStatus == DnsSecValidationStatus.Secure;
         }
     }
 }

@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using DnsClientX;
 
 namespace DomainDetective;
 
@@ -100,34 +99,6 @@ public class OpenResolverAnalysis : IHasAssessments {
         }
     }
 
-    private static byte[] EncodeDomainName(string name) {
-        var parts = name.TrimEnd('.').Split('.');
-        using var ms = new System.IO.MemoryStream();
-        foreach (var part in parts) {
-            var bytes = Encoding.ASCII.GetBytes(part);
-            ms.WriteByte((byte)bytes.Length);
-            ms.Write(bytes, 0, bytes.Length);
-        }
-        ms.WriteByte(0);
-        return ms.ToArray();
-    }
-
-    private static byte[] BuildQuery(string domain, ushort id) {
-        var header = new byte[12];
-        header[0] = (byte)(id >> 8);
-        header[1] = (byte)id;
-        header[2] = 0x01;
-        header[5] = 0x01;
-        var qname = EncodeDomainName(domain);
-        var query = new byte[header.Length + qname.Length + 4];
-        Buffer.BlockCopy(header, 0, query, 0, header.Length);
-        Buffer.BlockCopy(qname, 0, query, header.Length, qname.Length);
-        var offset = header.Length + qname.Length;
-        query[offset + 1] = 0x01;
-        query[offset + 3] = 0x01;
-        return query;
-    }
-
     private async Task<OpenResolverResult> CheckRecursionDetailAsync(string server, int port, InternalLogger logger, CancellationToken token) {
         if (RecursionDetailOverride != null) {
             return await RecursionDetailOverride(server, port, token);
@@ -142,19 +113,21 @@ public class OpenResolverAnalysis : IHasAssessments {
             };
         }
 
-        var id = Helpers.DnsQueryIdGenerator.NextUShort();
-        var query = BuildQuery(ProbeName, id);
+        var query = new DnsMessage(ProbeName, DnsRecordType.A, new DnsMessageOptions(
+            RecursionDesired: true));
+        ushort id = query.TransactionId;
         try {
-            using var udp = new UdpClient();
-            udp.Connect(server, port);
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-            timeout.CancelAfter(Timeout);
             var sw = Stopwatch.StartNew();
-            await udp.SendAsync(query, query.Length).WaitWithCancellation(timeout.Token);
-            var received = await udp.ReceiveAsync().WaitWithCancellation(timeout.Token);
+            DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
+                server,
+                port,
+                query,
+                checked((int)Math.Max(1, Math.Min(Timeout.TotalMilliseconds, int.MaxValue))),
+                useTcpFallback: false,
+                cancellationToken: token).ConfigureAwait(false);
             sw.Stop();
-            return ParseResponse(server, port, id, received.Buffer, (int)sw.ElapsedMilliseconds);
-        } catch (OperationCanceledException) when (!token.IsCancellationRequested) {
+            return ParseResponse(server, port, id, result.ResponseMessage, (int)sw.ElapsedMilliseconds);
+        } catch (TimeoutException) {
             return Failed(server, port, "The DNS query timed out.");
         } catch (OperationCanceledException) {
             throw;
@@ -171,30 +144,30 @@ public class OpenResolverAnalysis : IHasAssessments {
             QueryTimeMs = elapsedMilliseconds,
             SourceEndpointValidated = true
         };
-        if (data == null || data.Length < 12) {
+        if (!DnsWireMessageParser.TryParseHeader(data, out DnsWireHeaderInfo header)) {
             detail.Status = OpenResolverStatus.Failed;
             detail.Error = "The DNS response header was truncated.";
             return detail;
         }
 
-        var responseId = (ushort)((data[0] << 8) | data[1]);
-        var flags = (ushort)((data[2] << 8) | data[3]);
-        detail.TransactionIdMatches = responseId == expectedId;
-        detail.QrBitSet = (flags & 0x8000) != 0;
-        detail.Opcode = (flags >> 11) & 0x0F;
-        detail.AaBitSet = (flags & 0x0400) != 0;
-        detail.TcBitSet = (flags & 0x0200) != 0;
-        detail.RdBitSet = (flags & 0x0100) != 0;
-        detail.RaBitSet = (flags & 0x0080) != 0;
-        detail.AdBitSet = (flags & 0x0020) != 0;
-        detail.CdBitSet = (flags & 0x0010) != 0;
-        detail.Rcode = flags & 0x000F;
-        detail.QdCount = ReadUInt16(data, 4);
-        detail.AnCount = ReadUInt16(data, 6);
-        detail.NsCount = ReadUInt16(data, 8);
-        detail.ArCount = ReadUInt16(data, 10);
-        detail.QuestionMatches = detail.QdCount == 1 && TryReadQuestion(data, out var name, out var type, out var queryClass)
-            && string.Equals(name, ProbeName, StringComparison.OrdinalIgnoreCase) && type == 1 && queryClass == 1;
+        detail.TransactionIdMatches = header.TransactionId == expectedId;
+        detail.QrBitSet = header.IsResponse;
+        detail.Opcode = header.OperationCode;
+        detail.AaBitSet = header.IsAuthoritativeAnswer;
+        detail.TcBitSet = header.IsTruncated;
+        detail.RdBitSet = header.IsRecursionDesired;
+        detail.RaBitSet = header.IsRecursionAvailable;
+        detail.AdBitSet = header.AuthenticData;
+        detail.CdBitSet = header.CheckingDisabled;
+        detail.Rcode = (int)header.ResponseCode;
+        detail.QdCount = header.QuestionCount;
+        detail.AnCount = header.AnswerCount;
+        detail.NsCount = header.AuthorityCount;
+        detail.ArCount = header.AdditionalCount;
+        detail.QuestionMatches = header.QuestionCount == 1 &&
+            DnsWireMessageParser.TryParseQuestion(data, 0, out DnsWireQuestionInfo question) &&
+            string.Equals(question.Name, ProbeName, StringComparison.OrdinalIgnoreCase) &&
+            question.Type == (ushort)DnsRecordType.A && question.Class == 1;
 
         if (detail.TransactionIdMatches != true || detail.QrBitSet != true || detail.Opcode != 0 || detail.QuestionMatches != true || detail.TcBitSet == true) {
             detail.Status = OpenResolverStatus.Failed;
@@ -210,28 +183,6 @@ public class OpenResolverAnalysis : IHasAssessments {
         }
         return detail;
     }
-
-    private static bool TryReadQuestion(byte[] data, out string name, out int type, out int queryClass) {
-        name = string.Empty;
-        type = 0;
-        queryClass = 0;
-        var labels = new List<string>();
-        var offset = 12;
-        while (offset < data.Length) {
-            var length = data[offset++];
-            if (length == 0) break;
-            if ((length & 0xC0) != 0 || length > 63 || offset + length > data.Length) return false;
-            labels.Add(Encoding.ASCII.GetString(data, offset, length));
-            offset += length;
-        }
-        if (labels.Count == 0 || offset + 4 > data.Length) return false;
-        name = string.Join(".", labels);
-        type = ReadUInt16(data, offset);
-        queryClass = ReadUInt16(data, offset + 2);
-        return true;
-    }
-
-    private static int ReadUInt16(byte[] data, int offset) => (data[offset] << 8) | data[offset + 1];
 
     private static OpenResolverResult Failed(string server, int port, string error) => new() {
         Host = server,

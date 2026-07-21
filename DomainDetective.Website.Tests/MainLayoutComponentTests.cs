@@ -5,7 +5,7 @@ using System.Net.Http;
 
 namespace DomainDetective.Website.Tests;
 
-public sealed class MainLayoutComponentTests : TestContext {
+public sealed class MainLayoutComponentTests : BunitContext {
     public MainLayoutComponentTests() {
         JSInterop.SetupVoid("domainDetectiveTools.initTheme");
         JSInterop.SetupVoid("domainDetectiveTools.toggleTheme");
@@ -19,7 +19,7 @@ public sealed class MainLayoutComponentTests : TestContext {
     public void LayoutUsesFallbackNavigationWhenSharedSiteNavigationIsUnavailable() {
         RenderFragment body = builder => builder.AddMarkupContent(0, "<p>Body</p>");
 
-        var cut = RenderComponent<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
+        var cut = Render<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
             .Add(component => component.Body, body));
 
         var toolsLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Trim() == "Tools");
@@ -37,7 +37,7 @@ public sealed class MainLayoutComponentTests : TestContext {
     public void LayoutOpensMobileNavigationWhenToggleIsClicked() {
         RenderFragment body = builder => builder.AddMarkupContent(0, "<p>Body</p>");
 
-        var cut = RenderComponent<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
+        var cut = Render<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
             .Add(component => component.Body, body));
 
         cut.Find("button.dd-nav-toggle").Click();
@@ -52,7 +52,7 @@ public sealed class MainLayoutComponentTests : TestContext {
         navigation.NavigateTo("http://localhost/api/powershell/");
         RenderFragment body = builder => builder.AddMarkupContent(0, "<p>Body</p>");
 
-        var cut = RenderComponent<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
+        var cut = Render<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
             .Add(component => component.Body, body));
 
         var apiTrigger = cut.Find("button.dd-nav-dropdown-trigger");
@@ -66,7 +66,7 @@ public sealed class MainLayoutComponentTests : TestContext {
         navigation.NavigateTo("http://localhost/tools/dns-lookup/?q=contoso.com");
         RenderFragment body = builder => builder.AddMarkupContent(0, "<p>Body</p>");
 
-        var cut = RenderComponent<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
+        var cut = Render<DomainDetective.Website.Layout.MainLayout>(parameters => parameters
             .Add(component => component.Body, body));
 
         var toolsLink = cut.FindAll("a").Single(anchor => anchor.TextContent.Trim() == "Tools");

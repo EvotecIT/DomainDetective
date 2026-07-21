@@ -36,15 +36,15 @@ public class TestDnsHealthNarrative
                     };
                 }
             },
-            QueryUdpOverride = (ip, query, token) => Task.FromResult<byte[]?>(null)
+            QueryResponseOverride = (ip, query, token) => Task.FromResult<DnsResponse?>(null)
         };
         await analysis.Analyze("example.com", new InternalLogger());
         var sections = DnsHealthNarrative.Build(analysis);
         Assert.Contains(sections.Highlights, h => h.IndexOf("SOA serial numbers match", StringComparison.OrdinalIgnoreCase) >= 0);
         Assert.Contains(
             sections.Highlights,
-            h => h.IndexOf("authoritative servers responded", StringComparison.OrdinalIgnoreCase) >= 0);
+            h => h.IndexOf("did not respond", StringComparison.OrdinalIgnoreCase) >= 0);
         Assert.Contains(sections.Positives, p => p.IndexOf("SOA serial numbers", StringComparison.OrdinalIgnoreCase) >= 0);
-        Assert.Contains(sections.Positives, p => p.IndexOf("name servers responded", StringComparison.OrdinalIgnoreCase) >= 0);
+        Assert.DoesNotContain(sections.Positives, p => p.IndexOf("name servers responded", StringComparison.OrdinalIgnoreCase) >= 0);
     }
 }

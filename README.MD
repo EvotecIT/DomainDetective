@@ -24,6 +24,7 @@ Most PowerShell checks expose both a fully-prefixed cmdlet and a friendly alias.
 ## What It Covers
 
 - **DNS and infrastructure**: NS, SOA, MX, delegation, reverse DNS, FCrDNS, wildcard DNS, zone transfer, TTL, EDNS, open resolver, DNS over TLS, DNS health, DNS amplification, propagation, trace, and inventory.
+- **DNSSEC**: DnsClientX performs local chain, signature, and denial-proof validation; DomainDetective reports `Secure`, `Insecure`, `Bogus`, or `Indeterminate` without maintaining separate DNSSEC cryptography.
 - **Email authentication and transport**: SPF, DKIM, DMARC, ARC, BIMI, MTA-STS, TLS-RPT, SMTP TLS, STARTTLS, SMTP banner, SMTP auth posture, IMAP/POP3 TLS, open relay, email validation, and mail latency.
 - **Web and certificates**: HTTP posture, certificate analysis, DANE/TLSA, S/MIMEA, static website scans, redirect chains, third-party inventory, header checks, tracker hints, and technology fingerprints.
 - **Registry, routing, and reputation**: WHOIS, RDAP, RPKI, DNSBL, threat intel hooks, VirusTotal helpers, search engine checks, and domain suggestions/search.
@@ -850,7 +851,7 @@ using DnsClientX;
 var hc = new DomainDetective.DomainHealthCheck();
 hc.DnsEndpoints.Add(DnsEndpoint.CloudflareWireFormat);
 hc.DnsEndpoints.Add(DnsEndpoint.Google);
-hc.MultiResolverStrategy = DomainDetective.MultiResolverStrategy.FirstSuccess;
+hc.MultiResolverStrategy = MultiResolverStrategy.FirstSuccess;
 
 await hc.Verify("example.com", new[] { DomainDetective.HealthCheckType.SPF, DomainDetective.HealthCheckType.DNSSEC });
 

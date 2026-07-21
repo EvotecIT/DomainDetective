@@ -6,7 +6,7 @@ using System.Net.Http;
 
 namespace DomainDetective.Website.Tests;
 
-public sealed class ToolsPageComponentTests : TestContext {
+public sealed class ToolsPageComponentTests : BunitContext {
     public ToolsPageComponentTests() {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -26,7 +26,7 @@ public sealed class ToolsPageComponentTests : TestContext {
 
     [Fact]
     public void ToolsPageShowsSimpleCatalogAndLegendInStaticMode() {
-        var cut = RenderComponent<DomainDetective.Website.Pages.Tools>();
+        var cut = Render<DomainDetective.Website.Pages.Tools>();
 
         cut.WaitForAssertion(() => {
             Assert.Contains("Domain Analysis Tools", cut.Markup);
@@ -46,7 +46,7 @@ public sealed class ToolsPageComponentTests : TestContext {
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("http://localhost/tools/?domain=contoso.com");
 
-        RenderComponent<DomainDetective.Website.Pages.Tools>();
+        Render<DomainDetective.Website.Pages.Tools>();
 
         Assert.Equal("http://localhost/tools/domain-overview/?q=contoso.com", navigation.Uri);
     }
@@ -56,7 +56,7 @@ public sealed class ToolsPageComponentTests : TestContext {
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("http://localhost/tools/?q=evotec.pl");
 
-        var cut = RenderComponent<DomainDetective.Website.Pages.Tools>();
+        var cut = Render<DomainDetective.Website.Pages.Tools>();
 
         cut.WaitForAssertion(() => {
             Assert.Contains("/tools/spf/?q=evotec.pl", cut.Markup);
@@ -69,7 +69,7 @@ public sealed class ToolsPageComponentTests : TestContext {
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("http://localhost/tools/cert-check/?q=evotec.pl");
 
-        var cut = RenderComponent<DomainDetective.Website.Pages.Tools>(parameters => parameters
+        var cut = Render<DomainDetective.Website.Pages.Tools>(parameters => parameters
             .Add(component => component.ToolSlug, "cert-check"));
 
         cut.WaitForAssertion(() => {

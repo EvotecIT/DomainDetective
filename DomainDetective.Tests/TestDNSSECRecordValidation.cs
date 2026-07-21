@@ -6,12 +6,45 @@ using Xunit;
 namespace DomainDetective.Tests {
     public class TestDnssecRecordValidation {
         [Theory]
-        [InlineData("cloudflare.com", DnsRecordType.A, true)]
-        [InlineData("dnssec-failed.org", DnsRecordType.A, false)]
-        public async Task ValidateRecordForZone(string domain, DnsRecordType type, bool expected) {
-            var analysis = new DnsSecAnalysis();
-            bool result = await analysis.ValidateRecord(domain, type);
+        [InlineData(DnsSecValidationStatus.Secure, true)]
+        [InlineData(DnsSecValidationStatus.Insecure, false)]
+        [InlineData(DnsSecValidationStatus.Bogus, false)]
+        [InlineData(DnsSecValidationStatus.Indeterminate, false)]
+        public async Task ValidateRecordUsesLocalDnsClientXStatus(DnsSecValidationStatus status, bool expected) {
+            var response = new DnsResponse();
+            typeof(DnsResponse).GetProperty(nameof(DnsResponse.DnsSecValidationStatus))!
+                .SetValue(response, status);
+            var analysis = new DnsSecAnalysis {
+                QueryDnsResponseOverride = (_, _, _) => Task.FromResult(response)
+            };
+            bool result = await analysis.ValidateRecord("example.com", DnsRecordType.A);
             Assert.Equal(expected, result);
+        }
+
+        [Theory]
+        [InlineData(MultiResolverStrategy.FirstSuccess)]
+        [InlineData(MultiResolverStrategy.FastestWins)]
+        public void DnssecResolverHonorsConfiguredMultiResolverPolicy(MultiResolverStrategy strategy) {
+            using var configuration = new DnsConfiguration {
+                MultiResolverStrategy = strategy,
+                MultiResolverMaxParallelism = 2
+            };
+            configuration.DnsEndpoints.Add(DnsEndpoint.Cloudflare);
+            configuration.DnsEndpoints.Add(DnsEndpoint.Google);
+
+            MultiResolverOptions validationOptions = DnsSecAnalysis.CreateResolverOptions(
+                endpointCount: 4, dnsConfiguration: configuration, validateDnsSec: true);
+            MultiResolverOptions metadataOptions = DnsSecAnalysis.CreateResolverOptions(
+                endpointCount: 4, dnsConfiguration: configuration, validateDnsSec: false);
+
+            Assert.Equal(strategy, validationOptions.Strategy);
+            Assert.Equal(2, validationOptions.MaxParallelism);
+            Assert.True(validationOptions.RequestDnsSec);
+            Assert.True(validationOptions.ValidateDnsSec);
+            Assert.Equal(strategy, metadataOptions.Strategy);
+            Assert.Equal(2, metadataOptions.MaxParallelism);
+            Assert.True(metadataOptions.RequestDnsSec);
+            Assert.False(metadataOptions.ValidateDnsSec);
         }
 
         [Theory]
@@ -38,6 +71,7 @@ namespace DomainDetective.Tests {
             };
             await analysis.Analyze("cisco.com", null!);
             Assert.False(analysis.DsMatch);
+            Assert.False(analysis.ChainValid);
             Assert.Empty(analysis.DsRecords);
         }
 
@@ -61,6 +95,16 @@ namespace DomainDetective.Tests {
             Assert.Equal(DnsRecordType.TLSA, subjectType);
             Assert.False(analysis.SubjectAuthenticData);
             Assert.NotEqual(DnssecValidationStatus.Secure, analysis.ValidationStatus);
+        }
+
+        [Theory]
+        [InlineData(DnsSecValidationStatus.Secure, DnssecValidationStatus.Secure)]
+        [InlineData(DnsSecValidationStatus.Insecure, DnssecValidationStatus.Insecure)]
+        [InlineData(DnsSecValidationStatus.Bogus, DnssecValidationStatus.Bogus)]
+        [InlineData(DnsSecValidationStatus.Indeterminate, DnssecValidationStatus.Indeterminate)]
+        [InlineData(DnsSecValidationStatus.NotRequested, DnssecValidationStatus.NotChecked)]
+        public void UsesDnsClientXValidationStatus(DnsSecValidationStatus source, DnssecValidationStatus expected) {
+            Assert.Equal(expected, DnsSecAnalysis.MapValidationStatus(source));
         }
     }
 }

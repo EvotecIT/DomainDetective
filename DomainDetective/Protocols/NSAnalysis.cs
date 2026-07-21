@@ -66,8 +66,8 @@ namespace DomainDetective {
         /// <summary>Gets or sets the chaos hostname by server value.</summary>
         public Dictionary<string, string> ChaosHostnameByServer { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Optional override for raw UDP DNS queries (tests/offline).</summary>
-        public Func<IPAddress, byte[], CancellationToken, Task<byte[]?>>? QueryUdpOverride { get; set; }
+        /// <summary>Optional parsed-response override for direct CHAOS-class probes.</summary>
+        public Func<IPAddress, DnsMessage, CancellationToken, Task<DnsResponse?>>? QueryResponseOverride { get; set; }
 
         // ASN diversity (provider diversity)
         /// <summary>Gets or sets the asn by ip value.</summary>
@@ -398,226 +398,26 @@ namespace DomainDetective {
             }
         }
 
-        private static byte[] EncodeDomainName(string name, bool trailingDot) {
-            var parts = name.TrimEnd('.').Split('.');
-            using var ms = new System.IO.MemoryStream();
-            foreach (var part in parts) {
-                var bytes = System.Text.Encoding.ASCII.GetBytes(part);
-                ms.WriteByte((byte)bytes.Length);
-                ms.Write(bytes, 0, bytes.Length);
-            }
-            if (trailingDot) {
-                ms.WriteByte(0);
-            }
-            return ms.ToArray();
-        }
-
-        private static byte[] BuildQuery(string domain, ushort id) {
-            var header = new byte[12];
-            header[0] = (byte)(id >> 8);
-            header[1] = (byte)(id & 0xFF);
-            header[2] = 0x01;
-            header[5] = 0x01;
-            var qname = EncodeDomainName(domain, true);
-            var query = new byte[header.Length + qname.Length + 4];
-            Buffer.BlockCopy(header, 0, query, 0, header.Length);
-            Buffer.BlockCopy(qname, 0, query, header.Length, qname.Length);
-            var offset = header.Length + qname.Length;
-            query[offset] = 0x00;
-            query[offset + 1] = 0x01;
-            query[offset + 2] = 0x00;
-            query[offset + 3] = 0x01;
-            return query;
-        }
-
-        private static byte[] BuildChaosQuery(string name, ushort qtype, ushort qclass)
-        {
-            var header = new byte[12];
-            var id = Helpers.DnsQueryIdGenerator.NextUShort();
-            header[0] = (byte)(id >> 8);
-            header[1] = (byte)(id & 0xFF);
-            header[2] = 0x00; // no recursion desired
-            header[5] = 0x01; // QDCOUNT
-
-            var qname = EncodeDomainName(name, true);
-            var query = new byte[header.Length + qname.Length + 4];
-            Buffer.BlockCopy(header, 0, query, 0, header.Length);
-            Buffer.BlockCopy(qname, 0, query, header.Length, qname.Length);
-            var offset = header.Length + qname.Length;
-            query[offset] = (byte)(qtype >> 8);
-            query[offset + 1] = (byte)(qtype & 0xFF);
-            query[offset + 2] = (byte)(qclass >> 8);
-            query[offset + 3] = (byte)(qclass & 0xFF);
-            return query;
-        }
-
-        private static void SkipName(byte[] buffer, ref int offset)
-        {
-            int jumps = 0;
-            while (true)
-            {
-                if (offset >= buffer.Length)
-                {
-                    offset = buffer.Length;
-                    return;
-                }
-
-                var len = buffer[offset++];
-                if (len == 0)
-                {
-                    break;
-                }
-
-                if ((len & 0xC0) == 0xC0)
-                {
-                    if (offset < buffer.Length)
-                    {
-                        offset++;
-                    }
-                    break;
-                }
-
-                offset += len;
-                if (++jumps > 50)
-                {
-                    break;
-                }
-            }
-        }
-
-        private static ushort ReadUInt16(byte[] buffer, ref int offset)
-        {
-            if (offset + 2 > buffer.Length)
-            {
-                offset = buffer.Length;
-                return 0;
-            }
-            var v = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
-            offset += 2;
-            return v;
-        }
-
-        private static uint ReadUInt32(byte[] buffer, ref int offset)
-        {
-            if (offset + 4 > buffer.Length)
-            {
-                offset = buffer.Length;
-                return 0;
-            }
-            uint v = (uint)((buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]);
-            offset += 4;
-            return v;
-        }
-
-        private async Task<byte[]?> QueryUdp(IPAddress server, byte[] query, CancellationToken token, int timeoutMs)
-        {
-            if (QueryUdpOverride != null)
-            {
-                return await QueryUdpOverride(server, query, token);
-            }
-
-            using var udp = new System.Net.Sockets.UdpClient(
-                new IPEndPoint(server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
-            udp.Client.ReceiveTimeout = timeoutMs > 0 ? timeoutMs : 2500;
-
-#if NET8_0_OR_GREATER
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            cts.CancelAfter(timeoutMs > 0 ? timeoutMs : 2500);
-            await udp.SendAsync(query, new IPEndPoint(server, 53));
-            var res = await udp.ReceiveAsync(cts.Token);
-            return res.Buffer;
-#else
-            token.ThrowIfCancellationRequested();
-            var effectiveTimeoutMs = timeoutMs > 0 ? timeoutMs : 2500;
-
-            await udp.SendAsync(query, query.Length, new IPEndPoint(server, 53)).WaitWithCancellation(token);
-
-            var receiveTask = udp.ReceiveAsync();
-            var completed = await Task.WhenAny(receiveTask, Task.Delay(effectiveTimeoutMs, token)).ConfigureAwait(false);
-            if (completed != receiveTask) {
-                token.ThrowIfCancellationRequested();
-                return null;
-            }
-
-            var res = await receiveTask.ConfigureAwait(false);
-            return res.Buffer;
-#endif
-        }
-
-        private static string? ParseFirstTxtAnswer(byte[] data, ushort expectedClass)
-        {
-            if (data == null || data.Length < 12)
-            {
-                return null;
-            }
-
-            int offset = 0;
-            offset += 4; // id+flags
-            var qd = ReadUInt16(data, ref offset);
-            var an = ReadUInt16(data, ref offset);
-            var ns = ReadUInt16(data, ref offset);
-            var ar = ReadUInt16(data, ref offset);
-
-            offset = 12;
-            for (int i = 0; i < qd; i++)
-            {
-                SkipName(data, ref offset);
-                offset += 4; // type + class
-                if (offset >= data.Length)
-                {
-                    return null;
-                }
-            }
-
-            int rrCount = an + ns + ar;
-            for (int i = 0; i < rrCount; i++)
-            {
-                SkipName(data, ref offset);
-                var type = ReadUInt16(data, ref offset);
-                var rrClass = ReadUInt16(data, ref offset);
-                _ = ReadUInt32(data, ref offset); // ttl
-                var rdlen = ReadUInt16(data, ref offset);
-                if (offset + rdlen > data.Length)
-                {
-                    return null;
-                }
-
-                if (type == 16 && rrClass == expectedClass)
-                {
-                    int end = offset + rdlen;
-                    var parts = new List<string>();
-                    while (offset < end)
-                    {
-                        int len = data[offset++];
-                        if (len <= 0 || offset + len > end)
-                        {
-                            break;
-                        }
-                        var s = System.Text.Encoding.ASCII.GetString(data, offset, len);
-                        parts.Add(s);
-                        offset += len;
-                    }
-                    return string.Join(string.Empty, parts).Trim();
-                }
-
-                offset += rdlen;
-            }
-
-            return null;
-        }
-
         private async Task<string?> QueryChaosTxtAsync(IPAddress server, string name, InternalLogger logger, CancellationToken token)
         {
             try
             {
-                var query = BuildChaosQuery(name, qtype: 16, qclass: 3); // TXT, CH
                 var timeout = ChaosQueryTimeoutMs > 0 ? ChaosQueryTimeoutMs : 2500;
-                var buf = await QueryUdp(server, query, token, timeout);
-                if (buf == null)
-                {
-                    return null;
+                var query = new DnsMessage(name, DnsRecordType.TXT, new DnsMessageOptions(
+                    RecursionDesired: false,
+                    QueryClass: 3));
+                DnsResponse? response;
+                if (QueryResponseOverride != null) {
+                    response = await QueryResponseOverride(server, query, token).ConfigureAwait(false);
+                } else {
+                    DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
+                        server.ToString(), 53, query, timeout, useTcpFallback: true, cancellationToken: token).ConfigureAwait(false);
+                    response = result.Response;
                 }
-                return ParseFirstTxtAnswer(buf, expectedClass: 3);
+                return (response?.Answers ?? Array.Empty<DnsAnswer>())
+                    .Where(answer => answer.Type == DnsRecordType.TXT)
+                    .Select(answer => answer.Data ?? answer.DataRaw)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
             }
             catch (OperationCanceledException)
             {
@@ -686,14 +486,11 @@ namespace DomainDetective {
                 return await recursionTestOverride(server);
             }
             try {
-                using var udp = new System.Net.Sockets.UdpClient();
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
-                var id = Helpers.DnsQueryIdGenerator.NextUShort();
-                var query = BuildQuery("example.com", id);
-                await udp.SendAsync(query, query.Length, server, 53).WaitWithCancellation(cts.Token);
-                var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token);
-                var data = result.Buffer;
-                return data.Length > 3 && (data[3] & 0x80) != 0;
+                var query = new DnsMessage("example.com", DnsRecordType.A, new DnsMessageOptions(RecursionDesired: true));
+                DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
+                    server, 53, query, 5000, useTcpFallback: false, cancellationToken: cts.Token).ConfigureAwait(false);
+                return result.Response.IsRecursionAvailable;
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
