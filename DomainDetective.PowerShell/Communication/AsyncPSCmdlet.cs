@@ -4,217 +4,390 @@ using System.Management.Automation;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DomainDetective.PowerShell {
-    /// <summary>
-    /// Base class for asynchronous PowerShell cmdlets.
-    /// </summary>
-    public abstract class AsyncPSCmdlet : PSCmdlet, IDisposable {
-        /// <summary>
-        /// Types of pipeline messages handled by <see cref="AsyncPSCmdlet"/>.
-        /// </summary>
-        private enum PipelineType {
-            Output,
-            OutputEnumerate,
-            Error,
-            Warning,
-            Verbose,
-            Debug,
-            Information,
-            Progress,
+namespace DomainDetective.PowerShell;
+
+/// <summary>
+/// Base class for cmdlets that await asynchronous engine work while routing PowerShell pipeline writes
+/// back through the synchronous cmdlet pipeline thread.
+/// </summary>
+/// <remarks>
+/// Invoke asynchronous hooks on the PowerShell pipeline thread until their first incomplete await.
+/// The base temporarily replaces the host synchronization context with an internal thread-pool
+/// context while invoking each hook. This prevents continuations from capturing either the host
+/// context or a custom task scheduler that may be running the PowerShell pipeline thread.
+/// Keep hook implementations asynchronous all the way through and pass <see cref="CancelToken"/> to
+/// cancellable engine operations. Do not block with Task.Wait, Task.Result, or Task.WaitAll.
+/// </remarks>
+public abstract class AsyncPSCmdlet : PSCmdlet, IDisposable
+{
+    private sealed class AsyncHookSynchronizationContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state)
+            => ThreadPool.QueueUserWorkItem(_ => callback(state));
+    }
+
+    private enum PipelineType
+    {
+        Output,
+        OutputEnumerate,
+        Error,
+        TerminatingError,
+        Warning,
+        Verbose,
+        Debug,
+        Information,
+        Progress,
+        ShouldProcess,
+        ShouldContinue,
+        PromptForCredential
+    }
+
+    private sealed class PipelineItem
+    {
+        public PipelineItem(object? value, PipelineType type, BlockingCollection<object?>? replyPipe = null)
+        {
+            Value = value;
+            Type = type;
+            ReplyPipe = replyPipe;
         }
 
-        private CancellationTokenSource _cancelSource = new();
+        public object? Value { get; }
 
-        private BlockingCollection<(object?, PipelineType)>? _currentPipe;
+        public PipelineType Type { get; }
 
-        /// <summary>
-        /// Gets the cancellation token for the cmdlet execution.
-        /// </summary>
-        protected CancellationToken CancelToken { get => _cancelSource.Token; }
+        public BlockingCollection<object?>? ReplyPipe { get; }
+    }
 
-        /// <summary>
-        /// Invoked when the cmdlet begins execution.
-        /// Runs <see cref="BeginProcessingAsync"/> within the asynchronous pipeline.
-        /// </summary>
-        protected override void BeginProcessing()
-            => RunBlockInAsync(BeginProcessingAsync);
+    private readonly CancellationTokenSource _cancelSource = new();
+    private static readonly SynchronizationContext HookSynchronizationContext = new AsyncHookSynchronizationContext();
+    private BlockingCollection<PipelineItem>? _currentOutPipe;
+    private int _pipelineThreadId;
 
-        /// <summary>
-        /// Performs initialization logic for the cmdlet.
-        /// </summary>
-        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
-        protected virtual Task BeginProcessingAsync()
-            => Task.CompletedTask;
+    /// <summary>Cancellation token triggered when PowerShell stops the cmdlet.</summary>
+    protected internal CancellationToken CancelToken => _cancelSource.Token;
 
-        /// <summary>
-        /// Processes input records synchronously and dispatches <see cref="ProcessRecordAsync"/>.
-        /// </summary>
-        protected override void ProcessRecord()
-            => RunBlockInAsync(ProcessRecordAsync);
+    /// <inheritdoc />
+    protected override void BeginProcessing()
+        => RunBlockInAsync(BeginProcessingAsync);
 
-        /// <summary>
-        /// Executes the main cmdlet logic.
-        /// </summary>
-        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
-        protected virtual Task ProcessRecordAsync()
-            => Task.CompletedTask;
+    /// <summary>Asynchronous begin hook.</summary>
+    protected virtual Task BeginProcessingAsync()
+        => Task.CompletedTask;
 
-        /// <summary>
-        /// Invoked once when processing has completed.
-        /// Runs <see cref="EndProcessingAsync"/> within the asynchronous pipeline.
-        /// </summary>
-        protected override void EndProcessing()
-            => RunBlockInAsync(EndProcessingAsync);
+    /// <inheritdoc />
+    protected override void ProcessRecord()
+        => RunBlockInAsync(ProcessRecordAsync);
 
-        /// <summary>
-        /// Performs cleanup logic for the cmdlet.
-        /// </summary>
-        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
-        protected virtual Task EndProcessingAsync()
-            => Task.CompletedTask;
+    /// <summary>Asynchronous process-record hook.</summary>
+    protected virtual Task ProcessRecordAsync()
+        => Task.CompletedTask;
 
-        /// <summary>
-        /// Requests cancellation of the cmdlet execution.
-        /// </summary>
-        protected override void StopProcessing()
-            => _cancelSource?.Cancel();
+    /// <inheritdoc />
+    protected override void EndProcessing()
+        => RunBlockInAsync(EndProcessingAsync);
 
-        private void RunBlockInAsync(Func<Task> task) {
-            using BlockingCollection<(object?, PipelineType)> pipe = new();
-            Task blockTask = Task.Run(async () => {
-                try {
-                    _currentPipe = pipe;
-                    await task();
-                } finally {
-                    _currentPipe = null;
-                    pipe.CompleteAdding();
-                }
-            });
+    /// <summary>Asynchronous end hook.</summary>
+    protected virtual Task EndProcessingAsync()
+        => Task.CompletedTask;
 
-            foreach ((object? data, PipelineType pipelineType) in pipe.GetConsumingEnumerable()) {
-                switch (pipelineType) {
-                    case PipelineType.Output:
-                        base.WriteObject(data);
-                        break;
+    /// <inheritdoc />
+    protected override void StopProcessing()
+        => _cancelSource.Cancel();
 
-                    case PipelineType.OutputEnumerate:
-                        base.WriteObject(data, true);
-                        break;
+    /// <summary>Thread-safe ShouldProcess bridge for asynchronous cmdlet code.</summary>
+    public new bool ShouldProcess(string? target, string action)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+            return base.ShouldProcess(target ?? string.Empty, action);
 
-                    case PipelineType.Error:
-                        base.WriteError((ErrorRecord)data!);
-                        break;
+        using var replyPipe = new BlockingCollection<object?>(boundedCapacity: 1);
+        _currentOutPipe.Add(new PipelineItem((target ?? string.Empty, action), PipelineType.ShouldProcess, replyPipe), CancelToken);
+        return (bool)replyPipe.Take(CancelToken)!;
+    }
 
-                    case PipelineType.Warning:
-                        base.WriteWarning((string)data!);
-                        break;
+    /// <summary>Thread-safe ShouldContinue bridge for asynchronous cmdlet code.</summary>
+    public new bool ShouldContinue(string query, string caption)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+            return base.ShouldContinue(query, caption);
 
-                    case PipelineType.Verbose:
-                        base.WriteVerbose((string)data!);
-                        break;
+        using var replyPipe = new BlockingCollection<object?>(boundedCapacity: 1);
+        _currentOutPipe.Add(new PipelineItem((query, caption), PipelineType.ShouldContinue, replyPipe), CancelToken);
+        return (bool)replyPipe.Take(CancelToken)!;
+    }
 
-                    case PipelineType.Debug:
-                        base.WriteDebug((string)data!);
-                        break;
+    /// <summary>Thread-safe credential prompt bridge for asynchronous cmdlet code.</summary>
+    public PSCredential? PromptForCredential(string caption, string message, string userName, string targetName)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+            return Host.UI.PromptForCredential(caption, message, userName, targetName);
 
-                    case PipelineType.Information:
-                        base.WriteInformation((InformationRecord)data!);
-                        break;
+        using var replyPipe = new BlockingCollection<object?>(boundedCapacity: 1);
+        _currentOutPipe.Add(new PipelineItem((caption, message, userName, targetName), PipelineType.PromptForCredential, replyPipe), CancelToken);
+        return (PSCredential?)replyPipe.Take(CancelToken);
+    }
 
-                    case PipelineType.Progress:
-                        base.WriteProgress((ProgressRecord)data!);
-                        break;
-                }
+    /// <summary>Thread-safe output bridge for asynchronous cmdlet code.</summary>
+    public new void WriteObject(object? sendToPipeline)
+        => WriteObject(sendToPipeline, enumerateCollection: false);
+
+    /// <summary>Thread-safe output bridge for asynchronous cmdlet code.</summary>
+    public new void WriteObject(object? sendToPipeline, bool enumerateCollection)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+        {
+            base.WriteObject(sendToPipeline, enumerateCollection);
+            return;
+        }
+
+        _currentOutPipe.Add(new PipelineItem(sendToPipeline, enumerateCollection ? PipelineType.OutputEnumerate : PipelineType.Output), CancelToken);
+    }
+
+    /// <summary>Thread-safe error bridge for asynchronous cmdlet code.</summary>
+    public new void WriteError(ErrorRecord errorRecord)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+        {
+            base.WriteError(errorRecord);
+            return;
+        }
+
+        _currentOutPipe.Add(new PipelineItem(errorRecord, PipelineType.Error), CancelToken);
+    }
+
+    /// <summary>Thread-safe terminating-error bridge for asynchronous cmdlet code.</summary>
+    protected new void ThrowTerminatingError(ErrorRecord errorRecord)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+        {
+            base.ThrowTerminatingError(errorRecord);
+            return;
+        }
+
+        _currentOutPipe.Add(new PipelineItem(errorRecord, PipelineType.TerminatingError), CancelToken);
+        throw new PipelineStoppedException();
+    }
+
+    /// <summary>Thread-safe warning bridge for asynchronous cmdlet code.</summary>
+    public new void WriteWarning(string text)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+        {
+            base.WriteWarning(text);
+            return;
+        }
+
+        _currentOutPipe.Add(new PipelineItem(text, PipelineType.Warning), CancelToken);
+    }
+
+    /// <summary>Thread-safe verbose bridge for asynchronous cmdlet code.</summary>
+    public new void WriteVerbose(string text)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+        {
+            base.WriteVerbose(text);
+            return;
+        }
+
+        _currentOutPipe.Add(new PipelineItem(text, PipelineType.Verbose), CancelToken);
+    }
+
+    /// <summary>Thread-safe debug bridge for asynchronous cmdlet code.</summary>
+    public new void WriteDebug(string text)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+        {
+            base.WriteDebug(text);
+            return;
+        }
+
+        _currentOutPipe.Add(new PipelineItem(text, PipelineType.Debug), CancelToken);
+    }
+
+    /// <summary>Thread-safe information bridge for asynchronous cmdlet code.</summary>
+    public new void WriteInformation(InformationRecord informationRecord)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+        {
+            base.WriteInformation(informationRecord);
+            return;
+        }
+
+        _currentOutPipe.Add(new PipelineItem(informationRecord, PipelineType.Information), CancelToken);
+    }
+
+    /// <summary>Thread-safe progress bridge for asynchronous cmdlet code.</summary>
+    public new void WriteProgress(ProgressRecord progressRecord)
+    {
+        ThrowIfStopped();
+        if (_currentOutPipe is null || IsPipelineThread)
+        {
+            base.WriteProgress(progressRecord);
+            return;
+        }
+
+        _currentOutPipe.Add(new PipelineItem(progressRecord, PipelineType.Progress), CancelToken);
+    }
+
+    /// <summary>Throws when PowerShell has requested cancellation.</summary>
+    protected internal void ThrowIfStopped()
+    {
+        if (_cancelSource.IsCancellationRequested)
+            throw new PipelineStoppedException();
+    }
+
+    /// <inheritdoc />
+    public virtual void Dispose()
+        => _cancelSource.Dispose();
+
+    private bool IsPipelineThread
+        => _pipelineThreadId != 0 && Environment.CurrentManagedThreadId == _pipelineThreadId;
+
+    private void RunBlockInAsync(Func<Task> task)
+    {
+        using var outPipe = new BlockingCollection<PipelineItem>();
+        Task blockTask;
+
+        void ClearPipes()
+        {
+            _currentOutPipe = null;
+            _pipelineThreadId = 0;
+            CompleteAddingIfNeeded(outPipe);
+        }
+
+        static void CompleteAddingIfNeeded<T>(BlockingCollection<T> pipe)
+        {
+            if (!pipe.IsAddingCompleted)
+                pipe.CompleteAdding();
+        }
+
+        void PumpItem(PipelineItem item)
+        {
+            switch (item.Type)
+            {
+                case PipelineType.Output:
+                    base.WriteObject(item.Value);
+                    break;
+                case PipelineType.OutputEnumerate:
+                    base.WriteObject(item.Value, enumerateCollection: true);
+                    break;
+                case PipelineType.Error:
+                    base.WriteError((ErrorRecord)item.Value!);
+                    break;
+                case PipelineType.TerminatingError:
+                    base.ThrowTerminatingError((ErrorRecord)item.Value!);
+                    break;
+                case PipelineType.Warning:
+                    base.WriteWarning((string)item.Value!);
+                    break;
+                case PipelineType.Verbose:
+                    base.WriteVerbose((string)item.Value!);
+                    break;
+                case PipelineType.Debug:
+                    base.WriteDebug((string)item.Value!);
+                    break;
+                case PipelineType.Information:
+                    base.WriteInformation((InformationRecord)item.Value!);
+                    break;
+                case PipelineType.Progress:
+                    base.WriteProgress((ProgressRecord)item.Value!);
+                    break;
+                case PipelineType.ShouldProcess:
+                    var should = ((string Target, string Action))item.Value!;
+                    item.ReplyPipe!.Add(base.ShouldProcess(should.Target, should.Action), CancelToken);
+                    break;
+                case PipelineType.ShouldContinue:
+                    var shouldContinue = ((string Query, string Caption))item.Value!;
+                    item.ReplyPipe!.Add(base.ShouldContinue(shouldContinue.Query, shouldContinue.Caption), CancelToken);
+                    break;
+                case PipelineType.PromptForCredential:
+                    var prompt = ((string Caption, string Message, string UserName, string TargetName))item.Value!;
+                    item.ReplyPipe!.Add(
+                        Host.UI.PromptForCredential(prompt.Caption, prompt.Message, prompt.UserName, prompt.TargetName),
+                        CancelToken);
+                    break;
+            }
+        }
+
+        void PumpQueuedItems()
+        {
+            while (outPipe.TryTake(out var item))
+                PumpItem(item);
+        }
+
+        _pipelineThreadId = Environment.CurrentManagedThreadId;
+        _currentOutPipe = outPipe;
+
+        var synchronizationContext = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(HookSynchronizationContext);
+            blockTask = task();
+        }
+        catch
+        {
+            ClearPipes();
+            throw;
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(synchronizationContext);
+        }
+
+        if (blockTask.IsCompleted)
+        {
+            CompleteAddingIfNeeded(outPipe);
+            try
+            {
+                PumpQueuedItems();
+            }
+            finally
+            {
+                ClearPipes();
             }
 
             blockTask.GetAwaiter().GetResult();
+            return;
         }
 
-        /// <summary>
-        /// Writes an object to the pipeline.
-        /// </summary>
-        /// <param name="sendToPipeline">Object to write.</param>
-        public new void WriteObject(object? sendToPipeline) => WriteObject(sendToPipeline, false);
+        _ = blockTask.ContinueWith(
+            completed => ClearPipes(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
 
-        /// <summary>
-        /// Writes an object to the pipeline with optional enumeration.
-        /// </summary>
-        /// <param name="sendToPipeline">Object to write.</param>
-        /// <param name="enumerateCollection">True to enumerate collections.</param>
-        public new void WriteObject(object? sendToPipeline, bool enumerateCollection) {
-            ThrowIfStopped();
-            _currentPipe?.Add(
-                (sendToPipeline, enumerateCollection ? PipelineType.OutputEnumerate : PipelineType.Output));
-        }
-
-        /// <summary>
-        /// Writes an error record to the pipeline.
-        /// </summary>
-        /// <param name="errorRecord">The error record.</param>
-        public new void WriteError(ErrorRecord errorRecord) {
-            ThrowIfStopped();
-            _currentPipe?.Add((errorRecord, PipelineType.Error));
-        }
-
-        /// <summary>
-        /// Writes a warning message to the pipeline.
-        /// </summary>
-        /// <param name="message">The warning message.</param>
-        public new void WriteWarning(string message) {
-            ThrowIfStopped();
-            _currentPipe?.Add((message, PipelineType.Warning));
-        }
-
-        /// <summary>
-        /// Writes a verbose message to the pipeline.
-        /// </summary>
-        /// <param name="message">The verbose message.</param>
-        public new void WriteVerbose(string message) {
-            ThrowIfStopped();
-            _currentPipe?.Add((message, PipelineType.Verbose));
-        }
-
-        /// <summary>
-        /// Writes a debug message to the pipeline.
-        /// </summary>
-        /// <param name="message">The debug message.</param>
-        public new void WriteDebug(string message) {
-            ThrowIfStopped();
-            _currentPipe?.Add((message, PipelineType.Debug));
-        }
-
-        /// <summary>
-        /// Writes an information record to the pipeline.
-        /// </summary>
-        /// <param name="informationRecord">The information record.</param>
-        public new void WriteInformation(InformationRecord informationRecord) {
-            ThrowIfStopped();
-            _currentPipe?.Add((informationRecord, PipelineType.Information));
-        }
-
-        /// <summary>
-        /// Writes a progress record to the pipeline.
-        /// </summary>
-        /// <param name="progressRecord">The progress record.</param>
-        public new void WriteProgress(ProgressRecord progressRecord) {
-            ThrowIfStopped();
-            _currentPipe?.Add((progressRecord, PipelineType.Progress));
-        }
-
-        /// <summary>
-        /// Throws if the cmdlet execution has been stopped.
-        /// </summary>
-        internal void ThrowIfStopped() {
-            if (_cancelSource.IsCancellationRequested) {
-                throw new PipelineStoppedException();
+        try
+        {
+            foreach (var item in outPipe.GetConsumingEnumerable(CancelToken))
+            {
+                PumpItem(item);
             }
         }
+        catch
+        {
+            _cancelSource.Cancel();
+            CompleteAddingIfNeeded(outPipe);
+            try
+            {
+                blockTask.GetAwaiter().GetResult();
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or PipelineStoppedException)
+            {
+            }
 
-        /// <summary>
-        /// Disposes managed resources.
-        /// </summary>
-        public void Dispose() {
-            _cancelSource?.Dispose();
+            throw;
         }
+
+        blockTask.GetAwaiter().GetResult();
     }
 }
