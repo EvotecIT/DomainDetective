@@ -298,27 +298,23 @@ public static partial class ExcelCompositionReport {
         SheetIndex.AddBackLinks(doc, tocSheetName: "Index", row: 2, col: 1, text: "← Index");
 
         doc.Save();
-//#if NET8_0
-        // try
-        // {
 
+#if NET8_0_OR_GREATER
         Console.WriteLine($"Validating generated Excel document: {path}");
-            var errs = doc.ValidateDocument();
-            if (errs.Count > 0)
+        var errs = doc.ValidateDocument();
+        if (errs.Count > 0)
+        {
+            Console.WriteLine($"Validation found {errs.Count} issues; see '{Path.ChangeExtension(path, ".xlsx.validation.txt")}' for details.");
+            foreach (var e in errs)
             {
-                Console.WriteLine($"Validation found {errs.Count} issues; see '{Path.ChangeExtension(path, ".xlsx.validation.txt")}' for details.");
-                foreach (var e in errs)
-                {
-                    Console.WriteLine($"{e.ErrorType}: {e.Description} at {e.Path?.XPath}");
-                }
-                var report = string.Join(Environment.NewLine, errs.Select(e => $"{e.ErrorType}: {e.Description} at {e.Path?.XPath}"));
-                File.WriteAllText(Path.ChangeExtension(path, ".xlsx.validation.txt"), report);
-            } else {
-                Console.WriteLine("No validation issues found.");
+                Console.WriteLine($"{e.ErrorType}: {e.Description} at {e.Path?.XPath}");
             }
-        // }
-        // catch { }
-//#endif
+            var report = string.Join(Environment.NewLine, errs.Select(e => $"{e.ErrorType}: {e.Description} at {e.Path?.XPath}"));
+            File.WriteAllText(Path.ChangeExtension(path, ".xlsx.validation.txt"), report);
+        } else {
+            Console.WriteLine("No validation issues found.");
+        }
+#endif
     }
 
 }

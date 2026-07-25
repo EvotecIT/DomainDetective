@@ -209,8 +209,28 @@ if (`$null -eq `$coreAssembly) {
 @(`$spf) | Export-DDSecurityReport -ExportFormat Word, Excel, MarkdownHtml -ExportPath '$reportBaseLiteral' -OpenReport:`$false | Out-Null
 "@
         $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
-        $output = & $windowsPowerShell.Source -NoProfile -ExecutionPolicy Bypass -EncodedCommand $encoded 2>&1
-        $LASTEXITCODE | Should -Be 0 -Because ($output -join [Environment]::NewLine)
+        $standardOutput = Join-Path $TestDrive 'packaged-officeimo-desktop.stdout.txt'
+        $standardError = Join-Path $TestDrive 'packaged-officeimo-desktop.stderr.txt'
+        $process = Start-Process -FilePath $windowsPowerShell.Source `
+            -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput $standardOutput `
+            -RedirectStandardError $standardError `
+            -Wait `
+            -PassThru
+        try {
+            $output = @(
+                if (Test-Path -LiteralPath $standardOutput) {
+                    Get-Content -LiteralPath $standardOutput
+                }
+                if (Test-Path -LiteralPath $standardError) {
+                    Get-Content -LiteralPath $standardError
+                }
+            )
+            $process.ExitCode | Should -Be 0 -Because ($output -join [Environment]::NewLine)
+        } finally {
+            $process.Dispose()
+        }
 
         $wordPath = [IO.Path]::ChangeExtension($reportBase, '.docx')
         $excelPath = [IO.Path]::ChangeExtension($reportBase, '.xlsx')
