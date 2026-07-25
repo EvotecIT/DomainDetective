@@ -1,3 +1,4 @@
+using System;
 using System.Management.Automation;
 using System.Threading.Tasks;
 using System.Linq;
@@ -112,14 +113,16 @@ namespace DomainDetective.PowerShell {
                 var httpUrl = $"http://{input}";
                 var httpsUrl = $"https://{input}";
                 try {
-                    await _healthCheck.VerifyWebStaticScan(httpUrl);
+                    await _healthCheck.VerifyWebStaticScan(httpUrl, CancelToken);
                     startUrl = httpUrl;
+                } catch (OperationCanceledException) when (CancelToken.IsCancellationRequested) {
+                    throw;
                 } catch {
-                    await _healthCheck.VerifyWebStaticScan(httpsUrl);
+                    await _healthCheck.VerifyWebStaticScan(httpsUrl, CancelToken);
                     startUrl = httpsUrl;
                 }
             } else {
-                await _healthCheck.VerifyWebStaticScan(startUrl);
+                await _healthCheck.VerifyWebStaticScan(startUrl, CancelToken);
             }
             var ws = _healthCheck.WebStaticScanAnalysis;
             try {
