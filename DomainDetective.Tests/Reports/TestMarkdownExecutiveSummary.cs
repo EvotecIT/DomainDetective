@@ -28,6 +28,39 @@ namespace DomainDetective.Tests.Reports
             Assert.Contains("chain=valid", text, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("All valid (2/2)", text, StringComparison.OrdinalIgnoreCase);
         }
+
+        [Fact]
+        public void MarkdownHtml_Generates_Portable_Html_And_Markdown()
+        {
+            var items = new List<object>
+            {
+                new DomainDetective.Views.MxInfo { Subject = "example.org", Status = "OK" },
+                new DomainDetective.Views.SpfRecordInfo { Subject = "example.org", Status = "OK" }
+            };
+            var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var htmlPath = Path.Combine(directory, "report.html");
+
+            try
+            {
+                MarkdownCompositionReport.GenerateMarkdownHtml(
+                    htmlPath,
+                    items,
+                    DomainDetective.Reports.ReportScope.Detailed);
+
+                var markdownPath = Path.ChangeExtension(htmlPath, ".md");
+                Assert.True(File.Exists(htmlPath));
+                Assert.True(File.Exists(markdownPath));
+                Assert.Contains("<!doctype html>", File.ReadAllText(htmlPath), StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Executive Summary", File.ReadAllText(markdownPath), StringComparison.OrdinalIgnoreCase);
+            }
+            finally
+            {
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+            }
+        }
     }
 }
 

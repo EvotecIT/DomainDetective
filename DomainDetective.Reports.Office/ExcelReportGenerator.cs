@@ -78,7 +78,7 @@ public class ExcelReportGenerator : IReportGenerator {
             }
 
             s.SectionWithAnchor("Overview")
-                .DefinitionList(new (string, object?)[] {
+                .PropertiesGrid(new (string, object?)[] {
                     ("Domain", domain),
                     ("Status", (err > 0) ? "Error" : (warn > 0 ? "Warning" : "OK")),
                     ("Warnings", warn), ("Errors", err)

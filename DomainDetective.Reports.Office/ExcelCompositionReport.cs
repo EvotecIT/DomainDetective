@@ -51,7 +51,7 @@ public static partial class ExcelCompositionReport {
                 var s = new SheetComposer(doc, name);
                 s.Title($"Mail & DNS — {name}");
             s.SectionWithAnchor("Overview");
-            s.DefinitionList(new (string, object?)[] {
+            s.PropertiesGrid(new (string, object?)[] {
                 ("MX", b.Mx?.Status ?? "-"),
                 ("SPF", b.Spf?.Status ?? "-"),
                 ("DKIM", DomainDetective.Reports.DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true)),
@@ -297,7 +297,7 @@ public static partial class ExcelCompositionReport {
         SheetIndex.Add(doc, sheetName: "Index", placeFirst: true, includeNamedRanges: false);
         SheetIndex.AddBackLinks(doc, tocSheetName: "Index", row: 2, col: 1, text: "← Index");
 
-        doc.SafeSave();
+        doc.Save();
 //#if NET8_0
         // try
         // {
