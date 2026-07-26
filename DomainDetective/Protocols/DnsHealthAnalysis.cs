@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,8 +18,8 @@ namespace DomainDetective {
         /// <summary>Gets or sets the dns configuration value.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
-        /// <summary>Gets or sets the query udp override value.</summary>
-        public Func<IPAddress, byte[], CancellationToken, Task<byte[]?>>? QueryUdpOverride { get; set; }
+        /// <summary>Optional parsed-response override for direct authoritative probes.</summary>
+        public Func<IPAddress, DnsMessage, CancellationToken, Task<DnsResponse?>>? QueryResponseOverride { get; set; }
 
         /// <summary>Gets or sets the name servers value.</summary>
         public List<string> NameServers { get; private set; } = new();
@@ -40,8 +39,8 @@ namespace DomainDetective {
         /// <summary>Gets the assessments value.</summary>
         public List<Assessment> Assessments { get; } = new();
 
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
-            return await DnsConfiguration.QueryDNS(name, type);
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken) {
+            return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>Executes the analyze operation.</summary>
@@ -56,19 +55,19 @@ namespace DomainDetective {
             ServersResponsive = true;
 
             // Discover NS hostnames and their addresses
-            var nsAnswers = await QueryDns(domainName, DnsRecordType.NS);
+            var nsAnswers = await QueryDns(domainName, DnsRecordType.NS, cancellationToken).ConfigureAwait(false);
             var nsHosts = nsAnswers.Select(a => a.Data.Trim('.')).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             NameServers.AddRange(nsHosts);
             var nsIps = new List<(string host, IPAddress ip)>();
             foreach (var ns in nsHosts) {
                 cancellationToken.ThrowIfCancellationRequested();
-                var a = await QueryDns(ns, DnsRecordType.A);
+                var a = await QueryDns(ns, DnsRecordType.A, cancellationToken).ConfigureAwait(false);
                 foreach (var ans in a) {
                     if (IPAddress.TryParse(ans.Data, out var ip)) {
                         nsIps.Add((ns, ip));
                     }
                 }
-                var aaaa = await QueryDns(ns, DnsRecordType.AAAA);
+                var aaaa = await QueryDns(ns, DnsRecordType.AAAA, cancellationToken).ConfigureAwait(false);
                 foreach (var ans in aaaa) {
                     if (IPAddress.TryParse(ans.Data, out var ip6)) {
                         nsIps.Add((ns, ip6));
@@ -132,160 +131,41 @@ namespace DomainDetective {
             }
         }
 
-        private static byte[] EncodeDomainName(string name, bool trailingDot) {
-            var parts = name.TrimEnd('.').Split('.');
-            using var ms = new System.IO.MemoryStream();
-            foreach (var part in parts) {
-                var bytes = System.Text.Encoding.ASCII.GetBytes(part);
-                ms.WriteByte((byte)bytes.Length);
-                ms.Write(bytes, 0, bytes.Length);
+        private async Task<DnsResponse?> QueryAuthoritativeAsync(IPAddress server, DnsMessage query,
+            CancellationToken token) {
+            if (QueryResponseOverride != null) {
+                return await QueryResponseOverride(server, query, token).ConfigureAwait(false);
             }
-            if (trailingDot) {
-                ms.WriteByte(0);
-            }
-            return ms.ToArray();
-        }
-
-        private static byte[] BuildQuery(string domain, ushort qtype) {
-            var header = new byte[12];
-            var id = Helpers.DnsQueryIdGenerator.NextUShort();
-            header[0] = (byte)(id >> 8);
-            header[1] = (byte)(id & 0xFF);
-            header[2] = 0x01; // RD
-            header[5] = 0x01; // QDCOUNT
-            var qname = EncodeDomainName(domain, true);
-            var query = new byte[header.Length + qname.Length + 4];
-            Buffer.BlockCopy(header, 0, query, 0, header.Length);
-            Buffer.BlockCopy(qname, 0, query, header.Length, qname.Length);
-            var offset = header.Length + qname.Length;
-            query[offset] = (byte)(qtype >> 8);
-            query[offset + 1] = (byte)(qtype & 0xFF);
-            query[offset + 2] = 0x00;
-            query[offset + 3] = 0x01; // IN
-            return query;
-        }
-
-        private static void SkipName(byte[] buffer, ref int offset) {
-            int jumps = 0;
-            while (true) {
-                if (offset >= buffer.Length) { offset = buffer.Length; return; }
-                var len = buffer[offset++];
-                if (len == 0) break;
-                if ((len & 0xC0) == 0xC0) { if (offset < buffer.Length) offset++; break; }
-                offset += len;
-                if (++jumps > 50) break;
-            }
-        }
-
-        private static ushort ReadUInt16(byte[] buffer, ref int offset) {
-            if (offset + 2 > buffer.Length) return 0;
-            var val = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
-            offset += 2; return val;
-        }
-        private static uint ReadUInt32(byte[] buffer, ref int offset) {
-            if (offset + 4 > buffer.Length) return 0;
-            var v = (uint)((buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]);
-            offset += 4; return v;
-        }
-
-        private async Task<byte[]?> QueryUdp(IPAddress server, byte[] query, CancellationToken token) {
-            if (QueryUdpOverride != null) {
-                return await QueryUdpOverride(server, query, token);
-            }
-
-            using var udp = new UdpClient(new IPEndPoint(server.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
-            udp.Client.ReceiveTimeout = 4000;
-#if NET8_0_OR_GREATER
-            await udp.SendAsync(query, new IPEndPoint(server, 53));
-            var res = await udp.ReceiveAsync(token);
-            return res.Buffer;
-#else
-            await udp.SendAsync(query, query.Length, new IPEndPoint(server, 53)).WaitWithCancellation(token);
-            var res = await udp.ReceiveAsync().WaitWithCancellation(token);
-            return res.Buffer;
-#endif
+            DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
+                server.ToString(), 53, query, 4000, useTcpFallback: true, cancellationToken: token).ConfigureAwait(false);
+            return result.Response;
         }
 
         private async Task<long?> QuerySoaSerial(IPAddress server, string zone, CancellationToken token) {
             try {
-                var query = BuildQuery(zone, 6); // SOA
-                var data = await QueryUdp(server, query, token);
-                if (data == null || data.Length < 12) throw new InvalidOperationException();
-                int offset = 0;
-                offset += 4; // id+flags
-                var qd = ReadUInt16(data, ref offset);
-                var an = ReadUInt16(data, ref offset);
-                offset += 4; // nscount + arcount
-                for (int i = 0; i < qd; i++) { SkipName(data, ref offset); offset += 4; }
-                for (int i = 0; i < an; i++) {
-                    SkipName(data, ref offset);
-                    var type = ReadUInt16(data, ref offset);
-                    offset += 2; // class
-                    offset += 4; // ttl
-                    var rdlen = ReadUInt16(data, ref offset);
-                    if (type == 6) {
-                        // SOA RDATA
-                        SkipName(data, ref offset); // MNAME
-                        SkipName(data, ref offset); // RNAME
-                        var serial = ReadUInt32(data, ref offset);
-                        return serial;
-                    }
-                    offset += rdlen;
-                }
-            } catch { }
-            try {
-                var soa = await QueryDns(zone, DnsRecordType.SOA);
-                if (soa != null && soa.Length > 0 && !string.IsNullOrWhiteSpace(soa[0].Data)) {
-                    var parts = soa[0].Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 3 && long.TryParse(parts[2], out var serial)) return serial;
-                }
-            } catch { }
+                var query = new DnsMessage(zone, DnsRecordType.SOA, new DnsMessageOptions(RecursionDesired: false));
+                DnsResponse? response = await QueryAuthoritativeAsync(server, query, token).ConfigureAwait(false);
+                string? data = response?.Answers
+                    .Where(answer => answer.Type == DnsRecordType.SOA)
+                    .Select(answer => answer.Data ?? answer.DataRaw)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+                string[] parts = (data ?? string.Empty).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                return parts.Length >= 3 && long.TryParse(parts[2], out long serial) ? serial : (long?)null;
+            } catch (OperationCanceledException) { throw; } catch { }
             return null;
         }
 
         private async Task<List<string>> QueryApexAddresses(IPAddress server, string zone, CancellationToken token) {
             var list = new List<string>();
-            async Task Fetch(ushort qtype) {
-                var query = BuildQuery(zone, qtype);
-                var data = await QueryUdp(server, query, token);
-                if (data == null || data.Length < 12) return;
-                int offset = 0;
-                offset += 4; // id+flags
-                var qd = ReadUInt16(data, ref offset);
-                var an = ReadUInt16(data, ref offset);
-                offset += 4; // nscount + arcount
-                for (int i = 0; i < qd; i++) { SkipName(data, ref offset); offset += 4; }
-                for (int i = 0; i < an; i++) {
-                    SkipName(data, ref offset);
-                    var type = ReadUInt16(data, ref offset);
-                    offset += 2; // class
-                    offset += 4; // ttl
-                    var rdlen = ReadUInt16(data, ref offset);
-                    if (type == 1 && rdlen == 4) {
-                        if (offset + 4 <= data.Length) {
-                            var ip = new IPAddress(new byte[] { data[offset], data[offset + 1], data[offset + 2], data[offset + 3] });
-                            list.Add(ip.ToString());
-                        }
-                    } else if (type == 28 && rdlen == 16) {
-                        if (offset + 16 <= data.Length) {
-                            var bytes = new byte[16];
-                            Buffer.BlockCopy(data, offset, bytes, 0, 16);
-                            list.Add(new IPAddress(bytes).ToString());
-                        }
-                    }
-                    offset += rdlen;
-                }
+            async Task Fetch(DnsRecordType type) {
+                var query = new DnsMessage(zone, type, new DnsMessageOptions(RecursionDesired: false));
+                DnsResponse? response = await QueryAuthoritativeAsync(server, query, token).ConfigureAwait(false);
+                list.AddRange((response?.Answers ?? Array.Empty<DnsAnswer>())
+                    .Where(answer => answer.Type == type && !string.IsNullOrWhiteSpace(answer.Data ?? answer.DataRaw))
+                    .Select(answer => answer.Data ?? answer.DataRaw));
             }
-            try { await Fetch(1); } catch { }
-            try { await Fetch(28); } catch { }
-            if (list.Count == 0) {
-                try {
-                    var a = await QueryDns(zone, DnsRecordType.A);
-                    foreach (var ans in a) list.Add(ans.Data);
-                    var aaaa = await QueryDns(zone, DnsRecordType.AAAA);
-                    foreach (var ans in aaaa) list.Add(ans.Data);
-                } catch { }
-            }
+            try { await Fetch(DnsRecordType.A).ConfigureAwait(false); } catch (OperationCanceledException) { throw; } catch { }
+            try { await Fetch(DnsRecordType.AAAA).ConfigureAwait(false); } catch (OperationCanceledException) { throw; } catch { }
             return list;
         }
     }

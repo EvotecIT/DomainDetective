@@ -95,4 +95,169 @@ if (`$null -eq `$coreAssembly) {
         $result.CaptureOptionsCreated | Should -BeTrue
         $result.SpfCmdletCreated | Should -BeTrue
     }
+
+    It 'generates OfficeIMO reports through the packaged module ALC' {
+        $packagedModuleRoot = Join-Path $PSScriptRoot '..\Artefacts\Unpacked\Modules'
+        $packagedModule = Join-Path $packagedModuleRoot 'DomainDetective'
+        $packagedLoader = Join-Path $packagedModule 'Lib\Core\DomainDetective.ModuleLoadContext.dll'
+        if ($PSVersionTable.PSEdition -ne 'Core') {
+            Set-ItResult -Skipped -Because 'module-scoped AssemblyLoadContext is PowerShell Core-only'
+            return
+        }
+
+        if (-not (Test-Path -LiteralPath $packagedLoader)) {
+            Set-ItResult -Skipped -Because 'packaged ALC artifact is not present; run Module\Build\Build-Module.ps1 with RefreshPSD1Only=false before this regression'
+            return
+        }
+
+        $moduleRootLiteral = $packagedModuleRoot.Replace("'", "''")
+        $reportBase = Join-Path $TestDrive 'packaged-officeimo.output'
+        $reportBaseLiteral = $reportBase.Replace("'", "''")
+        $script = @"
+`$ErrorActionPreference = 'Stop'
+`$WarningPreference = 'SilentlyContinue'
+`$moduleRoot = '$moduleRootLiteral'
+`$env:PSModulePath = `$moduleRoot + [IO.Path]::PathSeparator + `$env:PSModulePath
+
+Import-Module DomainDetective -Force
+
+`$command = Get-Command Export-DDSecurityReport -Module DomainDetective -ErrorAction Stop
+`$commandAssembly = `$command.ImplementingType.Assembly
+`$commandAlc = [System.Runtime.Loader.AssemblyLoadContext]::GetLoadContext(`$commandAssembly)
+`$coreAssembly = `$commandAlc.Assemblies | Where-Object { `$_.GetName().Name -eq 'DomainDetective' } | Select-Object -First 1
+if (`$null -eq `$coreAssembly) {
+    throw 'DomainDetective core assembly was not loaded in the module AssemblyLoadContext.'
+}
+
+`$spfType = `$coreAssembly.GetType('DomainDetective.Views.SpfRecordInfo', `$true)
+`$spf = [Activator]::CreateInstance(`$spfType)
+`$spf.Subject = 'example.org'
+`$spf.Status = 'OK'
+
+@(`$spf) | Export-DDSecurityReport -ExportFormat Word, Excel, MarkdownHtml -ExportPath '$reportBaseLiteral' -OpenReport:`$false | Out-Null
+"@
+        $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
+        $output = pwsh -NoProfile -ExecutionPolicy Bypass -EncodedCommand $encoded 2>&1
+        $LASTEXITCODE | Should -Be 0 -Because ($output -join [Environment]::NewLine)
+
+        $wordPath = [IO.Path]::ChangeExtension($reportBase, '.docx')
+        $excelPath = [IO.Path]::ChangeExtension($reportBase, '.xlsx')
+        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.html')
+        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.md')
+
+        Test-Path -LiteralPath $wordPath | Should -BeTrue
+        Test-Path -LiteralPath $excelPath | Should -BeTrue
+        Test-Path -LiteralPath $htmlPath | Should -BeTrue
+        Test-Path -LiteralPath $markdownPath | Should -BeTrue
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $wordArchive = [IO.Compression.ZipFile]::OpenRead($wordPath)
+        try {
+            $wordArchive.GetEntry('word/document.xml') | Should -Not -BeNullOrEmpty
+        } finally {
+            $wordArchive.Dispose()
+        }
+
+        $excelArchive = [IO.Compression.ZipFile]::OpenRead($excelPath)
+        try {
+            $excelArchive.GetEntry('xl/workbook.xml') | Should -Not -BeNullOrEmpty
+        } finally {
+            $excelArchive.Dispose()
+        }
+
+        Get-Content -LiteralPath $htmlPath -Raw | Should -Match '<!doctype html>'
+        Get-Content -LiteralPath $markdownPath -Raw | Should -Match 'Executive Summary'
+    }
+
+    It 'generates OfficeIMO reports through the packaged Windows PowerShell module' {
+        $windowsPowerShell = Get-Command powershell.exe -ErrorAction SilentlyContinue
+        if ($null -eq $windowsPowerShell) {
+            Set-ItResult -Skipped -Because 'Windows PowerShell is unavailable on this platform'
+            return
+        }
+
+        $packagedModuleRoot = Join-Path $PSScriptRoot '..\Artefacts\Unpacked\Modules'
+        $packagedModule = Join-Path $packagedModuleRoot 'DomainDetective'
+        $packagedBinary = Join-Path $packagedModule 'Lib\Default\DomainDetective.PowerShell.dll'
+        if (-not (Test-Path -LiteralPath $packagedBinary)) {
+            Set-ItResult -Skipped -Because 'packaged Windows PowerShell artifact is not present; run Module\Build\Build-Module.ps1 with RefreshPSD1Only=false before this regression'
+            return
+        }
+
+        $moduleRootLiteral = $packagedModuleRoot.Replace("'", "''")
+        $reportBase = Join-Path $TestDrive 'packaged-officeimo-desktop.output'
+        $reportBaseLiteral = $reportBase.Replace("'", "''")
+        $script = @"
+`$ErrorActionPreference = 'Stop'
+`$WarningPreference = 'SilentlyContinue'
+`$moduleRoot = '$moduleRootLiteral'
+`$env:PSModulePath = `$moduleRoot + [IO.Path]::PathSeparator + `$env:PSModulePath
+
+Import-Module DomainDetective -Force
+
+`$command = Get-Command Export-DDSecurityReport -Module DomainDetective -ErrorAction Stop
+`$coreAssembly = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { `$_.GetName().Name -eq 'DomainDetective' } | Select-Object -First 1
+if (`$null -eq `$coreAssembly) {
+    throw 'DomainDetective core assembly was not loaded in the Windows PowerShell AppDomain.'
+}
+
+`$spfType = `$coreAssembly.GetType('DomainDetective.Views.SpfRecordInfo', `$true)
+`$spf = [Activator]::CreateInstance(`$spfType)
+`$spf.Subject = 'example.org'
+`$spf.Status = 'OK'
+
+@(`$spf) | Export-DDSecurityReport -ExportFormat Word, Excel, MarkdownHtml -ExportPath '$reportBaseLiteral' -OpenReport:`$false | Out-Null
+"@
+        $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
+        $standardOutput = Join-Path $TestDrive 'packaged-officeimo-desktop.stdout.txt'
+        $standardError = Join-Path $TestDrive 'packaged-officeimo-desktop.stderr.txt'
+        $process = Start-Process -FilePath $windowsPowerShell.Source `
+            -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput $standardOutput `
+            -RedirectStandardError $standardError `
+            -Wait `
+            -PassThru
+        try {
+            $output = @(
+                if (Test-Path -LiteralPath $standardOutput) {
+                    Get-Content -LiteralPath $standardOutput
+                }
+                if (Test-Path -LiteralPath $standardError) {
+                    Get-Content -LiteralPath $standardError
+                }
+            )
+            $process.ExitCode | Should -Be 0 -Because ($output -join [Environment]::NewLine)
+        } finally {
+            $process.Dispose()
+        }
+
+        $wordPath = [IO.Path]::ChangeExtension($reportBase, '.docx')
+        $excelPath = [IO.Path]::ChangeExtension($reportBase, '.xlsx')
+        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.html')
+        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.md')
+
+        Test-Path -LiteralPath $wordPath | Should -BeTrue
+        Test-Path -LiteralPath $excelPath | Should -BeTrue
+        Test-Path -LiteralPath $htmlPath | Should -BeTrue
+        Test-Path -LiteralPath $markdownPath | Should -BeTrue
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $wordArchive = [IO.Compression.ZipFile]::OpenRead($wordPath)
+        try {
+            $wordArchive.GetEntry('word/document.xml') | Should -Not -BeNullOrEmpty
+        } finally {
+            $wordArchive.Dispose()
+        }
+
+        $excelArchive = [IO.Compression.ZipFile]::OpenRead($excelPath)
+        try {
+            $excelArchive.GetEntry('xl/workbook.xml') | Should -Not -BeNullOrEmpty
+        } finally {
+            $excelArchive.Dispose()
+        }
+
+        Get-Content -LiteralPath $htmlPath -Raw | Should -Match '<!doctype html>'
+        Get-Content -LiteralPath $markdownPath -Raw | Should -Match 'Executive Summary'
+    }
 }

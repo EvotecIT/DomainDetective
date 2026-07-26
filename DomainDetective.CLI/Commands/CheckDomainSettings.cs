@@ -152,7 +152,7 @@ internal sealed class CheckDomainSettings : CommandSettings {
 
     /// <summary>Strategy used when multiple DNS endpoints are provided.</summary>
     [CommandOption("--dns-strategy <STRATEGY>")]
-    public DomainDetective.MultiResolverStrategy MultiResolverStrategy { get; set; } = DomainDetective.MultiResolverStrategy.FirstSuccess;
+    public MultiResolverStrategy MultiResolverStrategy { get; set; } = MultiResolverStrategy.FirstSuccess;
 
     /// <summary>Maximum number of resolvers to query in parallel (null = all).</summary>
     [CommandOption("--dns-endpoints-parallelism <N>")]

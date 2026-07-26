@@ -60,7 +60,7 @@ public sealed class MarkdownHtmlReportGenerator : IReportGenerator {
                 BackToTopText = "Back to top",
                 ThemeToggle = true
             };
-            md.SaveHtml(htmlPath, htmlOptions);
+            md.SaveAsHtml(htmlPath, htmlOptions);
 
             var meta = new ReportMetadata {
                 Domain = domain,

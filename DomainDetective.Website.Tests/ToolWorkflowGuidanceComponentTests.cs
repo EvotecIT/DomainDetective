@@ -3,7 +3,7 @@ using DomainDetective.Toolbox.Models;
 
 namespace DomainDetective.Website.Tests;
 
-public sealed class ToolWorkflowGuidanceComponentTests : TestContext {
+public sealed class ToolWorkflowGuidanceComponentTests : BunitContext {
     [Fact]
     public void CliGuidanceQuotesDomainBeforeEmbeddingInShellCommand() {
         var tool = new ToolDefinition {
@@ -16,7 +16,7 @@ public sealed class ToolWorkflowGuidanceComponentTests : TestContext {
             InputPlaceholder = "example.com"
         };
 
-        var cut = RenderComponent<ToolWorkflowGuidance>(parameters => parameters
+        var cut = Render<ToolWorkflowGuidance>(parameters => parameters
             .Add(component => component.Tool, tool)
             .Add(component => component.Domain, "contoso.com && echo owned"));
 
@@ -37,7 +37,7 @@ public sealed class ToolWorkflowGuidanceComponentTests : TestContext {
             InputPlaceholder = "example.com"
         };
 
-        var cut = RenderComponent<ToolWorkflowGuidance>(parameters => parameters
+        var cut = Render<ToolWorkflowGuidance>(parameters => parameters
             .Add(component => component.Tool, tool)
             .Add(component => component.Domain, "contoso.com")
             .Add(component => component.DnsResolver, "Google DNS")

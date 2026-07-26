@@ -76,7 +76,7 @@ public static partial class MarkdownCompositionReport
             BackToTopText = "Back to top",
             ThemeToggle = true
         };
-        md.SaveHtml(htmlPath, htmlOptions);
+        md.SaveAsHtml(htmlPath, htmlOptions);
     }
 
     private static MarkdownDoc BuildDoc(List<KeyValuePair<string, DomainBucket>> domains, string title, List<ExecutiveSummaryBuilder.Row> rows, string overviewLine, OrderingOptions? ordering, Dictionary<string, List<string>> inputSectionOrder)

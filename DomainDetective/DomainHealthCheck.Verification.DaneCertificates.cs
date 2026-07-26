@@ -41,7 +41,6 @@ public partial class DomainHealthCheck {
                     }
                 } else {
                     var dnssec = new DnsSecAnalysis {
-                        UseLocalDnssecValidation = DnsSecValidateLocally,
                         QueryDnsResponseOverride = DnsConfiguration.QueryDnsResponseOverride
                     };
                     await dnssec.AnalyzeRecord(owner, DnsRecordType.TLSA, _logger, DnsConfiguration, cancellationToken);

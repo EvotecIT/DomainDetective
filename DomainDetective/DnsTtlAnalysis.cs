@@ -127,91 +127,20 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryDNS(name, type);
         }
 
-        // Raw DNS helpers used to query authoritative servers directly
-        private static byte[] EncodeDomainName(string name, bool trailingDot) {
-            var parts = name.TrimEnd('.').Split('.');
-            using var ms = new System.IO.MemoryStream();
-            foreach (var part in parts) {
-                var bytes = System.Text.Encoding.ASCII.GetBytes(part);
-                ms.WriteByte((byte)bytes.Length);
-                ms.Write(bytes, 0, bytes.Length);
-            }
-            if (trailingDot) ms.WriteByte(0);
-            return ms.ToArray();
-        }
-        private static byte[] BuildQuery(string domain, ushort qtype) {
-            var header = new byte[12];
-            var id = Helpers.DnsQueryIdGenerator.NextUShort();
-            header[0] = (byte)(id >> 8); header[1] = (byte)(id & 0xFF);
-            header[2] = 0x01; header[5] = 0x01;
-            var qname = EncodeDomainName(domain, true);
-            var query = new byte[header.Length + qname.Length + 4];
-            Buffer.BlockCopy(header, 0, query, 0, header.Length);
-            Buffer.BlockCopy(qname, 0, query, header.Length, qname.Length);
-            var offset = header.Length + qname.Length;
-            query[offset] = (byte)(qtype >> 8); query[offset + 1] = (byte)(qtype & 0xFF);
-            query[offset + 2] = 0x00; query[offset + 3] = 0x01;
-            return query;
-        }
-        private static void SkipName(byte[] buffer, ref int offset) {
-            int jumps = 0;
-            while (true) {
-                if (offset >= buffer.Length) { offset = buffer.Length; return; }
-                var len = buffer[offset++];
-                if (len == 0) break;
-                if ((len & 0xC0) == 0xC0) { if (offset < buffer.Length) offset++; break; }
-                offset += len;
-                if (++jumps > 50) break;
-            }
-        }
-        private static ushort ReadUInt16(byte[] buffer, ref int offset) {
-            if (offset + 2 > buffer.Length) return 0;
-            var v = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
-            offset += 2; return v;
-        }
-        private static async Task<byte[]?> QueryUdp(System.Net.IPAddress server, byte[] query, System.Threading.CancellationToken token, int timeoutMs) {
-            using var udp = new System.Net.Sockets.UdpClient(new System.Net.IPEndPoint(server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? System.Net.IPAddress.IPv6Any : System.Net.IPAddress.Any, 0));
-            udp.Client.ReceiveTimeout = timeoutMs > 0 ? timeoutMs : 4000;
-#if NET8_0_OR_GREATER
-            using var cts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(token);
-            cts.CancelAfter(timeoutMs > 0 ? timeoutMs : 4000);
-            await udp.SendAsync(query, new System.Net.IPEndPoint(server, 53));
-            var res = await udp.ReceiveAsync(cts.Token);
-            return res.Buffer;
-#else
-            await udp.SendAsync(query, query.Length, new System.Net.IPEndPoint(server, 53)).WaitWithCancellation(token);
-            var res = await udp.ReceiveAsync().WaitWithCancellation(token);
-            return res.Buffer;
-#endif
-        }
-        private static int? ParseFirstAnswerTtl(byte[] data, ushort qtype) {
-            if (data == null || data.Length < 12) return null;
-            int offset = 0;
-            offset += 4; // id+flags
-            var qd = ReadUInt16(data, ref offset);
-            var an = ReadUInt16(data, ref offset);
-            offset += 4; // nscount + arcount
-            for (int i = 0; i < qd; i++) { SkipName(data, ref offset); offset += 4; }
-            int? cnameTtl = null;
-            for (int i = 0; i < an; i++) {
-                SkipName(data, ref offset);
-                var type = ReadUInt16(data, ref offset);
-                offset += 2; // class
-                var ttl = (offset + 4 <= data.Length) ? (int)((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]) : 0;
-                offset += 4;
-                var rdlen = ReadUInt16(data, ref offset);
-                if (type == qtype) return ttl;
-                // Capture CNAME TTL - when authoritative NS returns only CNAME (for aliased records),
-                // return the CNAME TTL as the authoritative value since that's what the domain owner controls.
-                if (type == 5 && cnameTtl == null) cnameTtl = ttl;
-                offset += rdlen;
-            }
-            return cnameTtl;
-        }
         private async Task<int?> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs) {
-            var q = BuildQuery(name, qtype);
-            var buf = await QueryUdp(ip, q, ct, timeoutMs);
-            return buf != null ? ParseFirstAnswerTtl(buf, qtype) : null;
+            var query = new DnsMessage(name, (DnsRecordType)qtype, new DnsMessageOptions(RecursionDesired: false));
+            DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
+                ip.ToString(), 53, query, timeoutMs > 0 ? timeoutMs : 4000, useTcpFallback: true,
+                cancellationToken: ct).ConfigureAwait(false);
+            int? answerTtl = result.Response.Answers
+                .Where(item => item.Type == (DnsRecordType)qtype)
+                .Select(item => (int?)item.TTL)
+                .FirstOrDefault();
+            if (answerTtl.HasValue) return answerTtl;
+            return result.Response.Answers
+                .Where(item => item.Type == DnsRecordType.CNAME)
+                .Select(item => (int?)item.TTL)
+                .FirstOrDefault();
         }
 
         /// <summary>

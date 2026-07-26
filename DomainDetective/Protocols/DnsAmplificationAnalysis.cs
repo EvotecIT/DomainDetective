@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -256,6 +255,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
     {
         var query = BuildQuery(qname, qtype, recursionDesired: false, includeEdns: true, clientUdpPayloadSize: clientUdpPayloadSize, dnsSecOk: dnsSecOk);
         var response = await QueryUdp(server, query, ct).ConfigureAwait(false);
+        byte[] queryBytes = query.SerializeDnsWireFormat();
         int respBytes = response?.Length ?? 0;
         bool truncated = false;
         int rcode = -1;
@@ -266,9 +266,9 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
         }
 
         double factor = 0;
-        if (query.Length > 0 && respBytes > 0)
+        if (queryBytes.Length > 0 && respBytes > 0)
         {
-            factor = (double)respBytes / query.Length;
+            factor = (double)respBytes / queryBytes.Length;
         }
 
         return new DnsAmplificationProbeResult
@@ -277,7 +277,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
             QueryType = qtype,
             ClientUdpPayloadSize = clientUdpPayloadSize,
             DnsSecOk = dnsSecOk,
-            QueryBytes = query.Length,
+            QueryBytes = queryBytes.Length,
             ResponseBytes = respBytes,
             Truncated = truncated,
             Rcode = rcode,
@@ -285,28 +285,21 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
         };
     }
 
-    private async Task<byte[]?> QueryUdp(IPAddress server, byte[] query, CancellationToken token)
+    private async Task<byte[]?> QueryUdp(IPAddress server, DnsMessage query, CancellationToken token)
     {
+        byte[] queryBytes = query.SerializeDnsWireFormat();
         if (QueryUdpOverride != null)
         {
-            return await QueryUdpOverride(server, query, token).ConfigureAwait(false);
+            return await QueryUdpOverride(server, queryBytes, token).ConfigureAwait(false);
         }
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        cts.CancelAfter(Timeout);
-
-        using var udp = new UdpClient(new IPEndPoint(server.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
-        udp.Client.ReceiveTimeout = (int)Math.Max(1000, Timeout.TotalMilliseconds);
-
-        await udp.SendAsync(query, query.Length, new IPEndPoint(server, 53)).WaitWithCancellation(cts.Token).ConfigureAwait(false);
-
-#if NET8_0_OR_GREATER
-        var res = await udp.ReceiveAsync(cts.Token).ConfigureAwait(false);
-        return res.Buffer;
-#else
-        var res = await udp.ReceiveAsync().WaitWithCancellation(cts.Token).ConfigureAwait(false);
-        return res.Buffer;
-#endif
+        DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
+            server.ToString(),
+            53,
+            query,
+            checked((int)Math.Max(1, Math.Min(Timeout.TotalMilliseconds, int.MaxValue))),
+            useTcpFallback: false,
+            cancellationToken: token).ConfigureAwait(false);
+        return result.ResponseMessage;
     }
 
     private void EmitAssessmentsForServer(DnsAmplificationServerResult result, InternalLogger logger)
@@ -383,7 +376,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
         }
     }
 
-    private static byte[] BuildQuery(string domain, DnsRecordType qtype, bool recursionDesired, bool includeEdns, int clientUdpPayloadSize, bool dnsSecOk)
+    private static DnsMessage BuildQuery(string domain, DnsRecordType qtype, bool recursionDesired, bool includeEdns, int clientUdpPayloadSize, bool dnsSecOk)
     {
         var options = new DnsMessageOptions(
             RequestDnsSec: dnsSecOk,
@@ -391,8 +384,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
             UdpBufferSize: includeEdns ? clientUdpPayloadSize : 4096,
             RecursionDesired: recursionDesired);
 
-        var message = new DnsMessage(domain, qtype, options);
-        return message.SerializeDnsWireFormat();
+        return new DnsMessage(domain, qtype, options);
     }
 
     private readonly struct DnsHeaderInfo
