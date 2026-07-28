@@ -20,7 +20,7 @@
 
     <!-- Use NuGet package for all TFMs -->
     <ItemGroup>
-        <PackageReference Include="OfficeIMO.Markdown" Version="3.0.0" />
+        <PackageReference Include="OfficeIMO.Markdown" Version="3.0.3" />
     </ItemGroup>
 
 </Project>

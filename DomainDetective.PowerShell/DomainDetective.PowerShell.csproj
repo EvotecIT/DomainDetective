@@ -50,7 +50,7 @@
 
     <!-- XmlDoc2CmdletDoc 0.7.0 does not currently run successfully under net10.0. -->
     <ItemGroup Condition=" '$(TargetFramework)' != 'net10.0' ">
-        <PackageReference Include="MatejKafka.XmlDoc2CmdletDoc" Version="0.7.0">
+        <PackageReference Include="MatejKafka.XmlDoc2CmdletDoc" Version="0.7.1">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
