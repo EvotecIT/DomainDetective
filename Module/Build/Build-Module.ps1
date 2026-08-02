@@ -59,7 +59,7 @@ Build-Module -ModuleName 'DomainDetective' {
     New-ConfigurationFormat -ApplyTo 'DefaultPSD1', 'OnMergePSD1' -PSD1Style 'Minimal'
 
     # configuration for documentation, at the same time it enables documentation processing
-    New-ConfigurationDocumentation -Enable:$false -PathReadme 'Docs\Readme.md' -Path 'Docs'
+    New-ConfigurationDocumentation -Enable -PathReadme 'Docs\Readme.md' -Path 'Docs' -SyncExternalHelpToProjectRoot
 
     New-ConfigurationImportModule -ImportSelf -ImportRequiredModules
 
@@ -81,8 +81,8 @@ Build-Module -ModuleName 'DomainDetective' {
         DotSourceLibraries                   = $true
         DotSourceClasses                     = $true
         DeleteTargetModuleBeforeBuild        = $true
-        RefreshPSD1Only                      = if ([string]::IsNullOrWhiteSpace($Env:RefreshPSD1Only)) { $true } else { [bool]::Parse($Env:RefreshPSD1Only) }
-        NETBinaryModuleDocumenation          = $true
+        RefreshPSD1Only                      = if ([string]::IsNullOrWhiteSpace($Env:RefreshPSD1Only)) { $false } else { [bool]::Parse($Env:RefreshPSD1Only) }
+        NETBinaryModuleDocumentation         = $true
     }
 
     New-ConfigurationBuild @newConfigurationBuildSplat
