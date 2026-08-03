@@ -11,7 +11,7 @@ Creates a DNS TTL desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateTtl [-Enabled <bool>] [-MinASeconds <int>] [-MaxASeconds <int>] [-MinAaaaSeconds <int>] [-MaxAaaaSeconds <int>] [-MinMxSeconds <int>] [-MaxMxSeconds <int>] [-MinNsSeconds <int>] [-MaxNsSeconds <int>] [-MinSoaSeconds <int>] [-MaxSoaSeconds <int>] [-MinSpfTxtSeconds <int>] [-MaxSpfTxtSeconds <int>] [-MinDmarcTxtSeconds <int>] [-MaxDmarcTxtSeconds <int>] [-MinDkimSelectorTxtSeconds <int>] [-MaxDkimSelectorTxtSeconds <int>] [-MinMtastsTxtSeconds <int>] [-MaxMtastsTxtSeconds <int>] [-MinTlsRptTxtSeconds <int>] [-MaxTlsRptTxtSeconds <int>] [-RequireAUniformAcrossNs <bool>] [-RequireAaaaUniformAcrossNs <bool>] [-RequireNsUniformAcrossNs <bool>] [-RequireCnameUniformAcrossNs <bool>] [-RequireSpfTxtUniformAcrossNs <bool>] [-RequireDmarcTxtUniformAcrossNs <bool>] [-RequireMtastsTxtUniformAcrossNs <bool>] [-RequireTlsRptTxtUniformAcrossNs <bool>] [-RequireDkimTxtUniformAcrossNs <bool>] [<CommonParameters>]
+New-DDDesiredStateTtl [-Enabled <Boolean>] [-MinASeconds <Int32>] [-MaxASeconds <Int32>] [-MinAaaaSeconds <Int32>] [-MaxAaaaSeconds <Int32>] [-MinMxSeconds <Int32>] [-MaxMxSeconds <Int32>] [-MinNsSeconds <Int32>] [-MaxNsSeconds <Int32>] [-MinSoaSeconds <Int32>] [-MaxSoaSeconds <Int32>] [-MinSpfTxtSeconds <Int32>] [-MaxSpfTxtSeconds <Int32>] [-MinDmarcTxtSeconds <Int32>] [-MaxDmarcTxtSeconds <Int32>] [-MinDkimSelectorTxtSeconds <Int32>] [-MaxDkimSelectorTxtSeconds <Int32>] [-MinMtastsTxtSeconds <Int32>] [-MaxMtastsTxtSeconds <Int32>] [-MinTlsRptTxtSeconds <Int32>] [-MaxTlsRptTxtSeconds <Int32>] [-RequireAUniformAcrossNs <Boolean>] [-RequireAaaaUniformAcrossNs <Boolean>] [-RequireNsUniformAcrossNs <Boolean>] [-RequireCnameUniformAcrossNs <Boolean>] [-RequireSpfTxtUniformAcrossNs <Boolean>] [-RequireDmarcTxtUniformAcrossNs <Boolean>] [-RequireMtastsTxtUniformAcrossNs <Boolean>] [-RequireTlsRptTxtUniformAcrossNs <Boolean>] [-RequireDkimTxtUniformAcrossNs <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateTtl -Enabled 'Value'
+New-DDDesiredStateTtl -Enabled $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateTtl -Enabled 'Value'
 Enable/disable the TTL desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for AAAA records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for A records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for DKIM selector TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for DMARC TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for MTA-STS TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for MX records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for NS records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for SOA records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for SPF TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -191,7 +191,7 @@ Accept wildcard characters: False
 Maximum allowed TTL for TLS-RPT TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -207,7 +207,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for AAAA records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -223,7 +223,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for A records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -239,7 +239,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for DKIM selector TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -255,7 +255,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for DMARC TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -271,7 +271,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for MTA-STS TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -287,7 +287,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for MX records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -303,7 +303,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for NS records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -319,7 +319,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for SOA records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -335,7 +335,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for SPF TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -351,7 +351,7 @@ Accept wildcard characters: False
 Minimum allowed TTL for TLS-RPT TXT records (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -367,7 +367,7 @@ Accept wildcard characters: False
 When true, requires AAAA record TTL to be uniform across name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -383,7 +383,7 @@ Accept wildcard characters: False
 When true, requires A record TTL to be uniform across name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -399,7 +399,7 @@ Accept wildcard characters: False
 When true, requires CNAME record TTL to be uniform across name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -415,7 +415,7 @@ Accept wildcard characters: False
 When true, requires DKIM selector TXT record TTL to be uniform across name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -431,7 +431,7 @@ Accept wildcard characters: False
 When true, requires DMARC TXT record TTL to be uniform across name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -447,7 +447,7 @@ Accept wildcard characters: False
 When true, requires MTA-STS TXT record TTL to be uniform across name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -463,7 +463,7 @@ Accept wildcard characters: False
 When true, requires NS record TTL to be uniform across name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -479,7 +479,7 @@ Accept wildcard characters: False
 When true, requires SPF TXT record TTL to be uniform across name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -495,7 +495,7 @@ Accept wildcard characters: False
 When true, requires TLS-RPT TXT record TTL to be uniform across name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

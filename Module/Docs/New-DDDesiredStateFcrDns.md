@@ -11,7 +11,7 @@ Creates an FCrDNS desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateFcrDns [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-RequireAllForwardConfirmed <bool>] [<CommonParameters>]
+New-DDDesiredStateFcrDns [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-RequireAllForwardConfirmed <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateFcrDns -RequireAllForwardConfirmed $true
 Enable/disable the FCrDNS desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, requires all IPs to be forward-confirmed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, warns if no FCrDNS results were analyzed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

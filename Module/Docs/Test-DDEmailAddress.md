@@ -11,7 +11,7 @@ Validates an email address using syntax, DNS, and optional SMTP checks.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Test-DDEmailAddress [-EmailAddress] <string> [[-DnsEndpoint] <DnsEndpoint>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <int>] [-MaxParallelism <int>] [-DnsParallelism <int>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <int>] [-AllowInternational] [-AllowTopLevelDomains] [-SmtpProbe] [-CheckCatchAll] [-SmtpPort <int>] [-SmtpTimeoutSeconds <int>] [-AllowInvalidSmtpCertificates] [-SmtpProbeDelaySeconds <int>] [-SmtpMaxHosts <int>] [-SmtpRetryCount <int>] [-SmtpRetryDelaySeconds <int>] [-SmtpHelloName <string>] [-SmtpFromAddress <string>] [-SmtpProxyHost <string>] [-SmtpProxyPort <int>] [-SmtpProxyUsername <string>] [-SmtpProxyPassword <string>] [-CheckGravatar] [-DisableProviderRules] [-CheckHaveIBeenPwned] [-HaveIBeenPwnedApiKey <string>] [-DisposableDomainsPath <string>] [-RoleAccountsPath <string>] [-FreeProvidersPath <string>] [-B2CProvidersPath <string>] [-DisableFreeProvidersAsB2C] [-SmtpRulesPath <string>] [-DisableBuiltinSmtpRules] [-AllowB2CCatchAll] [-EnableProviderWebChecks] [-ProtonAuthCookie <string>] [-ProtonUid <string>] [<CommonParameters>]
+Test-DDEmailAddress [-EmailAddress] <string> [[-DnsEndpoint] <DnsEndpoint>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-AllowInternational] [-AllowTopLevelDomains] [-SmtpProbe] [-CheckCatchAll] [-SmtpPort <int>] [-SmtpTimeoutSeconds <int>] [-AllowInvalidSmtpCertificates] [-SmtpProbeDelaySeconds <int>] [-SmtpMaxHosts <int>] [-SmtpRetryCount <int>] [-SmtpRetryDelaySeconds <int>] [-SmtpHelloName <string>] [-SmtpFromAddress <string>] [-SmtpProxyHost <string>] [-SmtpProxyPort <int>] [-SmtpProxyUsername <string>] [-SmtpProxyPassword <string>] [-CheckGravatar] [-DisableProviderRules] [-CheckHaveIBeenPwned] [-HaveIBeenPwnedApiKey <string>] [-DisposableDomainsPath <string>] [-RoleAccountsPath <string>] [-FreeProvidersPath <string>] [-B2CProvidersPath <string>] [-DisableFreeProvidersAsB2C] [-SmtpRulesPath <string>] [-DisableBuiltinSmtpRules] [-AllowB2CCatchAll] [-EnableProviderWebChecks] [-ProtonAuthCookie <string>] [-ProtonUid <string>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -104,7 +104,7 @@ Accept wildcard characters: False
 ```
 
 ### -ArtifactsDirectory
-{{ Fill ArtifactsDirectory Description }}
+Destination directory for artifacts when emitted.
 
 ```yaml
 Type: String
@@ -216,7 +216,7 @@ Accept wildcard characters: False
 ```
 
 ### -DisableParallel
-{{ Fill DisableParallel Description }}
+Disable parallel execution for cmdlet-level work.
 
 ```yaml
 Type: SwitchParameter
@@ -280,7 +280,7 @@ Accept wildcard characters: False
 ```
 
 ### -DnsEndpoints
-{{ Fill DnsEndpoints Description }}
+Optional list of resolver endpoints to use (multi-resolver).
 
 ```yaml
 Type: DnsEndpoint[]
@@ -296,10 +296,10 @@ Accept wildcard characters: False
 ```
 
 ### -DnsParallelism
-{{ Fill DnsParallelism Description }}
+DNS resolver concurrency hint for health checks.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -344,7 +344,7 @@ Accept wildcard characters: False
 ```
 
 ### -ExportArtifacts
-{{ Fill ExportArtifacts Description }}
+Emit artifacts (scan.json, metrics.json, progress.jsonl).
 
 ```yaml
 Type: SwitchParameter
@@ -360,7 +360,7 @@ Accept wildcard characters: False
 ```
 
 ### -ExportFormat
-{{ Fill ExportFormat Description }}
+Desired export format(s). Accepts one or many values.
 
 ```yaml
 Type: ReportFormat[]
@@ -376,7 +376,7 @@ Accept wildcard characters: False
 ```
 
 ### -ExportPath
-{{ Fill ExportPath Description }}
+Output file path for export.
 
 ```yaml
 Type: String
@@ -424,10 +424,10 @@ Accept wildcard characters: False
 ```
 
 ### -MaxParallelism
-{{ Fill MaxParallelism Description }}
+Maximum concurrent health checks within a single domain run.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -440,10 +440,10 @@ Accept wildcard characters: False
 ```
 
 ### -MultiResolverMaxParallelism
-{{ Fill MultiResolverMaxParallelism Description }}
+Maximum number of resolvers to query in parallel (null = all).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -456,7 +456,7 @@ Accept wildcard characters: False
 ```
 
 ### -MultiResolverStrategy
-{{ Fill MultiResolverStrategy Description }}
+Strategy used when multiple DNS endpoints are provided.
 
 ```yaml
 Type: MultiResolverStrategy
@@ -472,7 +472,7 @@ Accept wildcard characters: False
 ```
 
 ### -OpenInBrowser
-{{ Fill OpenInBrowser Description }}
+Open export in browser when applicable.
 
 ```yaml
 Type: SwitchParameter
@@ -760,10 +760,10 @@ Accept wildcard characters: False
 ```
 
 ### -ThrottleLimit
-{{ Fill ThrottleLimit Description }}
+Maximum number of concurrent items for cmdlet-level parallel work.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

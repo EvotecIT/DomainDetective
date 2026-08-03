@@ -11,7 +11,7 @@ Reads persisted certificate inventory snapshots from local storage.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventorySnapshot [-CacheDirectory <string>] [-SinceUtc <datetime>] [-UntilUtc <datetime>] [-MaxSnapshots <int>] [-Latest] [-WithoutEntries] [<CommonParameters>]
+Get-DDCertificateInventorySnapshot [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-UntilUtc <DateTime>] [-MaxSnapshots <int>] [-Latest] [-WithoutEntries] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -85,7 +85,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -101,7 +101,7 @@ Accept wildcard characters: False
 Only include snapshots captured up to this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

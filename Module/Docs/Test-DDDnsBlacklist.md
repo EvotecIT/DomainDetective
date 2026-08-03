@@ -11,7 +11,7 @@ Queries DNSBL providers to see if domains or IPs are listed.
 ## SYNTAX
 ### ServerName (Default)
 ```powershell
-Test-DDDnsBlacklist [-NameOrIpAddress] <string[]> [[-DnsEndpoint] <DnsEndpoint>] [-BlacklistedOnly] [-TreatAsDomain] [-TreatAsIp] [-MaxConcurrency <int>] [-DomainIpScan <DomainIpScanMode>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <int>] [-MaxParallelism <int>] [-DnsParallelism <int>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <int>] [-FullResponse] [<CommonParameters>]
+Test-DDDnsBlacklist [-NameOrIpAddress] <string[]> [[-DnsEndpoint] <DnsEndpoint>] [-BlacklistedOnly] [-TreatAsDomain] [-TreatAsIp] [-MaxConcurrency <Int32>] [-DomainIpScan <DomainIpScanMode>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-FullResponse] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -78,7 +78,7 @@ Test-DDDnsBlacklist -NameOrIpAddress 'example.com' -MaxConcurrency 64 -Verbose
 ## PARAMETERS
 
 ### -ArtifactsDirectory
-{{ Fill ArtifactsDirectory Description }}
+Destination directory for artifacts when emitted.
 
 ```yaml
 Type: String
@@ -110,7 +110,7 @@ Accept wildcard characters: False
 ```
 
 ### -DisableParallel
-{{ Fill DisableParallel Description }}
+Disable parallel execution for cmdlet-level work.
 
 ```yaml
 Type: SwitchParameter
@@ -142,7 +142,7 @@ Accept wildcard characters: False
 ```
 
 ### -DnsEndpoints
-{{ Fill DnsEndpoints Description }}
+Optional list of resolver endpoints to use (multi-resolver).
 
 ```yaml
 Type: DnsEndpoint[]
@@ -158,10 +158,10 @@ Accept wildcard characters: False
 ```
 
 ### -DnsParallelism
-{{ Fill DnsParallelism Description }}
+DNS resolver concurrency hint for health checks.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: ServerName
 Aliases: None
 Possible values:
@@ -177,10 +177,10 @@ Accept wildcard characters: False
 Controls which IPs are resolved and checked for domains.
 
 ```yaml
-Type: Nullable`1
+Type: DomainIpScanMode
 Parameter Sets: ServerName
 Aliases: None
-Possible values:
+Possible values: MxOnly, MxAOnly, MxAAAAOnly, ApexOnly, ApexAOnly, ApexAAAAOnly, MxAndApex, MxThenApexFallback
 
 Required: False
 Position: named
@@ -190,7 +190,7 @@ Accept wildcard characters: False
 ```
 
 ### -ExportArtifacts
-{{ Fill ExportArtifacts Description }}
+Emit artifacts (scan.json, metrics.json, progress.jsonl).
 
 ```yaml
 Type: SwitchParameter
@@ -206,7 +206,7 @@ Accept wildcard characters: False
 ```
 
 ### -ExportFormat
-{{ Fill ExportFormat Description }}
+Desired export format(s). Accepts one or many values.
 
 ```yaml
 Type: ReportFormat[]
@@ -222,7 +222,7 @@ Accept wildcard characters: False
 ```
 
 ### -ExportPath
-{{ Fill ExportPath Description }}
+Output file path for export.
 
 ```yaml
 Type: String
@@ -257,7 +257,7 @@ Accept wildcard characters: False
 Max concurrency hint for resolver (if supported).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: ServerName
 Aliases: None
 Possible values:
@@ -270,10 +270,10 @@ Accept wildcard characters: False
 ```
 
 ### -MaxParallelism
-{{ Fill MaxParallelism Description }}
+Maximum concurrent health checks within a single domain run.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: ServerName
 Aliases: None
 Possible values:
@@ -286,10 +286,10 @@ Accept wildcard characters: False
 ```
 
 ### -MultiResolverMaxParallelism
-{{ Fill MultiResolverMaxParallelism Description }}
+Maximum number of resolvers to query in parallel (null = all).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: ServerName
 Aliases: None
 Possible values:
@@ -302,7 +302,7 @@ Accept wildcard characters: False
 ```
 
 ### -MultiResolverStrategy
-{{ Fill MultiResolverStrategy Description }}
+Strategy used when multiple DNS endpoints are provided.
 
 ```yaml
 Type: MultiResolverStrategy
@@ -334,7 +334,7 @@ Accept wildcard characters: False
 ```
 
 ### -OpenInBrowser
-{{ Fill OpenInBrowser Description }}
+Open export in browser when applicable.
 
 ```yaml
 Type: SwitchParameter
@@ -350,10 +350,10 @@ Accept wildcard characters: False
 ```
 
 ### -ThrottleLimit
-{{ Fill ThrottleLimit Description }}
+Maximum number of concurrent items for cmdlet-level parallel work.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: ServerName
 Aliases: None
 Possible values:

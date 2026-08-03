@@ -11,7 +11,7 @@ Builds a TLS-RPT Reports time-series view from stored snapshots.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDTlsRptReportsTimeSeries [-DomainName] <string[]> -StorePath <string> [-SinceUtc <datetime>] [-Days <int>] [<CommonParameters>]
+Get-DDTlsRptReportsTimeSeries [-DomainName] <string[]> -StorePath <string> [-SinceUtc <DateTime>] [-Days <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Only include snapshots with end time on/after this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

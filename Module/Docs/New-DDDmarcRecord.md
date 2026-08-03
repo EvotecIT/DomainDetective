@@ -11,7 +11,7 @@ Builds a DMARC record string.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDmarcRecord [[-Policy] <string>] [-SubPolicy <string>] [-AggregateUri <string>] [-ForensicUri <string>] [-Percent <int>] [-DkimAlignment <string>] [-SpfAlignment <string>] [-FailureOptions <string>] [-ReportingInterval <int>] [-DomainName <string>] [-DnsApiUrl <uri>] [-Publish] [-StepByStep] [<CommonParameters>]
+New-DDDmarcRecord [[-Policy] <string>] [-SubPolicy <string>] [-AggregateUri <string>] [-ForensicUri <string>] [-Percent <Int32>] [-DkimAlignment <string>] [-SpfAlignment <string>] [-FailureOptions <string>] [-ReportingInterval <Int32>] [-DomainName <string>] [-DnsApiUrl <uri>] [-Publish] [-StepByStep] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 Percentage of mail subjected to the policy.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 Reporting interval in seconds.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

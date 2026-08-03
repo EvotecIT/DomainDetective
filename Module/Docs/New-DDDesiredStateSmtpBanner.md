@@ -11,7 +11,7 @@ Creates an SMTP banner desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateSmtpBanner [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-RequireValidFormat <bool>] [-RequireStartsWith220 <bool>] [-RequireDomainPresent <bool>] [-DisallowTruncated <bool>] [-MaxResponseTimeMs <int>] [-RequireTlsAdvertised <bool>] [-DisallowVersionLeak <bool>] [-AllowedServerDomainSuffixes <string[]>] [<CommonParameters>]
+New-DDDesiredStateSmtpBanner [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-RequireValidFormat <Boolean>] [-RequireStartsWith220 <Boolean>] [-RequireDomainPresent <Boolean>] [-DisallowTruncated <Boolean>] [-MaxResponseTimeMs <Int32>] [-RequireTlsAdvertised <Boolean>] [-DisallowVersionLeak <Boolean>] [-AllowedServerDomainSuffixes <string[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallow truncated banners.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, disallow banners leaking software versions.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Enable/disable the SMTP banner desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 Maximum allowed banner response time in milliseconds.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, require at least one SMTP banner result to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, require banners to include a domain name.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, require banners to start with 220.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 When true, require the banner to advertise TLS.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 When true, require RFC-compliant banner format.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

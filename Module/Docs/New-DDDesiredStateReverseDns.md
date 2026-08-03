@@ -11,7 +11,7 @@ Creates a reverse DNS desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateReverseDns [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-RequirePtrPresent <bool>] [-RequirePtrMatchesExpectedHost <bool>] [-AllowedPtrSuffixes <string[]>] [-RequireForwardConfirmed <bool>] [<CommonParameters>]
+New-DDDesiredStateReverseDns [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-RequirePtrPresent <Boolean>] [-RequirePtrMatchesExpectedHost <Boolean>] [-AllowedPtrSuffixes <string[]>] [-RequireForwardConfirmed <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the reverse DNS desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, warns if no reverse DNS results were analyzed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, requires forward-confirmed reverse DNS (FCrDNS) for each IP.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, requires at least one PTR record to match the expected host name.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, requires each analyzed IP address to have at least one PTR record.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

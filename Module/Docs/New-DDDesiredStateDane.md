@@ -11,7 +11,7 @@ Creates a DANE desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateDane [-Enabled <bool>] [-RequireRecord <bool>] [-RequireValidRecords <bool>] [-DisallowDuplicates <bool>] [-RequiredServices <ServiceType[]>] [-RequireRecommendedForSmtp <bool>] [-RequireRecommendedForHttps <bool>] [<CommonParameters>]
+New-DDDesiredStateDane [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireValidRecords <Boolean>] [-DisallowDuplicates <Boolean>] [-RequiredServices <ServiceType[]>] [-RequireRecommendedForSmtp <Boolean>] [-RequireRecommendedForHttps <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateDane -DisallowDuplicates 'Value'
+New-DDDesiredStateDane -DisallowDuplicates $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateDane -DisallowDuplicates 'Value'
 When true, disallows duplicate TLSA records.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the DANE desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, requires recommended DANE configuration for HTTPS.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, requires recommended DANE configuration for SMTP.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, requires a DANE record to exist (overall or for selected services).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, requires DANE records to be valid.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

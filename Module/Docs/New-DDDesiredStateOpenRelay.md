@@ -11,7 +11,7 @@ Creates an open relay desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateOpenRelay [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-DisallowOpenRelay <bool>] [-TreatConnectionFailuresAsDrift <bool>] [<CommonParameters>]
+New-DDDesiredStateOpenRelay [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-DisallowOpenRelay <Boolean>] [-TreatConnectionFailuresAsDrift <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateOpenRelay -Enabled $true -DisallowOpenRelay $true
 When true, disallow MX hosts that allow unauthenticated relay.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the open relay desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, require at least one open relay result to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, treat connection failures as drift.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

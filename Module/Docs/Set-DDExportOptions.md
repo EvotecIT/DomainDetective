@@ -11,7 +11,7 @@ Sets global export defaults for DomainDetective reports.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Set-DDExportOptions [-DefaultFormat <ReportFormat>] [-OutputDirectory <string>] [-ArtifactsDirectory <string>] [-LogoPath <string>] [-HeaderLogoSizePx <int>] [-FooterLogoSizePx <int>] [-HeaderText <string>] [-FooterText <string>] [-WatermarkText <string>] [-SummaryColumnCap <int>] [-CompanyName <string>] [-CompanyAddress <string>] [-CompanyYear <string>] [-Title <string>] [-Subject <string>] [-Category <string>] [-Keywords <string>] [-Creator <string>] [-OpenInBrowser] [-Artifacts] [-NoArtifacts] [-Reset] [-NarrativePlacement <NarrativePlacement>] [<CommonParameters>]
+Set-DDExportOptions [-DefaultFormat <ReportFormat>] [-OutputDirectory <string>] [-ArtifactsDirectory <string>] [-LogoPath <string>] [-HeaderLogoSizePx <Int32>] [-FooterLogoSizePx <Int32>] [-HeaderText <string>] [-FooterText <string>] [-WatermarkText <string>] [-SummaryColumnCap <Int32>] [-CompanyName <string>] [-CompanyAddress <string>] [-CompanyYear <string>] [-Title <string>] [-Subject <string>] [-Category <string>] [-Keywords <string>] [-Creator <string>] [-OpenInBrowser] [-Artifacts] [-NoArtifacts] [-Reset] [-NarrativePlacement <NarrativePlacement>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 Default format for exports.
 
 ```yaml
-Type: Nullable`1
+Type: ReportFormat
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values: Html, Json, Word, Excel, Markdown, MarkdownHtml
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 Footer logo height in pixels (optional).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -191,7 +191,7 @@ Accept wildcard characters: False
 Header logo height in pixels (optional).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -255,10 +255,10 @@ Accept wildcard characters: False
 Default narrative placement for reports.
 
 ```yaml
-Type: Nullable`1
+Type: NarrativePlacement
 Parameter Sets: __AllParameterSets
 Aliases: None
-Possible values:
+Possible values: Auto, Global, PerDomain, None
 
 Required: False
 Position: named
@@ -351,7 +351,7 @@ Accept wildcard characters: False
 Max status columns in Word executive summary tables.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

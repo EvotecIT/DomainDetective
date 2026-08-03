@@ -11,7 +11,7 @@ Builds endpoint-level certificate drift from persisted inventory snapshots.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventoryDrift [-CacheDirectory <string>] [-SinceUtc <datetime>] [-ChangedOnly] [-MaxEndpoints <int>] [-MinimumSeverity <string>] [-ChangeKind <string[]>] [-ChangeKindMatch <string>] [<CommonParameters>]
+Get-DDCertificateInventoryDrift [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-ChangedOnly] [-MaxEndpoints <int>] [-MinimumSeverity <string>] [-ChangeKind <string[]>] [-ChangeKindMatch <string>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -145,7 +145,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

@@ -11,7 +11,7 @@ Creates an SMTP TLS desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateSmtpTls [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-RequireCertificateValid <bool>] [-RequireChainValid <bool>] [-RequireHostnameMatch <bool>] [-DisallowExpiredCertificates <bool>] [-MinCertificateDaysToExpire <int>] [-DisallowLegacyProtocols <bool>] [-MinimumGradeLevel <GradeLevel>] [<CommonParameters>]
+New-DDDesiredStateSmtpTls [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-RequireCertificateValid <Boolean>] [-RequireChainValid <Boolean>] [-RequireHostnameMatch <Boolean>] [-DisallowExpiredCertificates <Boolean>] [-MinCertificateDaysToExpire <Int32>] [-DisallowLegacyProtocols <Boolean>] [-MinimumGradeLevel <GradeLevel>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateSmtpTls -RequireCertificateValid $true -DisallowLegacyProt
 When true, disallows expired certificates.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallows legacy TLS protocols (1.0/1.1) and legacy negotiation.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Enable/disable the SMTP TLS desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Minimum certificate days remaining before expiry.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,10 +95,10 @@ Accept wildcard characters: False
 Minimum accepted TLS grade level.
 
 ```yaml
-Type: Nullable`1
+Type: GradeLevel
 Parameter Sets: __AllParameterSets
 Aliases: None
-Possible values:
+Possible values: Unknown, F, D, C, B, A
 
 Required: False
 Position: named
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, warns if no TLS results were produced.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, requires certificates to be valid.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, requires certificate chains to be valid.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 When true, requires certificate hostname match.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

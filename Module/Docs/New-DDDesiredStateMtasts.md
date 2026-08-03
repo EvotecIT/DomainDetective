@@ -11,7 +11,7 @@ Creates an MTA-STS desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateMtasts [-Enabled <bool>] [-RequireRecord <bool>] [-RequireDnsRecordValid <bool>] [-RequirePolicyPresent <bool>] [-RequirePolicyValid <bool>] [-DisallowDuplicateFields <bool>] [-RequireEnforce <bool>] [-MinMaxAge <int>] [-RequireMxAligned <bool>] [<CommonParameters>]
+New-DDDesiredStateMtasts [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireDnsRecordValid <Boolean>] [-RequirePolicyPresent <Boolean>] [-RequirePolicyValid <Boolean>] [-DisallowDuplicateFields <Boolean>] [-RequireEnforce <Boolean>] [-MinMaxAge <Int32>] [-RequireMxAligned <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateMtasts -Enabled $true -RequireRecord $true -RequireEnforce
 When true, disallows duplicate fields in either the DNS record or the policy file.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the MTA-STS desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Minimum accepted max_age value (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, requires the _mta-sts TXT record to be syntactically valid (v=STSv1; id=...).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, require MTA-STS policy mode to be enforce.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, require policy MX patterns to align with discovered MX targets.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, requires the HTTPS policy file to be fetched successfully.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, requires the HTTPS policy file to be valid and consistent with the DNS bootstrap record.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 When true, require an MTA-STS DNS record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

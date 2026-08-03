@@ -16,7 +16,7 @@ Import-DDTlsRptReportSnapshot [-Path] <string> -DomainName <string> -StorePath <
 
 ### Imap
 ```powershell
-Import-DDTlsRptReportSnapshot -DomainName <string> -StorePath <string> -ImapHost <string> -Credential <pscredential> [-ImapPort <int>] [-ImapUseSsl <bool>] [-Mailbox <string>] [-SubjectContains <string>] [-SinceUtc <datetime>] [-MaxMessages <int>] [-MaxAttachmentMb <int>] [-OnlyUnseen <bool>] [-NoDeduplicate] [-AsResult] [<CommonParameters>]
+Import-DDTlsRptReportSnapshot -DomainName <string> -StorePath <string> -ImapHost <string> -Credential <pscredential> [-ImapPort <int>] [-ImapUseSsl <bool>] [-Mailbox <string>] [-SubjectContains <string>] [-SinceUtc <DateTime>] [-MaxMessages <int>] [-MaxAttachmentMb <int>] [-OnlyUnseen <bool>] [-NoDeduplicate] [-AsResult] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -234,7 +234,7 @@ Accept wildcard characters: False
 Only fetch messages delivered since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: Imap
 Aliases: None
 Possible values:

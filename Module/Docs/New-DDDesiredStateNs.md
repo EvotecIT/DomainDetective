@@ -11,7 +11,7 @@ Creates an NS desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateNs [-Enabled <bool>] [-RequireRecord <bool>] [-RequireAtLeastTwo <bool>] [-DisallowDuplicates <bool>] [-RequireAllHaveAOrAaaa <bool>] [-DisallowCnameTargets <bool>] [-RequireDiversity <bool>] [-MinAsnDiversity <int>] [-AllowedHostSuffixes <string[]>] [<CommonParameters>]
+New-DDDesiredStateNs [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireAtLeastTwo <Boolean>] [-DisallowDuplicates <Boolean>] [-RequireAllHaveAOrAaaa <Boolean>] [-DisallowCnameTargets <Boolean>] [-RequireDiversity <Boolean>] [-MinAsnDiversity <Int32>] [-AllowedHostSuffixes <string[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallow NS targets that resolve to CNAME.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, disallow duplicate NS targets.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Enable/disable the NS desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 Minimum distinct ASN count for authoritative name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, requires all NS targets to have A/AAAA records.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, require at least two NS records.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, enforce diversity requirements for authoritative name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 When true, require NS records to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

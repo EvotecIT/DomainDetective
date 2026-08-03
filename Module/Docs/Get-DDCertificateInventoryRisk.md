@@ -11,7 +11,7 @@ Builds endpoint-level certificate risk posture from persisted inventory snapshot
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventoryRisk [-CacheDirectory <string>] [-SinceUtc <datetime>] [-IncludeHealthy] [-ExpiringWithinDays <int>] [-CriticalExpiringWithinDays <int>] [-MaxEndpoints <int>] [-MinimumSeverity <string>] [-ScoreMin <int>] [-ScoreMax <int>] [-ReasonCountMin <int>] [-ReasonCountMax <int>] [-ReuseEndpointCountMin <int>] [-ReuseEndpointCountMax <int>] [-RiskProfile <string>] [-ReasonContains <string>] [-ReasonAnyOf <string[]>] [-ReasonAllOf <string[]>] [-IssuerContains <string>] [-IssuerContainsAnyOf <string[]>] [-IssuerContainsAllOf <string[]>] [-RootIssuerContains <string>] [-RootIssuerContainsAnyOf <string[]>] [-RootIssuerContainsAllOf <string[]>] [-AuthorityFamilyEquals <string>] [-RootAuthorityFamilyEquals <string>] [-CtSourceContains <string>] [-CtTemplateErrorContains <string>] [-ChainSourceContains <string>] [-ThumbprintEquals <string>] [-RootThumbprintEquals <string>] [-SerialNumberEquals <string>] [-HostContains <string>] [-ServiceEquals <string>] [-PortEquals <int>] [-ChainLengthMin <int>] [-ChainLengthMax <int>] [-IntermediateCountMin <int>] [-IntermediateCountMax <int>] [-CtObservedOnly] [-CtMissingOnly] [-ChainCompleteOnly] [-ChainIncompleteOnly] [-ReachableOnly] [-UnreachableOnly] [-HostnameMatchOnly] [-HostnameMismatchOnly] [-SelfSignedOnly] [-CaSignedOnly] [-WeakKeyOnly] [-StrongKeyOnly] [-Sha1SignatureOnly] [-NonSha1SignatureOnly] [-ExpiredOnly] [-NotExpiredOnly] [-NotYetValidOnly] [-AlreadyValidOnly] [-CurrentlyValidOnly] [-CurrentlyInvalidOnly] [-DaysToExpireMin <int>] [-DaysToExpireMax <int>] [-DaysUntilValidMin <int>] [-DaysUntilValidMax <int>] [-AuthenticationProfileEquals <string>] [-KnownCaOnly] [-UnknownCaOnly] [-KnownRootCaOnly] [-UnknownRootCaOnly] [-ServerAuthOnly] [-ClientAuthOnly] [-SecureEmailOnly] [-ReuseCrossServiceOnly] [-ReuseSingleServiceOnly] [-ReuseDistinctServiceCountMin <int>] [-ReuseDistinctServiceCountMax <int>] [-ReuseDistinctPortCountMin <int>] [-ReuseDistinctPortCountMax <int>] [-ReuseCrossPortOnly] [-ReuseSinglePortOnly] [<CommonParameters>]
+Get-DDCertificateInventoryRisk [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-IncludeHealthy] [-ExpiringWithinDays <int>] [-CriticalExpiringWithinDays <int>] [-MaxEndpoints <int>] [-MinimumSeverity <string>] [-ScoreMin <Int32>] [-ScoreMax <Int32>] [-ReasonCountMin <Int32>] [-ReasonCountMax <Int32>] [-ReuseEndpointCountMin <Int32>] [-ReuseEndpointCountMax <Int32>] [-RiskProfile <string>] [-ReasonContains <string>] [-ReasonAnyOf <string[]>] [-ReasonAllOf <string[]>] [-IssuerContains <string>] [-IssuerContainsAnyOf <string[]>] [-IssuerContainsAllOf <string[]>] [-RootIssuerContains <string>] [-RootIssuerContainsAnyOf <string[]>] [-RootIssuerContainsAllOf <string[]>] [-AuthorityFamilyEquals <string>] [-RootAuthorityFamilyEquals <string>] [-CtSourceContains <string>] [-CtTemplateErrorContains <string>] [-ChainSourceContains <string>] [-ThumbprintEquals <string>] [-RootThumbprintEquals <string>] [-SerialNumberEquals <string>] [-HostContains <string>] [-ServiceEquals <string>] [-PortEquals <Int32>] [-ChainLengthMin <Int32>] [-ChainLengthMax <Int32>] [-IntermediateCountMin <Int32>] [-IntermediateCountMax <Int32>] [-CtObservedOnly] [-CtMissingOnly] [-ChainCompleteOnly] [-ChainIncompleteOnly] [-ReachableOnly] [-UnreachableOnly] [-HostnameMatchOnly] [-HostnameMismatchOnly] [-SelfSignedOnly] [-CaSignedOnly] [-WeakKeyOnly] [-StrongKeyOnly] [-Sha1SignatureOnly] [-NonSha1SignatureOnly] [-ExpiredOnly] [-NotExpiredOnly] [-NotYetValidOnly] [-AlreadyValidOnly] [-CurrentlyValidOnly] [-CurrentlyInvalidOnly] [-DaysToExpireMin <Int32>] [-DaysToExpireMax <Int32>] [-DaysUntilValidMin <Int32>] [-DaysUntilValidMax <Int32>] [-AuthenticationProfileEquals <string>] [-KnownCaOnly] [-UnknownCaOnly] [-KnownRootCaOnly] [-UnknownRootCaOnly] [-ServerAuthOnly] [-ClientAuthOnly] [-SecureEmailOnly] [-ReuseCrossServiceOnly] [-ReuseSingleServiceOnly] [-ReuseDistinctServiceCountMin <Int32>] [-ReuseDistinctServiceCountMax <Int32>] [-ReuseDistinctPortCountMin <Int32>] [-ReuseDistinctPortCountMax <Int32>] [-ReuseCrossPortOnly] [-ReuseSinglePortOnly] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -155,7 +155,7 @@ Accept wildcard characters: False
 Only include endpoints whose observed chain length is less than or equal to this value.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -171,7 +171,7 @@ Accept wildcard characters: False
 Only include endpoints whose observed chain length is greater than or equal to this value.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -331,7 +331,7 @@ Accept wildcard characters: False
 Only include endpoints whose days-to-expire is less than or equal to this value.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -347,7 +347,7 @@ Accept wildcard characters: False
 Only include endpoints whose days-to-expire is greater than or equal to this value.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -363,7 +363,7 @@ Accept wildcard characters: False
 Only include endpoints whose days-until-valid is less than or equal to this value.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -379,7 +379,7 @@ Accept wildcard characters: False
 Only include endpoints whose days-until-valid is greater than or equal to this value.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -491,7 +491,7 @@ Accept wildcard characters: False
 Only include endpoints whose observed intermediate count is less than or equal to this value.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -507,7 +507,7 @@ Accept wildcard characters: False
 Only include endpoints whose observed intermediate count is greater than or equal to this value.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -683,7 +683,7 @@ Accept wildcard characters: False
 Optional endpoint port exact-match filter (1-65535).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -763,7 +763,7 @@ Accept wildcard characters: False
 Optional maximum reason-count filter (0 or greater).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -779,7 +779,7 @@ Accept wildcard characters: False
 Optional minimum reason-count filter (0 or greater).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -827,7 +827,7 @@ Accept wildcard characters: False
 Optional maximum certificate-reuse distinct-port-count filter (1 or greater).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -843,7 +843,7 @@ Accept wildcard characters: False
 Optional minimum certificate-reuse distinct-port-count filter (1 or greater).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -859,7 +859,7 @@ Accept wildcard characters: False
 Optional maximum certificate-reuse distinct-service-count filter (1 or greater).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -875,7 +875,7 @@ Accept wildcard characters: False
 Optional minimum certificate-reuse distinct-service-count filter (1 or greater).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -891,7 +891,7 @@ Accept wildcard characters: False
 Optional maximum certificate-reuse endpoint-count filter (1 or greater).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -907,7 +907,7 @@ Accept wildcard characters: False
 Optional minimum certificate-reuse endpoint-count filter (1 or greater).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -1051,7 +1051,7 @@ Accept wildcard characters: False
 Optional maximum endpoint risk score filter (0-100).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -1067,7 +1067,7 @@ Accept wildcard characters: False
 Optional minimum endpoint risk score filter (0-100).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -1179,7 +1179,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

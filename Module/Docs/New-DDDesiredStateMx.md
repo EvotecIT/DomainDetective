@@ -11,7 +11,7 @@ Creates an MX desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateMx [-Enabled <bool>] [-RequireRecord <bool>] [-RequireNullMx <bool>] [-DisallowNullMx <bool>] [-RequireBackupServers <bool>] [-RequireIpv6Supported <bool>] [-AllowedHostSuffixes <string[]>] [-DisallowCnameTargets <bool>] [-DisallowIpTargets <bool>] [-DisallowNonExistentTargets <bool>] [-DisallowNoAddressTargets <bool>] [-DisallowLocalhostTargets <bool>] [-RequireTtlUniform <bool>] [-RequireRrsetConsistentAcrossNs <bool>] [-RequireTargetAddressConsistentAcrossNs <bool>] [<CommonParameters>]
+New-DDDesiredStateMx [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireNullMx <Boolean>] [-DisallowNullMx <Boolean>] [-RequireBackupServers <Boolean>] [-RequireIpv6Supported <Boolean>] [-AllowedHostSuffixes <string[]>] [-DisallowCnameTargets <Boolean>] [-DisallowIpTargets <Boolean>] [-DisallowNonExistentTargets <Boolean>] [-DisallowNoAddressTargets <Boolean>] [-DisallowLocalhostTargets <Boolean>] [-RequireTtlUniform <Boolean>] [-RequireRrsetConsistentAcrossNs <Boolean>] [-RequireTargetAddressConsistentAcrossNs <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallows MX targets that resolve to CNAME.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, disallows MX targets that are raw IP addresses.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, disallows MX targets that resolve to localhost.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, disallows MX targets that have no A/AAAA addresses.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, disallows MX targets that do not exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, disallow a null-MX record (RFC 7505).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 Enable/disable the MX desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 When true, requires backup servers (lower priority numbers and redundancy).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 When true, requires IPv6 support for MX targets.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -191,7 +191,7 @@ Accept wildcard characters: False
 When true, require a null-MX record (RFC 7505).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -207,7 +207,7 @@ Accept wildcard characters: False
 When true, require an MX record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -223,7 +223,7 @@ Accept wildcard characters: False
 When true, requires RRSet consistency across authoritative name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -239,7 +239,7 @@ Accept wildcard characters: False
 When true, requires target address consistency across authoritative name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -255,7 +255,7 @@ Accept wildcard characters: False
 When true, requires MX TTL uniformity across authoritative name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

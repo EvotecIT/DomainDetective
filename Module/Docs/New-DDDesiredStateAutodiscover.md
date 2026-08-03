@@ -11,7 +11,7 @@ Creates an Autodiscover desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateAutodiscover [-Enabled <bool>] [-RequireSrvRecord <bool>] [-RequireAutodiscoverCname <bool>] [-RequireAutoconfigCname <bool>] [-AllowedSrvTargetSuffixes <string[]>] [-AllowedAutodiscoverCnameTargetSuffixes <string[]>] [-AllowedAutoconfigCnameTargetSuffixes <string[]>] [-RequireAnyValidEndpoint <bool>] [-AllowedValidEndpointHostSuffixes <string[]>] [<CommonParameters>]
+New-DDDesiredStateAutodiscover [-Enabled <Boolean>] [-RequireSrvRecord <Boolean>] [-RequireAutodiscoverCname <Boolean>] [-RequireAutoconfigCname <Boolean>] [-AllowedSrvTargetSuffixes <string[]>] [-AllowedAutodiscoverCnameTargetSuffixes <string[]>] [-AllowedAutoconfigCnameTargetSuffixes <string[]>] [-RequireAnyValidEndpoint <Boolean>] [-AllowedValidEndpointHostSuffixes <string[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 Enable/disable the Autodiscover desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, requires at least one Autodiscover endpoint to return valid XML or JSON.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, require an autoconfig.<domain> CNAME record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, require an autodiscover.<domain> CNAME record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 When true, require an _autodiscover._tcp SRV record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

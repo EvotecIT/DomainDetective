@@ -11,7 +11,7 @@ Creates a DKIM desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateDkim [-Enabled <bool>] [-RequireAtLeastOneSelector <bool>] [-RequireStartsCorrectly <bool>] [-RequirePublicKey <bool>] [-RequireValidPublicKey <bool>] [-RequireValidKeyType <bool>] [-RequiredSelectors <string[]>] [-MinKeyBits <int>] [-DisallowWeakKeys <bool>] [-MaxKeyAgeDays <int>] [-DisallowDeprecatedTags <bool>] [-DisallowInvalidFlags <bool>] [-DisallowUnknownCanonicalizationModes <bool>] [-DisallowInvalidCanonicalization <bool>] [-AllowedCnameTargetSuffixes <string[]>] [<CommonParameters>]
+New-DDDesiredStateDkim [-Enabled <Boolean>] [-RequireAtLeastOneSelector <Boolean>] [-RequireStartsCorrectly <Boolean>] [-RequirePublicKey <Boolean>] [-RequireValidPublicKey <Boolean>] [-RequireValidKeyType <Boolean>] [-RequiredSelectors <string[]>] [-MinKeyBits <Int32>] [-DisallowWeakKeys <Boolean>] [-MaxKeyAgeDays <Int32>] [-DisallowDeprecatedTags <Boolean>] [-DisallowInvalidFlags <Boolean>] [-DisallowUnknownCanonicalizationModes <Boolean>] [-DisallowInvalidCanonicalization <Boolean>] [-AllowedCnameTargetSuffixes <string[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallows deprecated DKIM tags/values.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, disallows invalid canonicalization strings (when c= is present).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, disallows invalid DKIM flags.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, disallows unknown canonicalization modes.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, disallows weak RSA keys (under 2048 bits).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 Enable/disable the DKIM desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 Maximum allowed key age in days when a creation date can be inferred.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 Minimum accepted key length in bits for selectors.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 When true, requires at least one DKIM selector to be analyzed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -207,7 +207,7 @@ Accept wildcard characters: False
 When true, requires DKIM records to contain a non-empty p= public key.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -223,7 +223,7 @@ Accept wildcard characters: False
 When true, requires DKIM records to start with v=DKIM1.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -239,7 +239,7 @@ Accept wildcard characters: False
 When true, requires DKIM key type to be recognized (rsa/ed25519).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -255,7 +255,7 @@ Accept wildcard characters: False
 When true, requires DKIM public keys to be parseable/valid.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

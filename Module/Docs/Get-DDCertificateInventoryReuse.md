@@ -11,7 +11,7 @@ Builds certificate reuse and endpoint assignment mapping from persisted inventor
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventoryReuse [-CacheDirectory <string>] [-SinceUtc <datetime>] [-IncludeSingletons] [-MinEndpoints <int>] [-MaxCertificates <int>] [-MaxEndpointsPerCertificate <int>] [<CommonParameters>]
+Get-DDCertificateInventoryReuse [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-IncludeSingletons] [-MinEndpoints <int>] [-MaxCertificates <int>] [-MaxEndpointsPerCertificate <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -117,7 +117,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

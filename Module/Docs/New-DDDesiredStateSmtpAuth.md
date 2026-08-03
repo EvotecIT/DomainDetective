@@ -11,7 +11,7 @@ Creates an SMTP AUTH desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateSmtpAuth [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-DisallowAuthAdvertisement <bool>] [-AllowedMechanisms <string[]>] [-DisallowedMechanisms <string[]>] [-RequiredMechanismsAnyOf <string[]>] [-RequireStartTlsCapabilityWhenAuth <bool>] [<CommonParameters>]
+New-DDDesiredStateSmtpAuth [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-DisallowAuthAdvertisement <Boolean>] [-AllowedMechanisms <string[]>] [-DisallowedMechanisms <string[]>] [-RequiredMechanismsAnyOf <string[]>] [-RequireStartTlsCapabilityWhenAuth <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallows any SMTP AUTH advertisement on any server.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Enable/disable the SMTP AUTH desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, require at least one SMTP AUTH result to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, requires STARTTLS capability to be advertised alongside AUTH.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

@@ -11,7 +11,7 @@ Builds endpoint-level certificate policy drift between two persisted inventory s
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventoryPolicyDrift [-CacheDirectory <string>] [-SinceUtc <datetime>] [-PreviousUtc <datetime>] [-CurrentUtc <datetime>] [-BaselineProfile <string>] [-ChangedOnly] [-MaxEndpoints <int>] [-PolicyOverridesPath <string>] [<CommonParameters>]
+Get-DDCertificateInventoryPolicyDrift [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-PreviousUtc <DateTime>] [-CurrentUtc <DateTime>] [-BaselineProfile <string>] [-ChangedOnly] [-MaxEndpoints <int>] [-PolicyOverridesPath <string>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -91,7 +91,7 @@ Accept wildcard characters: False
 Optional current snapshot selector (latest snapshot at or before this UTC time).
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -139,7 +139,7 @@ Accept wildcard characters: False
 Optional previous snapshot selector (latest snapshot at or before this UTC time).
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -155,7 +155,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

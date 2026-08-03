@@ -11,7 +11,7 @@ Creates an open resolver desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateOpenResolver [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-DisallowOpenResolver <bool>] [<CommonParameters>]
+New-DDDesiredStateOpenResolver [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-DisallowOpenResolver <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateOpenResolver -Enabled $true -DisallowOpenResolver $true
 When true, disallow authoritative name servers that allow recursion.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the open resolver desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, require at least one open resolver result to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

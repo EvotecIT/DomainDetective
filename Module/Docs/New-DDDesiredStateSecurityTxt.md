@@ -11,7 +11,7 @@ Creates a security.txt desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateSecurityTxt [-Enabled <bool>] [-RequireRecord <bool>] [-RequireValid <bool>] [-DisallowFallback <bool>] [-RequirePgpSigned <bool>] [-RequireContactEmail <bool>] [-AllowedContactEmailDomainSuffixes <string[]>] [<CommonParameters>]
+New-DDDesiredStateSecurityTxt [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireValid <Boolean>] [-DisallowFallback <Boolean>] [-RequirePgpSigned <Boolean>] [-RequireContactEmail <Boolean>] [-AllowedContactEmailDomainSuffixes <string[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallows fallback to HTTP retrieval when HTTPS fails.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Enable/disable the security.txt desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, require security.txt to include at least one Contact mail address.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, require security.txt to be PGP signed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, require security.txt to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, require security.txt to pass validation.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

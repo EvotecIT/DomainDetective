@@ -11,7 +11,7 @@ Creates an EDNS support desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateEdnsSupport [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-RequireAllServersSupported <bool>] [-MaxUdpPayloadSize <int>] [-RequireVersionZero <bool>] [-RequireCookieSupport <bool>] [<CommonParameters>]
+New-DDDesiredStateEdnsSupport [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-RequireAllServersSupported <Boolean>] [-MaxUdpPayloadSize <Int32>] [-RequireVersionZero <Boolean>] [-RequireCookieSupport <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateEdnsSupport -Enabled 'Value'
+New-DDDesiredStateEdnsSupport -Enabled $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateEdnsSupport -Enabled 'Value'
 Enable/disable the EDNS support desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Optional maximum EDNS UDP payload size (bytes) that servers are allowed to advertise.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, requires all authoritative server endpoints to support EDNS.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, warns if no EDNS results were analyzed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, requires authoritative servers to support DNS Cookies.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, requires EDNS version 0.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

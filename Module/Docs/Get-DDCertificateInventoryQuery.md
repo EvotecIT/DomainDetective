@@ -11,7 +11,7 @@ Queries persisted certificate inventory snapshots using structured filters.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventoryQuery [-CacheDirectory <string>] [-SinceUtc <datetime>] [-UntilUtc <datetime>] [-HostContains <string>] [-SubjectContains <string>] [-SanContains <string>] [-ServiceEquals <string>] [-IssuerContains <string>] [-AuthorityFamilyEquals <string>] [-RootContains <string>] [-RootAuthorityFamilyEquals <string>] [-CtSourceContains <string>] [-CtTemplateErrorContains <string>] [-ChainSourceContains <string>] [-ThumbprintEquals <string>] [-RootThumbprintEquals <string>] [-SerialNumberEquals <string>] [-KnownCaOnly] [-UnknownCaOnly] [-KnownRootCaOnly] [-UnknownRootCaOnly] [-ValidOnly] [-InvalidOnly] [-ExpiredOnly] [-ChainIncompleteOnly] [-ChainCompleteOnly] [-HostnameMismatchOnly] [-HostnameMatchOnly] [-SelfSignedOnly] [-NotSelfSignedOnly] [-UnreachableOnly] [-ReachableOnly] [-CtOnly] [-CtMissingOnly] [-ServerAuthOnly] [-NoServerAuthOnly] [-ClientAuthOnly] [-NoClientAuthOnly] [-SecureEmailOnly] [-NoSecureEmailOnly] [-WeakKeyOnly] [-Sha1SignatureOnly] [-NotYetValidOnly] [-ExpiringWithinDays <int>] [-AuthenticationProfileEquals <string>] [-LatestOnly] [-MaxResults <int>] [<CommonParameters>]
+Get-DDCertificateInventoryQuery [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-UntilUtc <DateTime>] [-HostContains <string>] [-SubjectContains <string>] [-SanContains <string>] [-ServiceEquals <string>] [-IssuerContains <string>] [-AuthorityFamilyEquals <string>] [-RootContains <string>] [-RootAuthorityFamilyEquals <string>] [-CtSourceContains <string>] [-CtTemplateErrorContains <string>] [-ChainSourceContains <string>] [-ThumbprintEquals <string>] [-RootThumbprintEquals <string>] [-SerialNumberEquals <string>] [-KnownCaOnly] [-UnknownCaOnly] [-KnownRootCaOnly] [-UnknownRootCaOnly] [-ValidOnly] [-InvalidOnly] [-ExpiredOnly] [-ChainIncompleteOnly] [-ChainCompleteOnly] [-HostnameMismatchOnly] [-HostnameMatchOnly] [-SelfSignedOnly] [-NotSelfSignedOnly] [-UnreachableOnly] [-ReachableOnly] [-CtOnly] [-CtMissingOnly] [-ServerAuthOnly] [-NoServerAuthOnly] [-ClientAuthOnly] [-NoClientAuthOnly] [-SecureEmailOnly] [-NoSecureEmailOnly] [-WeakKeyOnly] [-Sha1SignatureOnly] [-NotYetValidOnly] [-ExpiringWithinDays <Int32>] [-AuthenticationProfileEquals <string>] [-LatestOnly] [-MaxResults <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -247,7 +247,7 @@ Accept wildcard characters: False
 Only include certificates expiring within this many days.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -663,7 +663,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -759,7 +759,7 @@ Accept wildcard characters: False
 Only include snapshots captured up to this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

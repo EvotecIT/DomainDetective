@@ -11,7 +11,7 @@ Creates a delegation desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateDelegation [-Enabled <bool>] [-RequireMatchesParent <bool>] [-RequireGlueComplete <bool>] [-RequireGlueConsistent <bool>] [<CommonParameters>]
+New-DDDesiredStateDelegation [-Enabled <Boolean>] [-RequireMatchesParent <Boolean>] [-RequireGlueComplete <Boolean>] [-RequireGlueConsistent <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateDelegation -Enabled 'Value'
+New-DDDesiredStateDelegation -Enabled $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateDelegation -Enabled 'Value'
 Enable/disable the delegation desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, requires glue records to be present for in-bailiwick name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, requires glue records to be consistent across authoritative name servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, requires child delegation NS to match parent delegation NS.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

@@ -11,7 +11,7 @@ Builds a structured WHOIS/RDAP drift view from stored registration snapshots.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDRegistrationDrift [-DomainName] <string> -StorePath <string> [-SinceUtc <datetime>] [<CommonParameters>]
+Get-DDRegistrationDrift [-DomainName] <string> -StorePath <string> [-SinceUtc <DateTime>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Only load snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

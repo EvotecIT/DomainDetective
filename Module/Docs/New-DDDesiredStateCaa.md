@@ -11,7 +11,7 @@ Creates a CAA desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateCaa [-Enabled <bool>] [-RequireRecord <bool>] [-RequireValid <bool>] [-AllowedCertificateIssuers <string[]>] [-AllowedWildcardIssuers <string[]>] [-RequireIodef <bool>] [-AllowedIodefDomainSuffixes <string[]>] [<CommonParameters>]
+New-DDDesiredStateCaa [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireValid <Boolean>] [-AllowedCertificateIssuers <string[]>] [-AllowedWildcardIssuers <string[]>] [-RequireIodef <Boolean>] [-AllowedIodefDomainSuffixes <string[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Enable/disable the CAA desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, requires at least one iodef reporting endpoint.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, require a CAA record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, require the CAA policy to be valid.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

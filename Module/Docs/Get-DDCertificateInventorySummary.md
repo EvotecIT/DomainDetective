@@ -11,7 +11,7 @@ Builds a certificate inventory summary from persisted monitor snapshots.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventorySummary [-CacheDirectory <string>] [-SinceUtc <datetime>] [-ExpiringWithinDays <int>] [-MaxExpiringEndpoints <int>] [<CommonParameters>]
+Get-DDCertificateInventorySummary [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-ExpiringWithinDays <int>] [-MaxExpiringEndpoints <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

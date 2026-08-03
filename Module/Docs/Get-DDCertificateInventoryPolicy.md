@@ -11,7 +11,7 @@ Evaluates certificate inventory snapshots against baseline policy profiles.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventoryPolicy [-CacheDirectory <string>] [-SinceUtc <datetime>] [-BaselineProfile <string>] [-IncludeCompliant] [-MaxEndpoints <int>] [-PolicyOverridesPath <string>] [-DesiredStatePath <string>] [-DesiredStateDomain <string>] [-MailClassification <MailDomainClassificationCategory>] [<CommonParameters>]
+Get-DDCertificateInventoryPolicy [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-BaselineProfile <string>] [-IncludeCompliant] [-MaxEndpoints <int>] [-PolicyOverridesPath <string>] [-DesiredStatePath <string>] [-DesiredStateDomain <string>] [-MailClassification <MailDomainClassificationCategory>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -129,10 +129,10 @@ Accept wildcard characters: False
 Optional mail classification used when resolving desired state overrides.
 
 ```yaml
-Type: Nullable`1
+Type: MailDomainClassificationCategory
 Parameter Sets: __AllParameterSets
 Aliases: None
-Possible values:
+Possible values: SendingAndReceiving, ReceivingOnly, SendingOnly, Parked, Unknown
 
 Required: False
 Position: named
@@ -177,7 +177,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

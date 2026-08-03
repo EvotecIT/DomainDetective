@@ -11,7 +11,7 @@ Creates a certificate inventory desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateCertificateInventory [-Enabled <bool>] [-BaselineProfile <string>] [-IncludeCompliant <bool>] [-MaxEndpoints <int>] [-PolicyOverridesPath <string>] [<CommonParameters>]
+New-DDDesiredStateCertificateInventory [-Enabled <Boolean>] [-BaselineProfile <string>] [-IncludeCompliant <Boolean>] [-MaxEndpoints <Int32>] [-PolicyOverridesPath <string>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable certificate inventory desired state evaluation.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Include endpoints with no policy violations.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Maximum endpoint rows returned by policy evaluation.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

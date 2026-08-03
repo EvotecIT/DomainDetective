@@ -11,7 +11,7 @@ Builds CT diagnostics health timeline from persisted certificate inventory snaps
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventoryCtHealth [-CacheDirectory <string>] [-SinceUtc <datetime>] [-UntilUtc <datetime>] [-LatestOnly] [-MaxSnapshots <int>] [-MaxFailed <int>] [-MaxCircuitOpen <int>] [-MaxLagAfter <long>] [-FailOnAnyBreach] [-FailOnThresholdBreach] [<CommonParameters>]
+Get-DDCertificateInventoryCtHealth [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-UntilUtc <DateTime>] [-LatestOnly] [-MaxSnapshots <int>] [-MaxFailed <Int32>] [-MaxCircuitOpen <Int32>] [-MaxLagAfter <Int64>] [-FailOnAnyBreach] [-FailOnThresholdBreach] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -107,7 +107,7 @@ Accept wildcard characters: False
 Alert threshold: maximum allowed diagnostics in CircuitOpen state.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -123,7 +123,7 @@ Accept wildcard characters: False
 Alert threshold: maximum allowed diagnostics in Failed state.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -139,7 +139,7 @@ Accept wildcard characters: False
 Alert threshold: maximum allowed LagAfter value across diagnostics.
 
 ```yaml
-Type: Nullable`1
+Type: Int64
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -171,7 +171,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -187,7 +187,7 @@ Accept wildcard characters: False
 Only include snapshots captured up to this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

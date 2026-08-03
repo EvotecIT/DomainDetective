@@ -11,7 +11,7 @@ Creates an RPKI desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateRpki [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-DisallowInvalid <bool>] [-TreatQueryFailuresAsDrift <bool>] [-IgnoredIpAddresses <string[]>] [-IgnoredPrefixes <string[]>] [-IgnoredAsns <int[]>] [<CommonParameters>]
+New-DDDesiredStateRpki [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-DisallowInvalid <Boolean>] [-TreatQueryFailuresAsDrift <Boolean>] [-IgnoredIpAddresses <string[]>] [-IgnoredPrefixes <string[]>] [-IgnoredAsns <int[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateRpki -DisallowInvalid 'Value'
+New-DDDesiredStateRpki -DisallowInvalid $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateRpki -DisallowInvalid 'Value'
 When true, invalid (non-ignored) results are treated as drift.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the RPKI desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, warns if no RPKI results were analyzed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, failed RPKI lookups are treated as drift.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

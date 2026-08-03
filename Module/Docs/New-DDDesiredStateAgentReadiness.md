@@ -11,7 +11,7 @@ Creates an agent readiness desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateAgentReadiness [-Enabled <bool>] [-MinimumScore <int>] [-RequireRobotsTxt <bool>] [-RequireSitemap <bool>] [-RequireLinkHeaders <bool>] [-RequireLlmsTxt <bool>] [-RequireMarkdown <bool>] [-RequireContentSignals <bool>] [-RequireAiBotRules <bool>] [-RequireApiCatalog <bool>] [-RequireAgentSkills <bool>] [-RequireAgentsJson <bool>] [-RequireOpenApi <bool>] [-RequireHttps <bool>] [-MinTrustHeaders <int>] [<CommonParameters>]
+New-DDDesiredStateAgentReadiness [-Enabled <Boolean>] [-MinimumScore <Int32>] [-RequireRobotsTxt <Boolean>] [-RequireSitemap <Boolean>] [-RequireLinkHeaders <Boolean>] [-RequireLlmsTxt <Boolean>] [-RequireMarkdown <Boolean>] [-RequireContentSignals <Boolean>] [-RequireAiBotRules <Boolean>] [-RequireApiCatalog <Boolean>] [-RequireAgentSkills <Boolean>] [-RequireAgentsJson <Boolean>] [-RequireOpenApi <Boolean>] [-RequireHttps <Boolean>] [-MinTrustHeaders <Int32>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateAgentReadiness -MinimumScore 70 -RequireLlmsTxt $true -Req
 Enable/disable the agent readiness desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Minimum acceptable agent readiness score from 0 to 100.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Minimum number of trust headers that must be present.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, require agents.json discovery.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, require Agent Skills discovery.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, require AI bot directives in robots.txt.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, require RFC 9727 API Catalog discovery.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, require Content-Signal policy.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 When true, require HTTPS origin probing.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 When true, require RFC 8288 Link header discovery.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -191,7 +191,7 @@ Accept wildcard characters: False
 When true, require llms.txt to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -207,7 +207,7 @@ Accept wildcard characters: False
 When true, require direct markdown negotiation or a markdown alternate.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -223,7 +223,7 @@ Accept wildcard characters: False
 When true, require OpenAPI discovery.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -239,7 +239,7 @@ Accept wildcard characters: False
 When true, require robots.txt to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -255,7 +255,7 @@ Accept wildcard characters: False
 When true, require robots.txt to declare at least one sitemap.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

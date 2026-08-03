@@ -11,7 +11,7 @@ Creates a robots.txt desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateRobots [-Enabled <bool>] [-RequireRecord <bool>] [-DisallowFallback <bool>] [-RequireAiBotRules <bool>] [-RequireSitemap <bool>] [<CommonParameters>]
+New-DDDesiredStateRobots [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-DisallowFallback <Boolean>] [-RequireAiBotRules <Boolean>] [-RequireSitemap <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateRobots -RequireRecord $true -RequireAiBotRules $true -Requ
 When true, disallows fallback to HTTP retrieval when HTTPS fails.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the robots.txt desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, require robots.txt to include AI bot directives.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, require robots.txt to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, require robots.txt to declare at least one sitemap.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

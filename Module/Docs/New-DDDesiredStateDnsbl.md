@@ -11,7 +11,7 @@ Creates a DNSBL desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateDnsbl [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-DisallowListings <bool>] [-IgnoredBlacklists <string[]>] [-IncludeQueryKinds <DnsblQueryKind[]>] [-IncludeIpSources <DnsblIpSource[]>] [<CommonParameters>]
+New-DDDesiredStateDnsbl [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-DisallowListings <Boolean>] [-IgnoredBlacklists <string[]>] [-IncludeQueryKinds <DnsblQueryKind[]>] [-IncludeIpSources <DnsblIpSource[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateDnsbl -DisallowListings 'Value'
+New-DDDesiredStateDnsbl -DisallowListings $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateDnsbl -DisallowListings 'Value'
 When true, non-ignored listings are treated as drift.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the DNSBL desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, warns if no DNSBL results were analyzed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

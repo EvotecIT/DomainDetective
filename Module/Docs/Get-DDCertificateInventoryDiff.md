@@ -11,7 +11,7 @@ Compares two persisted certificate inventory snapshots and returns endpoint delt
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Get-DDCertificateInventoryDiff [-CacheDirectory <string>] [-SinceUtc <datetime>] [-PreviousUtc <datetime>] [-CurrentUtc <datetime>] [-IncludeUnchanged] [-MaxEndpoints <int>] [<CommonParameters>]
+Get-DDCertificateInventoryDiff [-CacheDirectory <string>] [-SinceUtc <DateTime>] [-PreviousUtc <DateTime>] [-CurrentUtc <DateTime>] [-IncludeUnchanged] [-MaxEndpoints <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -53,7 +53,7 @@ Accept wildcard characters: False
 Timestamp selector for the current snapshot.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -101,7 +101,7 @@ Accept wildcard characters: False
 Timestamp selector for the previous snapshot.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -117,7 +117,7 @@ Accept wildcard characters: False
 Only include snapshots captured since this UTC date/time.
 
 ```yaml
-Type: Nullable`1
+Type: DateTime
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

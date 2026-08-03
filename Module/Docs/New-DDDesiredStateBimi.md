@@ -11,7 +11,7 @@ Creates a BIMI desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateBimi [-Enabled <bool>] [-RequireRecord <bool>] [-RequireIndicator <bool>] [-RequireValidLocation <bool>] [-AllowedLocationHostSuffixes <string[]>] [-RequireAuthority <bool>] [-AllowedAuthorityHostSuffixes <string[]>] [-SkipIndicatorDownload <bool>] [<CommonParameters>]
+New-DDDesiredStateBimi [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireIndicator <Boolean>] [-RequireValidLocation <Boolean>] [-AllowedLocationHostSuffixes <string[]>] [-RequireAuthority <Boolean>] [-AllowedAuthorityHostSuffixes <string[]>] [-SkipIndicatorDownload <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Enable/disable the BIMI desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, requires an authority (VMC) URL.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, requires the domain not to decline publishing a BIMI indicator.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, require a BIMI DNS record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, requires a valid https://...svg(.svgz) location.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, do not download the indicator SVG as part of the BIMI check.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

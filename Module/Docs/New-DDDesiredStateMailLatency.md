@@ -11,7 +11,7 @@ Creates a mail latency desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateMailLatency [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-RequireAllConnectSuccess <bool>] [-RequireAllBannerSuccess <bool>] [-MaxConnectTimeMs <int>] [-MaxBannerTimeMs <int>] [<CommonParameters>]
+New-DDDesiredStateMailLatency [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-RequireAllConnectSuccess <Boolean>] [-RequireAllBannerSuccess <Boolean>] [-MaxConnectTimeMs <Int32>] [-MaxBannerTimeMs <Int32>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateMailLatency -Enabled $true -RequireAllConnectSuccess $true
 Enable/disable the mail latency desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Maximum allowed banner read time in milliseconds.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Maximum allowed connect time in milliseconds.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, require all servers to successfully return an SMTP banner.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, require all servers to successfully connect.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, require at least one latency result to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

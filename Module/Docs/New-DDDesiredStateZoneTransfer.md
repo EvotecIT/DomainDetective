@@ -11,7 +11,7 @@ Creates a zone transfer desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateZoneTransfer [-Enabled <bool>] [-DisallowUnauthenticatedAxfr <bool>] [<CommonParameters>]
+New-DDDesiredStateZoneTransfer [-Enabled <Boolean>] [-DisallowUnauthenticatedAxfr <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateZoneTransfer -DisallowUnauthenticatedAxfr 'Value'
+New-DDDesiredStateZoneTransfer -DisallowUnauthenticatedAxfr $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateZoneTransfer -DisallowUnauthenticatedAxfr 'Value'
 When true, no authoritative server may allow unauthenticated AXFR.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the zone transfer desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

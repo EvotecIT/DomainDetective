@@ -11,7 +11,7 @@ Creates a wildcard DNS desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateWildcardDns [-Enabled <bool>] [-ExpectedCatchAll <bool>] [<CommonParameters>]
+New-DDDesiredStateWildcardDns [-Enabled <Boolean>] [-ExpectedCatchAll <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateWildcardDns -Enabled 'Value'
+New-DDDesiredStateWildcardDns -Enabled $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateWildcardDns -Enabled 'Value'
 Enable/disable the wildcard DNS desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Expected wildcard (catch-all) behavior. When null, no constraint is enforced.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

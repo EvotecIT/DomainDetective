@@ -11,7 +11,7 @@ Creates a DMARC desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateDmarc [-Enabled <bool>] [-RequireRecord <bool>] [-RequireValidRecord <bool>] [-RequireSingleRecord <bool>] [-AllowedPolicies <string[]>] [-AllowedSubdomainPolicies <string[]>] [-RequireSubdomainPolicyTag <bool>] [-AllowedAspfAlignments <string[]>] [-AllowedAdkimAlignments <string[]>] [-RequireRua <bool>] [-RequireMailtoRua <bool>] [-DisallowHttpRua <bool>] [-DisallowRuf <bool>] [-DisallowHttpRuf <bool>] [-DisallowWeakPolicy <bool>] [-DisallowRecordOver255 <bool>] [-DisallowUnknownTags <bool>] [-DisallowDeprecatedTags <bool>] [-AllowedReportDomainSuffixes <string[]>] [-RequireExternalReportAuthorization <bool>] [<CommonParameters>]
+New-DDDesiredStateDmarc [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireValidRecord <Boolean>] [-RequireSingleRecord <Boolean>] [-AllowedPolicies <string[]>] [-AllowedSubdomainPolicies <string[]>] [-RequireSubdomainPolicyTag <Boolean>] [-AllowedAspfAlignments <string[]>] [-AllowedAdkimAlignments <string[]>] [-RequireRua <Boolean>] [-RequireMailtoRua <Boolean>] [-DisallowHttpRua <Boolean>] [-DisallowRuf <Boolean>] [-DisallowHttpRuf <Boolean>] [-DisallowWeakPolicy <Boolean>] [-DisallowRecordOver255 <Boolean>] [-DisallowUnknownTags <Boolean>] [-DisallowDeprecatedTags <Boolean>] [-AllowedReportDomainSuffixes <string[]>] [-RequireExternalReportAuthorization <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, disallows deprecated DMARC tags (e.g., pct=, rf=).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, disallows HTTPS endpoints in rua=.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, disallows HTTPS endpoints in ruf=.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 When true, disallows DMARC records longer than 255 characters.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 When true, disallows DMARC forensic reporting (ruf=).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -191,7 +191,7 @@ Accept wildcard characters: False
 When true, disallows unknown/unrecognized DMARC tags.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -207,7 +207,7 @@ Accept wildcard characters: False
 When true, disallows weak policy (p=none or sp=none).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -223,7 +223,7 @@ Accept wildcard characters: False
 Enable/disable the DMARC desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -239,7 +239,7 @@ Accept wildcard characters: False
 When true, requires external reporting domains to be authorized via _report._dmarc.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -255,7 +255,7 @@ Accept wildcard characters: False
 When true, requires at least one mailto: rua address.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -271,7 +271,7 @@ Accept wildcard characters: False
 When true, require a DMARC record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -287,7 +287,7 @@ Accept wildcard characters: False
 When true, require at least one aggregate reporting URI (rua=).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -303,7 +303,7 @@ Accept wildcard characters: False
 When true, requires exactly one DMARC record to be published.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -319,7 +319,7 @@ Accept wildcard characters: False
 When true, requires an explicit sp= tag to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -335,7 +335,7 @@ Accept wildcard characters: False
 When true, requires the DMARC record to be syntactically valid.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

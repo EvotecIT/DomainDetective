@@ -11,7 +11,7 @@ Creates a STARTTLS desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateStartTls [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-RequireAnyServerSupported <bool>] [-RequireAllServersSupported <bool>] [-DisallowDowngradeDetected <bool>] [<CommonParameters>]
+New-DDDesiredStateStartTls [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-RequireAnyServerSupported <Boolean>] [-RequireAllServersSupported <Boolean>] [-DisallowDowngradeDetected <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateStartTls -RequireAllServersSupported $true -DisallowDowngr
 When true, treats STARTTLS downgrade detection as drift.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Enable/disable the STARTTLS desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, requires all servers to support STARTTLS.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, requires at least one server to support STARTTLS.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, warns if no STARTTLS results were produced.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

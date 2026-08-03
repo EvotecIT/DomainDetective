@@ -11,7 +11,7 @@ Creates a DNS health desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateDnsHealth [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-RequireServersResponsive <bool>] [-RequireSoaSerialConsistent <bool>] [-RequireApexAddressesConsistent <bool>] [<CommonParameters>]
+New-DDDesiredStateDnsHealth [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-RequireServersResponsive <Boolean>] [-RequireSoaSerialConsistent <Boolean>] [-RequireApexAddressesConsistent <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateDnsHealth -Enabled 'Value'
+New-DDDesiredStateDnsHealth -Enabled $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateDnsHealth -Enabled 'Value'
 Enable/disable the DNS health desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, requires apex A/AAAA results to be consistent across authoritative servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, warns if no DNS health results were analyzed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, requires authoritative servers to respond to DNS queries.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, requires SOA serial to be consistent across authoritative servers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

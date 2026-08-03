@@ -11,7 +11,7 @@ Creates a DNS over TLS desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateDnsOverTls [-Enabled <bool>] [-RequireAtLeastOneResult <bool>] [-RequireAnySupported <bool>] [-RequireAllSupported <bool>] [-RequireCertificateValid <bool>] [-RequireHostnameMatch <bool>] [<CommonParameters>]
+New-DDDesiredStateDnsOverTls [-Enabled <Boolean>] [-RequireAtLeastOneResult <Boolean>] [-RequireAnySupported <Boolean>] [-RequireAllSupported <Boolean>] [-RequireCertificateValid <Boolean>] [-RequireHostnameMatch <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateDnsOverTls -Enabled 'Value'
+New-DDDesiredStateDnsOverTls -Enabled $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateDnsOverTls -Enabled 'Value'
 Enable/disable the DNS over TLS desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, requires all probed authoritative servers to support DNS over TLS.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, requires at least one authoritative server to support DNS over TLS.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, warns if no DNS over TLS results were analyzed.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, requires supported servers to present a valid certificate chain.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, requires supported servers to present a certificate matching the name server hostname.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

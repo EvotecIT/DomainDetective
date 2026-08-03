@@ -11,7 +11,7 @@ Creates a DNSSEC desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateDnssec [-Enabled <bool>] [-RequireChainValid <bool>] [-MinRrsigDaysRemaining <int>] [<CommonParameters>]
+New-DDDesiredStateDnssec [-Enabled <Boolean>] [-RequireChainValid <Boolean>] [-MinRrsigDaysRemaining <Int32>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -31,7 +31,7 @@ PS> New-DDDesiredStateDnssec -RequireChainValid $true -MinRrsigDaysRemaining 7
 Enable/disable the DNSSEC desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Minimum number of days remaining for any RRSIG on the zone.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, requires a valid DNSSEC chain.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

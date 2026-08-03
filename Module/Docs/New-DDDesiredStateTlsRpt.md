@@ -11,7 +11,7 @@ Creates a TLS-RPT desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateTlsRpt [-Enabled <bool>] [-RequireRecord <bool>] [-RequireSingleRecord <bool>] [-RequireRua <bool>] [-RequireMailtoRua <bool>] [-RequireValidPolicy <bool>] [-DisallowRecordOver255 <bool>] [-DisallowUnknownTags <bool>] [-DisallowInvalidRua <bool>] [-DisallowHttpRua <bool>] [-AllowedReportDomainSuffixes <string[]>] [<CommonParameters>]
+New-DDDesiredStateTlsRpt [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireSingleRecord <Boolean>] [-RequireRua <Boolean>] [-RequireMailtoRua <Boolean>] [-RequireValidPolicy <Boolean>] [-DisallowRecordOver255 <Boolean>] [-DisallowUnknownTags <Boolean>] [-DisallowInvalidRua <Boolean>] [-DisallowHttpRua <Boolean>] [-AllowedReportDomainSuffixes <string[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallows HTTPS RUA endpoints.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, disallows invalid RUA URIs.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, disallows TLS-RPT records longer than 255 characters.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, disallows unknown/unrecognized TLS-RPT tags.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 Enable/disable the TLS-RPT desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, require at least one mailto: reporting address.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, require a TLS-RPT record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 When true, require at least one reporting URI (rua=).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 When true, requires exactly one TLS-RPT record to be published.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -191,7 +191,7 @@ Accept wildcard characters: False
 When true, require the TLS-RPT record to be syntactically valid.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

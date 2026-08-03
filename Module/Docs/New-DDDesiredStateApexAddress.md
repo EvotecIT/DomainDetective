@@ -11,7 +11,7 @@ Creates an apex address desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateApexAddress [-Enabled <bool>] [-RequireAnyAddress <bool>] [-DisallowAnyAddress <bool>] [-DisallowPrivateAddresses <bool>] [-DisallowLoopbackAddresses <bool>] [-DisallowLinkLocalAddresses <bool>] [-DisallowMulticastAddresses <bool>] [-DisallowDocumentationAddresses <bool>] [-DisallowUniqueLocalV6Addresses <bool>] [-MinDistinctSubnetCountV4 <int>] [-MinDistinctSubnetCountV6 <int>] [-RequireAllPtrPresent <bool>] [-RequireAllFcrDnsValid <bool>] [<CommonParameters>]
+New-DDDesiredStateApexAddress [-Enabled <Boolean>] [-RequireAnyAddress <Boolean>] [-DisallowAnyAddress <Boolean>] [-DisallowPrivateAddresses <Boolean>] [-DisallowLoopbackAddresses <Boolean>] [-DisallowLinkLocalAddresses <Boolean>] [-DisallowMulticastAddresses <Boolean>] [-DisallowDocumentationAddresses <Boolean>] [-DisallowUniqueLocalV6Addresses <Boolean>] [-MinDistinctSubnetCountV4 <Int32>] [-MinDistinctSubnetCountV6 <Int32>] [-RequireAllPtrPresent <Boolean>] [-RequireAllFcrDnsValid <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateApexAddress -DisallowAnyAddress 'Value'
+New-DDDesiredStateApexAddress -DisallowAnyAddress $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateApexAddress -DisallowAnyAddress 'Value'
 When true, disallows any apex A/AAAA records.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallow documentation/example addresses at the apex.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, disallow link-local addresses at the apex.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, disallow loopback addresses at the apex.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, disallow multicast addresses at the apex.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, disallow private IPv4/IPv6 addresses at the apex.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, disallow unique-local IPv6 addresses at the apex.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 Enable/disable the apex address desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 Minimum distinct subnet count for apex IPv4 addresses.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 Minimum distinct subnet count for apex IPv6 addresses.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -191,7 +191,7 @@ Accept wildcard characters: False
 When true, requires forward-confirmed reverse DNS for all discovered apex addresses.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -207,7 +207,7 @@ Accept wildcard characters: False
 When true, requires PTR records to exist for all discovered apex addresses.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -223,7 +223,7 @@ Accept wildcard characters: False
 When true, requires at least one apex A/AAAA record.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

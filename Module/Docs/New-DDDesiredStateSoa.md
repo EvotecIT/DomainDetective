@@ -11,7 +11,7 @@ Creates an SOA desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateSoa [-Enabled <bool>] [-RequireRecord <bool>] [-RequireSerialFormat <bool>] [-MinRefresh <int>] [-MaxRefresh <int>] [-MinRetry <int>] [-MaxRetry <int>] [-MinExpire <int>] [-MaxExpire <int>] [-MinMinimum <int>] [-MaxMinimum <int>] [<CommonParameters>]
+New-DDDesiredStateSoa [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireSerialFormat <Boolean>] [-MinRefresh <Int32>] [-MaxRefresh <Int32>] [-MinRetry <Int32>] [-MaxRetry <Int32>] [-MinExpire <Int32>] [-MaxExpire <Int32>] [-MinMinimum <Int32>] [-MaxMinimum <Int32>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateSoa -Enabled 'Value'
+New-DDDesiredStateSoa -Enabled $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateSoa -Enabled 'Value'
 Enable/disable the SOA desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 Maximum allowed SOA expire value (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Maximum allowed SOA minimum value (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Maximum allowed SOA refresh value (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 Maximum allowed SOA retry value (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 Minimum allowed SOA expire value (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 Minimum allowed SOA minimum value (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 Minimum allowed SOA refresh value (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 Minimum allowed SOA retry value (seconds).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 When true, require an SOA record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -191,7 +191,7 @@ Accept wildcard characters: False
 When true, require SOA serial format to match expected patterns.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

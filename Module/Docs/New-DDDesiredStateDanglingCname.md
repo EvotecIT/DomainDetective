@@ -11,7 +11,7 @@ Creates a dangling CNAME desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateDanglingCname [-Enabled <bool>] [-DisallowDangling <bool>] [-DisallowUnclaimedService <bool>] [<CommonParameters>]
+New-DDDesiredStateDanglingCname [-Enabled <Boolean>] [-DisallowDangling <Boolean>] [-DisallowUnclaimedService <Boolean>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -21,7 +21,7 @@ The returned object is intended to be used with New-DDDesiredState or applied to
 
 ### EXAMPLE 1
 ```powershell
-New-DDDesiredStateDanglingCname -DisallowDangling 'Value'
+New-DDDesiredStateDanglingCname -DisallowDangling $true
 ```
 
 
@@ -31,7 +31,7 @@ New-DDDesiredStateDanglingCname -DisallowDangling 'Value'
 When true, disallows a CNAME that exists but does not resolve.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallows dangling CNAMEs that point to known takeover-prone services.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 Enable/disable the dangling CNAME desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

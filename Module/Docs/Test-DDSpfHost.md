@@ -11,7 +11,7 @@ Tests an IP/sender/HELO against a domain's SPF policy.
 ## SYNTAX
 ### ByDomain (Default)
 ```powershell
-Test-DDSpfHost [-DomainName] <string[]> [-IpAddress] <string> [-DisableParallel] [-ThrottleLimit <int>] [-MaxParallelism <int>] [-DnsParallelism <int>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <int>] [-Sender <string>] [-Helo <string>] [-DnsEndpoint <DnsEndpoint>] [-TestSpfRecord <string>] [-AsJson] [<CommonParameters>]
+Test-DDSpfHost [-DomainName] <string[]> [-IpAddress] <string> [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-Sender <string>] [-Helo <string>] [-DnsEndpoint <DnsEndpoint>] [-TestSpfRecord <string>] [-AsJson] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -46,7 +46,7 @@ Accept wildcard characters: False
 ```
 
 ### -DisableParallel
-{{ Fill DisableParallel Description }}
+Disable parallel execution for cmdlet-level work.
 
 ```yaml
 Type: SwitchParameter
@@ -78,7 +78,7 @@ Accept wildcard characters: False
 ```
 
 ### -DnsEndpoints
-{{ Fill DnsEndpoints Description }}
+Optional list of resolver endpoints to use (multi-resolver).
 
 ```yaml
 Type: DnsEndpoint[]
@@ -94,10 +94,10 @@ Accept wildcard characters: False
 ```
 
 ### -DnsParallelism
-{{ Fill DnsParallelism Description }}
+DNS resolver concurrency hint for health checks.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: ByDomain
 Aliases: None
 Possible values:
@@ -158,10 +158,10 @@ Accept wildcard characters: False
 ```
 
 ### -MaxParallelism
-{{ Fill MaxParallelism Description }}
+Maximum concurrent health checks within a single domain run.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: ByDomain
 Aliases: None
 Possible values:
@@ -174,10 +174,10 @@ Accept wildcard characters: False
 ```
 
 ### -MultiResolverMaxParallelism
-{{ Fill MultiResolverMaxParallelism Description }}
+Maximum number of resolvers to query in parallel (null = all).
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: ByDomain
 Aliases: None
 Possible values:
@@ -190,7 +190,7 @@ Accept wildcard characters: False
 ```
 
 ### -MultiResolverStrategy
-{{ Fill MultiResolverStrategy Description }}
+Strategy used when multiple DNS endpoints are provided.
 
 ```yaml
 Type: MultiResolverStrategy
@@ -238,10 +238,10 @@ Accept wildcard characters: False
 ```
 
 ### -ThrottleLimit
-{{ Fill ThrottleLimit Description }}
+Maximum number of concurrent items for cmdlet-level parallel work.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: ByDomain
 Aliases: None
 Possible values:

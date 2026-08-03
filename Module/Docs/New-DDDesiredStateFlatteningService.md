@@ -11,7 +11,7 @@ Creates a flattening service desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateFlatteningService [-Enabled <bool>] [-RequireCnameRecord <bool>] [-DisallowCnameRecord <bool>] [-RequireFlatteningService <bool>] [-DisallowFlatteningService <bool>] [-AllowedTargetSuffixes <string[]>] [<CommonParameters>]
+New-DDDesiredStateFlatteningService [-Enabled <Boolean>] [-RequireCnameRecord <Boolean>] [-DisallowCnameRecord <Boolean>] [-RequireFlatteningService <Boolean>] [-DisallowFlatteningService <Boolean>] [-AllowedTargetSuffixes <string[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -47,7 +47,7 @@ Accept wildcard characters: False
 When true, disallows an apex CNAME record.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, disallows the use of a known flattening service.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 Enable/disable the flattening service desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, requires the apex to publish a CNAME record.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, requires the apex CNAME to point to a known flattening service.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:

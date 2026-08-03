@@ -11,7 +11,7 @@ Creates an SPF desired state policy fragment.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-New-DDDesiredStateSpf [-Enabled <bool>] [-RequireRecord <bool>] [-RequireValidRecord <bool>] [-RequireSingleRecord <bool>] [-RequireEffectiveSpfSends <bool>] [-AllowedAllMechanisms <string[]>] [-RequireAllMechanism <bool>] [-MaxDnsLookups <int>] [-RequireDenyAll <bool>] [-RequiredIncludeDomains <string[]>] [-MatchResolvedIncludes <bool>] [-DisallowPtr <bool>] [-DisallowUnknownMechanisms <bool>] [-DisallowRedirect <bool>] [-RequireRedirect <bool>] [-DisallowExp <bool>] [-DisallowPermError <bool>] [-DisallowCname <bool>] [-AllowedRedirectDomainSuffixes <string[]>] [<CommonParameters>]
+New-DDDesiredStateSpf [-Enabled <Boolean>] [-RequireRecord <Boolean>] [-RequireValidRecord <Boolean>] [-RequireSingleRecord <Boolean>] [-RequireEffectiveSpfSends <Boolean>] [-AllowedAllMechanisms <string[]>] [-RequireAllMechanism <Boolean>] [-MaxDnsLookups <Int32>] [-RequireDenyAll <Boolean>] [-RequiredIncludeDomains <string[]>] [-MatchResolvedIncludes <Boolean>] [-DisallowPtr <Boolean>] [-DisallowUnknownMechanisms <Boolean>] [-DisallowRedirect <Boolean>] [-RequireRedirect <Boolean>] [-DisallowExp <Boolean>] [-DisallowPermError <Boolean>] [-DisallowCname <Boolean>] [-AllowedRedirectDomainSuffixes <string[]>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -63,7 +63,7 @@ Accept wildcard characters: False
 When true, disallows SPF records resolved through a CNAME alias.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -79,7 +79,7 @@ Accept wildcard characters: False
 When true, disallows exp= (explanation) modifier.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -95,7 +95,7 @@ Accept wildcard characters: False
 When true, disallows SPF PermError results.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -111,7 +111,7 @@ Accept wildcard characters: False
 When true, disallows the SPF ptr mechanism.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -127,7 +127,7 @@ Accept wildcard characters: False
 When true, disallows the redirect= modifier.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -143,7 +143,7 @@ Accept wildcard characters: False
 When true, disallows unknown mechanisms/modifiers.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -159,7 +159,7 @@ Accept wildcard characters: False
 Enable/disable the SPF desired state module.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -175,7 +175,7 @@ Accept wildcard characters: False
 When true, checks required include domains against the resolved include chain.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -191,7 +191,7 @@ Accept wildcard characters: False
 Maximum allowed SPF DNS lookups.
 
 ```yaml
-Type: Nullable`1
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -207,7 +207,7 @@ Accept wildcard characters: False
 When true, requires the SPF record to include an all mechanism (e.g., -all, ~all).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -223,7 +223,7 @@ Accept wildcard characters: False
 When true, requires the policy to deny all sending (v=spf1 -all).
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -255,7 +255,7 @@ Accept wildcard characters: False
 When true, requires SPF to effectively authorize outbound senders after resolving include/redirect chains.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -271,7 +271,7 @@ Accept wildcard characters: False
 When true, require an SPF record to exist.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -287,7 +287,7 @@ Accept wildcard characters: False
 When true, requires the redirect= modifier to be present.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -303,7 +303,7 @@ Accept wildcard characters: False
 When true, requires exactly one SPF record to be published.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -319,7 +319,7 @@ Accept wildcard characters: False
 When true, requires the SPF record to be syntactically valid.
 
 ```yaml
-Type: Nullable`1
+Type: Boolean
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
