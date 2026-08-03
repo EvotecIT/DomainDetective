@@ -33,9 +33,8 @@
     </ItemGroup>
 
     <PropertyGroup>
-        <!-- This is needed for XmlDoc2CmdletDoc to generate a PowerShell documentation file. -->
+        <!-- PowerForge enriches module help from the compiler XML documentation file. -->
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <XmlDoc2CmdletDocStrict>false</XmlDoc2CmdletDocStrict>
     </PropertyGroup>
 
     <PropertyGroup>
@@ -48,29 +47,9 @@
         <Delete Files="$(OutDir)System.Management.dll" />
     </Target>
 
-    <!-- XmlDoc2CmdletDoc 0.7.0 does not currently run successfully under net10.0. -->
-    <ItemGroup Condition=" '$(TargetFramework)' != 'net10.0' ">
-        <PackageReference Include="MatejKafka.XmlDoc2CmdletDoc" Version="0.7.1">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-    </ItemGroup>
-
-    <!-- Copy help documentation to publish output after publish -->
-    <Target Name="CopyHelpDocumentationToPublishOutput" AfterTargets="Publish">
-        <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll-Help.xml" DestinationFiles="$(PublishDir)$(AssemblyName).dll-Help.xml" Condition="Exists('$(OutputPath)$(AssemblyName).dll-Help.xml')" />
-    </Target>
-
     <ItemGroup>
         <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
         <PackageReference Include="Spectre.Console" Version="0.57.2" />
     </ItemGroup>
 
-    <Target Name="StageResolvedSystemTextJsonForXmlDoc2CmdletDoc" BeforeTargets="XmlDoc2CmdletDoc" DependsOnTargets="ResolveReferences" Condition=" '$(TargetFramework)' == 'net472' ">
-        <ItemGroup>
-            <_XmlDocSystemTextJsonAssembly Include="@(ReferenceCopyLocalPaths)" Condition=" '%(Filename)%(Extension)' == 'System.Text.Json.dll' " />
-        </ItemGroup>
-        <Error Condition=" '@(_XmlDocSystemTextJsonAssembly)' == '' " Text="The resolved System.Text.Json assembly was not available for XmlDoc2CmdletDoc." />
-        <Copy SourceFiles="@(_XmlDocSystemTextJsonAssembly)" DestinationFolder="$(OutDir)" />
-    </Target>
 </Project>
