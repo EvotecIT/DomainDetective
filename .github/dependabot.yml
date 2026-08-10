@@ -1,24 +1,32 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
 version: 2
 updates:
-    - package-ecosystem: nuget
-      directory: "/"
-      schedule:
-          interval: weekly
-      groups:
-          nuget-minor-patch:
-              applies-to: version-updates
-              patterns:
-                  - "*"
-              update-types:
-                  - minor
-                  - patch
-      ignore:
-          # SixLabors.ImageSharp 4.x has a license change; keep 3.x updates flowing.
-          - dependency-name: "SixLabors.ImageSharp"
-            update-types:
-                - "version-update:semver-major"
+  - package-ecosystem: nuget
+    directory: /
+    ignore:
+      - dependency-name: SixLabors.ImageSharp
+        update-types:
+          - version-update:semver-major
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+      include:
+        - '*'
+    open-pull-requests-limit: 1
+    groups:
+      all-dependencies:
+        patterns:
+          - '*'
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+      include:
+        - '*'
+    open-pull-requests-limit: 1
+    groups:
+      all-dependencies:
+        patterns:
+          - '*'
