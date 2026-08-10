@@ -31,7 +31,7 @@ jobs:
             contents: write
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   fetch-depth: 0
                   repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
@@ -111,7 +111,7 @@ jobs:
 
 
             - name: Upload refreshed manifest
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                 name: psd1
                 path: Module/DomainDetective.psd1
@@ -123,16 +123,16 @@ jobs:
         timeout-minutes: 20
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: Download manifest
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                 name: psd1
                 path: Module
 
             - name: Setup .NET
-              uses: actions/setup-dotnet@v4
+              uses: actions/setup-dotnet@v6
               with:
                 dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -194,16 +194,16 @@ jobs:
         timeout-minutes: 20
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: Download manifest
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                 name: psd1
                 path: Module
 
             - name: Setup .NET
-              uses: actions/setup-dotnet@v4
+              uses: actions/setup-dotnet@v6
               with:
                 dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -270,16 +270,16 @@ jobs:
         timeout-minutes: 20
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: Download manifest
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                 name: psd1
                 path: Module
 
             - name: Setup .NET
-              uses: actions/setup-dotnet@v4
+              uses: actions/setup-dotnet@v6
               with:
                 dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -340,16 +340,16 @@ jobs:
         timeout-minutes: 20
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: Download manifest
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                 name: psd1
                 path: Module
 
             - name: Setup .NET
-              uses: actions/setup-dotnet@v4
+              uses: actions/setup-dotnet@v6
               with:
                 dotnet-version: ${{ env.DOTNET_VERSION }}
 
