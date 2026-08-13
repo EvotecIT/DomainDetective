@@ -277,18 +277,39 @@
       "errorPreviewCount": 10
     },
     {
+      "task": "ecosystem-stats",
+      "id": "build-llms-publication-catalog",
+      "dependsOn": "verify-ci-final",
+      "out": "./_temp/llms-publication-catalog.json",
+      "publishPath": "",
+      "summaryPath": "./_temp/llms-publication-catalog-summary.json",
+      "nugetOwner": "Evotec",
+      "psgalleryOwner": "Przemyslaw.Klys",
+      "timeoutSeconds": 120,
+      "preserveOnWarnings": false,
+      "strict": true
+    },
+    {
       "task": "llms",
       "id": "build-llms",
-      "dependsOn": "verify-ci-final",
+      "dependsOn": "build-llms-publication-catalog",
       "siteRoot": "./_site",
+      "contentKind": "Package",
+      "project": "../DomainDetective/DomainDetective.csproj",
+      "packageFiles": ["../DomainDetective/DomainDetective.csproj", "../Module/DomainDetective.psd1"],
+      "installPolicy": "VerifiedCatalog",
+      "publicationCatalog": "./_temp/llms-publication-catalog.json",
+      "nugetOwner": "Evotec",
+      "powerShellGalleryOwner": "Przemyslaw.Klys",
+      "publicationCatalogMaxAgeHours": 24,
       "apiIndex": "./_site/api/index.json",
       "apiBase": "/api",
+      "apiLevel": "Summary",
       "name": "DomainDetective",
-      "package": "DomainDetective",
       "overview": "DomainDetective is a comprehensive domain analysis toolkit supporting 115+ protocols for DNS, email security, TLS, web security, and threat intelligence analysis.",
       "license": "MIT",
       "targets": ".NET 8+, .NET 10+, PowerShell 5.1+",
-      "quickstart": "./llms-quickstart.txt"
+      "quickstart": "./llms-quickstart.cs"
     },
     {
       "task": "sitemap",
