@@ -114,6 +114,87 @@
       "DefaultRobots": "index,follow"
     }
   },
+  "AgentReadiness": {
+    "Enabled": true,
+    "HeadersPath": "_headers",
+    "LinkHeaders": true,
+    "Robots": true,
+    "SecurityHeaders": {
+      "Enabled": true,
+      "Hsts": false,
+      "ContentSecurityPolicyValue": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    },
+    "ContentSignals": {
+      "Enabled": true,
+      "Search": true,
+      "AiInput": true,
+      "AiTrain": false
+    },
+    "BotRules": [
+      { "UserAgent": "GPTBot", "Allow": "/" },
+      { "UserAgent": "ChatGPT-User", "Allow": "/" },
+      { "UserAgent": "OAI-SearchBot", "Allow": "/" },
+      { "UserAgent": "ClaudeBot", "Allow": "/" },
+      { "UserAgent": "Claude-SearchBot", "Allow": "/" },
+      { "UserAgent": "Claude-User", "Allow": "/" },
+      { "UserAgent": "PerplexityBot", "Allow": "/" },
+      { "UserAgent": "Perplexity-User", "Allow": "/" },
+      { "UserAgent": "Google-Extended", "Allow": "/" },
+      { "UserAgent": "Applebot-Extended", "Allow": "/" },
+      { "UserAgent": "Meta-ExternalAgent", "Allow": "/" },
+      { "UserAgent": "Amazonbot", "Allow": "/" },
+      { "UserAgent": "CCBot", "Allow": "/" }
+    ],
+    "ApiCatalog": {
+      "Enabled": true,
+      "Entries": [
+        { "Anchor": "/api/", "ServiceDesc": "/api/index.json", "ServiceDoc": "/api/", "Title": "DomainDetective API Reference" },
+        { "Anchor": "/api/powershell/", "ServiceDesc": "/api/powershell/index.json", "ServiceDoc": "/api/powershell/", "Title": "DomainDetective PowerShell Cmdlet Reference" },
+        { "Anchor": "/api/dnsclientx/", "ServiceDesc": "/api/dnsclientx/index.json", "ServiceDoc": "/api/dnsclientx/", "Title": "DnsClientX API Reference" },
+        { "Anchor": "/api/dnsclientx-powershell/", "ServiceDesc": "/api/dnsclientx-powershell/index.json", "ServiceDoc": "/api/dnsclientx-powershell/", "Title": "DnsClientX PowerShell Cmdlet Reference" }
+      ]
+    },
+    "AgentSkills": {
+      "Enabled": true,
+      "Skills": [
+        {
+          "Name": "domaindetective-site-assistant",
+          "Type": "skill-md",
+          "Description": "Use DomainDetective documentation, API references, DNS tools, sitemap, and llms files.",
+          "Content": "---\nname: domaindetective-site-assistant\ndescription: Use DomainDetective documentation, API references, DNS tools, sitemap, and llms resources.\n---\n\n# DomainDetective Site Assistant\n\nUse this skill when answering questions about DomainDetective and DnsClientX.\n\n- Prefer canonical pages from https://domaindetective.dev.\n- Use `/docs/` for product and workflow guidance.\n- Use `/api/` routes for DomainDetective API references and `/api/dnsclientx/` routes for DnsClientX API references.\n- Check `/llms.txt`, `/llms.json`, and `/llms-full.txt` when present for agent-readable summaries.\n- Check `/.well-known/api-catalog` before assuming API documentation paths.\n- Respect `/robots.txt` and Content-Signal preferences.\n"
+        }
+      ]
+    },
+    "AgentsJson": {
+      "Enabled": true,
+      "Description": "Agent-facing discovery metadata for DomainDetective documentation, DNS tools, API references, and support resources."
+    },
+    "A2AAgentCard": {
+      "Enabled": true,
+      "Name": "DomainDetective Documentation Discovery",
+      "Description": "Discover DomainDetective and DnsClientX documentation, API references, llms summaries, sitemap, and project resources.",
+      "Url": "/",
+      "DocumentationUrl": "/docs/",
+      "Skills": [
+        {
+          "Id": "documentation-discovery",
+          "Name": "Documentation discovery",
+          "Description": "Find DomainDetective and DnsClientX product documentation, API references, DNS tools, and support pages.",
+          "Tags": ["documentation", "api-reference", "dns", "sitemap", "llms"]
+        }
+      ]
+    },
+    "McpServerCard": { "Enabled": false },
+    "OpenApi": { "Enabled": false },
+    "WebMcp": false,
+    "MarkdownNegotiation": true
+  },
+  "Cloudflare": {
+    "Cache": {
+      "EdgeTtlSeconds": 604800
+    },
+    "PurgeMode": "hostname"
+  },
   "EditLinks": {
     "Enabled": true,
     "Template": "https://github.com/EvotecIT/DomainDetective/edit/master/{path}",
