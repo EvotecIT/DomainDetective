@@ -122,7 +122,7 @@
     "SecurityHeaders": {
       "Enabled": true,
       "Hsts": false,
-      "ContentSecurityPolicyValue": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      "ContentSecurityPolicyValue": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://dns.google https://cloudflare-dns.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     },
     "ContentSignals": {
       "Enabled": true,
@@ -131,19 +131,19 @@
       "AiTrain": false
     },
     "BotRules": [
-      { "UserAgent": "GPTBot", "Allow": "/" },
+      { "UserAgent": "GPTBot", "Disallow": "/" },
       { "UserAgent": "ChatGPT-User", "Allow": "/" },
       { "UserAgent": "OAI-SearchBot", "Allow": "/" },
-      { "UserAgent": "ClaudeBot", "Allow": "/" },
+      { "UserAgent": "ClaudeBot", "Disallow": "/" },
       { "UserAgent": "Claude-SearchBot", "Allow": "/" },
       { "UserAgent": "Claude-User", "Allow": "/" },
       { "UserAgent": "PerplexityBot", "Allow": "/" },
       { "UserAgent": "Perplexity-User", "Allow": "/" },
-      { "UserAgent": "Google-Extended", "Allow": "/" },
-      { "UserAgent": "Applebot-Extended", "Allow": "/" },
-      { "UserAgent": "Meta-ExternalAgent", "Allow": "/" },
-      { "UserAgent": "Amazonbot", "Allow": "/" },
-      { "UserAgent": "CCBot", "Allow": "/" }
+      { "UserAgent": "Google-Extended", "Disallow": "/" },
+      { "UserAgent": "Applebot-Extended", "Disallow": "/" },
+      { "UserAgent": "Meta-ExternalAgent", "Disallow": "/" },
+      { "UserAgent": "Amazonbot", "Disallow": "/" },
+      { "UserAgent": "CCBot", "Disallow": "/" }
     ],
     "ApiCatalog": {
       "Enabled": true,
@@ -169,21 +169,7 @@
       "Enabled": true,
       "Description": "Agent-facing discovery metadata for DomainDetective documentation, DNS tools, API references, and support resources."
     },
-    "A2AAgentCard": {
-      "Enabled": true,
-      "Name": "DomainDetective Documentation Discovery",
-      "Description": "Discover DomainDetective and DnsClientX documentation, API references, llms summaries, sitemap, and project resources.",
-      "Url": "/",
-      "DocumentationUrl": "/docs/",
-      "Skills": [
-        {
-          "Id": "documentation-discovery",
-          "Name": "Documentation discovery",
-          "Description": "Find DomainDetective and DnsClientX product documentation, API references, DNS tools, and support pages.",
-          "Tags": ["documentation", "api-reference", "dns", "sitemap", "llms"]
-        }
-      ]
-    },
+    "A2AAgentCard": { "Enabled": false },
     "McpServerCard": { "Enabled": false },
     "OpenApi": { "Enabled": false },
     "WebMcp": false,
