@@ -60,6 +60,7 @@ public class TestDesiredStateParity
         var html = File.ReadAllText(tmpHtml);
         var md = File.ReadAllText(tmpMd);
         var wordXml = ReadZipText(tmpDocx);
+        var excelXml = ReadZipText(tmpXlsx);
         var excelRows = ReadExcelRows(tmpXlsx);
 
         AssertContainsLabelAndValue(html, "Desired Warnings", desiredWarnings);
@@ -81,6 +82,7 @@ public class TestDesiredStateParity
         AssertContainsLabelAndValue(excelRows, "Desired Errors", desiredErrors);
         AssertContainsLabelAndValue(excelRows, "Best-Practice Warnings", bestWarnings);
         AssertContainsLabelAndValue(excelRows, "Best-Practice Errors", bestErrors);
+        Assert.Contains("HYPERLINK(", excelXml, StringComparison.OrdinalIgnoreCase);
     }
 
     private static Assessment[] CreateAssessments(string domain, string category, AssessmentSeverity severity, int count)

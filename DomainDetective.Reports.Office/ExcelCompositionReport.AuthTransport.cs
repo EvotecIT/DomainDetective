@@ -348,19 +348,12 @@ public static partial class ExcelCompositionReport {
             if (topLinks.Count > 0)
             {
                 column.Section("Top Links");
-                var range = column.TableFrom(topLinks.Select(t => new { Title = t.Title, Url = t.Url }).ToList(), title: null, configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
-                try
+                var range = column.TableFrom(topLinks.Select(t => new { Title = t.Title, Url = t.Url }).ToList(), title: null, configure: o =>
                 {
-                    foreach (var row in composer.Sheet.RowsObjects(range))
-                    {
-                        var titleCell = row.CellByHeader("Title");
-                        var urlCell = row.CellByHeader("Url");
-                        string urlRef = IndexToCol(urlCell.ColumnIndex) + titleCell.RowIndex.ToString();
-                        string safeTitle = (row.GetOrDefault<string>("Title", string.Empty) ?? string.Empty).Replace("\"", "\"\"");
-                        row.SetFormula("Title", $"=HYPERLINK({urlRef},\"{safeTitle}\")");
-                    }
-                }
-                catch { }
+                    o.HeaderCase = HeaderCase.Title;
+                    o.Columns = new[] { "Title", "Url" };
+                }, visuals: v => v.FreezeHeaderRow = true);
+                SetLinkTableFormulas(composer.Sheet, range, topLinks.Select(link => link.Title));
             }
         }
         catch { }

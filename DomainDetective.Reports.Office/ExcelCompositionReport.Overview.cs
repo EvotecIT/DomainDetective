@@ -69,7 +69,7 @@ public static partial class ExcelCompositionReport
                 int errorsCol = coords.startCol + 13 - 1;
                 string colLetter = IndexToCol(errorsCol);
                 string errRange = $"{colLetter}{coords.startRow + 1}:{colLetter}{coords.endRow}";
-                overview.ConditionalIconSet(errRange, IconSetValues.ThreeTrafficLights1);
+                overview.ConditionalIconSet(errRange, ExcelIconSet.ThreeTrafficLights1);
             }
         } catch { }
 

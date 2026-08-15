@@ -157,7 +157,7 @@ internal static class WordReportCommon
         }
 
         var headerTable = header.AddTable(1, 2, WordTableStyle.TableNormal);
-        headerTable.WidthType = TableWidthUnitValues.Pct;
+        headerTable.WidthType = WordTableWidthUnit.Pct;
         headerTable.Width = 5000; // 100%
 
         var leftP = headerTable.Rows[0].Cells[0].AddParagraph(leftText ?? string.Empty);
@@ -167,7 +167,7 @@ internal static class WordReportCommon
             headerTable.Rows[0].Cells[0].AddParagraph().AddImage(logoPath!, h, h);
         }
         var rightP = headerTable.Rows[0].Cells[1].AddParagraph(rightText ?? string.Empty);
-        rightP.ParagraphAlignment = JustificationValues.Right;
+        rightP.ParagraphAlignment = WordParagraphAlignment.Right;
 
         if (!string.IsNullOrWhiteSpace(watermarkText))
         {
@@ -209,7 +209,7 @@ internal static class WordReportCommon
         }
 
         var footerTable = footer.AddTable(1, 2, WordTableStyle.TableNormal);
-        footerTable.WidthType = TableWidthUnitValues.Pct;
+        footerTable.WidthType = WordTableWidthUnit.Pct;
         footerTable.Width = 5000; // 100%
 
         var lp = footerTable.Rows[0].Cells[0].AddParagraph(leftText);
@@ -220,6 +220,6 @@ internal static class WordReportCommon
             catch { /* ignore image errors */ }
         }
         var rp = footerTable.Rows[0].Cells[1].AddParagraph(rightText ?? string.Empty);
-        rp.ParagraphAlignment = JustificationValues.Right;
+        rp.ParagraphAlignment = WordParagraphAlignment.Right;
     }
 }

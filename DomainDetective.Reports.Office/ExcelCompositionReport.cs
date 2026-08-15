@@ -266,19 +266,12 @@ public static partial class ExcelCompositionReport {
                     var f = LinkFormatter.Format(u);
                     return new { Title = f.Title, Url = f.Url };
                 }).ToList();
-                var refRange = refSheet.TableFrom(rows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
-                try
+                var refRange = refSheet.TableFrom(rows, title: null, configure: o =>
                 {
-                    foreach (var row in refSheet.Sheet.RowsObjects(refRange))
-                    {
-                        var titleCell = row.CellByHeader("Title");
-                        var urlCell = row.CellByHeader("Url");
-                        string urlRef = IndexToCol(urlCell.ColumnIndex) + titleCell.RowIndex.ToString();
-                        string safeTitle = (row.GetOrDefault<string>("Title", string.Empty) ?? string.Empty).Replace("\"", "\"\"");
-                        row.SetFormula("Title", $"=HYPERLINK({urlRef},\"{safeTitle}\")");
-                    }
-                }
-                catch { }
+                    o.HeaderCase = HeaderCase.Title;
+                    o.Columns = new[] { "Title", "Url" };
+                }, visuals: v => v.FreezeHeaderRow = true);
+                SetLinkTableFormulas(refSheet.Sheet, refRange, rows.Select(row => row.Title));
                 // Clamp widths for readable references
                 refSheet.ApplyColumnSizing(refRange, opt => {
                     opt.LongHeaders.Add("Url");
@@ -307,14 +300,31 @@ public static partial class ExcelCompositionReport {
             Console.WriteLine($"Validation found {errs.Count} issues; see '{Path.ChangeExtension(path, ".xlsx.validation.txt")}' for details.");
             foreach (var e in errs)
             {
-                Console.WriteLine($"{e.ErrorType}: {e.Description} at {e.Path?.XPath}");
+                Console.WriteLine($"{e.ErrorType}: {e.Description} at {e.Path}");
             }
-            var report = string.Join(Environment.NewLine, errs.Select(e => $"{e.ErrorType}: {e.Description} at {e.Path?.XPath}"));
+            var report = string.Join(Environment.NewLine, errs.Select(e => $"{e.ErrorType}: {e.Description} at {e.Path}"));
             File.WriteAllText(Path.ChangeExtension(path, ".xlsx.validation.txt"), report);
         } else {
             Console.WriteLine("No validation issues found.");
         }
 #endif
+    }
+
+    private static void SetLinkTableFormulas(ExcelSheet sheet, string tableRange, IEnumerable<string?> titles) {
+        try
+        {
+            var bounds = sheet.Range(tableRange);
+            var index = 0;
+            foreach (var title in titles)
+            {
+                var row = bounds.FirstRow + index + 1;
+                var urlRef = IndexToCol(bounds.FirstColumn + 1) + row.ToString();
+                var safeTitle = title?.Replace("\"", "\"\"") ?? string.Empty;
+                sheet.CellFormula(row, bounds.FirstColumn, $"=HYPERLINK({urlRef},\"{safeTitle}\")");
+                index++;
+            }
+        }
+        catch { }
     }
 
 }
