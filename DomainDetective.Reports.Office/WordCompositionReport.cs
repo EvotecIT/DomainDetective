@@ -96,8 +96,8 @@ public static partial class WordCompositionReport {
         WordReportCommon.ApplyCompanyBranding(doc, companyName, companyAddress, companyYear);
 
         // Cover/TOC/Header
-        doc.AddCoverPage(CoverPageTemplate.IonDark);
-        doc.AddTableOfContent(TableOfContentStyle.Template1);
+        doc.AddCoverPage(WordCoverPageTemplate.IonDark);
+        doc.AddTableOfContent(WordTableOfContentsStyle.Template1);
         doc.AddPageBreak();
         WordReportCommon.AddHeader(doc, WordReportCommon.ResolveHeaderLeftText(headerText, new { Title = title }, title),
             $"Generated: {generatedAt:yyyy-MM-dd HH:mm:ss}", logoPath, watermarkText, headerLogoSizePx);
