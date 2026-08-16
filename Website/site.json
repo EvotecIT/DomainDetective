@@ -173,13 +173,14 @@
     "McpServerCard": { "Enabled": false },
     "OpenApi": { "Enabled": false },
     "WebMcp": false,
-    "MarkdownNegotiation": true
+    "MarkdownNegotiation": false
   },
   "Cloudflare": {
     "Cache": {
       "EdgeTtlSeconds": 604800
     },
-    "PurgeMode": "hostname"
+    "PurgeMode": "incremental",
+    "SmartTieredCache": true
   },
   "EditLinks": {
     "Enabled": true,
