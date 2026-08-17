@@ -17,6 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: read
   contents: read
   packages: read
 
@@ -52,13 +53,13 @@ jobs:
     needs:
       - website-tests
       - deploy-contract
-    uses: EvotecIT/PSPublishModule/.github/workflows/powerforge-website-ci.yml@8b7f06d1320a93bbdf0e0c5c7d7b164a27af9890
+    uses: EvotecIT/PSPublishModule/.github/workflows/powerforge-website-ci.yml@01c8da4a9e9c5ab53b772e595c0abb514d36f977
     with:
       website_root: Website
       pipeline_config: Website/pipeline.json
       engine_mode: source
       runner_labels_json: ${{ github.event.repository.private && '["self-hosted","linux"]' || '["ubuntu-latest"]' }}
       powerforge_repository: EvotecIT/PSPublishModule
-      powerforge_ref: 8b7f06d1320a93bbdf0e0c5c7d7b164a27af9890
+      powerforge_ref: 01c8da4a9e9c5ab53b772e595c0abb514d36f977
       powerforge_web_tag: PowerForgeWeb-v1.0.0-preview-202604140746
       report_artifact_name: powerforge-website-reports
