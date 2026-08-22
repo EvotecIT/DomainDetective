@@ -23,6 +23,10 @@ public class STARTTLSAnalysis : IHasAssessments {
         public Dictionary<string, STARTTLSResult> ServerDetails { get; private set; } = new();
         /// <summary>Gets or sets the timeout value.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+        /// <summary>Address family used by hostname-based probes.</summary>
+        public MailTransportAddressFamily AddressFamily { get; set; } = MailTransportAddressFamily.Any;
+        /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
+        public Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? OutboundAddressResolver { get; set; }
 
         /// <summary>Structured assessments during STARTTLS probe.</summary>
         public List<Assessment> Assessments { get; } = new();
@@ -33,12 +37,22 @@ public class STARTTLSAnalysis : IHasAssessments {
         /// Tests a single server for STARTTLS support.
         /// </summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            await AnalyzeServer(new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily }, logger, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Tests a single explicitly targeted server for STARTTLS support.
+        /// </summary>
+        public async Task AnalyzeServer(MailTransportEndpoint endpoint, InternalLogger logger, CancellationToken cancellationToken = default) {
+            if (endpoint == null) {
+                throw new ArgumentNullException(nameof(endpoint));
+            }
             ServerResults.Clear();
             DowngradeDetected.Clear();
             ServerDetails.Clear();
             cancellationToken.ThrowIfCancellationRequested();
-            var detail = await CheckStartTls(host, port, logger, cancellationToken);
-            var key = $"{host}:{port}";
+            var detail = await CheckStartTls(endpoint, logger, cancellationToken).ConfigureAwait(false);
+            var key = endpoint.Key;
             ServerResults[key] = detail.StartTlsAdvertised || detail.TlsNegotiated;
             DowngradeDetected[key] = detail.DowngradeDetected;
             ServerDetails[key] = detail;
@@ -54,8 +68,9 @@ public class STARTTLSAnalysis : IHasAssessments {
             foreach (var host in hosts) {
                 foreach (var port in ports) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var detail = await CheckStartTls(host, port, logger, cancellationToken);
-                    var key = $"{host}:{port}";
+                    var endpoint = new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily };
+                    var detail = await CheckStartTls(endpoint, logger, cancellationToken).ConfigureAwait(false);
+                    var key = endpoint.Key;
                     ServerResults[key] = detail.StartTlsAdvertised || detail.TlsNegotiated;
                     DowngradeDetected[key] = detail.DowngradeDetected;
                     ServerDetails[key] = detail;
@@ -64,32 +79,20 @@ public class STARTTLSAnalysis : IHasAssessments {
         }
 
         /// <summary>
-        /// Resolves the specified host and returns a <see cref="DnsEndPoint"/>
-        /// with address family information when an IP address is provided.
-        /// </summary>
-        private static DnsEndPoint GetEndPoint(string host, int port) {
-            return IPAddress.TryParse(host, out IPAddress? ip)
-                ? new DnsEndPoint(host, port, ip.AddressFamily)
-                : new DnsEndPoint(host, port);
-        }
-
-        /// <summary>
         /// Performs the low-level STARTTLS negotiation.
         /// </summary>
-        private async Task<STARTTLSResult> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<STARTTLSResult> CheckStartTls(MailTransportEndpoint endpoint, InternalLogger logger, CancellationToken cancellationToken) {
+            endpoint.Validate();
+            var host = endpoint.HostName;
+            var port = endpoint.Port;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "STARTTLS", target: $"{host}:{port}");
-            var endPoint = GetEndPoint(host, port);
-            var client = endPoint.AddressFamily == AddressFamily.Unspecified
-                ? new TcpClient()
-                : new TcpClient(endPoint.AddressFamily);
+            TcpClient? client = null;
+            var connection = MailTransportConnectionEvidence.FromTarget(endpoint);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {
-                if (endPoint.AddressFamily == AddressFamily.Unspecified) {
-                    await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
-                } else {
-                    await client.Client.ConnectAsync(endPoint).WaitWithCancellation(timeoutCts.Token);
-                }
+                client = await MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, timeoutCts.Token).ConfigureAwait(false);
+                connection.Capture(client);
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
@@ -214,6 +217,7 @@ public class STARTTLSAnalysis : IHasAssessments {
                 return new STARTTLSResult {
                     Host = host,
                     Port = port,
+                    Connection = connection,
                     Banner = banner ?? string.Empty,
                     EhloLines = ehloLines,
                     Capabilities = new List<string>(capabilities),
@@ -240,6 +244,7 @@ public class STARTTLSAnalysis : IHasAssessments {
                 return new STARTTLSResult {
                     Host = host,
                     Port = port,
+                    Connection = connection,
                     Banner = string.Empty,
                     EhloLines = new List<string>(),
                     Capabilities = new List<string>(),
@@ -249,13 +254,15 @@ public class STARTTLSAnalysis : IHasAssessments {
                     TlsNegotiated = false,
                 };
             } finally {
-                client.Dispose();
+                client?.Dispose();
             }
         }
     }
 
     /// <summary>Detailed STARTTLS probe result per server.</summary>
     public sealed class STARTTLSResult {
+        /// <summary>Requested and observed mail transport endpoint details.</summary>
+        public MailTransportConnectionEvidence Connection { get; set; } = new();
         /// <summary>Gets or sets the host value.</summary>
         public string Host { get; set; } = string.Empty;
         /// <summary>Gets or sets the port value.</summary>

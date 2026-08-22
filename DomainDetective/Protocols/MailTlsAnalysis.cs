@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Net;
@@ -32,6 +33,8 @@ public class MailTlsAnalysis : IHasAssessments {
 
     /// <summary>Result of a TLS check.</summary>
     public class TlsResult {
+        /// <summary>Requested and observed mail transport endpoint details.</summary>
+        public MailTransportConnectionEvidence Connection { get; set; } = new();
         /// <summary>Gets or sets the start tls advertised value.</summary>
         public bool StartTlsAdvertised { get; set; }
         /// <summary>Gets or sets the certificate valid value.</summary>
@@ -112,6 +115,8 @@ public class MailTlsAnalysis : IHasAssessments {
     public Dictionary<string, TlsResult> ServerResults { get; } = new();
     /// <summary>Timeout for connections.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <summary>Address family used by hostname-based probes.</summary>
+    public MailTransportAddressFamily AddressFamily { get; set; } = MailTransportAddressFamily.Any;
     /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
     public Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? OutboundAddressResolver { get; set; }
 
@@ -122,9 +127,17 @@ public class MailTlsAnalysis : IHasAssessments {
 
     /// <summary>Analyzes a single host.</summary>
     public async Task AnalyzeServer(MailProtocol protocol, string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+        await AnalyzeServer(protocol, new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily }, logger, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Analyzes a single logical host using explicit transport targeting options.</summary>
+    public async Task AnalyzeServer(MailProtocol protocol, MailTransportEndpoint endpoint, InternalLogger logger, CancellationToken cancellationToken = default) {
+        if (endpoint == null) {
+            throw new ArgumentNullException(nameof(endpoint));
+        }
         ServerResults.Clear();
-        var result = await CheckTls(protocol, host, port, logger, cancellationToken);
-        ServerResults[$"{host}:{port}"] = result;
+        var result = await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
+        ServerResults[endpoint.Key] = result;
     }
 
     /// <summary>Analyzes multiple hosts.</summary>
@@ -132,7 +145,32 @@ public class MailTlsAnalysis : IHasAssessments {
         ServerResults.Clear();
         foreach (var host in hosts) {
             cancellationToken.ThrowIfCancellationRequested();
-            ServerResults[$"{host}:{port}"] = await CheckTls(protocol, host, port, logger, cancellationToken);
+            var endpoint = new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily };
+            ServerResults[endpoint.Key] = await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Analyzes multiple explicitly targeted mail endpoints.</summary>
+    public async Task AnalyzeServers(MailProtocol protocol, IEnumerable<MailTransportEndpoint> endpoints, InternalLogger logger, CancellationToken cancellationToken = default) {
+        if (endpoints == null) {
+            throw new ArgumentNullException(nameof(endpoints));
+        }
+        var targets = endpoints.ToArray();
+        if (targets.Any(endpoint => endpoint == null)) {
+            throw new ArgumentException("Endpoint collection cannot contain null values.", nameof(endpoints));
+        }
+        var duplicateKey = targets
+            .GroupBy(endpoint => endpoint.Key, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicateKey != null) {
+            throw new ArgumentException(
+                $"Endpoint collection contains duplicate logical result key '{duplicateKey}'. Analyze each backend separately to retain its connection evidence.",
+                nameof(endpoints));
+        }
+        ServerResults.Clear();
+        foreach (var endpoint in targets) {
+            cancellationToken.ThrowIfCancellationRequested();
+            ServerResults[endpoint.Key] = await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -151,14 +189,18 @@ public class MailTlsAnalysis : IHasAssessments {
         result.KeyExchangeAlgorithm = tlsInfo.KeyExchangeAlgorithm;
     }
 
-    private async Task<TlsResult> CheckTls(MailProtocol protocol, string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+    private async Task<TlsResult> CheckTls(MailProtocol protocol, MailTransportEndpoint endpoint, InternalLogger logger, CancellationToken cancellationToken) {
+        endpoint.Validate();
+        var host = endpoint.HostName;
+        var port = endpoint.Port;
         string category = protocol switch { MailProtocol.Smtp => "SMTPTLS", MailProtocol.Imap => "IMAPTLS", MailProtocol.Pop3 => "POP3TLS", _ => "MAILTLS" };
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: category, target: $"{host}:{port}");
-        var result = new TlsResult();
+        var result = new TlsResult { Connection = MailTransportConnectionEvidence.FromTarget(endpoint) };
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(Timeout);
         try {
-            using var client = await ConnectAsync(host, port, timeoutCts.Token).ConfigureAwait(false);
+            using var client = await ConnectAsync(endpoint, timeoutCts.Token).ConfigureAwait(false);
+            result.Connection.Capture(client);
             using NetworkStream network = client.GetStream();
             bool directTls = (protocol == MailProtocol.Imap && port == 993) || (protocol == MailProtocol.Pop3 && port == 995);
             if (directTls) {
@@ -263,7 +305,7 @@ public class MailTlsAnalysis : IHasAssessments {
                     result.SupportsTls13 = (int)result.Protocol == 12288;
                     result.Tls13Used = result.SupportsTls13;
                     // Probe protocol support (best-effort)
-                    await ProbeProtocolSupport(host, port, result, cancellationToken);
+                    await ProbeProtocolSupport(endpoint, result, cancellationToken).ConfigureAwait(false);
                     if (result.SupportsTls10 || result.SupportsTls11) {   
                         logger.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                             result.SupportsTls10 ? "1.0" : string.Empty,
@@ -276,7 +318,9 @@ public class MailTlsAnalysis : IHasAssessments {
                     if (result.LegacyEnabled) {
                         logger.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                     }
-                    await ProbeOcspStaplingWithOpenSsl(host, port, result, logger, cancellationToken);
+                    if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
+                        await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, cancellationToken).ConfigureAwait(false);
+                    }
                 }
                 return result;
             }
@@ -476,7 +520,7 @@ public class MailTlsAnalysis : IHasAssessments {
                 result.SupportsTls13 = (int)result.Protocol == 12288;
                 result.Tls13Used = result.SupportsTls13;
                 // Probe protocol support (best-effort)
-                await ProbeProtocolSupport(host, port, result, cancellationToken);
+                await ProbeProtocolSupport(endpoint, result, cancellationToken).ConfigureAwait(false);
                 if (result.SupportsTls10 || result.SupportsTls11) {       
                     logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                         result.SupportsTls10 ? "1.0" : string.Empty,
@@ -488,7 +532,7 @@ public class MailTlsAnalysis : IHasAssessments {
                     logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                 }
                 if (OutboundAddressResolver == null) {
-                    await ProbeOcspStaplingWithOpenSsl(host, port, result, logger, cancellationToken);
+                    await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, cancellationToken).ConfigureAwait(false);
                 }
             }
         } catch (Exception ex) {
@@ -508,12 +552,12 @@ public class MailTlsAnalysis : IHasAssessments {
         result.FailureKind = CertificateFailureClassifier.Classify(exception);
     }
 
-    private async Task ProbeProtocolSupport(string host, int port, TlsResult result, CancellationToken token) {
+    private async Task ProbeProtocolSupport(MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
         async Task<bool> TryHandshake(SslProtocols proto) {
             try {
-                using var client = await ConnectAsync(host, port, token).ConfigureAwait(false);
+                using var client = await ConnectAsync(endpoint, token).ConfigureAwait(false);
                 using var ssl = new SslStream(client.GetStream(), false, static (_, _, _, _) => true);
-                await ssl.AuthenticateAsClientAsync(host, null, proto, false).WaitWithCancellation(token);
+                await ssl.AuthenticateAsClientAsync(endpoint.HostName, null, proto, false).WaitWithCancellation(token);
                 return ssl.SslProtocol == proto;
             } catch { return false; }
         }
@@ -527,33 +571,30 @@ public class MailTlsAnalysis : IHasAssessments {
     }
 
     internal async Task<TcpClient> ConnectAsync(string host, int port, CancellationToken cancellationToken) {
-        if (OutboundAddressResolver == null) {
-            var client = new TcpClient();
-            await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-            return client;
-        }
-
-        var addresses = await OutboundAddressResolver(host, cancellationToken).ConfigureAwait(false);
-        Exception? lastError = null;
-        foreach (var address in addresses) {
-            var client = new TcpClient(address.AddressFamily);
-            try {
-                await client.ConnectAsync(address, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-                return client;
-            } catch (Exception ex) when (ex is not OperationCanceledException) {
-                lastError = ex;
-                client.Dispose();
-            }
-        }
-        throw new SocketException(lastError is SocketException socketError ? socketError.ErrorCode : (int)SocketError.HostUnreachable);
+        var endpoint = new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily };
+        return await ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task ProbeOcspStaplingWithOpenSsl(string host, int port, TlsResult result, InternalLogger? logger, CancellationToken token) {
+    internal Task<TcpClient> ConnectAsync(MailTransportEndpoint endpoint, CancellationToken cancellationToken) =>
+        MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, cancellationToken);
+
+    private static async Task ProbeOcspStaplingWithOpenSsl(MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token) {
         try {
+            var host = endpoint.HostName;
+            var port = endpoint.Port;
+            var connectHost = endpoint.ConnectAddress?.ToString() ?? host;
+            if (connectHost.IndexOf(':') >= 0 && !connectHost.StartsWith("[", StringComparison.Ordinal)) {
+                connectHost = $"[{connectHost}]";
+            }
+            var familySwitch = endpoint.AddressFamily switch {
+                MailTransportAddressFamily.IPv4 => "-4 ",
+                MailTransportAddressFamily.IPv6 => "-6 ",
+                _ => string.Empty
+            };
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             var psi = new System.Diagnostics.ProcessStartInfo {
                 FileName = "openssl",
-                Arguments = $"s_client -connect {host}:{port} -servername {host} -starttls {(port == 25 ? "smtp" : port == 110 ? "pop3" : port == 143 ? "imap" : "smtp")} -status -brief",
+                Arguments = $"s_client {familySwitch}-connect {connectHost}:{port} -servername {host} -starttls {(port == 25 ? "smtp" : port == 110 ? "pop3" : port == 143 ? "imap" : "smtp")} -status -brief",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

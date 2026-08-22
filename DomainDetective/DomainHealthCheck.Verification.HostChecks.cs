@@ -33,7 +33,20 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckStartTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
+            StartTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks an explicitly targeted host for STARTTLS support while preserving the logical hostname.
+        /// </summary>
+        public async Task CheckStartTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+            if (endpoint == null) {
+                throw new System.ArgumentNullException(nameof(endpoint));
+            }
+            ValidatePort(endpoint.Port);
+            StartTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            await StartTlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -41,7 +54,20 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
+            SmtpTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
             await SmtpTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks an explicitly targeted host for SMTP TLS capabilities while preserving the logical hostname.
+        /// </summary>
+        public async Task CheckSmtpTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+            if (endpoint == null) {
+                throw new System.ArgumentNullException(nameof(endpoint));
+            }
+            ValidatePort(endpoint.Port);
+            SmtpTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            await SmtpTlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -49,7 +75,20 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckImapTlsHost(string host, int port = 143, CancellationToken cancellationToken = default) {
             ValidatePort(port);
+            ImapTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
             await ImapTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks an explicitly targeted host for IMAP TLS capabilities while preserving the logical hostname.
+        /// </summary>
+        public async Task CheckImapTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+            if (endpoint == null) {
+                throw new System.ArgumentNullException(nameof(endpoint));
+            }
+            ValidatePort(endpoint.Port);
+            ImapTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            await ImapTlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -57,7 +96,20 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckPop3TlsHost(string host, int port = 110, CancellationToken cancellationToken = default) {
             ValidatePort(port);
+            Pop3TlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
             await Pop3TlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks an explicitly targeted host for POP3 TLS capabilities while preserving the logical hostname.
+        /// </summary>
+        public async Task CheckPop3TlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+            if (endpoint == null) {
+                throw new System.ArgumentNullException(nameof(endpoint));
+            }
+            ValidatePort(endpoint.Port);
+            Pop3TlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            await Pop3TlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
         /// <summary>

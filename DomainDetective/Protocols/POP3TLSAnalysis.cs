@@ -14,7 +14,15 @@ public class POP3TLSAnalysis : MailTlsAnalysis
     public Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
         => base.AnalyzeServer(MailProtocol.Pop3, host, port, logger, cancellationToken);
 
+    /// <summary>Analyzes a single explicitly targeted POP3 server.</summary>
+    public Task AnalyzeServer(MailTransportEndpoint endpoint, InternalLogger logger, CancellationToken cancellationToken = default)
+        => base.AnalyzeServer(MailProtocol.Pop3, endpoint, logger, cancellationToken);
+
     /// <summary>Analyzes multiple POP3 servers.</summary>
     public Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default)
         => base.AnalyzeServers(MailProtocol.Pop3, hosts, port, logger, cancellationToken);
+
+    /// <summary>Analyzes multiple explicitly targeted POP3 servers.</summary>
+    public Task AnalyzeServers(IEnumerable<MailTransportEndpoint> endpoints, InternalLogger logger, CancellationToken cancellationToken = default)
+        => base.AnalyzeServers(MailProtocol.Pop3, endpoints, logger, cancellationToken);
 }

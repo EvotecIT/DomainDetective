@@ -20,6 +20,7 @@ namespace DomainDetective {
             var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
             StartTlsAnalysis.Subject = domainName;
+            StartTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
             if (StartTlsAnalysis.ServerResults.Count > 0 && StartTlsAnalysis.ServerResults.Values.All(v => v)) {
                 _logger.WriteInformationCode(MxCodes.TlsSupported, "All MX hosts support STARTTLS");
@@ -42,6 +43,7 @@ namespace DomainDetective {
             var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
             SmtpTlsAnalysis.Subject = domainName;
+            SmtpTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, port, _logger, cancellationToken);
 
             // DANE alignment advisory: if we have DANE results or MX but missing TLSA, or weak TLS under TLSA
@@ -95,6 +97,7 @@ namespace DomainDetective {
             var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 143, string.Join(", ", tlsHosts));
             ImapTlsAnalysis.Subject = domainName;
+            ImapTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
             await ImapTlsAnalysis.AnalyzeServers(tlsHosts, 143, _logger, cancellationToken);
         }
 
@@ -110,6 +113,7 @@ namespace DomainDetective {
             var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 110, string.Join(", ", tlsHosts));
             Pop3TlsAnalysis.Subject = domainName;
+            Pop3TlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
             await Pop3TlsAnalysis.AnalyzeServers(tlsHosts, 110, _logger, cancellationToken);
         }
 

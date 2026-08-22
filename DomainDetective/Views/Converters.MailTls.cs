@@ -24,6 +24,12 @@ public static partial class Converters
             servers.Add(new MailTlsServerInfo
             {
                 Key = kv.Key,
+                HostName = r.Connection.HostName,
+                Port = r.Connection.Port,
+                ConnectAddress = r.Connection.ConnectAddress,
+                RequestedAddressFamily = r.Connection.RequestedAddressFamily,
+                RemoteAddress = r.Connection.RemoteAddress,
+                RemoteAddressFamily = r.Connection.RemoteAddressFamily,
                 StartTlsAdvertised = r.StartTlsAdvertised,
                 Grade = r.GradeLevel,
                 CertificateValid = r.CertificateValid,
@@ -116,6 +122,18 @@ public class MailTlsServerInfo
 {
     /// <summary>Server key in the form host:port.</summary>
     public string Key { get; set; } = null!;
+    /// <summary>Logical hostname used for protocol identity and TLS validation.</summary>
+    public string HostName { get; set; } = string.Empty;
+    /// <summary>TCP port used by the probe.</summary>
+    public int Port { get; set; }
+    /// <summary>Concrete address requested by the caller, when pinned.</summary>
+    public string? ConnectAddress { get; set; }
+    /// <summary>Address family requested by the caller.</summary>
+    public MailTransportAddressFamily RequestedAddressFamily { get; set; }
+    /// <summary>Remote address observed after connecting.</summary>
+    public string? RemoteAddress { get; set; }
+    /// <summary>Address family observed after connecting.</summary>
+    public MailTransportAddressFamily? RemoteAddressFamily { get; set; }
     /// <summary>True when STARTTLS was advertised or implicit TLS used.</summary>
     public bool StartTlsAdvertised { get; set; }
     /// <summary>Computed letter grade for TLS posture.</summary>

@@ -14,6 +14,14 @@ public class TestMailTlsView
         var until = new DateTime(2025, 12, 31, 0, 0, 0, DateTimeKind.Utc);
         tls.ServerResults["smtp.example.com:25"] = new MailTlsAnalysis.TlsResult
         {
+            Connection = new MailTransportConnectionEvidence {
+                HostName = "smtp.example.com",
+                Port = 25,
+                ConnectAddress = "192.0.2.10",
+                RequestedAddressFamily = MailTransportAddressFamily.IPv4,
+                RemoteAddress = "192.0.2.10",
+                RemoteAddressFamily = MailTransportAddressFamily.IPv4
+            },
             StartTlsAdvertised = true,
             CertificateValid = true,
             HostnameMatch = true,
@@ -30,6 +38,12 @@ public class TestMailTlsView
         Assert.Equal(when, server.ValidFrom);
         Assert.Equal(until, server.ValidTo);
         Assert.Equal("ABCDEF123456", server.Thumbprint);
+        Assert.Equal("smtp.example.com", server.HostName);
+        Assert.Equal(25, server.Port);
+        Assert.Equal("192.0.2.10", server.ConnectAddress);
+        Assert.Equal("192.0.2.10", server.RemoteAddress);
+        Assert.Equal(MailTransportAddressFamily.IPv4, server.RequestedAddressFamily);
+        Assert.Equal(MailTransportAddressFamily.IPv4, server.RemoteAddressFamily);
     }
 
     [Fact]

@@ -9,6 +9,10 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Test IMAP TLS.</summary>
     ///   <code>Test-DDEmailImapTls -HostName mail.example.com -Port 993</code>
     /// </example>
+    /// <example>
+    ///   <summary>Test only the IPv6 path for an IMAP host.</summary>
+    ///   <code>Test-DDEmailImapTls -HostName mail.example.com -Port 993 -AddressFamily IPv6</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDEmailImapTls", DefaultParameterSetName = "ServerName")]
     [Alias("Test-EmailImapTls", "Test-ImapTls")]
     public sealed class CmdletTestImapTls : ExportableAsyncPSCmdlet {
@@ -22,6 +26,14 @@ namespace DomainDetective.PowerShell {
         /// <summary>IMAP port number.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public int Port = 143;
+
+        /// <summary>Optional concrete address used for the TCP connection while HostName remains the TLS identity.</summary>
+        [Parameter(Mandatory = false)]
+        public System.Net.IPAddress? ConnectAddress;
+
+        /// <summary>Network address family used by the connection.</summary>
+        [Parameter(Mandatory = false)]
+        public MailTransportAddressFamily AddressFamily = MailTransportAddressFamily.Any;
 
         /// <summary>Output certificate chain information.</summary>
         [Parameter(Mandatory = false)]
@@ -45,11 +57,15 @@ namespace DomainDetective.PowerShell {
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking IMAP TLS for {0}:{1}", HostName, Port);
-            await _healthCheck.CheckImapTlsHost(HostName, Port);
+            var endpoint = new MailTransportEndpoint(HostName, Port) {
+                ConnectAddress = ConnectAddress,
+                AddressFamily = AddressFamily
+            };
+            await _healthCheck.CheckImapTlsHost(endpoint, CancelToken);
             _healthCheck.ImapTlsAnalysis.Subject = HostName;
             var analysis = _healthCheck.ImapTlsAnalysis;
             var view = DomainDetective.Views.Converters.Convert(analysis);
-            var result = analysis.ServerResults[$"{HostName}:{Port}"];
+            var result = analysis.ServerResults[endpoint.Key];
             WriteObject(view);
             if (ShowChain && result.Chain.Count > 0) {
                 WriteObject(result.Chain, true);
