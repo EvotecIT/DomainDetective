@@ -14,7 +14,15 @@ public class IMAPTLSAnalysis : MailTlsAnalysis
     public Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
         => base.AnalyzeServer(MailProtocol.Imap, host, port, logger, cancellationToken);
 
+    /// <summary>Analyzes a single explicitly targeted IMAP server.</summary>
+    public Task AnalyzeServer(MailTransportEndpoint endpoint, InternalLogger logger, CancellationToken cancellationToken = default)
+        => base.AnalyzeServer(MailProtocol.Imap, endpoint, logger, cancellationToken);
+
     /// <summary>Analyzes multiple IMAP servers.</summary>
     public Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default)
         => base.AnalyzeServers(MailProtocol.Imap, hosts, port, logger, cancellationToken);
+
+    /// <summary>Analyzes multiple explicitly targeted IMAP servers.</summary>
+    public Task AnalyzeServers(IEnumerable<MailTransportEndpoint> endpoints, InternalLogger logger, CancellationToken cancellationToken = default)
+        => base.AnalyzeServers(MailProtocol.Imap, endpoints, logger, cancellationToken);
 }

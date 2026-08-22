@@ -39,6 +39,10 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
     [ValidateSet("Smtp", "Imap", "Pop3")]
     public string[] Protocol = new[] { "Smtp", "Imap", "Pop3" };
 
+    /// <summary>Network address family used when connecting to discovered mail hosts.</summary>
+    [Parameter(Mandatory = false)]
+    public MailTransportAddressFamily AddressFamily = MailTransportAddressFamily.Any;
+
     private readonly List<object> _items = new();
     private readonly List<string> _subjects = new();
     private readonly object _exportLock = new();
@@ -80,6 +84,9 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
             internalLoggerPowerShell.ResetActivityIdCounter();
             var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
             ApplyExecutionOptions(healthCheck);
+            healthCheck.SmtpTlsAnalysis.AddressFamily = AddressFamily;
+            healthCheck.ImapTlsAnalysis.AddressFamily = AddressFamily;
+            healthCheck.Pop3TlsAnalysis.AddressFamily = AddressFamily;
 
             logger.WriteVerbose("Checking mail protocol TLS for domain: {0}", domain);
             await healthCheck.Verify(domain, checkTypes.ToArray(), cancellationToken: CancelToken);

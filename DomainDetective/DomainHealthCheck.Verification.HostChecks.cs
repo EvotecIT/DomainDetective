@@ -33,7 +33,20 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckStartTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
+            ApplyOutboundAddressResolver(StartTlsAnalysis);
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks an explicitly targeted host for STARTTLS support while preserving the logical hostname.
+        /// </summary>
+        public async Task CheckStartTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+            if (endpoint == null) {
+                throw new System.ArgumentNullException(nameof(endpoint));
+            }
+            ValidatePort(endpoint.Port);
+            ApplyOutboundAddressResolver(StartTlsAnalysis);
+            await StartTlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -41,7 +54,20 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
+            ApplyOutboundAddressResolver(SmtpTlsAnalysis);
             await SmtpTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks an explicitly targeted host for SMTP TLS capabilities while preserving the logical hostname.
+        /// </summary>
+        public async Task CheckSmtpTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+            if (endpoint == null) {
+                throw new System.ArgumentNullException(nameof(endpoint));
+            }
+            ValidatePort(endpoint.Port);
+            ApplyOutboundAddressResolver(SmtpTlsAnalysis);
+            await SmtpTlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -49,7 +75,20 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckImapTlsHost(string host, int port = 143, CancellationToken cancellationToken = default) {
             ValidatePort(port);
+            ApplyOutboundAddressResolver(ImapTlsAnalysis);
             await ImapTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks an explicitly targeted host for IMAP TLS capabilities while preserving the logical hostname.
+        /// </summary>
+        public async Task CheckImapTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+            if (endpoint == null) {
+                throw new System.ArgumentNullException(nameof(endpoint));
+            }
+            ValidatePort(endpoint.Port);
+            ApplyOutboundAddressResolver(ImapTlsAnalysis);
+            await ImapTlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -57,7 +96,20 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckPop3TlsHost(string host, int port = 110, CancellationToken cancellationToken = default) {
             ValidatePort(port);
+            ApplyOutboundAddressResolver(Pop3TlsAnalysis);
             await Pop3TlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks an explicitly targeted host for POP3 TLS capabilities while preserving the logical hostname.
+        /// </summary>
+        public async Task CheckPop3TlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+            if (endpoint == null) {
+                throw new System.ArgumentNullException(nameof(endpoint));
+            }
+            ValidatePort(endpoint.Port);
+            ApplyOutboundAddressResolver(Pop3TlsAnalysis);
+            await Pop3TlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -122,6 +174,18 @@ namespace DomainDetective {
         /// <summary>Queries neighbors for IPs used by MX hosts of <paramref name="domainName"/>.</summary>
         public async Task CheckMailIPNeighbors(string domainName, CancellationToken cancellationToken = default) {
             await IPNeighborAnalysis.AnalyzeMx(domainName, _logger, cancellationToken);
+        }
+
+        private void ApplyOutboundAddressResolver(STARTTLSAnalysis analysis) {
+            if (OutboundAddressResolver != null) {
+                analysis.OutboundAddressResolver = OutboundAddressResolver;
+            }
+        }
+
+        private void ApplyOutboundAddressResolver(MailTlsAnalysis analysis) {
+            if (OutboundAddressResolver != null) {
+                analysis.OutboundAddressResolver = OutboundAddressResolver;
+            }
         }
     }
 }

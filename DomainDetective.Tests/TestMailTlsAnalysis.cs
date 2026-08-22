@@ -15,6 +15,23 @@ namespace DomainDetective.Tests;
 public class TestMailTlsAnalysis
 {
     [Fact]
+    public async Task ExplicitEndpointCollectionRejectsDuplicateLogicalKeysBeforeConnecting()
+    {
+        var endpoints = new[]
+        {
+            new MailTransportEndpoint("mail.example.com", 995) { ConnectAddress = IPAddress.Loopback },
+            new MailTransportEndpoint("MAIL.EXAMPLE.COM", 995) { ConnectAddress = IPAddress.IPv6Loopback }
+        };
+        var analysis = new MailTlsAnalysis();
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            analysis.AnalyzeServers(MailTlsAnalysis.MailProtocol.Pop3, endpoints, new InternalLogger()));
+
+        Assert.Contains("duplicate logical result key", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(analysis.ServerResults);
+    }
+
+    [Fact]
     public async Task ImapTlsWorks()
     {
         using var cert = CreateSelfSigned();
@@ -80,6 +97,40 @@ public class TestMailTlsAnalysis
             await analysis.AnalyzeServer("localhost", port, new InternalLogger());
             var result = analysis.ServerResults[$"localhost:{port}"];
             Assert.False(result.StartTlsAdvertised);
+        }
+        finally
+        {
+            cts.Cancel();
+            listener.Stop();
+            await serverTask;
+        }
+    }
+
+    [Fact]
+    public async Task Pop3TlsUsesPinnedAddressAndKeepsLogicalResultKey()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var cts = new CancellationTokenSource();
+        var serverTask = Task.Run(() => RunPop3ServerNoTls(listener, cts.Token), cts.Token);
+        const string logicalHost = "pop-intentionally-unresolvable.invalid";
+
+        try
+        {
+            var endpoint = new MailTransportEndpoint(logicalHost, port) {
+                ConnectAddress = IPAddress.Loopback,
+                AddressFamily = MailTransportAddressFamily.IPv4
+            };
+            var analysis = new POP3TLSAnalysis();
+
+            await analysis.AnalyzeServer(endpoint, new InternalLogger());
+
+            var result = analysis.ServerResults[endpoint.Key];
+            Assert.Equal(logicalHost, result.Connection.HostName);
+            Assert.Equal(IPAddress.Loopback.ToString(), result.Connection.ConnectAddress);
+            Assert.Equal(IPAddress.Loopback.ToString(), result.Connection.RemoteAddress);
+            Assert.Equal(MailTransportAddressFamily.IPv4, result.Connection.RemoteAddressFamily);
         }
         finally
         {

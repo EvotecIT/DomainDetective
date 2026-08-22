@@ -10,6 +10,10 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Test mail server TLS.</summary>
     ///   <code>Test-DDEmailSmtpTls -HostName mail.example.com -Port 587</code>
     /// </example>
+    /// <example>
+    ///   <summary>Test a specific backend while preserving the public SMTP hostname for TLS validation.</summary>
+    ///   <code>Test-DDEmailSmtpTls -HostName mail.example.com -Port 587 -ConnectAddress 192.0.2.10 -AddressFamily IPv4</code>
+    /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailSmtpTls", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailSmtpTls")]
     public sealed class CmdletTestSmtpTls : ExportableAsyncPSCmdlet {
@@ -23,6 +27,14 @@ namespace DomainDetective.PowerShell {
         /// <summary>SMTP port number.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public int Port = 25;
+
+        /// <summary>Optional concrete address used for the TCP connection while HostName remains the TLS identity.</summary>
+        [Parameter(Mandatory = false)]
+        public System.Net.IPAddress? ConnectAddress;
+
+        /// <summary>Network address family used by the connection.</summary>
+        [Parameter(Mandatory = false)]
+        public MailTransportAddressFamily AddressFamily = MailTransportAddressFamily.Any;
 
         /// <summary>Output certificate chain information.</summary>
         [Parameter(Mandatory = false)]
@@ -50,14 +62,18 @@ namespace DomainDetective.PowerShell {
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking SMTP TLS for {0}:{1}", HostName, Port);
-            await _healthCheck.CheckSmtpTlsHost(HostName, Port);
+            var endpoint = new MailTransportEndpoint(HostName, Port) {
+                ConnectAddress = ConnectAddress,
+                AddressFamily = AddressFamily
+            };
+            await _healthCheck.CheckSmtpTlsHost(endpoint, CancelToken);
             _healthCheck.SmtpTlsAnalysis.Subject = HostName;
             var analysis = _healthCheck.SmtpTlsAnalysis;
             var view = DomainDetective.Views.Converters.Convert(analysis);
             // View-by-default design: exposes full Raw analysis on view.Raw
             WriteObject(FullResponse.IsPresent ? (object)analysis : view);
             if (ShowChain) {
-                if (analysis.ServerResults != null && analysis.ServerResults.TryGetValue($"{HostName}:{Port}", out var tls) && tls.Chain.Count > 0) {
+                if (analysis.ServerResults != null && analysis.ServerResults.TryGetValue(endpoint.Key, out var tls) && tls.Chain.Count > 0) {
                     WriteObject(tls.Chain, true);
                 }
             }

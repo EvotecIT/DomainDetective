@@ -681,6 +681,16 @@ DKIM analysis exposes indicators such as:
 ### SMTP TLS
 
 SMTP TLS analysis stores the negotiated certificate and reports expiration details and chain validity for each server.
+Direct SMTP, IMAP, and POP3 TLS checks can also pin a backend address while keeping the public hostname for SNI and certificate validation:
+
+```powershell
+$tls = Test-DDEmailSmtpTls -HostName 'mail.example.com' -Port 587 `
+    -ConnectAddress '192.0.2.10' -AddressFamily IPv4
+$tls.Servers | Select-Object HostName, ConnectAddress, RemoteAddress, HostnameMatch, Grade
+```
+
+Use `-AddressFamily IPv4` or `-AddressFamily IPv6` without `-ConnectAddress` to test only one DNS address family. The result keeps both the requested target and the remote address observed after connecting.
+`Test-DDEmailStartTls` accepts the same transport targeting options for STARTTLS advertisement checks, but use the protocol TLS cmdlets when certificate identity and negotiation evidence are required.
 
 ### HTTP Security Headers
 

@@ -14,6 +14,12 @@ public static partial class Converters
         var entries = analysis.ServerDetails?.Select(kv => new StartTlsServerInfo
         {
             Key = kv.Key,
+            HostName = kv.Value.Connection.HostName,
+            Port = kv.Value.Connection.Port,
+            ConnectAddress = kv.Value.Connection.ConnectAddress,
+            RequestedAddressFamily = kv.Value.Connection.RequestedAddressFamily,
+            RemoteAddress = kv.Value.Connection.RemoteAddress,
+            RemoteAddressFamily = kv.Value.Connection.RemoteAddressFamily,
             StartTlsAdvertised = kv.Value.StartTlsAdvertised,
             TlsNegotiated = kv.Value.TlsNegotiated,
             DowngradeDetected = kv.Value.DowngradeDetected,
@@ -79,6 +85,18 @@ public class StartTlsServerInfo
 {
     /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = null!;
+    /// <summary>Logical hostname used for protocol identity and TLS validation.</summary>
+    public string HostName { get; set; } = string.Empty;
+    /// <summary>TCP port used by the probe.</summary>
+    public int Port { get; set; }
+    /// <summary>Concrete address requested by the caller, when pinned.</summary>
+    public string? ConnectAddress { get; set; }
+    /// <summary>Address family requested by the caller.</summary>
+    public MailTransportAddressFamily RequestedAddressFamily { get; set; }
+    /// <summary>Remote address observed after connecting.</summary>
+    public string? RemoteAddress { get; set; }
+    /// <summary>Address family observed after connecting.</summary>
+    public MailTransportAddressFamily? RemoteAddressFamily { get; set; }
     /// <summary>Gets or sets the start tls advertised value.</summary>
     public bool StartTlsAdvertised { get; set; }
     /// <summary>Gets or sets the tls negotiated value.</summary>

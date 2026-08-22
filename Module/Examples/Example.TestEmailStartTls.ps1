@@ -14,3 +14,8 @@ $Evotec | Select-Object Host,CertificateSubject,CertificateIssuer,CertificateNot
 # Get the full analysis container for scripting
 $Example = Test-EmailStartTls -DomainName 'example.com' -DnsEndpoint System -Port 587 -FullResponse
 $Example.ServerDetails.Values | Select-Object Host,Port,StartTlsAdvertised,TlsNegotiated | Format-Table
+
+# Test STARTTLS advertisement on one backend and retain the logical host in the evidence
+$Pinned = Test-DDEmailStartTls -HostName 'mail.example.com' -Port 587 `
+    -ConnectAddress '192.0.2.10' -AddressFamily IPv4
+$Pinned.Servers | Select-Object HostName,ConnectAddress,RemoteAddress,StartTlsAdvertised,TlsNegotiated | Format-Table

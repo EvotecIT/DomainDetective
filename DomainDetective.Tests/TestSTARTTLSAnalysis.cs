@@ -89,6 +89,46 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task PinnedAddressPreservesLogicalHostAndCapturesRemoteEndpoint() {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                await writer.WriteLineAsync("220 local ESMTP");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("250-localhost\r\n250-STARTTLS\r\n250 OK");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("221 bye");
+            });
+
+            const string logicalHost = "mail-intentionally-unresolvable.invalid";
+            try {
+                var endpoint = new MailTransportEndpoint(logicalHost, port) {
+                    ConnectAddress = System.Net.IPAddress.Loopback,
+                    AddressFamily = MailTransportAddressFamily.IPv4
+                };
+                var analysis = new STARTTLSAnalysis();
+
+                await analysis.AnalyzeServer(endpoint, new InternalLogger());
+
+                var detail = analysis.ServerDetails[endpoint.Key];
+                Assert.True(detail.StartTlsAdvertised);
+                Assert.Equal(logicalHost, detail.Connection.HostName);
+                Assert.Equal(System.Net.IPAddress.Loopback.ToString(), detail.Connection.ConnectAddress);
+                Assert.Equal(System.Net.IPAddress.Loopback.ToString(), detail.Connection.RemoteAddress);
+                Assert.Equal(MailTransportAddressFamily.IPv4, detail.Connection.RequestedAddressFamily);
+                Assert.Equal(MailTransportAddressFamily.IPv4, detail.Connection.RemoteAddressFamily);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
         public async Task StartTlsNotAdvertisedReturnsFalse() {
             var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
             listener.Start();
