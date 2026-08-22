@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,7 +13,7 @@ public partial class DomainHealthCheck {
     private Task? _spfTask;
     private Task<DnsAnswer[]>? _mxRecordsTask;
     private Task<string[]>? _mxHostsTask;
-    private Dictionary<int, Task>? _smtpTlsTasks;
+    private Dictionary<SmtpTlsExecutionKey, Task>? _smtpTlsTasks;
     private Task? _reverseDnsTask;
     private Task? _daneTask;
     private string? _daneKey;
@@ -92,12 +93,41 @@ public partial class DomainHealthCheck {
     private Task EnsureSmtpTlsAsync(string domainName, int port, CancellationToken cancellationToken) {
         lock (_executionLock) {
             EnsureCacheDomainLocked(domainName);
-            _smtpTlsTasks ??= new Dictionary<int, Task>();
-            if (!_smtpTlsTasks.TryGetValue(port, out var task)) {
+            _smtpTlsTasks ??= new Dictionary<SmtpTlsExecutionKey, Task>();
+            var resolver = OutboundAddressResolver ?? SmtpTlsAnalysis.OutboundAddressResolver;
+            var key = new SmtpTlsExecutionKey(port, SmtpTlsAnalysis.AddressFamily, resolver);
+            if (!_smtpTlsTasks.TryGetValue(key, out var task)) {
                 task = VerifySmtpTlsInternal(domainName, port, cancellationToken);
-                _smtpTlsTasks[port] = task;
+                _smtpTlsTasks[key] = task;
             }
             return task;
+        }
+    }
+
+    private readonly struct SmtpTlsExecutionKey : IEquatable<SmtpTlsExecutionKey> {
+        private readonly int _port;
+        private readonly MailTransportAddressFamily _addressFamily;
+        private readonly Delegate? _resolver;
+
+        public SmtpTlsExecutionKey(int port, MailTransportAddressFamily addressFamily, Delegate? resolver) {
+            _port = port;
+            _addressFamily = addressFamily;
+            _resolver = resolver;
+        }
+
+        public bool Equals(SmtpTlsExecutionKey other) =>
+            _port == other._port &&
+            _addressFamily == other._addressFamily &&
+            ReferenceEquals(_resolver, other._resolver);
+
+        public override bool Equals(object? obj) =>
+            obj is SmtpTlsExecutionKey other && Equals(other);
+
+        public override int GetHashCode() {
+            unchecked {
+                var hash = (_port * 397) ^ (int)_addressFamily;
+                return (hash * 397) ^ (_resolver == null ? 0 : RuntimeHelpers.GetHashCode(_resolver));
+            }
         }
     }
 

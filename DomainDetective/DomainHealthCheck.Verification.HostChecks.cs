@@ -33,7 +33,7 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckStartTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
-            StartTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            ApplyOutboundAddressResolver(StartTlsAnalysis);
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -45,7 +45,7 @@ namespace DomainDetective {
                 throw new System.ArgumentNullException(nameof(endpoint));
             }
             ValidatePort(endpoint.Port);
-            StartTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            ApplyOutboundAddressResolver(StartTlsAnalysis);
             await StartTlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
@@ -54,7 +54,7 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
-            SmtpTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            ApplyOutboundAddressResolver(SmtpTlsAnalysis);
             await SmtpTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -66,7 +66,7 @@ namespace DomainDetective {
                 throw new System.ArgumentNullException(nameof(endpoint));
             }
             ValidatePort(endpoint.Port);
-            SmtpTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            ApplyOutboundAddressResolver(SmtpTlsAnalysis);
             await SmtpTlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
@@ -75,7 +75,7 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckImapTlsHost(string host, int port = 143, CancellationToken cancellationToken = default) {
             ValidatePort(port);
-            ImapTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            ApplyOutboundAddressResolver(ImapTlsAnalysis);
             await ImapTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -87,7 +87,7 @@ namespace DomainDetective {
                 throw new System.ArgumentNullException(nameof(endpoint));
             }
             ValidatePort(endpoint.Port);
-            ImapTlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            ApplyOutboundAddressResolver(ImapTlsAnalysis);
             await ImapTlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
@@ -96,7 +96,7 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckPop3TlsHost(string host, int port = 110, CancellationToken cancellationToken = default) {
             ValidatePort(port);
-            Pop3TlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            ApplyOutboundAddressResolver(Pop3TlsAnalysis);
             await Pop3TlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -108,7 +108,7 @@ namespace DomainDetective {
                 throw new System.ArgumentNullException(nameof(endpoint));
             }
             ValidatePort(endpoint.Port);
-            Pop3TlsAnalysis.OutboundAddressResolver = OutboundAddressResolver;
+            ApplyOutboundAddressResolver(Pop3TlsAnalysis);
             await Pop3TlsAnalysis.AnalyzeServer(endpoint, _logger, cancellationToken);
         }
 
@@ -174,6 +174,18 @@ namespace DomainDetective {
         /// <summary>Queries neighbors for IPs used by MX hosts of <paramref name="domainName"/>.</summary>
         public async Task CheckMailIPNeighbors(string domainName, CancellationToken cancellationToken = default) {
             await IPNeighborAnalysis.AnalyzeMx(domainName, _logger, cancellationToken);
+        }
+
+        private void ApplyOutboundAddressResolver(STARTTLSAnalysis analysis) {
+            if (OutboundAddressResolver != null) {
+                analysis.OutboundAddressResolver = OutboundAddressResolver;
+            }
+        }
+
+        private void ApplyOutboundAddressResolver(MailTlsAnalysis analysis) {
+            if (OutboundAddressResolver != null) {
+                analysis.OutboundAddressResolver = OutboundAddressResolver;
+            }
         }
     }
 }
