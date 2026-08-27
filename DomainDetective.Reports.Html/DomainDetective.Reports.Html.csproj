@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="$(HtmlForgeXProjectPath)" Condition="'$(UseLocalHtmlForgeX)' == 'true' And Exists('$(HtmlForgeXProjectPath)')" />
-    <PackageReference Include="HtmlForgeX" Version="0.54.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('$(HtmlForgeXProjectPath)')" />
+    <PackageReference Include="HtmlForgeX" Version="0.55.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('$(HtmlForgeXProjectPath)')" />
   </ItemGroup>
 
 </Project>
