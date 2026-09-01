@@ -550,13 +550,15 @@ public class TestEndpointAttribution {
     [Fact]
     public void CustomRuleReplacementNormalizesStableIdentifier() {
         var catalog = new EndpointAttributionCatalog();
-        catalog.AddOrReplace(new EndpointAttributionRule {
+        var original = new EndpointAttributionRule {
             RuleId = "custom.edge",
             RuleVersion = "1",
             ProviderId = "first",
             ServiceId = "edge",
             DisplayName = "First Edge"
-        });
+        };
+        original.CnameSuffixes.Add("old-edge.example.net");
+        catalog.AddOrReplace(original);
         var replacement = new EndpointAttributionRule {
             RuleId = " custom.edge ",
             RuleVersion = "2",
@@ -564,6 +566,7 @@ public class TestEndpointAttribution {
             ServiceId = "edge",
             DisplayName = "Replacement Edge"
         };
+        replacement.CnameSuffixes.Add("edge.example.net");
 
         catalog.AddOrReplace(replacement);
 
@@ -654,6 +657,54 @@ public class TestEndpointAttribution {
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CustomRuleRequiresUsableEvidenceMatcher(bool addWhitespaceMatchers) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.no-evidence",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "No Evidence Rule"
+        };
+        if (addWhitespaceMatchers) {
+            rule.HostnamePrefixes.Add(" ");
+            rule.CnameSuffixes.Add("\t");
+            rule.IpAddressPrefixes.Add(" ");
+            rule.AzureServiceTagNames.Add("\r\n");
+            rule.CertificateIssuerContains.Add(" ");
+            rule.RedirectTargetSuffixes.Add("\t");
+            rule.ReverseDnsSuffixes.Add(" ");
+            rule.AutonomousSystemNumbers.Add("\r\n");
+        }
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            catalog.AddOrReplace(rule));
+
+        Assert.Contains("custom.no-evidence", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("usable evidence matcher", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void DetectorRejectsRuleWithoutUsableEvidenceAddedThroughMutableCatalog() {
+        var catalog = new EndpointAttributionCatalog();
+        catalog.Rules.Add(new EndpointAttributionRule {
+            RuleId = "custom.mutable-no-evidence",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "No Evidence Rule"
+        });
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            new EndpointAttributionDetector(catalog));
+
+        Assert.Contains("custom.mutable-no-evidence", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("usable evidence matcher", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
     [InlineData(-1)]
     [InlineData(0)]
     [InlineData(65536)]
@@ -704,13 +755,15 @@ public class TestEndpointAttribution {
     public void DetectorRejectsDuplicateRuleIdentifiersInMutableCatalog() {
         var catalog = new EndpointAttributionCatalog();
         foreach (string providerId in new[] { "provider-a", "provider-b" }) {
-            catalog.Rules.Add(new EndpointAttributionRule {
+            var rule = new EndpointAttributionRule {
                 RuleId = "custom.duplicate",
                 RuleVersion = "1",
                 ProviderId = providerId,
                 ServiceId = "edge",
                 DisplayName = "Duplicate Rule"
-            });
+            };
+            rule.HostnamePrefixes.Add("edge.");
+            catalog.Rules.Add(rule);
         }
 
         ArgumentException exception = Assert.Throws<ArgumentException>(() =>

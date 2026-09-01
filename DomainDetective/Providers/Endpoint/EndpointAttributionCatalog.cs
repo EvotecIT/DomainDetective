@@ -90,6 +90,11 @@ public sealed class EndpointAttributionCatalog {
                     "Ports must be between 1 and 65535.");
             }
         }
+        if (!HasUsableEvidenceMatcher(rule)) {
+            throw new ArgumentException(
+                $"Endpoint attribution rule '{rule.RuleId}' requires at least one usable evidence matcher.",
+                parameterName ?? nameof(rule));
+        }
 
         var compiledPrefixes = new List<IpCidrRange>(rule.IpAddressPrefixes.Count);
         foreach (string prefix in rule.IpAddressPrefixes) {
@@ -101,6 +106,19 @@ public sealed class EndpointAttributionCatalog {
         }
         return compiledPrefixes;
     }
+
+    private static bool HasUsableEvidenceMatcher(EndpointAttributionRule rule) =>
+        HasText(rule.HostnamePrefixes) ||
+        HasText(rule.CnameSuffixes) ||
+        HasText(rule.IpAddressPrefixes) ||
+        HasText(rule.AzureServiceTagNames) ||
+        HasText(rule.CertificateIssuerContains) ||
+        HasText(rule.RedirectTargetSuffixes) ||
+        HasText(rule.ReverseDnsSuffixes) ||
+        HasText(rule.AutonomousSystemNumbers);
+
+    private static bool HasText(IEnumerable<string> values) =>
+        values.Any(value => !string.IsNullOrWhiteSpace(value));
 
     private static EndpointAttributionRule CreateAzureFrontDoorRule() {
         var rule = CreateRule(

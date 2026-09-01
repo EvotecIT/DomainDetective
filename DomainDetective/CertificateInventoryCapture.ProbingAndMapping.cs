@@ -293,23 +293,28 @@ public sealed partial class CertificateInventoryCapture {
         var results = new ConcurrentBag<CertificateInventoryEntry>();
         int parallelism = Math.Max(1, options.MaxParallelism);
         var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
-        using var gate = new SemaphoreSlim(parallelism, parallelism);
-        var tasks = new List<Task>(targets.Count);
-        foreach (FtpTlsEndpointTarget target in targets) {
-            tasks.Add(ProbeOneWithGateAsync(target));
+        int workerCount = Math.Min(targets.Count, parallelism);
+        int nextTargetIndex = -1;
+        var workers = new Task[workerCount];
+        for (int workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+            workers[workerIndex] = ProbeTargetsAsync();
         }
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        await Task.WhenAll(workers).ConfigureAwait(false);
         return results
             .OrderBy(entry => entry.Host, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.Port)
             .ThenBy(entry => entry.Service, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        async Task ProbeOneWithGateAsync(FtpTlsEndpointTarget target) {
-            bool entered = false;
-            try {
-                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-                entered = true;
+        async Task ProbeTargetsAsync() {
+            while (true) {
+                cancellationToken.ThrowIfCancellationRequested();
+                int targetIndex = Interlocked.Increment(ref nextTargetIndex);
+                if (targetIndex >= targets.Count) {
+                    return;
+                }
+
+                FtpTlsEndpointTarget target = targets[targetIndex];
                 await rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false);
                 var analysis = new FtpTlsAnalysis { Timeout = options.FtpTlsTimeout };
                 FtpTlsResult result = await analysis.AnalyzeAsync(
@@ -317,10 +322,6 @@ public sealed partial class CertificateInventoryCapture {
                     logger,
                     cancellationToken).ConfigureAwait(false);
                 results.Add(ToInventoryEntry(target, result));
-            } finally {
-                if (entered) {
-                    gate.Release();
-                }
             }
         }
     }
