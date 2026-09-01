@@ -1398,20 +1398,26 @@ public sealed partial class CertificateInventoryCapture {
         logger.WriteVerbose("Prepared {0} HTTPS target(s), {1} mail target(s), and {2} FTP TLS target(s).", httpsTargets.Count, mailTargets.Count, ftpTlsTargets.Count);
         AdvanceStage("Recent snapshot cache");
 
+        var probeStartRateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
+        if (options.MaxProbeStartsPerSecond > 0) {
+            logger.WriteVerbose(
+                "Global probe start rate limit enabled: up to {0} start(s)/second across HTTPS, mail TLS, and FTP TLS.",
+                options.MaxProbeStartsPerSecond);
+        }
         IReadOnlyList<CertificateMonitor.Entry> httpsEntries;
         if (HttpsProbeOverride != null) {
             httpsEntries = await HttpsProbeOverride(httpsTargetsToProbe.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(), options, logger, cancellationToken).ConfigureAwait(false);
         } else {
-            httpsEntries = await ProbeHttpsAsync(httpsTargetsToProbe, options, logger, cancellationToken).ConfigureAwait(false);
+            httpsEntries = await ProbeHttpsAsync(httpsTargetsToProbe, options, probeStartRateLimiter, logger, cancellationToken).ConfigureAwait(false);
         }
         AdvanceStage("HTTPS probing");
         logger.WriteVerbose("HTTPS probing produced {0} observation(s).", httpsEntries.Count);
 
-        var mailEntries = await ProbeMailAsync(mailTargetsToProbe, options, logger, cancellationToken).ConfigureAwait(false);
+        var mailEntries = await ProbeMailAsync(mailTargetsToProbe, options, probeStartRateLimiter, logger, cancellationToken).ConfigureAwait(false);
         AdvanceStage("Mail TLS probing");
         logger.WriteVerbose("Mail TLS probing produced {0} observation(s).", mailEntries.Count);
 
-        var ftpTlsEntries = await ProbeFtpTlsAsync(ftpTlsTargetsToProbe, options, logger, cancellationToken).ConfigureAwait(false);
+        var ftpTlsEntries = await ProbeFtpTlsAsync(ftpTlsTargetsToProbe, options, probeStartRateLimiter, logger, cancellationToken).ConfigureAwait(false);
         AdvanceStage("FTP TLS probing");
         logger.WriteVerbose("FTP TLS probing produced {0} observation(s).", ftpTlsEntries.Count);
 

@@ -3,6 +3,8 @@ using DomainDetective.Providers.Endpoint;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -13,6 +15,58 @@ using System.Threading.Tasks;
 namespace DomainDetective.Tests;
 
 public class TestCertificateInventoryCapture {
+    [Fact]
+    public async Task CaptureAsync_SharesProbeStartLimitAcrossProtocolPhases() {
+        var mailListener = new TcpListener(IPAddress.Loopback, 0);
+        var ftpListener = new TcpListener(IPAddress.Loopback, 0);
+        mailListener.Start();
+        ftpListener.Start();
+        int mailPort = ((IPEndPoint)mailListener.LocalEndpoint).Port;
+        int ftpPort = ((IPEndPoint)ftpListener.LocalEndpoint).Port;
+        Task mailServer = Task.Run(async () => {
+            using TcpClient client = await mailListener.AcceptTcpClientAsync();
+        });
+        Task ftpServer = Task.Run(async () => {
+            using TcpClient client = await ftpListener.AcceptTcpClientAsync();
+        });
+
+        try {
+            var options = new CertificateInventoryCaptureOptions {
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                PersistSnapshot = false,
+                MaxParallelism = 1,
+                MaxProbeStartsPerSecond = 2,
+                MailTimeout = TimeSpan.FromSeconds(1),
+                FtpTlsTimeout = TimeSpan.FromSeconds(1)
+            };
+            options.AdditionalEndpoints.Add($"smtp://127.0.0.1:{mailPort}");
+            options.AdditionalEndpoints.Add($"ftps-explicit://127.0.0.1:{ftpPort}");
+
+            CertificateInventoryCaptureResult result = await new CertificateInventoryCapture().CaptureAsync(
+                Array.Empty<string>(),
+                options);
+
+            Assert.Equal(1, result.ProbedMailCount);
+            Assert.Equal(1, result.ProbedFtpTlsCount);
+            CertificateInventoryEntry mailEntry = Assert.Single(
+                result.Snapshot.Entries,
+                entry => string.Equals(entry.Scheme, "smtp", StringComparison.OrdinalIgnoreCase));
+            CertificateInventoryEntry ftpEntry = Assert.Single(
+                result.Snapshot.Entries,
+                entry => string.Equals(entry.Scheme, "ftps-explicit", StringComparison.OrdinalIgnoreCase));
+            TimeSpan phaseBoundaryGap = ftpEntry.ObservedAtUtc!.Value - mailEntry.ObservedAtUtc!.Value;
+            Assert.True(
+                phaseBoundaryGap >= TimeSpan.FromMilliseconds(350),
+                $"Expected the global probe-start interval across protocol phases; observed {phaseBoundaryGap}.");
+        } finally {
+            mailListener.Stop();
+            ftpListener.Stop();
+            await Task.WhenAll(mailServer, ftpServer);
+        }
+    }
+
     [Fact]
     public async Task CaptureAsync_EnrichesEndpointWithDnsEvidenceVantageAndAttribution() {
         using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);

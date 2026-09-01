@@ -4,6 +4,25 @@ using System.Net.Sockets;
 namespace DomainDetective.Tests;
 
 public class TestConstrainedOutboundConnections {
+#if NET8_0_OR_GREATER
+    [Theory]
+    [InlineData("origin.example", 443, "https://origin.example/", true)]
+    [InlineData("origin.example", 8443, "https://origin.example:8443/", true)]
+    [InlineData("proxy.example", 8080, "https://origin.example/", false)]
+    [InlineData("origin.example", 8080, "https://origin.example/", false)]
+    public void HttpTransportEndpointIdentifiesOnlyTheRequestOrigin(
+        string connectionHost,
+        int connectionPort,
+        string requestUrl,
+        bool expected) {
+        var connectionEndpoint = new DnsEndPoint(connectionHost, connectionPort);
+
+        Assert.Equal(
+            expected,
+            CertificateAnalysis.IsOriginTransportEndpoint(connectionEndpoint, new Uri(requestUrl)));
+    }
+#endif
+
     [Fact]
     public void MailAddressFamilyTreatsMappedIpv4AsIpv4() {
         IPAddress mapped = IPAddress.Parse("::ffff:192.0.2.40");

@@ -61,6 +61,7 @@ public sealed partial class CertificateInventoryCapture {
     private static async Task<IReadOnlyList<CertificateMonitor.Entry>> ProbeHttpsAsync(
         IEnumerable<string> httpsTargets,
         CertificateInventoryCaptureOptions options,
+        ProbeStartRateLimiter rateLimiter,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         var list = httpsTargets.Where(target => !string.IsNullOrWhiteSpace(target)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -74,10 +75,6 @@ public sealed partial class CertificateInventoryCapture {
             MaxParallelism = Math.Max(1, options.MaxParallelism)
         };
         logger.WriteVerbose("Starting HTTPS probe for {0} endpoint(s).", list.Count);
-        if (options.MaxProbeStartsPerSecond > 0) {
-            logger.WriteVerbose("Probe start rate limit enabled: up to {0} start(s)/second.", options.MaxProbeStartsPerSecond);
-        }
-        var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
         monitor.AnalysisOverride = async (url, port, internalLogger, token) => {
             await rateLimiter.WaitAsync(token).ConfigureAwait(false);
             var analysis = new CertificateAnalysis();
@@ -231,6 +228,7 @@ public sealed partial class CertificateInventoryCapture {
     private static async Task<IReadOnlyList<CertificateInventoryEntry>> ProbeMailAsync(
         IReadOnlyList<MailEndpointTarget> mailTargets,
         CertificateInventoryCaptureOptions options,
+        ProbeStartRateLimiter rateLimiter,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (mailTargets == null || mailTargets.Count == 0) {
@@ -242,7 +240,6 @@ public sealed partial class CertificateInventoryCapture {
         var totalTargets = mailTargets.Count;
         var completedTargets = 0;
         logger.WriteVerbose("Starting mail TLS probe for {0} endpoint(s).", totalTargets);
-        var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
         using var gate = new SemaphoreSlim(parallelism, parallelism);
         var tasks = new List<Task>(mailTargets.Count);
         foreach (var target in mailTargets) {
@@ -284,6 +281,7 @@ public sealed partial class CertificateInventoryCapture {
     private static async Task<IReadOnlyList<CertificateInventoryEntry>> ProbeFtpTlsAsync(
         IReadOnlyList<FtpTlsEndpointTarget> targets,
         CertificateInventoryCaptureOptions options,
+        ProbeStartRateLimiter rateLimiter,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (targets == null || targets.Count == 0) {
@@ -292,7 +290,6 @@ public sealed partial class CertificateInventoryCapture {
 
         var results = new ConcurrentBag<CertificateInventoryEntry>();
         int parallelism = Math.Max(1, options.MaxParallelism);
-        var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
         int workerCount = Math.Min(targets.Count, parallelism);
         int nextTargetIndex = -1;
         var workers = new Task[workerCount];

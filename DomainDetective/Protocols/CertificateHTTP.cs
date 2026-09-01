@@ -365,10 +365,13 @@ namespace DomainDetective {
                 }
             };
             socketsHandler.ConnectCallback = async (context, token) => {
+                bool captureOriginAddress = context.InitialRequestMessage.RequestUri is Uri requestUri &&
+                    IsOriginTransportEndpoint(context.DnsEndPoint, requestUri);
                 TcpClient tcp = await ConnectDirectAsync(
                         context.DnsEndPoint.Host,
                         context.DnsEndPoint.Port,
-                        token)
+                        token,
+                        captureRemoteAddress: captureOriginAddress)
                     .ConfigureAwait(false);
                 return tcp.GetStream();
             };
@@ -536,6 +539,19 @@ namespace DomainDetective {
             }
             throw new SocketException(lastError is SocketException socketError ? socketError.ErrorCode : (int)SocketError.HostUnreachable);
         }
+
+#if NET8_0_OR_GREATER
+        internal static bool IsOriginTransportEndpoint(DnsEndPoint connectionEndpoint, Uri requestUri) {
+            if (connectionEndpoint == null || requestUri == null) {
+                return false;
+            }
+            return connectionEndpoint.Port == requestUri.Port &&
+                   string.Equals(
+                       EndpointHostNormalizer.Normalize(connectionEndpoint.Host, lowercase: true),
+                       EndpointHostNormalizer.Normalize(requestUri.DnsSafeHost, lowercase: true),
+                       StringComparison.OrdinalIgnoreCase);
+        }
+#endif
 
         private void CaptureRemoteAddress(TcpClient client) {
             if (client.Client.RemoteEndPoint is IPEndPoint endpoint) {
