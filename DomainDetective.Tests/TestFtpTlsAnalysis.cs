@@ -228,6 +228,32 @@ public class TestFtpTlsAnalysis {
     }
 
     [Fact]
+    public async Task ExplicitFtpsRejectsOversizedGreetingLine() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        Task server = Task.Run(async () => {
+            using TcpClient client = await listener.AcceptTcpClientAsync();
+            using NetworkStream network = client.GetStream();
+            using var writer = new StreamWriter(network, Encoding.ASCII, 1024, true) { AutoFlush = true };
+            await writer.WriteAsync(new string('A', 5000));
+        });
+
+        try {
+            var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
+            FtpTlsResult result = await analysis.AnalyzeAsync(
+                new FtpTlsEndpoint("localhost", port, FtpTlsMode.Explicit) { ConnectAddress = IPAddress.Loopback },
+                new InternalLogger());
+
+            Assert.False(result.TlsNegotiated);
+            Assert.Contains("line exceeded 4096 characters", result.FailureReason, StringComparison.OrdinalIgnoreCase);
+        } finally {
+            listener.Stop();
+            await server;
+        }
+    }
+
+    [Fact]
     public async Task ExplicitFtpsWaitsForServiceReadyAfterPreliminaryGreeting() {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();

@@ -86,6 +86,21 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, handler.RequestCount);
         }
 
+        [Fact]
+        public async Task RedirectHeadersAreFollowedWithoutBufferingResponseContent() {
+            var analysis = new CertificateAnalysis();
+            var handler = new RedirectWithUnbufferableContentHandler();
+            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
+
+            using HttpResponseMessage response = await analysis.SendWithRedirectEvidenceAsync(
+                client,
+                new Uri("https://origin.example/start"),
+                CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(2, handler.RequestCount);
+        }
+
 #if NET8_0_OR_GREATER
         [Fact]
         public async Task FullHttpProbeCapturesPinnedRemoteAddress() {
@@ -107,6 +122,43 @@ namespace DomainDetective.Tests {
                 Assert.NotNull(analysis.Certificate);
             } finally {
                 await server.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task RedirectKeepsOriginPeerAddressWithOriginCertificate() {
+            IPAddress redirectedAddress = IPAddress.Parse("127.0.0.2");
+            using var originCert = CreateSelfSigned("origin.invalid");
+            using var redirectedCert = CreateSelfSigned("redirect.invalid");
+            var redirectedServer = new TcpListenerFixture(
+                (l, t) => Task.Run(() => RunServer(l, redirectedCert, SslProtocols.Tls12, t), t),
+                redirectedAddress);
+            await redirectedServer.InitializeAsync();
+            var originServer = new TcpListenerFixture((l, t) => Task.Run(() => RunServer(
+                l,
+                originCert,
+                SslProtocols.Tls12,
+                t,
+                "HTTP/1.1 302 Found",
+                new[] { $"Location: https://redirect.invalid:{redirectedServer.Port}/" }), t));
+            await originServer.InitializeAsync();
+
+            try {
+                var analysis = new CertificateAnalysis {
+                    CtLogQueryOverride = _ => Task.FromResult("[]"),
+                    OutboundAddressResolver = (host, _) => Task.FromResult<IReadOnlyList<IPAddress>>(
+                        new[] { host.Equals("redirect.invalid", StringComparison.OrdinalIgnoreCase) ? redirectedAddress : IPAddress.Loopback })
+                };
+
+                await analysis.AnalyzeUrl("https://origin.invalid", originServer.Port, new InternalLogger());
+
+                Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+                Assert.NotNull(analysis.Certificate);
+                Assert.Contains("CN=origin.invalid", analysis.Certificate!.Subject, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("redirect.invalid", analysis.RedirectTargets, StringComparer.OrdinalIgnoreCase);
+            } finally {
+                await originServer.DisposeAsync();
+                await redirectedServer.DisposeAsync();
             }
         }
 #endif
@@ -741,6 +793,36 @@ namespace DomainDetective.Tests {
                 };
                 response.Headers.Location = new Uri($"https://hop{RequestCount}.example/next");
                 return response;
+            }
+        }
+
+        private sealed class RedirectWithUnbufferableContentHandler : HttpMessageHandler {
+            public int RequestCount { get; private set; }
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestCount++;
+                var response = new HttpResponseMessage(
+                    RequestCount == 1 ? HttpStatusCode.Found : HttpStatusCode.OK) {
+                    RequestMessage = request
+                };
+                if (RequestCount == 1) {
+                    response.Headers.Location = new Uri("https://final.example/done");
+                    response.Content = new UnbufferableContent();
+                }
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class UnbufferableContent : HttpContent {
+            protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) {
+                return Task.FromException(new InvalidOperationException("Redirect content must not be buffered."));
+            }
+
+            protected override bool TryComputeLength(out long length) {
+                length = 0;
+                return false;
             }
         }
     }

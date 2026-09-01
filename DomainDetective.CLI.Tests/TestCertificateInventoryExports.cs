@@ -112,7 +112,7 @@ public class TestCertificateInventoryExports {
                         ResolvedHost = "changed.example.com",
                         Port = 443,
                         Service = "HTTPS",
-                        ProbeVantage = "branch-office",
+                        ProbeVantage = "[branch]",
                         CertificateIssuerNormalized = "Issuer A",
                         CertificateRootIssuerNormalized = "Root A",
                         CertificateThumbprint = "AA:AA",
@@ -133,7 +133,7 @@ public class TestCertificateInventoryExports {
                         ResolvedHost = "changed.example.com",
                         Port = 443,
                         Service = "HTTPS",
-                        ProbeVantage = "branch-office",
+                        ProbeVantage = "[branch]",
                         CertificateIssuerNormalized = "Issuer B",
                         CertificateRootIssuerNormalized = "Root B",
                         CertificateThumbprint = "BB:BB",
@@ -194,7 +194,7 @@ public class TestCertificateInventoryExports {
                 Assert.Contains("Service", rendered, StringComparison.Ordinal);
                 Assert.Contains("HTTPS", rendered, StringComparison.Ordinal);
                 Assert.Contains("Vantage", rendered, StringComparison.Ordinal);
-                Assert.Contains("branch-office", rendered, StringComparison.Ordinal);
+                Assert.Contains("[branch]", rendered, StringComparison.Ordinal);
             } finally {
                 AnsiConsole.Console = originalConsole;
             }
@@ -219,7 +219,7 @@ public class TestCertificateInventoryExports {
                         ResolvedHost = "drift.example.com",
                         Port = 443,
                         Service = "HTTPS",
-                        ProbeVantage = "branch-office",
+                        ProbeVantage = "[branch]",
                         CertificateThumbprint = thumbprint,
                         CertificateIssuerNormalized = "Issuer",
                         Valid = true,
@@ -255,14 +255,14 @@ public class TestCertificateInventoryExports {
                 Assert.Contains("Service", rendered, StringComparison.Ordinal);
                 Assert.Contains("HTTPS", rendered, StringComparison.Ordinal);
                 Assert.Contains("Vantage", rendered, StringComparison.Ordinal);
-                Assert.Contains("branch-office", rendered, StringComparison.Ordinal);
+                Assert.Contains("[branch]", rendered, StringComparison.Ordinal);
             } finally {
                 AnsiConsole.Console = originalConsole;
             }
 
             string csv = File.ReadAllText(csvPath, Encoding.UTF8);
             Assert.Contains("Host,Port,Service,ProbeVantage,ObservationCount", csv, StringComparison.Ordinal);
-            Assert.Contains("drift.example.com,443,HTTPS,branch-office", csv, StringComparison.Ordinal);
+            Assert.Contains("drift.example.com,443,HTTPS,[branch]", csv, StringComparison.Ordinal);
         } finally {
             DeleteDirectory(tempDirectory);
         }

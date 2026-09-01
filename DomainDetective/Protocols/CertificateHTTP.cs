@@ -497,36 +497,52 @@ namespace DomainDetective {
             const int maxRedirects = 10;
             int followedRedirects = 0;
             Uri currentUri = initialUri;
+            IPAddress? originRemoteAddress = null;
+            bool capturedOriginRemoteAddress = false;
             using var redirectTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             if (client.Timeout != System.Threading.Timeout.InfiniteTimeSpan) {
                 redirectTimeoutSource.CancelAfter(client.Timeout);
             }
-            while (true) {
-                using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
+            try {
+                while (true) {
+                    using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
 #if NET8_0_OR_GREATER
-                request.Version = HttpVersion.Version30;
-                request.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+                    request.Version = HttpVersion.Version30;
+                    request.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
 #endif
-                HttpResponseMessage response = await client.SendAsync(request, redirectTimeoutSource.Token).ConfigureAwait(false);
-                if (!TryResolveRedirectTarget(response, currentUri, out Uri? redirectUri) || redirectUri == null) {
-                    return response;
-                }
-                if (followedRedirects >= maxRedirects) {
-                    response.Dispose();
-                    throw new HttpRequestException($"The HTTP redirect limit of {maxRedirects} was exceeded.");
-                }
+                    HttpResponseMessage response = await client.SendAsync(
+                            request,
+                            HttpCompletionOption.ResponseHeadersRead,
+                            redirectTimeoutSource.Token)
+                        .ConfigureAwait(false);
+                    if (!capturedOriginRemoteAddress) {
+                        originRemoteAddress = RemoteAddress;
+                        capturedOriginRemoteAddress = true;
+                    }
+                    if (!TryResolveRedirectTarget(response, currentUri, out Uri? redirectUri) || redirectUri == null) {
+                        return response;
+                    }
+                    if (followedRedirects >= maxRedirects) {
+                        response.Dispose();
+                        throw new HttpRequestException($"The HTTP redirect limit of {maxRedirects} was exceeded.");
+                    }
 
-                CaptureRedirectTarget(redirectUri, currentUri);
-                if (string.Equals(currentUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(redirectUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)) {
-                    response.Dispose();
-                    throw new HttpRequestException(
-                        $"HTTPS redirect downgrade to HTTP is not allowed: '{currentUri}' -> '{redirectUri}'.");
-                }
+                    CaptureRedirectTarget(redirectUri, currentUri);
+                    if (string.Equals(currentUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(redirectUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)) {
+                        response.Dispose();
+                        throw new HttpRequestException(
+                            $"HTTPS redirect downgrade to HTTP is not allowed: '{currentUri}' -> '{redirectUri}'.");
+                    }
 
-                followedRedirects++;
-                response.Dispose();
-                currentUri = redirectUri;
+                    followedRedirects++;
+                    response.Dispose();
+                    currentUri = redirectUri;
+                }
+            } finally {
+                if (capturedOriginRemoteAddress) {
+                    RemoteAddress = originRemoteAddress;
+                }
             }
         }
 

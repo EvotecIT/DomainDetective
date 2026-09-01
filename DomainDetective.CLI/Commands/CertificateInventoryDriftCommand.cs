@@ -223,20 +223,20 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             var lastChange = endpoint.LastChangedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-";
             var expiry = endpoint.CurrentNotAfterUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
             rows.AddRow(
-                endpoint.Host,
+                Markup.Escape(endpoint.Host),
                 endpoint.Port.ToString(),
-                endpoint.Service,
-                endpoint.ProbeVantage,
+                Markup.Escape(endpoint.Service),
+                Markup.Escape(endpoint.ProbeVantage),
                 endpoint.ObservationCount.ToString(),
                 endpoint.DistinctCertificateCount.ToString(),
-                endpoint.DriftSeverity,
-                BuildChangeKinds(endpoint),
-                changed,
+                Markup.Escape(endpoint.DriftSeverity),
+                Markup.Escape(BuildChangeKinds(endpoint)),
+                Markup.Escape(changed),
                 lastChange,
-                string.IsNullOrWhiteSpace(endpoint.CurrentIssuer) ? "-" : endpoint.CurrentIssuer!,
+                Markup.Escape(string.IsNullOrWhiteSpace(endpoint.CurrentIssuer) ? "-" : endpoint.CurrentIssuer!),
                 expiry,
-                string.IsNullOrWhiteSpace(endpoint.CurrentAuthenticationProfile) ? "-" : endpoint.CurrentAuthenticationProfile!,
-                NormalizeChainSource(endpoint.CurrentChainSource));
+                Markup.Escape(string.IsNullOrWhiteSpace(endpoint.CurrentAuthenticationProfile) ? "-" : endpoint.CurrentAuthenticationProfile!),
+                Markup.Escape(NormalizeChainSource(endpoint.CurrentChainSource)));
         }
         AnsiConsole.Write(rows);
         AnsiConsole.MarkupLine("[grey]Flags: C=Certificate, I=Issuer, E=Expiry, S=Service, A=AuthProfile, H=ChainSource[/]");

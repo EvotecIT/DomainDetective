@@ -232,14 +232,14 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
                          endpoint.PreviousNotAfterUtc?.UtcDateTime.ToString("yyyy-MM-dd") ??
                          "-";
             rows.AddRow(
-                endpoint.Host,
+                Markup.Escape(endpoint.Host),
                 endpoint.Port.ToString(),
-                endpoint.ProbeVantage,
-                endpoint.CurrentService ?? endpoint.PreviousService ?? "-",
-                endpoint.Status,
-                reasons,
-                issuer,
-                root,
+                Markup.Escape(endpoint.ProbeVantage),
+                Markup.Escape(endpoint.CurrentService ?? endpoint.PreviousService ?? "-"),
+                Markup.Escape(endpoint.Status),
+                Markup.Escape(reasons),
+                Markup.Escape(issuer),
+                Markup.Escape(root),
                 expiry);
         }
         AnsiConsole.Write(rows);

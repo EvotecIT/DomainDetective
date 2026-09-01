@@ -16,9 +16,14 @@ public sealed class TcpListenerFixture : IAsyncLifetime
     public int Port { get; private set; }
 
     public TcpListenerFixture(Func<TcpListener, CancellationToken, Task> server)
+        : this(server, IPAddress.Loopback)
+    {
+    }
+
+    public TcpListenerFixture(Func<TcpListener, CancellationToken, Task> server, IPAddress bindAddress)
     {
         _server = server;
-        _listener = new TcpListener(IPAddress.Loopback, 0);
+        _listener = new TcpListener(bindAddress, 0);
     }
 
     public Task InitializeAsync()

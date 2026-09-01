@@ -142,6 +142,7 @@ public sealed class FtpTlsResult {
 /// <summary>Performs protocol-correct explicit or implicit FTP TLS certificate probing without authentication.</summary>
 public sealed class FtpTlsAnalysis {
     private const int MaxResponseLines = 100;
+    private const int MaxResponseLineLength = 4096;
 
     /// <summary>Timeout applied to connect, FTP response, and TLS negotiation.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
@@ -190,18 +191,19 @@ public sealed class FtpTlsAnalysis {
             using NetworkStream network = client.GetStream();
             if (endpoint.Mode == FtpTlsMode.Explicit) {
                 using var reader = new StreamReader(network, Encoding.ASCII, false, 1024, true);
+                var replyReader = new FtpReplyReader(reader);
                 using var writer = new StreamWriter(network, Encoding.ASCII, 1024, true) {
                     AutoFlush = true,
                     NewLine = "\r\n"
                 };
-                IReadOnlyList<string> greeting = await ReadServiceReadyGreetingAsync(reader, timeoutCts.Token).ConfigureAwait(false);
+                IReadOnlyList<string> greeting = await ReadServiceReadyGreetingAsync(replyReader, timeoutCts.Token).ConfigureAwait(false);
                 result.Greeting = greeting;
                 if (!HasReplyCode(greeting, "220")) {
                     throw new InvalidDataException("FTP server did not return a 220 service-ready greeting.");
                 }
 
                 await writer.WriteLineAsync("AUTH TLS").WaitWithCancellation(timeoutCts.Token).ConfigureAwait(false);
-                IReadOnlyList<string> authResponse = await ReadResponseAsync(reader, timeoutCts.Token).ConfigureAwait(false);
+                IReadOnlyList<string> authResponse = await ReadResponseAsync(replyReader, timeoutCts.Token).ConfigureAwait(false);
                 result.AuthTlsResponse = authResponse;
                 if (!HasReplyCode(authResponse, "234")) {
                     throw new InvalidDataException("FTP server did not accept AUTH TLS with a 234 response.");
@@ -258,14 +260,14 @@ public sealed class FtpTlsAnalysis {
     }
 
     private static async Task<IReadOnlyList<string>> ReadResponseAsync(
-        StreamReader reader,
+        FtpReplyReader reader,
         CancellationToken cancellationToken,
         int maxLines = MaxResponseLines) {
         if (maxLines < 1) {
             throw new InvalidDataException($"FTP response exceeded {MaxResponseLines} lines.");
         }
         var lines = new List<string>();
-        string? first = await reader.ReadLineAsync().WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+        string? first = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
         if (first == null) {
             throw new EndOfStreamException("FTP server closed the connection before returning a response.");
         }
@@ -276,7 +278,7 @@ public sealed class FtpTlsAnalysis {
 
         string terminator = first.Substring(0, 3) + " ";
         while (lines.Count < maxLines) {
-            string? line = await reader.ReadLineAsync().WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+            string? line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
             if (line == null) {
                 throw new EndOfStreamException("FTP server closed a multiline response before its terminator.");
             }
@@ -289,7 +291,7 @@ public sealed class FtpTlsAnalysis {
     }
 
     private static async Task<IReadOnlyList<string>> ReadServiceReadyGreetingAsync(
-        StreamReader reader,
+        FtpReplyReader reader,
         CancellationToken cancellationToken) {
         var lines = new List<string>();
         while (lines.Count < MaxResponseLines) {
@@ -317,6 +319,64 @@ public sealed class FtpTlsAnalysis {
 
     private static bool IsReplyCode(string value) {
         return value.Length == 3 && char.IsDigit(value[0]) && char.IsDigit(value[1]) && char.IsDigit(value[2]);
+    }
+
+    private sealed class FtpReplyReader {
+        private readonly StreamReader _reader;
+        private readonly char[] _buffer = new char[1024];
+        private int _offset;
+        private int _count;
+
+        internal FtpReplyReader(StreamReader reader) {
+            _reader = reader ?? throw new ArgumentNullException(nameof(reader));
+        }
+
+        internal async Task<string?> ReadLineAsync(CancellationToken cancellationToken) {
+            var line = new StringBuilder();
+            while (true) {
+                if (_offset >= _count) {
+                    _count = await _reader.ReadAsync(_buffer, 0, _buffer.Length)
+                        .WaitWithCancellation(cancellationToken)
+                        .ConfigureAwait(false);
+                    _offset = 0;
+                    if (_count == 0) {
+                        if (line.Length == 0) {
+                            return null;
+                        }
+                        ValidateLineLength(line);
+                        return line.ToString();
+                    }
+                }
+
+                int newline = Array.IndexOf(_buffer, '\n', _offset, _count - _offset);
+                int segmentEnd = newline >= 0 ? newline : _count;
+                int segmentLength = segmentEnd - _offset;
+                if (line.Length + segmentLength > MaxResponseLineLength + 1) {
+                    throw new InvalidDataException($"FTP response line exceeded {MaxResponseLineLength} characters.");
+                }
+                line.Append(_buffer, _offset, segmentLength);
+                _offset = newline >= 0 ? newline + 1 : _count;
+                if (line.Length > MaxResponseLineLength &&
+                    (line.Length != MaxResponseLineLength + 1 || line[line.Length - 1] != '\r')) {
+                    throw new InvalidDataException($"FTP response line exceeded {MaxResponseLineLength} characters.");
+                }
+
+                if (newline < 0) {
+                    continue;
+                }
+                if (line.Length > 0 && line[line.Length - 1] == '\r') {
+                    line.Length--;
+                }
+                ValidateLineLength(line);
+                return line.ToString();
+            }
+        }
+
+        private static void ValidateLineLength(StringBuilder line) {
+            if (line.Length > MaxResponseLineLength) {
+                throw new InvalidDataException($"FTP response line exceeded {MaxResponseLineLength} characters.");
+            }
+        }
     }
 
     private static void CaptureRemoteEndpoint(TcpClient client, FtpTlsConnectionEvidence connection) {
