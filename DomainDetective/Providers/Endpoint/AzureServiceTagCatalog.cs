@@ -85,6 +85,9 @@ public sealed class AzureServiceTagCatalog {
 
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) {
+            throw new FormatException("Azure service-tag JSON root must be an object.");
+        }
         string cloud = ReadScalar(root, "cloud");
         string changeNumber = ReadScalar(root, "changeNumber");
         var entries = new List<AzureServiceTagEntry>();
@@ -93,7 +96,13 @@ public sealed class AzureServiceTagCatalog {
             throw new FormatException("Azure service-tag JSON does not contain a values array.");
         }
 
+        int itemIndex = -1;
         foreach (JsonElement item in values.EnumerateArray()) {
+            itemIndex++;
+            if (item.ValueKind != JsonValueKind.Object) {
+                throw new FormatException(
+                    $"Azure service-tag JSON values[{itemIndex}] must be an object.");
+            }
             string name = ReadScalar(item, "name");
             if (string.IsNullOrWhiteSpace(name)) {
                 continue;
@@ -101,7 +110,8 @@ public sealed class AzureServiceTagCatalog {
 
             if (!item.TryGetProperty("properties", out JsonElement properties) ||
                 properties.ValueKind != JsonValueKind.Object) {
-                continue;
+                throw new FormatException(
+                    $"Azure service tag '{name}' must contain a properties object.");
             }
 
             var prefixes = new List<IpCidrRange>();

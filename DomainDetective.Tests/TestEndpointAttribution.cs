@@ -273,6 +273,19 @@ public class TestEndpointAttribution {
     }
 
     [Theory]
+    [InlineData("null", "root")]
+    [InlineData("{\"values\":[null]}", "values[0]")]
+    [InlineData("{\"values\":[123]}", "values[0]")]
+    [InlineData("{\"values\":[\"not-an-object\"]}", "values[0]")]
+    [InlineData("{\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":null}]}", "properties object")]
+    public void AzureCatalogRejectsNonObjectStructuralElements(string json, string expectedContext) {
+        FormatException exception = Assert.Throws<FormatException>(() =>
+            AzureServiceTagCatalog.Parse(json, "test-catalog"));
+
+        Assert.Contains(expectedContext, exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
     [InlineData("edge.azurefd.net", "azure-front-door")]
     [InlineData("edge.azureedge.net", "azure-cdn")]
     [InlineData("edge.trafficmanager.net", "azure-traffic-manager")]

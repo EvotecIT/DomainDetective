@@ -479,10 +479,12 @@ public class TestCertificateInventoryCapture {
         }
     }
 
-    [Fact]
-    public async Task CaptureAsync_MalformedOptionalAzureCatalogBecomesWarning() {
+    [Theory]
+    [InlineData("{not-json")]
+    [InlineData("{\"values\":[null]}")]
+    public async Task CaptureAsync_MalformedOptionalAzureCatalogBecomesWarning(string malformedCatalog) {
         string path = Path.Combine(Path.GetTempPath(), "dd-invalid-azure-" + Guid.NewGuid().ToString("N") + ".json");
-        File.WriteAllText(path, "{not-json");
+        File.WriteAllText(path, malformedCatalog);
         try {
             using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
             var capture = new CertificateInventoryCapture {
