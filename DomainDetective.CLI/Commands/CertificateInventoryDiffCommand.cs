@@ -218,6 +218,7 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
         rows.AddColumn("Host");
         rows.AddColumn("Port");
         rows.AddColumn("Vantage");
+        rows.AddColumn("Service");
         rows.AddColumn("Status");
         rows.AddColumn("Reasons");
         rows.AddColumn("Issuer");
@@ -234,6 +235,7 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
                 endpoint.Host,
                 endpoint.Port.ToString(),
                 endpoint.ProbeVantage,
+                endpoint.CurrentService ?? endpoint.PreviousService ?? "-",
                 endpoint.Status,
                 reasons,
                 issuer,

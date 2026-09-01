@@ -54,11 +54,13 @@ public sealed class EndpointAttributionCatalog {
                 $"Endpoint attribution rule '{rule.RuleId}' requires a stable ProviderId.",
                 parameterName ?? nameof(rule));
         }
+        rule.ProviderId = rule.ProviderId.Trim();
         if (string.IsNullOrWhiteSpace(rule.ServiceId)) {
             throw new ArgumentException(
                 $"Endpoint attribution rule '{rule.RuleId}' requires a stable ServiceId.",
                 parameterName ?? nameof(rule));
         }
+        rule.ServiceId = rule.ServiceId.Trim();
         foreach (EndpointAttributionSignalKind signalKind in rule.IpAddressPrimaryCorroboratingSignals) {
             if (!Enum.IsDefined(typeof(EndpointAttributionSignalKind), signalKind)) {
                 throw new ArgumentOutOfRangeException(

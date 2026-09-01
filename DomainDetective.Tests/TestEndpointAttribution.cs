@@ -577,6 +577,37 @@ public class TestEndpointAttribution {
     }
 
     [Fact]
+    public void DetectorNormalizesProviderAndServiceIdentityBeforeAmbiguityComparison() {
+        var catalog = new EndpointAttributionCatalog();
+        foreach ((string ruleId, string providerId, string serviceId) in new[] {
+            ("custom.edge-a", "example", "edge"),
+            ("custom.edge-b", " example ", " edge ")
+        }) {
+            var rule = new EndpointAttributionRule {
+                RuleId = ruleId,
+                RuleVersion = "1",
+                ProviderId = providerId,
+                ServiceId = serviceId,
+                DisplayName = "Example Edge"
+            };
+            rule.CnameSuffixes.Add("edge.example.net");
+            catalog.Rules.Add(rule);
+        }
+
+        EndpointAttributionResult result = new EndpointAttributionDetector(catalog).Detect(new EndpointAttributionInput {
+            HostName = "www.example.com",
+            CnameChain = new[] { "tenant.edge.example.net" }
+        });
+
+        Assert.False(result.IsAmbiguous);
+        Assert.NotNull(result.Primary);
+        Assert.All(result.Candidates, candidate => {
+            Assert.Equal("example", candidate.ProviderId);
+            Assert.Equal("edge", candidate.ServiceId);
+        });
+    }
+
+    [Fact]
     public void CustomRuleRejectsMalformedIpPrefixWithRuleContext() {
         var catalog = new EndpointAttributionCatalog();
         var rule = new EndpointAttributionRule {
