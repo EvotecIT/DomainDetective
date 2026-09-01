@@ -280,6 +280,104 @@ public sealed partial class CertificateInventoryCapture {
         return results.ToList();
     }
 
+    private static async Task<IReadOnlyList<CertificateInventoryEntry>> ProbeFtpTlsAsync(
+        IReadOnlyList<FtpTlsEndpointTarget> targets,
+        CertificateInventoryCaptureOptions options,
+        InternalLogger logger,
+        CancellationToken cancellationToken) {
+        if (targets == null || targets.Count == 0) {
+            return Array.Empty<CertificateInventoryEntry>();
+        }
+
+        var results = new ConcurrentBag<CertificateInventoryEntry>();
+        int parallelism = Math.Max(1, options.MaxParallelism);
+        var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
+        using var gate = new SemaphoreSlim(parallelism, parallelism);
+        var tasks = new List<Task>(targets.Count);
+        foreach (FtpTlsEndpointTarget target in targets) {
+            tasks.Add(ProbeOneWithGateAsync(target));
+        }
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        return results
+            .OrderBy(entry => entry.Host, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.Port)
+            .ThenBy(entry => entry.Service, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        async Task ProbeOneWithGateAsync(FtpTlsEndpointTarget target) {
+            bool entered = false;
+            try {
+                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                entered = true;
+                await rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false);
+                var analysis = new FtpTlsAnalysis { Timeout = options.FtpTlsTimeout };
+                FtpTlsResult result = await analysis.AnalyzeAsync(
+                    new FtpTlsEndpoint(target.Host, target.Port, target.Mode),
+                    logger,
+                    cancellationToken).ConfigureAwait(false);
+                results.Add(ToInventoryEntry(target, result));
+            } finally {
+                if (entered) {
+                    gate.Release();
+                }
+            }
+        }
+    }
+
+    private static CertificateInventoryEntry ToInventoryEntry(FtpTlsEndpointTarget target, FtpTlsResult result) {
+        X509Certificate2? certificate = result.Certificate;
+        var mailResult = new MailTlsAnalysis.TlsResult {
+            Connection = new MailTransportConnectionEvidence {
+                HostName = target.Host,
+                Port = target.Port,
+                RemoteAddress = result.Connection.RemoteAddress,
+                RemoteAddressFamily = ParseMailAddressFamily(result.Connection.RemoteAddressFamily)
+            },
+            StartTlsAdvertised = result.TlsNegotiated,
+            CertificateValid = result.CertificateValid,
+            HostnameMatch = result.HostnameMatch,
+            Protocol = result.Protocol,
+            Certificate = certificate,
+            CertificateSubject = certificate?.Subject,
+            CertificateIssuer = certificate?.Issuer,
+            CertificateNotBefore = certificate?.NotBefore,
+            CertificateNotAfter = certificate?.NotAfter,
+            CertificateThumbprint = certificate?.Thumbprint,
+            CertificateSerialNumber = certificate?.SerialNumber,
+            DaysToExpire = certificate == null ? 0 : (int)(certificate.NotAfter - DateTime.Now).TotalDays,
+            DaysValid = certificate == null ? 0 : (int)(certificate.NotAfter - certificate.NotBefore).TotalDays,
+            IsExpired = certificate != null && certificate.NotAfter < DateTime.Now,
+            FailureReason = result.FailureReason,
+            FailureKind = result.FailureKind
+        };
+        foreach (X509Certificate2 chainElement in result.Chain) {
+            mailResult.Chain.Add(chainElement);
+        }
+        foreach (X509ChainStatusFlags chainError in result.ChainErrors) {
+            mailResult.ChainErrors.Add(chainError);
+        }
+        var mailTarget = new MailEndpointTarget {
+            Host = target.Host,
+            Port = target.Port,
+            Protocol = MailTlsAnalysis.MailProtocol.Smtp,
+            Service = target.Service,
+            Scheme = target.Scheme,
+            ChainSource = target.Mode == FtpTlsMode.Explicit ? "ftps-auth-tls" : "ftps-implicit",
+            TargetOrigins = target.TargetOrigins
+        };
+        return ToInventoryEntry(mailTarget, mailResult);
+    }
+
+    private static MailTransportAddressFamily? ParseMailAddressFamily(string? value) {
+        if (string.Equals(value, System.Net.Sockets.AddressFamily.InterNetwork.ToString(), StringComparison.Ordinal)) {
+            return MailTransportAddressFamily.IPv4;
+        }
+        if (string.Equals(value, System.Net.Sockets.AddressFamily.InterNetworkV6.ToString(), StringComparison.Ordinal)) {
+            return MailTransportAddressFamily.IPv6;
+        }
+        return null;
+    }
+
     private static List<CertificateInventoryEntry> DeduplicateEntries(List<CertificateInventoryEntry> entries) {
         var byEndpoint = new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries) {
@@ -366,6 +464,8 @@ public sealed partial class CertificateInventoryCapture {
             Scheme = target.Scheme,
             Port = target.Port,
             Service = target.Service,
+            RemoteAddress = result.Connection.RemoteAddress,
+            RemoteAddressFamily = result.Connection.RemoteAddressFamily?.ToString(),
             CertificateSubject = certificate?.Subject ?? result.CertificateSubject,
             CertificateIssuer = certificate?.Issuer ?? result.CertificateIssuer,
             CertificateThumbprint = certificate?.Thumbprint ?? result.CertificateThumbprint,

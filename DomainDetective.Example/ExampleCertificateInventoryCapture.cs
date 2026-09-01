@@ -1,5 +1,6 @@
 using DomainDetective.Helpers;
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -12,16 +13,19 @@ public static partial class Program {
     /// <summary>Captures one inventory snapshot for a reusable domain portfolio list.</summary>
     public static async Task ExampleCertificateInventoryCapture() {
         var domains = new[] {
-            "evotec.xyz",
-            "evotec.pl",
+            "example.com",
+            "example.org",
             "microsoft.com",
-            "google.com",
-            "eurofins.com",
-            "abb.com"
+            "google.com"
         };
 
+        string cacheDirectory = Path.Combine(Path.GetTempPath(), "DomainDetective", "cert-monitor");
+
         var options = new CertificateInventoryCaptureOptions {
-            CacheDirectory = @"C:\Temp\DomainDetective\cert-monitor",
+            CacheDirectory = cacheDirectory,
+            EnableEndpointAttribution = true,
+            ProbeVantage = "default",
+            AzureServiceTagsJsonPath = Environment.GetEnvironmentVariable("AZURE_SERVICE_TAGS_JSON"),
             IncludeApexHttps = true,
             IncludeWwwHttps = true,
             IncludeMxHosts = true,
@@ -32,7 +36,7 @@ public static partial class Program {
             EnableNativeCtLogSubdomainSource = true,
             NativeCtLogOnly = true,
             NativeCtInitialBackfillEntriesPerLog = 5000,
-            NativeCtCursorStatePath = @"C:\Temp\DomainDetective\cert-monitor\inventory\ct-native-cursor.json",
+            NativeCtCursorStatePath = Path.Combine(cacheDirectory, "inventory", "ct-native-cursor.json"),
             CtProfile = CertificateCtEnrichmentProfile.Public,
             PersistSnapshot = true,
             MaxParallelism = 24,
@@ -40,6 +44,8 @@ public static partial class Program {
             MailTimeout = TimeSpan.FromSeconds(15)
         };
         options.AdditionalEndpoints.Add("https://api.microsoft.com:443");
+        // Explicit FTPS performs the 220 -> AUTH TLS -> 234 exchange before TLS and never logs in.
+        // options.AdditionalEndpoints.Add("ftps-explicit://ftp.example.com:21");
 
         var capture = new CertificateInventoryCapture();
         var result = await capture.CaptureAsync(domains, options, new InternalLogger(false));
@@ -50,6 +56,7 @@ public static partial class Program {
         Console.WriteLine($"MX Hosts           : {result.MxHostCount}");
         Console.WriteLine($"HTTPS Endpoints    : {result.HttpsEndpointCount}");
         Console.WriteLine($"Mail Endpoints     : {result.MailEndpointCount}");
+        Console.WriteLine($"FTP TLS Endpoints  : {result.FtpTlsEndpointCount}");
         Console.WriteLine($"Snapshot Entries   : {result.EntryCount}");
         Console.WriteLine($"Unique Endpoints   : {result.UniqueEndpointCount}");
         Console.WriteLine($"Valid / Expired    : {result.ValidCount} / {result.ExpiredCount}");
@@ -71,6 +78,11 @@ public static partial class Program {
                 entry.Host,
                 entry.Service,
                 entry.Port,
+                entry.RemoteAddress,
+                entry.ProbeVantage,
+                Provider = entry.Attribution?.Primary?.ProviderId,
+                ProviderService = entry.Attribution?.Primary?.ServiceId,
+                AttributionScore = entry.Attribution?.Primary?.Score,
                 entry.CertificateIssuer,
                 entry.NotAfterUtc,
                 entry.DaysToExpire,

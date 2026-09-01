@@ -6,6 +6,7 @@ using System.Security.Authentication;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Helpers;
@@ -35,6 +36,8 @@ namespace DomainDetective {
             public int Port { get; init; } = 443;
             /// <summary>Best-effort service classification derived from endpoint details.</summary>
             public string Service { get; init; } = "HTTPS";
+            /// <summary>Actual remote address reached by the probe, when observable.</summary>
+            public IPAddress? RemoteAddress { get; init; }
             /// <summary>Certificate expiry date.</summary>
             public DateTime ExpiryDate { get; init; }
             /// <summary>Whether the certificate chain was validated successfully.</summary>
@@ -238,6 +241,7 @@ namespace DomainDetective {
                             Scheme = target.Scheme,
                             Port = target.Port,
                             Service = target.Service,
+                            RemoteAddress = analysis.RemoteAddress,
                             ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
                             Valid = analysis.IsValid,
                             Expired = analysis.IsExpired,
@@ -395,6 +399,8 @@ namespace DomainDetective {
                 Scheme = entry.Scheme,
                 Port = entry.Port,
                 Service = entry.Service,
+                RemoteAddress = entry.RemoteAddress?.ToString(),
+                RemoteAddressFamily = entry.RemoteAddress?.AddressFamily.ToString(),
                 CertificateSubject = certificate?.Subject,
                 CertificateIssuer = certificate?.Issuer,
                 CertificateThumbprint = certificate?.Thumbprint,
@@ -443,6 +449,7 @@ namespace DomainDetective {
                 CtDiscoverySources = analysis.CtDiscoverySources.ToArray(),
                 CtTemplateFormatErrors = analysis.CtTemplateFormatErrors.ToArray()
             };
+            snapshotEntry.RedirectTargets = analysis.RedirectTargets.ToArray();
             snapshotEntry.CertificateChainSources.AddRange(analysis.ChainSourceHistory);
             snapshotEntry.ExtendedKeyUsageOids.AddRange(analysis.ExtendedKeyUsageOids);
             snapshotEntry.SubjectAlternativeNames.AddRange(analysis.SubjectAlternativeNames);

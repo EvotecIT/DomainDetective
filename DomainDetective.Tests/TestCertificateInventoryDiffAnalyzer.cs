@@ -122,7 +122,7 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public void BuildDiffDetectsServiceChangeForSameHostAndPort() {
+        public void BuildDiffTreatsDifferentServicesOnSameHostAndPortAsDistinctEndpoints() {
             var now = DateTimeOffset.UtcNow;
             var previous = new CertificateInventorySnapshot {
                 CapturedAtUtc = now.AddHours(-1),
@@ -153,18 +153,20 @@ namespace DomainDetective.Tests {
 
             Assert.Equal(1, diff.PreviousEndpointCount);
             Assert.Equal(1, diff.CurrentEndpointCount);
-            Assert.Equal(0, diff.AddedCount);
-            Assert.Equal(0, diff.RemovedCount);
-            Assert.Equal(1, diff.ChangedCount);
+            Assert.Equal(1, diff.AddedCount);
+            Assert.Equal(1, diff.RemovedCount);
+            Assert.Equal(0, diff.ChangedCount);
             Assert.Equal(0, diff.UnchangedCount);
 
-            var row = Assert.Single(diff.Endpoints);
-            Assert.Equal("service-change.example.com", row.Host);
-            Assert.Equal(443, row.Port);
-            Assert.Equal("Changed", row.Status);
-            Assert.Equal("HTTPS", row.PreviousService);
-            Assert.Equal("HTTPS-ALT", row.CurrentService);
-            Assert.Equal(new[] { "Service" }, row.ChangeReasons);
+            Assert.Equal(2, diff.Endpoints.Count);
+            Assert.Contains(diff.Endpoints, row =>
+                row.Host == "service-change.example.com" &&
+                row.Status == "Removed" &&
+                row.PreviousService == "HTTPS");
+            Assert.Contains(diff.Endpoints, row =>
+                row.Host == "service-change.example.com" &&
+                row.Status == "Added" &&
+                row.CurrentService == "HTTPS-ALT");
         }
 
         [Fact]

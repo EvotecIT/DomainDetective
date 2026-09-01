@@ -159,6 +159,8 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
 
             var evidence = new List<string>();
             var bestProvider = DnsCnameTargetProvider.Unknown;
+            var bestService = DnsCnameTargetService.Unknown;
+            var bestMatchRank = 0;
             var flags = DnsCnameTargetFlags.None;
 
             foreach (var target in targets.OrderBy(t => t, StringComparer.OrdinalIgnoreCase))
@@ -170,10 +172,14 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
 
                 var m = DnsCnameTargetDetector.Detect(target);
                 flags |= m.Flags;
-
-                if (bestProvider == DnsCnameTargetProvider.Unknown && m.Provider != DnsCnameTargetProvider.Unknown)
+                var matchRank = m.Service != DnsCnameTargetService.Unknown
+                    ? 2
+                    : (m.Provider != DnsCnameTargetProvider.Unknown ? 1 : 0);
+                if (matchRank > bestMatchRank)
                 {
                     bestProvider = m.Provider;
+                    bestService = m.Service;
+                    bestMatchRank = matchRank;
                 }
 
                 foreach (var e in m.Evidence)
@@ -191,6 +197,7 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
             }
 
             CnameTargetProvider = bestProvider;
+            CnameTargetService = bestService;
             CnameTargetFlags = flags;
             CnameTargetEvidence = evidence;
         }

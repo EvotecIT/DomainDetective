@@ -50,6 +50,14 @@ public sealed partial class CertificateInventoryCapture {
         return CertificateInventoryEndpointKey.Build(host, null, port, service, null);
     }
 
+    private static bool ProbeVantageMatches(CertificateInventoryEntry entry, string? requestedVantage) {
+        string cachedValue = entry.ProbeVantage ?? string.Empty;
+        string requestedValue = requestedVantage ?? string.Empty;
+        string cached = string.IsNullOrWhiteSpace(cachedValue) ? "default" : cachedValue.Trim();
+        string requested = string.IsNullOrWhiteSpace(requestedValue) ? "default" : requestedValue.Trim();
+        return string.Equals(cached, requested, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool TryBuildHttpsEndpointKey(string target, out string key) {
         key = string.Empty;
         if (string.IsNullOrWhiteSpace(target)) {
@@ -200,9 +208,15 @@ public sealed partial class CertificateInventoryCapture {
                 if (entry == null) {
                     continue;
                 }
+                if (!ProbeVantageMatches(entry, options.ProbeVantage)) {
+                    continue;
+                }
                 var host = !string.IsNullOrWhiteSpace(entry.ResolvedHost) ? entry.ResolvedHost! : entry.Host;
                 if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(entry.Service) || entry.Port <= 0) {
                     continue;
+                }
+                if (!entry.ObservedAtUtc.HasValue) {
+                    entry.ObservedAtUtc = snapshot.CapturedAtUtc;
                 }
                 var key = BuildEndpointKey(host, entry.Port, entry.Service);
                 byEndpoint[key] = new RecentInventoryEndpointEntry {
@@ -713,6 +727,7 @@ public sealed partial class CertificateInventoryCapture {
         HashSet<string> httpsTargets,
         Dictionary<string, HashSet<string>> httpsTargetOriginsByEndpointKey,
         Dictionary<string, MailEndpointTarget> mailTargets,
+        Dictionary<string, FtpTlsEndpointTarget> ftpTlsTargets,
         List<string> warnings,
         List<TargetDecisionDiagnosticEntry> targetDecisionDiagnostics) {
         foreach (var raw in options.AdditionalEndpoints) {
@@ -753,6 +768,12 @@ public sealed partial class CertificateInventoryCapture {
                     continue;
                 }
 
+                if (TryCreateFtpTlsTargetFromScheme(uri, out FtpTlsEndpointTarget? ftpTlsTarget)) {
+                    ftpTlsTarget!.TargetOrigins.Add(TargetOriginAdditionalEndpoint);
+                    ftpTlsTargets[ftpTlsTarget.Key] = ftpTlsTarget;
+                    continue;
+                }
+
                 warnings.Add($"Skipping unsupported endpoint scheme in '{value}'.");
                 targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
                     Stage = "additional-endpoints",
@@ -784,6 +805,46 @@ public sealed partial class CertificateInventoryCapture {
                     TargetOriginAdditionalEndpoint);
             }
         }
+    }
+
+    private static bool TryCreateFtpTlsTargetFromScheme(Uri uri, out FtpTlsEndpointTarget? target) {
+        target = null;
+        string scheme = uri.Scheme.ToLowerInvariant();
+        FtpTlsMode mode;
+        int defaultPort;
+        string normalizedScheme;
+        string service;
+        switch (scheme) {
+            case "ftps":
+                mode = FtpTlsMode.Implicit;
+                defaultPort = 990;
+                normalizedScheme = "ftps";
+                service = "FTPS-IMPLICIT";
+                break;
+            case "ftps-explicit":
+            case "ftpes":
+            case "ftp+tls":
+                mode = FtpTlsMode.Explicit;
+                defaultPort = 21;
+                normalizedScheme = "ftps-explicit";
+                service = "FTPS-EXPLICIT";
+                break;
+            default:
+                return false;
+        }
+
+        string host = uri.Host.Trim().TrimEnd('.');
+        if (host.Length == 0) {
+            return false;
+        }
+        target = new FtpTlsEndpointTarget {
+            Host = host,
+            Port = uri.IsDefaultPort || uri.Port <= 0 ? defaultPort : uri.Port,
+            Mode = mode,
+            Scheme = normalizedScheme,
+            Service = service
+        };
+        return true;
     }
 
     private static bool TryCreateMailTargetFromScheme(Uri uri, CertificateInventoryCaptureOptions options, out MailEndpointTarget? target) {

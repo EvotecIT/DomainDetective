@@ -9,7 +9,7 @@ using System.Threading;
 namespace DomainDetective.PowerShell;
 
 /// <summary>Captures and optionally persists a certificate inventory snapshot from domains and discovered endpoints.</summary>
-/// <para>Discovers HTTPS and mail TLS endpoints (for example MX-derived STARTTLS) and stores normalized certificate evidence in the inventory snapshot format used by certificate inventory analytics cmdlets.</para>
+/// <para>Discovers HTTPS, mail TLS, and explicit or implicit FTP TLS endpoints and stores normalized certificate and endpoint evidence in the inventory snapshot format used by certificate inventory analytics cmdlets.</para>
 /// <example>
 ///   <summary>Capture snapshot for explicit domains</summary>
 ///   <code>Invoke-DDCertificateInventory -DomainName evotec.xyz,evotec.pl -CacheDirectory .\cert-monitor</code>
@@ -24,27 +24,31 @@ namespace DomainDetective.PowerShell;
 /// </example>
 /// <example>
 ///   <summary>Capture snapshot including CT-discovered subdomains</summary>
-///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -VerifyCtSubdomains -MaxCtSubdomainsPerDomain 5000 -Verbose</code>
+///   <code>Invoke-DDCertificateInventory -DomainName example.com -IncludeCtSubdomains -VerifyCtSubdomains -MaxCtSubdomainsPerDomain 5000 -Verbose</code>
 /// </example>
 /// <example>
 ///   <summary>Use native CT log polling without crt.sh fallback</summary>
-///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -EnableNativeCtLogSubdomains -NativeCtLogOnly -NativeCtInitialBackfillEntriesPerLog 5000 -Verbose</code>
+///   <code>Invoke-DDCertificateInventory -DomainName example.com -IncludeCtSubdomains -EnableNativeCtLogSubdomains -NativeCtLogOnly -NativeCtInitialBackfillEntriesPerLog 5000 -Verbose</code>
 /// </example>
 /// <example>
 ///   <summary>Run a throttled test capture</summary>
-///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -Limit 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose</code>
+///   <code>Invoke-DDCertificateInventory -DomainName example.com -IncludeCtSubdomains -Limit 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose</code>
 /// </example>
 /// <example>
 ///   <summary>Reuse recent captured endpoints to reduce repeated probing</summary>
-///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14</code>
+///   <code>Invoke-DDCertificateInventory -DomainName example.com -IncludeCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14</code>
 /// </example>
 /// <example>
 ///   <summary>Reuse recent stable failures for short-lived verification lanes</summary>
-///   <code>Invoke-DDCertificateInventory -DomainName eurofins.com -ReuseRecentFailureResults -RecentFailureResultTtlHours 1 -HttpsTimeoutSeconds 20</code>
+///   <code>Invoke-DDCertificateInventory -DomainName example.com -ReuseRecentFailureResults -RecentFailureResultTtlHours 1 -HttpsTimeoutSeconds 20</code>
 /// </example>
 /// <example>
 ///   <summary>Fail automation when warning-level target decisions are detected</summary>
 ///   <code>Invoke-DDCertificateInventory -DomainName example.com -Endpoint ftp://example.com -FailOnWarningTargetDecisions</code>
+/// </example>
+/// <example>
+///   <summary>Probe explicit FTPS and attach explainable service attribution evidence</summary>
+///   <code>Invoke-DDCertificateInventory -Endpoint ftps-explicit://ftp.example.com:21 -DetectServices -ProbeVantage branch-office -NoPersist</code>
 /// </example>
 [Cmdlet(VerbsLifecycle.Invoke, "DDCertificateInventory")]
 [OutputType(typeof(CertificateInventoryCaptureResult))]
@@ -66,6 +70,23 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     /// <summary>DNS endpoint used for MX discovery.</summary>
     [Parameter(Mandatory = false)]
     public DnsEndpoint DnsEndpoint { get; set; } = DnsEndpoint.System;
+
+    /// <summary>Resolve endpoint DNS evidence and perform explainable provider/service attribution.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter DetectServices { get; set; }
+
+    /// <summary>Label identifying the network vantage used for this observation.</summary>
+    [Parameter(Mandatory = false)]
+    public string ProbeVantage { get; set; } = "default";
+
+    /// <summary>Optional current Azure service-tag JSON file used for IP-based attribution.</summary>
+    [Parameter(Mandatory = false)]
+    public string? AzureServiceTagsJsonPath { get; set; }
+
+    /// <summary>Maximum concurrent DNS evidence lookups used by service detection.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 512)]
+    public int DnsEnrichmentParallelism { get; set; } = 8;
 
     /// <summary>Do not probe apex domains over HTTPS.</summary>
     [Parameter(Mandatory = false)]
@@ -222,7 +243,7 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [ValidateRange(1, 2048)]
     public int NativeCtCatchUpBatchSize { get; set; } = 1024;
 
-    /// <summary>Additional endpoint(s) to probe (supports https:// and mail schemes).</summary>
+    /// <summary>Additional endpoint(s) to probe (supports HTTPS, mail TLS, ftps://, and ftps-explicit:// schemes).</summary>
     [Parameter(Mandatory = false)]
     public string[] Endpoint { get; set; } = Array.Empty<string>();
 
@@ -246,6 +267,11 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [ValidateRange(1, 300)]
     public int MailTimeoutSeconds { get; set; } = 15;
 
+    /// <summary>FTP TLS timeout in seconds.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 300)]
+    public int FtpTlsTimeoutSeconds { get; set; } = 15;
+
     /// <summary>HTTPS certificate probe timeout in seconds.</summary>
     [Parameter(Mandatory = false)]
     [ValidateRange(1, 300)]
@@ -256,7 +282,7 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
     [ValidateRange(0, 10000)]
     public int MaxProbeErrorWarnings { get; set; } = 25;
 
-    /// <summary>Maximum total probe targets (HTTPS + mail) kept after discovery; useful for quick test runs (0 means unlimited).</summary>
+    /// <summary>Maximum total probe targets (HTTPS + mail + FTP TLS) kept after discovery; useful for quick test runs (0 means unlimited).</summary>
     [Parameter(Mandatory = false)]
     [Alias("Limit")]
     [ValidateRange(0, int.MaxValue)]
@@ -386,9 +412,10 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             }
         }
 
-        if (domains.Count == 0) {
+        bool hasExplicitEndpoint = Endpoint != null && Array.Exists(Endpoint, endpoint => !string.IsNullOrWhiteSpace(endpoint));
+        if (domains.Count == 0 && !hasExplicitEndpoint) {
             ThrowTerminatingError(new ErrorRecord(
-                new ArgumentException("Provide at least one domain via -DomainName or -DomainsFile.", nameof(DomainName)),
+                new ArgumentException("Provide at least one domain or -Endpoint.", nameof(DomainName)),
                 "NoDomainsProvided",
                 ErrorCategory.InvalidArgument,
                 DomainName));
@@ -398,6 +425,10 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
         var options = new CertificateInventoryCaptureOptions {
             CacheDirectory = CertificateInventoryCmdletHelpers.ResolveCacheDirectory(CacheDirectory),
             DnsEndpoint = DnsEndpoint,
+            EnableEndpointAttribution = DetectServices.IsPresent,
+            ProbeVantage = ProbeVantage,
+            AzureServiceTagsJsonPath = AzureServiceTagsJsonPath,
+            DnsEnrichmentParallelism = DnsEnrichmentParallelism,
             IncludeApexHttps = !NoApexHttps.IsPresent,
             IncludeWwwHttps = !NoWwwHttps.IsPresent,
             IncludeMxHosts = !DisableMxDiscovery.IsPresent,
@@ -436,6 +467,7 @@ public sealed class CmdletInvokeCertificateInventory : PSCmdlet {
             MaxParallelism = MaxParallelism,
             DiscoveryParallelism = DiscoveryParallelism,
             MailTimeout = TimeSpan.FromSeconds(MailTimeoutSeconds),
+            FtpTlsTimeout = TimeSpan.FromSeconds(FtpTlsTimeoutSeconds),
             HttpsTimeout = TimeSpan.FromSeconds(HttpsTimeoutSeconds),
             MaxTargets = MaxTargets,
             MaxProbeStartsPerSecond = MaxProbeStartsPerSecond,

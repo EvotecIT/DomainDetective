@@ -17,6 +17,23 @@ public class TestCertificateInventoryCaptureCommand {
     }
 
     [Fact]
+    public async Task ExecuteAsync_AllowsEndpointOnlyCapture() {
+        var command = new CertificateInventoryCaptureCommand();
+        var settings = new CertificateInventoryCaptureSettings {
+            AdditionalEndpoints = new[] { "ftp://localhost" },
+            NoApexHttps = true,
+            NoWwwHttps = true,
+            DisableMxDiscovery = true,
+            NoPersist = true,
+            Json = true
+        };
+
+        int exitCode = await command.ExecuteForTestingAsync(null!, settings);
+
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_SucceedsWithoutNetworkWhenAllDiscoveryAndProbesDisabled() {
         var command = new CertificateInventoryCaptureCommand();
         var settings = new CertificateInventoryCaptureSettings {
@@ -90,6 +107,10 @@ public class TestCertificateInventoryCaptureCommand {
             string summaryHeader = Assert.Single(File.ReadAllLines(summaryCsvPath));
             Assert.Contains("TargetOrigins", header, StringComparison.Ordinal);
             Assert.Contains("CaptureDisposition", header, StringComparison.Ordinal);
+            Assert.Contains("DnsObservedAtUtc", header, StringComparison.Ordinal);
+            Assert.Contains("AttributionCandidates", header, StringComparison.Ordinal);
+            Assert.Contains("AttributionEvaluatedAtUtc", header, StringComparison.Ordinal);
+            Assert.Contains("AzureServiceTagChangeNumber", header, StringComparison.Ordinal);
             Assert.Contains("Severity", summaryHeader, StringComparison.Ordinal);
             Assert.Contains("RecommendedAction", summaryHeader, StringComparison.Ordinal);
             Assert.Contains("TargetOrigins", summaryHeader, StringComparison.Ordinal);
@@ -99,6 +120,62 @@ public class TestCertificateInventoryCaptureCommand {
             }
             if (File.Exists(summaryCsvPath)) {
                 File.Delete(summaryCsvPath);
+            }
+        }
+    }
+
+    [Fact]
+    public void WriteCsv_RetainsAllAttributionCandidatesAndCatalogProvenance() {
+        string csvPath = Path.Combine(Path.GetTempPath(), "dd-attribution-csv-" + Guid.NewGuid().ToString("N") + ".csv");
+        try {
+            var evidence = new DomainDetective.Providers.Endpoint.EndpointAttributionEvidence {
+                Kind = DomainDetective.Providers.Endpoint.EndpointAttributionSignalKind.CertificateIssuer,
+                ObservedValue = "Example Issuer",
+                MatchedValue = "Example",
+                Score = 0.15,
+                Source = "test-source"
+            };
+            var candidate = new DomainDetective.Providers.Endpoint.EndpointAttributionCandidate {
+                ProviderId = "review-provider",
+                ServiceId = "review-service",
+                DisplayName = "Review Candidate",
+                Score = 0.15,
+                Confidence = DomainDetective.Providers.Endpoint.EndpointAttributionConfidence.Low,
+                EligibleAsPrimary = false,
+                RuleId = "test.review-candidate",
+                RuleVersion = "1",
+                Evidence = new[] { evidence }
+            };
+            var entry = new CertificateInventoryEntry {
+                Host = "service.example.com",
+                ResolvedHost = "service.example.com",
+                Port = 443,
+                Service = "HTTPS",
+                Attribution = new DomainDetective.Providers.Endpoint.EndpointAttributionResult {
+                    Candidates = new[] { candidate },
+                    EvaluatedAtUtc = DateTimeOffset.UtcNow,
+                    AzureServiceTagSource = "service-tags.json",
+                    AzureServiceTagChangeNumber = "42",
+                    AzureServiceTagCloud = "Public",
+                    AzureServiceTagRetrievedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5)
+                }
+            };
+            var result = new CertificateInventoryCaptureResult {
+                CapturedAtUtc = DateTimeOffset.UtcNow,
+                Snapshot = new CertificateInventorySnapshot { Entries = new List<CertificateInventoryEntry> { entry } }
+            };
+
+            CertificateInventoryCaptureCommand.WriteCsv(result, csvPath);
+
+            string csv = File.ReadAllText(csvPath);
+            Assert.Contains("review-provider", csv, StringComparison.Ordinal);
+            Assert.Contains("test.review-candidate", csv, StringComparison.Ordinal);
+            Assert.Contains("CertificateIssuer", csv, StringComparison.Ordinal);
+            Assert.Contains("service-tags.json", csv, StringComparison.Ordinal);
+            Assert.Contains("42", csv, StringComparison.Ordinal);
+        } finally {
+            if (File.Exists(csvPath)) {
+                File.Delete(csvPath);
             }
         }
     }

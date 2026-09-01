@@ -71,7 +71,7 @@ DomainDetective combines endpoint probing and CT evidence:
 | --- | --- | --- |
 | HTTPS probing | Live leaf cert, chain, issuer/root, EKU/auth profile, validity, hostname match, protocol/service | Included by default (apex + `www`) |
 | MX discovery + STARTTLS | Mail host certs from SMTP 25/587; optional IMAPS/POP3S | Default includes STARTTLS; IMAP/POP3 optional |
-| Additional endpoints | Explicit app/service targets (`https://`, `smtp://`, etc.) | `-Endpoint` / `AdditionalEndpoints` |
+| Additional endpoints | Explicit app/service targets (`https://`, `smtp://`, `ftps://`, `ftps-explicit://`) | `-Endpoint` / `AdditionalEndpoints` |
 | Native CT log polling (RFC6962) | Direct CT ingestion from trusted log operators (no crt.sh dependency) | `EnableNativeCtLogSubdomainSource`, `NativeCt*` options |
 | Public CT API (`crt.sh`) | CT presence and source evidence for observed certs | Enabled by default template |
 | Optional CT APIs (Shodan/Censys/custom) | Wider CT discovery source coverage | `CtProfile`, source toggles, API keys/templates |
@@ -93,11 +93,42 @@ Notes:
 - Native CT polling now includes built-in retry/backoff, per-log circuit breaker, and catch-up mode for large cursor lag.
 - Capture results now include `NativeCtLogDiagnostics` so you can inspect per-log ingestion state (succeeded/failed/circuit-open, lag before/after, last processed index) without opening cursor JSON.
 
+## Endpoint observations and service attribution
+
+An inventory row identifies a logical endpoint by `host + port + service`. The same hostname and port can therefore retain separate HTTPS, STARTTLS, or FTPS observations instead of being merged into one ambiguous record.
+
+Live rows include `ObservedAtUtc` and `ProbeVantage`. Cached observations are reused only when their normalized vantage matches the requested vantage. When the protocol exposes the connected socket, `RemoteAddress` records the address actually reached. Service detection is opt-in because it adds DNS work:
+
+```powershell
+Invoke-DDCertificateInventory `
+    -Endpoint https://www.example.com `
+    -DetectServices `
+    -ProbeVantage branch-office `
+    -AzureServiceTagsJsonPath .\ServiceTags_Public.json `
+    -NoPersist
+```
+
+With detection enabled, each row can also include the resolver, `DnsObservedAtUtc`, resolved addresses, full CNAME chain, redirect targets, and an `Attribution` result. `ObservedAtUtc` remains the protocol-observation time, while `DnsObservedAtUtc` and `Attribution.EvaluatedAtUtc` describe the current enrichment pass. Attribution retains every candidate and the evidence that contributed to it. The primary result includes a score, confidence, rule ID, and rule version; equally ranked eligible candidates with different provider/service identities are retained as ambiguous instead of selecting one by sort order. Multiple rules agreeing on the same identity remain supporting candidates rather than creating false ambiguity.
+
+Hostname prefixes and certificate issuers are weak signals. They can create review candidates, but the built-in rules do not let either signal establish a primary provider by itself. CNAME namespaces, current service-tag membership, configured IP ranges, redirect targets, reverse DNS, and ASN evidence are treated as stronger signals. Built-in web-delivery and redirection rules apply only to HTTPS observations, so a shared address or CNAME does not label an unrelated mail or FTP TLS service.
+
+Azure address attribution is read from a caller-supplied current service-tag JSON file; DomainDetective does not embed a fixed Azure range list. The saved attribution includes the catalog source, cloud, change number, and retrieval time. A malformed optional catalog produces a capture warning instead of discarding already collected observations. The built-in NameShield redirection rule contains a versioned point-in-time seed and a provenance warning; an address from that seed needs a matching provider namespace or redirect target before it can become primary. A generic certificate issuer does not corroborate the address. API callers can replace that rule by adding an `EndpointAttributionRule` with the same `RuleId`, or add their own rules with a new ID.
+
+CSV exports include the complete serialized `AttributionCandidates` collection, including non-primary review candidates and their evidence. NDJSON retains the complete entry model directly.
+
+FTP TLS modes are explicit in the endpoint scheme:
+
+- `ftps://host[:port]` starts TLS immediately and defaults to port 990.
+- `ftps-explicit://host[:port]`, `ftpes://host[:port]`, and `ftp+tls://host[:port]` read the FTP greeting, send `AUTH TLS`, require a `234` response, and then negotiate TLS. They default to port 21.
+- `ftp://` remains unsupported because a clear-text FTP connection does not provide certificate evidence.
+
+The FTP TLS probe does not submit credentials and does not open a data connection.
+
 ### Capture controls quick reference
 
 | Control | Default | Purpose |
 | --- | --- | --- |
-| `-MaxTargets` (`-Limit`) | `0` (unlimited) | Cap total discovered probe targets (HTTPS + mail) for test/safety runs |
+| `-MaxTargets` (`-Limit`) | `0` (unlimited) | Cap total discovered probe targets (HTTPS + mail + FTP TLS) for test/safety runs |
 | `-MaxProbeStartsPerSecond` | `0` (unlimited) | Anti-hammer throttle for probe start rate |
 | `-MaxProbeErrorWarnings` | `25` | Limit verbose endpoint error warning noise |
 | `-ReuseRecentResults` | Off | Reuse recent persisted endpoint results to skip redundant probes |
@@ -105,6 +136,9 @@ Notes:
 | `-ReuseRecentFailureResults` | Off | Reuse recent stable failures to avoid immediately re-probing consistently dead endpoints |
 | `-RecentFailureResultTtlHours` | `1` | How long stable failure entries are eligible for reuse |
 | `-ReprobeExpiringWithinDays` | `14` | Always recheck endpoints whose certs expire soon |
+| `-DetectServices` | Off | Resolve DNS evidence and evaluate explainable provider/service rules |
+| `-ProbeVantage` | `default` | Persist a caller-defined observation location label |
+| `-AzureServiceTagsJsonPath` | Empty | Load current Azure service-tag ranges for IP-based attribution |
 | `-DisableNativeCtSharedIngestion` | Off | Disable shared native CT pass and fall back to per-domain native CT ingestion |
 | `-NativeCtRetryCount` | `3` | Retry transient native CT HTTP failures |
 | `-NativeCtCircuitBreakerFailureThreshold` | `3` | Open per-log circuit after repeated failures |
@@ -146,8 +180,8 @@ $domains = @(
     'evotec.pl'
     'microsoft.com'
     'google.com'
-    'eurofins.com'
-    'abb.com'
+    'example.com'
+    'example.org'
 )
 
 $capture = Invoke-DDCertificateInventory `
@@ -177,15 +211,15 @@ $capture | Format-List CapturedAtUtc,SnapshotPath,DomainCount,MxHostCount,EntryC
 
 Useful run telemetry now returned directly on the capture result:
 
-- `ReusedRecentEntryCount`, `ReusedRecentHttpsCount`, `ReusedRecentMailCount`
-- `ReusedRecentFailureEntryCount`, `ReusedRecentFailureHttpsCount`, `ReusedRecentFailureMailCount`
-- `ProbedHttpsCount`, `ProbedMailCount`
+- `ReusedRecentEntryCount`, `ReusedRecentHttpsCount`, `ReusedRecentMailCount`, `ReusedRecentFtpTlsCount`
+- `ReusedRecentFailureEntryCount`, `ReusedRecentFailureHttpsCount`, `ReusedRecentFailureMailCount`, `ReusedRecentFailureFtpTlsCount`
+- `ProbedHttpsCount`, `ProbedMailCount`, `ProbedFtpTlsCount`
 - `CtPromotedHttpsCount`, `CtSkippedHttpsPromotionCount`
 - `CtSkippedUnresolvedHttpsPromotionCount`, `CtSkippedLowConfidenceHttpsPromotionCount`, `CtSkippedDuplicateHttpsPromotionCount`
 - `MxPromotedHttpsCount`, `MxPromotedMailCount`
 - `MxInvalidArtifactCount`, `MxDuplicateHostCount`, `MxSkippedDuplicateHttpsPromotionCount`
-- `HttpsTargetCountBeforeLimit`, `MailTargetCountBeforeLimit`
-- `HttpsTargetCountDroppedByLimit`, `MailTargetCountDroppedByLimit`
+- `HttpsTargetCountBeforeLimit`, `MailTargetCountBeforeLimit`, `FtpTlsTargetCountBeforeLimit`
+- `HttpsTargetCountDroppedByLimit`, `MailTargetCountDroppedByLimit`, `FtpTlsTargetCountDroppedByLimit`
 - `TargetOriginCounts`, `CaptureDispositionCounts`
 - `TargetDecisionDiagnostics`
 - `TargetDecisionSummary`
@@ -233,7 +267,7 @@ For large domains where you want CT-seen hostnames added to scan scope:
 
 ```powershell
 Invoke-DDCertificateInventory `
-    -DomainName eurofins.com `
+    -DomainName example.com `
     -CacheDirectory .\cert-monitor `
     -IncludeCtSubdomains `
     -ReuseRecentResults `
@@ -251,7 +285,7 @@ Direct native CT ingestion (without `crt.sh`/Cert Spotter):
 
 ```powershell
 Invoke-DDCertificateInventory `
-    -DomainName eurofins.com,evotec.pl,evotec.xyz `
+    -DomainName example.com,example.org,microsoft.com `
     -CacheDirectory .\cert-monitor `
     -IncludeCtSubdomains `
     -EnableNativeCtLogSubdomains `
@@ -274,7 +308,7 @@ Invoke-DDCertificateInventory `
 CLI equivalent:
 
 ```bash
-DomainDetective.CLI CertificateInventoryCapture eurofins.com \
+DomainDetective.CLI CertificateInventoryCapture example.com \
   --include-ct-subdomains \
   --verify-ct-subdomains \
   --reuse-recent-results \

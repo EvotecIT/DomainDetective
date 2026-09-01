@@ -44,7 +44,7 @@ namespace DomainDetective.Tests {
                             Host = "api.example.com",
                             ResolvedHost = "api.example.com",
                             Port = 443,
-                            Service = "HTTPS-Alt",
+                            Service = "HTTPS",
                             CertificateThumbprint = "BBB222",
                             CertificateIssuerNormalized = "DigiCert",
                             NotAfterUtc = now.AddDays(365),
@@ -74,7 +74,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, drift.EndpointsWithCertificateChange);
             Assert.Equal(1, drift.EndpointsWithIssuerChange);
             Assert.Equal(1, drift.EndpointsWithExpiryChange);
-            Assert.Equal(1, drift.EndpointsWithServiceChange);
+            Assert.Equal(0, drift.EndpointsWithServiceChange);
             Assert.Equal(1, drift.EndpointsWithAuthenticationProfileChange);
             Assert.Equal(1, drift.EndpointsWithChainSourceChange);
             Assert.Equal(1, drift.EndpointsWithHighSeverityDrift);
@@ -93,11 +93,11 @@ namespace DomainDetective.Tests {
             Assert.True(api.CertificateChanged);
             Assert.True(api.IssuerChanged);
             Assert.True(api.ExpiryChanged);
-            Assert.True(api.ServiceChanged);
+            Assert.False(api.ServiceChanged);
             Assert.True(api.AuthenticationProfileChanged);
             Assert.True(api.ChainSourceChanged);
             Assert.Equal("High", api.DriftSeverity);
-            Assert.Equal(new[] { "certificate", "issuer", "expiry", "service", "auth-profile", "chain-source" }, api.ChangeKinds);
+            Assert.Equal(new[] { "certificate", "issuer", "expiry", "auth-profile", "chain-source" }, api.ChangeKinds);
             Assert.Equal("AAA111", api.PreviousCertificateId);
             Assert.Equal("BBB222", api.CurrentCertificateId);
             Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAuthOnly, api.PreviousAuthenticationProfile);
@@ -118,6 +118,33 @@ namespace DomainDetective.Tests {
             Assert.Equal("None", portal.DriftSeverity);
             Assert.Empty(portal.ChangeKinds);
             Assert.Null(portal.LastChangedAtUtc);
+        }
+
+        [Fact]
+        public void BuildDriftKeepsServicesOnSameHostAndPortSeparate() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() { Host = "multi.example.com", Port = 443, Service = "HTTPS", CertificateThumbprint = "HTTPS-1" },
+                        new() { Host = "multi.example.com", Port = 443, Service = "LDAPS", CertificateThumbprint = "LDAPS-1" }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() { Host = "multi.example.com", Port = 443, Service = "HTTPS", CertificateThumbprint = "HTTPS-1" },
+                        new() { Host = "multi.example.com", Port = 443, Service = "LDAPS", CertificateThumbprint = "LDAPS-1" }
+                    }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots, changedOnly: false, maxEndpoints: 100);
+
+            Assert.Equal(2, drift.EndpointCount);
+            Assert.Contains(drift.Endpoints, endpoint => endpoint.Service == "HTTPS" && endpoint.ObservationCount == 2);
+            Assert.Contains(drift.Endpoints, endpoint => endpoint.Service == "LDAPS" && endpoint.ObservationCount == 2);
         }
 
         [Fact]

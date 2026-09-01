@@ -13,6 +13,222 @@ namespace DomainDetective.Tests;
 
 public class TestCertificateInventoryCapture {
     [Fact]
+    public async Task CaptureAsync_EnrichesEndpointWithDnsEvidenceVantageAndAttribution() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (targets, _, _, _) => {
+                CertificateMonitor.Entry entry = CreateHttpsEntry(Assert.Single(targets), certificate);
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(new[] { entry });
+            },
+            EndpointDnsQueryOverride = (name, type, _) => {
+                DnsAnswer[] answers = (name, type) switch {
+                    ("service.example.com", DnsRecordType.CNAME) =>
+                        new[] { new DnsAnswer { Type = DnsRecordType.CNAME, DataRaw = "tenant.azurefd.net." } },
+                    ("tenant.azurefd.net", DnsRecordType.A) =>
+                        new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "203.0.113.10" } },
+                    _ => Array.Empty<DnsAnswer>()
+                };
+                return Task.FromResult(answers);
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            EnableEndpointAttribution = true,
+            ProbeVantage = "eu-test-vantage"
+        };
+        options.AdditionalEndpoints.Add("https://service.example.com");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(
+            Array.Empty<string>(),
+            options,
+            cancellationToken: CancellationToken.None);
+
+        CertificateInventoryEntry inventoryEntry = Assert.Single(result.Snapshot.Entries);
+        Assert.NotNull(inventoryEntry.ObservedAtUtc);
+        Assert.NotNull(inventoryEntry.DnsObservedAtUtc);
+        Assert.Equal("eu-test-vantage", inventoryEntry.ProbeVantage);
+        Assert.Contains("203.0.113.10", inventoryEntry.ResolvedAddresses);
+        Assert.Equal(new[] { "tenant.azurefd.net" }, inventoryEntry.CnameChain);
+        Providers.Endpoint.EndpointAttributionCandidate primary = Assert.IsType<Providers.Endpoint.EndpointAttributionCandidate>(inventoryEntry.Attribution?.Primary);
+        Assert.Equal("azure-front-door", primary.ServiceId);
+        Assert.True(inventoryEntry.Attribution!.EvaluatedAtUtc >= inventoryEntry.DnsObservedAtUtc!.Value);
+        Assert.Contains(
+            primary.Evidence,
+            evidence => evidence.Kind == Providers.Endpoint.EndpointAttributionSignalKind.Cname);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotReuseObservationFromAnotherVantage() {
+        const int port = 1;
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|FTPS-EXPLICIT"] = new CertificateInventoryEntry {
+                        Host = "localhost",
+                        ResolvedHost = "localhost",
+                        Port = port,
+                        Service = "FTPS-EXPLICIT",
+                        Scheme = "ftps-explicit",
+                        ProbeVantage = "cloud",
+                        IsReachable = true,
+                        Valid = true,
+                        CertificateThumbprint = "CACHED",
+                        NotAfterUtc = DateTimeOffset.UtcNow.AddDays(90)
+                    }
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            ProbeVantage = "branch-office",
+            FtpTlsTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add($"ftps-explicit://localhost:{port}");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentEntryCount);
+        Assert.Equal(1, result.ProbedFtpTlsCount);
+        Assert.Equal("branch-office", Assert.Single(result.Snapshot.Entries).ProbeVantage);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ReusesRecentFtpTlsObservationWithinSameVantage() {
+        const int port = 2121;
+        var cachedEntry = new CertificateInventoryEntry {
+            Host = "ftp.example.com",
+            ResolvedHost = "ftp.example.com",
+            Port = port,
+            Service = "FTPS-EXPLICIT",
+            Scheme = "ftps-explicit",
+            ProbeVantage = "branch-office",
+            IsReachable = true,
+            Valid = true,
+            CertificateThumbprint = "CACHED-FTPS",
+            NotAfterUtc = DateTimeOffset.UtcNow.AddDays(90)
+        };
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["ftp.example.com|2121|FTPS-EXPLICIT"] = cachedEntry
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            ProbeVantage = "branch-office"
+        };
+        options.AdditionalEndpoints.Add($"ftps-explicit://ftp.example.com:{port}");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(1, result.ReusedRecentEntryCount);
+        Assert.Equal(1, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(0, result.ProbedFtpTlsCount);
+        Assert.Equal("reused-recent-success", Assert.Single(result.Snapshot.Entries).CaptureDisposition);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_MixedVantageHistoryRetainsRequestedVantageEntry() {
+        string cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-vantage-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            foreach ((string vantage, DateTimeOffset capturedAt, string thumbprint) in new[] {
+                ("branch-office", now.AddMinutes(-20), "BRANCH-CERT"),
+                ("cloud", now.AddMinutes(-10), "CLOUD-CERT")
+            }) {
+                var snapshot = new CertificateInventorySnapshot { CapturedAtUtc = capturedAt, Port = 443 };
+                snapshot.Entries.Add(new CertificateInventoryEntry {
+                    Host = "service.example.com",
+                    ResolvedHost = "service.example.com",
+                    Port = 443,
+                    Service = "HTTPS",
+                    Scheme = "https",
+                    ProbeVantage = vantage,
+                    ObservedAtUtc = capturedAt,
+                    IsReachable = true,
+                    Valid = true,
+                    CertificateThumbprint = thumbprint,
+                    NotAfterUtc = now.AddDays(90)
+                });
+                using var monitor = new CertificateMonitor { CacheDirectory = cacheDirectory, PersistInventorySnapshots = false };
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            int probedTargetCount = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (targets, _, _, _) => {
+                    probedTargetCount = targets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                PersistSnapshot = false,
+                ReuseRecentSnapshotEntries = true,
+                RecentSnapshotTtl = TimeSpan.FromHours(1),
+                ProbeVantage = "branch-office"
+            };
+            options.AdditionalEndpoints.Add("https://service.example.com");
+
+            CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+            Assert.Equal(0, probedTargetCount);
+            Assert.Equal(1, result.ReusedRecentHttpsCount);
+            CertificateInventoryEntry entry = Assert.Single(result.Snapshot.Entries);
+            Assert.Equal("BRANCH-CERT", entry.CertificateThumbprint);
+            Assert.Equal("branch-office", entry.ProbeVantage);
+        } finally {
+            Directory.Delete(cacheDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_MalformedOptionalAzureCatalogBecomesWarning() {
+        string path = Path.Combine(Path.GetTempPath(), "dd-invalid-azure-" + Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(path, "{not-json");
+        try {
+            using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (targets, _, _, _) =>
+                    Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(new[] { CreateHttpsEntry(Assert.Single(targets), certificate) }),
+                EndpointDnsQueryOverride = (_, _, _) => Task.FromResult(Array.Empty<DnsAnswer>())
+            };
+            var options = new CertificateInventoryCaptureOptions {
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                PersistSnapshot = false,
+                EnableEndpointAttribution = true,
+                AzureServiceTagsJsonPath = path
+            };
+            options.AdditionalEndpoints.Add("https://service.example.com");
+
+            CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+            Assert.Single(result.Snapshot.Entries);
+            Assert.Contains(result.Warnings, warning => warning.Contains("could not be loaded", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task CaptureAsync_DiscoversEndpointsAndPersistsSnapshot_WithOverrides() {
         using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
         CertificateInventorySnapshot? persistedSnapshot = null;

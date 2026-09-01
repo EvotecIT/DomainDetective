@@ -79,8 +79,12 @@ namespace DomainDetective {
         public bool? CrlRevoked { get; private set; }
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+        /// <summary>Gets the actual remote address reached by the most recent observable TCP connection.</summary>
+        public IPAddress? RemoteAddress { get; private set; }
         /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
         public Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? OutboundAddressResolver { get; set; }
+        /// <summary>Gets redirect target hosts observed during the most recent HTTP analysis.</summary>
+        public List<string> RedirectTargets { get; } = new();
         /// <summary>Gets DNS names listed in the certificate subject alternative name extension.</summary>
         public List<string> SubjectAlternativeNames { get; } = new();
         /// <summary>Gets wildcard entries with matching subdomains.</summary>
@@ -252,6 +256,8 @@ namespace DomainDetective {
             IsSelfSigned = false;
             FailureReason = null;
             FailureKind = CertificateFailureKind.None;
+            RemoteAddress = null;
+            RedirectTargets.Clear();
             ResetChainSourceTracking();
             bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
@@ -307,6 +313,7 @@ namespace DomainDetective {
                             VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
                         };
                         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+                        CaptureRedirectTarget(uri: response.RequestMessage?.RequestUri, originalUrl: url);
                         IsReachable = response.IsSuccessStatusCode;
                         ProtocolVersion = response.Version;
                         Http3Supported = response.Version >= HttpVersion.Version30;
@@ -314,6 +321,7 @@ namespace DomainDetective {
 #else
                         var request = new HttpRequestMessage(HttpMethod.Get, url);
                         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+                        CaptureRedirectTarget(uri: response.RequestMessage?.RequestUri, originalUrl: url);
                         IsReachable = response.IsSuccessStatusCode;
                         ProtocolVersion = response.Version;
                         Http2Supported = response.Version.Major >= 2;
@@ -411,6 +419,7 @@ namespace DomainDetective {
             if (OutboundAddressResolver == null) {
                 var client = new TcpClient();
                 await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+                CaptureRemoteAddress(client);
                 return client;
             }
 
@@ -420,6 +429,7 @@ namespace DomainDetective {
                 var client = new TcpClient(address.AddressFamily);
                 try {
                     await client.ConnectAsync(address, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+                    CaptureRemoteAddress(client);
                     return client;
                 } catch (Exception ex) when (ex is not OperationCanceledException) {
                     lastError = ex;
@@ -427,6 +437,24 @@ namespace DomainDetective {
                 }
             }
             throw new SocketException(lastError is SocketException socketError ? socketError.ErrorCode : (int)SocketError.HostUnreachable);
+        }
+
+        private void CaptureRemoteAddress(TcpClient client) {
+            if (client.Client.RemoteEndPoint is IPEndPoint endpoint) {
+                RemoteAddress = endpoint.Address.IsIPv4MappedToIPv6
+                    ? endpoint.Address.MapToIPv4()
+                    : endpoint.Address;
+            }
+        }
+
+        private void CaptureRedirectTarget(Uri? uri, string originalUrl) {
+            if (uri == null || !Uri.TryCreate(originalUrl, UriKind.Absolute, out Uri? original) ||
+                string.Equals(uri.Host, original.Host, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+            if (!RedirectTargets.Contains(uri.Host, StringComparer.OrdinalIgnoreCase)) {
+                RedirectTargets.Add(uri.Host);
+            }
         }
 
         internal static Exception NormalizeProbeException(

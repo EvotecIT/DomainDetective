@@ -171,6 +171,47 @@ public class TestDnsInventoryAnalysis
         Assert.Equal(DnsCnameTargetProvider.Cloudflare, b.Provider);
     }
 
+    [Theory]
+    [InlineData("tenant.azurefd.net", DnsCnameTargetProvider.Azure, DnsCnameTargetService.AzureFrontDoor)]
+    [InlineData("tenant.azureedge.net", DnsCnameTargetProvider.Azure, DnsCnameTargetService.AzureCdn)]
+    [InlineData("tenant.trafficmanager.net", DnsCnameTargetProvider.Azure, DnsCnameTargetService.AzureTrafficManager)]
+    [InlineData("cdn.perf1.com", DnsCnameTargetProvider.NameShield, DnsCnameTargetService.NameShieldRedirection)]
+    public void CnameTargetDetectorDistinguishesManagedServices(
+        string target,
+        DnsCnameTargetProvider provider,
+        DnsCnameTargetService service)
+    {
+        DnsCnameTargetDetector.Match match = DnsCnameTargetDetector.Detect(target);
+
+        Assert.Equal(provider, match.Provider);
+        Assert.Equal(service, match.Service);
+    }
+
+    [Fact]
+    public async Task CnameInventoryKeepsProviderAndServiceFromSameTargetMatch()
+    {
+        var analysis = new DnsInventoryAnalysis
+        {
+            IncludeAuthorities = false,
+            QueryOverride = (_, type, _) => Task.FromResult(new DnsResponse
+            {
+                Status = DnsResponseCode.NoError,
+                Answers = type == DnsRecordType.CNAME
+                    ? new[]
+                    {
+                        new DnsAnswer { Name = "example.com", Type = DnsRecordType.CNAME, DataRaw = "a.cloudflare.net." },
+                        new DnsAnswer { Name = "example.com", Type = DnsRecordType.CNAME, DataRaw = "z.azurefd.net." }
+                    }
+                    : Array.Empty<DnsAnswer>()
+            })
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.Equal(DnsCnameTargetProvider.Azure, analysis.CnameTargetProvider);
+        Assert.Equal(DnsCnameTargetService.AzureFrontDoor, analysis.CnameTargetService);
+    }
+
     [Fact]
     public void CaaIssuerDetectorParsesCommonFormats()
     {

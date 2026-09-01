@@ -258,7 +258,7 @@ namespace DomainDetective {
         }
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
-            return CertificateInventoryEndpointKey.Build(entry, includeServiceDimension: false);
+            return CertificateInventoryEndpointKey.Build(entry);
         }
 
         private static int NormalizePort(int port) {

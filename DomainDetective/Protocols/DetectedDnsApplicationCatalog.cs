@@ -47,7 +47,10 @@ internal static class DetectedDnsApplicationCatalog {
             apps.Add(mailProviderApp);
         }
 
-        var cnameTargetApp = FromCnameTargetProvider(dnsInventory.CnameTargetProvider, dnsInventory.CnameTargetEvidence);
+        var cnameTargetApp = FromCnameTargetProvider(
+            dnsInventory.CnameTargetProvider,
+            dnsInventory.CnameTargetEvidence,
+            dnsInventory.CnameTargetService);
         if (cnameTargetApp != null) {
             apps.Add(cnameTargetApp);
         }
@@ -100,7 +103,10 @@ internal static class DetectedDnsApplicationCatalog {
         };
     }
 
-    public static DetectedDnsApplication? FromCnameTargetProvider(DnsCnameTargetProvider provider, IReadOnlyList<string>? evidence) {
+    public static DetectedDnsApplication? FromCnameTargetProvider(
+        DnsCnameTargetProvider provider,
+        IReadOnlyList<string>? evidence,
+        DnsCnameTargetService service = DnsCnameTargetService.Unknown) {
         if (provider == DnsCnameTargetProvider.Unknown) {
             return null;
         }
@@ -113,9 +119,10 @@ internal static class DetectedDnsApplicationCatalog {
             _ => DetectedDnsAppCategory.Other
         };
 
+        string identity = service != DnsCnameTargetService.Unknown ? service.ToString() : provider.ToString();
         return new DetectedDnsApplication {
-            Id = "cname-target-" + provider.ToString().ToLowerInvariant(),
-            Name = provider.ToString(),
+            Id = "cname-target-" + identity.ToLowerInvariant(),
+            Name = identity,
             Category = category,
             EvidenceKind = DetectedDnsAppEvidenceKind.CnameRecord,
             Confidence = Microsoft365DetectionConfidence.Strong,

@@ -24,9 +24,10 @@ public static partial class Converters
         var provider = analysis.Provider != DnsProvider.Unknown ? analysis.Provider.ToString() : "-";
         var mail = analysis.MailProvider != MailProviderKind.Unknown ? analysis.MailProvider.ToString() : "-";
         var cname = analysis.CnameTargetProvider != DnsCnameTargetProvider.Unknown ? analysis.CnameTargetProvider.ToString() : "-";
+        var cnameService = analysis.CnameTargetService != DnsCnameTargetService.Unknown ? analysis.CnameTargetService.ToString() : "-";
         var txt = analysis.TxtSignals != DnsTxtSignals.None ? analysis.TxtSignals.ToString() : "-";
         var caa = analysis.CaaIssuers != DnsCaaIssuers.None ? analysis.CaaIssuers.ToString() : "-";
-        var summary = $"{analysis.TotalRecords} record(s); types {analysis.RecordTypesQueried}; failed {analysis.RecordTypesFailed}; dns {provider}; mail {mail}; cname {cname}; txt {txt}; apps {analysis.DetectedDnsApplications?.Count ?? 0}; caa {caa}; authority {(analysis.IncludeAuthorities ? "on" : "off")}; additional {(analysis.IncludeAdditional ? "on" : "off")}";
+        var summary = $"{analysis.TotalRecords} record(s); types {analysis.RecordTypesQueried}; failed {analysis.RecordTypesFailed}; dns {provider}; mail {mail}; cname {cname}; cname-service {cnameService}; txt {txt}; apps {analysis.DetectedDnsApplications?.Count ?? 0}; caa {caa}; authority {(analysis.IncludeAuthorities ? "on" : "off")}; additional {(analysis.IncludeAdditional ? "on" : "off")}";
 
         return new DnsInventoryInfo
         {
@@ -45,6 +46,7 @@ public static partial class Converters
             MailProviderScore = analysis.MailProviderScore,
             MailProviderEvidence = analysis.MailProviderEvidence ?? Array.Empty<string>(),
             CnameTargetProvider = analysis.CnameTargetProvider,
+            CnameTargetService = analysis.CnameTargetService,
             CnameTargetFlags = analysis.CnameTargetFlags,
             CnameTargetEvidence = analysis.CnameTargetEvidence ?? Array.Empty<string>(),
             TxtSignals = analysis.TxtSignals,
@@ -103,6 +105,8 @@ public sealed class DnsInventoryInfo
     public IReadOnlyList<string> MailProviderEvidence { get; set; } = Array.Empty<string>();
     /// <summary>Gets or sets the cname target provider value.</summary>
     public DnsCnameTargetProvider CnameTargetProvider { get; set; }
+    /// <summary>Gets or sets the specific CNAME target service value.</summary>
+    public DnsCnameTargetService CnameTargetService { get; set; }
     /// <summary>Gets or sets the cname target flags value.</summary>
     public DnsCnameTargetFlags CnameTargetFlags { get; set; }
     /// <summary>Gets or sets the cname target evidence value.</summary>
