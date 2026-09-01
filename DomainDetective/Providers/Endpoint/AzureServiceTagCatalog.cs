@@ -114,25 +114,28 @@ public sealed class AzureServiceTagCatalog {
                     $"Azure service tag '{name}' must contain a properties object.");
             }
 
+            if (!properties.TryGetProperty("addressPrefixes", out JsonElement addressPrefixes)) {
+                throw new FormatException(
+                    $"Azure service tag '{name}' must contain an addressPrefixes array.");
+            }
+            if (addressPrefixes.ValueKind != JsonValueKind.Array) {
+                throw new FormatException(
+                    $"Azure service tag '{name}' contains an addressPrefixes field that is not an array.");
+            }
+
             var prefixes = new List<IpCidrRange>();
-            if (properties.TryGetProperty("addressPrefixes", out JsonElement addressPrefixes)) {
-                if (addressPrefixes.ValueKind != JsonValueKind.Array) {
+            foreach (JsonElement prefixElement in addressPrefixes.EnumerateArray()) {
+                if (prefixElement.ValueKind != JsonValueKind.String) {
                     throw new FormatException(
-                        $"Azure service tag '{name}' contains an addressPrefixes field that is not an array.");
+                        $"Azure service tag '{name}' contains a non-string address prefix value.");
                 }
-                foreach (JsonElement prefixElement in addressPrefixes.EnumerateArray()) {
-                    if (prefixElement.ValueKind != JsonValueKind.String) {
-                        throw new FormatException(
-                            $"Azure service tag '{name}' contains a non-string address prefix value.");
-                    }
-                    string prefixText = prefixElement.GetString() ?? string.Empty;
-                    try {
-                        prefixes.Add(IpCidrRange.Parse(prefixText));
-                    } catch (FormatException ex) {
-                        throw new FormatException(
-                            $"Azure service tag '{name}' contains invalid address prefix '{prefixText}'.",
-                            ex);
-                    }
+                string prefixText = prefixElement.GetString() ?? string.Empty;
+                try {
+                    prefixes.Add(IpCidrRange.Parse(prefixText));
+                } catch (FormatException ex) {
+                    throw new FormatException(
+                        $"Azure service tag '{name}' contains invalid address prefix '{prefixText}'.",
+                        ex);
                 }
             }
 

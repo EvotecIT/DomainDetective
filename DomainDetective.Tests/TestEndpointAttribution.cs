@@ -165,6 +165,18 @@ public class TestEndpointAttribution {
     }
 
     [Fact]
+    public void ProtocolEndpointsRejectBracketsAroundDnsHostnames() {
+        var mail = new MailTransportEndpoint("[mail.example.com]", 25);
+
+        ArgumentException mailException = Assert.Throws<ArgumentException>(() => mail.Validate());
+        ArgumentException ftpException = Assert.Throws<ArgumentException>(() =>
+            new FtpTlsEndpoint("[ftp.example.com]", 21, FtpTlsMode.Explicit));
+
+        Assert.Contains("IPv6", mailException.Message, StringComparison.Ordinal);
+        Assert.Contains("IPv6", ftpException.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HttpsOnArbitraryPortRetainsWebAttributionEligibility() {
         CertificateServiceDescriptor endpoint = CertificateServiceClassifier.Resolve(
             "https://tenant.example.com:10443",
@@ -341,6 +353,17 @@ public class TestEndpointAttribution {
 
         Assert.Contains("AzureFrontDoor.Frontend", exception.Message, StringComparison.Ordinal);
         Assert.Contains("non-string", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AzureCatalogRejectsNamedTagWithoutAddressPrefixes() {
+        const string json = "{\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{\"systemService\":\"AzureFrontDoor\"}}]}";
+
+        FormatException exception = Assert.Throws<FormatException>(() =>
+            AzureServiceTagCatalog.Parse(json, "test-catalog"));
+
+        Assert.Contains("AzureFrontDoor.Frontend", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("addressPrefixes", exception.Message, StringComparison.Ordinal);
     }
 
     [Theory]

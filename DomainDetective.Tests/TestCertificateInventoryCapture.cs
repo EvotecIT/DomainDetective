@@ -473,6 +473,35 @@ public class TestCertificateInventoryCapture {
         Assert.Equal(endpoint, diagnostic.Target);
     }
 
+    [Theory]
+    [InlineData("[mail.example.com]:25")]
+    [InlineData("[www.example.com]")]
+    [InlineData("smtp://[mail.example.com]:25")]
+    public async Task CaptureAsync_RejectsBracketsAroundDnsHostname(string endpoint) {
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (targets, _, _, _) => {
+                Assert.Empty(targets);
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(
+                    Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false
+        };
+        options.AdditionalEndpoints.Add(endpoint);
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Empty(result.Snapshot.Entries);
+        Assert.Contains(result.Warnings, warning => warning.Contains("invalid endpoint", StringComparison.OrdinalIgnoreCase));
+        TargetDecisionDiagnosticEntry diagnostic = Assert.Single(result.TargetDecisionDiagnostics);
+        Assert.Equal("invalid-endpoint", diagnostic.Reason);
+        Assert.Equal(endpoint, diagnostic.Target);
+    }
+
     [Fact]
     public async Task CaptureAsync_PrioritizesStaleFtpTlsTargetBeforeReusableHealthyTarget() {
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -581,6 +610,7 @@ public class TestCertificateInventoryCapture {
     [Theory]
     [InlineData("{not-json")]
     [InlineData("{\"values\":[null]}")]
+    [InlineData("{\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{}}]}")]
     public async Task CaptureAsync_MalformedOptionalAzureCatalogBecomesWarning(string malformedCatalog) {
         string path = Path.Combine(Path.GetTempPath(), "dd-invalid-azure-" + Guid.NewGuid().ToString("N") + ".json");
         File.WriteAllText(path, malformedCatalog);

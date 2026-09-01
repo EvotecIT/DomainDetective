@@ -45,6 +45,11 @@ public sealed class MailTransportEndpoint {
         if (string.IsNullOrWhiteSpace(HostName)) {
             throw new ArgumentException("A logical mail hostname is required.", nameof(HostName));
         }
+        if (!EndpointHostNormalizer.TryNormalize(HostName, out _)) {
+            throw new ArgumentException(
+                "Brackets are valid only around an IPv6 literal mail hostname.",
+                nameof(HostName));
+        }
         if (Port < 1 || Port > 65535) {
             throw new ArgumentOutOfRangeException(nameof(Port), "Port must be between 1 and 65535.");
         }

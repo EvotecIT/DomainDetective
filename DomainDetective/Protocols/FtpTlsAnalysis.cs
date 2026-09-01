@@ -49,6 +49,11 @@ public sealed class FtpTlsEndpoint {
         if (HostName.Length == 0) {
             throw new ArgumentException("An FTP TLS hostname is required.", nameof(HostName));
         }
+        if (!EndpointHostNormalizer.TryNormalize(HostName, out _)) {
+            throw new ArgumentException(
+                "Brackets are valid only around an IPv6 literal FTP TLS hostname.",
+                nameof(HostName));
+        }
         if (Port < 1 || Port > 65535) {
             throw new ArgumentOutOfRangeException(nameof(Port), "Port must be between 1 and 65535.");
         }

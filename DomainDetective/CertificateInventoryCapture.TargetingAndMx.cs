@@ -853,7 +853,9 @@ public sealed partial class CertificateInventoryCapture {
             }
             var value = raw.Trim();
             if (value.IndexOf("://", StringComparison.Ordinal) >= 0) {
-                if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Host)) {
+                if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+                    string.IsNullOrWhiteSpace(uri.Host) ||
+                    !EndpointHostNormalizer.TryNormalize(uri.Host, out _)) {
                     warnings.Add($"Skipping invalid endpoint '{value}'.");
                     targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
                         Stage = "additional-endpoints",
@@ -941,11 +943,23 @@ public sealed partial class CertificateInventoryCapture {
                         TargetOriginAdditionalEndpoint);
                 }
             } else {
-                AddHttpsTarget(
-                    httpsTargets,
-                    httpsTargetOriginsByEndpointKey,
-                    BuildHttpsUrl(value, options.HttpsPort),
-                    TargetOriginAdditionalEndpoint);
+                if (EndpointHostNormalizer.TryNormalize(value, out string normalizedHost) &&
+                    normalizedHost.Length > 0) {
+                    AddHttpsTarget(
+                        httpsTargets,
+                        httpsTargetOriginsByEndpointKey,
+                        BuildHttpsUrl(normalizedHost, options.HttpsPort),
+                        TargetOriginAdditionalEndpoint);
+                } else {
+                    warnings.Add($"Skipping invalid endpoint '{value}'.");
+                    targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                        Stage = "additional-endpoints",
+                        Action = "rejected",
+                        Reason = "invalid-endpoint",
+                        Target = value,
+                        Message = "Brackets are valid only around an IPv6 literal endpoint host."
+                    });
+                }
             }
         }
     }
@@ -1155,7 +1169,11 @@ public sealed partial class CertificateInventoryCapture {
         if (string.IsNullOrWhiteSpace(maybeHost)) {
             return false;
         }
-        host = maybeHost;
+        if (!EndpointHostNormalizer.TryNormalize(maybeHost, out string normalizedHost) ||
+            normalizedHost.Length == 0) {
+            return false;
+        }
+        host = normalizedHost;
         port = parsed;
         return true;
     }
