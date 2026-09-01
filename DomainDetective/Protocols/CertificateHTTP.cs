@@ -87,6 +87,8 @@ namespace DomainDetective {
         public IPAddress? RemoteAddress { get; private set; }
         /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
         public Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? OutboundAddressResolver { get; set; }
+        internal Func<AddressFamily, TcpClient> TcpClientFactory { get; set; } = family =>
+            family == AddressFamily.Unspecified ? new TcpClient() : new TcpClient(family);
         /// <summary>Gets redirect target hosts observed during the most recent HTTP analysis.</summary>
         public List<string> RedirectTargets { get; } = new();
         /// <summary>Gets DNS names listed in the certificate subject alternative name extension.</summary>
@@ -488,21 +490,29 @@ namespace DomainDetective {
 
         internal async Task<TcpClient> ConnectDirectAsync(string host, int port, CancellationToken cancellationToken) {
             if (OutboundAddressResolver == null) {
-                var client = new TcpClient();
-                await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-                CaptureRemoteAddress(client);
-                return client;
+                var client = TcpClientFactory(AddressFamily.Unspecified);
+                try {
+                    await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+                    CaptureRemoteAddress(client);
+                    return client;
+                } catch {
+                    client.Dispose();
+                    throw;
+                }
             }
 
             var addresses = await OutboundAddressResolver(host, cancellationToken).ConfigureAwait(false);
             Exception? lastError = null;
             foreach (var address in addresses) {
-                var client = new TcpClient(address.AddressFamily);
+                var client = TcpClientFactory(address.AddressFamily);
                 try {
                     await client.ConnectAsync(address, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
                     CaptureRemoteAddress(client);
                     return client;
-                } catch (Exception ex) when (ex is not OperationCanceledException) {
+                } catch (OperationCanceledException) {
+                    client.Dispose();
+                    throw;
+                } catch (Exception ex) {
                     lastError = ex;
                     client.Dispose();
                 }

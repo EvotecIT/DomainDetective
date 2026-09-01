@@ -131,6 +131,32 @@ public class TestConstrainedOutboundConnections {
     }
 
     [Fact]
+    public async Task MailConnectorNormalizesMappedPinnedAddressBeforeApprovalAndConnect() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try {
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var endpoint = new MailTransportEndpoint("mail.example.com", port) {
+                ConnectAddress = IPAddress.Parse("::ffff:127.0.0.1"),
+                AddressFamily = MailTransportAddressFamily.IPv4
+            };
+
+            var connect = MailTransportConnector.ConnectAsync(
+                endpoint,
+                (_, _) => Task.FromResult<IReadOnlyList<IPAddress>>(new[] { IPAddress.Loopback }),
+                CancellationToken.None);
+            using var accepted = await listener.AcceptTcpClientAsync();
+            using var client = await connect;
+
+            Assert.True(client.Connected);
+            var remote = Assert.IsType<IPEndPoint>(client.Client.RemoteEndPoint);
+            Assert.Equal(AddressFamily.InterNetwork, remote.AddressFamily);
+        } finally {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
     public async Task AwaitConnectDisposesSocketWhenCanceled() {
         using var client = new TcpClient();
         var socket = client.Client;

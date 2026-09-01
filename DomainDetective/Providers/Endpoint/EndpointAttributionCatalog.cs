@@ -49,6 +49,12 @@ public sealed class EndpointAttributionCatalog {
             throw new ArgumentException("An attribution rule requires a stable RuleId.", parameterName ?? nameof(rule));
         }
         rule.RuleId = rule.RuleId.Trim();
+        if (string.IsNullOrWhiteSpace(rule.RuleVersion)) {
+            throw new ArgumentException(
+                $"Endpoint attribution rule '{rule.RuleId}' requires a stable RuleVersion.",
+                parameterName ?? nameof(rule));
+        }
+        rule.RuleVersion = rule.RuleVersion.Trim();
         if (string.IsNullOrWhiteSpace(rule.ProviderId)) {
             throw new ArgumentException(
                 $"Endpoint attribution rule '{rule.RuleId}' requires a stable ProviderId.",

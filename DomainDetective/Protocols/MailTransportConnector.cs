@@ -28,6 +28,9 @@ internal static class MailTransportConnector {
             endpoint.ConnectAddress == null &&
             endpoint.AddressFamily == MailTransportAddressFamily.Any) {
             var isAddressLiteral = IPAddress.TryParse(endpoint.HostName, out var literalAddress);
+            if (isAddressLiteral) {
+                literalAddress = NormalizeAddress(literalAddress!);
+            }
             var client = isAddressLiteral
                 ? new TcpClient(literalAddress!.AddressFamily)
                 : new TcpClient();
@@ -46,24 +49,34 @@ internal static class MailTransportConnector {
         }
 
         IReadOnlyList<IPAddress> candidates;
+        IPAddress? connectAddress = endpoint.ConnectAddress == null
+            ? null
+            : NormalizeAddress(endpoint.ConnectAddress);
         if (outboundAddressResolver != null) {
             var approved = await outboundAddressResolver(endpoint.HostName, cancellationToken).ConfigureAwait(false)
                 ?? Array.Empty<IPAddress>();
-            if (endpoint.ConnectAddress != null) {
-                if (!approved.Any(address => address.Equals(endpoint.ConnectAddress))) {
+            IPAddress[] normalizedApproved = approved
+                .Where(address => address != null)
+                .Select(NormalizeAddress)
+                .Distinct()
+                .ToArray();
+            if (connectAddress != null) {
+                if (!normalizedApproved.Any(address => address.Equals(connectAddress))) {
                     throw new InvalidOperationException(
                         $"Connect address '{endpoint.ConnectAddress}' was not approved for logical host '{endpoint.HostName}'.");
                 }
-                candidates = new[] { endpoint.ConnectAddress };
+                candidates = new[] { connectAddress };
             } else {
-                candidates = approved;
+                candidates = normalizedApproved;
             }
-        } else if (endpoint.ConnectAddress != null) {
-            candidates = new[] { endpoint.ConnectAddress };
+        } else if (connectAddress != null) {
+            candidates = new[] { connectAddress };
         } else {
-            candidates = await Dns.GetHostAddressesAsync(endpoint.HostName)
+            candidates = (await Dns.GetHostAddressesAsync(endpoint.HostName)
                 .WaitWithCancellation(cancellationToken)
-                .ConfigureAwait(false);
+                .ConfigureAwait(false))
+                .Select(NormalizeAddress)
+                .ToArray();
         }
 
         var filtered = candidates
@@ -118,4 +131,7 @@ internal static class MailTransportConnector {
         !address.IsIPv4MappedToIPv6 && address.AddressFamily == AddressFamily.InterNetworkV6
             ? MailTransportAddressFamily.IPv6
             : MailTransportAddressFamily.IPv4;
+
+    private static IPAddress NormalizeAddress(IPAddress address) =>
+        address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
 }

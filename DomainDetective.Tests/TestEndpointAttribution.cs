@@ -803,6 +803,65 @@ public class TestEndpointAttribution {
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("\t")]
+    public void CustomRuleRejectsEmptyRuleVersion(string? invalidVersion) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.invalid-version",
+            RuleVersion = invalidVersion!,
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Invalid Version Rule"
+        };
+        rule.HostnamePrefixes.Add("edge.");
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            catalog.AddOrReplace(rule));
+
+        Assert.Contains("custom.invalid-version", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("RuleVersion", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CustomRuleNormalizesRuleVersion() {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.normalized-version",
+            RuleVersion = " 2026.09 ",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Normalized Version Rule"
+        };
+        rule.HostnamePrefixes.Add("edge.");
+
+        catalog.AddOrReplace(rule);
+
+        Assert.Equal("2026.09", rule.RuleVersion);
+    }
+
+    [Fact]
+    public void DetectorRejectsMissingRuleVersionAddedThroughMutableCatalog() {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.mutable-missing-version",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Missing Version Rule"
+        };
+        rule.HostnamePrefixes.Add("edge.");
+        catalog.Rules.Add(rule);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            new EndpointAttributionDetector(catalog));
+
+        Assert.Contains("custom.mutable-missing-version", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("RuleVersion", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData(-0.01d)]
     [InlineData(1.01d)]
     [InlineData(double.NaN)]

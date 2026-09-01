@@ -136,6 +136,22 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task DirectConnectorDisposesClientWhenConnectFails() {
+            var client = new CountingTcpClient();
+            var analysis = new CertificateAnalysis {
+                TcpClientFactory = _ => client
+            };
+
+            await Assert.ThrowsAnyAsync<SocketException>(() =>
+                analysis.ConnectDirectAsync(
+                    IPAddress.Loopback.ToString(),
+                    PortHelper.GetFreePort(),
+                    CancellationToken.None));
+
+            Assert.Equal(1, client.DisposeCount);
+        }
+
 #if NET8_0_OR_GREATER
         [Fact]
         public async Task FullHttpProbeCapturesPinnedRemoteAddress() {
@@ -853,6 +869,17 @@ namespace DomainDetective.Tests {
             protected override bool TryComputeLength(out long length) {
                 length = 0;
                 return false;
+            }
+        }
+
+        private sealed class CountingTcpClient : TcpClient {
+            public int DisposeCount { get; private set; }
+
+            protected override void Dispose(bool disposing) {
+                if (disposing) {
+                    DisposeCount++;
+                }
+                base.Dispose(disposing);
             }
         }
     }
