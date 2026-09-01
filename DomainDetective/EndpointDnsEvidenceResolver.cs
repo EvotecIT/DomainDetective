@@ -184,14 +184,18 @@ public sealed class EndpointDnsEvidenceResolver {
         };
     }
 
-    private Task<DnsAnswer[]> QueryAsync(
+    private async Task<DnsAnswer[]> QueryAsync(
         string name,
         DnsRecordType recordType,
         CancellationToken cancellationToken) {
+        DnsAnswer[]? answers;
         if (QueryDnsOverride != null) {
-            return QueryDnsOverride(name, recordType, cancellationToken);
+            answers = await QueryDnsOverride(name, recordType, cancellationToken).ConfigureAwait(false);
+        } else {
+            answers = await DnsConfiguration.QueryDNS(name, recordType, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
         }
-        return DnsConfiguration.QueryDNS(name, recordType, cancellationToken: cancellationToken);
+        return answers ?? Array.Empty<DnsAnswer>();
     }
 
     private static string SelectCnameTarget(

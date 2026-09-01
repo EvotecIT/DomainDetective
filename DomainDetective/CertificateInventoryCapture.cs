@@ -1430,8 +1430,8 @@ public sealed partial class CertificateInventoryCapture {
 
         var deduped = DeduplicateEntries(allEntries);
         var observationFallbackAtUtc = DateTimeOffset.UtcNow;
-        await EnrichEndpointObservationsAsync(deduped, options, observationFallbackAtUtc, warnings, cancellationToken).ConfigureAwait(false);
         EnrichEntriesWithCtSubdomainMetadata(deduped, ctDiscoveredSubdomainEntries, observationFallbackAtUtc);
+        await EnrichEndpointObservationsAsync(deduped, options, observationFallbackAtUtc, warnings, cancellationToken).ConfigureAwait(false);
         var capturedAtUtc = CertificateInventoryEntryHelpers.ResolveCapturedAtUtc(deduped, DateTimeOffset.UtcNow);
         var distinctPorts = deduped
             .Select(e => e.Port)

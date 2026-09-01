@@ -36,6 +36,21 @@ public class TestEndpointAttribution {
     }
 
     [Fact]
+    public async Task DnsEvidenceResolverTreatsNullOverrideAnswersAsEmpty() {
+        var resolver = new EndpointDnsEvidenceResolver {
+            QueryDnsOverride = (_, _, _) => Task.FromResult<DnsAnswer[]>(null!)
+        };
+
+        EndpointDnsEvidence evidence = await resolver.ResolveAsync("empty.example.com");
+
+        Assert.Equal("empty.example.com", evidence.EffectiveHostName);
+        Assert.Empty(evidence.CnameChain);
+        Assert.Empty(evidence.Addresses);
+        Assert.Empty(evidence.Errors);
+        Assert.True(evidence.AddressResolutionComplete);
+    }
+
+    [Fact]
     public async Task DnsEvidenceResolverSelectsCnameOwnedByCurrentChainNode() {
         DnsAnswer[] shuffledChain = {
             new() { Name = "edge.example.net.", Type = DnsRecordType.CNAME, DataRaw = "tenant.azurefd.net." },

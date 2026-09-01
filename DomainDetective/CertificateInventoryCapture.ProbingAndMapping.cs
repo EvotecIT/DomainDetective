@@ -317,7 +317,7 @@ public sealed partial class CertificateInventoryCapture {
                 FtpTlsEndpointTarget target = targets[targetIndex];
                 await rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false);
                 var analysis = new FtpTlsAnalysis { Timeout = options.FtpTlsTimeout };
-                FtpTlsResult result = await analysis.AnalyzeAsync(
+                using FtpTlsResult result = await analysis.AnalyzeAsync(
                     new FtpTlsEndpoint(target.Host, target.Port, target.Mode),
                     logger,
                     cancellationToken).ConfigureAwait(false);

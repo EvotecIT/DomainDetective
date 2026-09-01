@@ -15,6 +15,21 @@ using Xunit;
 namespace DomainDetective.Tests;
 
 public class TestFtpTlsAnalysis {
+    [Fact]
+    public void ResultDisposalReleasesOwnedCertificateEvidence() {
+        using X509Certificate2 sourceCertificate = CreateSelfSigned("localhost");
+        var result = new FtpTlsResult {
+            Certificate = CertificateLoaderCompat.Clone(sourceCertificate)
+        };
+        result.Chain.Add(CertificateLoaderCompat.Clone(sourceCertificate));
+
+        result.Dispose();
+        result.Dispose();
+
+        Assert.Null(result.Certificate);
+        Assert.Empty(result.Chain);
+    }
+
     [Theory]
     [InlineData(-1)]
     [InlineData(0)]
@@ -166,7 +181,7 @@ public class TestFtpTlsAnalysis {
         try {
             var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
             DateTimeOffset startedAtUtc = DateTimeOffset.UtcNow;
-            FtpTlsResult result = await analysis.AnalyzeAsync(
+            using FtpTlsResult result = await analysis.AnalyzeAsync(
                 new FtpTlsEndpoint("localhost", port, FtpTlsMode.Explicit) { ConnectAddress = IPAddress.Loopback },
                 new InternalLogger());
             DateTimeOffset completedAtUtc = DateTimeOffset.UtcNow;
@@ -211,7 +226,7 @@ public class TestFtpTlsAnalysis {
 
         try {
             var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
-            FtpTlsResult result = await analysis.AnalyzeAsync(
+            using FtpTlsResult result = await analysis.AnalyzeAsync(
                 new FtpTlsEndpoint("localhost", port, FtpTlsMode.Explicit) {
                     ConnectAddress = IPAddress.Parse("::ffff:127.0.0.1")
                 },
@@ -241,7 +256,7 @@ public class TestFtpTlsAnalysis {
 
         try {
             var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
-            FtpTlsResult result = await analysis.AnalyzeAsync(
+            using FtpTlsResult result = await analysis.AnalyzeAsync(
                 new FtpTlsEndpoint("localhost", port, FtpTlsMode.Explicit) { ConnectAddress = IPAddress.Loopback },
                 new InternalLogger());
 
@@ -272,7 +287,7 @@ public class TestFtpTlsAnalysis {
 
         try {
             var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
-            FtpTlsResult result = await analysis.AnalyzeAsync(
+            using FtpTlsResult result = await analysis.AnalyzeAsync(
                 new FtpTlsEndpoint("localhost", port, FtpTlsMode.Explicit) { ConnectAddress = IPAddress.Loopback },
                 new InternalLogger());
 
@@ -301,7 +316,7 @@ public class TestFtpTlsAnalysis {
 
         try {
             var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
-            FtpTlsResult result = await analysis.AnalyzeAsync(
+            using FtpTlsResult result = await analysis.AnalyzeAsync(
                 new FtpTlsEndpoint("localhost", port, FtpTlsMode.Implicit) { ConnectAddress = IPAddress.Loopback },
                 new InternalLogger());
 
@@ -333,7 +348,7 @@ public class TestFtpTlsAnalysis {
 
         try {
             var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
-            FtpTlsResult result = await analysis.AnalyzeAsync(
+            using FtpTlsResult result = await analysis.AnalyzeAsync(
                 new FtpTlsEndpoint("localhost", port, FtpTlsMode.Explicit) { ConnectAddress = IPAddress.Loopback },
                 new InternalLogger());
 

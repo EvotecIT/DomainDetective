@@ -2109,6 +2109,7 @@ public class TestCertificateInventoryCapture {
         var ctNotBefore = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var ctNotAfter = new DateTimeOffset(2026, 10, 1, 23, 59, 59, TimeSpan.Zero);
         var capture = new CertificateInventoryCapture {
+            EndpointDnsQueryOverride = (_, _, _) => Task.FromResult(Array.Empty<DnsAnswer>()),
             CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
                 IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
                     new SubdomainDiscoveryEntry {
@@ -2166,8 +2167,20 @@ public class TestCertificateInventoryCapture {
             IncludeSubmissionStartTls = false,
             IncludeImapTls = false,
             IncludePop3Tls = false,
+            EnableEndpointAttribution = true,
             PersistSnapshot = false
         };
+        var issuerRule = new EndpointAttributionRule {
+            RuleId = "custom.ct-issuer",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "ct-backed",
+            DisplayName = "CT-backed endpoint",
+            MinimumScore = 0.15,
+            AllowWeakSignalsAsPrimary = true
+        };
+        issuerRule.CertificateIssuerContains.Add("Test Issuer");
+        options.EndpointAttributionRules.Add(issuerRule);
 
         var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
 
@@ -2187,6 +2200,13 @@ public class TestCertificateInventoryCapture {
         Assert.Contains("ct-log", endpoint.CertificateChainSources, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("certspotter", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+        EndpointAttributionCandidate issuerCandidate = Assert.Single(
+            endpoint.Attribution!.Candidates,
+            candidate => candidate.RuleId == "custom.ct-issuer");
+        Assert.Contains(
+            issuerCandidate.Evidence,
+            evidence => evidence.Kind == EndpointAttributionSignalKind.CertificateIssuer &&
+                        evidence.ObservedValue.Contains("Test Issuer", StringComparison.Ordinal));
 
         var discovered = Assert.Single(result.CtDiscoveredSubdomainEntries);
         Assert.Equal("ct-only.example.com", discovered.Name);

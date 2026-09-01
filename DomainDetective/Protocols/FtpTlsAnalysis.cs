@@ -81,8 +81,13 @@ public sealed class FtpTlsConnectionEvidence {
     public string? RemoteAddressFamily { get; set; }
 }
 
-/// <summary>Protocol and certificate evidence returned by an FTP TLS probe.</summary>
-public sealed class FtpTlsResult {
+/// <summary>
+/// Protocol and certificate evidence returned by an FTP TLS probe.
+/// Dispose the result when its certificate evidence is no longer needed.
+/// </summary>
+public sealed class FtpTlsResult : IDisposable {
+    private bool _disposed;
+
     /// <summary>UTC time when this protocol observation completed.</summary>
     public DateTimeOffset ObservedAtUtc { get; set; }
 
@@ -137,6 +142,22 @@ public sealed class FtpTlsResult {
 
     /// <summary>Normalized failure classification.</summary>
     public CertificateFailureKind FailureKind { get; set; }
+
+    /// <summary>Releases the leaf and chain certificates owned by this result.</summary>
+    public void Dispose() {
+        if (_disposed) {
+            return;
+        }
+        _disposed = true;
+
+        Certificate?.Dispose();
+        Certificate = null;
+        foreach (X509Certificate2 certificate in Chain) {
+            certificate.Dispose();
+        }
+        Chain.Clear();
+        GC.SuppressFinalize(this);
+    }
 }
 
 /// <summary>Performs protocol-correct explicit or implicit FTP TLS certificate probing without authentication.</summary>
@@ -214,6 +235,11 @@ public sealed class FtpTlsAnalysis {
                 result.PolicyErrors = errors;
                 result.CertificateValid = errors == SslPolicyErrors.None;
                 result.HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                result.Certificate?.Dispose();
+                result.Certificate = null;
+                foreach (X509Certificate2 chainCertificate in result.Chain) {
+                    chainCertificate.Dispose();
+                }
                 result.Chain.Clear();
                 result.ChainErrors.Clear();
                 if (certificate != null) {
