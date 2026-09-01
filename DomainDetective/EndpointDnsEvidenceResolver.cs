@@ -19,6 +19,9 @@ public sealed class EndpointDnsEvidence {
     /// <summary>CNAME targets in traversal order.</summary>
     public IReadOnlyList<string> CnameChain { get; init; } = Array.Empty<string>();
 
+    /// <summary>True when a CNAME record was observed, even if its target was ambiguous.</summary>
+    public bool CnameRecordExists { get; init; }
+
     /// <summary>IPv4 and IPv6 addresses resolved for the effective hostname.</summary>
     public IReadOnlyList<string> Addresses { get; init; } = Array.Empty<string>();
 
@@ -86,8 +89,11 @@ public sealed class EndpointDnsEvidenceResolver {
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { normalizedHost };
         string current = normalizedHost;
         bool loopDetected = false;
+        bool cnameRecordExists = false;
 
-        for (int depth = 0; depth < MaxCnameDepth; depth++) {
+        // The extra query at MaxCnameDepth verifies whether the last followed target
+        // is terminal before reporting that another link exceeds the configured cap.
+        for (int depth = 0; depth <= MaxCnameDepth; depth++) {
             cancellationToken.ThrowIfCancellationRequested();
             DnsAnswer[] answers;
             try {
@@ -102,11 +108,20 @@ public sealed class EndpointDnsEvidenceResolver {
                 break;
             }
 
-            string next = SelectCnameTarget(current, answers, out bool ambiguousCname);
+            string next = SelectCnameTarget(
+                current,
+                answers,
+                out bool ambiguousCname,
+                out bool cnameObserved);
+            cnameRecordExists |= cnameObserved;
             if (ambiguousCname) {
                 errors.Add($"CNAME lookup for '{current}' returned multiple distinct targets.");
             }
             if (next.Length == 0) {
+                break;
+            }
+            if (depth == MaxCnameDepth) {
+                errors.Add($"CNAME chain exceeded MaxCnameDepth={MaxCnameDepth}.");
                 break;
             }
             if (!visited.Add(next)) {
@@ -117,9 +132,6 @@ public sealed class EndpointDnsEvidenceResolver {
 
             chain.Add(next);
             current = next;
-            if (depth == MaxCnameDepth - 1) {
-                errors.Add($"CNAME chain exceeded MaxCnameDepth={MaxCnameDepth}.");
-            }
         }
 
         if (chain.Count == 0 && !ResolveAddressesForOriginalHost) {
@@ -127,6 +139,7 @@ public sealed class EndpointDnsEvidenceResolver {
                 HostName = normalizedHost,
                 EffectiveHostName = current,
                 CnameChain = chain,
+                CnameRecordExists = cnameRecordExists,
                 AddressResolutionComplete = false,
                 Resolver = DnsConfiguration.DnsEndpoint.ToString(),
                 ObservedAtUtc = DateTimeOffset.UtcNow,
@@ -161,6 +174,7 @@ public sealed class EndpointDnsEvidenceResolver {
             HostName = normalizedHost,
             EffectiveHostName = current,
             CnameChain = chain,
+            CnameRecordExists = cnameRecordExists,
             Addresses = addresses.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList(),
             AddressResolutionComplete = completedAddressLookups == 2,
             Resolver = DnsConfiguration.DnsEndpoint.ToString(),
@@ -183,8 +197,10 @@ public sealed class EndpointDnsEvidenceResolver {
     private static string SelectCnameTarget(
         string current,
         IReadOnlyList<DnsAnswer> answers,
-        out bool ambiguous) {
+        out bool ambiguous,
+        out bool recordExists) {
         ambiguous = false;
+        recordExists = false;
         string normalizedCurrent = NormalizeHost(current);
         string[] ownerTargets = answers
             .Where(answer => answer.Type == DnsRecordType.CNAME &&
@@ -195,6 +211,7 @@ public sealed class EndpointDnsEvidenceResolver {
             .Take(2)
             .ToArray();
         if (ownerTargets.Length > 0) {
+            recordExists = true;
             ambiguous = ownerTargets.Length > 1;
             return ambiguous ? string.Empty : ownerTargets[0];
         }
@@ -210,6 +227,7 @@ public sealed class EndpointDnsEvidenceResolver {
             .Take(2)
             .ToArray();
         ambiguous = ownerlessTargets.Length > 1;
+        recordExists = ownerlessTargets.Length > 0;
         return ownerlessTargets.Length == 1 ? ownerlessTargets[0] : string.Empty;
     }
 

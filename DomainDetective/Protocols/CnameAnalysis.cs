@@ -57,9 +57,9 @@ public class CnameAnalysis : IHasAssessments {
         };
         EndpointDnsEvidence evidence = await resolver.ResolveAsync(domainName, ct).ConfigureAwait(false);
         Chain = evidence.CnameChain;
-        CnameRecordExists = Chain.Count > 0;
-        Target = CnameRecordExists ? Chain[Chain.Count - 1] : null;
-        TargetResolves = CnameRecordExists && evidence.Addresses.Count > 0;
+        CnameRecordExists = evidence.CnameRecordExists;
+        Target = Chain.Count > 0 ? Chain[Chain.Count - 1] : null;
+        TargetResolves = Target != null && evidence.Addresses.Count > 0;
         LoopDetected = evidence.LoopDetected;
 
         if (LoopDetected) {

@@ -57,12 +57,7 @@ namespace DomainDetective {
         /// <summary>Executes the guess service operation.</summary>
         public static string GuessService(string scheme, int port) {
             if (scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) {
-                if (port == 443) {
-                    return "HTTPS";
-                }
-                if (port == 8443 || port == 9443 || port == 4443) {
-                    return "HTTPS-Alt";
-                }
+                return port == 443 ? "HTTPS" : "HTTPS-Alt";
             }
 
             return port switch {

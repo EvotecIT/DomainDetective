@@ -68,7 +68,61 @@ public class TestEndpointAttribution {
 
         Assert.Equal("www.example.com", evidence.EffectiveHostName);
         Assert.Empty(evidence.CnameChain);
+        Assert.True(evidence.CnameRecordExists);
         Assert.Contains(evidence.Errors, error => error.Contains("multiple distinct targets", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DnsEvidenceResolverAcceptsTerminalChainAtExactDepthLimit() {
+        var resolver = new EndpointDnsEvidenceResolver {
+            MaxCnameDepth = 2,
+            ResolveAddressesForOriginalHost = false,
+            QueryDnsOverride = (name, type, _) => {
+                if (type != DnsRecordType.CNAME) {
+                    return Task.FromResult(Array.Empty<DnsAnswer>());
+                }
+                string? next = name switch {
+                    "a.example.com" => "b.example.com",
+                    "b.example.com" => "c.example.com",
+                    _ => null
+                };
+                return Task.FromResult(next == null
+                    ? Array.Empty<DnsAnswer>()
+                    : new[] { new DnsAnswer { Type = DnsRecordType.CNAME, DataRaw = next } });
+            }
+        };
+
+        EndpointDnsEvidence evidence = await resolver.ResolveAsync("a.example.com");
+
+        Assert.True(evidence.CnameRecordExists);
+        Assert.Equal("c.example.com", evidence.EffectiveHostName);
+        Assert.Equal(new[] { "b.example.com", "c.example.com" }, evidence.CnameChain);
+        Assert.DoesNotContain(evidence.Errors, error => error.Contains("MaxCnameDepth", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DnsEvidenceResolverReportsDepthOnlyWhenAnotherLinkExists() {
+        var resolver = new EndpointDnsEvidenceResolver {
+            MaxCnameDepth = 2,
+            ResolveAddressesForOriginalHost = false,
+            QueryDnsOverride = (name, type, _) => {
+                if (type != DnsRecordType.CNAME) {
+                    return Task.FromResult(Array.Empty<DnsAnswer>());
+                }
+                string next = name switch {
+                    "a.example.com" => "b.example.com",
+                    "b.example.com" => "c.example.com",
+                    _ => "d.example.com"
+                };
+                return Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.CNAME, DataRaw = next } });
+            }
+        };
+
+        EndpointDnsEvidence evidence = await resolver.ResolveAsync("a.example.com");
+
+        Assert.Equal("c.example.com", evidence.EffectiveHostName);
+        Assert.Equal(new[] { "b.example.com", "c.example.com" }, evidence.CnameChain);
+        Assert.Contains(evidence.Errors, error => error.Contains("MaxCnameDepth=2", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -108,6 +162,23 @@ public class TestEndpointAttribution {
         Assert.Contains("[2001:db8::30]", https.Url);
         Assert.Equal("2001:db8::31", mail.HostName);
         Assert.Equal("2001:db8::32", ftp.HostName);
+    }
+
+    [Fact]
+    public void HttpsOnArbitraryPortRetainsWebAttributionEligibility() {
+        CertificateServiceDescriptor endpoint = CertificateServiceClassifier.Resolve(
+            "https://tenant.example.com:10443",
+            443);
+
+        EndpointAttributionResult result = new EndpointAttributionDetector().Detect(new EndpointAttributionInput {
+            HostName = endpoint.Host,
+            Port = endpoint.Port,
+            Service = endpoint.Service,
+            CnameChain = new[] { "tenant.azurefd.net" }
+        });
+
+        Assert.Equal("HTTPS-Alt", endpoint.Service);
+        Assert.Equal("azure-front-door", result.Primary?.ServiceId);
     }
 
     [Fact]

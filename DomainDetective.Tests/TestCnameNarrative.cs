@@ -105,4 +105,24 @@ public class TestCnameNarrative {
         Assert.Equal(0, addressQueryCount);
         Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == CnameCodes.DnsLookupFailed);
     }
+
+    [Fact]
+    public async Task AmbiguousCnamePreservesRecordExistenceAndHonestNarrative() {
+        var analysis = new CnameAnalysis {
+            DnsConfiguration = new DnsConfiguration(),
+            QueryDnsOverride = (_, type) => Task.FromResult(type == DnsRecordType.CNAME
+                ? new[] { CreateAnswer("first.example.net"), CreateAnswer("second.example.net") }
+                : System.Array.Empty<DnsAnswer>())
+        };
+
+        await analysis.Analyze("alias.example.com", new InternalLogger());
+        CnameNarrative.Sections narrative = CnameNarrative.Build(analysis, analysis.Assessments);
+
+        Assert.True(analysis.CnameRecordExists);
+        Assert.Null(analysis.Target);
+        Assert.Contains(narrative.Highlights, highlight => highlight.Contains("ambiguous or unavailable", System.StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("CNAME target resolution is indeterminate.", narrative.Highlights);
+        Assert.DoesNotContain(narrative.Highlights, highlight => highlight.Contains("has no CNAME record", System.StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == CnameCodes.DnsLookupFailed);
+    }
 }
