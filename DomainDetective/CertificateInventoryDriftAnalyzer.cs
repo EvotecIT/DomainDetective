@@ -63,6 +63,8 @@ namespace DomainDetective {
         public int Port { get; set; }
         /// <summary>Gets or sets the service value.</summary>
         public string Service { get; set; } = string.Empty;
+        /// <summary>Gets or sets the probe vantage whose observations form this history.</summary>
+        public string ProbeVantage { get; set; } = "default";
         /// <summary>Gets or sets the first seen utc value.</summary>
         public DateTimeOffset? FirstSeenUtc { get; set; }
         /// <summary>Gets or sets the last seen utc value.</summary>
@@ -240,6 +242,7 @@ namespace DomainDetective {
                     Service = string.IsNullOrWhiteSpace(latest.Entry.Service)
                         ? CertificateServiceClassifier.GuessService(latest.Entry.Scheme ?? "https", latest.Entry.Port)
                         : latest.Entry.Service!,
+                    ProbeVantage = NormalizeProbeVantage(latest.Entry.ProbeVantage),
                     FirstSeenUtc = observations[0].CapturedAtUtc,
                     LastSeenUtc = latest.CapturedAtUtc,
                     ObservationCount = observations.Count,
@@ -315,6 +318,8 @@ namespace DomainDetective {
                 .OrderByDescending(row => row.LastChangedAtUtc ?? DateTimeOffset.MinValue)
                 .ThenBy(row => row.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(row => row.Port)
+                .ThenBy(row => row.Service, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(row => row.ProbeVantage, StringComparer.OrdinalIgnoreCase)
                 .Take(effectiveMaxEndpoints)
                 .ToList();
 
@@ -374,8 +379,11 @@ namespace DomainDetective {
         }
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
-            return CertificateInventoryEndpointKey.Build(entry);
+            return CertificateInventoryEndpointKey.Build(entry) + "|" + NormalizeProbeVantage(entry.ProbeVantage);
         }
+
+        private static string NormalizeProbeVantage(string? probeVantage) =>
+            string.IsNullOrWhiteSpace(probeVantage) ? "default" : probeVantage!.Trim();
 
         private static string PickIssuer(CertificateInventoryEntry entry) {
             if (!string.IsNullOrWhiteSpace(entry.CertificateIssuerNormalized)) {

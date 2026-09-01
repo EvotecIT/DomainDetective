@@ -199,6 +199,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         rows.Title = new TableTitle("Certificate Drift");
         rows.AddColumn("Host");
         rows.AddColumn("Port");
+        rows.AddColumn("Vantage");
         rows.AddColumn("Obs");
         rows.AddColumn("Distinct Certs");
         rows.AddColumn("Severity");
@@ -216,6 +217,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             rows.AddRow(
                 endpoint.Host,
                 endpoint.Port.ToString(),
+                endpoint.ProbeVantage,
                 endpoint.ObservationCount.ToString(),
                 endpoint.DistinctCertificateCount.ToString(),
                 endpoint.DriftSeverity,

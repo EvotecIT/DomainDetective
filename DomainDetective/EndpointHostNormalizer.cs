@@ -30,6 +30,13 @@ internal static class EndpointHostNormalizer {
             }
             normalized = address.ToString();
         }
+
+        if (IPAddress.TryParse(normalized, out IPAddress? literalAddress) && literalAddress != null) {
+            if (literalAddress.IsIPv4MappedToIPv6) {
+                literalAddress = literalAddress.MapToIPv4();
+            }
+            normalized = literalAddress.ToString();
+        }
         normalized = lowercase ? normalized.ToLowerInvariant() : normalized;
         return true;
     }

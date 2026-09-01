@@ -35,7 +35,19 @@ public sealed class EndpointAttributionDetector {
             throw new ArgumentNullException(nameof(catalog));
         }
         _catalogVersion = catalog.Version;
-        _rules = catalog.Rules.Select(rule => new CompiledAttributionRule(rule)).ToList();
+        var ruleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var compiledRules = new List<CompiledAttributionRule>(catalog.Rules.Count);
+        foreach (EndpointAttributionRule rule in catalog.Rules) {
+            var compiledRule = new CompiledAttributionRule(rule);
+            string ruleId = compiledRule.Rule.RuleId.Trim();
+            if (!ruleIds.Add(ruleId)) {
+                throw new ArgumentException(
+                    $"Endpoint attribution catalog contains duplicate RuleId '{ruleId}'.",
+                    nameof(catalog));
+            }
+            compiledRules.Add(compiledRule);
+        }
+        _rules = compiledRules;
     }
 
     /// <summary>Evaluates all rules and returns both primary and review candidates.</summary>
@@ -143,7 +155,7 @@ public sealed class EndpointAttributionDetector {
         bool ipNeedsCorroboration = rule.RequireCorroborationForIpAddressPrimary &&
                                     evidence.Any(item => item.Kind == EndpointAttributionSignalKind.IpAddress) &&
                                     !HasAllowedIpCorroboration(rule, evidence);
-        bool eligible = score >= Math.Max(0d, Math.Min(1d, rule.MinimumScore)) &&
+        bool eligible = score >= rule.MinimumScore &&
                         (hasStrongSignal || rule.AllowWeakSignalsAsPrimary) &&
                         !ipNeedsCorroboration;
         return new EndpointAttributionCandidate {

@@ -62,6 +62,15 @@ public sealed class EndpointAttributionCatalog {
                 $"Endpoint attribution rule '{rule.RuleId}' cannot use IpAddress as its own corroborating signal.",
                 parameterName ?? nameof(rule));
         }
+        if (double.IsNaN(rule.MinimumScore) ||
+            double.IsInfinity(rule.MinimumScore) ||
+            rule.MinimumScore < 0d ||
+            rule.MinimumScore > 1d) {
+            throw new ArgumentOutOfRangeException(
+                parameterName ?? nameof(rule),
+                rule.MinimumScore,
+                $"Endpoint attribution rule '{rule.RuleId}' requires MinimumScore between 0 and 1.");
+        }
         foreach (int port in rule.ApplicablePorts) {
             if (port < 1 || port > 65535) {
                 throw new ArgumentOutOfRangeException(

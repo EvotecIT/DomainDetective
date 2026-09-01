@@ -103,9 +103,15 @@ public sealed class AzureServiceTagCatalog {
                 throw new FormatException(
                     $"Azure service-tag JSON values[{itemIndex}] must be an object.");
             }
-            string name = ReadScalar(item, "name");
+            if (!item.TryGetProperty("name", out JsonElement nameElement) ||
+                nameElement.ValueKind != JsonValueKind.String) {
+                throw new FormatException(
+                    $"Azure service-tag JSON values[{itemIndex}] must contain a string name.");
+            }
+            string name = nameElement.GetString() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(name)) {
-                continue;
+                throw new FormatException(
+                    $"Azure service-tag JSON values[{itemIndex}] must contain a non-empty string name.");
             }
 
             if (!item.TryGetProperty("properties", out JsonElement properties) ||

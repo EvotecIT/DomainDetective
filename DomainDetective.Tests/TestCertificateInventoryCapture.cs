@@ -237,7 +237,9 @@ public class TestCertificateInventoryCapture {
 
         Assert.Equal(1, result.ReusedRecentEntryCount);
         Assert.Equal(1, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(0, result.FtpTlsEndpointCount);
         Assert.Equal(0, result.ProbedFtpTlsCount);
+        Assert.Empty(result.FtpTlsEndpoints);
         CertificateInventoryEntry reused = Assert.Single(result.Snapshot.Entries);
         Assert.Equal("reused-recent-success", reused.CaptureDisposition);
         Assert.Equal("192.0.2.50", reused.RemoteAddress);
@@ -611,6 +613,7 @@ public class TestCertificateInventoryCapture {
     [InlineData("{not-json")]
     [InlineData("{\"values\":[null]}")]
     [InlineData("{\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{}}]}")]
+    [InlineData("{\"values\":[{\"name\":123,\"properties\":{\"addressPrefixes\":[]}}]}")]
     public async Task CaptureAsync_MalformedOptionalAzureCatalogBecomesWarning(string malformedCatalog) {
         string path = Path.Combine(Path.GetTempPath(), "dd-invalid-azure-" + Guid.NewGuid().ToString("N") + ".json");
         File.WriteAllText(path, malformedCatalog);

@@ -148,6 +148,50 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDriftKeepsProbeVantageHistoriesSeparate() {
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventoryEntry Entry(string vantage, string thumbprint) => new() {
+                Host = "shared.example.com",
+                ResolvedHost = "shared.example.com",
+                Port = 443,
+                Service = "HTTPS",
+                ProbeVantage = vantage,
+                CertificateThumbprint = thumbprint
+            };
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        Entry("branch-office", "BRANCH-CERT"),
+                        Entry("cloud", "CLOUD-CERT")
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> {
+                        Entry("branch-office", "BRANCH-CERT"),
+                        Entry("cloud", "CLOUD-CERT")
+                    }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100);
+
+            Assert.Equal(2, drift.EndpointCount);
+            Assert.Equal(0, drift.EndpointsWithAnyChange);
+            Assert.All(drift.Endpoints, endpoint => {
+                Assert.Equal(2, endpoint.ObservationCount);
+                Assert.Equal(1, endpoint.DistinctCertificateCount);
+                Assert.Equal("None", endpoint.DriftSeverity);
+            });
+            Assert.Contains(drift.Endpoints, endpoint => endpoint.ProbeVantage == "branch-office");
+            Assert.Contains(drift.Endpoints, endpoint => endpoint.ProbeVantage == "cloud");
+        }
+
+        [Fact]
         public void BuildDriftChangedOnlyFiltersUnchangedEndpoints() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

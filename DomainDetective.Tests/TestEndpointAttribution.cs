@@ -165,6 +165,26 @@ public class TestEndpointAttribution {
     }
 
     [Fact]
+    public void EndpointIdentityCanonicalizesBracketedAndUnbracketedIpLiterals() {
+        CertificateEndpointIdentity bracketed = CertificateEndpointIdentity.Create(
+            "[2001:db8::40]",
+            443,
+            "HTTPS");
+        CertificateEndpointIdentity expanded = CertificateEndpointIdentity.Create(
+            "2001:0db8:0000:0000:0000:0000:0000:0040",
+            443,
+            "HTTPS");
+        CertificateEndpointIdentity mapped = CertificateEndpointIdentity.Create(
+            "::ffff:192.0.2.40",
+            443,
+            "HTTPS");
+
+        Assert.Equal(bracketed, expanded);
+        Assert.Equal("2001:db8::40", expanded.Host);
+        Assert.Equal("192.0.2.40", mapped.Host);
+    }
+
+    [Fact]
     public void ProtocolEndpointsRejectBracketsAroundDnsHostnames() {
         var mail = new MailTransportEndpoint("[mail.example.com]", 25);
 
@@ -364,6 +384,20 @@ public class TestEndpointAttribution {
 
         Assert.Contains("AzureFrontDoor.Frontend", exception.Message, StringComparison.Ordinal);
         Assert.Contains("addressPrefixes", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("123")]
+    [InlineData("null")]
+    [InlineData("{\"unexpected\":true}")]
+    public void AzureCatalogRejectsNonStringServiceTagName(string malformedName) {
+        string json = "{\"values\":[{\"name\":" + malformedName + ",\"properties\":{\"addressPrefixes\":[]}}]}";
+
+        FormatException exception = Assert.Throws<FormatException>(() =>
+            AzureServiceTagCatalog.Parse(json, "test-catalog"));
+
+        Assert.Contains("values[0]", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("string name", exception.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -595,6 +629,49 @@ public class TestEndpointAttribution {
         Assert.Equal(invalidPort, exception.ActualValue);
         Assert.Contains("custom.invalid-port", exception.Message, StringComparison.Ordinal);
         Assert.Contains("between 1 and 65535", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(-0.01d)]
+    [InlineData(1.01d)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void CustomRuleRejectsInvalidMinimumScore(double invalidScore) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.invalid-score",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Invalid Score Rule",
+            MinimumScore = invalidScore
+        };
+
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            catalog.AddOrReplace(rule));
+
+        Assert.Contains("custom.invalid-score", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("between 0 and 1", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DetectorRejectsDuplicateRuleIdentifiersInMutableCatalog() {
+        var catalog = new EndpointAttributionCatalog();
+        foreach (string providerId in new[] { "provider-a", "provider-b" }) {
+            catalog.Rules.Add(new EndpointAttributionRule {
+                RuleId = "custom.duplicate",
+                RuleVersion = "1",
+                ProviderId = providerId,
+                ServiceId = "edge",
+                DisplayName = "Duplicate Rule"
+            });
+        }
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            new EndpointAttributionDetector(catalog));
+
+        Assert.Contains("custom.duplicate", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("duplicate", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

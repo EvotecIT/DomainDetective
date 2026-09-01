@@ -1492,7 +1492,7 @@ public sealed partial class CertificateInventoryCapture {
             MxHostCount = mxHosts.Count,
             HttpsEndpointCount = httpsTargets.Count,
             MailEndpointCount = mailTargets.Count,
-            FtpTlsEndpointCount = ftpTlsTargets.Count,
+            FtpTlsEndpointCount = ftpTlsTargetsToProbe.Count,
             EntryCount = deduped.Count,
             ReusedRecentEntryCount = reusedHttps + reusedMail + reusedFtpTls,
             ReusedRecentHttpsCount = reusedHttps,
@@ -1542,7 +1542,7 @@ public sealed partial class CertificateInventoryCapture {
                 .ThenBy(x => x.Port)
                 .Select(BuildMailTargetLabel)
                 .ToList(),
-            FtpTlsEndpoints = ftpTlsTargets.Values
+            FtpTlsEndpoints = ftpTlsTargetsToProbe
                 .OrderBy(x => x.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.Port)
                 .ThenBy(x => x.Service, StringComparer.OrdinalIgnoreCase)
