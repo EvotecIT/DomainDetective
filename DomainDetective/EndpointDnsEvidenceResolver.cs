@@ -22,6 +22,9 @@ public sealed class EndpointDnsEvidence {
     /// <summary>IPv4 and IPv6 addresses resolved for the effective hostname.</summary>
     public IReadOnlyList<string> Addresses { get; init; } = Array.Empty<string>();
 
+    /// <summary>True when both A and AAAA lookups completed, including valid empty answers.</summary>
+    public bool AddressResolutionComplete { get; init; }
+
     /// <summary>DNS endpoint used by the resolver.</summary>
     public string Resolver { get; init; } = string.Empty;
 
@@ -96,10 +99,12 @@ public sealed class EndpointDnsEvidenceResolver {
         }
 
         var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int completedAddressLookups = 0;
         foreach (DnsRecordType type in new[] { DnsRecordType.A, DnsRecordType.AAAA }) {
             cancellationToken.ThrowIfCancellationRequested();
             try {
                 DnsAnswer[] answers = await QueryAsync(current, type, cancellationToken).ConfigureAwait(false);
+                completedAddressLookups++;
                 foreach (DnsAnswer answer in answers) {
                     string value = (answer.Data ?? answer.DataRaw ?? string.Empty).Trim();
                     if (IPAddress.TryParse(value, out IPAddress? address) && address != null) {
@@ -118,6 +123,7 @@ public sealed class EndpointDnsEvidenceResolver {
             EffectiveHostName = current,
             CnameChain = chain,
             Addresses = addresses.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList(),
+            AddressResolutionComplete = completedAddressLookups == 2,
             Resolver = DnsConfiguration.DnsEndpoint.ToString(),
             ObservedAtUtc = DateTimeOffset.UtcNow,
             LoopDetected = loopDetected,

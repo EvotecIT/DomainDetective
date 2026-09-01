@@ -46,7 +46,11 @@ public sealed partial class CertificateInventoryCapture {
             string serviceTagPath = options.AzureServiceTagsJsonPath!;
             try {
                 azureServiceTags = AzureServiceTagCatalog.LoadFile(serviceTagPath);
-            } catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is FormatException || ex is JsonException) {
+            } catch (Exception ex) when (ex is IOException ||
+                                         ex is UnauthorizedAccessException ||
+                                         ex is ArgumentException ||
+                                         ex is FormatException ||
+                                         ex is JsonException) {
                 warnings.Add($"Azure service-tag catalog could not be loaded from '{serviceTagPath}': {ex.Message}");
             }
         }

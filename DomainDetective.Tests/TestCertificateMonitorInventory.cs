@@ -46,6 +46,8 @@ namespace DomainDetective.Tests {
                     Assert.Equal("HTTPS", entry.Service);
                     Assert.Equal(443, entry.Port);
                     Assert.Equal("https", entry.Scheme);
+                    Assert.NotNull(entry.ObservedAtUtc);
+                    Assert.True(entry.ObservedAtUtc <= snapshot.CapturedAtUtc);
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateIssuerNormalized));
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateThumbprint));
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateSerialNumber));

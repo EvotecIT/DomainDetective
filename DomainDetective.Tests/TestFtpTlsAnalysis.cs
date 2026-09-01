@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Security;
@@ -54,9 +55,67 @@ public class TestFtpTlsAnalysis {
             Assert.Equal("ftps-explicit", entry.Scheme);
             Assert.Equal(IPAddress.Loopback.ToString(), entry.RemoteAddress);
             Assert.NotNull(entry.ObservedAtUtc);
+            Assert.True(entry.ObservedAtUtc <= capture.Snapshot.CapturedAtUtc);
+            Assert.NotEqual(capture.Snapshot.CapturedAtUtc, entry.ObservedAtUtc);
             Assert.Equal("default", entry.ProbeVantage);
             Assert.NotNull(entry.CertificateThumbprint);
             Assert.False(entry.ChainComplete);
+        } finally {
+            listener.Stop();
+            await server;
+        }
+    }
+
+    [Fact]
+    public async Task ExplicitFtpsParticipatesInGlobalTargetAllocation() {
+        using X509Certificate2 certificate = CreateSelfSigned("localhost");
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        Task server = Task.Run(async () => {
+            using TcpClient client = await listener.AcceptTcpClientAsync();
+            using NetworkStream network = client.GetStream();
+            using var reader = new StreamReader(network, Encoding.ASCII, false, 1024, true);
+            using var writer = new StreamWriter(network, Encoding.ASCII, 1024, true) { AutoFlush = true, NewLine = "\r\n" };
+            await writer.WriteLineAsync("220 Ready");
+            Assert.Equal("AUTH TLS", await reader.ReadLineAsync());
+            await writer.WriteLineAsync("234 AUTH TLS accepted");
+            using var ssl = new SslStream(network, false);
+            await ssl.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
+        });
+
+        try {
+            int httpsTargetsObserved = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (targets, _, _, _) => {
+                    httpsTargetsObserved = targets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+            var options = new CertificateInventoryCaptureOptions {
+                IncludeApexHttps = true,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                PersistSnapshot = false,
+                MaxTargets = 1,
+                FtpTlsTimeout = TimeSpan.FromSeconds(5)
+            };
+            options.AdditionalEndpoints.Add($"ftps-explicit://localhost:{port}");
+
+            CertificateInventoryCaptureResult result = await capture.CaptureAsync(
+                new[] { "example.com" },
+                options,
+                new InternalLogger());
+
+            Assert.Equal(0, httpsTargetsObserved);
+            Assert.Equal(0, result.HttpsEndpointCount);
+            Assert.Equal(1, result.FtpTlsEndpointCount);
+            Assert.Equal(1, result.ProbedFtpTlsCount);
+            Assert.Equal(1, result.HttpsTargetCountDroppedByLimit);
+            Assert.Equal(0, result.FtpTlsTargetCountDroppedByLimit);
+            Assert.Equal("FTPS-EXPLICIT", Assert.Single(result.Snapshot.Entries).Service);
+            Assert.Contains(result.TargetDecisionDiagnostics, diagnostic =>
+                diagnostic.Service == "HTTPS" && diagnostic.Reason == "max-targets");
         } finally {
             listener.Stop();
             await server;
@@ -85,9 +144,11 @@ public class TestFtpTlsAnalysis {
 
         try {
             var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
+            DateTimeOffset startedAtUtc = DateTimeOffset.UtcNow;
             FtpTlsResult result = await analysis.AnalyzeAsync(
                 new FtpTlsEndpoint("localhost", port, FtpTlsMode.Explicit) { ConnectAddress = IPAddress.Loopback },
                 new InternalLogger());
+            DateTimeOffset completedAtUtc = DateTimeOffset.UtcNow;
 
             Assert.Equal("AUTH TLS", receivedCommand);
             Assert.True(result.TlsNegotiated);
@@ -97,6 +158,7 @@ public class TestFtpTlsAnalysis {
             Assert.False(result.ChainValid);
             Assert.NotEmpty(result.ChainErrors);
             Assert.Equal(IPAddress.Loopback.ToString(), result.Connection.RemoteAddress);
+            Assert.InRange(result.ObservedAtUtc, startedAtUtc, completedAtUtc);
             Assert.Equal("220 Ready", result.Greeting[result.Greeting.Count - 1]);
             Assert.Equal("234 AUTH TLS accepted", result.AuthTlsResponse[result.AuthTlsResponse.Count - 1]);
         } finally {

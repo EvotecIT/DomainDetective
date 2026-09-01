@@ -41,7 +41,11 @@ public sealed class AzureServiceTagCatalog {
         ChangeNumber = changeNumber;
         Source = source;
         RetrievedAtUtc = retrievedAtUtc;
-        _entries = entries.ToDictionary(entry => entry.Name, StringComparer.OrdinalIgnoreCase);
+        try {
+            _entries = entries.ToDictionary(entry => entry.Name, StringComparer.OrdinalIgnoreCase);
+        } catch (ArgumentException ex) {
+            throw new FormatException("Azure service-tag JSON contains duplicate service-tag names.", ex);
+        }
     }
 
     /// <summary>Cloud name reported by the source catalog.</summary>

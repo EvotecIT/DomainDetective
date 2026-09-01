@@ -1254,8 +1254,26 @@ public sealed partial class CertificateInventoryCapture {
         var httpsTargetCountBeforeLimit = httpsTargets.Count;
         var mailTargetCountBeforeLimit = mailTargets.Count;
         var ftpTlsTargetCountBeforeLimit = ftpTlsTargets.Count;
+        int nonFtpTargetBudget = -1;
+        if (options.MaxTargets > 0) {
+            int nonFtpCandidateCount = httpsTargets.Count +
+                                       mailTargets.Count +
+                                       reusedSuccessCandidates.Count;
+            int allowedFtpTls = ResolveFtpTlsTargetBudget(
+                ftpTlsTargets.Count,
+                nonFtpCandidateCount,
+                options.MaxTargets);
+            ApplyFtpTlsTargetLimit(
+                options,
+                ftpTlsTargets,
+                allowedFtpTls,
+                warnings,
+                targetDecisionDiagnostics);
+            nonFtpTargetBudget = Math.Max(0, options.MaxTargets - ftpTlsTargets.Count);
+        }
         ApplyTargetLimitIncludingReusedSuccesses(
             options,
+            nonFtpTargetBudget,
             httpsTargets,
             httpsTargetOriginsByEndpointKey,
             mailTargets,
@@ -1267,34 +1285,6 @@ public sealed partial class CertificateInventoryCapture {
             targetDecisionDiagnostics,
             ref reusedHttps,
             ref reusedMail);
-        if (options.MaxTargets > 0 && ftpTlsTargets.Count > 0) {
-            int occupied = httpsTargets.Count + mailTargets.Count + cachedEntries.Count;
-            int available = Math.Max(0, options.MaxTargets - occupied);
-            if (ftpTlsTargets.Count > available) {
-                FtpTlsEndpointTarget[] kept = ftpTlsTargets.Values
-                    .OrderBy(target => target.Host, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(target => target.Port)
-                    .ThenBy(target => target.Service, StringComparer.OrdinalIgnoreCase)
-                    .Take(available)
-                    .ToArray();
-                FtpTlsEndpointTarget[] dropped = ftpTlsTargets.Values.Except(kept).ToArray();
-                ftpTlsTargets.Clear();
-                foreach (FtpTlsEndpointTarget target in kept) {
-                    ftpTlsTargets[target.Key] = target;
-                }
-                foreach (FtpTlsEndpointTarget target in dropped) {
-                    targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
-                        Stage = "target-limit",
-                        Action = "dropped",
-                        Reason = "max-targets",
-                        Target = $"{target.Scheme}://{target.Host}:{target.Port}",
-                        Service = target.Service,
-                        Message = "FTP TLS endpoint was outside the global MaxTargets budget."
-                    });
-                }
-                warnings.Add($"FTP TLS target list capped from {ftpTlsTargetCountBeforeLimit} to {ftpTlsTargets.Count} by the remaining MaxTargets budget.");
-            }
-        }
         var httpsTargetCountDroppedByLimit = Math.Max(0, httpsTargetCountBeforeLimit - httpsTargets.Count);
         var mailTargetCountDroppedByLimit = Math.Max(0, mailTargetCountBeforeLimit - mailTargets.Count);
         var ftpTlsTargetCountDroppedByLimit = Math.Max(0, ftpTlsTargetCountBeforeLimit - ftpTlsTargets.Count);

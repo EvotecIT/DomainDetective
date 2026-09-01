@@ -231,6 +231,7 @@ public sealed partial class CertificateInventoryCapture {
 
     private static void ApplyTargetLimit(
         CertificateInventoryCaptureOptions options,
+        int maxTargets,
         HashSet<string> httpsTargets,
         Dictionary<string, HashSet<string>> httpsTargetOriginsByEndpointKey,
         Dictionary<string, MailEndpointTarget> mailTargets,
@@ -238,18 +239,18 @@ public sealed partial class CertificateInventoryCapture {
         IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
         int reprobeExpiringWithinDays,
         List<TargetDecisionDiagnosticEntry> targetDecisionDiagnostics) {
-        if (options.MaxTargets <= 0) {
+        if (maxTargets < 0) {
             return;
         }
 
         var totalTargets = httpsTargets.Count + mailTargets.Count;
-        if (totalTargets <= options.MaxTargets) {
+        if (totalTargets <= maxTargets) {
             return;
         }
 
         var originalHttps = httpsTargets.Count;
         var originalMail = mailTargets.Count;
-        var limit = options.MaxTargets;
+        var limit = maxTargets;
         ResolveTargetBudget(
             originalHttps,
             originalMail,
@@ -338,11 +339,12 @@ public sealed partial class CertificateInventoryCapture {
             PruneTrackedHttpsOrigins(httpsTargetOriginsByEndpointKey, keptHttps);
         }
 
-        warnings.Add($"Probe target list capped from {totalTargets} to {options.MaxTargets} by MaxTargets (HTTPS: {originalHttps}->{httpsTargets.Count}, Mail: {originalMail}->{mailTargets.Count}).");
+        warnings.Add($"Probe target list capped from {totalTargets} to {httpsTargets.Count + mailTargets.Count} within global MaxTargets={options.MaxTargets} (HTTPS: {originalHttps}->{httpsTargets.Count}, Mail: {originalMail}->{mailTargets.Count}).");
     }
 
     private static void ApplyTargetLimitIncludingReusedSuccesses(
         CertificateInventoryCaptureOptions options,
+        int maxTargets,
         HashSet<string> httpsTargets,
         Dictionary<string, HashSet<string>> httpsTargetOriginsByEndpointKey,
         Dictionary<string, MailEndpointTarget> mailTargets,
@@ -357,6 +359,7 @@ public sealed partial class CertificateInventoryCapture {
         if (reusedSuccessCandidates.Count == 0) {
             ApplyTargetLimit(
                 options,
+                maxTargets,
                 httpsTargets,
                 httpsTargetOriginsByEndpointKey,
                 mailTargets,
@@ -367,7 +370,7 @@ public sealed partial class CertificateInventoryCapture {
             return;
         }
 
-        if (options.MaxTargets <= 0) {
+        if (maxTargets < 0) {
             cachedEntries.AddRange(reusedSuccessCandidates.Select(static candidate => candidate.Entry));
             reusedHttps += reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Https);
             reusedMail += reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail);
@@ -377,7 +380,7 @@ public sealed partial class CertificateInventoryCapture {
         var originalHttps = httpsTargets.Count + reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Https);
         var originalMail = mailTargets.Count + reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail);
         var totalTargets = originalHttps + originalMail;
-        if (totalTargets <= options.MaxTargets) {
+        if (totalTargets <= maxTargets) {
             cachedEntries.AddRange(reusedSuccessCandidates.Select(static candidate => candidate.Entry));
             reusedHttps += reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Https);
             reusedMail += reusedSuccessCandidates.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail);
@@ -387,7 +390,7 @@ public sealed partial class CertificateInventoryCapture {
         ResolveTargetBudget(
             originalHttps,
             originalMail,
-            options.MaxTargets,
+            maxTargets,
             out var allowedHttps,
             out var allowedMail);
 
@@ -521,7 +524,9 @@ public sealed partial class CertificateInventoryCapture {
         reusedHttps += keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Https);
         reusedMail += keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail);
 
-        warnings.Add($"Probe target list capped from {totalTargets} to {options.MaxTargets} by MaxTargets (HTTPS: {originalHttps}->{httpsTargets.Count + keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Https)}, Mail: {originalMail}->{mailTargets.Count + keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail)}).");
+        int keptHttpsCount = httpsTargets.Count + keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Https);
+        int keptMailCount = mailTargets.Count + keptReused.Count(static candidate => candidate.Kind == ReusedTargetKind.Mail);
+        warnings.Add($"Probe target list capped from {totalTargets} to {keptHttpsCount + keptMailCount} within global MaxTargets={options.MaxTargets} (HTTPS: {originalHttps}->{keptHttpsCount}, Mail: {originalMail}->{keptMailCount}).");
     }
 
     private static int ComputeHttpsTargetPriority(
@@ -651,6 +656,72 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         return (int)Math.Floor((entry.NotAfterUtc.Value - DateTimeOffset.UtcNow).TotalDays);
+    }
+
+    private static int ResolveFtpTlsTargetBudget(
+        int ftpTlsCount,
+        int nonFtpCount,
+        int maxTargets) {
+        int normalizedFtpTls = Math.Max(0, ftpTlsCount);
+        int normalizedNonFtp = Math.Max(0, nonFtpCount);
+        if (maxTargets <= 0 || normalizedFtpTls == 0) {
+            return 0;
+        }
+        if (normalizedNonFtp == 0) {
+            return Math.Min(normalizedFtpTls, maxTargets);
+        }
+        if (maxTargets == 1) {
+            // FTP TLS targets are always explicit caller inputs. Honor that request
+            // ahead of automatically expanded HTTPS or mail targets when only one
+            // global slot exists.
+            return 1;
+        }
+
+        int total = normalizedFtpTls + normalizedNonFtp;
+        int desired = (int)Math.Round(
+            maxTargets * (double)normalizedFtpTls / total,
+            MidpointRounding.AwayFromZero);
+        desired = Math.Max(1, Math.Min(maxTargets - 1, desired));
+        return Math.Min(normalizedFtpTls, desired);
+    }
+
+    private static void ApplyFtpTlsTargetLimit(
+        CertificateInventoryCaptureOptions options,
+        Dictionary<string, FtpTlsEndpointTarget> ftpTlsTargets,
+        int allowedTargets,
+        List<string> warnings,
+        List<TargetDecisionDiagnosticEntry> targetDecisionDiagnostics) {
+        if (ftpTlsTargets.Count <= allowedTargets) {
+            return;
+        }
+
+        int originalCount = ftpTlsTargets.Count;
+        FtpTlsEndpointTarget[] ordered = ftpTlsTargets.Values
+            .OrderBy(target => target.Host, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(target => target.Port)
+            .ThenBy(target => target.Service, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        FtpTlsEndpointTarget[] kept = ordered.Take(Math.Max(0, allowedTargets)).ToArray();
+        FtpTlsEndpointTarget[] pruned = ordered.Skip(Math.Max(0, allowedTargets)).ToArray();
+
+        ftpTlsTargets.Clear();
+        foreach (FtpTlsEndpointTarget target in kept) {
+            ftpTlsTargets[target.Key] = target;
+        }
+        foreach (FtpTlsEndpointTarget target in pruned) {
+            targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                Stage = "target-limit",
+                Action = "pruned",
+                Reason = "max-targets",
+                Target = $"{target.Scheme}://{target.Host}:{target.Port}",
+                Service = target.Service,
+                PriorityScore = 1000,
+                Message = $"Pruned by MaxTargets={options.MaxTargets}.",
+                TargetOrigins = target.TargetOrigins.ToList()
+            });
+        }
+
+        warnings.Add($"FTP TLS target list capped from {originalCount} to {ftpTlsTargets.Count} by the global MaxTargets budget.");
     }
 
     private static void ResolveTargetBudget(

@@ -17,8 +17,9 @@ public readonly struct IpCidrRange {
         if (network == null) {
             throw new ArgumentNullException(nameof(network));
         }
-        if (network.IsIPv4MappedToIPv6) {
+        if (network.IsIPv4MappedToIPv6 && prefixLength >= 96) {
             network = network.MapToIPv4();
+            prefixLength -= 96;
         }
         int bitCount = network.GetAddressBytes().Length * 8;
         if (prefixLength < 0 || prefixLength > bitCount) {
@@ -33,7 +34,8 @@ public readonly struct IpCidrRange {
         if (address == null) {
             throw new ArgumentNullException(nameof(address));
         }
-        if (address.IsIPv4MappedToIPv6) {
+        if (Network.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+            address.IsIPv4MappedToIPv6) {
             address = address.MapToIPv4();
         }
         if (address.AddressFamily != Network.AddressFamily)
@@ -62,16 +64,17 @@ public readonly struct IpCidrRange {
             return false;
         if (!IPAddress.TryParse(parts[0].Trim(), out var addr) || addr == null)
             return false;
-        if (addr.IsIPv4MappedToIPv6) {
-            addr = addr.MapToIPv4();
-        }
         int bitCount = addr.GetAddressBytes().Length * 8;
         int prefix = bitCount;
         if (parts.Length == 2 && !int.TryParse(parts[1].Trim(), out prefix))
             return false;
         if (prefix < 0 || prefix > bitCount)
             return false;
-        range = new IpCidrRange(addr, prefix);
+        try {
+            range = new IpCidrRange(addr, prefix);
+        } catch (ArgumentOutOfRangeException) {
+            return false;
+        }
         return true;
     }
 

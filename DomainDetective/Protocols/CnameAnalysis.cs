@@ -78,7 +78,7 @@ public class CnameAnalysis : IHasAssessments {
 
         if (TargetResolves) {
             logger?.WriteInformationCode(CnameCodes.TargetResolves, "CNAME target {0} resolves", Target);
-        } else {
+        } else if (evidence.AddressResolutionComplete) {
             logger?.WriteWarningCode(CnameCodes.TargetDoesNotResolve, "CNAME target {0} does not resolve", Target);
         }
     }

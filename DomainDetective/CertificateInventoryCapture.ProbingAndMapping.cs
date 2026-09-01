@@ -255,14 +255,15 @@ public sealed partial class CertificateInventoryCapture {
                         Timeout = options.MailTimeout
                     };
                     await analysis.AnalyzeServer(target.Protocol, target.Host, target.Port, logger, cancellationToken).ConfigureAwait(false);
+                    DateTimeOffset observedAtUtc = DateTimeOffset.UtcNow;
                     var key = $"{target.Host}:{target.Port}";
                     if (analysis.ServerResults.TryGetValue(key, out var tlsResult)) {
-                        results.Add(ToInventoryEntry(target, tlsResult));
+                        results.Add(ToInventoryEntry(target, tlsResult, observedAtUtc));
                     } else {
-                        results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult()));
+                        results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult(), observedAtUtc));
                     }
                 } catch {
-                    results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult()));
+                    results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult(), DateTimeOffset.UtcNow));
                 } finally {
                     var completed = Interlocked.Increment(ref completedTargets);
                     logger.WriteProgress(
@@ -365,7 +366,7 @@ public sealed partial class CertificateInventoryCapture {
             ChainSource = target.Mode == FtpTlsMode.Explicit ? "ftps-auth-tls" : "ftps-implicit",
             TargetOrigins = target.TargetOrigins
         };
-        return ToInventoryEntry(mailTarget, mailResult);
+        return ToInventoryEntry(mailTarget, mailResult, result.ObservedAtUtc);
     }
 
     private static MailTransportAddressFamily? ParseMailAddressFamily(string? value) {
@@ -420,7 +421,10 @@ public sealed partial class CertificateInventoryCapture {
         return score;
     }
 
-    private static CertificateInventoryEntry ToInventoryEntry(MailEndpointTarget target, MailTlsAnalysis.TlsResult result) {
+    private static CertificateInventoryEntry ToInventoryEntry(
+        MailEndpointTarget target,
+        MailTlsAnalysis.TlsResult result,
+        DateTimeOffset observedAtUtc) {
         var certificate = result.Certificate;
         var chain = result.Chain != null && result.Chain.Count > 0
             ? result.Chain
@@ -464,6 +468,7 @@ public sealed partial class CertificateInventoryCapture {
             Scheme = target.Scheme,
             Port = target.Port,
             Service = target.Service,
+            ObservedAtUtc = observedAtUtc == default ? DateTimeOffset.UtcNow : observedAtUtc,
             RemoteAddress = result.Connection.RemoteAddress,
             RemoteAddressFamily = result.Connection.RemoteAddressFamily?.ToString(),
             CertificateSubject = certificate?.Subject ?? result.CertificateSubject,

@@ -74,6 +74,9 @@ public sealed class FtpTlsConnectionEvidence {
 
 /// <summary>Protocol and certificate evidence returned by an FTP TLS probe.</summary>
 public sealed class FtpTlsResult {
+    /// <summary>UTC time when this protocol observation completed.</summary>
+    public DateTimeOffset ObservedAtUtc { get; set; }
+
     /// <summary>Requested and observed connection evidence.</summary>
     public FtpTlsConnectionEvidence Connection { get; set; } = new();
 
@@ -223,6 +226,8 @@ public sealed class FtpTlsAnalysis {
             SetFailure(result, ex);
             logger.WriteVerbose("FTP TLS probe failed for {0}:{1}: {2}", endpoint.HostName, endpoint.Port, ex.Message);
             return result;
+        } finally {
+            result.ObservedAtUtc = DateTimeOffset.UtcNow;
         }
     }
 

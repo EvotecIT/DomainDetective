@@ -38,6 +38,8 @@ namespace DomainDetective {
             public string Service { get; init; } = "HTTPS";
             /// <summary>Actual remote address reached by the probe, when observable.</summary>
             public IPAddress? RemoteAddress { get; init; }
+            /// <summary>UTC time when this endpoint probe completed.</summary>
+            public DateTimeOffset ObservedAtUtc { get; init; }
             /// <summary>Certificate expiry date.</summary>
             public DateTime ExpiryDate { get; init; }
             /// <summary>Whether the certificate chain was validated successfully.</summary>
@@ -234,6 +236,7 @@ namespace DomainDetective {
                             await analysis.AnalyzeUrl(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
                         }
 
+                        DateTimeOffset observedAtUtc = DateTimeOffset.UtcNow;
                         entries[index] = new Entry {
                             Host = host,
                             Url = target.Url,
@@ -242,6 +245,7 @@ namespace DomainDetective {
                             Port = target.Port,
                             Service = target.Service,
                             RemoteAddress = analysis.RemoteAddress,
+                            ObservedAtUtc = observedAtUtc,
                             ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
                             Valid = analysis.IsValid,
                             Expired = analysis.IsExpired,
@@ -401,6 +405,7 @@ namespace DomainDetective {
                 Service = entry.Service,
                 RemoteAddress = entry.RemoteAddress?.ToString(),
                 RemoteAddressFamily = entry.RemoteAddress?.AddressFamily.ToString(),
+                ObservedAtUtc = entry.ObservedAtUtc == default ? null : entry.ObservedAtUtc,
                 CertificateSubject = certificate?.Subject,
                 CertificateIssuer = certificate?.Issuer,
                 CertificateThumbprint = certificate?.Thumbprint,

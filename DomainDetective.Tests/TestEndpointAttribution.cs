@@ -85,6 +85,20 @@ public class TestEndpointAttribution {
     }
 
     [Fact]
+    public void CidrRangeTranslatesIpv4MappedIpv6PrefixWithoutLosingBits() {
+        IpCidrRange mapped = IpCidrRange.Parse("::ffff:192.0.2.0/120");
+        IpCidrRange broadMapped = IpCidrRange.Parse("::ff00:0:0/80");
+
+        Assert.Equal("192.0.2.0/24", mapped.ToString());
+        Assert.True(mapped.Contains(IPAddress.Parse("192.0.2.42")));
+        Assert.True(mapped.Contains(IPAddress.Parse("::ffff:192.0.2.42")));
+        Assert.False(mapped.Contains(IPAddress.Parse("192.0.3.1")));
+        Assert.Equal(80, broadMapped.PrefixLength);
+        Assert.Equal(System.Net.Sockets.AddressFamily.InterNetworkV6, broadMapped.Network.AddressFamily);
+        Assert.True(broadMapped.Contains(IPAddress.Parse("::ffff:192.0.2.42")));
+    }
+
+    [Fact]
     public void AzureCatalogParsesOfficialServiceTagShape() {
         const string json = "{\"changeNumber\":\"7\",\"cloud\":\"Public\",\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{\"changeNumber\":\"3\",\"region\":\"\",\"systemService\":\"AzureFrontDoor\",\"addressPrefixes\":[\"203.0.113.0/24\",\"2001:db8::/32\"]}}]}";
 

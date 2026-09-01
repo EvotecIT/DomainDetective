@@ -229,6 +229,37 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_DuplicateAzureServiceTagsBecomeWarning() {
+        string path = Path.Combine(Path.GetTempPath(), "dd-duplicate-azure-" + Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(path, "{\"changeNumber\":\"7\",\"cloud\":\"Public\",\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{\"addressPrefixes\":[\"203.0.113.0/24\"]}},{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{\"addressPrefixes\":[\"2001:db8::/32\"]}}]}");
+        try {
+            using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (targets, _, _, _) =>
+                    Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(new[] { CreateHttpsEntry(Assert.Single(targets), certificate) }),
+                EndpointDnsQueryOverride = (_, _, _) => Task.FromResult(Array.Empty<DnsAnswer>())
+            };
+            var options = new CertificateInventoryCaptureOptions {
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                PersistSnapshot = false,
+                EnableEndpointAttribution = true,
+                AzureServiceTagsJsonPath = path
+            };
+            options.AdditionalEndpoints.Add("https://service.example.com");
+
+            CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+            Assert.Single(result.Snapshot.Entries);
+            Assert.Contains(result.Warnings, warning =>
+                warning.Contains("duplicate service-tag names", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task CaptureAsync_DiscoversEndpointsAndPersistsSnapshot_WithOverrides() {
         using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
         CertificateInventorySnapshot? persistedSnapshot = null;

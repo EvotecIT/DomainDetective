@@ -54,4 +54,31 @@ public class TestCnameNarrative {
         Assert.Contains("CNAME target resolves", narrative.Positives);
         Assert.Contains("No CNAME loop detected", narrative.Positives);
     }
+
+    [Fact]
+    public async Task AddressLookupFailureDoesNotClaimTargetDoesNotResolve() {
+        var analysis = new CnameAnalysis {
+            DnsConfiguration = new DnsConfiguration(),
+            QueryDnsOverride = (name, type) => {
+                if (type == DnsRecordType.CNAME && name == "alias.example.com") {
+                    return Task.FromResult(new[] { CreateAnswer("target.example.com") });
+                }
+                if (type == DnsRecordType.CNAME) {
+                    return Task.FromResult(System.Array.Empty<DnsAnswer>());
+                }
+                if (type == DnsRecordType.A) {
+                    throw new System.InvalidOperationException("resolver unavailable");
+                }
+                return Task.FromResult(System.Array.Empty<DnsAnswer>());
+            }
+        };
+
+        await analysis.Analyze("alias.example.com", new InternalLogger());
+
+        Assert.True(analysis.CnameRecordExists);
+        Assert.False(analysis.TargetResolves);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == CnameCodes.DnsLookupFailed);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == CnameCodes.TargetDoesNotResolve);
+        Assert.DoesNotContain(analysis.Recommendations, recommendation => recommendation.Code == CnameCodes.TargetDoesNotResolve);
+    }
 }

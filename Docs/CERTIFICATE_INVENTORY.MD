@@ -108,7 +108,7 @@ Invoke-DDCertificateInventory `
     -NoPersist
 ```
 
-With detection enabled, each row can also include the resolver, `DnsObservedAtUtc`, resolved addresses, full CNAME chain, redirect targets, and an `Attribution` result. `ObservedAtUtc` remains the protocol-observation time, while `DnsObservedAtUtc` and `Attribution.EvaluatedAtUtc` describe the current enrichment pass. Attribution retains every candidate and the evidence that contributed to it. The primary result includes a score, confidence, rule ID, and rule version; equally ranked eligible candidates with different provider/service identities are retained as ambiguous instead of selecting one by sort order. Multiple rules agreeing on the same identity remain supporting candidates rather than creating false ambiguity.
+With detection enabled, each row can also include the resolver, `DnsObservedAtUtc`, resolved addresses, full CNAME chain, redirect targets, and an `Attribution` result. `ObservedAtUtc` is stamped when that individual protocol probe completes; it is not copied from the later snapshot-finalization time. `DnsObservedAtUtc` and `Attribution.EvaluatedAtUtc` describe the current enrichment pass. Attribution retains every candidate and the evidence that contributed to it. The primary result includes a score, confidence, rule ID, and rule version; equally ranked eligible candidates with different provider/service identities are retained as ambiguous instead of selecting one by sort order. Multiple rules agreeing on the same identity remain supporting candidates rather than creating false ambiguity.
 
 Hostname prefixes and certificate issuers are weak signals. They can create review candidates, but the built-in rules do not let either signal establish a primary provider by itself. CNAME namespaces, current service-tag membership, configured IP ranges, redirect targets, reverse DNS, and ASN evidence are treated as stronger signals. Built-in web-delivery and redirection rules apply only to HTTPS observations, so a shared address or CNAME does not label an unrelated mail or FTP TLS service.
 
@@ -128,7 +128,7 @@ The FTP TLS probe does not submit credentials and does not open a data connectio
 
 | Control | Default | Purpose |
 | --- | --- | --- |
-| `-MaxTargets` (`-Limit`) | `0` (unlimited) | Cap total discovered probe targets (HTTPS + mail + FTP TLS) for test/safety runs |
+| `-MaxTargets` (`-Limit`) | `0` (unlimited) | Cap total discovered probe targets (HTTPS + mail + FTP TLS) for test/safety runs; explicit FTP TLS targets participate in the global allocation |
 | `-MaxProbeStartsPerSecond` | `0` (unlimited) | Anti-hammer throttle for probe start rate |
 | `-MaxProbeErrorWarnings` | `25` | Limit verbose endpoint error warning noise |
 | `-ReuseRecentResults` | Off | Reuse recent persisted endpoint results to skip redundant probes |
