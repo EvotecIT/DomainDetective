@@ -254,10 +254,10 @@ public sealed partial class CertificateInventoryCapture {
                     var analysis = new MailTlsAnalysis {
                         Timeout = options.MailTimeout
                     };
-                    await analysis.AnalyzeServer(target.Protocol, target.Host, target.Port, logger, cancellationToken).ConfigureAwait(false);
+                    var endpoint = new MailTransportEndpoint(target.Host, target.Port);
+                    await analysis.AnalyzeServer(target.Protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
                     DateTimeOffset observedAtUtc = DateTimeOffset.UtcNow;
-                    var key = $"{target.Host}:{target.Port}";
-                    if (analysis.ServerResults.TryGetValue(key, out var tlsResult)) {
+                    if (analysis.ServerResults.TryGetValue(endpoint.Key, out var tlsResult)) {
                         results.Add(ToInventoryEntry(target, tlsResult, observedAtUtc));
                     } else {
                         results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult(), observedAtUtc));

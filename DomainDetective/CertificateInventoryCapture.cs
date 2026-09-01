@@ -1798,6 +1798,7 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private static void AddMailTarget(Dictionary<string, MailEndpointTarget> targets, MailEndpointTarget target) {
+        target.Host = EndpointHostNormalizer.Normalize(target.Host);
         var key = BuildMailTargetKey(target.Host, target.Port, target.Service);
         if (!targets.TryGetValue(key, out MailEndpointTarget? existing)) {
             targets[key] = target;
@@ -1808,7 +1809,7 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private static string BuildMailTargetKey(string host, int port, string service) {
-        return $"{host.Trim().ToLowerInvariant()}|{port}|{service.Trim().ToUpperInvariant()}";
+        return $"{EndpointHostNormalizer.Normalize(host).ToLowerInvariant()}|{port}|{service.Trim().ToUpperInvariant()}";
     }
 
 }

@@ -32,26 +32,41 @@ public sealed class EndpointAttributionCatalog {
         if (rule == null) {
             throw new ArgumentNullException(nameof(rule));
         }
-        ValidateRule(rule, nameof(rule));
+        ValidateAndCompileRule(rule, nameof(rule));
 
         Rules.RemoveAll(existing => string.Equals(existing.RuleId, rule.RuleId, StringComparison.OrdinalIgnoreCase));
         Rules.Add(rule);
     }
 
-    internal static void ValidateRule(EndpointAttributionRule rule, string? parameterName = null) {
+    internal static IReadOnlyList<IpCidrRange> ValidateAndCompileRule(
+        EndpointAttributionRule rule,
+        string? parameterName = null) {
         if (rule == null) {
             throw new ArgumentNullException(parameterName ?? nameof(rule));
         }
         if (string.IsNullOrWhiteSpace(rule.RuleId)) {
             throw new ArgumentException("An attribution rule requires a stable RuleId.", parameterName ?? nameof(rule));
         }
+        if (string.IsNullOrWhiteSpace(rule.ProviderId)) {
+            throw new ArgumentException(
+                $"Endpoint attribution rule '{rule.RuleId}' requires a stable ProviderId.",
+                parameterName ?? nameof(rule));
+        }
+        if (string.IsNullOrWhiteSpace(rule.ServiceId)) {
+            throw new ArgumentException(
+                $"Endpoint attribution rule '{rule.RuleId}' requires a stable ServiceId.",
+                parameterName ?? nameof(rule));
+        }
 
+        var compiledPrefixes = new List<IpCidrRange>(rule.IpAddressPrefixes.Count);
         foreach (string prefix in rule.IpAddressPrefixes) {
-            if (!IpCidrRange.TryParse(prefix, out _)) {
+            if (!IpCidrRange.TryParse(prefix, out IpCidrRange compiledPrefix)) {
                 throw new FormatException(
                     $"Endpoint attribution rule '{rule.RuleId}' contains invalid IP prefix '{prefix}'.");
             }
+            compiledPrefixes.Add(compiledPrefix);
         }
+        return compiledPrefixes;
     }
 
     private static EndpointAttributionRule CreateAzureFrontDoorRule() {

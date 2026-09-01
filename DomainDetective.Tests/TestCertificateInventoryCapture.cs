@@ -315,6 +315,33 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_BracketedIpv6MailTargetRetainsCompletedProbeResult() {
+        var capture = new CertificateInventoryCapture();
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            MailTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add("[::1]:25");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(1, result.ProbedMailCount);
+        Assert.Equal("smtp://[::1]:25", Assert.Single(result.MailEndpoints));
+        CertificateInventoryEntry entry = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("::1", entry.Host);
+        Assert.True(
+            entry.FailureKind != CertificateFailureKind.None ||
+            entry.IsReachable ||
+            !string.IsNullOrWhiteSpace(entry.CertificateThumbprint));
+        if (entry.FailureKind != CertificateFailureKind.None) {
+            Assert.False(string.IsNullOrWhiteSpace(entry.FailureReason));
+        }
+    }
+
+    [Fact]
     public async Task CaptureAsync_PrioritizesStaleFtpTlsTargetBeforeReusableHealthyTarget() {
         DateTimeOffset now = DateTimeOffset.UtcNow;
         CertificateInventoryEntry Cached(int port, DateTimeOffset observedAtUtc, string thumbprint) => new() {

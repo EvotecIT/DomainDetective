@@ -105,12 +105,17 @@ public sealed class AzureServiceTagCatalog {
             }
 
             var prefixes = new List<IpCidrRange>();
-            if (properties.TryGetProperty("addressPrefixes", out JsonElement addressPrefixes) &&
-                addressPrefixes.ValueKind == JsonValueKind.Array) {
+            if (properties.TryGetProperty("addressPrefixes", out JsonElement addressPrefixes)) {
+                if (addressPrefixes.ValueKind != JsonValueKind.Array) {
+                    throw new FormatException(
+                        $"Azure service tag '{name}' contains an addressPrefixes field that is not an array.");
+                }
                 foreach (JsonElement prefixElement in addressPrefixes.EnumerateArray()) {
-                    string prefixText = prefixElement.ValueKind == JsonValueKind.String
-                        ? prefixElement.GetString() ?? string.Empty
-                        : prefixElement.ToString();
+                    if (prefixElement.ValueKind != JsonValueKind.String) {
+                        throw new FormatException(
+                            $"Azure service tag '{name}' contains a non-string address prefix value.");
+                    }
+                    string prefixText = prefixElement.GetString() ?? string.Empty;
                     try {
                         prefixes.Add(IpCidrRange.Parse(prefixText));
                     } catch (FormatException ex) {

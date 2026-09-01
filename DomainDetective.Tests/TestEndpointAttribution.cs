@@ -249,6 +249,30 @@ public class TestEndpointAttribution {
     }
 
     [Theory]
+    [InlineData("\"not-an-array\"")]
+    [InlineData("{}")]
+    public void AzureCatalogRejectsNonArrayAddressPrefixes(string malformedValue) {
+        string json = "{\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{\"addressPrefixes\":" + malformedValue + "}}]}";
+
+        FormatException exception = Assert.Throws<FormatException>(() =>
+            AzureServiceTagCatalog.Parse(json, "test-catalog"));
+
+        Assert.Contains("AzureFrontDoor.Frontend", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("not an array", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AzureCatalogRejectsNonStringAddressPrefixElements() {
+        const string json = "{\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{\"addressPrefixes\":[123]}}]}";
+
+        FormatException exception = Assert.Throws<FormatException>(() =>
+            AzureServiceTagCatalog.Parse(json, "test-catalog"));
+
+        Assert.Contains("AzureFrontDoor.Frontend", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("non-string", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
     [InlineData("edge.azurefd.net", "azure-front-door")]
     [InlineData("edge.azureedge.net", "azure-cdn")]
     [InlineData("edge.trafficmanager.net", "azure-traffic-manager")]
@@ -400,6 +424,28 @@ public class TestEndpointAttribution {
         Assert.Contains("not-a-cidr", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("", "edge", "ProviderId")]
+    [InlineData("example", "", "ServiceId")]
+    public void CustomRuleRequiresStableProviderAndServiceIdentity(
+        string providerId,
+        string serviceId,
+        string expectedField) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.missing-identity",
+            RuleVersion = "1",
+            ProviderId = providerId,
+            ServiceId = serviceId,
+            DisplayName = "Incomplete Rule"
+        };
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => catalog.AddOrReplace(rule));
+
+        Assert.Contains("custom.missing-identity", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(expectedField, exception.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void DetectorRejectsMalformedPrefixAddedThroughMutableRuleCollection() {
         var catalog = new EndpointAttributionCatalog();
@@ -414,12 +460,35 @@ public class TestEndpointAttribution {
         catalog.Rules.Add(rule);
 
         FormatException exception = Assert.Throws<FormatException>(() =>
-            new EndpointAttributionDetector(catalog).Detect(new EndpointAttributionInput {
-                HostName = "www.example.com"
-            }));
+            new EndpointAttributionDetector(catalog));
 
         Assert.Contains("custom.mutable-invalid-prefix", exception.Message, StringComparison.Ordinal);
         Assert.Contains("203.0.113.0/99", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DetectorSnapshotsAndCompilesCustomPrefixesAtConstruction() {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.compiled-prefix",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Example Edge"
+        };
+        rule.IpAddressPrefixes.Add("203.0.113.0/24");
+        catalog.AddOrReplace(rule);
+        var detector = new EndpointAttributionDetector(catalog);
+
+        rule.IpAddressPrefixes.Clear();
+        rule.IpAddressPrefixes.Add("invalid-after-construction");
+        EndpointAttributionResult result = detector.Detect(new EndpointAttributionInput {
+            HostName = "www.example.com",
+            IpAddresses = new[] { "203.0.113.10" }
+        });
+
+        Assert.Equal("example", result.Primary?.ProviderId);
+        Assert.Equal("edge", result.Primary?.ServiceId);
     }
 
     [Fact]

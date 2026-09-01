@@ -8,16 +8,34 @@ namespace DomainDetective.Providers.Endpoint;
 
 /// <summary>Evaluates explainable, multi-signal provider and managed-service attribution rules.</summary>
 public sealed class EndpointAttributionDetector {
-    private readonly EndpointAttributionCatalog _catalog;
+    private readonly string _catalogVersion;
+    private readonly IReadOnlyList<CompiledAttributionRule> _rules;
+
+    private sealed class CompiledAttributionRule {
+        public CompiledAttributionRule(EndpointAttributionRule source) {
+            Rule = CloneRule(source);
+            IpAddressPrefixes = EndpointAttributionCatalog.ValidateAndCompileRule(Rule);
+        }
+
+        public EndpointAttributionRule Rule { get; }
+        public IReadOnlyList<IpCidrRange> IpAddressPrefixes { get; }
+    }
 
     /// <summary>Creates a detector using the built-in catalog.</summary>
     public EndpointAttributionDetector()
         : this(EndpointAttributionCatalog.CreateDefault()) {
     }
 
-    /// <summary>Creates a detector using an explicit catalog.</summary>
+    /// <summary>
+    /// Creates a detector using an explicit catalog. Rules and CIDR ranges are validated,
+    /// snapshotted, and compiled once; create a new detector after changing the catalog.
+    /// </summary>
     public EndpointAttributionDetector(EndpointAttributionCatalog catalog) {
-        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        if (catalog == null) {
+            throw new ArgumentNullException(nameof(catalog));
+        }
+        _catalogVersion = catalog.Version;
+        _rules = catalog.Rules.Select(rule => new CompiledAttributionRule(rule)).ToList();
     }
 
     /// <summary>Evaluates all rules and returns both primary and review candidates.</summary>
@@ -29,11 +47,8 @@ public sealed class EndpointAttributionDetector {
         }
 
         var candidates = new List<EndpointAttributionCandidate>();
-        foreach (EndpointAttributionRule rule in _catalog.Rules) {
-            // Rules is intentionally mutable for declarative callers, so validate again at the
-            // execution boundary even when a rule did not enter through AddOrReplace.
-            EndpointAttributionCatalog.ValidateRule(rule);
-            EndpointAttributionCandidate? candidate = Evaluate(rule, input);
+        foreach (CompiledAttributionRule compiledRule in _rules) {
+            EndpointAttributionCandidate? candidate = Evaluate(compiledRule, input);
             if (candidate != null) {
                 candidates.Add(candidate);
             }
@@ -61,7 +76,7 @@ public sealed class EndpointAttributionDetector {
         return new EndpointAttributionResult {
             Primary = ambiguous ? null : eligible.FirstOrDefault(),
             Candidates = ordered,
-            CatalogVersion = _catalog.Version,
+            CatalogVersion = _catalogVersion,
             EvaluatedAtUtc = evaluatedAtUtc ?? DateTimeOffset.UtcNow,
             IsAmbiguous = ambiguous,
             AzureServiceTagSource = input.AzureServiceTags?.Source ?? string.Empty,
@@ -72,8 +87,9 @@ public sealed class EndpointAttributionDetector {
     }
 
     private static EndpointAttributionCandidate? Evaluate(
-        EndpointAttributionRule rule,
+        CompiledAttributionRule compiledRule,
         EndpointAttributionInput input) {
+        EndpointAttributionRule rule = compiledRule.Rule;
         if (!AppliesToEndpoint(rule, input)) {
             return null;
         }
@@ -89,7 +105,7 @@ public sealed class EndpointAttributionDetector {
             hasStrongSignal = true;
         }
 
-        if (TryMatchIpPrefix(input.IpAddresses, rule.IpAddressPrefixes, out string ipAddress, out string ipPrefix)) {
+        if (TryMatchIpPrefix(input.IpAddresses, compiledRule.IpAddressPrefixes, out string ipAddress, out string ipPrefix)) {
             AddEvidence(evidence, EndpointAttributionSignalKind.IpAddress, ipAddress, ipPrefix, 0.65, rule.Source);
             hasStrongSignal = true;
         }
@@ -212,24 +228,19 @@ public sealed class EndpointAttributionDetector {
 
     private static bool TryMatchIpPrefix(
         IEnumerable<string>? addresses,
-        IEnumerable<string> prefixes,
+        IReadOnlyList<IpCidrRange> prefixes,
         out string address,
         out string prefix) {
-        var parsedPrefixes = prefixes
-            .Select(IpCidrRange.Parse)
-            .ToList();
         foreach (string observed in addresses ?? Array.Empty<string>()) {
             if (!IPAddress.TryParse((observed ?? string.Empty).Trim(), out IPAddress? parsed) || parsed == null) {
                 continue;
             }
-            IpCidrRange? matched = parsedPrefixes
-                .Where(range => range.Contains(parsed))
-                .Select(range => (IpCidrRange?)range)
-                .FirstOrDefault();
-            if (matched.HasValue) {
-                address = parsed.ToString();
-                prefix = matched.Value.ToString();
-                return true;
+            foreach (IpCidrRange range in prefixes) {
+                if (range.Contains(parsed)) {
+                    address = parsed.ToString();
+                    prefix = range.ToString();
+                    return true;
+                }
             }
         }
         address = string.Empty;
@@ -313,4 +324,33 @@ public sealed class EndpointAttributionDetector {
 
     private static string NormalizeHost(string? value) =>
         (value ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+
+    private static EndpointAttributionRule CloneRule(EndpointAttributionRule source) {
+        if (source == null) {
+            throw new ArgumentNullException(nameof(source));
+        }
+        var clone = new EndpointAttributionRule {
+            ProviderId = source.ProviderId,
+            ServiceId = source.ServiceId,
+            DisplayName = source.DisplayName,
+            RuleId = source.RuleId,
+            RuleVersion = source.RuleVersion,
+            Source = source.Source,
+            MinimumScore = source.MinimumScore,
+            AllowWeakSignalsAsPrimary = source.AllowWeakSignalsAsPrimary,
+            RequireCorroborationForIpAddressPrimary = source.RequireCorroborationForIpAddressPrimary
+        };
+        clone.HostnamePrefixes.AddRange(source.HostnamePrefixes);
+        clone.CnameSuffixes.AddRange(source.CnameSuffixes);
+        clone.IpAddressPrefixes.AddRange(source.IpAddressPrefixes);
+        clone.AzureServiceTagNames.AddRange(source.AzureServiceTagNames);
+        clone.CertificateIssuerContains.AddRange(source.CertificateIssuerContains);
+        clone.RedirectTargetSuffixes.AddRange(source.RedirectTargetSuffixes);
+        clone.ReverseDnsSuffixes.AddRange(source.ReverseDnsSuffixes);
+        clone.AutonomousSystemNumbers.AddRange(source.AutonomousSystemNumbers);
+        clone.ApplicableServices.AddRange(source.ApplicableServices);
+        clone.ApplicablePorts.AddRange(source.ApplicablePorts);
+        clone.IpAddressPrimaryCorroboratingSignals.AddRange(source.IpAddressPrimaryCorroboratingSignals);
+        return clone;
+    }
 }

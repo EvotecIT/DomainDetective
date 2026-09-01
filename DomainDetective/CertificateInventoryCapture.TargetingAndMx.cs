@@ -1016,7 +1016,7 @@ public sealed partial class CertificateInventoryCapture {
 
     private static bool TryCreateMailTargetFromPort(string host, int port, out MailEndpointTarget? target) {
         target = null;
-        var normalized = host.Trim().TrimEnd('.');
+        var normalized = EndpointHostNormalizer.Normalize(host);
         if (string.IsNullOrWhiteSpace(normalized)) {
             return false;
         }
