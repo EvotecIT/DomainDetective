@@ -109,13 +109,13 @@ internal static class MailTransportConnector {
 
     internal static bool Matches(IPAddress address, MailTransportAddressFamily family) => family switch {
         MailTransportAddressFamily.Any => true,
-        MailTransportAddressFamily.IPv4 => address.AddressFamily == AddressFamily.InterNetwork,
-        MailTransportAddressFamily.IPv6 => address.AddressFamily == AddressFamily.InterNetworkV6,
+        MailTransportAddressFamily.IPv4 => address.IsIPv4MappedToIPv6 || address.AddressFamily == AddressFamily.InterNetwork,
+        MailTransportAddressFamily.IPv6 => !address.IsIPv4MappedToIPv6 && address.AddressFamily == AddressFamily.InterNetworkV6,
         _ => false
     };
 
     internal static MailTransportAddressFamily ToMailAddressFamily(IPAddress address) =>
-        address.AddressFamily == AddressFamily.InterNetworkV6
+        !address.IsIPv4MappedToIPv6 && address.AddressFamily == AddressFamily.InterNetworkV6
             ? MailTransportAddressFamily.IPv6
             : MailTransportAddressFamily.IPv4;
 }

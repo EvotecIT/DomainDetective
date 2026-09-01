@@ -54,6 +54,7 @@ public class TestFtpTlsAnalysis {
             Assert.Equal("FTPS-EXPLICIT", entry.Service);
             Assert.Equal("ftps-explicit", entry.Scheme);
             Assert.Equal(IPAddress.Loopback.ToString(), entry.RemoteAddress);
+            Assert.Equal("IPv4", entry.RemoteAddressFamily);
             Assert.NotNull(entry.ObservedAtUtc);
             Assert.True(entry.ObservedAtUtc <= capture.Snapshot.CapturedAtUtc);
             Assert.NotEqual(capture.Snapshot.CapturedAtUtc, entry.ObservedAtUtc);
@@ -158,6 +159,7 @@ public class TestFtpTlsAnalysis {
             Assert.False(result.ChainValid);
             Assert.NotEmpty(result.ChainErrors);
             Assert.Equal(IPAddress.Loopback.ToString(), result.Connection.RemoteAddress);
+            Assert.Equal("IPv4", result.Connection.RemoteAddressFamily);
             Assert.InRange(result.ObservedAtUtc, startedAtUtc, completedAtUtc);
             Assert.Equal("220 Ready", result.Greeting[result.Greeting.Count - 1]);
             Assert.Equal("234 AUTH TLS accepted", result.AuthTlsResponse[result.AuthTlsResponse.Count - 1]);

@@ -278,7 +278,7 @@ namespace DomainDetective {
                 return;
             }
 
-            using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
+            using (var handler = new HttpClientHandler { AllowAutoRedirect = false, CheckCertificateRevocationList = !SkipRevocation }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
                     if (certificate == null) {
                         return false;
@@ -308,20 +308,13 @@ namespace DomainDetective {
                     client.Timeout = Timeout;
                     try {
 #if NET8_0_OR_GREATER
-                        var request = new HttpRequestMessage(HttpMethod.Get, url) {
-                            Version = HttpVersion.Version30,
-                            VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-                        };
-                        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
-                        CaptureRedirectTarget(uri: response.RequestMessage?.RequestUri, originalUrl: url);
+                        using HttpResponseMessage response = await SendWithRedirectEvidenceAsync(client, new Uri(url), cancellationToken).ConfigureAwait(false);
                         IsReachable = response.IsSuccessStatusCode;
                         ProtocolVersion = response.Version;
                         Http3Supported = response.Version >= HttpVersion.Version30;
                         Http2Supported = response.Version >= HttpVersion.Version20;
 #else
-                        var request = new HttpRequestMessage(HttpMethod.Get, url);
-                        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
-                        CaptureRedirectTarget(uri: response.RequestMessage?.RequestUri, originalUrl: url);
+                        using HttpResponseMessage response = await SendWithRedirectEvidenceAsync(client, new Uri(url), cancellationToken).ConfigureAwait(false);
                         IsReachable = response.IsSuccessStatusCode;
                         ProtocolVersion = response.Version;
                         Http2Supported = response.Version.Major >= 2;
@@ -447,14 +440,67 @@ namespace DomainDetective {
             }
         }
 
-        private void CaptureRedirectTarget(Uri? uri, string originalUrl) {
-            if (uri == null || !Uri.TryCreate(originalUrl, UriKind.Absolute, out Uri? original) ||
-                string.Equals(uri.Host, original.Host, StringComparison.OrdinalIgnoreCase)) {
+        internal async Task<HttpResponseMessage> SendWithRedirectEvidenceAsync(
+            HttpClient client,
+            Uri initialUri,
+            CancellationToken cancellationToken) {
+            if (client == null) {
+                throw new ArgumentNullException(nameof(client));
+            }
+            if (initialUri == null) {
+                throw new ArgumentNullException(nameof(initialUri));
+            }
+
+            const int maxRedirects = 10;
+            int followedRedirects = 0;
+            Uri currentUri = initialUri;
+            while (true) {
+                using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
+#if NET8_0_OR_GREATER
+                request.Version = HttpVersion.Version30;
+                request.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+#endif
+                HttpResponseMessage response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                if (!TryResolveRedirectTarget(response, currentUri, out Uri? redirectUri) || redirectUri == null) {
+                    return response;
+                }
+                if (followedRedirects >= maxRedirects) {
+                    response.Dispose();
+                    throw new HttpRequestException($"The HTTP redirect limit of {maxRedirects} was exceeded.");
+                }
+
+                followedRedirects++;
+                CaptureRedirectTarget(redirectUri, currentUri);
+                response.Dispose();
+                currentUri = redirectUri;
+            }
+        }
+
+        private static bool TryResolveRedirectTarget(
+            HttpResponseMessage response,
+            Uri currentUri,
+            out Uri? redirectUri) {
+            redirectUri = null;
+            int statusCode = (int)response.StatusCode;
+            if (statusCode != 301 && statusCode != 302 && statusCode != 303 && statusCode != 307 && statusCode != 308) {
+                return false;
+            }
+
+            Uri? location = response.Headers.Location;
+            if (location == null) {
+                return false;
+            }
+            redirectUri = location.IsAbsoluteUri ? location : new Uri(currentUri, location);
+            return string.Equals(redirectUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(redirectUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void CaptureRedirectTarget(Uri? uri, Uri? sourceUri) {
+            if (uri == null || sourceUri == null ||
+                string.Equals(uri.Host, sourceUri.Host, StringComparison.OrdinalIgnoreCase)) {
                 return;
             }
-            if (!RedirectTargets.Contains(uri.Host, StringComparer.OrdinalIgnoreCase)) {
-                RedirectTargets.Add(uri.Host);
-            }
+            RedirectTargets.Add(uri.Host);
         }
 
         internal static Exception NormalizeProbeException(

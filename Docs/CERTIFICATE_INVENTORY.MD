@@ -44,6 +44,7 @@ When you run repeated captures against large portfolios, you can reuse recent en
 
 - Enable with `-ReuseRecentResults`.
 - Reuse window is controlled by `-RecentResultTtlHours` (default `24`).
+- Reuse age is measured from the endpoint's original `ObservedAtUtc`, not from the timestamp of a later snapshot that happens to carry the reused row.
 - Optional stable-failure reuse is controlled by `-ReuseRecentFailureResults` with `-RecentFailureResultTtlHours` (default `1`).
 - Near-expiry certificates are always refreshed based on `-ReprobeExpiringWithinDays` (default `14`).
 - Reuse is endpoint-based (`host + port + service`).
@@ -97,7 +98,7 @@ Notes:
 
 An inventory row identifies a logical endpoint by `host + port + service`. The same hostname and port can therefore retain separate HTTPS, STARTTLS, or FTPS observations instead of being merged into one ambiguous record.
 
-Live rows include `ObservedAtUtc` and `ProbeVantage`. Cached observations are reused only when their normalized vantage matches the requested vantage. When the protocol exposes the connected socket, `RemoteAddress` records the address actually reached. Service detection is opt-in because it adds DNS work:
+Live rows include `ObservedAtUtc` and `ProbeVantage`. Cached observations are reused only when their normalized vantage matches the requested vantage. When the protocol exposes the connected socket, `RemoteAddress` records the address actually reached and `RemoteAddressFamily` uses the stable `IPv4` or `IPv6` label across protocols. Legacy cached family labels and IPv4-mapped IPv6 addresses are normalized when they re-enter an inventory. Bracketed IPv6 URI hosts are retained as valid URI authorities but normalized to bare addresses for DNS and connection evidence. Service detection is opt-in because it adds DNS work:
 
 ```powershell
 Invoke-DDCertificateInventory `
@@ -108,7 +109,7 @@ Invoke-DDCertificateInventory `
     -NoPersist
 ```
 
-With detection enabled, each row can also include the resolver, `DnsObservedAtUtc`, resolved addresses, full CNAME chain, redirect targets, and an `Attribution` result. `ObservedAtUtc` is stamped when that individual protocol probe completes; it is not copied from the later snapshot-finalization time. `DnsObservedAtUtc` and `Attribution.EvaluatedAtUtc` describe the current enrichment pass. Attribution retains every candidate and the evidence that contributed to it. The primary result includes a score, confidence, rule ID, and rule version; equally ranked eligible candidates with different provider/service identities are retained as ambiguous instead of selecting one by sort order. Multiple rules agreeing on the same identity remain supporting candidates rather than creating false ambiguity.
+With detection enabled, each row can also include the resolver, `DnsObservedAtUtc`, resolved addresses, full CNAME chain, every followed cross-host redirect target in order (including returns and repeated hosts), and an `Attribution` result. CNAME service selection reconstructs owner-to-target traversal instead of trusting DNS answer order. IP-literal endpoint hosts become completed address evidence without pointless DNS queries. `ObservedAtUtc` is stamped when that individual protocol probe completes; it is not copied from the later snapshot-finalization time. `DnsObservedAtUtc` and `Attribution.EvaluatedAtUtc` describe the enrichment pass, and snapshot `CapturedAtUtc` is finalized after that enrichment completes and clamped to the latest contained observation. Attribution retains every candidate and the evidence that contributed to it. The primary result includes a score, confidence, rule ID, and rule version; equally ranked eligible candidates with different provider/service identities are retained as ambiguous instead of selecting one by sort order. Multiple rules agreeing on the same identity remain supporting candidates rather than creating false ambiguity.
 
 Hostname prefixes and certificate issuers are weak signals. They can create review candidates, but the built-in rules do not let either signal establish a primary provider by itself. CNAME namespaces, current service-tag membership, configured IP ranges, redirect targets, reverse DNS, and ASN evidence are treated as stronger signals. Built-in web-delivery and redirection rules apply only to HTTPS observations, so a shared address or CNAME does not label an unrelated mail or FTP TLS service.
 

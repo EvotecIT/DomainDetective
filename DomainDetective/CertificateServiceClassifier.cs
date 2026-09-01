@@ -47,7 +47,7 @@ namespace DomainDetective {
             var service = GuessService(scheme, resolvedPort);
             return new CertificateServiceDescriptor {
                 Url = builder.Uri.ToString(),
-                Host = builder.Host,
+                Host = EndpointHostNormalizer.Normalize(builder.Host),
                 Scheme = scheme,
                 Port = resolvedPort,
                 Service = service

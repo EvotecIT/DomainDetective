@@ -213,6 +213,38 @@ public class TestDnsInventoryAnalysis
     }
 
     [Fact]
+    public async Task CnameInventoryUsesTerminalEqualRankedServiceInsteadOfLexicalOrder()
+    {
+        var analysis = new DnsInventoryAnalysis
+        {
+            IncludeAuthorities = false,
+            QueryOverride = (_, type, _) => Task.FromResult(new DnsResponse
+            {
+                Status = DnsResponseCode.NoError,
+                Answers = type == DnsRecordType.CNAME
+                    ? new[]
+                    {
+                        // Deliberately reverse DNS response order. Service selection
+                        // must follow owner-to-target links, not array position.
+                        new DnsAnswer { Name = "z.azurefd.net", Type = DnsRecordType.CNAME, DataRaw = "a.azureedge.net." },
+                        new DnsAnswer { Name = "example.com", Type = DnsRecordType.CNAME, DataRaw = "z.azurefd.net." }
+                    }
+                    : Array.Empty<DnsAnswer>()
+            })
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.Equal(DnsCnameTargetProvider.Azure, analysis.CnameTargetProvider);
+        Assert.Equal(DnsCnameTargetService.AzureCdn, analysis.CnameTargetService);
+        Assert.Contains(analysis.DetectedDnsApplications, application => application.Id == "cname-target-azurecdn");
+        var evidence = analysis.CnameTargetEvidence.ToList();
+        Assert.True(
+            evidence.FindIndex(item => item.Contains("z.azurefd.net", StringComparison.OrdinalIgnoreCase)) <
+            evidence.FindIndex(item => item.Contains("a.azureedge.net", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
     public void CaaIssuerDetectorParsesCommonFormats()
     {
         var m = DnsCaaIssuerDetector.Detect(new[]

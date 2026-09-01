@@ -19,6 +19,26 @@ using DomainDetective.Tests.Fixtures;
 namespace DomainDetective.Tests {
     public class TestCertificateHTTP {
         [Fact]
+        public async Task RedirectEvidenceRetainsEveryFollowedHostInOrder() {
+            var analysis = new CertificateAnalysis();
+            var handler = new RedirectSequenceHandler();
+            using var client = new HttpClient(handler);
+
+            using HttpResponseMessage response = await analysis.SendWithRedirectEvidenceAsync(
+                client,
+                new Uri("https://origin.example/start"),
+                CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                new[] { "edge.azurefd.net", "origin.example", "edge.azurefd.net", "final.example" },
+                analysis.RedirectTargets);
+            Assert.Equal(
+                new[] { "origin.example", "edge.azurefd.net", "origin.example", "edge.azurefd.net", "final.example" },
+                handler.RequestHosts);
+        }
+
+        [Fact]
         public async Task UnreachableHostSetsIsReachableFalse() {
             var logger = new InternalLogger();
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
@@ -571,6 +591,35 @@ namespace DomainDetective.Tests {
             var req = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
             return CertificateLoaderCompat.LoadPkcs12(cert.Export(X509ContentType.Pfx));
+        }
+
+        private sealed class RedirectSequenceHandler : HttpMessageHandler {
+            public List<string> RequestHosts { get; } = new();
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                string host = request.RequestUri?.Host ?? string.Empty;
+                RequestHosts.Add(host);
+                HttpResponseMessage response;
+                if (RequestHosts.Count == 1) {
+                    response = new HttpResponseMessage(HttpStatusCode.Found);
+                    response.Headers.Location = new Uri("https://edge.azurefd.net/hop");
+                } else if (RequestHosts.Count == 2) {
+                    response = new HttpResponseMessage(HttpStatusCode.TemporaryRedirect);
+                    response.Headers.Location = new Uri("https://origin.example/return");
+                } else if (RequestHosts.Count == 3) {
+                    response = new HttpResponseMessage(HttpStatusCode.Found);
+                    response.Headers.Location = new Uri("https://edge.azurefd.net/again");
+                } else if (RequestHosts.Count == 4) {
+                    response = new HttpResponseMessage(HttpStatusCode.TemporaryRedirect);
+                    response.Headers.Location = new Uri("https://final.example/done");
+                } else {
+                    response = new HttpResponseMessage(HttpStatusCode.OK);
+                }
+                response.RequestMessage = request;
+                return Task.FromResult(response);
+            }
         }
     }
 }

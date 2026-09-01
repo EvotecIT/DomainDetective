@@ -177,10 +177,10 @@ public sealed partial class CertificateInventoryCapture {
         if (Uri.TryCreate(target, UriKind.Absolute, out Uri? uri)) {
             return string.IsNullOrWhiteSpace(uri.Host)
                 ? null
-                : uri.Host.Trim().TrimEnd('.');
+                : EndpointHostNormalizer.Normalize(uri.Host);
         }
 
-        return target!.Trim().TrimEnd('.');
+        return EndpointHostNormalizer.Normalize(target);
     }
 
     private static void AddCtTemplateIfMissing(ICollection<string> templates, string? template) {
@@ -370,10 +370,12 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private static MailTransportAddressFamily? ParseMailAddressFamily(string? value) {
-        if (string.Equals(value, System.Net.Sockets.AddressFamily.InterNetwork.ToString(), StringComparison.Ordinal)) {
+        if (string.Equals(value, "IPv4", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, System.Net.Sockets.AddressFamily.InterNetwork.ToString(), StringComparison.OrdinalIgnoreCase)) {
             return MailTransportAddressFamily.IPv4;
         }
-        if (string.Equals(value, System.Net.Sockets.AddressFamily.InterNetworkV6.ToString(), StringComparison.Ordinal)) {
+        if (string.Equals(value, "IPv6", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, System.Net.Sockets.AddressFamily.InterNetworkV6.ToString(), StringComparison.OrdinalIgnoreCase)) {
             return MailTransportAddressFamily.IPv6;
         }
         return null;
@@ -385,6 +387,7 @@ public sealed partial class CertificateInventoryCapture {
             if (entry == null) {
                 continue;
             }
+            CertificateInventoryEntryHelpers.NormalizeRemoteAddressEvidence(entry);
             var host = !string.IsNullOrWhiteSpace(entry.ResolvedHost) ? entry.ResolvedHost! : entry.Host;
             var key = $"{host}|{entry.Port}|{entry.Service}";
             if (!byEndpoint.TryGetValue(key, out var existing)) {
@@ -464,7 +467,7 @@ public sealed partial class CertificateInventoryCapture {
         var entry = new CertificateInventoryEntry {
             Host = target.Host,
             ResolvedHost = target.Host,
-            Url = $"{target.Scheme}://{target.Host}:{target.Port}",
+            Url = $"{target.Scheme}://{EndpointHostNormalizer.FormatForUriAuthority(target.Host)}:{target.Port}",
             Scheme = target.Scheme,
             Port = target.Port,
             Service = target.Service,

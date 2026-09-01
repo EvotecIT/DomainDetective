@@ -43,7 +43,7 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private static string BuildMailTargetLabel(MailEndpointTarget target) {
-        return $"{target.Scheme}://{target.Host}:{target.Port}";
+        return $"{target.Scheme}://{EndpointHostNormalizer.FormatForUriAuthority(target.Host)}:{target.Port}";
     }
 
     private static string BuildEndpointKey(string host, int port, string service) {
@@ -145,16 +145,18 @@ public sealed partial class CertificateInventoryCapture {
             return false;
         }
 
+        DateTimeOffset observedAtUtc = cachedEntry.Entry.ObservedAtUtc ?? cachedEntry.CapturedAtUtc;
+
         if (options.ReuseRecentSnapshotEntries &&
             options.RecentSnapshotTtl > TimeSpan.Zero &&
-            cachedEntry.CapturedAtUtc >= now - options.RecentSnapshotTtl &&
+            observedAtUtc >= now - options.RecentSnapshotTtl &&
             ShouldReuseCachedSuccessEntry(cachedEntry.Entry, now, options.ReprobeExpiringWithinDays)) {
             return true;
         }
 
         if (options.ReuseRecentFailureSnapshotEntries &&
             options.RecentFailureSnapshotTtl > TimeSpan.Zero &&
-            cachedEntry.CapturedAtUtc >= now - options.RecentFailureSnapshotTtl &&
+            observedAtUtc >= now - options.RecentFailureSnapshotTtl &&
             ShouldReuseCachedFailureEntry(cachedEntry.Entry)) {
             reusedStableFailure = true;
             return true;
@@ -174,9 +176,12 @@ public sealed partial class CertificateInventoryCapture {
             .Where(static pair => pair.Value != null)
             .ToDictionary(
                 static pair => pair.Key,
-                pair => new RecentInventoryEndpointEntry {
-                    Entry = pair.Value,
-                    CapturedAtUtc = capturedAtUtc
+                pair => {
+                    CertificateInventoryEntryHelpers.NormalizeRemoteAddressEvidence(pair.Value);
+                    return new RecentInventoryEndpointEntry {
+                        Entry = pair.Value,
+                        CapturedAtUtc = capturedAtUtc
+                    };
                 },
                 StringComparer.OrdinalIgnoreCase);
     }
@@ -218,6 +223,7 @@ public sealed partial class CertificateInventoryCapture {
                 if (!entry.ObservedAtUtc.HasValue) {
                     entry.ObservedAtUtc = snapshot.CapturedAtUtc;
                 }
+                CertificateInventoryEntryHelpers.NormalizeRemoteAddressEvidence(entry);
                 var key = BuildEndpointKey(host, entry.Port, entry.Service);
                 byEndpoint[key] = new RecentInventoryEndpointEntry {
                     Entry = entry,
@@ -690,38 +696,74 @@ public sealed partial class CertificateInventoryCapture {
         Dictionary<string, FtpTlsEndpointTarget> ftpTlsTargets,
         int allowedTargets,
         List<string> warnings,
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
         List<TargetDecisionDiagnosticEntry> targetDecisionDiagnostics) {
         if (ftpTlsTargets.Count <= allowedTargets) {
             return;
         }
 
         int originalCount = ftpTlsTargets.Count;
-        FtpTlsEndpointTarget[] ordered = ftpTlsTargets.Values
-            .OrderBy(target => target.Host, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(target => target.Port)
-            .ThenBy(target => target.Service, StringComparer.OrdinalIgnoreCase)
+        var ordered = ftpTlsTargets.Values
+            .Select(target => new {
+                Target = target,
+                Priority = ComputeFtpTlsTargetPriority(target, recentByEndpoint, options),
+                SortDays = ResolvePrioritySortDays(target, recentByEndpoint)
+            })
+            .OrderByDescending(item => item.Priority)
+            .ThenBy(item => item.SortDays)
+            .ThenBy(item => item.Target.Host, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Target.Port)
+            .ThenBy(item => item.Target.Service, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        FtpTlsEndpointTarget[] kept = ordered.Take(Math.Max(0, allowedTargets)).ToArray();
-        FtpTlsEndpointTarget[] pruned = ordered.Skip(Math.Max(0, allowedTargets)).ToArray();
+        var kept = ordered.Take(Math.Max(0, allowedTargets)).ToArray();
+        var pruned = ordered.Skip(Math.Max(0, allowedTargets)).ToArray();
 
         ftpTlsTargets.Clear();
-        foreach (FtpTlsEndpointTarget target in kept) {
-            ftpTlsTargets[target.Key] = target;
+        foreach (var item in kept) {
+            ftpTlsTargets[item.Target.Key] = item.Target;
         }
-        foreach (FtpTlsEndpointTarget target in pruned) {
+        foreach (var item in pruned) {
+            FtpTlsEndpointTarget target = item.Target;
             targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
                 Stage = "target-limit",
                 Action = "pruned",
                 Reason = "max-targets",
-                Target = $"{target.Scheme}://{target.Host}:{target.Port}",
+                Target = $"{target.Scheme}://{EndpointHostNormalizer.FormatForUriAuthority(target.Host)}:{target.Port}",
                 Service = target.Service,
-                PriorityScore = 1000,
+                PriorityScore = item.Priority,
                 Message = $"Pruned by MaxTargets={options.MaxTargets}.",
                 TargetOrigins = target.TargetOrigins.ToList()
             });
         }
 
         warnings.Add($"FTP TLS target list capped from {originalCount} to {ftpTlsTargets.Count} by the global MaxTargets budget.");
+    }
+
+    private static int ComputeFtpTlsTargetPriority(
+        FtpTlsEndpointTarget target,
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint,
+        CertificateInventoryCaptureOptions options) {
+        if (target != null &&
+            recentByEndpoint != null &&
+            recentByEndpoint.TryGetValue(target.Key, out RecentInventoryEndpointEntry? cachedEntry)) {
+            int evidencePriority = ComputeCachedEntryPriority(cachedEntry.Entry, options.ReprobeExpiringWithinDays);
+            if (TryReuseCachedEntry(cachedEntry, DateTimeOffset.UtcNow, options, out _)) {
+                return evidencePriority;
+            }
+            return Math.Max(1000, evidencePriority);
+        }
+        return 1000;
+    }
+
+    private static int ResolvePrioritySortDays(
+        FtpTlsEndpointTarget target,
+        IReadOnlyDictionary<string, RecentInventoryEndpointEntry>? recentByEndpoint) {
+        if (target != null &&
+            recentByEndpoint != null &&
+            recentByEndpoint.TryGetValue(target.Key, out RecentInventoryEndpointEntry? cachedEntry)) {
+            return ParseSortDays(cachedEntry.Entry);
+        }
+        return int.MinValue;
     }
 
     private static void ResolveTargetBudget(
@@ -904,7 +946,7 @@ public sealed partial class CertificateInventoryCapture {
                 return false;
         }
 
-        string host = uri.Host.Trim().TrimEnd('.');
+        string host = EndpointHostNormalizer.Normalize(uri.Host);
         if (host.Length == 0) {
             return false;
         }
@@ -920,7 +962,7 @@ public sealed partial class CertificateInventoryCapture {
 
     private static bool TryCreateMailTargetFromScheme(Uri uri, CertificateInventoryCaptureOptions options, out MailEndpointTarget? target) {
         target = null;
-        var host = uri.Host.Trim().TrimEnd('.');
+        var host = EndpointHostNormalizer.Normalize(uri.Host);
         if (string.IsNullOrWhiteSpace(host)) {
             return false;
         }

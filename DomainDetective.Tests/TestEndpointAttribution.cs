@@ -32,6 +32,46 @@ public class TestEndpointAttribution {
         Assert.Contains("2001:db8::10", evidence.Addresses);
         Assert.False(evidence.LoopDetected);
         Assert.Empty(evidence.Errors);
+        Assert.True(evidence.AddressResolutionComplete);
+    }
+
+    [Theory]
+    [InlineData("203.0.113.20", "203.0.113.20")]
+    [InlineData("2001:db8::20", "2001:db8::20")]
+    [InlineData("[2001:db8::21]", "2001:db8::21")]
+    [InlineData("::ffff:192.0.2.20", "192.0.2.20")]
+    public async Task DnsEvidenceResolverTreatsLiteralAddressAsCompletedEvidence(
+        string input,
+        string expectedAddress) {
+        int queryCount = 0;
+        var resolver = new EndpointDnsEvidenceResolver {
+            QueryDnsOverride = (_, _, _) => {
+                queryCount++;
+                return Task.FromResult(Array.Empty<DnsAnswer>());
+            }
+        };
+
+        EndpointDnsEvidence evidence = await resolver.ResolveAsync(input);
+
+        Assert.Equal(0, queryCount);
+        Assert.True(evidence.AddressResolutionComplete);
+        Assert.Equal(expectedAddress, Assert.Single(evidence.Addresses));
+        Assert.Empty(evidence.CnameChain);
+        Assert.Empty(evidence.Errors);
+    }
+
+    [Fact]
+    public void EndpointParsersRemoveIpv6UriBracketsWithoutChangingUriFormatting() {
+        CertificateServiceDescriptor https = CertificateServiceClassifier.Resolve(
+            "https://[2001:db8::30]/",
+            443);
+        var mail = new MailTransportEndpoint("[2001:db8::31]", 25);
+        var ftp = new FtpTlsEndpoint("[2001:db8::32]", 990, FtpTlsMode.Implicit);
+
+        Assert.Equal("2001:db8::30", https.Host);
+        Assert.Contains("[2001:db8::30]", https.Url);
+        Assert.Equal("2001:db8::31", mail.HostName);
+        Assert.Equal("2001:db8::32", ftp.HostName);
     }
 
     [Fact]
@@ -71,6 +111,14 @@ public class TestEndpointAttribution {
     public void IpClassifierHandlesReusableRoutingScopes(string value, IpAddressVisibility expected) {
         Assert.True(IpAddressClassifier.TryClassify(value, out IpAddressVisibility actual));
         Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData("192.0.2.1", "IPv4")]
+    [InlineData("::ffff:192.0.2.1", "IPv4")]
+    [InlineData("2001:db8::1", "IPv6")]
+    public void IpClassifierReturnsStableAddressFamilyLabels(string value, string expected) {
+        Assert.Equal(expected, IpAddressClassifier.GetAddressFamilyLabel(IPAddress.Parse(value)));
     }
 
     [Fact]

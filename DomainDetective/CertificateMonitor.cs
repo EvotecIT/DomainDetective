@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Network;
 using DomainDetective.Helpers;
 using PeriodicTimer = System.Threading.PeriodicTimer;
 
@@ -361,9 +362,13 @@ namespace DomainDetective {
             if (snapshot == null) {
                 throw new ArgumentNullException(nameof(snapshot));
             }
-            if (snapshot.CapturedAtUtc == default) {
-                snapshot.CapturedAtUtc = DateTimeOffset.UtcNow;
+            snapshot.Entries ??= new List<CertificateInventoryEntry>();
+            foreach (CertificateInventoryEntry entry in snapshot.Entries) {
+                CertificateInventoryEntryHelpers.NormalizeRemoteAddressEvidence(entry);
             }
+            snapshot.CapturedAtUtc = CertificateInventoryEntryHelpers.ResolveCapturedAtUtc(
+                snapshot.Entries,
+                snapshot.CapturedAtUtc);
 
             try {
                 Directory.CreateDirectory(InventoryDirectory);
@@ -404,7 +409,7 @@ namespace DomainDetective {
                 Port = entry.Port,
                 Service = entry.Service,
                 RemoteAddress = entry.RemoteAddress?.ToString(),
-                RemoteAddressFamily = entry.RemoteAddress?.AddressFamily.ToString(),
+                RemoteAddressFamily = IpAddressClassifier.GetAddressFamilyLabel(entry.RemoteAddress),
                 ObservedAtUtc = entry.ObservedAtUtc == default ? null : entry.ObservedAtUtc,
                 CertificateSubject = certificate?.Subject,
                 CertificateIssuer = certificate?.Issuer,

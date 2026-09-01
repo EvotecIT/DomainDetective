@@ -129,7 +129,10 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                 return;
             }
 
-            var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var responseTargets = new List<string>();
+            var seenResponseTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var targetByOwner = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            bool hasConflictingOwnerTargets = false;
             foreach (var q in queries)
             {
                 if (q.RecordType != DnsRecordType.CNAME)
@@ -144,18 +147,35 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                         continue;
                     }
 
-                    var t = NormalizeHost(r.Data);
-                    if (!string.IsNullOrWhiteSpace(t))
+                    var owner = NormalizeHost(r.Name);
+                    var target = NormalizeHost(r.Data);
+                    if (!string.IsNullOrWhiteSpace(target) && seenResponseTargets.Add(target))
                     {
-                        targets.Add(t);
+                        responseTargets.Add(target);
+                    }
+                    if (!string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(target))
+                    {
+                        if (targetByOwner.TryGetValue(owner, out string? existingTarget) &&
+                            !string.Equals(existingTarget, target, StringComparison.OrdinalIgnoreCase))
+                        {
+                            hasConflictingOwnerTargets = true;
+                        }
+                        else
+                        {
+                            targetByOwner[owner] = target;
+                        }
                     }
                 }
             }
 
-            if (targets.Count == 0)
+            if (responseTargets.Count == 0)
             {
                 return;
             }
+
+            var targets = hasConflictingOwnerTargets
+                ? responseTargets
+                : BuildCnameTraversal(targetByOwner, responseTargets);
 
             var evidence = new List<string>();
             var bestProvider = DnsCnameTargetProvider.Unknown;
@@ -163,7 +183,7 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
             var bestMatchRank = 0;
             var flags = DnsCnameTargetFlags.None;
 
-            foreach (var target in targets.OrderBy(t => t, StringComparer.OrdinalIgnoreCase))
+            foreach (var target in targets)
             {
                 if (evidence.Count < 10)
                 {
@@ -175,7 +195,10 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                 var matchRank = m.Service != DnsCnameTargetService.Unknown
                     ? 2
                     : (m.Provider != DnsCnameTargetProvider.Unknown ? 1 : 0);
-                if (matchRank > bestMatchRank)
+                // CNAME records are evaluated in owner-to-target traversal order. When
+                // equally strong services occur in one chain, the later (terminal)
+                // target describes the service actually reached.
+                if (matchRank > 0 && matchRank >= bestMatchRank)
                 {
                     bestProvider = m.Provider;
                     bestService = m.Service;
@@ -204,6 +227,34 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
         catch
         {
         }
+    }
+
+    private List<string> BuildCnameTraversal(
+        IReadOnlyDictionary<string, string> targetByOwner,
+        IReadOnlyList<string> responseTargets)
+    {
+        if (targetByOwner.Count == 0)
+        {
+            return responseTargets.ToList();
+        }
+
+        string current = NormalizeHost(Subject);
+        if (current.Length == 0 || !targetByOwner.ContainsKey(current))
+        {
+            var referenced = new HashSet<string>(targetByOwner.Values, StringComparer.OrdinalIgnoreCase);
+            current = targetByOwner.Keys.FirstOrDefault(owner => !referenced.Contains(owner))
+                ?? targetByOwner.Keys.First();
+        }
+
+        var traversal = new List<string>();
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (visited.Add(current) && targetByOwner.TryGetValue(current, out string? target))
+        {
+            traversal.Add(target);
+            current = target;
+        }
+
+        return traversal.Count > 0 ? traversal : responseTargets.ToList();
     }
 
     private void TryDetectTxtSignals(List<DnsInventoryQuery> queries)

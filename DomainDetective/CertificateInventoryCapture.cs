@@ -1268,6 +1268,7 @@ public sealed partial class CertificateInventoryCapture {
                 ftpTlsTargets,
                 allowedFtpTls,
                 warnings,
+                recentByEndpoint,
                 targetDecisionDiagnostics);
             nonFtpTargetBudget = Math.Max(0, options.MaxTargets - ftpTlsTargets.Count);
         }
@@ -1399,9 +1400,10 @@ public sealed partial class CertificateInventoryCapture {
         allEntries.AddRange(ftpTlsEntries);
 
         var deduped = DeduplicateEntries(allEntries);
-        var capturedAtUtc = DateTimeOffset.UtcNow;
-        await EnrichEndpointObservationsAsync(deduped, options, capturedAtUtc, warnings, cancellationToken).ConfigureAwait(false);
-        EnrichEntriesWithCtSubdomainMetadata(deduped, ctDiscoveredSubdomainEntries, capturedAtUtc);
+        var observationFallbackAtUtc = DateTimeOffset.UtcNow;
+        await EnrichEndpointObservationsAsync(deduped, options, observationFallbackAtUtc, warnings, cancellationToken).ConfigureAwait(false);
+        EnrichEntriesWithCtSubdomainMetadata(deduped, ctDiscoveredSubdomainEntries, observationFallbackAtUtc);
+        var capturedAtUtc = CertificateInventoryEntryHelpers.ResolveCapturedAtUtc(deduped, DateTimeOffset.UtcNow);
         var distinctPorts = deduped
             .Select(e => e.Port)
             .Where(port => port > 0)
@@ -1515,7 +1517,7 @@ public sealed partial class CertificateInventoryCapture {
                 .OrderBy(x => x.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.Port)
                 .ThenBy(x => x.Service, StringComparer.OrdinalIgnoreCase)
-                .Select(x => $"{x.Scheme}://{x.Host}:{x.Port}")
+                .Select(x => $"{x.Scheme}://{EndpointHostNormalizer.FormatForUriAuthority(x.Host)}:{x.Port}")
                 .ToList(),
             Warnings = warnings,
             NativeCtLogDiagnostics = nativeCtLogDiagnostics,

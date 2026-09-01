@@ -5,6 +5,15 @@ namespace DomainDetective.Tests;
 
 public class TestConstrainedOutboundConnections {
     [Fact]
+    public void MailAddressFamilyTreatsMappedIpv4AsIpv4() {
+        IPAddress mapped = IPAddress.Parse("::ffff:192.0.2.40");
+
+        Assert.True(MailTransportConnector.Matches(mapped, MailTransportAddressFamily.IPv4));
+        Assert.False(MailTransportConnector.Matches(mapped, MailTransportAddressFamily.IPv6));
+        Assert.Equal(MailTransportAddressFamily.IPv4, MailTransportConnector.ToMailAddressFamily(mapped));
+    }
+
+    [Fact]
     public async Task HealthCheckHostProbesPreserveAnalysisResolversWhenTopLevelResolverIsUnset() {
         var healthCheck = new DomainHealthCheck();
         Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>> resolver =

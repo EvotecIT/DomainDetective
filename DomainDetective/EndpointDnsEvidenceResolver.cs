@@ -61,6 +61,20 @@ public sealed class EndpointDnsEvidenceResolver {
             throw new ArgumentOutOfRangeException(nameof(MaxCnameDepth), "MaxCnameDepth must be between 1 and 128.");
         }
 
+        if (IPAddress.TryParse(normalizedHost, out IPAddress? literalAddress) && literalAddress != null) {
+            IPAddress normalizedAddress = literalAddress.IsIPv4MappedToIPv6
+                ? literalAddress.MapToIPv4()
+                : literalAddress;
+            return new EndpointDnsEvidence {
+                HostName = normalizedHost,
+                EffectiveHostName = normalizedHost,
+                Addresses = new[] { normalizedAddress.ToString() },
+                AddressResolutionComplete = true,
+                Resolver = DnsConfiguration.DnsEndpoint.ToString(),
+                ObservedAtUtc = DateTimeOffset.UtcNow
+            };
+        }
+
         var chain = new List<string>();
         var errors = new List<string>();
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { normalizedHost };
@@ -142,5 +156,5 @@ public sealed class EndpointDnsEvidenceResolver {
     }
 
     private static string NormalizeHost(string? value) =>
-        (value ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+        EndpointHostNormalizer.Normalize(value, lowercase: true);
 }

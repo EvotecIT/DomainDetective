@@ -55,6 +55,9 @@ public class TestCertificateInventoryCapture {
         Providers.Endpoint.EndpointAttributionCandidate primary = Assert.IsType<Providers.Endpoint.EndpointAttributionCandidate>(inventoryEntry.Attribution?.Primary);
         Assert.Equal("azure-front-door", primary.ServiceId);
         Assert.True(inventoryEntry.Attribution!.EvaluatedAtUtc >= inventoryEntry.DnsObservedAtUtc!.Value);
+        Assert.True(result.Snapshot.CapturedAtUtc >= inventoryEntry.DnsObservedAtUtc.Value);
+        Assert.True(result.Snapshot.CapturedAtUtc >= inventoryEntry.Attribution.EvaluatedAtUtc);
+        Assert.Equal(result.Snapshot.CapturedAtUtc, result.CapturedAtUtc);
         Assert.Contains(
             primary.Evidence,
             evidence => evidence.Kind == Providers.Endpoint.EndpointAttributionSignalKind.Cname);
@@ -109,6 +112,8 @@ public class TestCertificateInventoryCapture {
             Service = "FTPS-EXPLICIT",
             Scheme = "ftps-explicit",
             ProbeVantage = "branch-office",
+            RemoteAddress = "::ffff:192.0.2.50",
+            RemoteAddressFamily = "InterNetworkV6",
             IsReachable = true,
             Valid = true,
             CertificateThumbprint = "CACHED-FTPS",
@@ -136,7 +141,180 @@ public class TestCertificateInventoryCapture {
         Assert.Equal(1, result.ReusedRecentEntryCount);
         Assert.Equal(1, result.ReusedRecentFtpTlsCount);
         Assert.Equal(0, result.ProbedFtpTlsCount);
-        Assert.Equal("reused-recent-success", Assert.Single(result.Snapshot.Entries).CaptureDisposition);
+        CertificateInventoryEntry reused = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("reused-recent-success", reused.CaptureDisposition);
+        Assert.Equal("192.0.2.50", reused.RemoteAddress);
+        Assert.Equal("IPv4", reused.RemoteAddressFamily);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotRefreshFtpTlsReuseAgeFromNewerSnapshotTime() {
+        const int port = 1;
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|FTPS-EXPLICIT"] = new CertificateInventoryEntry {
+                        Host = "localhost",
+                        ResolvedHost = "localhost",
+                        Port = port,
+                        Service = "FTPS-EXPLICIT",
+                        Scheme = "ftps-explicit",
+                        ProbeVantage = "default",
+                        ObservedAtUtc = DateTimeOffset.UtcNow.AddHours(-2),
+                        IsReachable = true,
+                        Valid = true,
+                        CertificateThumbprint = "STALE-FTPS",
+                        NotAfterUtc = DateTimeOffset.UtcNow.AddDays(90)
+                    }
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            FtpTlsTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add($"ftps-explicit://localhost:{port}");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(1, result.ProbedFtpTlsCount);
+        Assert.Equal("live-probe", Assert.Single(result.Snapshot.Entries).CaptureDisposition);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotRefreshHttpsFailureReuseAgeFromNewerSnapshotTime() {
+        int observedProbeTargets = 0;
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|CUSTOM TLS"] = new CertificateInventoryEntry {
+                        Host = "localhost",
+                        ResolvedHost = "localhost",
+                        Port = 1,
+                        Service = "Custom TLS",
+                        Scheme = "https",
+                        ProbeVantage = "default",
+                        ObservedAtUtc = DateTimeOffset.UtcNow.AddHours(-2),
+                        IsReachable = false,
+                        FailureKind = CertificateFailureKind.ConnectionRefused,
+                        FailureReason = "Connection refused"
+                    }
+                },
+            HttpsProbeOverride = (targets, _, _, _) => {
+                observedProbeTargets = targets.Count;
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentFailureSnapshotEntries = true,
+            RecentFailureSnapshotTtl = TimeSpan.FromHours(1)
+        };
+        options.AdditionalEndpoints.Add("https://localhost:1");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentFailureHttpsCount);
+        Assert.Equal(1, result.ProbedHttpsCount);
+        Assert.Equal(1, observedProbeTargets);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_PrioritizesUncachedFtpTlsTargetBeforeHealthyCachedTarget() {
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|FTPS-EXPLICIT"] = new CertificateInventoryEntry {
+                        Host = "localhost",
+                        ResolvedHost = "localhost",
+                        Port = 1,
+                        Service = "FTPS-EXPLICIT",
+                        Scheme = "ftps-explicit",
+                        ProbeVantage = "default",
+                        ObservedAtUtc = DateTimeOffset.UtcNow,
+                        IsReachable = true,
+                        Valid = true,
+                        IsKnownCertificateAuthority = true,
+                        AllowsServerAuthentication = true,
+                        PresentInCtLogs = true,
+                        CertificateThumbprint = "HEALTHY-CACHED-FTPS",
+                        NotAfterUtc = DateTimeOffset.UtcNow.AddDays(180)
+                    }
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            MaxTargets = 1,
+            FtpTlsTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:1");
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:2");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(1, result.ProbedFtpTlsCount);
+        Assert.Equal(1, result.FtpTlsTargetCountDroppedByLimit);
+        Assert.Equal("ftps-explicit://localhost:2", Assert.Single(result.FtpTlsEndpoints));
+    }
+
+    [Fact]
+    public async Task CaptureAsync_PrioritizesStaleFtpTlsTargetBeforeReusableHealthyTarget() {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        CertificateInventoryEntry Cached(int port, DateTimeOffset observedAtUtc, string thumbprint) => new() {
+            Host = "localhost",
+            ResolvedHost = "localhost",
+            Port = port,
+            Service = "FTPS-EXPLICIT",
+            Scheme = "ftps-explicit",
+            ProbeVantage = "default",
+            ObservedAtUtc = observedAtUtc,
+            IsReachable = true,
+            Valid = true,
+            IsKnownCertificateAuthority = true,
+            AllowsServerAuthentication = true,
+            PresentInCtLogs = true,
+            CertificateThumbprint = thumbprint,
+            NotAfterUtc = now.AddDays(180)
+        };
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|FTPS-EXPLICIT"] = Cached(1, now, "REUSABLE-FTPS"),
+                    ["localhost|2|FTPS-EXPLICIT"] = Cached(2, now.AddHours(-2), "STALE-FTPS")
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            MaxTargets = 1,
+            FtpTlsTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:1");
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:2");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(1, result.ProbedFtpTlsCount);
+        Assert.Equal("ftps-explicit://localhost:2", Assert.Single(result.FtpTlsEndpoints));
     }
 
     [Fact]

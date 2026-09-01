@@ -1,4 +1,5 @@
 using DomainDetective.Helpers;
+using DomainDetective.Network;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -25,7 +26,7 @@ public enum FtpTlsMode {
 public sealed class FtpTlsEndpoint {
     /// <summary>Creates an FTP TLS endpoint.</summary>
     public FtpTlsEndpoint(string hostName, int port, FtpTlsMode mode) {
-        HostName = (hostName ?? string.Empty).Trim().TrimEnd('.');
+        HostName = EndpointHostNormalizer.Normalize(hostName);
         Port = port;
         Mode = mode;
         Validate();
@@ -275,7 +276,7 @@ public sealed class FtpTlsAnalysis {
         if (client.Client.RemoteEndPoint is IPEndPoint endpoint) {
             IPAddress address = endpoint.Address.IsIPv4MappedToIPv6 ? endpoint.Address.MapToIPv4() : endpoint.Address;
             connection.RemoteAddress = address.ToString();
-            connection.RemoteAddressFamily = address.AddressFamily.ToString();
+            connection.RemoteAddressFamily = IpAddressClassifier.GetAddressFamilyLabel(address);
         }
     }
 

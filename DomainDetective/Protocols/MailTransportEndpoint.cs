@@ -11,6 +11,8 @@ namespace DomainDetective;
 /// socket to a specific backend address without changing SNI or certificate hostname validation.
 /// </remarks>
 public sealed class MailTransportEndpoint {
+    private string _hostName = string.Empty;
+
     /// <summary>Creates an empty endpoint for serializers and object initializers.</summary>
     public MailTransportEndpoint() {
     }
@@ -22,7 +24,10 @@ public sealed class MailTransportEndpoint {
     }
 
     /// <summary>Logical mail hostname used for protocol identity, SNI, and certificate validation.</summary>
-    public string HostName { get; set; } = string.Empty;
+    public string HostName {
+        get => _hostName;
+        set => _hostName = EndpointHostNormalizer.Normalize(value);
+    }
 
     /// <summary>TCP port used by the probe.</summary>
     public int Port { get; set; }

@@ -37,7 +37,8 @@ public sealed class MailTransportConnectionEvidence {
             return;
         }
 
-        RemoteAddress = remote.Address.ToString();
-        RemoteAddressFamily = MailTransportConnector.ToMailAddressFamily(remote.Address);
+        IPAddress address = remote.Address.IsIPv4MappedToIPv6 ? remote.Address.MapToIPv4() : remote.Address;
+        RemoteAddress = address.ToString();
+        RemoteAddressFamily = MailTransportConnector.ToMailAddressFamily(address);
     }
 }

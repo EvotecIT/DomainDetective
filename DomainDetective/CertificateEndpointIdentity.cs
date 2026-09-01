@@ -80,7 +80,7 @@ public sealed class CertificateEndpointIdentity : IEquatable<CertificateEndpoint
     public override string ToString() => Key;
 
     private static string NormalizeHost(string? host) {
-        string normalized = (host ?? string.Empty).Trim().TrimEnd('.');
+        string normalized = EndpointHostNormalizer.Normalize(host);
         return normalized.Length == 0 ? UnknownHost : normalized.ToLowerInvariant();
     }
 

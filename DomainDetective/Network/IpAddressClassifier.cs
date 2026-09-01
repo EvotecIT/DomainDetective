@@ -1,4 +1,6 @@
+using System;
 using System.Net;
+using System.Net.Sockets;
 
 namespace DomainDetective.Network;
 
@@ -30,6 +32,47 @@ public enum IpAddressVisibility
 /// <summary>Classifies IPv4 and IPv6 addresses without performing network lookups.</summary>
 public static class IpAddressClassifier
 {
+    /// <summary>Returns the stable inventory label for an address family.</summary>
+    public static string GetAddressFamilyLabel(IPAddress? address)
+    {
+        if (address == null)
+        {
+            return string.Empty;
+        }
+
+        if (address.IsIPv4MappedToIPv6 || address.AddressFamily == AddressFamily.InterNetwork)
+        {
+            return "IPv4";
+        }
+        if (address.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            return "IPv6";
+        }
+        return "Unknown";
+    }
+
+    /// <summary>Returns a stable inventory label from an address or a legacy family label.</summary>
+    public static string GetAddressFamilyLabel(string? address, string? familyLabel = null)
+    {
+        if (IPAddress.TryParse((address ?? string.Empty).Trim(), out IPAddress? parsed) && parsed != null)
+        {
+            return GetAddressFamilyLabel(parsed);
+        }
+
+        string normalized = (familyLabel ?? string.Empty).Trim();
+        if (string.Equals(normalized, "IPv4", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalized, AddressFamily.InterNetwork.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            return "IPv4";
+        }
+        if (string.Equals(normalized, "IPv6", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalized, AddressFamily.InterNetworkV6.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            return "IPv6";
+        }
+        return normalized.Length == 0 ? string.Empty : "Unknown";
+    }
+
     /// <summary>Attempts to parse and classify an address.</summary>
     public static bool TryClassify(string? value, out IpAddressVisibility visibility)
     {
