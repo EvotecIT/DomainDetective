@@ -115,6 +115,12 @@ public sealed class FtpTlsResult {
     /// <summary>Leaf certificate captured during negotiation.</summary>
     public X509Certificate2? Certificate { get; set; }
 
+    /// <summary>DNS subject alternative names parsed from the leaf certificate.</summary>
+    public List<string> CertificateDnsNames { get; } = new();
+
+    /// <summary>Best-effort SAN parsing error, when certificate DNS names could not be read.</summary>
+    public string? SanParsingError { get; set; }
+
     /// <summary>Certificate chain captured during negotiation.</summary>
     public List<X509Certificate2> Chain { get; } = new();
 
@@ -141,6 +147,9 @@ public sealed class FtpTlsAnalysis {
             throw new ArgumentNullException(nameof(endpoint));
         }
         endpoint.Validate();
+        if (Timeout <= TimeSpan.Zero || Timeout > TimeSpan.FromMinutes(10)) {
+            throw new ArgumentOutOfRangeException(nameof(Timeout), "Timeout must be greater than zero and at most 10 minutes.");
+        }
         var result = new FtpTlsResult {
             Mode = endpoint.Mode,
             Connection = new FtpTlsConnectionEvidence {
@@ -195,7 +204,12 @@ public sealed class FtpTlsAnalysis {
                 result.Chain.Clear();
                 result.ChainErrors.Clear();
                 if (certificate != null) {
-                    result.Certificate = CertificateLoaderCompat.LoadCertificate(certificate.Export(X509ContentType.Cert));
+                    X509Certificate2 loadedCertificate = CertificateLoaderCompat.LoadCertificate(certificate.Export(X509ContentType.Cert));
+                    result.Certificate = loadedCertificate;
+                    result.CertificateDnsNames.Clear();
+                    result.CertificateDnsNames.AddRange(
+                        TlsProbe.ExtractCertificateDnsNames(loadedCertificate, out string? sanParsingError));
+                    result.SanParsingError = sanParsingError;
                 }
                 if (chain != null) {
                     foreach (X509ChainElement element in chain.ChainElements) {

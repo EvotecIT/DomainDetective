@@ -351,6 +351,7 @@ public sealed partial class CertificateInventoryCapture {
             FailureReason = result.FailureReason,
             FailureKind = result.FailureKind
         };
+        mailResult.CertificateDnsNames.AddRange(result.CertificateDnsNames);
         foreach (X509Certificate2 chainElement in result.Chain) {
             mailResult.Chain.Add(chainElement);
         }

@@ -93,9 +93,10 @@ public sealed class EndpointDnsEvidenceResolver {
                 break;
             }
 
-            string next = answers
-                .Select(answer => NormalizeHost(answer.Data ?? answer.DataRaw))
-                .FirstOrDefault(value => value.Length > 0) ?? string.Empty;
+            string next = SelectCnameTarget(current, answers, out bool ambiguousCname);
+            if (ambiguousCname) {
+                errors.Add($"CNAME lookup for '{current}' returned multiple distinct targets.");
+            }
             if (next.Length == 0) {
                 break;
             }
@@ -153,6 +154,39 @@ public sealed class EndpointDnsEvidenceResolver {
             return QueryDnsOverride(name, recordType, cancellationToken);
         }
         return DnsConfiguration.QueryDNS(name, recordType, cancellationToken: cancellationToken);
+    }
+
+    private static string SelectCnameTarget(
+        string current,
+        IReadOnlyList<DnsAnswer> answers,
+        out bool ambiguous) {
+        ambiguous = false;
+        string normalizedCurrent = NormalizeHost(current);
+        string[] ownerTargets = answers
+            .Where(answer => answer.Type == DnsRecordType.CNAME &&
+                             NormalizeHost(answer.Name).Equals(normalizedCurrent, StringComparison.OrdinalIgnoreCase))
+            .Select(answer => NormalizeHost(answer.Data ?? answer.DataRaw))
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .ToArray();
+        if (ownerTargets.Length > 0) {
+            ambiguous = ownerTargets.Length > 1;
+            return ambiguous ? string.Empty : ownerTargets[0];
+        }
+
+        // Custom resolvers and older deterministic callers may omit the owner name.
+        // They may also omit the record type because this is already a CNAME query.
+        // Preserve that contract only when the ownerless response is unambiguous.
+        string[] ownerlessTargets = answers
+            .Where(answer => NormalizeHost(answer.Name).Length == 0)
+            .Select(answer => NormalizeHost(answer.Data ?? answer.DataRaw))
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .ToArray();
+        ambiguous = ownerlessTargets.Length > 1;
+        return ownerlessTargets.Length == 1 ? ownerlessTargets[0] : string.Empty;
     }
 
     private static string NormalizeHost(string? value) =>

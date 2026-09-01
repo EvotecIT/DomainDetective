@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using DomainDetective.CLI.Commands;
+using Spectre.Console;
 
 namespace DomainDetective.CLI.Tests;
 
@@ -14,6 +15,45 @@ public class TestCertificateInventoryCaptureCommand {
         var exitCode = await command.ExecuteForTestingAsync(null!, settings);
 
         Assert.Equal(1, exitCode);
+    }
+
+    [Theory]
+    [InlineData(-2)]
+    [InlineData(0)]
+    [InlineData(301)]
+    public async Task ExecuteAsync_ReturnsErrorForInvalidFtpTlsTimeout(int timeoutSeconds) {
+        IAnsiConsole originalConsole = AnsiConsole.Console;
+        using var output = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings {
+            Ansi = AnsiSupport.No,
+            ColorSystem = ColorSystemSupport.NoColors,
+            Out = new AnsiConsoleOutput(output)
+        });
+        try {
+            var command = new CertificateInventoryCaptureCommand();
+            var settings = new CertificateInventoryCaptureSettings {
+                Domains = new[] { "example.com" },
+                NoApexHttps = true,
+                NoWwwHttps = true,
+                DisableMxDiscovery = true,
+                DisableSmtpStartTls = true,
+                DisableSubmissionStartTls = true,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                NoPersist = true,
+                FtpTlsTimeoutSeconds = timeoutSeconds
+            };
+
+            int exitCode = await command.ExecuteForTestingAsync(null!, settings);
+
+            Assert.Equal(1, exitCode);
+            Assert.Contains(
+                "--ftps-timeout-seconds must be between 1 and 300.",
+                output.ToString(),
+                StringComparison.Ordinal);
+        } finally {
+            AnsiConsole.Console = originalConsole;
+        }
     }
 
     [Fact]

@@ -35,6 +35,42 @@ public class TestEndpointAttribution {
         Assert.True(evidence.AddressResolutionComplete);
     }
 
+    [Fact]
+    public async Task DnsEvidenceResolverSelectsCnameOwnedByCurrentChainNode() {
+        DnsAnswer[] shuffledChain = {
+            new() { Name = "edge.example.net.", Type = DnsRecordType.CNAME, DataRaw = "tenant.azurefd.net." },
+            new() { Name = "www.example.com.", Type = DnsRecordType.CNAME, DataRaw = "edge.example.net." }
+        };
+        var resolver = new EndpointDnsEvidenceResolver {
+            QueryDnsOverride = (_, type, _) => Task.FromResult(
+                type == DnsRecordType.CNAME ? shuffledChain : Array.Empty<DnsAnswer>())
+        };
+
+        EndpointDnsEvidence evidence = await resolver.ResolveAsync("www.example.com");
+
+        Assert.Equal("tenant.azurefd.net", evidence.EffectiveHostName);
+        Assert.Equal(new[] { "edge.example.net", "tenant.azurefd.net" }, evidence.CnameChain);
+        Assert.False(evidence.LoopDetected);
+    }
+
+    [Fact]
+    public async Task DnsEvidenceResolverReportsAmbiguousCnameWithoutChoosingByResponseOrder() {
+        var resolver = new EndpointDnsEvidenceResolver {
+            QueryDnsOverride = (_, type, _) => Task.FromResult(type == DnsRecordType.CNAME
+                ? new[] {
+                    new DnsAnswer { Name = "www.example.com", Type = type, DataRaw = "first.example.net" },
+                    new DnsAnswer { Name = "www.example.com", Type = type, DataRaw = "second.example.net" }
+                }
+                : Array.Empty<DnsAnswer>())
+        };
+
+        EndpointDnsEvidence evidence = await resolver.ResolveAsync("www.example.com");
+
+        Assert.Equal("www.example.com", evidence.EffectiveHostName);
+        Assert.Empty(evidence.CnameChain);
+        Assert.Contains(evidence.Errors, error => error.Contains("multiple distinct targets", StringComparison.OrdinalIgnoreCase));
+    }
+
     [Theory]
     [InlineData("203.0.113.20", "203.0.113.20")]
     [InlineData("2001:db8::20", "2001:db8::20")]

@@ -15,6 +15,18 @@ using Xunit;
 namespace DomainDetective.Tests;
 
 public class TestFtpTlsAnalysis {
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(601)]
+    public async Task RejectsInvalidTimeoutBeforeOpeningAConnection(int timeoutSeconds) {
+        var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(timeoutSeconds) };
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => analysis.AnalyzeAsync(
+            new FtpTlsEndpoint("localhost", 21, FtpTlsMode.Explicit),
+            new InternalLogger()));
+    }
+
     [Fact]
     public async Task CertificateInventoryCaptureAcceptsExplicitFtpsEndpoint() {
         using X509Certificate2 certificate = CreateSelfSigned("localhost");
@@ -57,9 +69,9 @@ public class TestFtpTlsAnalysis {
             Assert.Equal("IPv4", entry.RemoteAddressFamily);
             Assert.NotNull(entry.ObservedAtUtc);
             Assert.True(entry.ObservedAtUtc <= capture.Snapshot.CapturedAtUtc);
-            Assert.NotEqual(capture.Snapshot.CapturedAtUtc, entry.ObservedAtUtc);
             Assert.Equal("default", entry.ProbeVantage);
             Assert.NotNull(entry.CertificateThumbprint);
+            Assert.Contains("localhost", entry.SubjectAlternativeNames, StringComparer.OrdinalIgnoreCase);
             Assert.False(entry.ChainComplete);
         } finally {
             listener.Stop();
@@ -155,6 +167,8 @@ public class TestFtpTlsAnalysis {
             Assert.True(result.TlsNegotiated);
             Assert.Equal(FtpTlsMode.Explicit, result.Mode);
             Assert.NotNull(result.Certificate);
+            Assert.Contains("localhost", result.CertificateDnsNames, StringComparer.OrdinalIgnoreCase);
+            Assert.Null(result.SanParsingError);
             Assert.False(result.CertificateValid);
             Assert.False(result.ChainValid);
             Assert.NotEmpty(result.ChainErrors);

@@ -414,6 +414,10 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--mail-timeout-seconds must be between 1 and 300.[/]");
             return 1;
         }
+        if (settings.FtpTlsTimeoutSeconds < 1 || settings.FtpTlsTimeoutSeconds > 300) {
+            AnsiConsole.MarkupLine("[red]--ftps-timeout-seconds must be between 1 and 300.[/]");
+            return 1;
+        }
         if (settings.HttpsTimeoutSeconds < 1 || settings.HttpsTimeoutSeconds > 300) {
             AnsiConsole.MarkupLine("[red]--https-timeout-seconds must be between 1 and 300.[/]");
             return 1;
