@@ -548,6 +548,32 @@ public class TestEndpointAttribution {
     }
 
     [Fact]
+    public void CustomRuleReplacementNormalizesStableIdentifier() {
+        var catalog = new EndpointAttributionCatalog();
+        catalog.AddOrReplace(new EndpointAttributionRule {
+            RuleId = "custom.edge",
+            RuleVersion = "1",
+            ProviderId = "first",
+            ServiceId = "edge",
+            DisplayName = "First Edge"
+        });
+        var replacement = new EndpointAttributionRule {
+            RuleId = " custom.edge ",
+            RuleVersion = "2",
+            ProviderId = "replacement",
+            ServiceId = "edge",
+            DisplayName = "Replacement Edge"
+        };
+
+        catalog.AddOrReplace(replacement);
+
+        EndpointAttributionRule stored = Assert.Single(catalog.Rules);
+        Assert.Equal("custom.edge", stored.RuleId);
+        Assert.Equal("replacement", stored.ProviderId);
+        _ = new EndpointAttributionDetector(catalog);
+    }
+
+    [Fact]
     public void CustomRuleRejectsMalformedIpPrefixWithRuleContext() {
         var catalog = new EndpointAttributionCatalog();
         var rule = new EndpointAttributionRule {
@@ -605,6 +631,26 @@ public class TestEndpointAttribution {
 
         Assert.Contains("custom.self-corroborating-ip", exception.Message, StringComparison.Ordinal);
         Assert.Contains("own corroborating signal", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CustomRuleRejectsUndefinedCorroboratingSignalKind() {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.undefined-signal",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Invalid Signal Rule"
+        };
+        rule.IpAddressPrimaryCorroboratingSignals.Add((EndpointAttributionSignalKind)999);
+
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            catalog.AddOrReplace(rule));
+
+        Assert.Equal((EndpointAttributionSignalKind)999, exception.ActualValue);
+        Assert.Contains("custom.undefined-signal", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("undefined corroborating signal", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

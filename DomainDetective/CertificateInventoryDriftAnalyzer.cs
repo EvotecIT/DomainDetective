@@ -242,7 +242,7 @@ namespace DomainDetective {
                     Service = string.IsNullOrWhiteSpace(latest.Entry.Service)
                         ? CertificateServiceClassifier.GuessService(latest.Entry.Scheme ?? "https", latest.Entry.Port)
                         : latest.Entry.Service!,
-                    ProbeVantage = NormalizeProbeVantage(latest.Entry.ProbeVantage),
+                    ProbeVantage = CertificateInventoryProbeVantage.Normalize(latest.Entry.ProbeVantage),
                     FirstSeenUtc = observations[0].CapturedAtUtc,
                     LastSeenUtc = latest.CapturedAtUtc,
                     ObservationCount = observations.Count,
@@ -379,11 +379,8 @@ namespace DomainDetective {
         }
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
-            return CertificateInventoryEndpointKey.Build(entry) + "|" + NormalizeProbeVantage(entry.ProbeVantage);
+            return CertificateInventoryEndpointKey.Build(entry) + "|" + CertificateInventoryProbeVantage.Normalize(entry.ProbeVantage);
         }
-
-        private static string NormalizeProbeVantage(string? probeVantage) =>
-            string.IsNullOrWhiteSpace(probeVantage) ? "default" : probeVantage!.Trim();
 
         private static string PickIssuer(CertificateInventoryEntry entry) {
             if (!string.IsNullOrWhiteSpace(entry.CertificateIssuerNormalized)) {

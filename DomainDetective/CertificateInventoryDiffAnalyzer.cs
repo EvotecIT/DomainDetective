@@ -42,6 +42,8 @@ namespace DomainDetective {
         public string Host { get; set; } = string.Empty;
         /// <summary>Gets or sets the port value.</summary>
         public int Port { get; set; }
+        /// <summary>Gets or sets the normalized probe vantage value.</summary>
+        public string ProbeVantage { get; set; } = CertificateInventoryProbeVantage.Default;
         /// <summary>Gets or sets the status value.</summary>
         public string Status { get; set; } = "Unchanged";
         /// <summary>Gets or sets the previous service value.</summary>
@@ -140,9 +142,11 @@ namespace DomainDetective {
                 if (hasCurrent) {
                     row.Host = after!.ResolvedHost ?? after.Host;
                     row.Port = NormalizePort(after.Port);
+                    row.ProbeVantage = CertificateInventoryProbeVantage.Normalize(after.ProbeVantage);
                 } else if (hasPrevious) {
                     row.Host = before!.ResolvedHost ?? before.Host;
                     row.Port = NormalizePort(before.Port);
+                    row.ProbeVantage = CertificateInventoryProbeVantage.Normalize(before.ProbeVantage);
                 }
 
                 if (!hasPrevious && hasCurrent) {
@@ -183,6 +187,7 @@ namespace DomainDetective {
                 .OrderBy(row => StatusOrder(row.Status))
                 .ThenBy(row => row.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(row => row.Port)
+                .ThenBy(row => row.ProbeVantage, StringComparer.OrdinalIgnoreCase)
                 .Take(Math.Max(0, maxEndpoints))
                 .ToList();
             return summary;
@@ -258,7 +263,7 @@ namespace DomainDetective {
         }
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
-            return CertificateInventoryEndpointKey.Build(entry);
+            return CertificateInventoryEndpointKey.Build(entry) + "|" + CertificateInventoryProbeVantage.Normalize(entry.ProbeVantage);
         }
 
         private static int NormalizePort(int port) {

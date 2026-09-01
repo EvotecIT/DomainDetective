@@ -19,9 +19,7 @@ public sealed partial class CertificateInventoryCapture {
         DateTimeOffset capturedAtUtc,
         List<string> warnings,
         CancellationToken cancellationToken) {
-        string vantage = string.IsNullOrWhiteSpace(options.ProbeVantage)
-            ? "default"
-            : options.ProbeVantage.Trim();
+        string vantage = CertificateInventoryProbeVantage.Normalize(options.ProbeVantage);
 
         foreach (CertificateInventoryEntry entry in entries) {
             if (!entry.ObservedAtUtc.HasValue) {

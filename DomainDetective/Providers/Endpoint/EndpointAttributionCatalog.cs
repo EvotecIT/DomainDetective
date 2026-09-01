@@ -34,7 +34,8 @@ public sealed class EndpointAttributionCatalog {
         }
         ValidateAndCompileRule(rule, nameof(rule));
 
-        Rules.RemoveAll(existing => string.Equals(existing.RuleId, rule.RuleId, StringComparison.OrdinalIgnoreCase));
+        Rules.RemoveAll(existing => existing != null &&
+            string.Equals(existing.RuleId?.Trim(), rule.RuleId, StringComparison.OrdinalIgnoreCase));
         Rules.Add(rule);
     }
 
@@ -47,6 +48,7 @@ public sealed class EndpointAttributionCatalog {
         if (string.IsNullOrWhiteSpace(rule.RuleId)) {
             throw new ArgumentException("An attribution rule requires a stable RuleId.", parameterName ?? nameof(rule));
         }
+        rule.RuleId = rule.RuleId.Trim();
         if (string.IsNullOrWhiteSpace(rule.ProviderId)) {
             throw new ArgumentException(
                 $"Endpoint attribution rule '{rule.RuleId}' requires a stable ProviderId.",
@@ -56,6 +58,14 @@ public sealed class EndpointAttributionCatalog {
             throw new ArgumentException(
                 $"Endpoint attribution rule '{rule.RuleId}' requires a stable ServiceId.",
                 parameterName ?? nameof(rule));
+        }
+        foreach (EndpointAttributionSignalKind signalKind in rule.IpAddressPrimaryCorroboratingSignals) {
+            if (!Enum.IsDefined(typeof(EndpointAttributionSignalKind), signalKind)) {
+                throw new ArgumentOutOfRangeException(
+                    parameterName ?? nameof(rule),
+                    signalKind,
+                    $"Endpoint attribution rule '{rule.RuleId}' contains undefined corroborating signal kind '{(int)signalKind}'.");
+            }
         }
         if (rule.IpAddressPrimaryCorroboratingSignals.Contains(EndpointAttributionSignalKind.IpAddress)) {
             throw new ArgumentException(

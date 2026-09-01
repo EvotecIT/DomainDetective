@@ -163,7 +163,7 @@ public class TestCertificateInventoryExports {
             Assert.True(File.Exists(ndjsonPath));
 
             var csv = ReadGzipText(csvPath);
-            Assert.Contains("Host,Port,Status,ChangeReasons", csv);
+            Assert.Contains("Host,Port,ProbeVantage,Status,ChangeReasons", csv);
             Assert.Contains("Changed", csv);
             Assert.Contains("changed.example.com", csv);
 

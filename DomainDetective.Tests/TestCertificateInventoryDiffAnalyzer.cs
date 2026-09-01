@@ -170,6 +170,48 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDiffKeepsProbeVantageHistoriesSeparate() {
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventoryEntry Entry(string vantage, string thumbprint) => new() {
+                Host = "shared.example.com",
+                ResolvedHost = "shared.example.com",
+                Port = 443,
+                Service = "HTTPS",
+                ProbeVantage = vantage,
+                CertificateThumbprint = thumbprint
+            };
+            var previous = new CertificateInventorySnapshot {
+                CapturedAtUtc = now.AddHours(-1),
+                Entries = new List<CertificateInventoryEntry> {
+                    Entry("branch-office", "BRANCH"),
+                    Entry("cloud", "CLOUD")
+                }
+            };
+            var current = new CertificateInventorySnapshot {
+                CapturedAtUtc = now,
+                Entries = new List<CertificateInventoryEntry> {
+                    Entry(" cloud ", "CLOUD"),
+                    Entry("BRANCH-OFFICE", "BRANCH")
+                }
+            };
+
+            var diff = CertificateInventoryDiffAnalyzer.BuildDiff(
+                new[] { previous, current },
+                includeUnchanged: true);
+
+            Assert.Equal(2, diff.PreviousEndpointCount);
+            Assert.Equal(2, diff.CurrentEndpointCount);
+            Assert.Equal(0, diff.AddedCount);
+            Assert.Equal(0, diff.RemovedCount);
+            Assert.Equal(0, diff.ChangedCount);
+            Assert.Equal(2, diff.UnchangedCount);
+            Assert.Collection(
+                diff.Endpoints.OrderBy(endpoint => endpoint.ProbeVantage, StringComparer.OrdinalIgnoreCase),
+                endpoint => Assert.Equal("branch-office", endpoint.ProbeVantage, ignoreCase: true),
+                endpoint => Assert.Equal("cloud", endpoint.ProbeVantage, ignoreCase: true));
+        }
+
+        [Fact]
         public void BuildDiffDefaultsToLatestTwoSnapshotsAndCanIncludeUnchanged() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

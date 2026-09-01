@@ -51,11 +51,7 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private static bool ProbeVantageMatches(CertificateInventoryEntry entry, string? requestedVantage) {
-        string cachedValue = entry.ProbeVantage ?? string.Empty;
-        string requestedValue = requestedVantage ?? string.Empty;
-        string cached = string.IsNullOrWhiteSpace(cachedValue) ? "default" : cachedValue.Trim();
-        string requested = string.IsNullOrWhiteSpace(requestedValue) ? "default" : requestedValue.Trim();
-        return string.Equals(cached, requested, StringComparison.OrdinalIgnoreCase);
+        return CertificateInventoryProbeVantage.Equals(entry.ProbeVantage, requestedVantage);
     }
 
     private static bool TryBuildHttpsEndpointKey(string target, out string key) {
