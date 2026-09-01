@@ -50,6 +50,7 @@ public class CnameAnalysis : IHasAssessments {
         Chain = Array.Empty<string>();
         var resolver = new EndpointDnsEvidenceResolver {
             DnsConfiguration = DnsConfiguration,
+            ResolveAddressesForOriginalHost = false,
             QueryDnsOverride = QueryDnsOverride == null
                 ? null
                 : (name, type, _) => QueryDnsOverride(name, type)

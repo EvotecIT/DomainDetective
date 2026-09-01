@@ -81,4 +81,28 @@ public class TestCnameNarrative {
         Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == CnameCodes.TargetDoesNotResolve);
         Assert.DoesNotContain(analysis.Recommendations, recommendation => recommendation.Code == CnameCodes.TargetDoesNotResolve);
     }
+
+    [Fact]
+    public async Task NoCnameDoesNotPerformUnneededAddressQueries() {
+        int cnameQueryCount = 0;
+        int addressQueryCount = 0;
+        var analysis = new CnameAnalysis {
+            DnsConfiguration = new DnsConfiguration(),
+            QueryDnsOverride = (_, type) => {
+                if (type == DnsRecordType.CNAME) {
+                    cnameQueryCount++;
+                } else {
+                    addressQueryCount++;
+                }
+                return Task.FromResult(System.Array.Empty<DnsAnswer>());
+            }
+        };
+
+        await analysis.Analyze("direct.example.com", new InternalLogger());
+
+        Assert.False(analysis.CnameRecordExists);
+        Assert.Equal(1, cnameQueryCount);
+        Assert.Equal(0, addressQueryCount);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == CnameCodes.DnsLookupFailed);
+    }
 }

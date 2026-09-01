@@ -763,6 +763,9 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             foreach (var endpoint in result.MailEndpoints.Take(500)) {
                 endpointTable.AddRow("MAILTLS", Markup.Escape(endpoint));
             }
+            foreach (var endpoint in result.FtpTlsEndpoints.Take(500)) {
+                endpointTable.AddRow("FTPTLS", Markup.Escape(endpoint));
+            }
             AnsiConsole.Write(endpointTable);
         }
 

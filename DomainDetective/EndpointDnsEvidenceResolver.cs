@@ -46,6 +46,12 @@ public sealed class EndpointDnsEvidenceResolver {
     /// <summary>Maximum number of CNAME links followed before the result is treated as incomplete.</summary>
     public int MaxCnameDepth { get; set; } = 16;
 
+    /// <summary>
+    /// Whether A and AAAA queries are performed for the original hostname when no CNAME target is found.
+    /// Endpoint-enrichment callers normally keep this enabled; CNAME-only analysis can disable it.
+    /// </summary>
+    public bool ResolveAddressesForOriginalHost { get; set; } = true;
+
     /// <summary>Optional query override for deterministic callers and tests.</summary>
     public Func<string, DnsRecordType, CancellationToken, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
@@ -114,6 +120,19 @@ public sealed class EndpointDnsEvidenceResolver {
             if (depth == MaxCnameDepth - 1) {
                 errors.Add($"CNAME chain exceeded MaxCnameDepth={MaxCnameDepth}.");
             }
+        }
+
+        if (chain.Count == 0 && !ResolveAddressesForOriginalHost) {
+            return new EndpointDnsEvidence {
+                HostName = normalizedHost,
+                EffectiveHostName = current,
+                CnameChain = chain,
+                AddressResolutionComplete = false,
+                Resolver = DnsConfiguration.DnsEndpoint.ToString(),
+                ObservedAtUtc = DateTimeOffset.UtcNow,
+                LoopDetected = loopDetected,
+                Errors = errors
+            };
         }
 
         var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

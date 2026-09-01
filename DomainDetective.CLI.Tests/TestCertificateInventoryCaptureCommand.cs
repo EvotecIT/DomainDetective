@@ -112,6 +112,38 @@ public class TestCertificateInventoryCaptureCommand {
     }
 
     [Fact]
+    public async Task ExecuteAsync_ShowEndpointsIncludesFtpTlsTargets() {
+        IAnsiConsole originalConsole = AnsiConsole.Console;
+        using var output = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings {
+            Ansi = AnsiSupport.No,
+            ColorSystem = ColorSystemSupport.NoColors,
+            Out = new AnsiConsoleOutput(output)
+        });
+        try {
+            var command = new CertificateInventoryCaptureCommand();
+            var settings = new CertificateInventoryCaptureSettings {
+                AdditionalEndpoints = new[] { "ftps-explicit://localhost:1" },
+                NoApexHttps = true,
+                NoWwwHttps = true,
+                DisableMxDiscovery = true,
+                NoPersist = true,
+                ShowEndpoints = true,
+                FtpTlsTimeoutSeconds = 1
+            };
+
+            int exitCode = await command.ExecuteForTestingAsync(null!, settings);
+
+            string rendered = output.ToString();
+            Assert.Equal(0, exitCode);
+            Assert.Contains("FTPTLS", rendered, StringComparison.Ordinal);
+            Assert.Contains("ftps-explicit://localhost:1", rendered, StringComparison.Ordinal);
+        } finally {
+            AnsiConsole.Console = originalConsole;
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_SucceedsWithoutNetworkWhenAllDiscoveryAndProbesDisabled() {
         var command = new CertificateInventoryCaptureCommand();
         var settings = new CertificateInventoryCaptureSettings {
