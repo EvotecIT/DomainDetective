@@ -131,7 +131,8 @@ namespace DomainDetective {
         private const string ChangeKindMatchAll = "All";
 
         private sealed class Observation {
-            public DateTimeOffset CapturedAtUtc { get; init; }
+            public DateTimeOffset ObservedAtUtc { get; init; }
+            public DateTimeOffset SnapshotCapturedAtUtc { get; init; }
             public CertificateInventoryEntry Entry { get; init; } = null!;
         }
 
@@ -179,7 +180,8 @@ namespace DomainDetective {
                     }
 
                     observations.Add(new Observation {
-                        CapturedAtUtc = snapshot.CapturedAtUtc,
+                        ObservedAtUtc = entry.ObservedAtUtc ?? snapshot.CapturedAtUtc,
+                        SnapshotCapturedAtUtc = snapshot.CapturedAtUtc,
                         Entry = entry
                     });
                 }
@@ -188,7 +190,11 @@ namespace DomainDetective {
             var driftRows = new List<CertificateInventoryEndpointDrift>(grouped.Count);
             foreach (var pair in grouped) {
                 var observations = pair.Value
-                    .OrderBy(o => o.CapturedAtUtc)
+                    .GroupBy(o => o.ObservedAtUtc)
+                    .Select(group => group
+                        .OrderBy(o => o.SnapshotCapturedAtUtc)
+                        .Last())
+                    .OrderBy(o => o.ObservedAtUtc)
                     .ToList();
                 if (observations.Count == 0) {
                     continue;
@@ -243,8 +249,8 @@ namespace DomainDetective {
                         ? CertificateServiceClassifier.GuessService(latest.Entry.Scheme ?? "https", latest.Entry.Port)
                         : latest.Entry.Service!,
                     ProbeVantage = CertificateInventoryProbeVantage.Normalize(latest.Entry.ProbeVantage),
-                    FirstSeenUtc = observations[0].CapturedAtUtc,
-                    LastSeenUtc = latest.CapturedAtUtc,
+                    FirstSeenUtc = observations[0].ObservedAtUtc,
+                    LastSeenUtc = latest.ObservedAtUtc,
                     ObservationCount = observations.Count,
                     DistinctCertificateCount = certificateIds.Count,
                     PreviousCertificateId = previous != null ? BuildCertificateId(previous.Entry) : null,
@@ -331,7 +337,7 @@ namespace DomainDetective {
                 var previous = observations[i - 1].Entry;
                 var current = observations[i].Entry;
                 if (EntryChanged(previous, current)) {
-                    return observations[i].CapturedAtUtc;
+                    return observations[i].ObservedAtUtc;
                 }
             }
 

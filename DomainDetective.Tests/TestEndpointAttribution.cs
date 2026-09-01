@@ -760,6 +760,49 @@ public class TestEndpointAttribution {
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("\t")]
+    public void CustomRuleRejectsEmptyApplicableService(string? invalidService) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.invalid-service",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Invalid Service Rule"
+        };
+        rule.HostnamePrefixes.Add("edge.");
+        rule.ApplicableServices.Add(invalidService!);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            catalog.AddOrReplace(rule));
+
+        Assert.Contains("custom.invalid-service", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("empty applicable service", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CustomRuleNormalizesAndDeduplicatesApplicableServices() {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.normalized-service",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Normalized Service Rule"
+        };
+        rule.HostnamePrefixes.Add("edge.");
+        rule.ApplicableServices.Add(" HTTPS ");
+        rule.ApplicableServices.Add("https");
+
+        catalog.AddOrReplace(rule);
+
+        Assert.Equal(new[] { "HTTPS" }, rule.ApplicableServices);
+    }
+
+    [Theory]
     [InlineData(-0.01d)]
     [InlineData(1.01d)]
     [InlineData(double.NaN)]

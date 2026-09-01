@@ -117,6 +117,25 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, handler.RequestCount);
         }
 
+        [Fact]
+        public async Task FullHttpProbeCapturesOriginRemoteAddress() {
+            using var cert = CreateSelfSigned("localhost");
+            var server = new TcpListenerFixture((l, t) => Task.Run(() => RunServer(l, cert, SslProtocols.Tls12, t), t));
+            await server.InitializeAsync();
+
+            try {
+                var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
+
+                await analysis.AnalyzeUrl("https://localhost", server.Port, new InternalLogger());
+
+                Assert.True(analysis.IsReachable);
+                Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+                Assert.NotNull(analysis.Certificate);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
 #if NET8_0_OR_GREATER
         [Fact]
         public async Task FullHttpProbeCapturesPinnedRemoteAddress() {

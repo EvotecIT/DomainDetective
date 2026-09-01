@@ -148,6 +148,46 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDriftCoalescesReusedProtocolObservations() {
+            var now = DateTimeOffset.UtcNow;
+            var firstObservedAt = now.AddHours(-6);
+            var secondObservedAt = now.AddHours(-1);
+            CertificateInventoryEntry Entry(DateTimeOffset observedAt, string thumbprint) => new() {
+                Host = "reused.example.com",
+                ResolvedHost = "reused.example.com",
+                Port = 443,
+                Service = "HTTPS",
+                ObservedAtUtc = observedAt,
+                CertificateThumbprint = thumbprint,
+                CertificateIssuerNormalized = "Issuer"
+            };
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-6),
+                    Entries = new List<CertificateInventoryEntry> { Entry(firstObservedAt, "CERT-A") }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-3),
+                    Entries = new List<CertificateInventoryEntry> { Entry(firstObservedAt, "CERT-A") }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> { Entry(secondObservedAt, "CERT-B") }
+                }
+            };
+
+            CertificateInventoryEndpointDrift row = Assert.Single(
+                CertificateInventoryDriftAnalyzer.BuildDrift(snapshots, maxEndpoints: 100).Endpoints);
+
+            Assert.Equal(2, row.ObservationCount);
+            Assert.Equal(firstObservedAt, row.FirstSeenUtc);
+            Assert.Equal(secondObservedAt, row.LastSeenUtc);
+            Assert.Equal(secondObservedAt, row.LastChangedAtUtc);
+            Assert.Equal("CERT-A", row.PreviousCertificateId);
+            Assert.Equal("CERT-B", row.CurrentCertificateId);
+        }
+
+        [Fact]
         public void BuildDriftKeepsProbeVantageHistoriesSeparate() {
             var now = DateTimeOffset.UtcNow;
             CertificateInventoryEntry Entry(string vantage, string thumbprint) => new() {

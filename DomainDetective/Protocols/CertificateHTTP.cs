@@ -79,7 +79,11 @@ namespace DomainDetective {
         public bool? CrlRevoked { get; private set; }
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
-        /// <summary>Gets the actual remote address reached by the most recent observable TCP connection.</summary>
+        /// <summary>
+        /// Gets the actual remote address reached by the origin probe. On .NET Framework full-HTTP
+        /// analysis this comes from a paired direct TLS handshake because HttpClientHandler does not
+        /// expose its transport socket.
+        /// </summary>
         public IPAddress? RemoteAddress { get; private set; }
         /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
         public Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? OutboundAddressResolver { get; set; }
@@ -315,6 +319,37 @@ namespace DomainDetective {
                 }
                 return true;
             }
+
+#if NET472
+            try {
+                var originUri = new Uri(url);
+                using var originTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                originTimeoutSource.CancelAfter(Timeout);
+                using var originTcp = await ConnectDirectAsync(originUri.Host, port, originTimeoutSource.Token).ConfigureAwait(false);
+                using var originSsl = new SslStream(
+                    originTcp.GetStream(),
+                    false,
+                    (_, certificate, chain, policyErrors) =>
+                        CaptureServerCertificate(certificate, chain, policyErrors));
+                await originSsl.AuthenticateAsClientAsync(
+                        originUri.Host,
+                        null,
+                        SslProtocols.None,
+                        !SkipRevocation)
+                    .WaitWithCancellation(originTimeoutSource.Token)
+                    .ConfigureAwait(false);
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                throw;
+            } catch (Exception ex) {
+                if (!capturedHandshakeCertificate) {
+                    RemoteAddress = null;
+                }
+                logger.WriteVerbose(
+                    "Paired .NET Framework TLS peer capture failed for {0}; continuing with full HTTP analysis: {1}",
+                    url,
+                    BuildFailureLogMessage(ex));
+            }
+#endif
 
             HttpMessageHandler handler;
 #if NET8_0_OR_GREATER

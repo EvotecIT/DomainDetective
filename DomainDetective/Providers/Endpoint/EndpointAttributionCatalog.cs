@@ -92,6 +92,21 @@ public sealed class EndpointAttributionCatalog {
                     "Ports must be between 1 and 65535.");
             }
         }
+        var normalizedServices = new List<string>(rule.ApplicableServices.Count);
+        var uniqueServices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string service in rule.ApplicableServices) {
+            if (string.IsNullOrWhiteSpace(service)) {
+                throw new ArgumentException(
+                    $"Endpoint attribution rule '{rule.RuleId}' contains an empty applicable service.",
+                    parameterName ?? nameof(rule));
+            }
+            string normalizedService = service.Trim();
+            if (uniqueServices.Add(normalizedService)) {
+                normalizedServices.Add(normalizedService);
+            }
+        }
+        rule.ApplicableServices.Clear();
+        rule.ApplicableServices.AddRange(normalizedServices);
         if (!HasUsableEvidenceMatcher(rule)) {
             throw new ArgumentException(
                 $"Endpoint attribution rule '{rule.RuleId}' requires at least one usable evidence matcher.",
