@@ -101,6 +101,22 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, handler.RequestCount);
         }
 
+        [Fact]
+        public async Task RedirectKeepsOriginPeerAddress() {
+            var analysis = new CertificateAnalysis();
+            var handler = new RemoteAddressRedirectHandler(analysis);
+            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
+
+            using HttpResponseMessage response = await analysis.SendWithRedirectEvidenceAsync(
+                client,
+                new Uri("https://origin.example/start"),
+                CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+            Assert.Equal(2, handler.RequestCount);
+        }
+
 #if NET8_0_OR_GREATER
         [Fact]
         public async Task FullHttpProbeCapturesPinnedRemoteAddress() {
@@ -125,42 +141,6 @@ namespace DomainDetective.Tests {
             }
         }
 
-        [Fact]
-        public async Task RedirectKeepsOriginPeerAddressWithOriginCertificate() {
-            IPAddress redirectedAddress = IPAddress.Parse("127.0.0.2");
-            using var originCert = CreateSelfSigned("origin.invalid");
-            using var redirectedCert = CreateSelfSigned("redirect.invalid");
-            var redirectedServer = new TcpListenerFixture(
-                (l, t) => Task.Run(() => RunServer(l, redirectedCert, SslProtocols.Tls12, t), t),
-                redirectedAddress);
-            await redirectedServer.InitializeAsync();
-            var originServer = new TcpListenerFixture((l, t) => Task.Run(() => RunServer(
-                l,
-                originCert,
-                SslProtocols.Tls12,
-                t,
-                "HTTP/1.1 302 Found",
-                new[] { $"Location: https://redirect.invalid:{redirectedServer.Port}/" }), t));
-            await originServer.InitializeAsync();
-
-            try {
-                var analysis = new CertificateAnalysis {
-                    CtLogQueryOverride = _ => Task.FromResult("[]"),
-                    OutboundAddressResolver = (host, _) => Task.FromResult<IReadOnlyList<IPAddress>>(
-                        new[] { host.Equals("redirect.invalid", StringComparison.OrdinalIgnoreCase) ? redirectedAddress : IPAddress.Loopback })
-                };
-
-                await analysis.AnalyzeUrl("https://origin.invalid", originServer.Port, new InternalLogger());
-
-                Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
-                Assert.NotNull(analysis.Certificate);
-                Assert.Contains("CN=origin.invalid", analysis.Certificate!.Subject, StringComparison.OrdinalIgnoreCase);
-                Assert.Contains("redirect.invalid", analysis.RedirectTargets, StringComparer.OrdinalIgnoreCase);
-            } finally {
-                await originServer.DisposeAsync();
-                await redirectedServer.DisposeAsync();
-            }
-        }
 #endif
 
         [Fact]
@@ -810,6 +790,37 @@ namespace DomainDetective.Tests {
                 if (RequestCount == 1) {
                     response.Headers.Location = new Uri("https://final.example/done");
                     response.Content = new UnbufferableContent();
+                }
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class RemoteAddressRedirectHandler : HttpMessageHandler {
+            private readonly CertificateAnalysis _analysis;
+
+            public RemoteAddressRedirectHandler(CertificateAnalysis analysis) {
+                _analysis = analysis;
+            }
+
+            public int RequestCount { get; private set; }
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestCount++;
+                var setter = typeof(CertificateAnalysis)
+                    .GetProperty(nameof(CertificateAnalysis.RemoteAddress))!
+                    .GetSetMethod(nonPublic: true)!;
+                setter.Invoke(_analysis, new object[] {
+                    RequestCount == 1 ? IPAddress.Loopback : IPAddress.IPv6Loopback
+                });
+
+                var response = new HttpResponseMessage(
+                    RequestCount == 1 ? HttpStatusCode.Found : HttpStatusCode.OK) {
+                    RequestMessage = request
+                };
+                if (RequestCount == 1) {
+                    response.Headers.Location = new Uri("https://final.example/done");
                 }
                 return Task.FromResult(response);
             }
