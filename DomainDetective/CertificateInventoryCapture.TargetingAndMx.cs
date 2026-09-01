@@ -748,9 +748,13 @@ public sealed partial class CertificateInventoryCapture {
             recentByEndpoint.TryGetValue(target.Key, out RecentInventoryEndpointEntry? cachedEntry)) {
             int evidencePriority = ComputeCachedEntryPriority(cachedEntry.Entry, options.ReprobeExpiringWithinDays);
             if (TryReuseCachedEntry(cachedEntry, DateTimeOffset.UtcNow, options, out _)) {
-                return evidencePriority;
+                // Reusable successes do not need a live probe. Keep them below every
+                // uncached target even when their cached evidence carries a high score.
+                return Math.Min(999, evidencePriority);
             }
-            return Math.Max(1000, evidencePriority);
+            // Stale or otherwise non-reusable observations require fresh evidence and
+            // therefore outrank both uncached targets and reusable successes.
+            return Math.Max(1001, evidencePriority);
         }
         return 1000;
     }

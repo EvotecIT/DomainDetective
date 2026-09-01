@@ -36,7 +36,13 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Optional path to a current Azure service-tag JSON download.</summary>
     public string? AzureServiceTagsJsonPath { get; set; }
 
-    /// <summary>Custom endpoint attribution rules that add to or replace built-in rules by RuleId.</summary>
+    /// <summary>
+    /// Custom endpoint attribution rules that add to or replace built-in rules by RuleId.
+    /// Certificate inventory capture supplies hostname, CNAME, address, certificate, redirect,
+    /// service-tag, service, and port evidence. Rules that require reverse-DNS or autonomous-system
+    /// observations must be evaluated through <see cref="EndpointAttributionDetector"/> with those
+    /// signals supplied explicitly.
+    /// </summary>
     public List<EndpointAttributionRule> EndpointAttributionRules { get; } = new();
 
     /// <summary>When true, probes apex domains over HTTPS.</summary>
@@ -782,6 +788,7 @@ public sealed partial class CertificateInventoryCapture {
         if (options.DnsEnrichmentParallelism < 1 || options.DnsEnrichmentParallelism > 512) {
             throw new ArgumentOutOfRangeException(nameof(options.DnsEnrichmentParallelism), "DnsEnrichmentParallelism must be between 1 and 512.");
         }
+        ValidateEndpointAttributionCaptureOptions(options);
         if (options.RecentSnapshotTtl < TimeSpan.Zero) {
             throw new ArgumentOutOfRangeException(nameof(options.RecentSnapshotTtl), "RecentSnapshotTtl must be non-negative.");
         }

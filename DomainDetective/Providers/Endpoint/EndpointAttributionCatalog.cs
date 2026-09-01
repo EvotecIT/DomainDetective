@@ -62,6 +62,15 @@ public sealed class EndpointAttributionCatalog {
                 $"Endpoint attribution rule '{rule.RuleId}' cannot use IpAddress as its own corroborating signal.",
                 parameterName ?? nameof(rule));
         }
+        foreach (int port in rule.ApplicablePorts) {
+            if (port < 1 || port > 65535) {
+                throw new ArgumentOutOfRangeException(
+                    parameterName ?? nameof(rule),
+                    port,
+                    $"Endpoint attribution rule '{rule.RuleId}' contains invalid applicable port '{port}'. " +
+                    "Ports must be between 1 and 65535.");
+            }
+        }
 
         var compiledPrefixes = new List<IpCidrRange>(rule.IpAddressPrefixes.Count);
         foreach (string prefix in rule.IpAddressPrefixes) {

@@ -66,13 +66,13 @@ public sealed partial class CertificateInventoryCapture {
             .Where(host => host.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        int parallelism = Math.Max(1, options.DnsEnrichmentParallelism);
-        using var gate = new SemaphoreSlim(parallelism, parallelism);
-        var tasks = new List<Task>(hosts.Length);
-        foreach (string host in hosts) {
-            tasks.Add(ResolveHostWithGateAsync(host));
+        int workerCount = Math.Min(hosts.Length, Math.Max(1, options.DnsEnrichmentParallelism));
+        int nextHostIndex = -1;
+        var workers = new Task[workerCount];
+        for (int workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+            workers[workerIndex] = ResolveHostsAsync();
         }
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        await Task.WhenAll(workers).ConfigureAwait(false);
 
         foreach (CertificateInventoryEntry entry in entries) {
             string host = GetObservationHost(entry);
@@ -105,17 +105,43 @@ public sealed partial class CertificateInventoryCapture {
                 DateTimeOffset.UtcNow);
         }
 
-        async Task ResolveHostWithGateAsync(string host) {
-            bool entered = false;
-            try {
-                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-                entered = true;
+        async Task ResolveHostsAsync() {
+            while (true) {
+                cancellationToken.ThrowIfCancellationRequested();
+                int hostIndex = Interlocked.Increment(ref nextHostIndex);
+                if (hostIndex >= hosts.Length) {
+                    return;
+                }
+
+                string host = hosts[hostIndex];
                 EndpointDnsEvidence evidence = await resolver.ResolveAsync(host, cancellationToken).ConfigureAwait(false);
                 evidenceByHost[host] = evidence;
-            } finally {
-                if (entered) {
-                    gate.Release();
-                }
+            }
+        }
+    }
+
+    private static void ValidateEndpointAttributionCaptureOptions(CertificateInventoryCaptureOptions options) {
+        if (!options.EnableEndpointAttribution) {
+            return;
+        }
+
+        foreach (EndpointAttributionRule rule in options.EndpointAttributionRules) {
+            EndpointAttributionCatalog.ValidateAndCompileRule(
+                rule,
+                nameof(CertificateInventoryCaptureOptions.EndpointAttributionRules));
+
+            var unsupportedSignals = new List<string>(2);
+            if (rule.ReverseDnsSuffixes.Count > 0) {
+                unsupportedSignals.Add(nameof(EndpointAttributionRule.ReverseDnsSuffixes));
+            }
+            if (rule.AutonomousSystemNumbers.Count > 0) {
+                unsupportedSignals.Add(nameof(EndpointAttributionRule.AutonomousSystemNumbers));
+            }
+            if (unsupportedSignals.Count > 0) {
+                throw new NotSupportedException(
+                    $"Certificate inventory capture cannot collect {string.Join(" or ", unsupportedSignals)} " +
+                    $"for endpoint attribution rule '{rule.RuleId}'. Evaluate the rule with " +
+                    $"{nameof(EndpointAttributionDetector)} directly and supply those observed signals explicitly.");
             }
         }
     }

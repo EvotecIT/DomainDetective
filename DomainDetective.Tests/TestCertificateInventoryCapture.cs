@@ -1,4 +1,5 @@
 using DnsClientX;
+using DomainDetective.Providers.Endpoint;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -61,6 +62,102 @@ public class TestCertificateInventoryCapture {
         Assert.Contains(
             primary.Evidence,
             evidence => evidence.Kind == Providers.Endpoint.EndpointAttributionSignalKind.Cname);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_BoundsConcurrentDnsEnrichmentWithWorkerPool() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        int activeQueries = 0;
+        int maximumActiveQueries = 0;
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (targets, _, _, _) => {
+                var entries = new List<CertificateMonitor.Entry>(targets.Count);
+                foreach (string target in targets) {
+                    entries.Add(CreateHttpsEntry(target, certificate));
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            },
+            EndpointDnsQueryOverride = async (_, _, cancellationToken) => {
+                int active = Interlocked.Increment(ref activeQueries);
+                int observedMaximum;
+                do {
+                    observedMaximum = Volatile.Read(ref maximumActiveQueries);
+                    if (active <= observedMaximum) {
+                        break;
+                    }
+                } while (Interlocked.CompareExchange(
+                    ref maximumActiveQueries,
+                    active,
+                    observedMaximum) != observedMaximum);
+
+                try {
+                    await Task.Delay(10, cancellationToken);
+                    return Array.Empty<DnsAnswer>();
+                } finally {
+                    Interlocked.Decrement(ref activeQueries);
+                }
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            EnableEndpointAttribution = true,
+            DnsEnrichmentParallelism = 3
+        };
+        for (int host = 0; host < 20; host++) {
+            options.AdditionalEndpoints.Add($"https://service-{host}.example.com");
+        }
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(20, result.Snapshot.Entries.Count);
+        Assert.InRange(maximumActiveQueries, 2, options.DnsEnrichmentParallelism);
+    }
+
+    [Theory]
+    [InlineData(true, nameof(EndpointAttributionRule.ReverseDnsSuffixes))]
+    [InlineData(false, nameof(EndpointAttributionRule.AutonomousSystemNumbers))]
+    public async Task CaptureAsync_RejectsCustomAttributionSignalsItCannotCollectBeforeProbing(
+        bool useReverseDns,
+        string expectedSignal) {
+        int probeCalls = 0;
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (_, _, _, _) => {
+                probeCalls++;
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            EnableEndpointAttribution = true
+        };
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.unsupported-capture-signal",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Example Edge"
+        };
+        if (useReverseDns) {
+            rule.ReverseDnsSuffixes.Add("edge.example.net");
+        } else {
+            rule.AutonomousSystemNumbers.Add("64500");
+        }
+        options.EndpointAttributionRules.Add(rule);
+        options.AdditionalEndpoints.Add("https://service.example.com");
+
+        NotSupportedException exception = await Assert.ThrowsAsync<NotSupportedException>(() =>
+            capture.CaptureAsync(Array.Empty<string>(), options));
+
+        Assert.Equal(0, probeCalls);
+        Assert.Contains("custom.unsupported-capture-signal", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(expectedSignal, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(EndpointAttributionDetector), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -228,7 +325,7 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
-    public async Task CaptureAsync_PrioritizesUncachedFtpTlsTargetBeforeHealthyCachedTarget() {
+    public async Task CaptureAsync_PrioritizesUncachedFtpTlsTargetBeforeReusableHighPriorityCachedTarget() {
         var capture = new CertificateInventoryCapture {
             RecentSnapshotLookupOverride = (_, _, _) =>
                 new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
@@ -244,7 +341,9 @@ public class TestCertificateInventoryCapture {
                         Valid = true,
                         IsKnownCertificateAuthority = true,
                         AllowsServerAuthentication = true,
-                        PresentInCtLogs = true,
+                        // A reusable observation can legitimately carry a high evidence
+                        // score without requiring a fresh probe.
+                        PresentInCtLogs = false,
                         CertificateThumbprint = "HEALTHY-CACHED-FTPS",
                         NotAfterUtc = DateTimeOffset.UtcNow.AddDays(180)
                     }

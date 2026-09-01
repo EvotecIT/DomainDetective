@@ -550,6 +550,62 @@ public class TestEndpointAttribution {
         Assert.Contains("own corroborating signal", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(65536)]
+    [InlineData(70000)]
+    public void CustomRuleRejectsInvalidApplicablePort(int invalidPort) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.invalid-port",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Invalid Port Rule"
+        };
+        rule.ApplicablePorts.Add(invalidPort);
+
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            catalog.AddOrReplace(rule));
+
+        Assert.Equal(invalidPort, exception.ActualValue);
+        Assert.Contains("custom.invalid-port", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("between 1 and 65535", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true, EndpointAttributionSignalKind.ReverseDns)]
+    [InlineData(false, EndpointAttributionSignalKind.AutonomousSystem)]
+    public void DetectorUsesExplicitReverseDnsAndAutonomousSystemEvidence(
+        bool useReverseDns,
+        EndpointAttributionSignalKind expectedSignal) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.explicit-network-evidence",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Example Edge"
+        };
+        if (useReverseDns) {
+            rule.ReverseDnsSuffixes.Add("edge.example.net");
+        } else {
+            rule.AutonomousSystemNumbers.Add("64500");
+        }
+        catalog.AddOrReplace(rule);
+
+        EndpointAttributionResult result = new EndpointAttributionDetector(catalog).Detect(
+            new EndpointAttributionInput {
+                HostName = "service.example.com",
+                ReverseDnsNames = new[] { "node.edge.example.net" },
+                AutonomousSystemNumbers = new[] { "64500" }
+            });
+
+        Assert.Equal("custom.explicit-network-evidence", result.Primary?.RuleId);
+        Assert.Contains(result.Primary!.Evidence, evidence => evidence.Kind == expectedSignal);
+    }
+
     [Fact]
     public void DetectorRejectsMalformedPrefixAddedThroughMutableRuleCollection() {
         var catalog = new EndpointAttributionCatalog();
