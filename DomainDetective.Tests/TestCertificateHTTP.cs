@@ -55,6 +55,23 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task HttpsRedirectDowngradeIsRetainedAsEvidenceButNotFollowed() {
+            var analysis = new CertificateAnalysis();
+            var handler = new HttpsDowngradeRedirectHandler();
+            using var client = new HttpClient(handler);
+
+            HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(() =>
+                analysis.SendWithRedirectEvidenceAsync(
+                    client,
+                    new Uri("https://secure.example/start"),
+                    CancellationToken.None));
+
+            Assert.Contains("downgrade", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(new[] { "https://secure.example/start" }, handler.RequestUris);
+            Assert.Equal(new[] { "plain.example" }, analysis.RedirectTargets);
+        }
+
+        [Fact]
         public async Task RedirectChainUsesOneTimeoutBudget() {
             var analysis = new CertificateAnalysis();
             var handler = new SlowRedirectSequenceHandler();
@@ -667,6 +684,21 @@ namespace DomainDetective.Tests {
                 if (RequestHosts.Count == 1) {
                     response.Headers.Location = new Uri("https://selected.example/destination");
                 }
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class HttpsDowngradeRedirectHandler : HttpMessageHandler {
+            public List<string> RequestUris { get; } = new();
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestUris.Add(request.RequestUri?.AbsoluteUri ?? string.Empty);
+                var response = new HttpResponseMessage(HttpStatusCode.Found) {
+                    RequestMessage = request
+                };
+                response.Headers.Location = new Uri("http://plain.example/destination");
                 return Task.FromResult(response);
             }
         }

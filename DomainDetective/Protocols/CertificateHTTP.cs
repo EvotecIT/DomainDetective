@@ -473,8 +473,15 @@ namespace DomainDetective {
                     throw new HttpRequestException($"The HTTP redirect limit of {maxRedirects} was exceeded.");
                 }
 
-                followedRedirects++;
                 CaptureRedirectTarget(redirectUri, currentUri);
+                if (string.Equals(currentUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(redirectUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)) {
+                    response.Dispose();
+                    throw new HttpRequestException(
+                        $"HTTPS redirect downgrade to HTTP is not allowed: '{currentUri}' -> '{redirectUri}'.");
+                }
+
+                followedRedirects++;
                 response.Dispose();
                 currentUri = redirectUri;
             }
