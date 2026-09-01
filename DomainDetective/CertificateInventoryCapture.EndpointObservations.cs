@@ -85,7 +85,13 @@ public sealed partial class CertificateInventoryCapture {
             entry.DnsObservationErrors = evidence.Errors;
 
             var addresses = new HashSet<string>(evidence.Addresses, StringComparer.OrdinalIgnoreCase);
-            if (IPAddress.TryParse(entry.RemoteAddress, out IPAddress? remoteAddress) && remoteAddress != null) {
+            bool isLiveProbe = string.Equals(
+                entry.CaptureDisposition,
+                CaptureDispositionLiveProbe,
+                StringComparison.OrdinalIgnoreCase);
+            if (isLiveProbe &&
+                IPAddress.TryParse(entry.RemoteAddress, out IPAddress? remoteAddress) &&
+                remoteAddress != null) {
                 addresses.Add(remoteAddress.ToString());
             }
 

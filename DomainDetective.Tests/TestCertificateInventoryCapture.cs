@@ -65,6 +65,73 @@ public class TestCertificateInventoryCapture {
     }
 
     [Fact]
+    public async Task CaptureAsync_DoesNotBlendReusedRemotePeerIntoFreshAttribution() {
+        var cachedEntry = new CertificateInventoryEntry {
+            Host = "service.example.com",
+            ResolvedHost = "service.example.com",
+            Url = "https://service.example.com/",
+            Scheme = "https",
+            Port = 443,
+            Service = "HTTPS",
+            ObservedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+            RemoteAddress = "192.0.2.10",
+            RemoteAddressFamily = "IPv4",
+            CertificateThumbprint = "CACHED-CERT",
+            IsReachable = true,
+            Valid = true,
+            NotAfterUtc = DateTimeOffset.UtcNow.AddDays(90)
+        };
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["service.example.com|443|HTTPS"] = cachedEntry
+                },
+            HttpsProbeOverride = (targets, _, _, _) => {
+                Assert.Empty(targets);
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+            },
+            EndpointDnsQueryOverride = (_, type, _) => Task.FromResult(
+                type == DnsRecordType.A
+                    ? new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "198.51.100.20" } }
+                    : Array.Empty<DnsAnswer>())
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            EnableEndpointAttribution = true,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1)
+        };
+        foreach ((string ruleId, string prefix) in new[] {
+            ("custom.stale-peer", "192.0.2.0/24"),
+            ("custom.fresh-dns", "198.51.100.0/24")
+        }) {
+            var rule = new EndpointAttributionRule {
+                RuleId = ruleId,
+                RuleVersion = "1",
+                ProviderId = "example",
+                ServiceId = ruleId,
+                DisplayName = ruleId
+            };
+            rule.IpAddressPrefixes.Add(prefix);
+            options.EndpointAttributionRules.Add(rule);
+        }
+        options.AdditionalEndpoints.Add("https://service.example.com");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        CertificateInventoryEntry entry = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("reused-recent-success", entry.CaptureDisposition);
+        Assert.Equal("192.0.2.10", entry.RemoteAddress);
+        Assert.Contains("198.51.100.20", entry.ResolvedAddresses);
+        Assert.DoesNotContain(entry.Attribution!.Candidates, candidate => candidate.RuleId == "custom.stale-peer");
+        Assert.Contains(entry.Attribution.Candidates, candidate => candidate.RuleId == "custom.fresh-dns");
+        Assert.Equal("custom.fresh-dns", entry.Attribution.Primary?.RuleId);
+    }
+
+    [Fact]
     public async Task CaptureAsync_BoundsConcurrentDnsEnrichmentWithWorkerPool() {
         using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
         int activeQueries = 0;

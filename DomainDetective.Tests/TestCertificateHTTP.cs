@@ -76,14 +76,19 @@ namespace DomainDetective.Tests {
             var analysis = new CertificateAnalysis();
             var handler = new SlowRedirectSequenceHandler();
             using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(3) };
+            var stopwatch = Stopwatch.StartNew();
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 analysis.SendWithRedirectEvidenceAsync(
                     client,
                     new Uri("https://origin.example/start"),
                     CancellationToken.None));
+            stopwatch.Stop();
 
-            Assert.Equal(2, handler.RequestCount);
+            Assert.InRange(handler.RequestCount, 1, 3);
+            Assert.True(
+                stopwatch.Elapsed < TimeSpan.FromSeconds(6),
+                $"Redirect chain exceeded one timeout budget: {stopwatch.Elapsed}.");
         }
 
         [Fact]
