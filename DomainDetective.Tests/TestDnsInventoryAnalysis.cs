@@ -237,11 +237,50 @@ public class TestDnsInventoryAnalysis
 
         Assert.Equal(DnsCnameTargetProvider.Azure, analysis.CnameTargetProvider);
         Assert.Equal(DnsCnameTargetService.AzureCdn, analysis.CnameTargetService);
-        Assert.Contains(analysis.DetectedDnsApplications, application => application.Id == "cname-target-azurecdn");
+        DetectedDnsApplication application = Assert.Single(
+            analysis.DetectedDnsApplications,
+            application => application.Id == "cname-target-azurecdn");
+        Assert.Contains("a.azureedge.net", application.Evidence, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("z.azurefd.net", application.Evidence, StringComparison.OrdinalIgnoreCase);
         var evidence = analysis.CnameTargetEvidence.ToList();
         Assert.True(
             evidence.FindIndex(item => item.Contains("z.azurefd.net", StringComparison.OrdinalIgnoreCase)) <
             evidence.FindIndex(item => item.Contains("a.azureedge.net", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public async Task CnameApplicationRetainsSelectedTerminalEvidenceAfterDiagnosticCap()
+    {
+        var analysis = new DnsInventoryAnalysis
+        {
+            IncludeAuthorities = false,
+            QueryOverride = (_, type, _) => Task.FromResult(new DnsResponse
+            {
+                Status = DnsResponseCode.NoError,
+                Answers = type == DnsRecordType.CNAME
+                    ? new[]
+                    {
+                        new DnsAnswer { Name = "example.com", Type = DnsRecordType.CNAME, DataRaw = "a.cloudflare.net." },
+                        new DnsAnswer { Name = "a.cloudflare.net", Type = DnsRecordType.CNAME, DataRaw = "b.cloudfront.net." },
+                        new DnsAnswer { Name = "b.cloudfront.net", Type = DnsRecordType.CNAME, DataRaw = "c.github.io." },
+                        new DnsAnswer { Name = "c.github.io", Type = DnsRecordType.CNAME, DataRaw = "d.netlify.app." },
+                        new DnsAnswer { Name = "d.netlify.app", Type = DnsRecordType.CNAME, DataRaw = "z.azurefd.net." },
+                        new DnsAnswer { Name = "z.azurefd.net", Type = DnsRecordType.CNAME, DataRaw = "terminal.azureedge.net." }
+                    }
+                    : Array.Empty<DnsAnswer>()
+            })
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.Equal(DnsCnameTargetService.AzureCdn, analysis.CnameTargetService);
+        DetectedDnsApplication application = Assert.Single(
+            analysis.DetectedDnsApplications,
+            item => item.Id == "cname-target-azurecdn");
+        Assert.Contains("terminal.azureedge.net", application.Evidence, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            analysis.CnameTargetEvidence,
+            item => item.Contains("terminal.azureedge.net", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

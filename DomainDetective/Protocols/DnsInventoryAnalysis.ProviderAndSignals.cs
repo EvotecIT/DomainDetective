@@ -181,6 +181,7 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
             var bestProvider = DnsCnameTargetProvider.Unknown;
             var bestService = DnsCnameTargetService.Unknown;
             var bestMatchRank = 0;
+            string? bestTarget = null;
             var flags = DnsCnameTargetFlags.None;
 
             foreach (var target in targets)
@@ -203,6 +204,7 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                     bestProvider = m.Provider;
                     bestService = m.Service;
                     bestMatchRank = matchRank;
+                    bestTarget = target;
                 }
 
                 foreach (var e in m.Evidence)
@@ -216,6 +218,20 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                     {
                         evidence.Add(e);
                     }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(bestTarget))
+            {
+                string selectedTargetEvidence = $"Apex CNAME: {bestTarget}";
+                if (!evidence.Exists(item => string.Equals(
+                    item,
+                    selectedTargetEvidence,
+                    StringComparison.OrdinalIgnoreCase)))
+                {
+                    // Keep the selected identity explainable even when earlier hops
+                    // consume the bounded diagnostic evidence allocation.
+                    evidence.Add(selectedTargetEvidence);
                 }
             }
 

@@ -126,9 +126,35 @@ internal static class DetectedDnsApplicationCatalog {
             Category = category,
             EvidenceKind = DetectedDnsAppEvidenceKind.CnameRecord,
             Confidence = Microsoft365DetectionConfidence.Strong,
-            Evidence = FirstEvidence(evidence, provider.ToString()),
+            Evidence = SelectCnameEvidence(evidence, provider, service),
             Source = "DnsInventory.CnameTarget"
         };
+    }
+
+    private static string SelectCnameEvidence(
+        IReadOnlyList<string>? evidence,
+        DnsCnameTargetProvider provider,
+        DnsCnameTargetService service) {
+        const string targetPrefix = "Apex CNAME:";
+        if (evidence != null) {
+            for (int index = evidence.Count - 1; index >= 0; index--) {
+                string item = evidence[index] ?? string.Empty;
+                if (!item.StartsWith(targetPrefix, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string target = item.Substring(targetPrefix.Length).Trim();
+                DnsCnameTargetDetector.Match match = DnsCnameTargetDetector.Detect(target);
+                bool matchesSelectedIdentity = service != DnsCnameTargetService.Unknown
+                    ? match.Service == service
+                    : match.Provider == provider;
+                if (matchesSelectedIdentity) {
+                    return item;
+                }
+            }
+        }
+
+        return FirstEvidence(evidence, provider.ToString());
     }
 
     private static string FirstEvidence(IReadOnlyList<string>? evidence, string fallback) {

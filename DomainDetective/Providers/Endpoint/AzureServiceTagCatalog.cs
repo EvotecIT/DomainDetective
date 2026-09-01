@@ -111,8 +111,12 @@ public sealed class AzureServiceTagCatalog {
                     string prefixText = prefixElement.ValueKind == JsonValueKind.String
                         ? prefixElement.GetString() ?? string.Empty
                         : prefixElement.ToString();
-                    if (IpCidrRange.TryParse(prefixText, out IpCidrRange prefix)) {
-                        prefixes.Add(prefix);
+                    try {
+                        prefixes.Add(IpCidrRange.Parse(prefixText));
+                    } catch (FormatException ex) {
+                        throw new FormatException(
+                            $"Azure service tag '{name}' contains invalid address prefix '{prefixText}'.",
+                            ex);
                     }
                 }
             }

@@ -56,6 +56,44 @@ public class TestCertificateInventoryCaptureCommand {
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(513)]
+    public async Task ExecuteAsync_ReturnsErrorForInvalidDnsEnrichmentParallelism(int parallelism) {
+        IAnsiConsole originalConsole = AnsiConsole.Console;
+        using var output = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings {
+            Ansi = AnsiSupport.No,
+            ColorSystem = ColorSystemSupport.NoColors,
+            Out = new AnsiConsoleOutput(output)
+        });
+        try {
+            var command = new CertificateInventoryCaptureCommand();
+            var settings = new CertificateInventoryCaptureSettings {
+                Domains = new[] { "example.com" },
+                NoApexHttps = true,
+                NoWwwHttps = true,
+                DisableMxDiscovery = true,
+                DisableSmtpStartTls = true,
+                DisableSubmissionStartTls = true,
+                IncludeImapTls = false,
+                IncludePop3Tls = false,
+                NoPersist = true,
+                DnsEnrichmentParallelism = parallelism
+            };
+
+            int exitCode = await command.ExecuteForTestingAsync(null!, settings);
+
+            Assert.Equal(1, exitCode);
+            Assert.Contains(
+                "--dns-enrichment-parallelism must be between 1 and 512.",
+                output.ToString(),
+                StringComparison.Ordinal);
+        } finally {
+            AnsiConsole.Console = originalConsole;
+        }
+    }
+
     [Fact]
     public async Task ExecuteAsync_AllowsEndpointOnlyCapture() {
         var command = new CertificateInventoryCaptureCommand();

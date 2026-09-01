@@ -454,13 +454,17 @@ namespace DomainDetective {
             const int maxRedirects = 10;
             int followedRedirects = 0;
             Uri currentUri = initialUri;
+            using var redirectTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            if (client.Timeout != System.Threading.Timeout.InfiniteTimeSpan) {
+                redirectTimeoutSource.CancelAfter(client.Timeout);
+            }
             while (true) {
                 using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
 #if NET8_0_OR_GREATER
                 request.Version = HttpVersion.Version30;
                 request.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
 #endif
-                HttpResponseMessage response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                HttpResponseMessage response = await client.SendAsync(request, redirectTimeoutSource.Token).ConfigureAwait(false);
                 if (!TryResolveRedirectTarget(response, currentUri, out Uri? redirectUri) || redirectUri == null) {
                     return response;
                 }
@@ -482,7 +486,7 @@ namespace DomainDetective {
             out Uri? redirectUri) {
             redirectUri = null;
             int statusCode = (int)response.StatusCode;
-            if (statusCode != 301 && statusCode != 302 && statusCode != 303 && statusCode != 307 && statusCode != 308) {
+            if (statusCode != 300 && statusCode != 301 && statusCode != 302 && statusCode != 303 && statusCode != 307 && statusCode != 308) {
                 return false;
             }
 

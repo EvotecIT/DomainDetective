@@ -39,6 +39,37 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task MultipleChoicesLocationIsFollowedAndRetainedAsEvidence() {
+            var analysis = new CertificateAnalysis();
+            var handler = new MultipleChoicesRedirectHandler();
+            using var client = new HttpClient(handler);
+
+            using HttpResponseMessage response = await analysis.SendWithRedirectEvidenceAsync(
+                client,
+                new Uri("https://origin.example/start"),
+                CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(new[] { "selected.example" }, analysis.RedirectTargets);
+            Assert.Equal(new[] { "origin.example", "selected.example" }, handler.RequestHosts);
+        }
+
+        [Fact]
+        public async Task RedirectChainUsesOneTimeoutBudget() {
+            var analysis = new CertificateAnalysis();
+            var handler = new SlowRedirectSequenceHandler();
+            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(1) };
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                analysis.SendWithRedirectEvidenceAsync(
+                    client,
+                    new Uri("https://origin.example/start"),
+                    CancellationToken.None));
+
+            Assert.Equal(2, handler.RequestCount);
+        }
+
+        [Fact]
         public async Task UnreachableHostSetsIsReachableFalse() {
             var logger = new InternalLogger();
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
@@ -619,6 +650,40 @@ namespace DomainDetective.Tests {
                 }
                 response.RequestMessage = request;
                 return Task.FromResult(response);
+            }
+        }
+
+        private sealed class MultipleChoicesRedirectHandler : HttpMessageHandler {
+            public List<string> RequestHosts { get; } = new();
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestHosts.Add(request.RequestUri?.Host ?? string.Empty);
+                var response = new HttpResponseMessage(
+                    RequestHosts.Count == 1 ? HttpStatusCode.MultipleChoices : HttpStatusCode.OK) {
+                    RequestMessage = request
+                };
+                if (RequestHosts.Count == 1) {
+                    response.Headers.Location = new Uri("https://selected.example/destination");
+                }
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class SlowRedirectSequenceHandler : HttpMessageHandler {
+            public int RequestCount { get; private set; }
+
+            protected override async Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestCount++;
+                await Task.Delay(600, cancellationToken);
+                var response = new HttpResponseMessage(HttpStatusCode.Found) {
+                    RequestMessage = request
+                };
+                response.Headers.Location = new Uri($"https://hop{RequestCount}.example/next");
+                return response;
             }
         }
     }

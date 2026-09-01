@@ -422,6 +422,10 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--https-timeout-seconds must be between 1 and 300.[/]");
             return 1;
         }
+        if (settings.DnsEnrichmentParallelism < 1 || settings.DnsEnrichmentParallelism > 512) {
+            AnsiConsole.MarkupLine("[red]--dns-enrichment-parallelism must be between 1 and 512.[/]");
+            return 1;
+        }
         if (settings.MaxTargets < 0) {
             AnsiConsole.MarkupLine("[red]--max-targets must be 0 or greater.[/]");
             return 1;

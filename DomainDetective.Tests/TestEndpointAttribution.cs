@@ -194,6 +194,17 @@ public class TestEndpointAttribution {
         Assert.Contains("AzureFrontDoor.Frontend", catalog.FindTags(IPAddress.Parse("2001:db8::8")));
     }
 
+    [Fact]
+    public void AzureCatalogRejectsInvalidAddressPrefixWithTagContext() {
+        const string json = "{\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{\"addressPrefixes\":[\"not-a-cidr\"]}}]}";
+
+        FormatException exception = Assert.Throws<FormatException>(() =>
+            AzureServiceTagCatalog.Parse(json, "test-catalog"));
+
+        Assert.Contains("AzureFrontDoor.Frontend", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("not-a-cidr", exception.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("edge.azurefd.net", "azure-front-door")]
     [InlineData("edge.azureedge.net", "azure-cdn")]
