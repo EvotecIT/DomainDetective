@@ -75,7 +75,7 @@ namespace DomainDetective.Tests {
         public async Task RedirectChainUsesOneTimeoutBudget() {
             var analysis = new CertificateAnalysis();
             var handler = new SlowRedirectSequenceHandler();
-            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(1) };
+            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(3) };
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 analysis.SendWithRedirectEvidenceAsync(
@@ -85,6 +85,31 @@ namespace DomainDetective.Tests {
 
             Assert.Equal(2, handler.RequestCount);
         }
+
+#if NET8_0_OR_GREATER
+        [Fact]
+        public async Task FullHttpProbeCapturesPinnedRemoteAddress() {
+            using var cert = CreateSelfSigned("service.invalid");
+            var server = new TcpListenerFixture((l, t) => Task.Run(() => RunServer(l, cert, SslProtocols.Tls12, t), t));
+            await server.InitializeAsync();
+
+            try {
+                var logger = new InternalLogger();
+                var analysis = new CertificateAnalysis {
+                    CtLogQueryOverride = _ => Task.FromResult("[]"),
+                    OutboundAddressResolver = (_, _) => Task.FromResult<IReadOnlyList<IPAddress>>(new[] { IPAddress.Loopback })
+                };
+
+                await analysis.AnalyzeUrl("https://service.invalid", server.Port, logger);
+
+                Assert.True(analysis.IsReachable);
+                Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+                Assert.NotNull(analysis.Certificate);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+#endif
 
         [Fact]
         public async Task UnreachableHostSetsIsReachableFalse() {
@@ -710,7 +735,7 @@ namespace DomainDetective.Tests {
                 HttpRequestMessage request,
                 CancellationToken cancellationToken) {
                 RequestCount++;
-                await Task.Delay(600, cancellationToken);
+                await Task.Delay(1650, cancellationToken);
                 var response = new HttpResponseMessage(HttpStatusCode.Found) {
                     RequestMessage = request
                 };

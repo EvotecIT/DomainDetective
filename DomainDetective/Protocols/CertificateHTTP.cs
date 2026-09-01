@@ -278,33 +278,76 @@ namespace DomainDetective {
                 return;
             }
 
-            using (var handler = new HttpClientHandler { AllowAutoRedirect = false, CheckCertificateRevocationList = !SkipRevocation }) {
-                handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
-                    if (certificate == null) {
-                        return false;
-                    }
+            bool CaptureServerCertificate(
+                System.Security.Cryptography.X509Certificates.X509Certificate? certificate,
+                X509Chain? chain,
+                SslPolicyErrors policyErrors) {
+                if (certificate == null) {
+                    return false;
+                }
 
-                    if (!capturedHandshakeCertificate) {
-                        var leaf = chain != null && chain.ChainElements.Count > 0
-                            ? chain.ChainElements[0].Certificate
-                            : certificate;
+                if (!capturedHandshakeCertificate) {
+                    X509Certificate2? loadedLeaf = null;
+                    var leaf = chain != null && chain.ChainElements.Count > 0
+                        ? chain.ChainElements[0].Certificate
+                        : certificate as X509Certificate2;
+                    if (leaf == null) {
+                        loadedLeaf = CertificateLoaderCompat.LoadCertificate(certificate.Export(X509ContentType.Cert));
+                        leaf = loadedLeaf;
+                    }
+                    try {
                         Certificate = CertificateLoaderCompat.Clone(leaf);
-
-                        Chain.Clear();
-                        if (chain != null) {
-                            foreach (var element in chain.ChainElements) {
-                                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
-                            }
-                        }
-                        RecordChainSource(ChainSourceTlsHandshake);
-                        IsSelfSigned = IsSelfSignedCertificate(Certificate);
-                        IsValid = policyErrors == SslPolicyErrors.None;
-                        HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
-                        capturedHandshakeCertificate = true;
+                    } finally {
+                        loadedLeaf?.Dispose();
                     }
-                    return true;
-                };
-                using (var client = new HttpClient(handler)) {
+
+                    Chain.Clear();
+                    if (chain != null) {
+                        foreach (var element in chain.ChainElements) {
+                            Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
+                        }
+                    }
+                    RecordChainSource(ChainSourceTlsHandshake);
+                    IsSelfSigned = IsSelfSignedCertificate(Certificate);
+                    IsValid = policyErrors == SslPolicyErrors.None;
+                    HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                    capturedHandshakeCertificate = true;
+                }
+                return true;
+            }
+
+            HttpMessageHandler handler;
+#if NET8_0_OR_GREATER
+            var socketsHandler = new SocketsHttpHandler {
+                AllowAutoRedirect = false,
+                SslOptions = new SslClientAuthenticationOptions {
+                    CertificateRevocationCheckMode = SkipRevocation
+                        ? X509RevocationMode.NoCheck
+                        : X509RevocationMode.Online,
+                    RemoteCertificateValidationCallback = (_, certificate, chain, policyErrors) =>
+                        CaptureServerCertificate(certificate, chain, policyErrors)
+                }
+            };
+            socketsHandler.ConnectCallback = async (context, token) => {
+                TcpClient tcp = await ConnectDirectAsync(
+                        context.DnsEndPoint.Host,
+                        context.DnsEndPoint.Port,
+                        token)
+                    .ConfigureAwait(false);
+                return tcp.GetStream();
+            };
+            handler = socketsHandler;
+#else
+            var httpClientHandler = new HttpClientHandler {
+                AllowAutoRedirect = false,
+                CheckCertificateRevocationList = !SkipRevocation
+            };
+            httpClientHandler.ServerCertificateCustomValidationCallback = (_, certificate, chain, policyErrors) =>
+                CaptureServerCertificate(certificate, chain, policyErrors);
+            handler = httpClientHandler;
+#endif
+            using (handler) {
+                using (var client = new HttpClient(handler, disposeHandler: false)) {
                     client.Timeout = Timeout;
                     try {
 #if NET8_0_OR_GREATER

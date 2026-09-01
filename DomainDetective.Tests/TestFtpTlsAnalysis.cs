@@ -192,6 +192,42 @@ public class TestFtpTlsAnalysis {
     }
 
     [Fact]
+    public async Task ExplicitFtpsMapsPinnedIpv4MappedAddressBeforeConnecting() {
+        using X509Certificate2 certificate = CreateSelfSigned("localhost");
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        Task server = Task.Run(async () => {
+            using TcpClient client = await listener.AcceptTcpClientAsync();
+            using NetworkStream network = client.GetStream();
+            using var reader = new StreamReader(network, Encoding.ASCII, false, 1024, true);
+            using var writer = new StreamWriter(network, Encoding.ASCII, 1024, true) { AutoFlush = true, NewLine = "\r\n" };
+            await writer.WriteLineAsync("220 Ready");
+            Assert.Equal("AUTH TLS", await reader.ReadLineAsync());
+            await writer.WriteLineAsync("234 AUTH TLS accepted");
+            using var ssl = new SslStream(network, false);
+            await ssl.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
+        });
+
+        try {
+            var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
+            FtpTlsResult result = await analysis.AnalyzeAsync(
+                new FtpTlsEndpoint("localhost", port, FtpTlsMode.Explicit) {
+                    ConnectAddress = IPAddress.Parse("::ffff:127.0.0.1")
+                },
+                new InternalLogger());
+
+            Assert.True(result.TlsNegotiated);
+            Assert.Equal(IPAddress.Loopback.ToString(), result.Connection.ConnectAddress);
+            Assert.Equal(IPAddress.Loopback.ToString(), result.Connection.RemoteAddress);
+            Assert.Equal("IPv4", result.Connection.RemoteAddressFamily);
+        } finally {
+            listener.Stop();
+            await server;
+        }
+    }
+
+    [Fact]
     public async Task ExplicitFtpsWaitsForServiceReadyAfterPreliminaryGreeting() {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();

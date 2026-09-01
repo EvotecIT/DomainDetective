@@ -158,27 +158,30 @@ public sealed class FtpTlsAnalysis {
         if (Timeout <= TimeSpan.Zero || Timeout > TimeSpan.FromMinutes(10)) {
             throw new ArgumentOutOfRangeException(nameof(Timeout), "Timeout must be greater than zero and at most 10 minutes.");
         }
+        IPAddress? connectAddress = endpoint.ConnectAddress?.IsIPv4MappedToIPv6 == true
+            ? endpoint.ConnectAddress.MapToIPv4()
+            : endpoint.ConnectAddress;
         var result = new FtpTlsResult {
             Mode = endpoint.Mode,
             Connection = new FtpTlsConnectionEvidence {
                 HostName = endpoint.HostName,
                 Port = endpoint.Port,
-                ConnectAddress = endpoint.ConnectAddress?.ToString()
+                ConnectAddress = connectAddress?.ToString()
             }
         };
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(Timeout);
         try {
-            using var client = endpoint.ConnectAddress == null
+            using var client = connectAddress == null
                 ? new TcpClient()
-                : new TcpClient(endpoint.ConnectAddress.AddressFamily);
-            if (endpoint.ConnectAddress == null) {
+                : new TcpClient(connectAddress.AddressFamily);
+            if (connectAddress == null) {
                 await client.ConnectAsync(endpoint.HostName, endpoint.Port)
                     .WaitWithCancellation(timeoutCts.Token)
                     .ConfigureAwait(false);
             } else {
-                await client.ConnectAsync(endpoint.ConnectAddress, endpoint.Port)
+                await client.ConnectAsync(connectAddress, endpoint.Port)
                     .WaitWithCancellation(timeoutCts.Token)
                     .ConfigureAwait(false);
             }
