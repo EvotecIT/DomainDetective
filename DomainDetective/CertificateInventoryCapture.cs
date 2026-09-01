@@ -1230,13 +1230,35 @@ public sealed partial class CertificateInventoryCapture {
                 }
                 mailTargetsToProbe = filteredMail;
 
+                // Stable failures are complete cached observations, not candidates for the live
+                // FTP/TLS budget. Remove them before target allocation so they cannot displace an
+                // uncached or stale endpoint that still requires a probe. Reusable successes stay
+                // in the candidate set and are ranked with the other FTP/TLS targets below.
+                foreach (FtpTlsEndpointTarget target in ftpTlsTargets.Values.ToList()) {
+                    if (recentByEndpoint.TryGetValue(target.Key, out var cached) &&
+                        TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure) &&
+                        reusedStableFailure) {
+                        ApplyEntryProvenance(
+                            cached.Entry,
+                            target.TargetOrigins,
+                            CaptureDispositionReusedRecentStableFailure,
+                            replaceTargetOrigins: true);
+                        cachedEntries.Add(cached.Entry);
+                        reusedFtpTls++;
+                        reusedStableFailureFtpTls++;
+                        ftpTlsTargets.Remove(target.Key);
+                    }
+                }
+
                 logger.WriteVerbose(
-                    "Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}, StableFailureHTTPS: {3}, StableFailureMail: {4}).",
-                    reusedHttps + reusedMail,
+                    "Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}, FTPTLS: {3}, StableFailureHTTPS: {4}, StableFailureMail: {5}, StableFailureFTPTLS: {6}).",
+                    reusedHttps + reusedMail + reusedFtpTls,
                     reusedHttps,
                     reusedMail,
+                    reusedFtpTls,
                     reusedStableFailureHttps,
-                    reusedStableFailureMail);
+                    reusedStableFailureMail,
+                    reusedStableFailureFtpTls);
             }
         }
 

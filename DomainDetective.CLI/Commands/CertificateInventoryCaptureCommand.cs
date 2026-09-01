@@ -783,7 +783,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("CapturedAtUtc,Host,ResolvedHost,Service,Scheme,Port,ObservedAtUtc,ProbeVantage,DnsResolver,DnsObservedAtUtc,RemoteAddress,RemoteAddressFamily,ResolvedAddresses,CnameChain,RedirectTargets,AttributionProvider,AttributionService,AttributionConfidence,AttributionScore,AttributionRuleId,AttributionRuleVersion,AttributionEvidence,AttributionCandidates,AttributionEvaluatedAtUtc,AttributionAmbiguous,AzureServiceTagSource,AzureServiceTagChangeNumber,AzureServiceTagCloud,AzureServiceTagRetrievedAtUtc,CertificateThumbprint,CertificateSerialNumber,CertificateSubject,CertificateIssuer,CertificateRootIssuer,NotAfterUtc,DaysToExpire,Valid,Expired,IsReachable,FailureKind,FailureReason,HostnameMatch,ChainComplete,AuthenticationProfile,AllowsServerAuthentication,AllowsClientAuthentication,AllowsSecureEmail,PresentInCtLogs,CtDiscoverySources,CtTemplateFormatErrors,CertificateChainSource,TargetOrigins,CaptureDisposition");
+        sb.AppendLine("CapturedAtUtc,Host,ResolvedHost,Service,Scheme,Port,ObservedAtUtc,ProbeVantage,DnsResolver,DnsObservedAtUtc,DnsObservationErrors,RemoteAddress,RemoteAddressFamily,ResolvedAddresses,CnameChain,RedirectTargets,AttributionProvider,AttributionService,AttributionConfidence,AttributionScore,AttributionRuleId,AttributionRuleVersion,AttributionEvidence,AttributionCandidates,AttributionEvaluatedAtUtc,AttributionAmbiguous,AzureServiceTagSource,AzureServiceTagChangeNumber,AzureServiceTagCloud,AzureServiceTagRetrievedAtUtc,CertificateThumbprint,CertificateSerialNumber,CertificateSubject,CertificateIssuer,CertificateRootIssuer,NotAfterUtc,DaysToExpire,Valid,Expired,IsReachable,FailureKind,FailureReason,HostnameMatch,ChainComplete,AuthenticationProfile,AllowsServerAuthentication,AllowsClientAuthentication,AllowsSecureEmail,PresentInCtLogs,CtDiscoverySources,CtTemplateFormatErrors,CertificateChainSource,TargetOrigins,CaptureDisposition");
         foreach (var entry in result.Snapshot.Entries) {
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(result.CapturedAtUtc.UtcDateTime.ToString("O")));
             sb.Append(',');
@@ -804,6 +804,8 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.DnsResolver));
             sb.Append(',');
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.DnsObservedAtUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.DnsObservationErrors ?? Array.Empty<string>())));
             sb.Append(',');
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.RemoteAddress));
             sb.Append(',');

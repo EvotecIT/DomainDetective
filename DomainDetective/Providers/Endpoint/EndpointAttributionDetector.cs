@@ -30,6 +30,9 @@ public sealed class EndpointAttributionDetector {
 
         var candidates = new List<EndpointAttributionCandidate>();
         foreach (EndpointAttributionRule rule in _catalog.Rules) {
+            // Rules is intentionally mutable for declarative callers, so validate again at the
+            // execution boundary even when a rule did not enter through AddOrReplace.
+            EndpointAttributionCatalog.ValidateRule(rule);
             EndpointAttributionCandidate? candidate = Evaluate(rule, input);
             if (candidate != null) {
                 candidates.Add(candidate);
@@ -213,9 +216,7 @@ public sealed class EndpointAttributionDetector {
         out string address,
         out string prefix) {
         var parsedPrefixes = prefixes
-            .Select(value => IpCidrRange.TryParse(value, out IpCidrRange range) ? (IpCidrRange?)range : null)
-            .Where(range => range.HasValue)
-            .Select(range => range!.Value)
+            .Select(IpCidrRange.Parse)
             .ToList();
         foreach (string observed in addresses ?? Array.Empty<string>()) {
             if (!IPAddress.TryParse((observed ?? string.Empty).Trim(), out IPAddress? parsed) || parsed == null) {

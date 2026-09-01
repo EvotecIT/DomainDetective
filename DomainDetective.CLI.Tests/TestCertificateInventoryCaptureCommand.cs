@@ -186,6 +186,7 @@ public class TestCertificateInventoryCaptureCommand {
             Assert.Contains("TargetOrigins", header, StringComparison.Ordinal);
             Assert.Contains("CaptureDisposition", header, StringComparison.Ordinal);
             Assert.Contains("DnsObservedAtUtc", header, StringComparison.Ordinal);
+            Assert.Contains("DnsObservationErrors", header, StringComparison.Ordinal);
             Assert.Contains("AttributionCandidates", header, StringComparison.Ordinal);
             Assert.Contains("AttributionEvaluatedAtUtc", header, StringComparison.Ordinal);
             Assert.Contains("AzureServiceTagChangeNumber", header, StringComparison.Ordinal);
@@ -251,6 +252,40 @@ public class TestCertificateInventoryCaptureCommand {
             Assert.Contains("CertificateIssuer", csv, StringComparison.Ordinal);
             Assert.Contains("service-tags.json", csv, StringComparison.Ordinal);
             Assert.Contains("42", csv, StringComparison.Ordinal);
+        } finally {
+            if (File.Exists(csvPath)) {
+                File.Delete(csvPath);
+            }
+        }
+    }
+
+    [Fact]
+    public void WriteCsv_RetainsDnsObservationErrors() {
+        string csvPath = Path.Combine(Path.GetTempPath(), "dd-dns-errors-csv-" + Guid.NewGuid().ToString("N") + ".csv");
+        try {
+            var entry = new CertificateInventoryEntry {
+                Host = "service.example.com",
+                ResolvedHost = "service.example.com",
+                Port = 443,
+                Service = "HTTPS",
+                DnsObservationErrors = new[] {
+                    "A lookup failed: timeout",
+                    "AAAA lookup failed: refused"
+                }
+            };
+            var result = new CertificateInventoryCaptureResult {
+                CapturedAtUtc = DateTimeOffset.UtcNow,
+                Snapshot = new CertificateInventorySnapshot {
+                    Entries = new List<CertificateInventoryEntry> { entry }
+                }
+            };
+
+            CertificateInventoryCaptureCommand.WriteCsv(result, csvPath);
+
+            string[] lines = File.ReadAllLines(csvPath);
+            Assert.Equal(2, lines.Length);
+            Assert.Contains("DnsObservationErrors", lines[0], StringComparison.Ordinal);
+            Assert.Contains("A lookup failed: timeout|AAAA lookup failed: refused", lines[1], StringComparison.Ordinal);
         } finally {
             if (File.Exists(csvPath)) {
                 File.Delete(csvPath);

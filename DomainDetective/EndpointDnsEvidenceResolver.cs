@@ -86,6 +86,9 @@ public sealed class EndpointDnsEvidenceResolver {
             DnsAnswer[] answers;
             try {
                 answers = await QueryAsync(current, DnsRecordType.CNAME, cancellationToken).ConfigureAwait(false);
+            } catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested) {
+                errors.Add($"CNAME lookup for '{current}' failed: {ex.Message}");
+                break;
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
@@ -126,6 +129,8 @@ public sealed class EndpointDnsEvidenceResolver {
                         addresses.Add(address.ToString());
                     }
                 }
+            } catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested) {
+                errors.Add($"{type} lookup for '{current}' failed: {ex.Message}");
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {

@@ -130,6 +130,49 @@ public class TestEndpointAttribution {
     }
 
     [Fact]
+    public async Task DnsEvidenceResolverTreatsResolverLocalCancellationAsLookupFailure() {
+        var resolver = new EndpointDnsEvidenceResolver {
+            QueryDnsOverride = (_, type, _) => type == DnsRecordType.A
+                ? Task.FromException<DnsAnswer[]>(new OperationCanceledException("resolver timeout"))
+                : Task.FromResult(Array.Empty<DnsAnswer>())
+        };
+
+        EndpointDnsEvidence evidence = await resolver.ResolveAsync("www.example.com", CancellationToken.None);
+
+        Assert.False(evidence.AddressResolutionComplete);
+        Assert.Contains(evidence.Errors, error =>
+            error.Contains("A lookup", StringComparison.Ordinal) &&
+            error.Contains("resolver timeout", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DnsEvidenceResolverTreatsResolverLocalCnameCancellationAsLookupFailure() {
+        var resolver = new EndpointDnsEvidenceResolver {
+            QueryDnsOverride = (_, type, _) => type == DnsRecordType.CNAME
+                ? Task.FromException<DnsAnswer[]>(new OperationCanceledException("resolver CNAME timeout"))
+                : Task.FromResult(Array.Empty<DnsAnswer>())
+        };
+
+        EndpointDnsEvidence evidence = await resolver.ResolveAsync("www.example.com", CancellationToken.None);
+
+        Assert.Equal("www.example.com", evidence.EffectiveHostName);
+        Assert.True(evidence.AddressResolutionComplete);
+        Assert.Contains(evidence.Errors, error =>
+            error.Contains("CNAME lookup", StringComparison.Ordinal) &&
+            error.Contains("resolver CNAME timeout", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DnsEvidenceResolverStillPropagatesCallerCancellation() {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var resolver = new EndpointDnsEvidenceResolver();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            resolver.ResolveAsync("www.example.com", cancellation.Token));
+    }
+
+    [Fact]
     public void EndpointIdentityIncludesServiceAndNormalizesHost() {
         CertificateEndpointIdentity https = CertificateEndpointIdentity.Create(" WWW.Example.COM. ", 443, "HTTPS");
         CertificateEndpointIdentity ldaps = CertificateEndpointIdentity.Create("www.example.com", 443, "LDAPS");
@@ -337,6 +380,46 @@ public class TestEndpointAttribution {
         Assert.Equal("example", result.Primary?.ProviderId);
         Assert.Equal("custom.edge", result.Primary?.RuleId);
         Assert.Single(result.Candidates, candidate => candidate.RuleId == "custom.edge");
+    }
+
+    [Fact]
+    public void CustomRuleRejectsMalformedIpPrefixWithRuleContext() {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.invalid-prefix",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Example Edge"
+        };
+        rule.IpAddressPrefixes.Add("not-a-cidr");
+
+        FormatException exception = Assert.Throws<FormatException>(() => catalog.AddOrReplace(rule));
+
+        Assert.Contains("custom.invalid-prefix", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("not-a-cidr", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DetectorRejectsMalformedPrefixAddedThroughMutableRuleCollection() {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.mutable-invalid-prefix",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Example Edge"
+        };
+        rule.IpAddressPrefixes.Add("203.0.113.0/99");
+        catalog.Rules.Add(rule);
+
+        FormatException exception = Assert.Throws<FormatException>(() =>
+            new EndpointAttributionDetector(catalog).Detect(new EndpointAttributionInput {
+                HostName = "www.example.com"
+            }));
+
+        Assert.Contains("custom.mutable-invalid-prefix", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("203.0.113.0/99", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
