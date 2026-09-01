@@ -132,7 +132,7 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
             var responseTargets = new List<string>();
             var seenResponseTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var targetByOwner = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            bool hasConflictingOwnerTargets = false;
+            var conflictingOwners = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var q in queries)
             {
                 if (q.RecordType != DnsRecordType.CNAME)
@@ -158,7 +158,7 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                         if (targetByOwner.TryGetValue(owner, out string? existingTarget) &&
                             !string.Equals(existingTarget, target, StringComparison.OrdinalIgnoreCase))
                         {
-                            hasConflictingOwnerTargets = true;
+                            conflictingOwners.Add(owner);
                         }
                         else
                         {
@@ -173,11 +173,20 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                 return;
             }
 
+            bool hasConflictingOwnerTargets = conflictingOwners.Count > 0;
             var targets = hasConflictingOwnerTargets
                 ? responseTargets
                 : BuildCnameTraversal(targetByOwner, responseTargets);
 
             var evidence = new List<string>();
+            foreach (string conflictingOwner in conflictingOwners.OrderBy(owner => owner, StringComparer.OrdinalIgnoreCase))
+            {
+                if (evidence.Count >= 10)
+                {
+                    break;
+                }
+                evidence.Add($"Conflicting CNAME targets for owner: {conflictingOwner}");
+            }
             var bestProvider = DnsCnameTargetProvider.Unknown;
             var bestService = DnsCnameTargetService.Unknown;
             var bestMatchRank = 0;
@@ -192,14 +201,17 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                 }
 
                 var m = DnsCnameTargetDetector.Detect(target);
-                flags |= m.Flags;
+                if (!hasConflictingOwnerTargets)
+                {
+                    flags |= m.Flags;
+                }
                 var matchRank = m.Service != DnsCnameTargetService.Unknown
                     ? 2
                     : (m.Provider != DnsCnameTargetProvider.Unknown ? 1 : 0);
                 // CNAME records are evaluated in owner-to-target traversal order. When
                 // equally strong services occur in one chain, the later (terminal)
                 // target describes the service actually reached.
-                if (matchRank > 0 && matchRank >= bestMatchRank)
+                if (!hasConflictingOwnerTargets && matchRank > 0 && matchRank >= bestMatchRank)
                 {
                     bestProvider = m.Provider;
                     bestService = m.Service;

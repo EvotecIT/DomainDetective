@@ -187,29 +187,41 @@ public class TestDnsInventoryAnalysis
         Assert.Equal(service, match.Service);
     }
 
-    [Fact]
-    public async Task CnameInventoryKeepsProviderAndServiceFromSameTargetMatch()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CnameInventoryLeavesConflictingOwnerTargetsUnclassified(bool reverseOrder)
     {
+        var answers = new[]
+        {
+            new DnsAnswer { Name = "example.com", Type = DnsRecordType.CNAME, DataRaw = "a.cloudflare.net." },
+            new DnsAnswer { Name = "example.com", Type = DnsRecordType.CNAME, DataRaw = "z.azurefd.net." }
+        };
+        if (reverseOrder)
+        {
+            Array.Reverse(answers);
+        }
         var analysis = new DnsInventoryAnalysis
         {
             IncludeAuthorities = false,
             QueryOverride = (_, type, _) => Task.FromResult(new DnsResponse
             {
                 Status = DnsResponseCode.NoError,
-                Answers = type == DnsRecordType.CNAME
-                    ? new[]
-                    {
-                        new DnsAnswer { Name = "example.com", Type = DnsRecordType.CNAME, DataRaw = "a.cloudflare.net." },
-                        new DnsAnswer { Name = "example.com", Type = DnsRecordType.CNAME, DataRaw = "z.azurefd.net." }
-                    }
-                    : Array.Empty<DnsAnswer>()
+                Answers = type == DnsRecordType.CNAME ? answers : Array.Empty<DnsAnswer>()
             })
         };
 
         await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
 
-        Assert.Equal(DnsCnameTargetProvider.Azure, analysis.CnameTargetProvider);
-        Assert.Equal(DnsCnameTargetService.AzureFrontDoor, analysis.CnameTargetService);
+        Assert.Equal(DnsCnameTargetProvider.Unknown, analysis.CnameTargetProvider);
+        Assert.Equal(DnsCnameTargetService.Unknown, analysis.CnameTargetService);
+        Assert.Equal(DnsCnameTargetFlags.None, analysis.CnameTargetFlags);
+        Assert.DoesNotContain(analysis.DetectedDnsApplications, application =>
+            application.Source == "DnsInventory.CnameTarget");
+        Assert.Contains(analysis.CnameTargetEvidence, item =>
+            item.Contains("Conflicting CNAME targets for owner: example.com", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(analysis.CnameTargetEvidence, item => item.Contains("a.cloudflare.net", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(analysis.CnameTargetEvidence, item => item.Contains("z.azurefd.net", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

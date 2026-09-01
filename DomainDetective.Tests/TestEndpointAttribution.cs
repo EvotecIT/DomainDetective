@@ -447,6 +447,26 @@ public class TestEndpointAttribution {
     }
 
     [Fact]
+    public void CustomRuleRejectsIpAddressAsItsOwnCorroboratingSignal() {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.self-corroborating-ip",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Invalid IP Rule",
+            RequireCorroborationForIpAddressPrimary = true
+        };
+        rule.IpAddressPrefixes.Add("203.0.113.0/24");
+        rule.IpAddressPrimaryCorroboratingSignals.Add(EndpointAttributionSignalKind.IpAddress);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => catalog.AddOrReplace(rule));
+
+        Assert.Contains("custom.self-corroborating-ip", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("own corroborating signal", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void DetectorRejectsMalformedPrefixAddedThroughMutableRuleCollection() {
         var catalog = new EndpointAttributionCatalog();
         var rule = new EndpointAttributionRule {

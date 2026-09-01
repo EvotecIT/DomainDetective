@@ -52,6 +52,9 @@ public sealed class FtpTlsEndpoint {
         if (Port < 1 || Port > 65535) {
             throw new ArgumentOutOfRangeException(nameof(Port), "Port must be between 1 and 65535.");
         }
+        if (Mode != FtpTlsMode.Explicit && Mode != FtpTlsMode.Implicit) {
+            throw new ArgumentOutOfRangeException(nameof(Mode), "Mode must be Explicit or Implicit.");
+        }
     }
 }
 
@@ -183,7 +186,7 @@ public sealed class FtpTlsAnalysis {
                     AutoFlush = true,
                     NewLine = "\r\n"
                 };
-                IReadOnlyList<string> greeting = await ReadResponseAsync(reader, timeoutCts.Token).ConfigureAwait(false);
+                IReadOnlyList<string> greeting = await ReadServiceReadyGreetingAsync(reader, timeoutCts.Token).ConfigureAwait(false);
                 result.Greeting = greeting;
                 if (!HasReplyCode(greeting, "220")) {
                     throw new InvalidDataException("FTP server did not return a 220 service-ready greeting.");
@@ -248,7 +251,11 @@ public sealed class FtpTlsAnalysis {
 
     private static async Task<IReadOnlyList<string>> ReadResponseAsync(
         StreamReader reader,
-        CancellationToken cancellationToken) {
+        CancellationToken cancellationToken,
+        int maxLines = MaxResponseLines) {
+        if (maxLines < 1) {
+            throw new InvalidDataException($"FTP response exceeded {MaxResponseLines} lines.");
+        }
         var lines = new List<string>();
         string? first = await reader.ReadLineAsync().WaitWithCancellation(cancellationToken).ConfigureAwait(false);
         if (first == null) {
@@ -260,7 +267,7 @@ public sealed class FtpTlsAnalysis {
         }
 
         string terminator = first.Substring(0, 3) + " ";
-        while (lines.Count < MaxResponseLines) {
+        while (lines.Count < maxLines) {
             string? line = await reader.ReadLineAsync().WaitWithCancellation(cancellationToken).ConfigureAwait(false);
             if (line == null) {
                 throw new EndOfStreamException("FTP server closed a multiline response before its terminator.");
@@ -271,6 +278,24 @@ public sealed class FtpTlsAnalysis {
             }
         }
         throw new InvalidDataException($"FTP response exceeded {MaxResponseLines} lines.");
+    }
+
+    private static async Task<IReadOnlyList<string>> ReadServiceReadyGreetingAsync(
+        StreamReader reader,
+        CancellationToken cancellationToken) {
+        var lines = new List<string>();
+        while (lines.Count < MaxResponseLines) {
+            IReadOnlyList<string> response = await ReadResponseAsync(
+                    reader,
+                    cancellationToken,
+                    MaxResponseLines - lines.Count)
+                .ConfigureAwait(false);
+            lines.AddRange(response);
+            if (!HasReplyCode(response, "120")) {
+                return lines;
+            }
+        }
+        throw new InvalidDataException($"FTP response exceeded {MaxResponseLines} lines before service became ready.");
     }
 
     private static bool HasReplyCode(IReadOnlyList<string> response, string expected) {

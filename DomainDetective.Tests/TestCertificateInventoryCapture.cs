@@ -341,6 +341,39 @@ public class TestCertificateInventoryCapture {
         }
     }
 
+    [Theory]
+    [InlineData("ftps://localhost:0")]
+    [InlineData("ftps-explicit://localhost:0")]
+    [InlineData("smtp://localhost:0")]
+    [InlineData("submission://localhost:0")]
+    [InlineData("imap://localhost:0")]
+    [InlineData("imaps://localhost:0")]
+    [InlineData("pop3://localhost:0")]
+    [InlineData("pop3s://localhost:0")]
+    [InlineData("https://localhost:0")]
+    public async Task CaptureAsync_RejectsExplicitZeroPortEndpoint(string endpoint) {
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false
+        };
+        options.AdditionalEndpoints.Add(endpoint);
+
+        CertificateInventoryCaptureResult result = await new CertificateInventoryCapture().CaptureAsync(
+            Array.Empty<string>(),
+            options);
+
+        Assert.Equal(0, result.FtpTlsEndpointCount);
+        Assert.Equal(0, result.MailEndpointCount);
+        Assert.Equal(0, result.HttpsEndpointCount);
+        Assert.Empty(result.Snapshot.Entries);
+        Assert.Contains(result.Warnings, warning => warning.Contains("invalid endpoint", StringComparison.OrdinalIgnoreCase));
+        TargetDecisionDiagnosticEntry diagnostic = Assert.Single(result.TargetDecisionDiagnostics);
+        Assert.Equal("invalid-endpoint", diagnostic.Reason);
+        Assert.Equal(endpoint, diagnostic.Target);
+    }
+
     [Fact]
     public async Task CaptureAsync_PrioritizesStaleFtpTlsTargetBeforeReusableHealthyTarget() {
         DateTimeOffset now = DateTimeOffset.UtcNow;

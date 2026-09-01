@@ -57,6 +57,11 @@ public sealed class EndpointAttributionCatalog {
                 $"Endpoint attribution rule '{rule.RuleId}' requires a stable ServiceId.",
                 parameterName ?? nameof(rule));
         }
+        if (rule.IpAddressPrimaryCorroboratingSignals.Contains(EndpointAttributionSignalKind.IpAddress)) {
+            throw new ArgumentException(
+                $"Endpoint attribution rule '{rule.RuleId}' cannot use IpAddress as its own corroborating signal.",
+                parameterName ?? nameof(rule));
+        }
 
         var compiledPrefixes = new List<IpCidrRange>(rule.IpAddressPrefixes.Count);
         foreach (string prefix in rule.IpAddressPrefixes) {

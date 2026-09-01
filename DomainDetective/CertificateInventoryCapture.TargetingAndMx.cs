@@ -861,6 +861,20 @@ public sealed partial class CertificateInventoryCapture {
                     continue;
                 }
 
+                if (TryGetExplicitUriPort(uri, out int explicitPort) &&
+                    (explicitPort < 1 || explicitPort > 65535)) {
+                    warnings.Add($"Skipping invalid endpoint '{value}'.");
+                    targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                        Stage = "additional-endpoints",
+                        Action = "rejected",
+                        Reason = "invalid-endpoint",
+                        Target = value,
+                        Service = uri.Scheme.ToLowerInvariant(),
+                        Message = "An explicitly supplied endpoint port must be between 1 and 65535."
+                    });
+                    continue;
+                }
+
                 var scheme = uri.Scheme.ToLowerInvariant();
                 if (scheme == Uri.UriSchemeHttp || scheme == Uri.UriSchemeHttps) {
                     var builder = new UriBuilder(uri) {
@@ -881,9 +895,21 @@ public sealed partial class CertificateInventoryCapture {
                     continue;
                 }
 
-                if (TryCreateFtpTlsTargetFromScheme(uri, out FtpTlsEndpointTarget? ftpTlsTarget)) {
-                    ftpTlsTarget!.TargetOrigins.Add(TargetOriginAdditionalEndpoint);
-                    ftpTlsTargets[ftpTlsTarget.Key] = ftpTlsTarget;
+                if (IsFtpTlsScheme(scheme)) {
+                    if (TryCreateFtpTlsTargetFromScheme(uri, out FtpTlsEndpointTarget? ftpTlsTarget)) {
+                        ftpTlsTarget!.TargetOrigins.Add(TargetOriginAdditionalEndpoint);
+                        ftpTlsTargets[ftpTlsTarget.Key] = ftpTlsTarget;
+                    } else {
+                        warnings.Add($"Skipping invalid FTP TLS endpoint '{value}'.");
+                        targetDecisionDiagnostics.Add(new TargetDecisionDiagnosticEntry {
+                            Stage = "additional-endpoints",
+                            Action = "rejected",
+                            Reason = "invalid-endpoint",
+                            Target = value,
+                            Service = scheme,
+                            Message = "The FTP TLS endpoint requires a valid hostname and a port between 1 and 65535."
+                        });
+                    }
                     continue;
                 }
 
@@ -947,17 +973,59 @@ public sealed partial class CertificateInventoryCapture {
         }
 
         string host = EndpointHostNormalizer.Normalize(uri.Host);
-        if (host.Length == 0) {
+        bool hasExplicitPort = TryGetExplicitUriPort(uri, out int explicitPort);
+        if (host.Length == 0 ||
+            (hasExplicitPort && (explicitPort < 1 || explicitPort > 65535)) ||
+            (!hasExplicitPort && !uri.IsDefaultPort && (uri.Port < 1 || uri.Port > 65535))) {
             return false;
         }
         target = new FtpTlsEndpointTarget {
             Host = host,
-            Port = uri.IsDefaultPort || uri.Port <= 0 ? defaultPort : uri.Port,
+            Port = hasExplicitPort ? explicitPort : (uri.IsDefaultPort ? defaultPort : uri.Port),
             Mode = mode,
             Scheme = normalizedScheme,
             Service = service
         };
         return true;
+    }
+
+    private static bool IsFtpTlsScheme(string scheme) {
+        return scheme == "ftps" ||
+               scheme == "ftps-explicit" ||
+               scheme == "ftpes" ||
+               scheme == "ftp+tls";
+    }
+
+    private static bool TryGetExplicitUriPort(Uri uri, out int port) {
+        port = 0;
+        string original = uri.OriginalString;
+        int schemeSeparator = original.IndexOf("://", StringComparison.Ordinal);
+        if (schemeSeparator < 0) {
+            return false;
+        }
+        int authorityStart = schemeSeparator + 3;
+        int authorityEnd = original.IndexOfAny(new[] { '/', '?', '#' }, authorityStart);
+        string authority = authorityEnd < 0
+            ? original.Substring(authorityStart)
+            : original.Substring(authorityStart, authorityEnd - authorityStart);
+        int userInfoSeparator = authority.LastIndexOf('@');
+        if (userInfoSeparator >= 0) {
+            authority = authority.Substring(userInfoSeparator + 1);
+        }
+
+        int portSeparator;
+        if (authority.StartsWith("[", StringComparison.Ordinal)) {
+            int bracket = authority.IndexOf(']');
+            portSeparator = bracket >= 0 && bracket + 1 < authority.Length && authority[bracket + 1] == ':'
+                ? bracket + 1
+                : -1;
+        } else {
+            portSeparator = authority.LastIndexOf(':');
+        }
+        if (portSeparator < 0 || portSeparator + 1 >= authority.Length) {
+            return false;
+        }
+        return int.TryParse(authority.Substring(portSeparator + 1), out port);
     }
 
     private static bool TryCreateMailTargetFromScheme(Uri uri, CertificateInventoryCaptureOptions options, out MailEndpointTarget? target) {

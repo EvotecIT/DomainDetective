@@ -27,6 +27,14 @@ public class TestFtpTlsAnalysis {
             new InternalLogger()));
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(2)]
+    public void RejectsUndefinedTlsMode(int mode) {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new FtpTlsEndpoint("localhost", 21, (FtpTlsMode)mode));
+    }
+
     [Fact]
     public async Task CertificateInventoryCaptureAcceptsExplicitFtpsEndpoint() {
         using X509Certificate2 certificate = CreateSelfSigned("localhost");
@@ -177,6 +185,40 @@ public class TestFtpTlsAnalysis {
             Assert.InRange(result.ObservedAtUtc, startedAtUtc, completedAtUtc);
             Assert.Equal("220 Ready", result.Greeting[result.Greeting.Count - 1]);
             Assert.Equal("234 AUTH TLS accepted", result.AuthTlsResponse[result.AuthTlsResponse.Count - 1]);
+        } finally {
+            listener.Stop();
+            await server;
+        }
+    }
+
+    [Fact]
+    public async Task ExplicitFtpsWaitsForServiceReadyAfterPreliminaryGreeting() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        string? receivedCommand = null;
+        Task server = Task.Run(async () => {
+            using TcpClient client = await listener.AcceptTcpClientAsync();
+            using NetworkStream network = client.GetStream();
+            using var reader = new StreamReader(network, Encoding.ASCII, false, 1024, true);
+            using var writer = new StreamWriter(network, Encoding.ASCII, 1024, true) { AutoFlush = true, NewLine = "\r\n" };
+            await writer.WriteLineAsync("120 Service ready in a moment");
+            await writer.WriteLineAsync("220 Ready");
+            receivedCommand = await reader.ReadLineAsync();
+            await writer.WriteLineAsync("534 TLS unavailable in fixture");
+        });
+
+        try {
+            var analysis = new FtpTlsAnalysis { Timeout = TimeSpan.FromSeconds(5) };
+            FtpTlsResult result = await analysis.AnalyzeAsync(
+                new FtpTlsEndpoint("localhost", port, FtpTlsMode.Explicit) { ConnectAddress = IPAddress.Loopback },
+                new InternalLogger());
+
+            Assert.Equal("AUTH TLS", receivedCommand);
+            Assert.Equal(
+                new[] { "120 Service ready in a moment", "220 Ready" },
+                result.Greeting);
+            Assert.Contains("234", result.FailureReason, StringComparison.OrdinalIgnoreCase);
         } finally {
             listener.Stop();
             await server;
