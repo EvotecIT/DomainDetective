@@ -938,6 +938,58 @@ public class TestEndpointAttribution {
         Assert.Contains(result.Primary!.Evidence, evidence => evidence.Kind == expectedSignal);
     }
 
+    [Theory]
+    [InlineData("64500", "AS64500")]
+    [InlineData("AS64500", "64500")]
+    [InlineData("as064500", "AS64500")]
+    public void DetectorNormalizesAutonomousSystemPrefixes(string ruleValue, string observedValue) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.normalized-asn",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Example Edge"
+        };
+        rule.AutonomousSystemNumbers.Add(ruleValue);
+        catalog.AddOrReplace(rule);
+
+        EndpointAttributionResult result = new EndpointAttributionDetector(catalog).Detect(
+            new EndpointAttributionInput {
+                HostName = "service.example.com",
+                AutonomousSystemNumbers = new[] { observedValue }
+            });
+
+        Assert.Equal(new[] { "64500" }, rule.AutonomousSystemNumbers);
+        Assert.Equal("custom.normalized-asn", result.Primary?.RuleId);
+        EndpointAttributionEvidence evidence = Assert.Single(result.Primary!.Evidence);
+        Assert.Equal("64500", evidence.ObservedValue);
+        Assert.Equal("64500", evidence.MatchedValue);
+    }
+
+    [Theory]
+    [InlineData("AS")]
+    [InlineData("AS0")]
+    [InlineData("AS4294967296")]
+    [InlineData("not-an-asn")]
+    public void CustomRuleRejectsInvalidAutonomousSystemNumber(string invalidValue) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.invalid-asn",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Invalid ASN Rule"
+        };
+        rule.AutonomousSystemNumbers.Add(invalidValue);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            catalog.AddOrReplace(rule));
+
+        Assert.Contains("custom.invalid-asn", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("autonomous system number", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void DetectorRejectsMalformedPrefixAddedThroughMutableRuleCollection() {
         var catalog = new EndpointAttributionCatalog();

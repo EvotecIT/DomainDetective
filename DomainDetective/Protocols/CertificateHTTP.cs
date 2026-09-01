@@ -331,8 +331,7 @@ namespace DomainDetective {
                 using var originSsl = new SslStream(
                     originTcp.GetStream(),
                     false,
-                    (_, certificate, chain, policyErrors) =>
-                        CaptureServerCertificate(certificate, chain, policyErrors));
+                    static (_, _, _, _) => true);
                 await originSsl.AuthenticateAsClientAsync(
                         originUri.Host,
                         null,
@@ -406,7 +405,12 @@ namespace DomainDetective {
                                 var uri = new Uri(url);
                                 timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                                 timeoutCts.CancelAfter(Timeout);
-                                using var tcp = await ConnectDirectAsync(uri.Host, port, timeoutCts.Token).ConfigureAwait(false);
+                                using var tcp = await ConnectDirectAsync(
+                                        uri.Host,
+                                        port,
+                                        timeoutCts.Token,
+                                        captureRemoteAddress: false)
+                                    .ConfigureAwait(false);
                                 using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
                                     HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                                     return errors == SslPolicyErrors.None;
@@ -488,12 +492,18 @@ namespace DomainDetective {
             IsSelfSigned = IsSelfSignedCertificate(Certificate);
         }
 
-        internal async Task<TcpClient> ConnectDirectAsync(string host, int port, CancellationToken cancellationToken) {
+        internal async Task<TcpClient> ConnectDirectAsync(
+            string host,
+            int port,
+            CancellationToken cancellationToken,
+            bool captureRemoteAddress = true) {
             if (OutboundAddressResolver == null) {
                 var client = TcpClientFactory(AddressFamily.Unspecified);
                 try {
                     await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-                    CaptureRemoteAddress(client);
+                    if (captureRemoteAddress) {
+                        CaptureRemoteAddress(client);
+                    }
                     return client;
                 } catch {
                     client.Dispose();
@@ -501,13 +511,20 @@ namespace DomainDetective {
                 }
             }
 
-            var addresses = await OutboundAddressResolver(host, cancellationToken).ConfigureAwait(false);
+            var addresses = await OutboundAddressResolver(host, cancellationToken).ConfigureAwait(false)
+                ?? Array.Empty<IPAddress>();
             Exception? lastError = null;
-            foreach (var address in addresses) {
+            foreach (IPAddress? candidate in addresses) {
+                if (candidate == null) {
+                    continue;
+                }
+                IPAddress address = candidate.IsIPv4MappedToIPv6 ? candidate.MapToIPv4() : candidate;
                 var client = TcpClientFactory(address.AddressFamily);
                 try {
                     await client.ConnectAsync(address, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-                    CaptureRemoteAddress(client);
+                    if (captureRemoteAddress) {
+                        CaptureRemoteAddress(client);
+                    }
                     return client;
                 } catch (OperationCanceledException) {
                     client.Dispose();

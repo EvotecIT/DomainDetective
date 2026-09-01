@@ -153,7 +153,12 @@ namespace DomainDetective {
                 while (!string.IsNullOrEmpty(await reader.ReadLineAsync())) { }
                 return tcp;
             }
-            return await ConnectDirectAsync(host, port, token).ConfigureAwait(false);
+            return await ConnectDirectAsync(
+                    host,
+                    port,
+                    token,
+                    captureRemoteAddress: false)
+                .ConfigureAwait(false);
         }
 #pragma warning restore CA2000
 

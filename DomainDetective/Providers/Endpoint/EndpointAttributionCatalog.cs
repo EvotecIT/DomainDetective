@@ -113,6 +113,23 @@ public sealed class EndpointAttributionCatalog {
         }
         rule.ApplicableServices.Clear();
         rule.ApplicableServices.AddRange(normalizedServices);
+        var normalizedAutonomousSystems = new List<string>(rule.AutonomousSystemNumbers.Count);
+        var uniqueAutonomousSystems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string autonomousSystem in rule.AutonomousSystemNumbers) {
+            if (string.IsNullOrWhiteSpace(autonomousSystem)) {
+                continue;
+            }
+            if (!TryNormalizeAutonomousSystemNumber(autonomousSystem, out string normalizedAutonomousSystem)) {
+                throw new ArgumentException(
+                    $"Endpoint attribution rule '{rule.RuleId}' contains invalid autonomous system number '{autonomousSystem}'.",
+                    parameterName ?? nameof(rule));
+            }
+            if (uniqueAutonomousSystems.Add(normalizedAutonomousSystem)) {
+                normalizedAutonomousSystems.Add(normalizedAutonomousSystem);
+            }
+        }
+        rule.AutonomousSystemNumbers.Clear();
+        rule.AutonomousSystemNumbers.AddRange(normalizedAutonomousSystems);
         if (!HasUsableEvidenceMatcher(rule)) {
             throw new ArgumentException(
                 $"Endpoint attribution rule '{rule.RuleId}' requires at least one usable evidence matcher.",
@@ -128,6 +145,24 @@ public sealed class EndpointAttributionCatalog {
             compiledPrefixes.Add(compiledPrefix);
         }
         return compiledPrefixes;
+    }
+
+    internal static bool TryNormalizeAutonomousSystemNumber(string? value, out string normalized) {
+        normalized = string.Empty;
+        string candidate = (value ?? string.Empty).Trim();
+        if (candidate.StartsWith("AS", StringComparison.OrdinalIgnoreCase)) {
+            candidate = candidate.Substring(2).Trim();
+        }
+        if (!uint.TryParse(
+                candidate,
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out uint number) ||
+            number == 0) {
+            return false;
+        }
+        normalized = number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return true;
     }
 
     private static bool HasUsableEvidenceMatcher(EndpointAttributionRule rule) =>

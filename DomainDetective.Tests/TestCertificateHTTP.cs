@@ -141,6 +141,38 @@ namespace DomainDetective.Tests {
             }
         }
 
+#if NET472
+        [Fact]
+        public async Task FrameworkFullHttpUsesCertificateFromHttpConnection() {
+            using var peerOnlyCertificate = CreateSelfSigned("peer-only.invalid");
+            using var httpCertificate = CreateSelfSigned("localhost");
+            var server = new TcpListenerFixture((listener, token) => Task.Run(
+                () => RunFrameworkPairedCertificateServer(
+                    listener,
+                    peerOnlyCertificate,
+                    httpCertificate,
+                    token),
+                token));
+            await server.InitializeAsync();
+
+            try {
+                var analysis = new CertificateAnalysis {
+                    CaptureExtendedMetadata = false,
+                    CaptureTlsDetails = false
+                };
+
+                await analysis.AnalyzeUrl("https://localhost", server.Port, new InternalLogger());
+
+                Assert.True(analysis.IsReachable);
+                Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+                Assert.Equal(httpCertificate.Thumbprint, analysis.Certificate?.Thumbprint);
+                Assert.NotEqual(peerOnlyCertificate.Thumbprint, analysis.Certificate?.Thumbprint);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+#endif
+
         [Fact]
         public async Task DirectConnectorDisposesClientWhenConnectFails() {
             var client = new CountingTcpClient();
@@ -737,6 +769,53 @@ namespace DomainDetective.Tests {
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
             return CertificateLoaderCompat.LoadPkcs12(cert.Export(X509ContentType.Pfx));
         }
+
+#if NET472
+        private static async Task RunFrameworkPairedCertificateServer(
+            TcpListener listener,
+            X509Certificate2 peerOnlyCertificate,
+            X509Certificate2 httpCertificate,
+            CancellationToken token) {
+            int connectionCount = 0;
+            try {
+                while (!token.IsCancellationRequested) {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask) {
+                        try { await clientTask; } catch { }
+                        break;
+                    }
+
+                    var client = await clientTask;
+                    int connectionNumber = Interlocked.Increment(ref connectionCount);
+                    _ = Task.Run(async () => {
+                        using var tcp = client;
+                        using var ssl = new SslStream(tcp.GetStream());
+                        X509Certificate2 certificate = connectionNumber == 1
+                            ? peerOnlyCertificate
+                            : httpCertificate;
+                        await ssl.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
+                        if (connectionNumber == 1) {
+                            return;
+                        }
+
+                        using var reader = new StreamReader(ssl);
+                        using var writer = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                        await reader.ReadLineAsync();
+                        string? line;
+                        do {
+                            line = await reader.ReadLineAsync();
+                        } while (!string.IsNullOrEmpty(line));
+                        await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                        await writer.WriteLineAsync("Content-Length: 0");
+                        await writer.WriteLineAsync();
+                    }, token);
+                }
+            } catch (Exception ex) when (token.IsCancellationRequested || ex is ObjectDisposedException) {
+                // ignore on shutdown
+            }
+        }
+#endif
 
         private sealed class RedirectSequenceHandler : HttpMessageHandler {
             public List<string> RequestHosts { get; } = new();

@@ -142,7 +142,10 @@ public sealed class EndpointAttributionDetector {
             hasStrongSignal = true;
         }
 
-        if (TryMatchExact(input.AutonomousSystemNumbers, rule.AutonomousSystemNumbers, out string autonomousSystem)) {
+        if (TryMatchAutonomousSystemNumber(
+                input.AutonomousSystemNumbers,
+                rule.AutonomousSystemNumbers,
+                out string autonomousSystem)) {
             AddEvidence(evidence, EndpointAttributionSignalKind.AutonomousSystem, autonomousSystem, autonomousSystem, 0.55, rule.Source);
             hasStrongSignal = true;
         }
@@ -300,16 +303,20 @@ public sealed class EndpointAttributionDetector {
         return false;
     }
 
-    private static bool TryMatchExact(
+    private static bool TryMatchAutonomousSystemNumber(
         IEnumerable<string>? values,
         IEnumerable<string> patterns,
         out string value) {
         var expected = new HashSet<string>(
-            patterns.Where(item => !string.IsNullOrWhiteSpace(item)).Select(item => item.Trim()),
-            StringComparer.OrdinalIgnoreCase);
+            patterns
+                .Select(pattern => EndpointAttributionCatalog.TryNormalizeAutonomousSystemNumber(pattern, out string normalized)
+                    ? normalized
+                    : string.Empty)
+                .Where(normalized => normalized.Length > 0),
+            StringComparer.Ordinal);
         foreach (string observed in values ?? Array.Empty<string>()) {
-            string normalized = (observed ?? string.Empty).Trim();
-            if (expected.Contains(normalized)) {
+            if (EndpointAttributionCatalog.TryNormalizeAutonomousSystemNumber(observed, out string normalized) &&
+                expected.Contains(normalized)) {
                 value = normalized;
                 return true;
             }

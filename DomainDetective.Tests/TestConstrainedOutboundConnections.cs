@@ -157,6 +157,58 @@ public class TestConstrainedOutboundConnections {
     }
 
     [Fact]
+    public async Task CertificateConnectorNormalizesMappedAddressBeforeSocketCreation() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try {
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var analysis = new CertificateAnalysis {
+                OutboundAddressResolver = (_, _) => Task.FromResult<IReadOnlyList<IPAddress>>(
+                    new[] { IPAddress.Parse("::ffff:127.0.0.1") })
+            };
+
+            var connect = analysis.ConnectDirectAsync("service.invalid", port, CancellationToken.None);
+            using var accepted = await listener.AcceptTcpClientAsync();
+            using var client = await connect;
+
+            Assert.True(client.Connected);
+            Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+            var remote = Assert.IsType<IPEndPoint>(client.Client.RemoteEndPoint);
+            Assert.Equal(AddressFamily.InterNetwork, remote.AddressFamily);
+        } finally {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task AuxiliaryCertificateConnectionDoesNotOverwritePrimaryPeer() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try {
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var analysis = new CertificateAnalysis();
+            var setter = typeof(CertificateAnalysis)
+                .GetProperty(nameof(CertificateAnalysis.RemoteAddress))!
+                .GetSetMethod(nonPublic: true)!;
+            IPAddress primaryPeer = IPAddress.Parse("192.0.2.25");
+            setter.Invoke(analysis, new object[] { primaryPeer });
+
+            var connect = analysis.ConnectDirectAsync(
+                IPAddress.Loopback.ToString(),
+                port,
+                CancellationToken.None,
+                captureRemoteAddress: false);
+            using var accepted = await listener.AcceptTcpClientAsync();
+            using var client = await connect;
+
+            Assert.True(client.Connected);
+            Assert.Equal(primaryPeer, analysis.RemoteAddress);
+        } finally {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
     public async Task AwaitConnectDisposesSocketWhenCanceled() {
         using var client = new TcpClient();
         var socket = client.Client;
