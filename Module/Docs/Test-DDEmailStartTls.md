@@ -9,9 +9,14 @@ schema: 2.0.0
 Checks SMTP STARTTLS support for a domain.
 
 ## SYNTAX
-### ServerName (Default)
+### DomainName (Default)
 ```powershell
-Test-DDEmailStartTls [-DomainName] <string[]> [[-DnsEndpoint] <DnsEndpoint>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-Port <int>] [-FullResponse] [<CommonParameters>]
+Test-DDEmailStartTls [-DomainName] <string[]> [[-DnsEndpoint] <DnsEndpoint>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-Port <int>] [-AddressFamily <MailTransportAddressFamily>] [-FullResponse] [<CommonParameters>]
+```
+
+### ServerName
+```powershell
+Test-DDEmailStartTls [-HostName] <string> [[-DnsEndpoint] <DnsEndpoint>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-Port <int>] [-ConnectAddress <ipaddress>] [-AddressFamily <MailTransportAddressFamily>] [-FullResponse] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -25,15 +30,53 @@ Test-DDEmailStartTls -DomainName example.com -Port 587
 ```
 
 
+### EXAMPLE 2
+```powershell
+Test-DDEmailStartTls -HostName mail.example.com -Port 587 -ConnectAddress 192.0.2.10 -AddressFamily IPv4
+```
+
+
 ## PARAMETERS
+
+### -AddressFamily
+Network address family used by the connection.
+
+```yaml
+Type: MailTransportAddressFamily
+Parameter Sets: DomainName, ServerName
+Aliases: None
+Possible values: Any, IPv4, IPv6
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -ArtifactsDirectory
 Destination directory for artifacts when emitted.
 
 ```yaml
 Type: String
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: ArtifactsPath
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ConnectAddress
+Optional concrete address used for the TCP connection while HostName remains the reported logical endpoint.
+
+```yaml
+Type: IPAddress
+Parameter Sets: ServerName
+Aliases: None
 Possible values:
 
 Required: False
@@ -48,7 +91,7 @@ Disable parallel execution for cmdlet-level work.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values:
 
@@ -64,7 +107,7 @@ DNS server used for queries.
 
 ```yaml
 Type: DnsEndpoint
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom
 
@@ -80,7 +123,7 @@ Optional list of resolver endpoints to use (multi-resolver).
 
 ```yaml
 Type: DnsEndpoint[]
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom
 
@@ -96,7 +139,7 @@ DNS resolver concurrency hint for health checks.
 
 ```yaml
 Type: Int32
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values:
 
@@ -112,7 +155,7 @@ Domain(s) to test.
 
 ```yaml
 Type: String[]
-Parameter Sets: ServerName
+Parameter Sets: DomainName
 Aliases: None
 Possible values:
 
@@ -128,7 +171,7 @@ Emit artifacts (scan.json, metrics.json, progress.jsonl).
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: Artifacts
 Possible values:
 
@@ -144,7 +187,7 @@ Desired export format(s). Accepts one or many values.
 
 ```yaml
 Type: ReportFormat[]
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: Report
 Possible values: Html, Json, Word, Excel, Markdown, MarkdownHtml
 
@@ -160,7 +203,7 @@ Output file path for export.
 
 ```yaml
 Type: String
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values:
 
@@ -176,7 +219,7 @@ Return the full analysis object instead of per-server details.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values:
 
@@ -187,12 +230,28 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -HostName
+Logical SMTP hostname to test directly.
+
+```yaml
+Type: String
+Parameter Sets: ServerName
+Aliases: None
+Possible values:
+
+Required: True
+Position: 0
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -MaxParallelism
 Maximum concurrent health checks within a single domain run.
 
 ```yaml
 Type: Int32
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values:
 
@@ -208,7 +267,7 @@ Maximum number of resolvers to query in parallel (null = all).
 
 ```yaml
 Type: Int32
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values:
 
@@ -224,7 +283,7 @@ Strategy used when multiple DNS endpoints are provided.
 
 ```yaml
 Type: MultiResolverStrategy
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values: FirstSuccess, FastestWins, SequentialFallback, RoundRobin, Random
 
@@ -240,7 +299,7 @@ Open export in browser when applicable.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: OpenReport
 Possible values:
 
@@ -256,7 +315,7 @@ SMTP port number.
 
 ```yaml
 Type: Int32
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values:
 
@@ -272,7 +331,7 @@ Maximum number of concurrent items for cmdlet-level parallel work.
 
 ```yaml
 Type: Int32
-Parameter Sets: ServerName
+Parameter Sets: DomainName, ServerName
 Aliases: None
 Possible values:
 

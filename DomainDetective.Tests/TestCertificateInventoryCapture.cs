@@ -2,6 +2,7 @@ using DnsClientX;
 using DomainDetective.Providers.Endpoint;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -23,11 +24,13 @@ public class TestCertificateInventoryCapture {
         ftpListener.Start();
         int mailPort = ((IPEndPoint)mailListener.LocalEndpoint).Port;
         int ftpPort = ((IPEndPoint)ftpListener.LocalEndpoint).Port;
-        Task mailServer = Task.Run(async () => {
+        Task<long> mailServer = Task.Run(async () => {
             using TcpClient client = await mailListener.AcceptTcpClientAsync();
+            return Stopwatch.GetTimestamp();
         });
-        Task ftpServer = Task.Run(async () => {
+        Task<long> ftpServer = Task.Run(async () => {
             using TcpClient client = await ftpListener.AcceptTcpClientAsync();
+            return Stopwatch.GetTimestamp();
         });
 
         try {
@@ -50,13 +53,16 @@ public class TestCertificateInventoryCapture {
 
             Assert.Equal(1, result.ProbedMailCount);
             Assert.Equal(1, result.ProbedFtpTlsCount);
-            CertificateInventoryEntry mailEntry = Assert.Single(
+            Assert.Single(
                 result.Snapshot.Entries,
                 entry => string.Equals(entry.Scheme, "smtp", StringComparison.OrdinalIgnoreCase));
-            CertificateInventoryEntry ftpEntry = Assert.Single(
+            Assert.Single(
                 result.Snapshot.Entries,
                 entry => string.Equals(entry.Scheme, "ftps-explicit", StringComparison.OrdinalIgnoreCase));
-            TimeSpan phaseBoundaryGap = ftpEntry.ObservedAtUtc!.Value - mailEntry.ObservedAtUtc!.Value;
+            long mailProbeAcceptedAt = await mailServer;
+            long ftpProbeAcceptedAt = await ftpServer;
+            TimeSpan phaseBoundaryGap = TimeSpan.FromSeconds(
+                (ftpProbeAcceptedAt - mailProbeAcceptedAt) / (double)Stopwatch.Frequency);
             Assert.True(
                 phaseBoundaryGap >= TimeSpan.FromMilliseconds(350),
                 $"Expected the global probe-start interval across protocol phases; observed {phaseBoundaryGap}.");

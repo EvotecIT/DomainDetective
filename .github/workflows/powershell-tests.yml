@@ -44,10 +44,8 @@ jobs:
 
 
             - name: Refresh module manifest
-              env:
-                RefreshPSD1Only: 'true'
               run: |
-                .\Module\Build\Build-Module.ps1
+                .\Module\Build\Build-Module.ps1 -ConfigurationGateMode Manifest
               shell: pwsh
 
             - name: Commit refreshed PSD1
@@ -80,8 +78,7 @@ jobs:
                       git config user.name "github-actions[bot]"
                       git config user.email "github-actions[bot]@users.noreply.github.com"
 
-                      $Env:RefreshPSD1Only = 'true'
-                      .\Module\Build\Build-Module.ps1
+                      .\Module\Build\Build-Module.ps1 -ConfigurationGateMode Manifest
 
                       git add Module/DomainDetective.psd1
                       git diff --cached --quiet -- Module/DomainDetective.psd1
@@ -255,8 +252,6 @@ jobs:
                 }
 
             - name: Build packaged module for ALC tests
-              env:
-                RefreshPSD1Only: 'false'
               run: .\Module\Build\Build-Module.ps1
               shell: pwsh
 

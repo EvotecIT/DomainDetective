@@ -1,9 +1,24 @@
-﻿Import-Module PSPublishModule -Force
+param(
+    [ValidateSet('Manifest', 'Documentation', 'Build', 'Publish')]
+    [string] $ConfigurationGateMode = 'Build',
+
+    [bool] $SignModule = $false,
+
+    [string] $ProjectBuildConfigPath = '..\Build\project.build.json',
+
+    [string] $NuGetApiKeyPath = 'C:\Support\Important\NugetOrgEvotec.txt',
+
+    [string] $PowerShellGalleryApiKeyPath = 'C:\Support\Important\PowerShellGalleryAPI.txt',
+
+    [string] $GitHubApiKeyPath = 'C:\Support\Important\GitHubAPI.txt'
+)
+
+Import-Module PSPublishModule -MinimumVersion '3.0.130' -Force -ErrorAction Stop
 
 Build-Module -ModuleName 'DomainDetective' {
     # Usual defaults as per standard module
     $Manifest = [ordered] @{
-        ModuleVersion        = '1.0.0'
+        ModuleVersion        = '1.0.X'
         CompatiblePSEditions = @('Desktop', 'Core')
         GUID                 = 'a2986f0d-da11-43f5-a252-f9e1d1699776'
         Author               = 'Przemyslaw Klys'
@@ -65,11 +80,11 @@ Build-Module -ModuleName 'DomainDetective' {
 
     $newConfigurationBuildSplat = @{
         Enable                               = $true
-        SignModule                           = if ($Env:COMPUTERNAME -eq 'EVOMAGIC') { $true } else { $false }
+        SignModule                           = $SignModule
         MergeModuleOnBuild                   = $true
         MergeFunctionsFromApprovedModules    = $true
         CertificateThumbprint                = '92e95fb58effa6a4a75e77a33cdd6bfe6dd30f1a'
-        NETProjectPath                       = "$PSScriptRoot\..\..\DomainDetective.PowerShell"
+        NETProjectPath                       = '..\DomainDetective.PowerShell\DomainDetective.PowerShell.csproj'
         ResolveBinaryConflicts               = $true
         ResolveBinaryConflictsName           = 'DomainDetective.PowerShell'
         NETProjectName                       = 'DomainDetective.PowerShell'
@@ -81,16 +96,23 @@ Build-Module -ModuleName 'DomainDetective' {
         DotSourceLibraries                   = $true
         DotSourceClasses                     = $true
         DeleteTargetModuleBeforeBuild        = $true
-        RefreshPSD1Only                      = if ([string]::IsNullOrWhiteSpace($Env:RefreshPSD1Only)) { $false } else { [bool]::Parse($Env:RefreshPSD1Only) }
         NETBinaryModuleDocumentation         = $true
     }
 
     New-ConfigurationBuild @newConfigurationBuildSplat
 
-    New-ConfigurationArtefact -Type Unpacked -Enable -Path "$PSScriptRoot\..\Artefacts\Unpacked" -RequiredModulesPath "$PSScriptRoot\..\Artefacts\Unpacked\Modules"
-    New-ConfigurationArtefact -Type Packed -Enable -Path "$PSScriptRoot\..\Artefacts\Packed" -IncludeTagName
+    $projectBuildOptions = @{
+        PublishApiKeyFilePath = $NuGetApiKeyPath
+    }
+    New-ConfigurationProjectBuild -Name 'DomainDetective' -ConfigPath $ProjectBuildConfigPath -Enabled -BuildBeforeModule -ProvideLocalNuGetFeed -PublishNuget -Options $projectBuildOptions
+    New-ConfigurationRelease -StageRoot 'Artefacts\UploadReady' -VersionSource Module -BuildOrder 'Packages', 'Module' -PublishOrder 'NuGet', 'PowerShellGallery', 'GitHub'
+
+    New-ConfigurationArtefact -Type Unpacked -Enable -Path 'Artefacts\Unpacked' -RequiredModulesPath 'Artefacts\Unpacked\Modules'
+    New-ConfigurationArtefact -Type Packed -Enable -Path 'Artefacts\Packed' -IncludeTagName -ArtefactName 'DomainDetective-PowerShellModule.<TagModuleVersionWithPreRelease>.zip' -ID 'ToGitHub'
 
     # global options for publishing to github/psgallery
-    #New-ConfigurationPublish -Type PowerShellGallery -FilePath 'C:\Support\Important\PowerShellGalleryAPI.txt' -Enabled:$false
-    #New-ConfigurationPublish -Type GitHub -FilePath 'C:\Support\Important\GitHubAPI.txt' -UserName 'EvotecIT' -Enabled:$false -GenerateReleaseNotes
-}
+    New-ConfigurationPublish -Type PowerShellGallery -FilePath $PowerShellGalleryApiKeyPath -Enabled:$false
+    New-ConfigurationPublish -Type GitHub -FilePath $GitHubApiKeyPath -UserName 'EvotecIT' -RepositoryName 'DomainDetective' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName 'DomainDetective-PowerShellModule.<TagModuleVersionWithPreRelease>'
+
+    New-ConfigurationGate -Mode $ConfigurationGateMode
+} -ExitCode
