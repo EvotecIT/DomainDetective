@@ -342,7 +342,7 @@ public sealed class EndpointAttributionDetector {
     }
 
     private static string NormalizeHost(string? value) =>
-        (value ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+        EndpointAttributionCatalog.NormalizeHostSuffixMatcher(value);
 
     private static EndpointAttributionRule CloneRule(EndpointAttributionRule source) {
         if (source == null) {

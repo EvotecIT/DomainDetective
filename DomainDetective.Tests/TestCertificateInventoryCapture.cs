@@ -564,6 +564,34 @@ public class TestCertificateInventoryCapture {
     }
 
     [Theory]
+    [InlineData("[2001:db8::10]:8443", "https://[2001:db8::10]:8443/")]
+    [InlineData("[2001:db8::10]", "https://[2001:db8::10]/")]
+    [InlineData("2001:db8::10", "https://[2001:db8::10]/")]
+    public async Task CaptureAsync_Ipv6HttpsEndpointRetainsUriAuthority(string endpoint, string expectedUrl) {
+        IReadOnlyList<string>? observedTargets = null;
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (targets, _, _, _) => {
+                observedTargets = targets;
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(
+                    Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false
+        };
+        options.AdditionalEndpoints.Add(endpoint);
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(expectedUrl, Assert.Single(observedTargets!));
+        Assert.Equal(expectedUrl, Assert.Single(result.HttpsEndpoints));
+        Assert.Empty(result.Warnings);
+    }
+
+    [Theory]
     [InlineData("ftps://localhost:0")]
     [InlineData("ftps-explicit://localhost:0")]
     [InlineData("smtp://localhost:0")]

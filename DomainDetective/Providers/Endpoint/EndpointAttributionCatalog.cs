@@ -113,6 +113,9 @@ public sealed class EndpointAttributionCatalog {
         }
         rule.ApplicableServices.Clear();
         rule.ApplicableServices.AddRange(normalizedServices);
+        NormalizeHostSuffixMatchers(rule.CnameSuffixes);
+        NormalizeHostSuffixMatchers(rule.RedirectTargetSuffixes);
+        NormalizeHostSuffixMatchers(rule.ReverseDnsSuffixes);
         var normalizedAutonomousSystems = new List<string>(rule.AutonomousSystemNumbers.Count);
         var uniqueAutonomousSystems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string autonomousSystem in rule.AutonomousSystemNumbers) {
@@ -177,6 +180,22 @@ public sealed class EndpointAttributionCatalog {
 
     private static bool HasText(IEnumerable<string> values) =>
         values.Any(value => !string.IsNullOrWhiteSpace(value));
+
+    private static void NormalizeHostSuffixMatchers(List<string> values) {
+        var normalizedValues = new List<string>(values.Count);
+        var uniqueValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string value in values) {
+            string normalized = NormalizeHostSuffixMatcher(value);
+            if (normalized.Length > 0 && uniqueValues.Add(normalized)) {
+                normalizedValues.Add(normalized);
+            }
+        }
+        values.Clear();
+        values.AddRange(normalizedValues);
+    }
+
+    internal static string NormalizeHostSuffixMatcher(string? value) =>
+        (value ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
 
     private static EndpointAttributionRule CreateAzureFrontDoorRule() {
         var rule = CreateRule(

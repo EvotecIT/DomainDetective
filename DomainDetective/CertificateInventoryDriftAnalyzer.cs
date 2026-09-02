@@ -63,6 +63,10 @@ namespace DomainDetective {
         public int Port { get; set; }
         /// <summary>Gets or sets the service value.</summary>
         public string Service { get; set; } = string.Empty;
+        /// <summary>Gets or sets the previous service value.</summary>
+        public string? PreviousService { get; set; }
+        /// <summary>Gets or sets the current service value.</summary>
+        public string? CurrentService { get; set; }
         /// <summary>Gets or sets the probe vantage whose observations form this history.</summary>
         public string ProbeVantage { get; set; } = "default";
         /// <summary>Gets or sets the first seen utc value.</summary>
@@ -187,9 +191,10 @@ namespace DomainDetective {
                 }
             }
 
-            var driftRows = new List<CertificateInventoryEndpointDrift>(grouped.Count);
-            foreach (var pair in grouped) {
-                var observations = pair.Value
+            List<List<Observation>> histories = BuildObservationHistories(grouped.Values);
+            var driftRows = new List<CertificateInventoryEndpointDrift>(histories.Count);
+            foreach (List<Observation> history in histories) {
+                var observations = history
                     .GroupBy(o => o.ObservedAtUtc)
                     .Select(group => group
                         .OrderBy(o => o.SnapshotCapturedAtUtc)
@@ -221,10 +226,7 @@ namespace DomainDetective {
                     var expiry = observation.Entry.NotAfterUtc?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
                     expiries.Add(expiry);
 
-                    var service = string.IsNullOrWhiteSpace(observation.Entry.Service)
-                        ? CertificateServiceClassifier.GuessService(observation.Entry.Scheme ?? "https", observation.Entry.Port)
-                        : observation.Entry.Service!;
-                    services.Add(service);
+                    services.Add(PickService(observation.Entry));
 
                     var authenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(observation.Entry);
                     authenticationProfiles.Add(authenticationProfile);
@@ -245,9 +247,9 @@ namespace DomainDetective {
                 var row = new CertificateInventoryEndpointDrift {
                     Host = latest.Entry.ResolvedHost ?? latest.Entry.Host,
                     Port = latest.Entry.Port > 0 ? latest.Entry.Port : 443,
-                    Service = string.IsNullOrWhiteSpace(latest.Entry.Service)
-                        ? CertificateServiceClassifier.GuessService(latest.Entry.Scheme ?? "https", latest.Entry.Port)
-                        : latest.Entry.Service!,
+                    Service = PickService(latest.Entry),
+                    PreviousService = previous != null ? PickService(previous.Entry) : null,
+                    CurrentService = PickService(latest.Entry),
                     ProbeVantage = CertificateInventoryProbeVantage.Normalize(latest.Entry.ProbeVantage),
                     FirstSeenUtc = observations[0].ObservedAtUtc,
                     LastSeenUtc = latest.ObservedAtUtc,
@@ -301,7 +303,7 @@ namespace DomainDetective {
                 driftRows.Add(row);
             }
 
-            summary.EndpointCount = grouped.Count;
+            summary.EndpointCount = histories.Count;
             summary.EndpointsMatchingFilters = driftRows.Count;
             summary.EndpointsExcludedByFilters =
                 summary.EndpointsExcludedByChangedOnly +
@@ -363,13 +365,7 @@ namespace DomainDetective {
                 return true;
             }
 
-            var previousService = string.IsNullOrWhiteSpace(previous.Service)
-                ? CertificateServiceClassifier.GuessService(previous.Scheme ?? "https", previous.Port)
-                : previous.Service!;
-            var currentService = string.IsNullOrWhiteSpace(current.Service)
-                ? CertificateServiceClassifier.GuessService(current.Scheme ?? "https", current.Port)
-                : current.Service!;
-            if (!string.Equals(previousService, currentService, StringComparison.OrdinalIgnoreCase)) {
+            if (!string.Equals(PickService(previous), PickService(current), StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
 
@@ -386,6 +382,64 @@ namespace DomainDetective {
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
             return CertificateInventoryEndpointKey.Build(entry) + "|" + CertificateInventoryProbeVantage.Normalize(entry.ProbeVantage);
+        }
+
+        private static string BuildCorrelationKey(CertificateInventoryEntry entry) {
+            return CertificateInventoryEndpointKey.Build(entry, includeServiceDimension: false) +
+                   "|" + CertificateInventoryProbeVantage.Normalize(entry.ProbeVantage);
+        }
+
+        private static List<List<Observation>> BuildObservationHistories(IEnumerable<List<Observation>> serviceHistories) {
+            var histories = new List<List<Observation>>();
+            foreach (IGrouping<string, List<Observation>> slot in serviceHistories.GroupBy(
+                         history => BuildCorrelationKey(history[0].Entry),
+                         StringComparer.OrdinalIgnoreCase)) {
+                var activeByService = new Dictionary<string, List<Observation>>(StringComparer.OrdinalIgnoreCase);
+                foreach (IGrouping<DateTimeOffset, Observation> snapshot in slot
+                             .SelectMany(history => history)
+                             .GroupBy(observation => observation.SnapshotCapturedAtUtc)
+                             .OrderBy(group => group.Key)) {
+                    Dictionary<string, List<Observation>> currentByService = snapshot
+                        .GroupBy(observation => PickService(observation.Entry), StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+                    var nextActiveByService = new Dictionary<string, List<Observation>>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (KeyValuePair<string, List<Observation>> current in currentByService) {
+                        if (!activeByService.TryGetValue(current.Key, out List<Observation>? history)) {
+                            continue;
+                        }
+                        history.AddRange(current.Value);
+                        nextActiveByService[current.Key] = history;
+                    }
+
+                    List<KeyValuePair<string, List<Observation>>> previousUnmatched = activeByService
+                        .Where(previous => !currentByService.ContainsKey(previous.Key))
+                        .ToList();
+                    List<KeyValuePair<string, List<Observation>>> currentUnmatched = currentByService
+                        .Where(current => !activeByService.ContainsKey(current.Key))
+                        .ToList();
+                    if (previousUnmatched.Count == 1 && currentUnmatched.Count == 1) {
+                        List<Observation> transitionHistory = previousUnmatched[0].Value;
+                        transitionHistory.AddRange(currentUnmatched[0].Value);
+                        nextActiveByService[currentUnmatched[0].Key] = transitionHistory;
+                    } else {
+                        foreach (KeyValuePair<string, List<Observation>> current in currentUnmatched) {
+                            var history = new List<Observation>(current.Value);
+                            histories.Add(history);
+                            nextActiveByService[current.Key] = history;
+                        }
+                    }
+
+                    activeByService = nextActiveByService;
+                }
+            }
+            return histories;
+        }
+
+        private static string PickService(CertificateInventoryEntry entry) {
+            return string.IsNullOrWhiteSpace(entry.Service)
+                ? CertificateServiceClassifier.GuessService(entry.Scheme ?? "https", entry.Port)
+                : entry.Service!;
         }
 
         private static string PickIssuer(CertificateInventoryEntry entry) {

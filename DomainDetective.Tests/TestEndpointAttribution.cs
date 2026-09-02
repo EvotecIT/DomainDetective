@@ -732,6 +732,46 @@ public class TestEndpointAttribution {
         Assert.Contains("usable evidence matcher", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(nameof(EndpointAttributionRule.CnameSuffixes))]
+    [InlineData(nameof(EndpointAttributionRule.RedirectTargetSuffixes))]
+    [InlineData(nameof(EndpointAttributionRule.ReverseDnsSuffixes))]
+    public void CustomRuleRejectsHostSuffixThatNormalizesToEmpty(string matcherProperty) {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.empty-normalized-suffix",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Empty Normalized Suffix Rule"
+        };
+        ((List<string>)typeof(EndpointAttributionRule).GetProperty(matcherProperty)!.GetValue(rule)!).Add(" . ");
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => catalog.AddOrReplace(rule));
+
+        Assert.Empty((List<string>)typeof(EndpointAttributionRule).GetProperty(matcherProperty)!.GetValue(rule)!);
+        Assert.Contains("custom.empty-normalized-suffix", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("usable evidence matcher", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CustomRuleNormalizesAndDeduplicatesHostSuffixMatchers() {
+        var catalog = new EndpointAttributionCatalog();
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.normalized-suffixes",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Normalized Suffix Rule"
+        };
+        rule.CnameSuffixes.Add(" Edge.Example.NET. ");
+        rule.CnameSuffixes.Add("edge.example.net");
+
+        catalog.AddOrReplace(rule);
+
+        Assert.Equal(new[] { "edge.example.net" }, rule.CnameSuffixes);
+    }
+
     [Fact]
     public void DetectorRejectsRuleWithoutUsableEvidenceAddedThroughMutableCatalog() {
         var catalog = new EndpointAttributionCatalog();

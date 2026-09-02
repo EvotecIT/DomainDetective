@@ -148,6 +148,129 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDriftDetectsUniqueServiceTransitionWithinTransportSlot() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "service-identity.example.com",
+                            ResolvedHost = "service-identity.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "SAME"
+                        }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "service-identity.example.com",
+                            ResolvedHost = "service-identity.example.com",
+                            Port = 443,
+                            Service = "HTTPS-ALT",
+                            CertificateThumbprint = "SAME"
+                        }
+                    }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots);
+
+            Assert.Equal(1, drift.EndpointCount);
+            Assert.Equal(1, drift.EndpointsWithServiceChange);
+            CertificateInventoryEndpointDrift endpoint = Assert.Single(drift.Endpoints);
+            Assert.Equal(2, endpoint.ObservationCount);
+            Assert.Equal("HTTPS", endpoint.PreviousService);
+            Assert.Equal("HTTPS-ALT", endpoint.CurrentService);
+            Assert.Equal("HTTPS-ALT", endpoint.Service);
+            Assert.True(endpoint.ServiceChanged);
+            Assert.Equal(new[] { "service" }, endpoint.ChangeKinds);
+            Assert.Equal("Medium", endpoint.DriftSeverity);
+        }
+
+        [Fact]
+        public void BuildDriftKeepsCoexistingServicesAsDistinctEndpointHistories() {
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventoryEntry Entry(string service, DateTimeOffset observedAtUtc) => new() {
+                Host = "coexisting.example.com",
+                ResolvedHost = "coexisting.example.com",
+                Port = 443,
+                Service = service,
+                CertificateThumbprint = service,
+                ObservedAtUtc = observedAtUtc
+            };
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        Entry("HTTPS", now.AddHours(-1)),
+                        Entry("HTTPS-ALT", now.AddHours(-1))
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> {
+                        Entry("HTTPS", now),
+                        Entry("HTTPS-ALT", now)
+                    }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots);
+
+            Assert.Equal(2, drift.EndpointCount);
+            Assert.Equal(0, drift.EndpointsWithServiceChange);
+            Assert.All(drift.Endpoints, endpoint => {
+                Assert.Equal(2, endpoint.ObservationCount);
+                Assert.False(endpoint.ServiceChanged);
+            });
+        }
+
+        [Fact]
+        public void BuildDriftCorrelatesUniqueReplacementAlongsideStableService() {
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventoryEntry Entry(string service) => new() {
+                Host = "partial-service-change.example.com",
+                ResolvedHost = "partial-service-change.example.com",
+                Port = 443,
+                Service = service,
+                CertificateThumbprint = service == "HTTPS" ? "STABLE" : "REPLACED"
+            };
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> { Entry("HTTPS"), Entry("HTTPS-LEGACY") }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> { Entry("HTTPS"), Entry("HTTPS-ALT") }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots);
+
+            Assert.Equal(2, drift.EndpointCount);
+            Assert.Equal(1, drift.EndpointsWithServiceChange);
+            Assert.Contains(drift.Endpoints, endpoint =>
+                endpoint.Service == "HTTPS" &&
+                endpoint.ObservationCount == 2 &&
+                !endpoint.ServiceChanged);
+            Assert.Contains(drift.Endpoints, endpoint =>
+                endpoint.PreviousService == "HTTPS-LEGACY" &&
+                endpoint.CurrentService == "HTTPS-ALT" &&
+                endpoint.ServiceChanged);
+        }
+
+        [Fact]
+        public void TryNormalizeChangeKindAcceptsService() {
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKind(" service ", out string? normalized));
+            Assert.Equal("service", normalized);
+        }
+
+        [Fact]
         public void BuildDriftCoalescesReusedProtocolObservations() {
             var now = DateTimeOffset.UtcNow;
             var firstObservedAt = now.AddHours(-6);

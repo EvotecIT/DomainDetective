@@ -1691,7 +1691,9 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
-        var candidate = host;
+        var candidate = EndpointHostNormalizer.TryNormalize(host, out string normalizedHost)
+            ? EndpointHostNormalizer.FormatForUriAuthority(normalizedHost)
+            : host;
         if (!candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
             candidate = $"https://{candidate}";
         }

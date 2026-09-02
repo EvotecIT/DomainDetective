@@ -127,6 +127,8 @@ namespace DomainDetective {
 
             var previousMap = BuildEndpointMap(previous);
             var currentMap = BuildEndpointMap(current);
+            Dictionary<string, string> serviceChangePairs = BuildUniqueServiceChangePairs(previousMap, currentMap);
+            var serviceChangeTargets = new HashSet<string>(serviceChangePairs.Values, StringComparer.OrdinalIgnoreCase);
             summary.PreviousEndpointCount = previousMap.Count;
             summary.CurrentEndpointCount = currentMap.Count;
 
@@ -137,6 +139,12 @@ namespace DomainDetective {
             foreach (var key in keys) {
                 var hasPrevious = previousMap.TryGetValue(key, out var before);
                 var hasCurrent = currentMap.TryGetValue(key, out var after);
+                if (hasPrevious && !hasCurrent && serviceChangePairs.TryGetValue(key, out string? currentKey)) {
+                    after = currentMap[currentKey];
+                    hasCurrent = true;
+                } else if (!hasPrevious && hasCurrent && serviceChangeTargets.Contains(key)) {
+                    continue;
+                }
 
                 var row = new CertificateInventoryEndpointDiff();
                 if (hasCurrent) {
@@ -262,8 +270,35 @@ namespace DomainDetective {
             return map;
         }
 
+        private static Dictionary<string, string> BuildUniqueServiceChangePairs(
+            IReadOnlyDictionary<string, CertificateInventoryEntry> previousMap,
+            IReadOnlyDictionary<string, CertificateInventoryEntry> currentMap) {
+            var pairs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var previousBySlot = previousMap
+                .Where(pair => !currentMap.ContainsKey(pair.Key))
+                .GroupBy(pair => BuildCorrelationKey(pair.Value), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+            var currentBySlot = currentMap
+                .Where(pair => !previousMap.ContainsKey(pair.Key))
+                .GroupBy(pair => BuildCorrelationKey(pair.Value), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+            foreach (KeyValuePair<string, List<KeyValuePair<string, CertificateInventoryEntry>>> slot in previousBySlot) {
+                if (slot.Value.Count == 1 &&
+                    currentBySlot.TryGetValue(slot.Key, out List<KeyValuePair<string, CertificateInventoryEntry>>? currentEntries) &&
+                    currentEntries.Count == 1) {
+                    pairs[slot.Value[0].Key] = currentEntries[0].Key;
+                }
+            }
+            return pairs;
+        }
+
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
             return CertificateInventoryEndpointKey.Build(entry) + "|" + CertificateInventoryProbeVantage.Normalize(entry.ProbeVantage);
+        }
+
+        private static string BuildCorrelationKey(CertificateInventoryEntry entry) {
+            return CertificateInventoryEndpointKey.Build(entry, includeServiceDimension: false) +
+                   "|" + CertificateInventoryProbeVantage.Normalize(entry.ProbeVantage);
         }
 
         private static int NormalizePort(int port) {

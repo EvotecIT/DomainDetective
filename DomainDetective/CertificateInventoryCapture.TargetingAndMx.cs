@@ -935,7 +935,9 @@ public sealed partial class CertificateInventoryCapture {
                     AddHttpsTarget(
                         httpsTargets,
                         httpsTargetOriginsByEndpointKey,
-                        BuildHttpsUrl($"{hostWithPort}:{parsedPort}", options.HttpsPort),
+                        BuildHttpsUrl(
+                            $"{EndpointHostNormalizer.FormatForUriAuthority(hostWithPort)}:{parsedPort}",
+                            options.HttpsPort),
                         TargetOriginAdditionalEndpoint);
                 }
             } else {
