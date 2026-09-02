@@ -61,7 +61,8 @@ public class TestCertificateInventoryCapture {
                 entry => string.Equals(entry.Scheme, "ftps-explicit", StringComparison.OrdinalIgnoreCase));
             long mailProbeAcceptedAt = await mailServer;
             long ftpProbeAcceptedAt = await ftpServer;
-            TimeSpan phaseBoundaryGap = Stopwatch.GetElapsedTime(mailProbeAcceptedAt, ftpProbeAcceptedAt);
+            TimeSpan phaseBoundaryGap = TimeSpan.FromSeconds(
+                (ftpProbeAcceptedAt - mailProbeAcceptedAt) / (double)Stopwatch.Frequency);
             Assert.True(
                 phaseBoundaryGap >= TimeSpan.FromMilliseconds(350),
                 $"Expected the global probe-start interval across protocol phases; observed {phaseBoundaryGap}.");
