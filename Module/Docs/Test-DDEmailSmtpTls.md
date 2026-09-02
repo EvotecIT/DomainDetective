@@ -11,7 +11,7 @@ Checks TLS configuration for a specific SMTP host.
 ## SYNTAX
 ### ServerName (Default)
 ```powershell
-Test-DDEmailSmtpTls [-HostName] <string> [[-Port] <int>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-DnsEndpoint <DnsEndpoint>] [-ShowChain] [-FullResponse] [<CommonParameters>]
+Test-DDEmailSmtpTls [-HostName] <string> [[-Port] <int>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-DnsEndpoint <DnsEndpoint>] [-ConnectAddress <ipaddress>] [-AddressFamily <MailTransportAddressFamily>] [-ShowChain] [-FullResponse] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -25,7 +25,29 @@ Test-DDEmailSmtpTls -HostName mail.example.com -Port 587
 ```
 
 
+### EXAMPLE 2
+```powershell
+Test-DDEmailSmtpTls -HostName mail.example.com -Port 587 -ConnectAddress 192.0.2.10 -AddressFamily IPv4
+```
+
+
 ## PARAMETERS
+
+### -AddressFamily
+Network address family used by the connection.
+
+```yaml
+Type: MailTransportAddressFamily
+Parameter Sets: ServerName
+Aliases: None
+Possible values: Any, IPv4, IPv6
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -ArtifactsDirectory
 Destination directory for artifacts when emitted.
@@ -34,6 +56,22 @@ Destination directory for artifacts when emitted.
 Type: String
 Parameter Sets: ServerName
 Aliases: ArtifactsPath
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ConnectAddress
+Optional concrete address used for the TCP connection while HostName remains the TLS identity.
+
+```yaml
+Type: IPAddress
+Parameter Sets: ServerName
+Aliases: None
 Possible values:
 
 Required: False

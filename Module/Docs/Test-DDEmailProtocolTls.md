@@ -11,7 +11,7 @@ Checks SMTP/IMAP/POP3 TLS configuration for a domain.
 ## SYNTAX
 ### ServerName (Default)
 ```powershell
-Test-DDEmailProtocolTls [-DomainName] <string[]> [[-DnsEndpoint] <DnsEndpoint>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-Protocol <string[]>] [<CommonParameters>]
+Test-DDEmailProtocolTls [-DomainName] <string[]> [[-DnsEndpoint] <DnsEndpoint>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-Protocol <string[]>] [-AddressFamily <MailTransportAddressFamily>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -32,6 +32,22 @@ Test-DDEmailProtocolTls -DomainName example.com -Protocol Smtp
 
 
 ## PARAMETERS
+
+### -AddressFamily
+Network address family used when connecting to discovered mail hosts.
+
+```yaml
+Type: MailTransportAddressFamily
+Parameter Sets: ServerName
+Aliases: None
+Possible values: Any, IPv4, IPv6
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -ArtifactsDirectory
 Destination directory for artifacts when emitted.

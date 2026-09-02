@@ -9,7 +9,7 @@ Describe 'Packaged AssemblyLoadContext isolation' {
         }
 
         if (-not (Test-Path -LiteralPath $packagedLoader)) {
-            Set-ItResult -Skipped -Because 'packaged ALC artifact is not present; run Module\Build\Build-Module.ps1 with RefreshPSD1Only=false before this regression'
+            Set-ItResult -Skipped -Because 'packaged ALC artifact is not present; run Module\Build\Build-Module.ps1 -ConfigurationGateMode Build before this regression'
             return
         }
 
@@ -106,7 +106,7 @@ if (`$null -eq `$coreAssembly) {
         }
 
         if (-not (Test-Path -LiteralPath $packagedLoader)) {
-            Set-ItResult -Skipped -Because 'packaged ALC artifact is not present; run Module\Build\Build-Module.ps1 with RefreshPSD1Only=false before this regression'
+            Set-ItResult -Skipped -Because 'packaged ALC artifact is not present; run Module\Build\Build-Module.ps1 -ConfigurationGateMode Build before this regression'
             return
         }
 
@@ -180,7 +180,7 @@ if (`$null -eq `$coreAssembly) {
         $packagedModule = Join-Path $packagedModuleRoot 'DomainDetective'
         $packagedBinary = Join-Path $packagedModule 'Lib\Default\DomainDetective.PowerShell.dll'
         if (-not (Test-Path -LiteralPath $packagedBinary)) {
-            Set-ItResult -Skipped -Because 'packaged Windows PowerShell artifact is not present; run Module\Build\Build-Module.ps1 with RefreshPSD1Only=false before this regression'
+            Set-ItResult -Skipped -Because 'packaged Windows PowerShell artifact is not present; run Module\Build\Build-Module.ps1 -ConfigurationGateMode Build before this regression'
             return
         }
 

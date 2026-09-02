@@ -37,7 +37,6 @@
   "PlanOutputPath": "Artifacts/ProjectBuild/build.plan.json",
   "UpdateVersions": true,
   "Build": true,
-  "PackStrategy": "MSBuild",
   "PublishNuget": false,
   "PublishGitHub": false,
   "CreateReleaseZip": true,

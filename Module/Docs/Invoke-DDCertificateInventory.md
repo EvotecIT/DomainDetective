@@ -11,11 +11,11 @@ Captures and optionally persists a certificate inventory snapshot from domains a
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Invoke-DDCertificateInventory [[-DomainName] <string[]>] [-DomainsFile <string>] [-CacheDirectory <string>] [-DnsEndpoint <DnsEndpoint>] [-NoApexHttps] [-NoWwwHttps] [-IncludeMxHttps] [-DisableMxDiscovery] [-DisableSmtpStartTls] [-DisableSubmissionStartTls] [-IncludeImapTls] [-IncludePop3Tls] [-IncludeCtSubdomains] [-VerifyCtSubdomains] [-MaxCtRowsPerDomain <int>] [-MaxCtSubdomainsPerDomain <int>] [-EnableNativeCtLogSubdomains] [-DisableNativeCtSharedIngestion] [-NativeCtLogOnly] [-EnablePassiveCtFallback] [-EnablePassiveCtMetadataFallback] [-NativeCtLogListUrl <string>] [-NativeCtLogUrl <string[]>] [-NativeCtMaxLogs <int>] [-NativeCtMaxEntriesPerLog <int>] [-NativeCtEntryBatchSize <int>] [-NativeCtInitialBackfillEntriesPerLog <int>] [-NativeCtCursorStatePath <string>] [-NativeCtIncludePendingLogs] [-NativeCtRequestDelayMilliseconds <int>] [-NativeCtRetryCount <int>] [-NativeCtRetryBaseDelayMilliseconds <int>] [-NativeCtRetryMaxDelayMilliseconds <int>] [-NativeCtCircuitBreakerFailureThreshold <int>] [-NativeCtCircuitBreakerDurationSeconds <int>] [-DisableNativeCtCatchUpMode] [-NativeCtCatchUpLagThreshold <int>] [-NativeCtCatchUpMaxEntriesPerLog <int>] [-NativeCtCatchUpBatchSize <int>] [-Endpoint <string[]>] [-MaxMxHostsPerDomain <int>] [-MaxParallelism <int>] [-DiscoveryParallelism <int>] [-MailTimeoutSeconds <int>] [-HttpsTimeoutSeconds <int>] [-MaxProbeErrorWarnings <int>] [-MaxTargets <int>] [-MaxProbeStartsPerSecond <int>] [-ReuseRecentResults] [-RecentResultTtlHours <int>] [-ReuseRecentFailureResults] [-RecentFailureResultTtlHours <int>] [-ReprobeExpiringWithinDays <int>] [-SkipRevocation] [-CtProfile <CertificateCtEnrichmentProfile>] [-DisableDefaultCtTemplate] [-CtApiTemplate <string[]>] [-EnableCensysCtSource] [-CensysApiId <string>] [-CensysApiSecret <string>] [-CensysApiSecretEnv <string>] [-CensysCtApiUrlTemplate <string>] [-EnableShodanCtSource] [-ShodanApiKey <string>] [-ShodanApiKeyEnv <string>] [-ShodanCtApiUrlTemplate <string>] [-NoPersist] [-FailOnWarningTargetDecisions] [<CommonParameters>]
+Invoke-DDCertificateInventory [[-DomainName] <string[]>] [-DomainsFile <string>] [-CacheDirectory <string>] [-DnsEndpoint <DnsEndpoint>] [-DetectServices] [-ProbeVantage <string>] [-AzureServiceTagsJsonPath <string>] [-DnsEnrichmentParallelism <int>] [-NoApexHttps] [-NoWwwHttps] [-IncludeMxHttps] [-DisableMxDiscovery] [-DisableSmtpStartTls] [-DisableSubmissionStartTls] [-IncludeImapTls] [-IncludePop3Tls] [-IncludeCtSubdomains] [-VerifyCtSubdomains] [-MaxCtRowsPerDomain <int>] [-MaxCtSubdomainsPerDomain <int>] [-EnableNativeCtLogSubdomains] [-DisableNativeCtSharedIngestion] [-NativeCtLogOnly] [-EnablePassiveCtFallback] [-EnablePassiveCtMetadataFallback] [-NativeCtLogListUrl <string>] [-NativeCtLogUrl <string[]>] [-NativeCtMaxLogs <int>] [-NativeCtMaxEntriesPerLog <int>] [-NativeCtEntryBatchSize <int>] [-NativeCtInitialBackfillEntriesPerLog <int>] [-NativeCtCursorStatePath <string>] [-NativeCtIncludePendingLogs] [-NativeCtRequestDelayMilliseconds <int>] [-NativeCtRetryCount <int>] [-NativeCtRetryBaseDelayMilliseconds <int>] [-NativeCtRetryMaxDelayMilliseconds <int>] [-NativeCtCircuitBreakerFailureThreshold <int>] [-NativeCtCircuitBreakerDurationSeconds <int>] [-DisableNativeCtCatchUpMode] [-NativeCtCatchUpLagThreshold <int>] [-NativeCtCatchUpMaxEntriesPerLog <int>] [-NativeCtCatchUpBatchSize <int>] [-Endpoint <string[]>] [-MaxMxHostsPerDomain <int>] [-MaxParallelism <int>] [-DiscoveryParallelism <int>] [-MailTimeoutSeconds <int>] [-FtpTlsTimeoutSeconds <int>] [-HttpsTimeoutSeconds <int>] [-MaxProbeErrorWarnings <int>] [-MaxTargets <int>] [-MaxProbeStartsPerSecond <int>] [-ReuseRecentResults] [-RecentResultTtlHours <int>] [-ReuseRecentFailureResults] [-RecentFailureResultTtlHours <int>] [-ReprobeExpiringWithinDays <int>] [-SkipRevocation] [-CtProfile <CertificateCtEnrichmentProfile>] [-DisableDefaultCtTemplate] [-CtApiTemplate <string[]>] [-EnableCensysCtSource] [-CensysApiId <string>] [-CensysApiSecret <string>] [-CensysApiSecretEnv <string>] [-CensysCtApiUrlTemplate <string>] [-EnableShodanCtSource] [-ShodanApiKey <string>] [-ShodanApiKeyEnv <string>] [-ShodanCtApiUrlTemplate <string>] [-NoPersist] [-FailOnWarningTargetDecisions] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Discovers HTTPS and mail TLS endpoints (for example MX-derived STARTTLS) and stores normalized certificate evidence in the inventory snapshot format used by certificate inventory analytics cmdlets.
+Discovers HTTPS, mail TLS, and explicit or implicit FTP TLS endpoints and stores normalized certificate and endpoint evidence in the inventory snapshot format used by certificate inventory analytics cmdlets.
 
 ## EXAMPLES
 
@@ -39,31 +39,31 @@ Invoke-DDCertificateInventory -DomainName example.com -CtProfile Extended -Enabl
 
 ### EXAMPLE 4
 ```powershell
-Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -VerifyCtSubdomains -MaxCtSubdomainsPerDomain 5000 -Verbose
+Invoke-DDCertificateInventory -DomainName example.com -IncludeCtSubdomains -VerifyCtSubdomains -MaxCtSubdomainsPerDomain 5000 -Verbose
 ```
 
 
 ### EXAMPLE 5
 ```powershell
-Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -EnableNativeCtLogSubdomains -NativeCtLogOnly -NativeCtInitialBackfillEntriesPerLog 5000 -Verbose
+Invoke-DDCertificateInventory -DomainName example.com -IncludeCtSubdomains -EnableNativeCtLogSubdomains -NativeCtLogOnly -NativeCtInitialBackfillEntriesPerLog 5000 -Verbose
 ```
 
 
 ### EXAMPLE 6
 ```powershell
-Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -Limit 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose
+Invoke-DDCertificateInventory -DomainName example.com -IncludeCtSubdomains -Limit 150 -MaxProbeStartsPerSecond 20 -MaxProbeErrorWarnings 10 -Verbose
 ```
 
 
 ### EXAMPLE 7
 ```powershell
-Invoke-DDCertificateInventory -DomainName eurofins.com -IncludeCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14
+Invoke-DDCertificateInventory -DomainName example.com -IncludeCtSubdomains -ReuseRecentResults -RecentResultTtlHours 24 -ReprobeExpiringWithinDays 14
 ```
 
 
 ### EXAMPLE 8
 ```powershell
-Invoke-DDCertificateInventory -DomainName eurofins.com -ReuseRecentFailureResults -RecentFailureResultTtlHours 1 -HttpsTimeoutSeconds 20
+Invoke-DDCertificateInventory -DomainName example.com -ReuseRecentFailureResults -RecentFailureResultTtlHours 1 -HttpsTimeoutSeconds 20
 ```
 
 
@@ -73,7 +73,29 @@ Invoke-DDCertificateInventory -DomainName example.com -Endpoint ftp://example.co
 ```
 
 
+### EXAMPLE 10
+```powershell
+Invoke-DDCertificateInventory -Endpoint ftps-explicit://ftp.example.com:21 -DetectServices -ProbeVantage branch-office -NoPersist
+```
+
+
 ## PARAMETERS
+
+### -AzureServiceTagsJsonPath
+Optional current Azure service-tag JSON file used for IP-based attribution.
+
+```yaml
+Type: String
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -CacheDirectory
 Certificate monitor cache directory containing the inventory folder.
@@ -179,6 +201,22 @@ Type: CertificateCtEnrichmentProfile
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values: Default, Disabled, Public, Extended
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -DetectServices
+Resolve endpoint DNS evidence and perform explainable provider/service attribution.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
 
 Required: False
 Position: named
@@ -315,6 +353,22 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -DnsEnrichmentParallelism
+Maximum concurrent DNS evidence lookups used by service detection.
+
+```yaml
+Type: Int32
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -DomainName
 Domain list to scan. Can be provided from pipeline.
 
@@ -428,7 +482,7 @@ Accept wildcard characters: False
 ```
 
 ### -Endpoint
-Additional endpoint(s) to probe (supports https:// and mail schemes).
+Additional endpoint(s) to probe (supports HTTPS, mail TLS, ftps://, and ftps-explicit:// schemes).
 
 ```yaml
 Type: String[]
@@ -448,6 +502,22 @@ When set, throw a terminating error when warning-level target-decision buckets a
 
 ```yaml
 Type: SwitchParameter
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -FtpTlsTimeoutSeconds
+FTP TLS timeout in seconds.
+
+```yaml
+Type: Int32
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
@@ -652,7 +722,7 @@ Accept wildcard characters: False
 ```
 
 ### -MaxTargets
-Maximum total probe targets (HTTPS + mail) kept after discovery; useful for quick test runs (0 means unlimited).
+Maximum total probe targets (HTTPS + mail + FTP TLS) kept after discovery; useful for quick test runs (0 means unlimited).
 
 ```yaml
 Type: Int32
@@ -992,6 +1062,22 @@ Do not probe www.<domain> over HTTPS.
 
 ```yaml
 Type: SwitchParameter
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ProbeVantage
+Label identifying the network vantage used for this observation.
+
+```yaml
+Type: String
 Parameter Sets: __AllParameterSets
 Aliases: None
 Possible values:
