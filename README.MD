@@ -509,12 +509,20 @@ Invoke-DDCertificateInventory `
     -RecentResultTtlHours 24 `
     -IncludeCtSubdomains `
     -VerifyCtSubdomains
+
+# Explicit endpoints can be captured without a domain list. This performs AUTH TLS before the TLS handshake.
+Invoke-DDCertificateInventory `
+    -Endpoint ftps-explicit://ftp.example.com:21 `
+    -DetectServices `
+    -ProbeVantage branch-office `
+    -NoPersist
 ```
 
 CLI:
 
 ```bash
 dotnet run --project DomainDetective.CLI -- CertificateInventoryCapture example.com example.org --include-ct-subdomains --verify-ct-subdomains
+dotnet run --project DomainDetective.CLI -- cert-inventory-capture --endpoint ftps-explicit://ftp.example.com:21 --detect-services --probe-vantage branch-office --no-persist
 dotnet run --project DomainDetective.CLI -- CertificateInventorySummary --since-utc 2026-01-01
 dotnet run --project DomainDetective.CLI -- CertificateInventoryRisk --expiring-within-days 30 --json
 ```

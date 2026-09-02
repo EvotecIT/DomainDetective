@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -11,6 +12,41 @@ using DomainDetective.Helpers;
 
 namespace DomainDetective.Tests {
     public class TestCertificateMonitorInventory {
+        [Fact]
+        public void SaveInventorySnapshotClampsCaptureTimeToLatestEvidence() {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                DateTimeOffset evidenceAtUtc = DateTimeOffset.UtcNow;
+                var snapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = evidenceAtUtc.AddMinutes(-5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "example.test",
+                            Port = 443,
+                            Service = "HTTPS",
+                            ObservedAtUtc = evidenceAtUtc.AddSeconds(-2),
+                            DnsObservedAtUtc = evidenceAtUtc
+                        }
+                    }
+                };
+                using var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = false
+                };
+
+                string path = monitor.SaveInventorySnapshot(snapshot);
+
+                Assert.False(string.IsNullOrWhiteSpace(path));
+                Assert.True(snapshot.CapturedAtUtc >= evidenceAtUtc);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
         [Fact]
         public async Task AnalyzePersistsInventorySnapshot() {
             var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
@@ -46,6 +82,8 @@ namespace DomainDetective.Tests {
                     Assert.Equal("HTTPS", entry.Service);
                     Assert.Equal(443, entry.Port);
                     Assert.Equal("https", entry.Scheme);
+                    Assert.NotNull(entry.ObservedAtUtc);
+                    Assert.True(entry.ObservedAtUtc <= snapshot.CapturedAtUtc);
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateIssuerNormalized));
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateThumbprint));
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateSerialNumber));
@@ -156,6 +194,7 @@ namespace DomainDetective.Tests {
                 Scheme = "https",
                 Port = 443,
                 Service = "HTTPS",
+                RemoteAddress = IPAddress.Parse("192.0.2.10"),
                 ExpiryDate = cert.NotAfter,
                 Valid = true,
                 Expired = false,
@@ -168,6 +207,7 @@ namespace DomainDetective.Tests {
             Assert.True(snapshotEntry.IsReachable);
             Assert.Null(snapshotEntry.FailureReason);
             Assert.Equal(CertificateFailureKind.None, snapshotEntry.FailureKind);
+            Assert.Equal("IPv4", snapshotEntry.RemoteAddressFamily);
         }
 
         [Fact]

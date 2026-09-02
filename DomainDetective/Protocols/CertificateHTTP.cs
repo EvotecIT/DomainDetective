@@ -79,8 +79,18 @@ namespace DomainDetective {
         public bool? CrlRevoked { get; private set; }
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+        /// <summary>
+        /// Gets the actual remote address reached by the origin probe. On .NET Framework full-HTTP
+        /// analysis this comes from a paired direct TLS handshake because HttpClientHandler does not
+        /// expose its transport socket.
+        /// </summary>
+        public IPAddress? RemoteAddress { get; private set; }
         /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
         public Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? OutboundAddressResolver { get; set; }
+        internal Func<AddressFamily, TcpClient> TcpClientFactory { get; set; } = family =>
+            family == AddressFamily.Unspecified ? new TcpClient() : new TcpClient(family);
+        /// <summary>Gets redirect target hosts observed during the most recent HTTP analysis.</summary>
+        public List<string> RedirectTargets { get; } = new();
         /// <summary>Gets DNS names listed in the certificate subject alternative name extension.</summary>
         public List<string> SubjectAlternativeNames { get; } = new();
         /// <summary>Gets wildcard entries with matching subdomains.</summary>
@@ -252,6 +262,8 @@ namespace DomainDetective {
             IsSelfSigned = false;
             FailureReason = null;
             FailureKind = CertificateFailureKind.None;
+            RemoteAddress = null;
+            RedirectTargets.Clear();
             ResetChainSourceTracking();
             bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
@@ -272,48 +284,119 @@ namespace DomainDetective {
                 return;
             }
 
-            using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
-                handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
-                    if (certificate == null) {
-                        return false;
-                    }
+            bool CaptureServerCertificate(
+                System.Security.Cryptography.X509Certificates.X509Certificate? certificate,
+                X509Chain? chain,
+                SslPolicyErrors policyErrors) {
+                if (certificate == null) {
+                    return false;
+                }
 
-                    if (!capturedHandshakeCertificate) {
-                        var leaf = chain != null && chain.ChainElements.Count > 0
-                            ? chain.ChainElements[0].Certificate
-                            : certificate;
+                if (!capturedHandshakeCertificate) {
+                    X509Certificate2? loadedLeaf = null;
+                    var leaf = chain != null && chain.ChainElements.Count > 0
+                        ? chain.ChainElements[0].Certificate
+                        : certificate as X509Certificate2;
+                    if (leaf == null) {
+                        loadedLeaf = CertificateLoaderCompat.LoadCertificate(certificate.Export(X509ContentType.Cert));
+                        leaf = loadedLeaf;
+                    }
+                    try {
                         Certificate = CertificateLoaderCompat.Clone(leaf);
-
-                        Chain.Clear();
-                        if (chain != null) {
-                            foreach (var element in chain.ChainElements) {
-                                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
-                            }
-                        }
-                        RecordChainSource(ChainSourceTlsHandshake);
-                        IsSelfSigned = IsSelfSignedCertificate(Certificate);
-                        IsValid = policyErrors == SslPolicyErrors.None;
-                        HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
-                        capturedHandshakeCertificate = true;
+                    } finally {
+                        loadedLeaf?.Dispose();
                     }
-                    return true;
-                };
-                using (var client = new HttpClient(handler)) {
+
+                    Chain.Clear();
+                    if (chain != null) {
+                        foreach (var element in chain.ChainElements) {
+                            Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
+                        }
+                    }
+                    RecordChainSource(ChainSourceTlsHandshake);
+                    IsSelfSigned = IsSelfSignedCertificate(Certificate);
+                    IsValid = policyErrors == SslPolicyErrors.None;
+                    HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                    capturedHandshakeCertificate = true;
+                }
+                return true;
+            }
+
+#if NET472
+            try {
+                var originUri = new Uri(url);
+                using var originTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                originTimeoutSource.CancelAfter(Timeout);
+                using var originTcp = await ConnectDirectAsync(originUri.Host, port, originTimeoutSource.Token).ConfigureAwait(false);
+                using var originSsl = new SslStream(
+                    originTcp.GetStream(),
+                    false,
+                    static (_, _, _, _) => true);
+                await originSsl.AuthenticateAsClientAsync(
+                        originUri.Host,
+                        null,
+                        SslProtocols.None,
+                        !SkipRevocation)
+                    .WaitWithCancellation(originTimeoutSource.Token)
+                    .ConfigureAwait(false);
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                throw;
+            } catch (Exception ex) {
+                if (!capturedHandshakeCertificate) {
+                    RemoteAddress = null;
+                }
+                logger.WriteVerbose(
+                    "Paired .NET Framework TLS peer capture failed for {0}; continuing with full HTTP analysis: {1}",
+                    url,
+                    BuildFailureLogMessage(ex));
+            }
+#endif
+
+            HttpMessageHandler handler;
+#if NET8_0_OR_GREATER
+            var socketsHandler = new SocketsHttpHandler {
+                AllowAutoRedirect = false,
+                SslOptions = new SslClientAuthenticationOptions {
+                    CertificateRevocationCheckMode = SkipRevocation
+                        ? X509RevocationMode.NoCheck
+                        : X509RevocationMode.Online,
+                    RemoteCertificateValidationCallback = (_, certificate, chain, policyErrors) =>
+                        CaptureServerCertificate(certificate, chain, policyErrors)
+                }
+            };
+            socketsHandler.ConnectCallback = async (context, token) => {
+                bool captureOriginAddress = context.InitialRequestMessage.RequestUri is Uri requestUri &&
+                    IsOriginTransportEndpoint(context.DnsEndPoint, requestUri);
+                TcpClient tcp = await ConnectDirectAsync(
+                        context.DnsEndPoint.Host,
+                        context.DnsEndPoint.Port,
+                        token,
+                        captureRemoteAddress: captureOriginAddress)
+                    .ConfigureAwait(false);
+                return tcp.GetStream();
+            };
+            handler = socketsHandler;
+#else
+            var httpClientHandler = new HttpClientHandler {
+                AllowAutoRedirect = false,
+                CheckCertificateRevocationList = !SkipRevocation
+            };
+            httpClientHandler.ServerCertificateCustomValidationCallback = (_, certificate, chain, policyErrors) =>
+                CaptureServerCertificate(certificate, chain, policyErrors);
+            handler = httpClientHandler;
+#endif
+            using (handler) {
+                using (var client = new HttpClient(handler, disposeHandler: false)) {
                     client.Timeout = Timeout;
                     try {
 #if NET8_0_OR_GREATER
-                        var request = new HttpRequestMessage(HttpMethod.Get, url) {
-                            Version = HttpVersion.Version30,
-                            VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-                        };
-                        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+                        using HttpResponseMessage response = await SendWithRedirectEvidenceAsync(client, new Uri(url), cancellationToken).ConfigureAwait(false);
                         IsReachable = response.IsSuccessStatusCode;
                         ProtocolVersion = response.Version;
                         Http3Supported = response.Version >= HttpVersion.Version30;
                         Http2Supported = response.Version >= HttpVersion.Version20;
 #else
-                        var request = new HttpRequestMessage(HttpMethod.Get, url);
-                        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+                        using HttpResponseMessage response = await SendWithRedirectEvidenceAsync(client, new Uri(url), cancellationToken).ConfigureAwait(false);
                         IsReachable = response.IsSuccessStatusCode;
                         ProtocolVersion = response.Version;
                         Http2Supported = response.Version.Major >= 2;
@@ -325,7 +408,12 @@ namespace DomainDetective {
                                 var uri = new Uri(url);
                                 timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                                 timeoutCts.CancelAfter(Timeout);
-                                using var tcp = await ConnectDirectAsync(uri.Host, port, timeoutCts.Token).ConfigureAwait(false);
+                                using var tcp = await ConnectDirectAsync(
+                                        uri.Host,
+                                        port,
+                                        timeoutCts.Token,
+                                        captureRemoteAddress: false)
+                                    .ConfigureAwait(false);
                                 using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
                                     HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                                     return errors == SslPolicyErrors.None;
@@ -407,26 +495,160 @@ namespace DomainDetective {
             IsSelfSigned = IsSelfSignedCertificate(Certificate);
         }
 
-        internal async Task<TcpClient> ConnectDirectAsync(string host, int port, CancellationToken cancellationToken) {
+        internal async Task<TcpClient> ConnectDirectAsync(
+            string host,
+            int port,
+            CancellationToken cancellationToken,
+            bool captureRemoteAddress = true) {
             if (OutboundAddressResolver == null) {
-                var client = new TcpClient();
-                await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-                return client;
+                var client = TcpClientFactory(AddressFamily.Unspecified);
+                try {
+                    await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+                    if (captureRemoteAddress) {
+                        CaptureRemoteAddress(client);
+                    }
+                    return client;
+                } catch {
+                    client.Dispose();
+                    throw;
+                }
             }
 
-            var addresses = await OutboundAddressResolver(host, cancellationToken).ConfigureAwait(false);
+            var addresses = await OutboundAddressResolver(host, cancellationToken).ConfigureAwait(false)
+                ?? Array.Empty<IPAddress>();
             Exception? lastError = null;
-            foreach (var address in addresses) {
-                var client = new TcpClient(address.AddressFamily);
+            foreach (IPAddress? candidate in addresses) {
+                if (candidate == null) {
+                    continue;
+                }
+                IPAddress address = candidate.IsIPv4MappedToIPv6 ? candidate.MapToIPv4() : candidate;
+                var client = TcpClientFactory(address.AddressFamily);
                 try {
                     await client.ConnectAsync(address, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+                    if (captureRemoteAddress) {
+                        CaptureRemoteAddress(client);
+                    }
                     return client;
-                } catch (Exception ex) when (ex is not OperationCanceledException) {
+                } catch (OperationCanceledException) {
+                    client.Dispose();
+                    throw;
+                } catch (Exception ex) {
                     lastError = ex;
                     client.Dispose();
                 }
             }
             throw new SocketException(lastError is SocketException socketError ? socketError.ErrorCode : (int)SocketError.HostUnreachable);
+        }
+
+#if NET8_0_OR_GREATER
+        internal static bool IsOriginTransportEndpoint(DnsEndPoint connectionEndpoint, Uri requestUri) {
+            if (connectionEndpoint == null || requestUri == null) {
+                return false;
+            }
+            return connectionEndpoint.Port == requestUri.Port &&
+                   string.Equals(
+                       EndpointHostNormalizer.Normalize(connectionEndpoint.Host, lowercase: true),
+                       EndpointHostNormalizer.Normalize(requestUri.DnsSafeHost, lowercase: true),
+                       StringComparison.OrdinalIgnoreCase);
+        }
+#endif
+
+        private void CaptureRemoteAddress(TcpClient client) {
+            if (client.Client.RemoteEndPoint is IPEndPoint endpoint) {
+                RemoteAddress = endpoint.Address.IsIPv4MappedToIPv6
+                    ? endpoint.Address.MapToIPv4()
+                    : endpoint.Address;
+            }
+        }
+
+        internal async Task<HttpResponseMessage> SendWithRedirectEvidenceAsync(
+            HttpClient client,
+            Uri initialUri,
+            CancellationToken cancellationToken) {
+            if (client == null) {
+                throw new ArgumentNullException(nameof(client));
+            }
+            if (initialUri == null) {
+                throw new ArgumentNullException(nameof(initialUri));
+            }
+
+            const int maxRedirects = 10;
+            int followedRedirects = 0;
+            Uri currentUri = initialUri;
+            IPAddress? originRemoteAddress = null;
+            bool capturedOriginRemoteAddress = false;
+            using var redirectTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            if (client.Timeout != System.Threading.Timeout.InfiniteTimeSpan) {
+                redirectTimeoutSource.CancelAfter(client.Timeout);
+            }
+            try {
+                while (true) {
+                    using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
+#if NET8_0_OR_GREATER
+                    request.Version = HttpVersion.Version30;
+                    request.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+#endif
+                    HttpResponseMessage response = await client.SendAsync(
+                            request,
+                            HttpCompletionOption.ResponseHeadersRead,
+                            redirectTimeoutSource.Token)
+                        .ConfigureAwait(false);
+                    if (!capturedOriginRemoteAddress) {
+                        originRemoteAddress = RemoteAddress;
+                        capturedOriginRemoteAddress = true;
+                    }
+                    if (!TryResolveRedirectTarget(response, currentUri, out Uri? redirectUri) || redirectUri == null) {
+                        return response;
+                    }
+                    if (followedRedirects >= maxRedirects) {
+                        response.Dispose();
+                        throw new HttpRequestException($"The HTTP redirect limit of {maxRedirects} was exceeded.");
+                    }
+
+                    CaptureRedirectTarget(redirectUri, currentUri);
+                    if (string.Equals(currentUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(redirectUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)) {
+                        response.Dispose();
+                        throw new HttpRequestException(
+                            $"HTTPS redirect downgrade to HTTP is not allowed: '{currentUri}' -> '{redirectUri}'.");
+                    }
+
+                    followedRedirects++;
+                    response.Dispose();
+                    currentUri = redirectUri;
+                }
+            } finally {
+                if (capturedOriginRemoteAddress) {
+                    RemoteAddress = originRemoteAddress;
+                }
+            }
+        }
+
+        private static bool TryResolveRedirectTarget(
+            HttpResponseMessage response,
+            Uri currentUri,
+            out Uri? redirectUri) {
+            redirectUri = null;
+            int statusCode = (int)response.StatusCode;
+            if (statusCode != 300 && statusCode != 301 && statusCode != 302 && statusCode != 303 && statusCode != 307 && statusCode != 308) {
+                return false;
+            }
+
+            Uri? location = response.Headers.Location;
+            if (location == null) {
+                return false;
+            }
+            redirectUri = location.IsAbsoluteUri ? location : new Uri(currentUri, location);
+            return string.Equals(redirectUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(redirectUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void CaptureRedirectTarget(Uri? uri, Uri? sourceUri) {
+            if (uri == null || sourceUri == null ||
+                string.Equals(uri.Host, sourceUri.Host, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+            RedirectTargets.Add(uri.Host);
         }
 
         internal static Exception NormalizeProbeException(

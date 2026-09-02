@@ -1,10 +1,59 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
+using DomainDetective.Network;
 
 namespace DomainDetective;
 
 internal static class CertificateInventoryEntryHelpers
 {
+    public static void NormalizeRemoteAddressEvidence(CertificateInventoryEntry entry)
+    {
+        if (entry == null)
+        {
+            return;
+        }
+
+        if (IPAddress.TryParse((entry.RemoteAddress ?? string.Empty).Trim(), out IPAddress? address) && address != null)
+        {
+            IPAddress normalized = address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
+            entry.RemoteAddress = normalized.ToString();
+            entry.RemoteAddressFamily = IpAddressClassifier.GetAddressFamilyLabel(normalized);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.RemoteAddressFamily))
+        {
+            entry.RemoteAddressFamily = IpAddressClassifier.GetAddressFamilyLabel(null, entry.RemoteAddressFamily);
+        }
+    }
+
+    public static DateTimeOffset ResolveCapturedAtUtc(
+        IEnumerable<CertificateInventoryEntry>? entries,
+        DateTimeOffset candidate)
+    {
+        DateTimeOffset resolved = candidate == default ? DateTimeOffset.UtcNow : candidate;
+        if (entries == null)
+        {
+            return resolved;
+        }
+
+        foreach (CertificateInventoryEntry entry in entries)
+        {
+            if (entry == null)
+            {
+                continue;
+            }
+            resolved = Max(resolved, entry.ObservedAtUtc);
+            resolved = Max(resolved, entry.DnsObservedAtUtc);
+            resolved = Max(resolved, entry.Attribution?.EvaluatedAtUtc);
+        }
+        return resolved;
+    }
+
+    private static DateTimeOffset Max(DateTimeOffset current, DateTimeOffset? candidate) =>
+        candidate.HasValue && candidate.Value > current ? candidate.Value : current;
+
     public static string ResolveAuthenticationProfile(CertificateInventoryEntry entry)
     {
         if (!string.IsNullOrWhiteSpace(entry.AuthenticationProfile))

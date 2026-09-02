@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using DomainDetective.Providers.Endpoint;
 
 namespace DomainDetective {
     /// <summary>
@@ -143,6 +144,28 @@ namespace DomainDetective {
         public int Port { get; set; } = 443;
         /// <summary>Gets or sets the service value.</summary>
         public string Service { get; set; } = "HTTPS";
+        /// <summary>Time at which this endpoint observation was made.</summary>
+        public DateTimeOffset? ObservedAtUtc { get; set; }
+        /// <summary>Caller-supplied identifier for the network location that performed the probe.</summary>
+        public string ProbeVantage { get; set; } = string.Empty;
+        /// <summary>DNS resolver configuration used to collect endpoint evidence.</summary>
+        public string DnsResolver { get; set; } = string.Empty;
+        /// <summary>Time at which DNS evidence was collected for this endpoint.</summary>
+        public DateTimeOffset? DnsObservedAtUtc { get; set; }
+        /// <summary>Actual remote address reached by the protocol probe, when observable.</summary>
+        public string? RemoteAddress { get; set; }
+        /// <summary>Address family of <see cref="RemoteAddress"/>.</summary>
+        public string? RemoteAddressFamily { get; set; }
+        /// <summary>Addresses resolved for the effective endpoint hostname.</summary>
+        public IReadOnlyList<string> ResolvedAddresses { get; set; } = Array.Empty<string>();
+        /// <summary>CNAME targets followed from the logical hostname, in traversal order.</summary>
+        public IReadOnlyList<string> CnameChain { get; set; } = Array.Empty<string>();
+        /// <summary>HTTP redirect target hosts observed while probing the endpoint.</summary>
+        public IReadOnlyList<string> RedirectTargets { get; set; } = Array.Empty<string>();
+        /// <summary>Non-fatal DNS evidence collection errors.</summary>
+        public IReadOnlyList<string> DnsObservationErrors { get; set; } = Array.Empty<string>();
+        /// <summary>Explainable provider or managed-service attribution for the observed endpoint.</summary>
+        public EndpointAttributionResult? Attribution { get; set; }
         /// <summary>Gets or sets the certificate subject value.</summary>
         public string? CertificateSubject { get; set; }
         /// <summary>Gets or sets the certificate issuer value.</summary>

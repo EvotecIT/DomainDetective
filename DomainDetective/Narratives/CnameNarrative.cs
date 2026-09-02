@@ -40,15 +40,21 @@ public static class CnameNarrative
             };
         }
 
-        hi.Add(analysis.CnameRecordExists
-            ? $"{subj} CNAME → {analysis.Target}."
-            : $"{subj} has no CNAME record.");
+        hi.Add(!analysis.CnameRecordExists
+            ? $"{subj} has no CNAME record."
+            : string.IsNullOrWhiteSpace(analysis.Target)
+                ? $"{subj} has a CNAME record, but its target is ambiguous or unavailable."
+                : $"{subj} CNAME → {analysis.Target}.");
         hi.Add(analysis.LoopDetected
             ? "CNAME loop detected."
             : "No CNAME loop detected.");
-        hi.Add(analysis.TargetResolves
-            ? "CNAME target resolves."
-            : "CNAME target does not resolve.");
+        hi.Add(!analysis.CnameRecordExists
+            ? "CNAME target resolution is not applicable."
+            : string.IsNullOrWhiteSpace(analysis.Target)
+                ? "CNAME target resolution is indeterminate."
+                : analysis.TargetResolves
+                    ? "CNAME target resolves."
+                    : "CNAME target does not resolve.");
 
         var refs = DefaultRefs();
 

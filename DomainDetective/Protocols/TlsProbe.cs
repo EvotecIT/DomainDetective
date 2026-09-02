@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DomainDetective.Helpers;
+using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -360,23 +361,35 @@ public static class TlsProbe
             return;
         }
 
+        IReadOnlyList<string> dnsNames = ExtractCertificateDnsNames(result.Certificate, out string? parsingError);
+        result.DnsNames.AddRange(dnsNames);
+        result.SanParsingError = parsingError;
+    }
+
+    internal static IReadOnlyList<string> ExtractCertificateDnsNames(
+        X509Certificate2 certificate,
+        out string? parsingError)
+    {
+        var dnsNames = new List<string>();
+        parsingError = null;
         try
         {
 #if NET8_0_OR_GREATER
-            var san = result.Certificate.Extensions[SubjectAlternativeNameOid];
+            var san = certificate.Extensions[SubjectAlternativeNameOid];
             if (san != null)
             {
                 var sanExt = new X509SubjectAlternativeNameExtension(san.RawData, san.Critical);
                 foreach (var name in sanExt.EnumerateDnsNames())
                 {
-                    if (!string.IsNullOrWhiteSpace(name))
+                    if (!string.IsNullOrWhiteSpace(name) &&
+                        !dnsNames.Contains(name, StringComparer.OrdinalIgnoreCase))
                     {
-                        result.DnsNames.Add(name);
+                        dnsNames.Add(name);
                     }
                 }
             }
 #else
-            var san = result.Certificate.Extensions[SubjectAlternativeNameOid];
+            var san = certificate.Extensions[SubjectAlternativeNameOid];
             if (san != null)
             {
                 var raw = san.Format(false);
@@ -387,9 +400,10 @@ public static class TlsProbe
                     if (idx > 0 && p.Substring(0, idx).Trim().Equals("DNS Name", StringComparison.OrdinalIgnoreCase))
                     {
                         var name = p.Substring(idx + 1).Trim();
-                        if (!string.IsNullOrWhiteSpace(name))
+                        if (!string.IsNullOrWhiteSpace(name) &&
+                            !dnsNames.Contains(name, StringComparer.OrdinalIgnoreCase))
                         {
-                            result.DnsNames.Add(name);
+                            dnsNames.Add(name);
                         }
                     }
                 }
@@ -398,7 +412,8 @@ public static class TlsProbe
         }
         catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
         {
-            result.SanParsingError = ex.Message;
+            parsingError = ex.Message;
         }
+        return dnsNames;
     }
 }

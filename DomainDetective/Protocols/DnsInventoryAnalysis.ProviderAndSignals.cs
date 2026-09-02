@@ -129,7 +129,10 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                 return;
             }
 
-            var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var responseTargets = new List<string>();
+            var seenResponseTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var targetByOwner = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var conflictingOwners = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var q in queries)
             {
                 if (q.RecordType != DnsRecordType.CNAME)
@@ -144,24 +147,53 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                         continue;
                     }
 
-                    var t = NormalizeHost(r.Data);
-                    if (!string.IsNullOrWhiteSpace(t))
+                    var owner = NormalizeHost(r.Name);
+                    var target = NormalizeHost(r.Data);
+                    if (!string.IsNullOrWhiteSpace(target) && seenResponseTargets.Add(target))
                     {
-                        targets.Add(t);
+                        responseTargets.Add(target);
+                    }
+                    if (!string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(target))
+                    {
+                        if (targetByOwner.TryGetValue(owner, out string? existingTarget) &&
+                            !string.Equals(existingTarget, target, StringComparison.OrdinalIgnoreCase))
+                        {
+                            conflictingOwners.Add(owner);
+                        }
+                        else
+                        {
+                            targetByOwner[owner] = target;
+                        }
                     }
                 }
             }
 
-            if (targets.Count == 0)
+            if (responseTargets.Count == 0)
             {
                 return;
             }
 
+            bool hasConflictingOwnerTargets = conflictingOwners.Count > 0;
+            var targets = hasConflictingOwnerTargets
+                ? responseTargets
+                : BuildCnameTraversal(targetByOwner, responseTargets);
+
             var evidence = new List<string>();
+            foreach (string conflictingOwner in conflictingOwners.OrderBy(owner => owner, StringComparer.OrdinalIgnoreCase))
+            {
+                if (evidence.Count >= 10)
+                {
+                    break;
+                }
+                evidence.Add($"Conflicting CNAME targets for owner: {conflictingOwner}");
+            }
             var bestProvider = DnsCnameTargetProvider.Unknown;
+            var bestService = DnsCnameTargetService.Unknown;
+            var bestMatchRank = 0;
+            string? bestTarget = null;
             var flags = DnsCnameTargetFlags.None;
 
-            foreach (var target in targets.OrderBy(t => t, StringComparer.OrdinalIgnoreCase))
+            foreach (var target in targets)
             {
                 if (evidence.Count < 10)
                 {
@@ -169,11 +201,22 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                 }
 
                 var m = DnsCnameTargetDetector.Detect(target);
-                flags |= m.Flags;
-
-                if (bestProvider == DnsCnameTargetProvider.Unknown && m.Provider != DnsCnameTargetProvider.Unknown)
+                if (!hasConflictingOwnerTargets)
+                {
+                    flags |= m.Flags;
+                }
+                var matchRank = m.Service != DnsCnameTargetService.Unknown
+                    ? 2
+                    : (m.Provider != DnsCnameTargetProvider.Unknown ? 1 : 0);
+                // CNAME records are evaluated in owner-to-target traversal order. When
+                // equally strong services occur in one chain, the later (terminal)
+                // target describes the service actually reached.
+                if (!hasConflictingOwnerTargets && matchRank > 0 && matchRank >= bestMatchRank)
                 {
                     bestProvider = m.Provider;
+                    bestService = m.Service;
+                    bestMatchRank = matchRank;
+                    bestTarget = target;
                 }
 
                 foreach (var e in m.Evidence)
@@ -190,13 +233,56 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
                 }
             }
 
+            if (!string.IsNullOrWhiteSpace(bestTarget))
+            {
+                string selectedTargetEvidence = $"Apex CNAME: {bestTarget}";
+                if (!evidence.Exists(item => string.Equals(
+                    item,
+                    selectedTargetEvidence,
+                    StringComparison.OrdinalIgnoreCase)))
+                {
+                    // Keep the selected identity explainable even when earlier hops
+                    // consume the bounded diagnostic evidence allocation.
+                    evidence.Add(selectedTargetEvidence);
+                }
+            }
+
             CnameTargetProvider = bestProvider;
+            CnameTargetService = bestService;
             CnameTargetFlags = flags;
             CnameTargetEvidence = evidence;
         }
         catch
         {
         }
+    }
+
+    private List<string> BuildCnameTraversal(
+        IReadOnlyDictionary<string, string> targetByOwner,
+        IReadOnlyList<string> responseTargets)
+    {
+        if (targetByOwner.Count == 0)
+        {
+            return responseTargets.ToList();
+        }
+
+        string current = NormalizeHost(Subject);
+        if (current.Length == 0 || !targetByOwner.ContainsKey(current))
+        {
+            var referenced = new HashSet<string>(targetByOwner.Values, StringComparer.OrdinalIgnoreCase);
+            current = targetByOwner.Keys.FirstOrDefault(owner => !referenced.Contains(owner))
+                ?? targetByOwner.Keys.First();
+        }
+
+        var traversal = new List<string>();
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (visited.Add(current) && targetByOwner.TryGetValue(current, out string? target))
+        {
+            traversal.Add(target);
+            current = target;
+        }
+
+        return traversal.Count > 0 ? traversal : responseTargets.ToList();
     }
 
     private void TryDetectTxtSignals(List<DnsInventoryQuery> queries)

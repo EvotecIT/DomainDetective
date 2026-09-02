@@ -1,7 +1,10 @@
 using DnsClientX;
+using DomainDetective.Providers.Endpoint;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -12,6 +15,814 @@ using System.Threading.Tasks;
 namespace DomainDetective.Tests;
 
 public class TestCertificateInventoryCapture {
+    [Fact]
+    public async Task CaptureAsync_SharesProbeStartLimitAcrossProtocolPhases() {
+        var mailListener = new TcpListener(IPAddress.Loopback, 0);
+        var ftpListener = new TcpListener(IPAddress.Loopback, 0);
+        mailListener.Start();
+        ftpListener.Start();
+        int mailPort = ((IPEndPoint)mailListener.LocalEndpoint).Port;
+        int ftpPort = ((IPEndPoint)ftpListener.LocalEndpoint).Port;
+        Task mailServer = Task.Run(async () => {
+            using TcpClient client = await mailListener.AcceptTcpClientAsync();
+        });
+        Task ftpServer = Task.Run(async () => {
+            using TcpClient client = await ftpListener.AcceptTcpClientAsync();
+        });
+
+        try {
+            var options = new CertificateInventoryCaptureOptions {
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                PersistSnapshot = false,
+                MaxParallelism = 1,
+                MaxProbeStartsPerSecond = 2,
+                MailTimeout = TimeSpan.FromSeconds(1),
+                FtpTlsTimeout = TimeSpan.FromSeconds(1)
+            };
+            options.AdditionalEndpoints.Add($"smtp://127.0.0.1:{mailPort}");
+            options.AdditionalEndpoints.Add($"ftps-explicit://127.0.0.1:{ftpPort}");
+
+            CertificateInventoryCaptureResult result = await new CertificateInventoryCapture().CaptureAsync(
+                Array.Empty<string>(),
+                options);
+
+            Assert.Equal(1, result.ProbedMailCount);
+            Assert.Equal(1, result.ProbedFtpTlsCount);
+            CertificateInventoryEntry mailEntry = Assert.Single(
+                result.Snapshot.Entries,
+                entry => string.Equals(entry.Scheme, "smtp", StringComparison.OrdinalIgnoreCase));
+            CertificateInventoryEntry ftpEntry = Assert.Single(
+                result.Snapshot.Entries,
+                entry => string.Equals(entry.Scheme, "ftps-explicit", StringComparison.OrdinalIgnoreCase));
+            TimeSpan phaseBoundaryGap = ftpEntry.ObservedAtUtc!.Value - mailEntry.ObservedAtUtc!.Value;
+            Assert.True(
+                phaseBoundaryGap >= TimeSpan.FromMilliseconds(350),
+                $"Expected the global probe-start interval across protocol phases; observed {phaseBoundaryGap}.");
+        } finally {
+            mailListener.Stop();
+            ftpListener.Stop();
+            await Task.WhenAll(mailServer, ftpServer);
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_EnrichesEndpointWithDnsEvidenceVantageAndAttribution() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (targets, _, _, _) => {
+                CertificateMonitor.Entry entry = CreateHttpsEntry(Assert.Single(targets), certificate);
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(new[] { entry });
+            },
+            EndpointDnsQueryOverride = (name, type, _) => {
+                DnsAnswer[] answers = (name, type) switch {
+                    ("service.example.com", DnsRecordType.CNAME) =>
+                        new[] { new DnsAnswer { Type = DnsRecordType.CNAME, DataRaw = "tenant.azurefd.net." } },
+                    ("tenant.azurefd.net", DnsRecordType.A) =>
+                        new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "203.0.113.10" } },
+                    _ => Array.Empty<DnsAnswer>()
+                };
+                return Task.FromResult(answers);
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            EnableEndpointAttribution = true,
+            ProbeVantage = "eu-test-vantage"
+        };
+        options.AdditionalEndpoints.Add("https://service.example.com");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(
+            Array.Empty<string>(),
+            options,
+            cancellationToken: CancellationToken.None);
+
+        CertificateInventoryEntry inventoryEntry = Assert.Single(result.Snapshot.Entries);
+        Assert.NotNull(inventoryEntry.ObservedAtUtc);
+        Assert.NotNull(inventoryEntry.DnsObservedAtUtc);
+        Assert.Equal("eu-test-vantage", inventoryEntry.ProbeVantage);
+        Assert.Contains("203.0.113.10", inventoryEntry.ResolvedAddresses);
+        Assert.Equal(new[] { "tenant.azurefd.net" }, inventoryEntry.CnameChain);
+        Providers.Endpoint.EndpointAttributionCandidate primary = Assert.IsType<Providers.Endpoint.EndpointAttributionCandidate>(inventoryEntry.Attribution?.Primary);
+        Assert.Equal("azure-front-door", primary.ServiceId);
+        Assert.True(inventoryEntry.Attribution!.EvaluatedAtUtc >= inventoryEntry.DnsObservedAtUtc!.Value);
+        Assert.True(result.Snapshot.CapturedAtUtc >= inventoryEntry.DnsObservedAtUtc.Value);
+        Assert.True(result.Snapshot.CapturedAtUtc >= inventoryEntry.Attribution.EvaluatedAtUtc);
+        Assert.Equal(result.Snapshot.CapturedAtUtc, result.CapturedAtUtc);
+        Assert.Contains(
+            primary.Evidence,
+            evidence => evidence.Kind == Providers.Endpoint.EndpointAttributionSignalKind.Cname);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotBlendReusedRemotePeerIntoFreshAttribution() {
+        var cachedEntry = new CertificateInventoryEntry {
+            Host = "service.example.com",
+            ResolvedHost = "service.example.com",
+            Url = "https://service.example.com/",
+            Scheme = "https",
+            Port = 443,
+            Service = "HTTPS",
+            ObservedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+            RemoteAddress = "192.0.2.10",
+            RemoteAddressFamily = "IPv4",
+            CertificateThumbprint = "CACHED-CERT",
+            IsReachable = true,
+            Valid = true,
+            NotAfterUtc = DateTimeOffset.UtcNow.AddDays(90)
+        };
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["service.example.com|443|HTTPS"] = cachedEntry
+                },
+            HttpsProbeOverride = (targets, _, _, _) => {
+                Assert.Empty(targets);
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+            },
+            EndpointDnsQueryOverride = (_, type, _) => Task.FromResult(
+                type == DnsRecordType.A
+                    ? new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "198.51.100.20" } }
+                    : Array.Empty<DnsAnswer>())
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            EnableEndpointAttribution = true,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1)
+        };
+        foreach ((string ruleId, string prefix) in new[] {
+            ("custom.stale-peer", "192.0.2.0/24"),
+            ("custom.fresh-dns", "198.51.100.0/24")
+        }) {
+            var rule = new EndpointAttributionRule {
+                RuleId = ruleId,
+                RuleVersion = "1",
+                ProviderId = "example",
+                ServiceId = ruleId,
+                DisplayName = ruleId
+            };
+            rule.IpAddressPrefixes.Add(prefix);
+            options.EndpointAttributionRules.Add(rule);
+        }
+        options.AdditionalEndpoints.Add("https://service.example.com");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        CertificateInventoryEntry entry = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("reused-recent-success", entry.CaptureDisposition);
+        Assert.Equal("192.0.2.10", entry.RemoteAddress);
+        Assert.Contains("198.51.100.20", entry.ResolvedAddresses);
+        Assert.DoesNotContain(entry.Attribution!.Candidates, candidate => candidate.RuleId == "custom.stale-peer");
+        Assert.Contains(entry.Attribution.Candidates, candidate => candidate.RuleId == "custom.fresh-dns");
+        Assert.Equal("custom.fresh-dns", entry.Attribution.Primary?.RuleId);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_BoundsConcurrentDnsEnrichmentWithWorkerPool() {
+        using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+        int activeQueries = 0;
+        int maximumActiveQueries = 0;
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (targets, _, _, _) => {
+                var entries = new List<CertificateMonitor.Entry>(targets.Count);
+                foreach (string target in targets) {
+                    entries.Add(CreateHttpsEntry(target, certificate));
+                }
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(entries);
+            },
+            EndpointDnsQueryOverride = async (_, _, cancellationToken) => {
+                int active = Interlocked.Increment(ref activeQueries);
+                int observedMaximum;
+                do {
+                    observedMaximum = Volatile.Read(ref maximumActiveQueries);
+                    if (active <= observedMaximum) {
+                        break;
+                    }
+                } while (Interlocked.CompareExchange(
+                    ref maximumActiveQueries,
+                    active,
+                    observedMaximum) != observedMaximum);
+
+                try {
+                    await Task.Delay(10, cancellationToken);
+                    return Array.Empty<DnsAnswer>();
+                } finally {
+                    Interlocked.Decrement(ref activeQueries);
+                }
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            EnableEndpointAttribution = true,
+            DnsEnrichmentParallelism = 3
+        };
+        for (int host = 0; host < 20; host++) {
+            options.AdditionalEndpoints.Add($"https://service-{host}.example.com");
+        }
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(20, result.Snapshot.Entries.Count);
+        Assert.InRange(maximumActiveQueries, 2, options.DnsEnrichmentParallelism);
+    }
+
+    [Theory]
+    [InlineData(true, nameof(EndpointAttributionRule.ReverseDnsSuffixes))]
+    [InlineData(false, nameof(EndpointAttributionRule.AutonomousSystemNumbers))]
+    public async Task CaptureAsync_RejectsCustomAttributionSignalsItCannotCollectBeforeProbing(
+        bool useReverseDns,
+        string expectedSignal) {
+        int probeCalls = 0;
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (_, _, _, _) => {
+                probeCalls++;
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            EnableEndpointAttribution = true
+        };
+        var rule = new EndpointAttributionRule {
+            RuleId = "custom.unsupported-capture-signal",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "edge",
+            DisplayName = "Example Edge"
+        };
+        if (useReverseDns) {
+            rule.ReverseDnsSuffixes.Add("edge.example.net");
+        } else {
+            rule.AutonomousSystemNumbers.Add("64500");
+        }
+        options.EndpointAttributionRules.Add(rule);
+        options.AdditionalEndpoints.Add("https://service.example.com");
+
+        NotSupportedException exception = await Assert.ThrowsAsync<NotSupportedException>(() =>
+            capture.CaptureAsync(Array.Empty<string>(), options));
+
+        Assert.Equal(0, probeCalls);
+        Assert.Contains("custom.unsupported-capture-signal", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(expectedSignal, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(EndpointAttributionDetector), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotReuseObservationFromAnotherVantage() {
+        const int port = 1;
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|FTPS-EXPLICIT"] = new CertificateInventoryEntry {
+                        Host = "localhost",
+                        ResolvedHost = "localhost",
+                        Port = port,
+                        Service = "FTPS-EXPLICIT",
+                        Scheme = "ftps-explicit",
+                        ProbeVantage = "cloud",
+                        IsReachable = true,
+                        Valid = true,
+                        CertificateThumbprint = "CACHED",
+                        NotAfterUtc = DateTimeOffset.UtcNow.AddDays(90)
+                    }
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            ProbeVantage = "branch-office",
+            FtpTlsTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add($"ftps-explicit://localhost:{port}");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentEntryCount);
+        Assert.Equal(1, result.ProbedFtpTlsCount);
+        Assert.Equal("branch-office", Assert.Single(result.Snapshot.Entries).ProbeVantage);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ReusesRecentFtpTlsObservationWithinSameVantage() {
+        const int port = 2121;
+        var cachedEntry = new CertificateInventoryEntry {
+            Host = "ftp.example.com",
+            ResolvedHost = "ftp.example.com",
+            Port = port,
+            Service = "FTPS-EXPLICIT",
+            Scheme = "ftps-explicit",
+            ProbeVantage = "branch-office",
+            RemoteAddress = "::ffff:192.0.2.50",
+            RemoteAddressFamily = "InterNetworkV6",
+            IsReachable = true,
+            Valid = true,
+            CertificateThumbprint = "CACHED-FTPS",
+            NotAfterUtc = DateTimeOffset.UtcNow.AddDays(90)
+        };
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["ftp.example.com|2121|FTPS-EXPLICIT"] = cachedEntry
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            ProbeVantage = "branch-office"
+        };
+        options.AdditionalEndpoints.Add($"ftps-explicit://ftp.example.com:{port}");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(1, result.ReusedRecentEntryCount);
+        Assert.Equal(1, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(0, result.FtpTlsEndpointCount);
+        Assert.Equal(0, result.ProbedFtpTlsCount);
+        Assert.Empty(result.FtpTlsEndpoints);
+        CertificateInventoryEntry reused = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("reused-recent-success", reused.CaptureDisposition);
+        Assert.Equal("192.0.2.50", reused.RemoteAddress);
+        Assert.Equal("IPv4", reused.RemoteAddressFamily);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotRefreshFtpTlsReuseAgeFromNewerSnapshotTime() {
+        const int port = 1;
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|FTPS-EXPLICIT"] = new CertificateInventoryEntry {
+                        Host = "localhost",
+                        ResolvedHost = "localhost",
+                        Port = port,
+                        Service = "FTPS-EXPLICIT",
+                        Scheme = "ftps-explicit",
+                        ProbeVantage = "default",
+                        ObservedAtUtc = DateTimeOffset.UtcNow.AddHours(-2),
+                        IsReachable = true,
+                        Valid = true,
+                        CertificateThumbprint = "STALE-FTPS",
+                        NotAfterUtc = DateTimeOffset.UtcNow.AddDays(90)
+                    }
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            FtpTlsTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add($"ftps-explicit://localhost:{port}");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(1, result.ProbedFtpTlsCount);
+        Assert.Equal("live-probe", Assert.Single(result.Snapshot.Entries).CaptureDisposition);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DoesNotRefreshHttpsFailureReuseAgeFromNewerSnapshotTime() {
+        int observedProbeTargets = 0;
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|CUSTOM TLS"] = new CertificateInventoryEntry {
+                        Host = "localhost",
+                        ResolvedHost = "localhost",
+                        Port = 1,
+                        Service = "Custom TLS",
+                        Scheme = "https",
+                        ProbeVantage = "default",
+                        ObservedAtUtc = DateTimeOffset.UtcNow.AddHours(-2),
+                        IsReachable = false,
+                        FailureKind = CertificateFailureKind.ConnectionRefused,
+                        FailureReason = "Connection refused"
+                    }
+                },
+            HttpsProbeOverride = (targets, _, _, _) => {
+                observedProbeTargets = targets.Count;
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentFailureSnapshotEntries = true,
+            RecentFailureSnapshotTtl = TimeSpan.FromHours(1)
+        };
+        options.AdditionalEndpoints.Add("https://localhost:1");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentFailureHttpsCount);
+        Assert.Equal(1, result.ProbedHttpsCount);
+        Assert.Equal(1, observedProbeTargets);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_PrioritizesUncachedFtpTlsTargetBeforeReusableHighPriorityCachedTarget() {
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|FTPS-EXPLICIT"] = new CertificateInventoryEntry {
+                        Host = "localhost",
+                        ResolvedHost = "localhost",
+                        Port = 1,
+                        Service = "FTPS-EXPLICIT",
+                        Scheme = "ftps-explicit",
+                        ProbeVantage = "default",
+                        ObservedAtUtc = DateTimeOffset.UtcNow,
+                        IsReachable = true,
+                        Valid = true,
+                        IsKnownCertificateAuthority = true,
+                        AllowsServerAuthentication = true,
+                        // A reusable observation can legitimately carry a high evidence
+                        // score without requiring a fresh probe.
+                        PresentInCtLogs = false,
+                        CertificateThumbprint = "HEALTHY-CACHED-FTPS",
+                        NotAfterUtc = DateTimeOffset.UtcNow.AddDays(180)
+                    }
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            MaxTargets = 1,
+            FtpTlsTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:1");
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:2");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(1, result.ProbedFtpTlsCount);
+        Assert.Equal(1, result.FtpTlsTargetCountDroppedByLimit);
+        Assert.Equal("ftps-explicit://localhost:2", Assert.Single(result.FtpTlsEndpoints));
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ReusableFtpTlsFailureDoesNotConsumeLiveProbeBudget() {
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|FTPS-EXPLICIT"] = new CertificateInventoryEntry {
+                        Host = "localhost",
+                        ResolvedHost = "localhost",
+                        Port = 1,
+                        Service = "FTPS-EXPLICIT",
+                        Scheme = "ftps-explicit",
+                        ProbeVantage = "default",
+                        ObservedAtUtc = DateTimeOffset.UtcNow,
+                        IsReachable = false,
+                        FailureKind = CertificateFailureKind.ConnectionRefused,
+                        FailureReason = "Connection refused"
+                    }
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentFailureSnapshotEntries = true,
+            RecentFailureSnapshotTtl = TimeSpan.FromHours(1),
+            MaxTargets = 1,
+            FtpTlsTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:1");
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:2");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(1, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(1, result.ReusedRecentFailureFtpTlsCount);
+        Assert.Equal(1, result.ProbedFtpTlsCount);
+        Assert.Equal(0, result.FtpTlsTargetCountDroppedByLimit);
+        Assert.Equal("ftps-explicit://localhost:2", Assert.Single(result.FtpTlsEndpoints));
+        Assert.Contains(result.Snapshot.Entries, entry =>
+            entry.Port == 1 && entry.CaptureDisposition == "reused-recent-stable-failure");
+    }
+
+    [Fact]
+    public async Task CaptureAsync_BracketedIpv6MailTargetRetainsCompletedProbeResult() {
+        var capture = new CertificateInventoryCapture();
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            MailTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add("[::1]:25");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(1, result.ProbedMailCount);
+        Assert.Equal("smtp://[::1]:25", Assert.Single(result.MailEndpoints));
+        CertificateInventoryEntry entry = Assert.Single(result.Snapshot.Entries);
+        Assert.Equal("::1", entry.Host);
+        Assert.True(
+            entry.FailureKind != CertificateFailureKind.None ||
+            entry.IsReachable ||
+            !string.IsNullOrWhiteSpace(entry.CertificateThumbprint));
+        if (entry.FailureKind != CertificateFailureKind.None) {
+            Assert.False(string.IsNullOrWhiteSpace(entry.FailureReason));
+        }
+    }
+
+    [Theory]
+    [InlineData("[2001:db8::10]:8443", "https://[2001:db8::10]:8443/")]
+    [InlineData("[2001:db8::10]", "https://[2001:db8::10]/")]
+    [InlineData("2001:db8::10", "https://[2001:db8::10]/")]
+    public async Task CaptureAsync_Ipv6HttpsEndpointRetainsUriAuthority(string endpoint, string expectedUrl) {
+        IReadOnlyList<string>? observedTargets = null;
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (targets, _, _, _) => {
+                observedTargets = targets;
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(
+                    Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false
+        };
+        options.AdditionalEndpoints.Add(endpoint);
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(expectedUrl, Assert.Single(observedTargets!));
+        Assert.Equal(expectedUrl, Assert.Single(result.HttpsEndpoints));
+        Assert.Empty(result.Warnings);
+    }
+
+    [Theory]
+    [InlineData("ftps://localhost:0")]
+    [InlineData("ftps-explicit://localhost:0")]
+    [InlineData("smtp://localhost:0")]
+    [InlineData("submission://localhost:0")]
+    [InlineData("imap://localhost:0")]
+    [InlineData("imaps://localhost:0")]
+    [InlineData("pop3://localhost:0")]
+    [InlineData("pop3s://localhost:0")]
+    [InlineData("https://localhost:0")]
+    public async Task CaptureAsync_RejectsExplicitZeroPortEndpoint(string endpoint) {
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false
+        };
+        options.AdditionalEndpoints.Add(endpoint);
+
+        CertificateInventoryCaptureResult result = await new CertificateInventoryCapture().CaptureAsync(
+            Array.Empty<string>(),
+            options);
+
+        Assert.Equal(0, result.FtpTlsEndpointCount);
+        Assert.Equal(0, result.MailEndpointCount);
+        Assert.Equal(0, result.HttpsEndpointCount);
+        Assert.Empty(result.Snapshot.Entries);
+        Assert.Contains(result.Warnings, warning => warning.Contains("invalid endpoint", StringComparison.OrdinalIgnoreCase));
+        TargetDecisionDiagnosticEntry diagnostic = Assert.Single(result.TargetDecisionDiagnostics);
+        Assert.Equal("invalid-endpoint", diagnostic.Reason);
+        Assert.Equal(endpoint, diagnostic.Target);
+    }
+
+    [Theory]
+    [InlineData("[mail.example.com]:25")]
+    [InlineData("[www.example.com]")]
+    [InlineData("smtp://[mail.example.com]:25")]
+    public async Task CaptureAsync_RejectsBracketsAroundDnsHostname(string endpoint) {
+        var capture = new CertificateInventoryCapture {
+            HttpsProbeOverride = (targets, _, _, _) => {
+                Assert.Empty(targets);
+                return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(
+                    Array.Empty<CertificateMonitor.Entry>());
+            }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false
+        };
+        options.AdditionalEndpoints.Add(endpoint);
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Empty(result.Snapshot.Entries);
+        Assert.Contains(result.Warnings, warning => warning.Contains("invalid endpoint", StringComparison.OrdinalIgnoreCase));
+        TargetDecisionDiagnosticEntry diagnostic = Assert.Single(result.TargetDecisionDiagnostics);
+        Assert.Equal("invalid-endpoint", diagnostic.Reason);
+        Assert.Equal(endpoint, diagnostic.Target);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_PrioritizesStaleFtpTlsTargetBeforeReusableHealthyTarget() {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        CertificateInventoryEntry Cached(int port, DateTimeOffset observedAtUtc, string thumbprint) => new() {
+            Host = "localhost",
+            ResolvedHost = "localhost",
+            Port = port,
+            Service = "FTPS-EXPLICIT",
+            Scheme = "ftps-explicit",
+            ProbeVantage = "default",
+            ObservedAtUtc = observedAtUtc,
+            IsReachable = true,
+            Valid = true,
+            IsKnownCertificateAuthority = true,
+            AllowsServerAuthentication = true,
+            PresentInCtLogs = true,
+            CertificateThumbprint = thumbprint,
+            NotAfterUtc = now.AddDays(180)
+        };
+        var capture = new CertificateInventoryCapture {
+            RecentSnapshotLookupOverride = (_, _, _) =>
+                new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase) {
+                    ["localhost|1|FTPS-EXPLICIT"] = Cached(1, now, "REUSABLE-FTPS"),
+                    ["localhost|2|FTPS-EXPLICIT"] = Cached(2, now.AddHours(-2), "STALE-FTPS")
+                }
+        };
+        var options = new CertificateInventoryCaptureOptions {
+            IncludeApexHttps = false,
+            IncludeWwwHttps = false,
+            IncludeMxHosts = false,
+            PersistSnapshot = false,
+            ReuseRecentSnapshotEntries = true,
+            RecentSnapshotTtl = TimeSpan.FromHours(1),
+            MaxTargets = 1,
+            FtpTlsTimeout = TimeSpan.FromSeconds(1)
+        };
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:1");
+        options.AdditionalEndpoints.Add("ftps-explicit://localhost:2");
+
+        CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+        Assert.Equal(0, result.ReusedRecentFtpTlsCount);
+        Assert.Equal(1, result.ProbedFtpTlsCount);
+        Assert.Equal("ftps-explicit://localhost:2", Assert.Single(result.FtpTlsEndpoints));
+    }
+
+    [Fact]
+    public async Task CaptureAsync_MixedVantageHistoryRetainsRequestedVantageEntry() {
+        string cacheDirectory = Path.Combine(Path.GetTempPath(), "dd-vantage-cache-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDirectory);
+        try {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            foreach ((string vantage, DateTimeOffset capturedAt, string thumbprint) in new[] {
+                ("branch-office", now.AddMinutes(-20), "BRANCH-CERT"),
+                ("cloud", now.AddMinutes(-10), "CLOUD-CERT")
+            }) {
+                var snapshot = new CertificateInventorySnapshot { CapturedAtUtc = capturedAt, Port = 443 };
+                snapshot.Entries.Add(new CertificateInventoryEntry {
+                    Host = "service.example.com",
+                    ResolvedHost = "service.example.com",
+                    Port = 443,
+                    Service = "HTTPS",
+                    Scheme = "https",
+                    ProbeVantage = vantage,
+                    ObservedAtUtc = capturedAt,
+                    IsReachable = true,
+                    Valid = true,
+                    CertificateThumbprint = thumbprint,
+                    NotAfterUtc = now.AddDays(90)
+                });
+                using var monitor = new CertificateMonitor { CacheDirectory = cacheDirectory, PersistInventorySnapshots = false };
+                monitor.SaveInventorySnapshot(snapshot);
+            }
+
+            int probedTargetCount = -1;
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (targets, _, _, _) => {
+                    probedTargetCount = targets.Count;
+                    return Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(Array.Empty<CertificateMonitor.Entry>());
+                }
+            };
+            var options = new CertificateInventoryCaptureOptions {
+                CacheDirectory = cacheDirectory,
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                PersistSnapshot = false,
+                ReuseRecentSnapshotEntries = true,
+                RecentSnapshotTtl = TimeSpan.FromHours(1),
+                ProbeVantage = "branch-office"
+            };
+            options.AdditionalEndpoints.Add("https://service.example.com");
+
+            CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+            Assert.Equal(0, probedTargetCount);
+            Assert.Equal(1, result.ReusedRecentHttpsCount);
+            CertificateInventoryEntry entry = Assert.Single(result.Snapshot.Entries);
+            Assert.Equal("BRANCH-CERT", entry.CertificateThumbprint);
+            Assert.Equal("branch-office", entry.ProbeVantage);
+        } finally {
+            Directory.Delete(cacheDirectory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("{not-json")]
+    [InlineData("{\"values\":[null]}")]
+    [InlineData("{\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{}}]}")]
+    [InlineData("{\"values\":[{\"name\":123,\"properties\":{\"addressPrefixes\":[]}}]}")]
+    public async Task CaptureAsync_MalformedOptionalAzureCatalogBecomesWarning(string malformedCatalog) {
+        string path = Path.Combine(Path.GetTempPath(), "dd-invalid-azure-" + Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(path, malformedCatalog);
+        try {
+            using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (targets, _, _, _) =>
+                    Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(new[] { CreateHttpsEntry(Assert.Single(targets), certificate) }),
+                EndpointDnsQueryOverride = (_, _, _) => Task.FromResult(Array.Empty<DnsAnswer>())
+            };
+            var options = new CertificateInventoryCaptureOptions {
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                PersistSnapshot = false,
+                EnableEndpointAttribution = true,
+                AzureServiceTagsJsonPath = path
+            };
+            options.AdditionalEndpoints.Add("https://service.example.com");
+
+            CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+            Assert.Single(result.Snapshot.Entries);
+            Assert.Contains(result.Warnings, warning => warning.Contains("could not be loaded", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task CaptureAsync_DuplicateAzureServiceTagsBecomeWarning() {
+        string path = Path.Combine(Path.GetTempPath(), "dd-duplicate-azure-" + Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(path, "{\"changeNumber\":\"7\",\"cloud\":\"Public\",\"values\":[{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{\"addressPrefixes\":[\"203.0.113.0/24\"]}},{\"name\":\"AzureFrontDoor.Frontend\",\"properties\":{\"addressPrefixes\":[\"2001:db8::/32\"]}}]}");
+        try {
+            using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+            var capture = new CertificateInventoryCapture {
+                HttpsProbeOverride = (targets, _, _, _) =>
+                    Task.FromResult<IReadOnlyList<CertificateMonitor.Entry>>(new[] { CreateHttpsEntry(Assert.Single(targets), certificate) }),
+                EndpointDnsQueryOverride = (_, _, _) => Task.FromResult(Array.Empty<DnsAnswer>())
+            };
+            var options = new CertificateInventoryCaptureOptions {
+                IncludeApexHttps = false,
+                IncludeWwwHttps = false,
+                IncludeMxHosts = false,
+                PersistSnapshot = false,
+                EnableEndpointAttribution = true,
+                AzureServiceTagsJsonPath = path
+            };
+            options.AdditionalEndpoints.Add("https://service.example.com");
+
+            CertificateInventoryCaptureResult result = await capture.CaptureAsync(Array.Empty<string>(), options);
+
+            Assert.Single(result.Snapshot.Entries);
+            Assert.Contains(result.Warnings, warning =>
+                warning.Contains("duplicate service-tag names", StringComparison.OrdinalIgnoreCase));
+        } finally {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task CaptureAsync_DiscoversEndpointsAndPersistsSnapshot_WithOverrides() {
         using var certificate = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
@@ -1380,6 +2191,7 @@ public class TestCertificateInventoryCapture {
         var ctNotBefore = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var ctNotAfter = new DateTimeOffset(2026, 10, 1, 23, 59, 59, TimeSpan.Zero);
         var capture = new CertificateInventoryCapture {
+            EndpointDnsQueryOverride = (_, _, _) => Task.FromResult(Array.Empty<DnsAnswer>()),
             CtSubdomainEntryDiscoveryOverride = (domains, options, logger, cancellationToken) => {
                 IReadOnlyList<SubdomainDiscoveryEntry> discovered = new[] {
                     new SubdomainDiscoveryEntry {
@@ -1437,8 +2249,20 @@ public class TestCertificateInventoryCapture {
             IncludeSubmissionStartTls = false,
             IncludeImapTls = false,
             IncludePop3Tls = false,
+            EnableEndpointAttribution = true,
             PersistSnapshot = false
         };
+        var issuerRule = new EndpointAttributionRule {
+            RuleId = "custom.ct-issuer",
+            RuleVersion = "1",
+            ProviderId = "example",
+            ServiceId = "ct-backed",
+            DisplayName = "CT-backed endpoint",
+            MinimumScore = 0.15,
+            AllowWeakSignalsAsPrimary = true
+        };
+        issuerRule.CertificateIssuerContains.Add("Test Issuer");
+        options.EndpointAttributionRules.Add(issuerRule);
 
         var result = await capture.CaptureAsync(new[] { "example.com" }, options, cancellationToken: CancellationToken.None);
 
@@ -1458,6 +2282,13 @@ public class TestCertificateInventoryCapture {
         Assert.Contains("ct-log", endpoint.CertificateChainSources, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("crt.sh", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("certspotter", endpoint.CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+        EndpointAttributionCandidate issuerCandidate = Assert.Single(
+            endpoint.Attribution!.Candidates,
+            candidate => candidate.RuleId == "custom.ct-issuer");
+        Assert.Contains(
+            issuerCandidate.Evidence,
+            evidence => evidence.Kind == EndpointAttributionSignalKind.CertificateIssuer &&
+                        evidence.ObservedValue.Contains("Test Issuer", StringComparison.Ordinal));
 
         var discovered = Assert.Single(result.CtDiscoveredSubdomainEntries);
         Assert.Equal("ct-only.example.com", discovered.Name);

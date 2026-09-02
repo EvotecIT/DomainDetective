@@ -219,9 +219,27 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [DefaultValue(1024)]
     public int NativeCtCatchUpBatchSize { get; set; } = 1024;
 
-    [Description("Additional endpoint(s) to probe. Repeat option for multiple values.")]
+    [Description("Additional endpoint(s) to probe, including HTTPS, mail TLS, ftps://, and ftps-explicit://. Repeat for multiple values.")]
     [CommandOption("--endpoint <ENDPOINT>")]
     public string[] AdditionalEndpoints { get; set; } = Array.Empty<string>();
+
+    [Description("Resolve endpoint DNS evidence and perform explainable provider/service attribution.")]
+    [CommandOption("--detect-services")]
+    public bool EnableEndpointAttribution { get; set; }
+
+    [Description("Label identifying the network vantage used for this observation.")]
+    [CommandOption("--probe-vantage <LABEL>")]
+    [DefaultValue("default")]
+    public string ProbeVantage { get; set; } = "default";
+
+    [Description("Optional current Azure service-tag JSON file used for IP-based attribution.")]
+    [CommandOption("--azure-service-tags-json <PATH>")]
+    public string? AzureServiceTagsJsonPath { get; set; }
+
+    [Description("Maximum concurrent DNS evidence lookups used by service detection.")]
+    [CommandOption("--dns-enrichment-parallelism <N>")]
+    [DefaultValue(8)]
+    public int DnsEnrichmentParallelism { get; set; } = 8;
 
     [Description("Maximum MX hosts retained per domain (0 means unlimited).")]
     [CommandOption("--mx-max-hosts <N>")]
@@ -243,12 +261,17 @@ internal sealed class CertificateInventoryCaptureSettings : CommandSettings {
     [DefaultValue(15)]
     public int MailTimeoutSeconds { get; set; } = 15;
 
+    [Description("FTP TLS timeout in seconds.")]
+    [CommandOption("--ftps-timeout-seconds <SECONDS>")]
+    [DefaultValue(15)]
+    public int FtpTlsTimeoutSeconds { get; set; } = 15;
+
     [Description("HTTPS certificate probe timeout in seconds.")]
     [CommandOption("--https-timeout-seconds <SECONDS>")]
     [DefaultValue(30)]
     public int HttpsTimeoutSeconds { get; set; } = 30;
 
-    [Description("Maximum total probe targets (HTTPS + mail) kept after discovery (0 means unlimited).")]
+    [Description("Maximum total probe targets (HTTPS + mail + FTP TLS) kept after discovery (0 means unlimited).")]
     [CommandOption("--max-targets <N>")]
     [DefaultValue(0)]
     public int MaxTargets { get; set; }
@@ -391,8 +414,16 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             AnsiConsole.MarkupLine("[red]--mail-timeout-seconds must be between 1 and 300.[/]");
             return 1;
         }
+        if (settings.FtpTlsTimeoutSeconds < 1 || settings.FtpTlsTimeoutSeconds > 300) {
+            AnsiConsole.MarkupLine("[red]--ftps-timeout-seconds must be between 1 and 300.[/]");
+            return 1;
+        }
         if (settings.HttpsTimeoutSeconds < 1 || settings.HttpsTimeoutSeconds > 300) {
             AnsiConsole.MarkupLine("[red]--https-timeout-seconds must be between 1 and 300.[/]");
+            return 1;
+        }
+        if (settings.DnsEnrichmentParallelism < 1 || settings.DnsEnrichmentParallelism > 512) {
+            AnsiConsole.MarkupLine("[red]--dns-enrichment-parallelism must be between 1 and 512.[/]");
             return 1;
         }
         if (settings.MaxTargets < 0) {
@@ -525,14 +556,19 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
                 return 1;
             }
         }
-        if (domains.Count == 0) {
-            AnsiConsole.MarkupLine("[red]Provide at least one domain (argument or --domains-file).[/]");
+        bool hasExplicitEndpoint = settings.AdditionalEndpoints != null && settings.AdditionalEndpoints.Any(endpoint => !string.IsNullOrWhiteSpace(endpoint));
+        if (domains.Count == 0 && !hasExplicitEndpoint) {
+            AnsiConsole.MarkupLine("[red]Provide at least one domain or --endpoint.[/]");
             return 1;
         }
 
         var options = new CertificateInventoryCaptureOptions {
             CacheDirectory = CertificateInventoryCommandHelpers.ResolveCacheDirectory(settings.CacheDirectory),
             DnsEndpoint = settings.DnsEndpoint,
+            EnableEndpointAttribution = settings.EnableEndpointAttribution,
+            ProbeVantage = settings.ProbeVantage,
+            AzureServiceTagsJsonPath = settings.AzureServiceTagsJsonPath,
+            DnsEnrichmentParallelism = settings.DnsEnrichmentParallelism,
             IncludeApexHttps = !settings.NoApexHttps,
             IncludeWwwHttps = !settings.NoWwwHttps,
             IncludeMxHosts = !settings.DisableMxDiscovery,
@@ -577,6 +613,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             MaxParallelism = settings.MaxParallelism,
             DiscoveryParallelism = settings.DiscoveryParallelism,
             MailTimeout = TimeSpan.FromSeconds(settings.MailTimeoutSeconds),
+            FtpTlsTimeout = TimeSpan.FromSeconds(settings.FtpTlsTimeoutSeconds),
             HttpsTimeout = TimeSpan.FromSeconds(settings.HttpsTimeoutSeconds),
             MaxTargets = settings.MaxTargets,
             MaxProbeStartsPerSecond = settings.MaxProbeStartsPerSecond,
@@ -660,6 +697,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         summary.AddRow("Domains", result.DomainCount.ToString());
         summary.AddRow("MX Hosts", result.MxHostCount.ToString());
         summary.AddRow("HTTPS Endpoints", result.HttpsEndpointCount.ToString());
+        summary.AddRow("FTP TLS Endpoints", result.FtpTlsEndpointCount.ToString());
         summary.AddRow("CT Subdomains", result.CtDiscoveredSubdomainCount.ToString());
         summary.AddRow("CT -> HTTPS", result.CtPromotedHttpsCount.ToString());
         summary.AddRow("CT Skipped HTTPS", result.CtSkippedHttpsPromotionCount.ToString());
@@ -675,8 +713,10 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         summary.AddRow("Mail Endpoints", result.MailEndpointCount.ToString());
         summary.AddRow("HTTPS Before Limit", result.HttpsTargetCountBeforeLimit.ToString());
         summary.AddRow("Mail Before Limit", result.MailTargetCountBeforeLimit.ToString());
+        summary.AddRow("FTP TLS Before Limit", result.FtpTlsTargetCountBeforeLimit.ToString());
         summary.AddRow("HTTPS Dropped By Limit", result.HttpsTargetCountDroppedByLimit.ToString());
         summary.AddRow("Mail Dropped By Limit", result.MailTargetCountDroppedByLimit.ToString());
+        summary.AddRow("FTP TLS Dropped By Limit", result.FtpTlsTargetCountDroppedByLimit.ToString());
         summary.AddRow("Target Decision Diagnostics", result.TargetDecisionDiagnostics.Count.ToString());
         summary.AddRow("Target Decision Summary Buckets", result.TargetDecisionSummary.Count.ToString());
         summary.AddRow("Warning Decision Buckets", warningTargetDecisionBuckets.Count.ToString());
@@ -685,9 +725,11 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         summary.AddRow("Reused Recent", result.ReusedRecentEntryCount.ToString());
         summary.AddRow("Reused Recent HTTPS", result.ReusedRecentHttpsCount.ToString());
         summary.AddRow("Reused Recent Mail", result.ReusedRecentMailCount.ToString());
+        summary.AddRow("Reused Recent FTP TLS", result.ReusedRecentFtpTlsCount.ToString());
         summary.AddRow("Reused Stable Failures", result.ReusedRecentFailureEntryCount.ToString());
         summary.AddRow("Probed HTTPS", result.ProbedHttpsCount.ToString());
         summary.AddRow("Probed Mail", result.ProbedMailCount.ToString());
+        summary.AddRow("Probed FTP TLS", result.ProbedFtpTlsCount.ToString());
         summary.AddRow("Unique Endpoints", result.UniqueEndpointCount.ToString());
         summary.AddRow("Valid", result.ValidCount.ToString());
         summary.AddRow("Expired", result.ExpiredCount.ToString());
@@ -721,6 +763,9 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             foreach (var endpoint in result.MailEndpoints.Take(500)) {
                 endpointTable.AddRow("MAILTLS", Markup.Escape(endpoint));
             }
+            foreach (var endpoint in result.FtpTlsEndpoints.Take(500)) {
+                endpointTable.AddRow("FTPTLS", Markup.Escape(endpoint));
+            }
             AnsiConsole.Write(endpointTable);
         }
 
@@ -733,7 +778,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         return 0;
     }
 
-    private static void WriteCsv(CertificateInventoryCaptureResult result, string path) {
+    internal static void WriteCsv(CertificateInventoryCaptureResult result, string path) {
         var fullPath = Path.GetFullPath(path);
         var directory = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrWhiteSpace(directory)) {
@@ -741,7 +786,7 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("CapturedAtUtc,Host,ResolvedHost,Service,Scheme,Port,CertificateThumbprint,CertificateSerialNumber,CertificateSubject,CertificateIssuer,CertificateRootIssuer,NotAfterUtc,DaysToExpire,Valid,Expired,IsReachable,FailureKind,FailureReason,HostnameMatch,ChainComplete,AuthenticationProfile,AllowsServerAuthentication,AllowsClientAuthentication,AllowsSecureEmail,PresentInCtLogs,CtDiscoverySources,CtTemplateFormatErrors,CertificateChainSource,TargetOrigins,CaptureDisposition");
+        sb.AppendLine("CapturedAtUtc,Host,ResolvedHost,Service,Scheme,Port,ObservedAtUtc,ProbeVantage,DnsResolver,DnsObservedAtUtc,DnsObservationErrors,RemoteAddress,RemoteAddressFamily,ResolvedAddresses,CnameChain,RedirectTargets,AttributionProvider,AttributionService,AttributionConfidence,AttributionScore,AttributionRuleId,AttributionRuleVersion,AttributionEvidence,AttributionCandidates,AttributionEvaluatedAtUtc,AttributionAmbiguous,AzureServiceTagSource,AzureServiceTagChangeNumber,AzureServiceTagCloud,AzureServiceTagRetrievedAtUtc,CertificateThumbprint,CertificateSerialNumber,CertificateSubject,CertificateIssuer,CertificateRootIssuer,NotAfterUtc,DaysToExpire,Valid,Expired,IsReachable,FailureKind,FailureReason,HostnameMatch,ChainComplete,AuthenticationProfile,AllowsServerAuthentication,AllowsClientAuthentication,AllowsSecureEmail,PresentInCtLogs,CtDiscoverySources,CtTemplateFormatErrors,CertificateChainSource,TargetOrigins,CaptureDisposition");
         foreach (var entry in result.Snapshot.Entries) {
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(result.CapturedAtUtc.UtcDateTime.ToString("O")));
             sb.Append(',');
@@ -754,6 +799,54 @@ internal sealed class CertificateInventoryCaptureCommand : AsyncCommand<Certific
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Scheme));
             sb.Append(',');
             sb.Append(entry.Port);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.ObservedAtUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.ProbeVantage));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.DnsResolver));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.DnsObservedAtUtc?.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.DnsObservationErrors ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.RemoteAddress));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.RemoteAddressFamily));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.ResolvedAddresses ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.CnameChain ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.RedirectTargets ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.Primary?.ProviderId));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.Primary?.ServiceId));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.Primary?.Confidence.ToString()));
+            sb.Append(',');
+            sb.Append(entry.Attribution?.Primary?.Score.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.Primary?.RuleId));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.Primary?.RuleVersion));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(string.Join("|", entry.Attribution?.Primary?.Evidence.Select(evidence => $"{evidence.Kind}:{evidence.ObservedValue}->{evidence.MatchedValue}") ?? Array.Empty<string>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(JsonSerializer.Serialize(entry.Attribution?.Candidates ?? Array.Empty<Providers.Endpoint.EndpointAttributionCandidate>())));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.EvaluatedAtUtc.UtcDateTime.ToString("O") ?? string.Empty));
+            sb.Append(',');
+            sb.Append(entry.Attribution?.IsAmbiguous.ToString() ?? string.Empty);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.AzureServiceTagSource));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.AzureServiceTagChangeNumber));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.AzureServiceTagCloud));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.Attribution?.AzureServiceTagRetrievedAtUtc?.UtcDateTime.ToString("O") ?? string.Empty));
             sb.Append(',');
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(entry.CertificateThumbprint));
             sb.Append(',');

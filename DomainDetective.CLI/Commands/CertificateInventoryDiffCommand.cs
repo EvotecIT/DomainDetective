@@ -217,6 +217,8 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
         rows.Title = new TableTitle("Certificate Snapshot Diff");
         rows.AddColumn("Host");
         rows.AddColumn("Port");
+        rows.AddColumn("Vantage");
+        rows.AddColumn("Service");
         rows.AddColumn("Status");
         rows.AddColumn("Reasons");
         rows.AddColumn("Issuer");
@@ -230,12 +232,14 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
                          endpoint.PreviousNotAfterUtc?.UtcDateTime.ToString("yyyy-MM-dd") ??
                          "-";
             rows.AddRow(
-                endpoint.Host,
+                Markup.Escape(endpoint.Host),
                 endpoint.Port.ToString(),
-                endpoint.Status,
-                reasons,
-                issuer,
-                root,
+                Markup.Escape(endpoint.ProbeVantage),
+                Markup.Escape(endpoint.CurrentService ?? endpoint.PreviousService ?? "-"),
+                Markup.Escape(endpoint.Status),
+                Markup.Escape(reasons),
+                Markup.Escape(issuer),
+                Markup.Escape(root),
                 expiry);
         }
         AnsiConsole.Write(rows);
@@ -257,11 +261,13 @@ internal sealed class CertificateInventoryDiffCommand : AsyncCommand<Certificate
         var currentSnapshot = diff.CurrentCapturedAtUtc?.UtcDateTime.ToString("O") ?? string.Empty;
 
         var sb = new StringBuilder();
-        sb.AppendLine("Host,Port,Status,ChangeReasons,PreviousService,CurrentService,PreviousIssuer,CurrentIssuer,PreviousRoot,CurrentRoot,PreviousThumbprint,CurrentThumbprint,PreviousNotAfterUtc,CurrentNotAfterUtc,PreviousValid,CurrentValid,PreviousChainComplete,CurrentChainComplete,PreviousHostnameMatch,CurrentHostnameMatch,RequestedPreviousSnapshotUtc,RequestedCurrentSnapshotUtc,PreviousSnapshotUtc,CurrentSnapshotUtc,Warnings");
+        sb.AppendLine("Host,Port,ProbeVantage,Status,ChangeReasons,PreviousService,CurrentService,PreviousIssuer,CurrentIssuer,PreviousRoot,CurrentRoot,PreviousThumbprint,CurrentThumbprint,PreviousNotAfterUtc,CurrentNotAfterUtc,PreviousValid,CurrentValid,PreviousChainComplete,CurrentChainComplete,PreviousHostnameMatch,CurrentHostnameMatch,RequestedPreviousSnapshotUtc,RequestedCurrentSnapshotUtc,PreviousSnapshotUtc,CurrentSnapshotUtc,Warnings");
         foreach (var endpoint in diff.Endpoints) {
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Host));
             sb.Append(',');
             sb.Append(endpoint.Port);
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.ProbeVantage));
             sb.Append(',');
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Status));
             sb.Append(',');

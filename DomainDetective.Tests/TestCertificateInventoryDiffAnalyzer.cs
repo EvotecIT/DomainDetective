@@ -122,7 +122,7 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public void BuildDiffDetectsServiceChangeForSameHostAndPort() {
+        public void BuildDiffCorrelatesUniqueServiceReplacementWithinTransportSlot() {
             var now = DateTimeOffset.UtcNow;
             var previous = new CertificateInventorySnapshot {
                 CapturedAtUtc = now.AddHours(-1),
@@ -158,13 +158,82 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, diff.ChangedCount);
             Assert.Equal(0, diff.UnchangedCount);
 
-            var row = Assert.Single(diff.Endpoints);
-            Assert.Equal("service-change.example.com", row.Host);
-            Assert.Equal(443, row.Port);
-            Assert.Equal("Changed", row.Status);
-            Assert.Equal("HTTPS", row.PreviousService);
-            Assert.Equal("HTTPS-ALT", row.CurrentService);
-            Assert.Equal(new[] { "Service" }, row.ChangeReasons);
+            CertificateInventoryEndpointDiff endpoint = Assert.Single(diff.Endpoints);
+            Assert.Equal("service-change.example.com", endpoint.Host);
+            Assert.Equal("Changed", endpoint.Status);
+            Assert.Equal("HTTPS", endpoint.PreviousService);
+            Assert.Equal("HTTPS-ALT", endpoint.CurrentService);
+            Assert.Equal(new[] { "Service" }, endpoint.ChangeReasons);
+        }
+
+        [Fact]
+        public void BuildDiffDoesNotInventAmbiguousServiceReplacement() {
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventoryEntry Entry(string service) => new() {
+                Host = "ambiguous-service.example.com",
+                ResolvedHost = "ambiguous-service.example.com",
+                Port = 443,
+                Service = service,
+                CertificateThumbprint = service
+            };
+            var previous = new CertificateInventorySnapshot {
+                CapturedAtUtc = now.AddHours(-1),
+                Entries = new List<CertificateInventoryEntry> { Entry("SERVICE-A"), Entry("SERVICE-B") }
+            };
+            var current = new CertificateInventorySnapshot {
+                CapturedAtUtc = now,
+                Entries = new List<CertificateInventoryEntry> { Entry("SERVICE-C"), Entry("SERVICE-D") }
+            };
+
+            CertificateInventoryDiffSummary diff = CertificateInventoryDiffAnalyzer.BuildDiff(new[] { previous, current });
+
+            Assert.Equal(2, diff.AddedCount);
+            Assert.Equal(2, diff.RemovedCount);
+            Assert.Equal(0, diff.ChangedCount);
+            Assert.Equal(4, diff.Endpoints.Count);
+            Assert.DoesNotContain(diff.Endpoints, endpoint => endpoint.ChangeReasons.Contains("Service"));
+        }
+
+        [Fact]
+        public void BuildDiffKeepsProbeVantageHistoriesSeparate() {
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventoryEntry Entry(string vantage, string thumbprint) => new() {
+                Host = "shared.example.com",
+                ResolvedHost = "shared.example.com",
+                Port = 443,
+                Service = "HTTPS",
+                ProbeVantage = vantage,
+                CertificateThumbprint = thumbprint
+            };
+            var previous = new CertificateInventorySnapshot {
+                CapturedAtUtc = now.AddHours(-1),
+                Entries = new List<CertificateInventoryEntry> {
+                    Entry("branch-office", "BRANCH"),
+                    Entry("cloud", "CLOUD")
+                }
+            };
+            var current = new CertificateInventorySnapshot {
+                CapturedAtUtc = now,
+                Entries = new List<CertificateInventoryEntry> {
+                    Entry(" cloud ", "CLOUD"),
+                    Entry("BRANCH-OFFICE", "BRANCH")
+                }
+            };
+
+            var diff = CertificateInventoryDiffAnalyzer.BuildDiff(
+                new[] { previous, current },
+                includeUnchanged: true);
+
+            Assert.Equal(2, diff.PreviousEndpointCount);
+            Assert.Equal(2, diff.CurrentEndpointCount);
+            Assert.Equal(0, diff.AddedCount);
+            Assert.Equal(0, diff.RemovedCount);
+            Assert.Equal(0, diff.ChangedCount);
+            Assert.Equal(2, diff.UnchangedCount);
+            Assert.Collection(
+                diff.Endpoints.OrderBy(endpoint => endpoint.ProbeVantage, StringComparer.OrdinalIgnoreCase),
+                endpoint => Assert.Equal("branch-office", endpoint.ProbeVantage, ignoreCase: true),
+                endpoint => Assert.Equal("cloud", endpoint.ProbeVantage, ignoreCase: true));
         }
 
         [Fact]

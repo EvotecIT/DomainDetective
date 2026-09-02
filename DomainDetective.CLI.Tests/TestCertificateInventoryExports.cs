@@ -4,6 +4,7 @@ using System.Text.Json;
 using DomainDetective;
 using DomainDetective.CLI.Commands;
 using DomainDetective.Helpers;
+using Spectre.Console;
 
 namespace DomainDetective.CLI.Tests;
 
@@ -111,6 +112,7 @@ public class TestCertificateInventoryExports {
                         ResolvedHost = "changed.example.com",
                         Port = 443,
                         Service = "HTTPS",
+                        ProbeVantage = "[branch]",
                         CertificateIssuerNormalized = "Issuer A",
                         CertificateRootIssuerNormalized = "Root A",
                         CertificateThumbprint = "AA:AA",
@@ -131,6 +133,7 @@ public class TestCertificateInventoryExports {
                         ResolvedHost = "changed.example.com",
                         Port = 443,
                         Service = "HTTPS",
+                        ProbeVantage = "[branch]",
                         CertificateIssuerNormalized = "Issuer B",
                         CertificateRootIssuerNormalized = "Root B",
                         CertificateThumbprint = "BB:BB",
@@ -163,13 +166,103 @@ public class TestCertificateInventoryExports {
             Assert.True(File.Exists(ndjsonPath));
 
             var csv = ReadGzipText(csvPath);
-            Assert.Contains("Host,Port,Status,ChangeReasons", csv);
+            Assert.Contains("Host,Port,ProbeVantage,Status,ChangeReasons", csv);
             Assert.Contains("Changed", csv);
             Assert.Contains("changed.example.com", csv);
 
             var ndjson = File.ReadAllText(ndjsonPath, Encoding.UTF8);
             Assert.Contains("\"Status\":\"Changed\"", ndjson);
             Assert.Contains("\"Host\":\"changed.example.com\"", ndjson);
+
+            IAnsiConsole originalConsole = AnsiConsole.Console;
+            using var output = new StringWriter();
+            var testConsole = AnsiConsole.Create(new AnsiConsoleSettings {
+                Ansi = AnsiSupport.No,
+                ColorSystem = ColorSystemSupport.NoColors,
+                Out = new AnsiConsoleOutput(output)
+            });
+            testConsole.Profile.Width = 500;
+            AnsiConsole.Console = testConsole;
+            try {
+                var tableResult = await command.ExecuteForTestingAsync(null!, new CertificateInventoryDiffSettings {
+                    CacheDirectory = cacheDirectory,
+                    MaxEndpoints = 100
+                });
+
+                string rendered = output.ToString();
+                Assert.Equal(0, tableResult);
+                Assert.Contains("Service", rendered, StringComparison.Ordinal);
+                Assert.Contains("HTTPS", rendered, StringComparison.Ordinal);
+                Assert.Contains("Vantage", rendered, StringComparison.Ordinal);
+                Assert.Contains("[branch]", rendered, StringComparison.Ordinal);
+            } finally {
+                AnsiConsole.Console = originalConsole;
+            }
+        } finally {
+            DeleteDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task DriftCommand_PreservesServiceAndVantageInTableAndCsv() {
+        var tempDirectory = CreateTempDirectory();
+        try {
+            var cacheDirectory = Path.Combine(tempDirectory, "cache");
+            var inventoryDirectory = Path.Combine(cacheDirectory, "inventory");
+            Directory.CreateDirectory(inventoryDirectory);
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventorySnapshot Snapshot(DateTimeOffset capturedAtUtc, string thumbprint) => new() {
+                CapturedAtUtc = capturedAtUtc,
+                Entries = new List<CertificateInventoryEntry> {
+                    new() {
+                        Host = "drift.example.com",
+                        ResolvedHost = "drift.example.com",
+                        Port = 443,
+                        Service = "HTTPS",
+                        ProbeVantage = "[branch]",
+                        CertificateThumbprint = thumbprint,
+                        CertificateIssuerNormalized = "Issuer",
+                        Valid = true,
+                        ChainComplete = true,
+                        HostnameMatch = true
+                    }
+                }
+            };
+            WriteSnapshot(inventoryDirectory, "snapshot-old.json", Snapshot(now.AddHours(-2), "AA:AA"));
+            WriteSnapshot(inventoryDirectory, "snapshot-new.json", Snapshot(now.AddHours(-1), "BB:BB"));
+
+            var csvPath = Path.Combine(tempDirectory, "out", "drift.csv");
+            IAnsiConsole originalConsole = AnsiConsole.Console;
+            using var output = new StringWriter();
+            var testConsole = AnsiConsole.Create(new AnsiConsoleSettings {
+                Ansi = AnsiSupport.No,
+                ColorSystem = ColorSystemSupport.NoColors,
+                Out = new AnsiConsoleOutput(output)
+            });
+            testConsole.Profile.Width = 500;
+            AnsiConsole.Console = testConsole;
+            try {
+                var result = await new CertificateInventoryDriftCommand().ExecuteForTestingAsync(
+                    null!,
+                    new CertificateInventoryDriftSettings {
+                        CacheDirectory = cacheDirectory,
+                        CsvPath = csvPath,
+                        MaxEndpoints = 100
+                    });
+
+                Assert.Equal(0, result);
+                string rendered = output.ToString();
+                Assert.Contains("Service", rendered, StringComparison.Ordinal);
+                Assert.Contains("HTTPS", rendered, StringComparison.Ordinal);
+                Assert.Contains("Vantage", rendered, StringComparison.Ordinal);
+                Assert.Contains("[branch]", rendered, StringComparison.Ordinal);
+            } finally {
+                AnsiConsole.Console = originalConsole;
+            }
+
+            string csv = File.ReadAllText(csvPath, Encoding.UTF8);
+            Assert.Contains("Host,Port,Service,ProbeVantage,ObservationCount", csv, StringComparison.Ordinal);
+            Assert.Contains("drift.example.com,443,HTTPS,[branch]", csv, StringComparison.Ordinal);
         } finally {
             DeleteDirectory(tempDirectory);
         }

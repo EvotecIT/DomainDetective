@@ -19,5 +19,14 @@ namespace DomainDetective.Tests {
             Assert.Equal("HTTPS-Alt", descriptor.Service);
             Assert.Equal("https://example.com:8443/app", descriptor.Url);
         }
+
+        [Fact]
+        public void ResolveClassifiesArbitraryHttpsPortByKnownTransport() {
+            var descriptor = CertificateServiceClassifier.Resolve("https://example.com:10443/app", 443);
+
+            Assert.Equal(10443, descriptor.Port);
+            Assert.Equal("https", descriptor.Scheme);
+            Assert.Equal("HTTPS-Alt", descriptor.Service);
+        }
     }
 }

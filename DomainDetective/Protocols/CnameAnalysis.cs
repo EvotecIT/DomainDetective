@@ -22,6 +22,8 @@ public class CnameAnalysis : IHasAssessments {
     public bool CnameRecordExists { get; private set; }
     /// <summary>Gets the final CNAME target if one was found.</summary>
     public string? Target { get; private set; }
+    /// <summary>Gets CNAME targets in traversal order.</summary>
+    public IReadOnlyList<string> Chain { get; private set; } = Array.Empty<string>();
     /// <summary>Gets a value indicating whether the target resolves.</summary>
     public bool TargetResolves { get; private set; }
     /// <summary>Gets a value indicating whether a loop was detected.</summary>
@@ -45,29 +47,27 @@ public class CnameAnalysis : IHasAssessments {
         TargetResolves = false;
         LoopDetected = false;
 
-        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var current = domainName;
-        while (true) {
-            ct.ThrowIfCancellationRequested();
-            DnsAnswer[] cname;
-            try {
-                cname = await QueryDns(current, DnsRecordType.CNAME);
-            } catch (Exception ex) {
-                logger?.WriteErrorCode(CnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", current, ex.Message);
-                return;
-            }
-            if (cname == null || cname.Length == 0) {
-                break;
-            }
-            CnameRecordExists = true;
-            var next = cname[0].Data.TrimEnd('.');
-            if (!visited.Add(next)) {
-                LoopDetected = true;
-                logger?.WriteErrorCode(CnameCodes.LoopDetected, "CNAME loop detected at {0}", next);
-                return;
-            }
-            Target = next;
-            current = next;
+        Chain = Array.Empty<string>();
+        var resolver = new EndpointDnsEvidenceResolver {
+            DnsConfiguration = DnsConfiguration,
+            ResolveAddressesForOriginalHost = false,
+            QueryDnsOverride = QueryDnsOverride == null
+                ? null
+                : (name, type, _) => QueryDnsOverride(name, type)
+        };
+        EndpointDnsEvidence evidence = await resolver.ResolveAsync(domainName, ct).ConfigureAwait(false);
+        Chain = evidence.CnameChain;
+        CnameRecordExists = evidence.CnameRecordExists;
+        Target = Chain.Count > 0 ? Chain[Chain.Count - 1] : null;
+        TargetResolves = Target != null && evidence.Addresses.Count > 0;
+        LoopDetected = evidence.LoopDetected;
+
+        if (LoopDetected) {
+            logger?.WriteErrorCode(CnameCodes.LoopDetected, "CNAME loop detected for {0}", domainName);
+            return;
+        }
+        foreach (string error in evidence.Errors) {
+            logger?.WriteErrorCode(CnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", domainName, error);
         }
 
         if (!CnameRecordExists) {
@@ -77,18 +77,9 @@ public class CnameAnalysis : IHasAssessments {
 
         logger?.WriteInformationCode(CnameCodes.NoLoop, "CNAME chain has no loop");
 
-        try {
-            var a = await QueryDns(Target!, DnsRecordType.A);
-            var aaaa = await QueryDns(Target!, DnsRecordType.AAAA);
-            TargetResolves = (a != null && a.Any()) || (aaaa != null && aaaa.Any());
-        } catch (Exception ex) {
-            logger?.WriteErrorCode(CnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", Target, ex.Message);
-            return;
-        }
-
         if (TargetResolves) {
             logger?.WriteInformationCode(CnameCodes.TargetResolves, "CNAME target {0} resolves", Target);
-        } else {
+        } else if (evidence.AddressResolutionComplete) {
             logger?.WriteWarningCode(CnameCodes.TargetDoesNotResolve, "CNAME target {0} does not resolve", Target);
         }
     }

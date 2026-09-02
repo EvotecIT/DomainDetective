@@ -61,6 +61,7 @@ public sealed partial class CertificateInventoryCapture {
     private static async Task<IReadOnlyList<CertificateMonitor.Entry>> ProbeHttpsAsync(
         IEnumerable<string> httpsTargets,
         CertificateInventoryCaptureOptions options,
+        ProbeStartRateLimiter rateLimiter,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         var list = httpsTargets.Where(target => !string.IsNullOrWhiteSpace(target)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -74,10 +75,6 @@ public sealed partial class CertificateInventoryCapture {
             MaxParallelism = Math.Max(1, options.MaxParallelism)
         };
         logger.WriteVerbose("Starting HTTPS probe for {0} endpoint(s).", list.Count);
-        if (options.MaxProbeStartsPerSecond > 0) {
-            logger.WriteVerbose("Probe start rate limit enabled: up to {0} start(s)/second.", options.MaxProbeStartsPerSecond);
-        }
-        var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
         monitor.AnalysisOverride = async (url, port, internalLogger, token) => {
             await rateLimiter.WaitAsync(token).ConfigureAwait(false);
             var analysis = new CertificateAnalysis();
@@ -177,10 +174,10 @@ public sealed partial class CertificateInventoryCapture {
         if (Uri.TryCreate(target, UriKind.Absolute, out Uri? uri)) {
             return string.IsNullOrWhiteSpace(uri.Host)
                 ? null
-                : uri.Host.Trim().TrimEnd('.');
+                : EndpointHostNormalizer.Normalize(uri.Host);
         }
 
-        return target!.Trim().TrimEnd('.');
+        return EndpointHostNormalizer.Normalize(target);
     }
 
     private static void AddCtTemplateIfMissing(ICollection<string> templates, string? template) {
@@ -231,6 +228,7 @@ public sealed partial class CertificateInventoryCapture {
     private static async Task<IReadOnlyList<CertificateInventoryEntry>> ProbeMailAsync(
         IReadOnlyList<MailEndpointTarget> mailTargets,
         CertificateInventoryCaptureOptions options,
+        ProbeStartRateLimiter rateLimiter,
         InternalLogger logger,
         CancellationToken cancellationToken) {
         if (mailTargets == null || mailTargets.Count == 0) {
@@ -242,7 +240,6 @@ public sealed partial class CertificateInventoryCapture {
         var totalTargets = mailTargets.Count;
         var completedTargets = 0;
         logger.WriteVerbose("Starting mail TLS probe for {0} endpoint(s).", totalTargets);
-        var rateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
         using var gate = new SemaphoreSlim(parallelism, parallelism);
         var tasks = new List<Task>(mailTargets.Count);
         foreach (var target in mailTargets) {
@@ -254,15 +251,16 @@ public sealed partial class CertificateInventoryCapture {
                     var analysis = new MailTlsAnalysis {
                         Timeout = options.MailTimeout
                     };
-                    await analysis.AnalyzeServer(target.Protocol, target.Host, target.Port, logger, cancellationToken).ConfigureAwait(false);
-                    var key = $"{target.Host}:{target.Port}";
-                    if (analysis.ServerResults.TryGetValue(key, out var tlsResult)) {
-                        results.Add(ToInventoryEntry(target, tlsResult));
+                    var endpoint = new MailTransportEndpoint(target.Host, target.Port);
+                    await analysis.AnalyzeServer(target.Protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
+                    DateTimeOffset observedAtUtc = DateTimeOffset.UtcNow;
+                    if (analysis.ServerResults.TryGetValue(endpoint.Key, out var tlsResult)) {
+                        results.Add(ToInventoryEntry(target, tlsResult, observedAtUtc));
                     } else {
-                        results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult()));
+                        results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult(), observedAtUtc));
                     }
                 } catch {
-                    results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult()));
+                    results.Add(ToInventoryEntry(target, new MailTlsAnalysis.TlsResult(), DateTimeOffset.UtcNow));
                 } finally {
                     var completed = Interlocked.Increment(ref completedTargets);
                     logger.WriteProgress(
@@ -280,12 +278,115 @@ public sealed partial class CertificateInventoryCapture {
         return results.ToList();
     }
 
+    private static async Task<IReadOnlyList<CertificateInventoryEntry>> ProbeFtpTlsAsync(
+        IReadOnlyList<FtpTlsEndpointTarget> targets,
+        CertificateInventoryCaptureOptions options,
+        ProbeStartRateLimiter rateLimiter,
+        InternalLogger logger,
+        CancellationToken cancellationToken) {
+        if (targets == null || targets.Count == 0) {
+            return Array.Empty<CertificateInventoryEntry>();
+        }
+
+        var results = new ConcurrentBag<CertificateInventoryEntry>();
+        int parallelism = Math.Max(1, options.MaxParallelism);
+        int workerCount = Math.Min(targets.Count, parallelism);
+        int nextTargetIndex = -1;
+        var workers = new Task[workerCount];
+        for (int workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+            workers[workerIndex] = ProbeTargetsAsync();
+        }
+        await Task.WhenAll(workers).ConfigureAwait(false);
+        return results
+            .OrderBy(entry => entry.Host, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.Port)
+            .ThenBy(entry => entry.Service, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        async Task ProbeTargetsAsync() {
+            while (true) {
+                cancellationToken.ThrowIfCancellationRequested();
+                int targetIndex = Interlocked.Increment(ref nextTargetIndex);
+                if (targetIndex >= targets.Count) {
+                    return;
+                }
+
+                FtpTlsEndpointTarget target = targets[targetIndex];
+                await rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false);
+                var analysis = new FtpTlsAnalysis { Timeout = options.FtpTlsTimeout };
+                using FtpTlsResult result = await analysis.AnalyzeAsync(
+                    new FtpTlsEndpoint(target.Host, target.Port, target.Mode),
+                    logger,
+                    cancellationToken).ConfigureAwait(false);
+                results.Add(ToInventoryEntry(target, result));
+            }
+        }
+    }
+
+    private static CertificateInventoryEntry ToInventoryEntry(FtpTlsEndpointTarget target, FtpTlsResult result) {
+        X509Certificate2? certificate = result.Certificate;
+        var mailResult = new MailTlsAnalysis.TlsResult {
+            Connection = new MailTransportConnectionEvidence {
+                HostName = target.Host,
+                Port = target.Port,
+                RemoteAddress = result.Connection.RemoteAddress,
+                RemoteAddressFamily = ParseMailAddressFamily(result.Connection.RemoteAddressFamily)
+            },
+            StartTlsAdvertised = result.TlsNegotiated,
+            CertificateValid = result.CertificateValid,
+            HostnameMatch = result.HostnameMatch,
+            Protocol = result.Protocol,
+            Certificate = certificate,
+            CertificateSubject = certificate?.Subject,
+            CertificateIssuer = certificate?.Issuer,
+            CertificateNotBefore = certificate?.NotBefore,
+            CertificateNotAfter = certificate?.NotAfter,
+            CertificateThumbprint = certificate?.Thumbprint,
+            CertificateSerialNumber = certificate?.SerialNumber,
+            DaysToExpire = certificate == null ? 0 : (int)(certificate.NotAfter - DateTime.Now).TotalDays,
+            DaysValid = certificate == null ? 0 : (int)(certificate.NotAfter - certificate.NotBefore).TotalDays,
+            IsExpired = certificate != null && certificate.NotAfter < DateTime.Now,
+            FailureReason = result.FailureReason,
+            FailureKind = result.FailureKind
+        };
+        mailResult.CertificateDnsNames.AddRange(result.CertificateDnsNames);
+        foreach (X509Certificate2 chainElement in result.Chain) {
+            mailResult.Chain.Add(chainElement);
+        }
+        foreach (X509ChainStatusFlags chainError in result.ChainErrors) {
+            mailResult.ChainErrors.Add(chainError);
+        }
+        var mailTarget = new MailEndpointTarget {
+            Host = target.Host,
+            Port = target.Port,
+            Protocol = MailTlsAnalysis.MailProtocol.Smtp,
+            Service = target.Service,
+            Scheme = target.Scheme,
+            ChainSource = target.Mode == FtpTlsMode.Explicit ? "ftps-auth-tls" : "ftps-implicit",
+            TargetOrigins = target.TargetOrigins
+        };
+        return ToInventoryEntry(mailTarget, mailResult, result.ObservedAtUtc);
+    }
+
+    private static MailTransportAddressFamily? ParseMailAddressFamily(string? value) {
+        if (string.Equals(value, "IPv4", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, System.Net.Sockets.AddressFamily.InterNetwork.ToString(), StringComparison.OrdinalIgnoreCase)) {
+            return MailTransportAddressFamily.IPv4;
+        }
+        if (string.Equals(value, "IPv6", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, System.Net.Sockets.AddressFamily.InterNetworkV6.ToString(), StringComparison.OrdinalIgnoreCase)) {
+            return MailTransportAddressFamily.IPv6;
+        }
+        return null;
+    }
+
     private static List<CertificateInventoryEntry> DeduplicateEntries(List<CertificateInventoryEntry> entries) {
         var byEndpoint = new Dictionary<string, CertificateInventoryEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries) {
             if (entry == null) {
                 continue;
             }
+            CertificateInventoryEntryHelpers.NormalizeRemoteAddressEvidence(entry);
             var host = !string.IsNullOrWhiteSpace(entry.ResolvedHost) ? entry.ResolvedHost! : entry.Host;
             var key = $"{host}|{entry.Port}|{entry.Service}";
             if (!byEndpoint.TryGetValue(key, out var existing)) {
@@ -322,7 +423,10 @@ public sealed partial class CertificateInventoryCapture {
         return score;
     }
 
-    private static CertificateInventoryEntry ToInventoryEntry(MailEndpointTarget target, MailTlsAnalysis.TlsResult result) {
+    private static CertificateInventoryEntry ToInventoryEntry(
+        MailEndpointTarget target,
+        MailTlsAnalysis.TlsResult result,
+        DateTimeOffset observedAtUtc) {
         var certificate = result.Certificate;
         var chain = result.Chain != null && result.Chain.Count > 0
             ? result.Chain
@@ -362,10 +466,13 @@ public sealed partial class CertificateInventoryCapture {
         var entry = new CertificateInventoryEntry {
             Host = target.Host,
             ResolvedHost = target.Host,
-            Url = $"{target.Scheme}://{target.Host}:{target.Port}",
+            Url = $"{target.Scheme}://{EndpointHostNormalizer.FormatForUriAuthority(target.Host)}:{target.Port}",
             Scheme = target.Scheme,
             Port = target.Port,
             Service = target.Service,
+            ObservedAtUtc = observedAtUtc == default ? DateTimeOffset.UtcNow : observedAtUtc,
+            RemoteAddress = result.Connection.RemoteAddress,
+            RemoteAddressFamily = result.Connection.RemoteAddressFamily?.ToString(),
             CertificateSubject = certificate?.Subject ?? result.CertificateSubject,
             CertificateIssuer = certificate?.Issuer ?? result.CertificateIssuer,
             CertificateThumbprint = certificate?.Thumbprint ?? result.CertificateThumbprint,

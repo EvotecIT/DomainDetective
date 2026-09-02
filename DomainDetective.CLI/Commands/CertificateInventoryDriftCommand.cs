@@ -73,6 +73,13 @@ internal sealed class CertificateInventoryDriftSettings : CommandSettings {
 /// Displays endpoint-level certificate drift from persisted inventory snapshots.
 /// </summary>
 internal sealed class CertificateInventoryDriftCommand : AsyncCommand<CertificateInventoryDriftSettings> {
+    /// <summary>Runs the command implementation from tests without going through the Spectre command app.</summary>
+    [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+    [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+    internal Task<int> ExecuteForTestingAsync(CommandContext context, CertificateInventoryDriftSettings settings, CancellationToken cancellationToken = default) {
+        return ExecuteAsync(context, settings, cancellationToken);
+    }
+
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     protected override Task<int> ExecuteAsync(CommandContext context, CertificateInventoryDriftSettings settings, CancellationToken cancellationToken) {
@@ -199,6 +206,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         rows.Title = new TableTitle("Certificate Drift");
         rows.AddColumn("Host");
         rows.AddColumn("Port");
+        rows.AddColumn("Service");
+        rows.AddColumn("Vantage");
         rows.AddColumn("Obs");
         rows.AddColumn("Distinct Certs");
         rows.AddColumn("Severity");
@@ -214,18 +223,20 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             var lastChange = endpoint.LastChangedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-";
             var expiry = endpoint.CurrentNotAfterUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
             rows.AddRow(
-                endpoint.Host,
+                Markup.Escape(endpoint.Host),
                 endpoint.Port.ToString(),
+                Markup.Escape(endpoint.Service),
+                Markup.Escape(endpoint.ProbeVantage),
                 endpoint.ObservationCount.ToString(),
                 endpoint.DistinctCertificateCount.ToString(),
-                endpoint.DriftSeverity,
-                BuildChangeKinds(endpoint),
-                changed,
+                Markup.Escape(endpoint.DriftSeverity),
+                Markup.Escape(BuildChangeKinds(endpoint)),
+                Markup.Escape(changed),
                 lastChange,
-                string.IsNullOrWhiteSpace(endpoint.CurrentIssuer) ? "-" : endpoint.CurrentIssuer!,
+                Markup.Escape(string.IsNullOrWhiteSpace(endpoint.CurrentIssuer) ? "-" : endpoint.CurrentIssuer!),
                 expiry,
-                string.IsNullOrWhiteSpace(endpoint.CurrentAuthenticationProfile) ? "-" : endpoint.CurrentAuthenticationProfile!,
-                NormalizeChainSource(endpoint.CurrentChainSource));
+                Markup.Escape(string.IsNullOrWhiteSpace(endpoint.CurrentAuthenticationProfile) ? "-" : endpoint.CurrentAuthenticationProfile!),
+                Markup.Escape(NormalizeChainSource(endpoint.CurrentChainSource)));
         }
         AnsiConsole.Write(rows);
         AnsiConsole.MarkupLine("[grey]Flags: C=Certificate, I=Issuer, E=Expiry, S=Service, A=AuthProfile, H=ChainSource[/]");
@@ -285,13 +296,15 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine("Host,Port,Service,ObservationCount,DistinctCertificateCount,DriftSeverity,FirstSeenUtc,LastSeenUtc,LastChangedAtUtc,PreviousCertificateId,CurrentCertificateId,PreviousIssuer,CurrentIssuer,PreviousNotAfterUtc,CurrentNotAfterUtc,PreviousAuthenticationProfile,CurrentAuthenticationProfile,PreviousChainSource,CurrentChainSource,CertificateChanged,IssuerChanged,ExpiryChanged,ServiceChanged,AuthenticationProfileChanged,ChainSourceChanged,ChangeKinds");
+        sb.AppendLine("Host,Port,Service,ProbeVantage,ObservationCount,DistinctCertificateCount,DriftSeverity,FirstSeenUtc,LastSeenUtc,LastChangedAtUtc,PreviousCertificateId,CurrentCertificateId,PreviousIssuer,CurrentIssuer,PreviousNotAfterUtc,CurrentNotAfterUtc,PreviousAuthenticationProfile,CurrentAuthenticationProfile,PreviousChainSource,CurrentChainSource,CertificateChanged,IssuerChanged,ExpiryChanged,ServiceChanged,AuthenticationProfileChanged,ChainSourceChanged,ChangeKinds");
         foreach (var endpoint in drift.Endpoints) {
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Host));
             sb.Append(',');
             sb.Append(endpoint.Port);
             sb.Append(',');
             sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.Service));
+            sb.Append(',');
+            sb.Append(CertificateInventoryCommandHelpers.EscapeCsv(endpoint.ProbeVantage));
             sb.Append(',');
             sb.Append(endpoint.ObservationCount);
             sb.Append(',');

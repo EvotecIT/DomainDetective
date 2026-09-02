@@ -10,6 +10,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Helpers;
+using DomainDetective.Providers.Endpoint;
 
 namespace DomainDetective;
 
@@ -22,6 +23,27 @@ public sealed class CertificateInventoryCaptureOptions {
 
     /// <summary>DNS endpoint used for MX discovery.</summary>
     public DnsEndpoint DnsEndpoint { get; set; } = DnsEndpoint.System;
+
+    /// <summary>When true, resolves endpoint DNS evidence and evaluates explainable provider/service attribution.</summary>
+    public bool EnableEndpointAttribution { get; set; }
+
+    /// <summary>Caller-defined probe location label persisted with live observations.</summary>
+    public string ProbeVantage { get; set; } = "default";
+
+    /// <summary>Maximum concurrent DNS evidence lookups used by endpoint attribution.</summary>
+    public int DnsEnrichmentParallelism { get; set; } = 8;
+
+    /// <summary>Optional path to a current Azure service-tag JSON download.</summary>
+    public string? AzureServiceTagsJsonPath { get; set; }
+
+    /// <summary>
+    /// Custom endpoint attribution rules that add to or replace built-in rules by RuleId.
+    /// Certificate inventory capture supplies hostname, CNAME, address, certificate, redirect,
+    /// service-tag, service, and port evidence. Rules that require reverse-DNS or autonomous-system
+    /// observations must be evaluated through <see cref="EndpointAttributionDetector"/> with those
+    /// signals supplied explicitly.
+    /// </summary>
+    public List<EndpointAttributionRule> EndpointAttributionRules { get; } = new();
 
     /// <summary>When true, probes apex domains over HTTPS.</summary>
     public bool IncludeApexHttps { get; set; } = true;
@@ -299,6 +321,9 @@ public sealed class CertificateInventoryCaptureOptions {
     /// <summary>Timeout applied to mail TLS probes.</summary>
     public TimeSpan MailTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
+    /// <summary>Timeout applied to explicit and implicit FTP TLS probes.</summary>
+    public TimeSpan FtpTlsTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
     /// <summary>Timeout applied to HTTPS certificate probes.</summary>
     public TimeSpan HttpsTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
@@ -311,7 +336,7 @@ public sealed class CertificateInventoryCaptureOptions {
     /// </summary>
     public bool PreferTlsHandshakeOnlyProbe { get; set; }
 
-    /// <summary>Maximum total probe targets (HTTPS + mail) kept after discovery; 0 means unlimited.</summary>
+    /// <summary>Maximum total probe targets (HTTPS + mail + FTP TLS) kept after discovery; 0 means unlimited.</summary>
     public int MaxTargets { get; set; }
 
     /// <summary>Maximum number of probe starts per second; 0 means unlimited.</summary>
@@ -433,6 +458,7 @@ public sealed class CertificateInventoryCaptureOptions {
     /// Supported forms:
     /// - https://host[:port], http://host[:port]
     /// - smtp://host[:port], submission://host[:port], imap://host[:port], pop3://host[:port], imaps://host[:port], pop3s://host[:port]
+    /// - ftps://host[:port] (implicit TLS by default), ftps-explicit://host[:port], ftpes://host[:port], ftp+tls://host[:port]
     /// - host or host:port (treated as HTTPS).
     /// </summary>
     public List<string> AdditionalEndpoints { get; } = new();
@@ -460,6 +486,9 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>Mail endpoint probe count.</summary>
     public int MailEndpointCount { get; set; }
 
+    /// <summary>FTP TLS endpoint probe count.</summary>
+    public int FtpTlsEndpointCount { get; set; }
+
     /// <summary>Total snapshot entry count.</summary>
     public int EntryCount { get; set; }
 
@@ -472,6 +501,9 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>Mail endpoints reused from recent snapshots.</summary>
     public int ReusedRecentMailCount { get; set; }
 
+    /// <summary>FTP TLS endpoints reused from recent snapshots.</summary>
+    public int ReusedRecentFtpTlsCount { get; set; }
+
     /// <summary>Total endpoints reused specifically because of stable recent failures.</summary>
     public int ReusedRecentFailureEntryCount { get; set; }
 
@@ -481,11 +513,17 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>Mail endpoints reused specifically because of stable recent failures.</summary>
     public int ReusedRecentFailureMailCount { get; set; }
 
+    /// <summary>FTP TLS endpoints reused specifically because of stable recent failures.</summary>
+    public int ReusedRecentFailureFtpTlsCount { get; set; }
+
     /// <summary>HTTPS endpoints that required live probing in this run.</summary>
     public int ProbedHttpsCount { get; set; }
 
     /// <summary>Mail endpoints that required live probing in this run.</summary>
     public int ProbedMailCount { get; set; }
+
+    /// <summary>FTP TLS endpoints that required live probing in this run.</summary>
+    public int ProbedFtpTlsCount { get; set; }
 
     /// <summary>CT-discovered subdomain count included for HTTPS probing.</summary>
     public int CtDiscoveredSubdomainCount { get; set; }
@@ -526,11 +564,17 @@ public sealed class CertificateInventoryCaptureResult {
     /// <summary>Mail target count before applying MaxTargets capping.</summary>
     public int MailTargetCountBeforeLimit { get; set; }
 
+    /// <summary>FTP TLS target count before applying MaxTargets capping.</summary>
+    public int FtpTlsTargetCountBeforeLimit { get; set; }
+
     /// <summary>HTTPS targets dropped by MaxTargets capping.</summary>
     public int HttpsTargetCountDroppedByLimit { get; set; }
 
     /// <summary>Mail targets dropped by MaxTargets capping.</summary>
     public int MailTargetCountDroppedByLimit { get; set; }
+
+    /// <summary>FTP TLS targets dropped by MaxTargets capping.</summary>
+    public int FtpTlsTargetCountDroppedByLimit { get; set; }
 
     /// <summary>Counts of final entries by target-origin tag. Entries with multiple origins contribute to each matching tag.</summary>
     public IReadOnlyDictionary<string, int> TargetOriginCounts { get; set; } =
@@ -540,7 +584,7 @@ public sealed class CertificateInventoryCaptureResult {
     public IReadOnlyDictionary<string, int> CaptureDispositionCounts { get; set; } =
         new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Unique endpoint count (host+port).</summary>
+    /// <summary>Unique endpoint count (logical host+port+service).</summary>
     public int UniqueEndpointCount { get; set; }
 
     /// <summary>Entries with valid certificates.</summary>
@@ -577,6 +621,9 @@ public sealed class CertificateInventoryCaptureResult {
 
     /// <summary>Mail endpoints probed in this run.</summary>
     public IReadOnlyList<string> MailEndpoints { get; set; } = Array.Empty<string>();
+
+    /// <summary>FTP TLS endpoints probed in this run.</summary>
+    public IReadOnlyList<string> FtpTlsEndpoints { get; set; } = Array.Empty<string>();
 
     /// <summary>Non-fatal warnings captured during discovery/probing.</summary>
     public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
@@ -632,6 +679,16 @@ public sealed partial class CertificateInventoryCapture {
         public List<string> TargetOrigins { get; set; } = new();
     }
 
+    private sealed class FtpTlsEndpointTarget {
+        public string Host { get; set; } = string.Empty;
+        public int Port { get; set; }
+        public FtpTlsMode Mode { get; set; }
+        public string Scheme { get; set; } = string.Empty;
+        public string Service { get; set; } = string.Empty;
+        public List<string> TargetOrigins { get; set; } = new();
+        public string Key => CertificateEndpointIdentity.Create(Host, Port, Service).Key;
+    }
+
     private sealed class ProbeStartRateLimiter {
         private readonly int _intervalMilliseconds;
         private readonly object _sync = new();
@@ -670,6 +727,7 @@ public sealed partial class CertificateInventoryCapture {
 
     internal Func<string, DnsConfiguration, int, CancellationToken, Task<IReadOnlyList<string>>>? MxLookupOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<CertificateMonitor.Entry>>>? HttpsProbeOverride { get; set; }
+    internal Func<string, DnsRecordType, CancellationToken, Task<DnsAnswer[]>>? EndpointDnsQueryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtSubdomainEntryDiscoveryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<string>>>? CtSubdomainDiscoveryOverride { get; set; }
     internal Func<IReadOnlyList<string>, CertificateInventoryCaptureOptions, InternalLogger?, CancellationToken, Task<IReadOnlyList<SubdomainDiscoveryEntry>>>? CtPassiveMetadataBackfillOverride { get; set; }
@@ -718,12 +776,19 @@ public sealed partial class CertificateInventoryCapture {
         if (options.MailTimeout <= TimeSpan.Zero || options.MailTimeout > TimeSpan.FromMinutes(10)) {
             throw new ArgumentOutOfRangeException(nameof(options.MailTimeout), "MailTimeout must be greater than zero and at most 10 minutes.");
         }
+        if (options.FtpTlsTimeout <= TimeSpan.Zero || options.FtpTlsTimeout > TimeSpan.FromMinutes(10)) {
+            throw new ArgumentOutOfRangeException(nameof(options.FtpTlsTimeout), "FtpTlsTimeout must be greater than zero and at most 10 minutes.");
+        }
         if (options.MaxTargets < 0) {
             throw new ArgumentOutOfRangeException(nameof(options.MaxTargets), "MaxTargets must be 0 or greater.");
         }
         if (options.MaxProbeStartsPerSecond < 0) {
             throw new ArgumentOutOfRangeException(nameof(options.MaxProbeStartsPerSecond), "MaxProbeStartsPerSecond must be 0 or greater.");
         }
+        if (options.DnsEnrichmentParallelism < 1 || options.DnsEnrichmentParallelism > 512) {
+            throw new ArgumentOutOfRangeException(nameof(options.DnsEnrichmentParallelism), "DnsEnrichmentParallelism must be between 1 and 512.");
+        }
+        ValidateEndpointAttributionCaptureOptions(options);
         if (options.RecentSnapshotTtl < TimeSpan.Zero) {
             throw new ArgumentOutOfRangeException(nameof(options.RecentSnapshotTtl), "RecentSnapshotTtl must be non-negative.");
         }
@@ -821,7 +886,7 @@ public sealed partial class CertificateInventoryCapture {
         var targetDecisionDiagnostics = new List<TargetDecisionDiagnosticEntry>();
         var ctDiscoveredSubdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var ctDiscoveredSubdomainEntries = new Dictionary<string, SubdomainDiscoveryEntry>(StringComparer.OrdinalIgnoreCase);
-        const int totalStages = 9;
+        const int totalStages = 10;
         var stage = 0;
         void AdvanceStage(string currentOperation) {
             stage++;
@@ -864,6 +929,7 @@ public sealed partial class CertificateInventoryCapture {
         var httpsTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var httpsTargetOriginsByEndpointKey = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var mailTargets = new Dictionary<string, MailEndpointTarget>(StringComparer.OrdinalIgnoreCase);
+        var ftpTlsTargets = new Dictionary<string, FtpTlsEndpointTarget>(StringComparer.OrdinalIgnoreCase);
         var ctPromotedHttpsCount = 0;
         var ctSkippedHttpsPromotionCount = 0;
         var ctSkippedUnresolvedHttpsPromotionCount = 0;
@@ -1074,7 +1140,7 @@ public sealed partial class CertificateInventoryCapture {
             mxPromotedMailCount += mailTargets.Count - mailCountBefore;
         }
 
-        ApplyAdditionalEndpoints(options, httpsTargets, httpsTargetOriginsByEndpointKey, mailTargets, warnings, targetDecisionDiagnostics);
+        ApplyAdditionalEndpoints(options, httpsTargets, httpsTargetOriginsByEndpointKey, mailTargets, ftpTlsTargets, warnings, targetDecisionDiagnostics);
         IReadOnlyDictionary<string, RecentInventoryEndpointEntry> recentByEndpoint =
             new Dictionary<string, RecentInventoryEndpointEntry>(StringComparer.OrdinalIgnoreCase);
         if (ShouldLoadRecentSnapshotEntries(options)) {
@@ -1084,6 +1150,9 @@ public sealed partial class CertificateInventoryCapture {
             } else {
                 recentByEndpoint = LoadRecentSnapshotEntries(options, now);
             }
+            recentByEndpoint = recentByEndpoint
+                .Where(pair => ProbeVantageMatches(pair.Value.Entry, options.ProbeVantage))
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
         }
 
         var cachedEntries = new List<CertificateInventoryEntry>();
@@ -1092,8 +1161,10 @@ public sealed partial class CertificateInventoryCapture {
         var mailTargetsToProbe = mailTargets.Values.ToList();
         var reusedHttps = 0;
         var reusedMail = 0;
+        var reusedFtpTls = 0;
         var reusedStableFailureHttps = 0;
         var reusedStableFailureMail = 0;
+        var reusedStableFailureFtpTls = 0;
         if (ShouldLoadRecentSnapshotEntries(options)) {
             var now = DateTimeOffset.UtcNow;
 
@@ -1166,13 +1237,35 @@ public sealed partial class CertificateInventoryCapture {
                 }
                 mailTargetsToProbe = filteredMail;
 
+                // Stable failures are complete cached observations, not candidates for the live
+                // FTP/TLS budget. Remove them before target allocation so they cannot displace an
+                // uncached or stale endpoint that still requires a probe. Reusable successes stay
+                // in the candidate set and are ranked with the other FTP/TLS targets below.
+                foreach (FtpTlsEndpointTarget target in ftpTlsTargets.Values.ToList()) {
+                    if (recentByEndpoint.TryGetValue(target.Key, out var cached) &&
+                        TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure) &&
+                        reusedStableFailure) {
+                        ApplyEntryProvenance(
+                            cached.Entry,
+                            target.TargetOrigins,
+                            CaptureDispositionReusedRecentStableFailure,
+                            replaceTargetOrigins: true);
+                        cachedEntries.Add(cached.Entry);
+                        reusedFtpTls++;
+                        reusedStableFailureFtpTls++;
+                        ftpTlsTargets.Remove(target.Key);
+                    }
+                }
+
                 logger.WriteVerbose(
-                    "Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}, StableFailureHTTPS: {3}, StableFailureMail: {4}).",
-                    reusedHttps + reusedMail,
+                    "Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}, FTPTLS: {3}, StableFailureHTTPS: {4}, StableFailureMail: {5}, StableFailureFTPTLS: {6}).",
+                    reusedHttps + reusedMail + reusedFtpTls,
                     reusedHttps,
                     reusedMail,
+                    reusedFtpTls,
                     reusedStableFailureHttps,
-                    reusedStableFailureMail);
+                    reusedStableFailureMail,
+                    reusedStableFailureFtpTls);
             }
         }
 
@@ -1189,8 +1282,28 @@ public sealed partial class CertificateInventoryCapture {
 
         var httpsTargetCountBeforeLimit = httpsTargets.Count;
         var mailTargetCountBeforeLimit = mailTargets.Count;
+        var ftpTlsTargetCountBeforeLimit = ftpTlsTargets.Count;
+        int nonFtpTargetBudget = -1;
+        if (options.MaxTargets > 0) {
+            int nonFtpCandidateCount = httpsTargets.Count +
+                                       mailTargets.Count +
+                                       reusedSuccessCandidates.Count;
+            int allowedFtpTls = ResolveFtpTlsTargetBudget(
+                ftpTlsTargets.Count,
+                nonFtpCandidateCount,
+                options.MaxTargets);
+            ApplyFtpTlsTargetLimit(
+                options,
+                ftpTlsTargets,
+                allowedFtpTls,
+                warnings,
+                recentByEndpoint,
+                targetDecisionDiagnostics);
+            nonFtpTargetBudget = Math.Max(0, options.MaxTargets - ftpTlsTargets.Count);
+        }
         ApplyTargetLimitIncludingReusedSuccesses(
             options,
+            nonFtpTargetBudget,
             httpsTargets,
             httpsTargetOriginsByEndpointKey,
             mailTargets,
@@ -1204,8 +1317,10 @@ public sealed partial class CertificateInventoryCapture {
             ref reusedMail);
         var httpsTargetCountDroppedByLimit = Math.Max(0, httpsTargetCountBeforeLimit - httpsTargets.Count);
         var mailTargetCountDroppedByLimit = Math.Max(0, mailTargetCountBeforeLimit - mailTargets.Count);
+        var ftpTlsTargetCountDroppedByLimit = Math.Max(0, ftpTlsTargetCountBeforeLimit - ftpTlsTargets.Count);
         httpsTargetsToProbe = httpsTargets.ToList();
         mailTargetsToProbe = mailTargets.Values.ToList();
+        var ftpTlsTargetsToProbe = ftpTlsTargets.Values.ToList();
 
         if (ShouldLoadRecentSnapshotEntries(options) && recentByEndpoint.Count > 0) {
             var now = DateTimeOffset.UtcNow;
@@ -1248,33 +1363,65 @@ public sealed partial class CertificateInventoryCapture {
             }
             mailTargetsToProbe = filteredMail;
 
+            var filteredFtpTls = new List<FtpTlsEndpointTarget>(ftpTlsTargetsToProbe.Count);
+            foreach (FtpTlsEndpointTarget target in ftpTlsTargetsToProbe) {
+                if (recentByEndpoint.TryGetValue(target.Key, out var cached) &&
+                    TryReuseCachedEntry(cached, now, options, out bool reusedStableFailure)) {
+                    ApplyEntryProvenance(
+                        cached.Entry,
+                        target.TargetOrigins,
+                        reusedStableFailure ? CaptureDispositionReusedRecentStableFailure : CaptureDispositionReusedRecentSuccess,
+                        replaceTargetOrigins: true);
+                    cachedEntries.Add(cached.Entry);
+                    reusedFtpTls++;
+                    if (reusedStableFailure) {
+                        reusedStableFailureFtpTls++;
+                    }
+                } else {
+                    filteredFtpTls.Add(target);
+                }
+            }
+            ftpTlsTargetsToProbe = filteredFtpTls;
+
             logger.WriteVerbose(
-                "Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}, StableFailureHTTPS: {3}, StableFailureMail: {4}).",
-                reusedHttps + reusedMail,
+                "Reused {0} cached endpoint result(s) from recent snapshots (HTTPS: {1}, Mail: {2}, FTPTLS: {3}, StableFailureHTTPS: {4}, StableFailureMail: {5}, StableFailureFTPTLS: {6}).",
+                reusedHttps + reusedMail + reusedFtpTls,
                 reusedHttps,
                 reusedMail,
+                reusedFtpTls,
                 reusedStableFailureHttps,
-                reusedStableFailureMail);
+                reusedStableFailureMail,
+                reusedStableFailureFtpTls);
         }
 
         AdvanceStage("Endpoint expansion");
-        logger.WriteVerbose("Prepared {0} HTTPS target(s) and {1} mail target(s).", httpsTargets.Count, mailTargets.Count);
+        logger.WriteVerbose("Prepared {0} HTTPS target(s), {1} mail target(s), and {2} FTP TLS target(s).", httpsTargets.Count, mailTargets.Count, ftpTlsTargets.Count);
         AdvanceStage("Recent snapshot cache");
 
+        var probeStartRateLimiter = new ProbeStartRateLimiter(options.MaxProbeStartsPerSecond);
+        if (options.MaxProbeStartsPerSecond > 0) {
+            logger.WriteVerbose(
+                "Global probe start rate limit enabled: up to {0} start(s)/second across HTTPS, mail TLS, and FTP TLS.",
+                options.MaxProbeStartsPerSecond);
+        }
         IReadOnlyList<CertificateMonitor.Entry> httpsEntries;
         if (HttpsProbeOverride != null) {
             httpsEntries = await HttpsProbeOverride(httpsTargetsToProbe.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(), options, logger, cancellationToken).ConfigureAwait(false);
         } else {
-            httpsEntries = await ProbeHttpsAsync(httpsTargetsToProbe, options, logger, cancellationToken).ConfigureAwait(false);
+            httpsEntries = await ProbeHttpsAsync(httpsTargetsToProbe, options, probeStartRateLimiter, logger, cancellationToken).ConfigureAwait(false);
         }
         AdvanceStage("HTTPS probing");
         logger.WriteVerbose("HTTPS probing produced {0} observation(s).", httpsEntries.Count);
 
-        var mailEntries = await ProbeMailAsync(mailTargetsToProbe, options, logger, cancellationToken).ConfigureAwait(false);
+        var mailEntries = await ProbeMailAsync(mailTargetsToProbe, options, probeStartRateLimiter, logger, cancellationToken).ConfigureAwait(false);
         AdvanceStage("Mail TLS probing");
         logger.WriteVerbose("Mail TLS probing produced {0} observation(s).", mailEntries.Count);
 
-        var allEntries = new List<CertificateInventoryEntry>(cachedEntries.Count + httpsEntries.Count + mailEntries.Count);
+        var ftpTlsEntries = await ProbeFtpTlsAsync(ftpTlsTargetsToProbe, options, probeStartRateLimiter, logger, cancellationToken).ConfigureAwait(false);
+        AdvanceStage("FTP TLS probing");
+        logger.WriteVerbose("FTP TLS probing produced {0} observation(s).", ftpTlsEntries.Count);
+
+        var allEntries = new List<CertificateInventoryEntry>(cachedEntries.Count + httpsEntries.Count + mailEntries.Count + ftpTlsEntries.Count);
         allEntries.AddRange(cachedEntries);
         foreach (var httpsEntry in httpsEntries) {
             var inventoryEntry = CertificateMonitor.ToInventoryEntry(httpsEntry);
@@ -1285,10 +1432,13 @@ public sealed partial class CertificateInventoryCapture {
             allEntries.Add(inventoryEntry);
         }
         allEntries.AddRange(mailEntries);
+        allEntries.AddRange(ftpTlsEntries);
 
         var deduped = DeduplicateEntries(allEntries);
-        var capturedAtUtc = DateTimeOffset.UtcNow;
-        EnrichEntriesWithCtSubdomainMetadata(deduped, ctDiscoveredSubdomainEntries, capturedAtUtc);
+        var observationFallbackAtUtc = DateTimeOffset.UtcNow;
+        EnrichEntriesWithCtSubdomainMetadata(deduped, ctDiscoveredSubdomainEntries, observationFallbackAtUtc);
+        await EnrichEndpointObservationsAsync(deduped, options, observationFallbackAtUtc, warnings, cancellationToken).ConfigureAwait(false);
+        var capturedAtUtc = CertificateInventoryEntryHelpers.ResolveCapturedAtUtc(deduped, DateTimeOffset.UtcNow);
         var distinctPorts = deduped
             .Select(e => e.Port)
             .Where(port => port > 0)
@@ -1322,13 +1472,12 @@ public sealed partial class CertificateInventoryCapture {
         }
         AdvanceStage("Snapshot persistence");
 
-        var uniqueEndpoints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var uniqueEndpoints = new HashSet<CertificateEndpointIdentity>();
         var validCount = 0;
         var expiredCount = 0;
         var failedCount = 0;
         foreach (var entry in deduped) {
-            var host = !string.IsNullOrWhiteSpace(entry.ResolvedHost) ? entry.ResolvedHost! : entry.Host;
-            uniqueEndpoints.Add($"{host}:{entry.Port}");
+            uniqueEndpoints.Add(CertificateEndpointIdentity.FromEntry(entry));
             if (entry.Valid) {
                 validCount++;
             }
@@ -1349,15 +1498,19 @@ public sealed partial class CertificateInventoryCapture {
             MxHostCount = mxHosts.Count,
             HttpsEndpointCount = httpsTargets.Count,
             MailEndpointCount = mailTargets.Count,
+            FtpTlsEndpointCount = ftpTlsTargetsToProbe.Count,
             EntryCount = deduped.Count,
-            ReusedRecentEntryCount = reusedHttps + reusedMail,
+            ReusedRecentEntryCount = reusedHttps + reusedMail + reusedFtpTls,
             ReusedRecentHttpsCount = reusedHttps,
             ReusedRecentMailCount = reusedMail,
-            ReusedRecentFailureEntryCount = reusedStableFailureHttps + reusedStableFailureMail,
+            ReusedRecentFtpTlsCount = reusedFtpTls,
+            ReusedRecentFailureEntryCount = reusedStableFailureHttps + reusedStableFailureMail + reusedStableFailureFtpTls,
             ReusedRecentFailureHttpsCount = reusedStableFailureHttps,
             ReusedRecentFailureMailCount = reusedStableFailureMail,
+            ReusedRecentFailureFtpTlsCount = reusedStableFailureFtpTls,
             ProbedHttpsCount = httpsTargetsToProbe.Count,
             ProbedMailCount = mailTargetsToProbe.Count,
+            ProbedFtpTlsCount = ftpTlsTargetsToProbe.Count,
             CtDiscoveredSubdomainCount = ctDiscoveredSubdomains.Count,
             CtPromotedHttpsCount = ctPromotedHttpsCount,
             CtSkippedHttpsPromotionCount = ctSkippedHttpsPromotionCount,
@@ -1371,8 +1524,10 @@ public sealed partial class CertificateInventoryCapture {
             MxSkippedDuplicateHttpsPromotionCount = mxSkippedDuplicateHttpsPromotionCount,
             HttpsTargetCountBeforeLimit = httpsTargetCountBeforeLimit,
             MailTargetCountBeforeLimit = mailTargetCountBeforeLimit,
+            FtpTlsTargetCountBeforeLimit = ftpTlsTargetCountBeforeLimit,
             HttpsTargetCountDroppedByLimit = httpsTargetCountDroppedByLimit,
             MailTargetCountDroppedByLimit = mailTargetCountDroppedByLimit,
+            FtpTlsTargetCountDroppedByLimit = ftpTlsTargetCountDroppedByLimit,
             TargetOriginCounts = BuildTargetOriginCounts(deduped),
             CaptureDispositionCounts = BuildCaptureDispositionCounts(deduped),
             UniqueEndpointCount = uniqueEndpoints.Count,
@@ -1392,6 +1547,12 @@ public sealed partial class CertificateInventoryCapture {
                 .OrderBy(x => x.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.Port)
                 .Select(BuildMailTargetLabel)
+                .ToList(),
+            FtpTlsEndpoints = ftpTlsTargetsToProbe
+                .OrderBy(x => x.Host, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Port)
+                .ThenBy(x => x.Service, StringComparer.OrdinalIgnoreCase)
+                .Select(x => $"{x.Scheme}://{EndpointHostNormalizer.FormatForUriAuthority(x.Host)}:{x.Port}")
                 .ToList(),
             Warnings = warnings,
             NativeCtLogDiagnostics = nativeCtLogDiagnostics,
@@ -1530,7 +1691,9 @@ public sealed partial class CertificateInventoryCapture {
             }
         }
 
-        var candidate = host;
+        var candidate = EndpointHostNormalizer.TryNormalize(host, out string normalizedHost)
+            ? EndpointHostNormalizer.FormatForUriAuthority(normalizedHost)
+            : host;
         if (!candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
             candidate = $"https://{candidate}";
         }
@@ -1650,6 +1813,7 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private static void AddMailTarget(Dictionary<string, MailEndpointTarget> targets, MailEndpointTarget target) {
+        target.Host = EndpointHostNormalizer.Normalize(target.Host);
         var key = BuildMailTargetKey(target.Host, target.Port, target.Service);
         if (!targets.TryGetValue(key, out MailEndpointTarget? existing)) {
             targets[key] = target;
@@ -1660,7 +1824,7 @@ public sealed partial class CertificateInventoryCapture {
     }
 
     private static string BuildMailTargetKey(string host, int port, string service) {
-        return $"{host.Trim().ToLowerInvariant()}|{port}|{service.Trim().ToUpperInvariant()}";
+        return $"{EndpointHostNormalizer.Normalize(host).ToLowerInvariant()}|{port}|{service.Trim().ToUpperInvariant()}";
     }
 
 }

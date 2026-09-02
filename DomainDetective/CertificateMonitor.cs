@@ -6,8 +6,10 @@ using System.Security.Authentication;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Network;
 using DomainDetective.Helpers;
 using PeriodicTimer = System.Threading.PeriodicTimer;
 
@@ -35,6 +37,10 @@ namespace DomainDetective {
             public int Port { get; init; } = 443;
             /// <summary>Best-effort service classification derived from endpoint details.</summary>
             public string Service { get; init; } = "HTTPS";
+            /// <summary>Actual remote address reached by the probe, when observable.</summary>
+            public IPAddress? RemoteAddress { get; init; }
+            /// <summary>UTC time when this endpoint probe completed.</summary>
+            public DateTimeOffset ObservedAtUtc { get; init; }
             /// <summary>Certificate expiry date.</summary>
             public DateTime ExpiryDate { get; init; }
             /// <summary>Whether the certificate chain was validated successfully.</summary>
@@ -231,6 +237,7 @@ namespace DomainDetective {
                             await analysis.AnalyzeUrl(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
                         }
 
+                        DateTimeOffset observedAtUtc = DateTimeOffset.UtcNow;
                         entries[index] = new Entry {
                             Host = host,
                             Url = target.Url,
@@ -238,6 +245,8 @@ namespace DomainDetective {
                             Scheme = target.Scheme,
                             Port = target.Port,
                             Service = target.Service,
+                            RemoteAddress = analysis.RemoteAddress,
+                            ObservedAtUtc = observedAtUtc,
                             ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
                             Valid = analysis.IsValid,
                             Expired = analysis.IsExpired,
@@ -353,9 +362,13 @@ namespace DomainDetective {
             if (snapshot == null) {
                 throw new ArgumentNullException(nameof(snapshot));
             }
-            if (snapshot.CapturedAtUtc == default) {
-                snapshot.CapturedAtUtc = DateTimeOffset.UtcNow;
+            snapshot.Entries ??= new List<CertificateInventoryEntry>();
+            foreach (CertificateInventoryEntry entry in snapshot.Entries) {
+                CertificateInventoryEntryHelpers.NormalizeRemoteAddressEvidence(entry);
             }
+            snapshot.CapturedAtUtc = CertificateInventoryEntryHelpers.ResolveCapturedAtUtc(
+                snapshot.Entries,
+                snapshot.CapturedAtUtc);
 
             try {
                 Directory.CreateDirectory(InventoryDirectory);
@@ -395,6 +408,9 @@ namespace DomainDetective {
                 Scheme = entry.Scheme,
                 Port = entry.Port,
                 Service = entry.Service,
+                RemoteAddress = entry.RemoteAddress?.ToString(),
+                RemoteAddressFamily = IpAddressClassifier.GetAddressFamilyLabel(entry.RemoteAddress),
+                ObservedAtUtc = entry.ObservedAtUtc == default ? null : entry.ObservedAtUtc,
                 CertificateSubject = certificate?.Subject,
                 CertificateIssuer = certificate?.Issuer,
                 CertificateThumbprint = certificate?.Thumbprint,
@@ -443,6 +459,7 @@ namespace DomainDetective {
                 CtDiscoverySources = analysis.CtDiscoverySources.ToArray(),
                 CtTemplateFormatErrors = analysis.CtTemplateFormatErrors.ToArray()
             };
+            snapshotEntry.RedirectTargets = analysis.RedirectTargets.ToArray();
             snapshotEntry.CertificateChainSources.AddRange(analysis.ChainSourceHistory);
             snapshotEntry.ExtendedKeyUsageOids.AddRange(analysis.ExtendedKeyUsageOids);
             snapshotEntry.SubjectAlternativeNames.AddRange(analysis.SubjectAlternativeNames);

@@ -15,6 +15,8 @@ public static class DnsCnameTargetDetector
     {
         /// <summary>Gets or sets the provider value.</summary>
         public DnsCnameTargetProvider Provider { get; init; }
+        /// <summary>Specific managed service represented by the target, when known.</summary>
+        public DnsCnameTargetService Service { get; init; }
         /// <summary>Gets or sets the flags value.</summary>
         public DnsCnameTargetFlags Flags { get; init; }
         /// <summary>Gets or sets the evidence value.</summary>
@@ -27,7 +29,11 @@ public static class DnsCnameTargetDetector
         var target = NormalizeHost(cnameTarget);
         if (string.IsNullOrWhiteSpace(target))
         {
-            return new Match { Provider = DnsCnameTargetProvider.Unknown, Flags = DnsCnameTargetFlags.None };
+            return new Match {
+                Provider = DnsCnameTargetProvider.Unknown,
+                Service = DnsCnameTargetService.Unknown,
+                Flags = DnsCnameTargetFlags.None
+            };
         }
 
         var evidence = new List<string>();
@@ -46,16 +52,21 @@ public static class DnsCnameTargetDetector
             evidence.Add("CNAME target matches takeover-risk provider list");
         }
 
-        var provider = DetectProvider(target, evidence);
+        var service = DetectService(target, evidence);
+        var provider = DetectProvider(target, service, evidence);
         return new Match
         {
             Provider = provider,
+            Service = service,
             Flags = flags,
             Evidence = evidence
         };
     }
 
-    private static DnsCnameTargetProvider DetectProvider(string target, List<string> evidence)
+    private static DnsCnameTargetProvider DetectProvider(
+        string target,
+        DnsCnameTargetService service,
+        List<string> evidence)
     {
         if (IsDomainOrSubdomainOf(target, "cloudflare.net") ||
             IsDomainOrSubdomainOf(target, "pages.dev") ||
@@ -72,12 +83,18 @@ public static class DnsCnameTargetDetector
             return DnsCnameTargetProvider.Amazon;
         }
 
-        if (IsDomainOrSubdomainOf(target, "azureedge.net") ||
-            IsDomainOrSubdomainOf(target, "azurefd.net") ||
-            IsDomainOrSubdomainOf(target, "trafficmanager.net"))
+        if (service == DnsCnameTargetService.AzureFrontDoor ||
+            service == DnsCnameTargetService.AzureCdn ||
+            service == DnsCnameTargetService.AzureTrafficManager)
         {
             evidence.Add("Provider: Azure");
             return DnsCnameTargetProvider.Azure;
+        }
+
+        if (service == DnsCnameTargetService.NameShieldRedirection)
+        {
+            evidence.Add("Provider: NameShield");
+            return DnsCnameTargetProvider.NameShield;
         }
 
         if (IsDomainOrSubdomainOf(target, "github.io") ||
@@ -112,6 +129,33 @@ public static class DnsCnameTargetDetector
         }
 
         return DnsCnameTargetProvider.Unknown;
+    }
+
+    private static DnsCnameTargetService DetectService(string target, List<string> evidence)
+    {
+        if (IsDomainOrSubdomainOf(target, "azurefd.net"))
+        {
+            evidence.Add("Service: Azure Front Door (azurefd.net)");
+            return DnsCnameTargetService.AzureFrontDoor;
+        }
+        if (IsDomainOrSubdomainOf(target, "azureedge.net"))
+        {
+            evidence.Add("Service: Azure CDN (azureedge.net)");
+            return DnsCnameTargetService.AzureCdn;
+        }
+        if (IsDomainOrSubdomainOf(target, "trafficmanager.net"))
+        {
+            evidence.Add("Service: Azure Traffic Manager (trafficmanager.net)");
+            return DnsCnameTargetService.AzureTrafficManager;
+        }
+        if (IsDomainOrSubdomainOf(target, "cdn.perf1.com") ||
+            IsDomainOrSubdomainOf(target, "perf1.com") ||
+            IsDomainOrSubdomainOf(target, "perf1.fr"))
+        {
+            evidence.Add("Service: NameShield Redirection");
+            return DnsCnameTargetService.NameShieldRedirection;
+        }
+        return DnsCnameTargetService.Unknown;
     }
 
     private static string NormalizeHost(string? value)
@@ -189,5 +233,22 @@ public enum DnsCnameTargetProvider
     /// <summary>Represents the heroku value.</summary>
     Heroku = 7,
     /// <summary>Represents the fastly value.</summary>
-    Fastly = 8
+    Fastly = 8,
+    /// <summary>Represents NameShield.</summary>
+    NameShield = 9
+}
+
+/// <summary>Specific managed service inferred from a CNAME target.</summary>
+public enum DnsCnameTargetService
+{
+    /// <summary>No specific service was identified.</summary>
+    Unknown = 0,
+    /// <summary>Azure Front Door namespace.</summary>
+    AzureFrontDoor = 1,
+    /// <summary>Azure CDN namespace.</summary>
+    AzureCdn = 2,
+    /// <summary>Azure Traffic Manager namespace.</summary>
+    AzureTrafficManager = 3,
+    /// <summary>NameShield redirection namespace.</summary>
+    NameShieldRedirection = 4
 }

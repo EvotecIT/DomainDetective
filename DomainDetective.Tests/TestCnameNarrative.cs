@@ -54,4 +54,75 @@ public class TestCnameNarrative {
         Assert.Contains("CNAME target resolves", narrative.Positives);
         Assert.Contains("No CNAME loop detected", narrative.Positives);
     }
+
+    [Fact]
+    public async Task AddressLookupFailureDoesNotClaimTargetDoesNotResolve() {
+        var analysis = new CnameAnalysis {
+            DnsConfiguration = new DnsConfiguration(),
+            QueryDnsOverride = (name, type) => {
+                if (type == DnsRecordType.CNAME && name == "alias.example.com") {
+                    return Task.FromResult(new[] { CreateAnswer("target.example.com") });
+                }
+                if (type == DnsRecordType.CNAME) {
+                    return Task.FromResult(System.Array.Empty<DnsAnswer>());
+                }
+                if (type == DnsRecordType.A) {
+                    throw new System.InvalidOperationException("resolver unavailable");
+                }
+                return Task.FromResult(System.Array.Empty<DnsAnswer>());
+            }
+        };
+
+        await analysis.Analyze("alias.example.com", new InternalLogger());
+
+        Assert.True(analysis.CnameRecordExists);
+        Assert.False(analysis.TargetResolves);
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == CnameCodes.DnsLookupFailed);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == CnameCodes.TargetDoesNotResolve);
+        Assert.DoesNotContain(analysis.Recommendations, recommendation => recommendation.Code == CnameCodes.TargetDoesNotResolve);
+    }
+
+    [Fact]
+    public async Task NoCnameDoesNotPerformUnneededAddressQueries() {
+        int cnameQueryCount = 0;
+        int addressQueryCount = 0;
+        var analysis = new CnameAnalysis {
+            DnsConfiguration = new DnsConfiguration(),
+            QueryDnsOverride = (_, type) => {
+                if (type == DnsRecordType.CNAME) {
+                    cnameQueryCount++;
+                } else {
+                    addressQueryCount++;
+                }
+                return Task.FromResult(System.Array.Empty<DnsAnswer>());
+            }
+        };
+
+        await analysis.Analyze("direct.example.com", new InternalLogger());
+
+        Assert.False(analysis.CnameRecordExists);
+        Assert.Equal(1, cnameQueryCount);
+        Assert.Equal(0, addressQueryCount);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == CnameCodes.DnsLookupFailed);
+    }
+
+    [Fact]
+    public async Task AmbiguousCnamePreservesRecordExistenceAndHonestNarrative() {
+        var analysis = new CnameAnalysis {
+            DnsConfiguration = new DnsConfiguration(),
+            QueryDnsOverride = (_, type) => Task.FromResult(type == DnsRecordType.CNAME
+                ? new[] { CreateAnswer("first.example.net"), CreateAnswer("second.example.net") }
+                : System.Array.Empty<DnsAnswer>())
+        };
+
+        await analysis.Analyze("alias.example.com", new InternalLogger());
+        CnameNarrative.Sections narrative = CnameNarrative.Build(analysis, analysis.Assessments);
+
+        Assert.True(analysis.CnameRecordExists);
+        Assert.Null(analysis.Target);
+        Assert.Contains(narrative.Highlights, highlight => highlight.Contains("ambiguous or unavailable", System.StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("CNAME target resolution is indeterminate.", narrative.Highlights);
+        Assert.DoesNotContain(narrative.Highlights, highlight => highlight.Contains("has no CNAME record", System.StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == CnameCodes.DnsLookupFailed);
+    }
 }

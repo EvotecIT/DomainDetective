@@ -47,7 +47,10 @@ internal static class DetectedDnsApplicationCatalog {
             apps.Add(mailProviderApp);
         }
 
-        var cnameTargetApp = FromCnameTargetProvider(dnsInventory.CnameTargetProvider, dnsInventory.CnameTargetEvidence);
+        var cnameTargetApp = FromCnameTargetProvider(
+            dnsInventory.CnameTargetProvider,
+            dnsInventory.CnameTargetEvidence,
+            dnsInventory.CnameTargetService);
         if (cnameTargetApp != null) {
             apps.Add(cnameTargetApp);
         }
@@ -100,7 +103,10 @@ internal static class DetectedDnsApplicationCatalog {
         };
     }
 
-    public static DetectedDnsApplication? FromCnameTargetProvider(DnsCnameTargetProvider provider, IReadOnlyList<string>? evidence) {
+    public static DetectedDnsApplication? FromCnameTargetProvider(
+        DnsCnameTargetProvider provider,
+        IReadOnlyList<string>? evidence,
+        DnsCnameTargetService service = DnsCnameTargetService.Unknown) {
         if (provider == DnsCnameTargetProvider.Unknown) {
             return null;
         }
@@ -113,15 +119,42 @@ internal static class DetectedDnsApplicationCatalog {
             _ => DetectedDnsAppCategory.Other
         };
 
+        string identity = service != DnsCnameTargetService.Unknown ? service.ToString() : provider.ToString();
         return new DetectedDnsApplication {
-            Id = "cname-target-" + provider.ToString().ToLowerInvariant(),
-            Name = provider.ToString(),
+            Id = "cname-target-" + identity.ToLowerInvariant(),
+            Name = identity,
             Category = category,
             EvidenceKind = DetectedDnsAppEvidenceKind.CnameRecord,
             Confidence = Microsoft365DetectionConfidence.Strong,
-            Evidence = FirstEvidence(evidence, provider.ToString()),
+            Evidence = SelectCnameEvidence(evidence, provider, service),
             Source = "DnsInventory.CnameTarget"
         };
+    }
+
+    private static string SelectCnameEvidence(
+        IReadOnlyList<string>? evidence,
+        DnsCnameTargetProvider provider,
+        DnsCnameTargetService service) {
+        const string targetPrefix = "Apex CNAME:";
+        if (evidence != null) {
+            for (int index = evidence.Count - 1; index >= 0; index--) {
+                string item = evidence[index] ?? string.Empty;
+                if (!item.StartsWith(targetPrefix, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                string target = item.Substring(targetPrefix.Length).Trim();
+                DnsCnameTargetDetector.Match match = DnsCnameTargetDetector.Detect(target);
+                bool matchesSelectedIdentity = service != DnsCnameTargetService.Unknown
+                    ? match.Service == service
+                    : match.Provider == provider;
+                if (matchesSelectedIdentity) {
+                    return item;
+                }
+            }
+        }
+
+        return FirstEvidence(evidence, provider.ToString());
     }
 
     private static string FirstEvidence(IReadOnlyList<string>? evidence, string fallback) {

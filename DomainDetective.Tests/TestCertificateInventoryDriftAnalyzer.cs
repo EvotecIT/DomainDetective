@@ -44,7 +44,7 @@ namespace DomainDetective.Tests {
                             Host = "api.example.com",
                             ResolvedHost = "api.example.com",
                             Port = 443,
-                            Service = "HTTPS-Alt",
+                            Service = "HTTPS",
                             CertificateThumbprint = "BBB222",
                             CertificateIssuerNormalized = "DigiCert",
                             NotAfterUtc = now.AddDays(365),
@@ -74,7 +74,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, drift.EndpointsWithCertificateChange);
             Assert.Equal(1, drift.EndpointsWithIssuerChange);
             Assert.Equal(1, drift.EndpointsWithExpiryChange);
-            Assert.Equal(1, drift.EndpointsWithServiceChange);
+            Assert.Equal(0, drift.EndpointsWithServiceChange);
             Assert.Equal(1, drift.EndpointsWithAuthenticationProfileChange);
             Assert.Equal(1, drift.EndpointsWithChainSourceChange);
             Assert.Equal(1, drift.EndpointsWithHighSeverityDrift);
@@ -93,11 +93,11 @@ namespace DomainDetective.Tests {
             Assert.True(api.CertificateChanged);
             Assert.True(api.IssuerChanged);
             Assert.True(api.ExpiryChanged);
-            Assert.True(api.ServiceChanged);
+            Assert.False(api.ServiceChanged);
             Assert.True(api.AuthenticationProfileChanged);
             Assert.True(api.ChainSourceChanged);
             Assert.Equal("High", api.DriftSeverity);
-            Assert.Equal(new[] { "certificate", "issuer", "expiry", "service", "auth-profile", "chain-source" }, api.ChangeKinds);
+            Assert.Equal(new[] { "certificate", "issuer", "expiry", "auth-profile", "chain-source" }, api.ChangeKinds);
             Assert.Equal("AAA111", api.PreviousCertificateId);
             Assert.Equal("BBB222", api.CurrentCertificateId);
             Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAuthOnly, api.PreviousAuthenticationProfile);
@@ -118,6 +118,240 @@ namespace DomainDetective.Tests {
             Assert.Equal("None", portal.DriftSeverity);
             Assert.Empty(portal.ChangeKinds);
             Assert.Null(portal.LastChangedAtUtc);
+        }
+
+        [Fact]
+        public void BuildDriftKeepsServicesOnSameHostAndPortSeparate() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() { Host = "multi.example.com", Port = 443, Service = "HTTPS", CertificateThumbprint = "HTTPS-1" },
+                        new() { Host = "multi.example.com", Port = 443, Service = "LDAPS", CertificateThumbprint = "LDAPS-1" }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() { Host = "multi.example.com", Port = 443, Service = "HTTPS", CertificateThumbprint = "HTTPS-1" },
+                        new() { Host = "multi.example.com", Port = 443, Service = "LDAPS", CertificateThumbprint = "LDAPS-1" }
+                    }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots, changedOnly: false, maxEndpoints: 100);
+
+            Assert.Equal(2, drift.EndpointCount);
+            Assert.Contains(drift.Endpoints, endpoint => endpoint.Service == "HTTPS" && endpoint.ObservationCount == 2);
+            Assert.Contains(drift.Endpoints, endpoint => endpoint.Service == "LDAPS" && endpoint.ObservationCount == 2);
+        }
+
+        [Fact]
+        public void BuildDriftDetectsUniqueServiceTransitionWithinTransportSlot() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "service-identity.example.com",
+                            ResolvedHost = "service-identity.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "SAME"
+                        }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "service-identity.example.com",
+                            ResolvedHost = "service-identity.example.com",
+                            Port = 443,
+                            Service = "HTTPS-ALT",
+                            CertificateThumbprint = "SAME"
+                        }
+                    }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots);
+
+            Assert.Equal(1, drift.EndpointCount);
+            Assert.Equal(1, drift.EndpointsWithServiceChange);
+            CertificateInventoryEndpointDrift endpoint = Assert.Single(drift.Endpoints);
+            Assert.Equal(2, endpoint.ObservationCount);
+            Assert.Equal("HTTPS", endpoint.PreviousService);
+            Assert.Equal("HTTPS-ALT", endpoint.CurrentService);
+            Assert.Equal("HTTPS-ALT", endpoint.Service);
+            Assert.True(endpoint.ServiceChanged);
+            Assert.Equal(new[] { "service" }, endpoint.ChangeKinds);
+            Assert.Equal("Medium", endpoint.DriftSeverity);
+        }
+
+        [Fact]
+        public void BuildDriftKeepsCoexistingServicesAsDistinctEndpointHistories() {
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventoryEntry Entry(string service, DateTimeOffset observedAtUtc) => new() {
+                Host = "coexisting.example.com",
+                ResolvedHost = "coexisting.example.com",
+                Port = 443,
+                Service = service,
+                CertificateThumbprint = service,
+                ObservedAtUtc = observedAtUtc
+            };
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        Entry("HTTPS", now.AddHours(-1)),
+                        Entry("HTTPS-ALT", now.AddHours(-1))
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> {
+                        Entry("HTTPS", now),
+                        Entry("HTTPS-ALT", now)
+                    }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots);
+
+            Assert.Equal(2, drift.EndpointCount);
+            Assert.Equal(0, drift.EndpointsWithServiceChange);
+            Assert.All(drift.Endpoints, endpoint => {
+                Assert.Equal(2, endpoint.ObservationCount);
+                Assert.False(endpoint.ServiceChanged);
+            });
+        }
+
+        [Fact]
+        public void BuildDriftCorrelatesUniqueReplacementAlongsideStableService() {
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventoryEntry Entry(string service) => new() {
+                Host = "partial-service-change.example.com",
+                ResolvedHost = "partial-service-change.example.com",
+                Port = 443,
+                Service = service,
+                CertificateThumbprint = service == "HTTPS" ? "STABLE" : "REPLACED"
+            };
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> { Entry("HTTPS"), Entry("HTTPS-LEGACY") }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> { Entry("HTTPS"), Entry("HTTPS-ALT") }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots);
+
+            Assert.Equal(2, drift.EndpointCount);
+            Assert.Equal(1, drift.EndpointsWithServiceChange);
+            Assert.Contains(drift.Endpoints, endpoint =>
+                endpoint.Service == "HTTPS" &&
+                endpoint.ObservationCount == 2 &&
+                !endpoint.ServiceChanged);
+            Assert.Contains(drift.Endpoints, endpoint =>
+                endpoint.PreviousService == "HTTPS-LEGACY" &&
+                endpoint.CurrentService == "HTTPS-ALT" &&
+                endpoint.ServiceChanged);
+        }
+
+        [Fact]
+        public void TryNormalizeChangeKindAcceptsService() {
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKind(" service ", out string? normalized));
+            Assert.Equal("service", normalized);
+        }
+
+        [Fact]
+        public void BuildDriftCoalescesReusedProtocolObservations() {
+            var now = DateTimeOffset.UtcNow;
+            var firstObservedAt = now.AddHours(-6);
+            var secondObservedAt = now.AddHours(-1);
+            CertificateInventoryEntry Entry(DateTimeOffset observedAt, string thumbprint) => new() {
+                Host = "reused.example.com",
+                ResolvedHost = "reused.example.com",
+                Port = 443,
+                Service = "HTTPS",
+                ObservedAtUtc = observedAt,
+                CertificateThumbprint = thumbprint,
+                CertificateIssuerNormalized = "Issuer"
+            };
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-6),
+                    Entries = new List<CertificateInventoryEntry> { Entry(firstObservedAt, "CERT-A") }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-3),
+                    Entries = new List<CertificateInventoryEntry> { Entry(firstObservedAt, "CERT-A") }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> { Entry(secondObservedAt, "CERT-B") }
+                }
+            };
+
+            CertificateInventoryEndpointDrift row = Assert.Single(
+                CertificateInventoryDriftAnalyzer.BuildDrift(snapshots, maxEndpoints: 100).Endpoints);
+
+            Assert.Equal(2, row.ObservationCount);
+            Assert.Equal(firstObservedAt, row.FirstSeenUtc);
+            Assert.Equal(secondObservedAt, row.LastSeenUtc);
+            Assert.Equal(secondObservedAt, row.LastChangedAtUtc);
+            Assert.Equal("CERT-A", row.PreviousCertificateId);
+            Assert.Equal("CERT-B", row.CurrentCertificateId);
+        }
+
+        [Fact]
+        public void BuildDriftKeepsProbeVantageHistoriesSeparate() {
+            var now = DateTimeOffset.UtcNow;
+            CertificateInventoryEntry Entry(string vantage, string thumbprint) => new() {
+                Host = "shared.example.com",
+                ResolvedHost = "shared.example.com",
+                Port = 443,
+                Service = "HTTPS",
+                ProbeVantage = vantage,
+                CertificateThumbprint = thumbprint
+            };
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        Entry("branch-office", "BRANCH-CERT"),
+                        Entry("cloud", "CLOUD-CERT")
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Entries = new List<CertificateInventoryEntry> {
+                        Entry("branch-office", "BRANCH-CERT"),
+                        Entry("cloud", "CLOUD-CERT")
+                    }
+                }
+            };
+
+            CertificateInventoryDriftSummary drift = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100);
+
+            Assert.Equal(2, drift.EndpointCount);
+            Assert.Equal(0, drift.EndpointsWithAnyChange);
+            Assert.All(drift.Endpoints, endpoint => {
+                Assert.Equal(2, endpoint.ObservationCount);
+                Assert.Equal(1, endpoint.DistinctCertificateCount);
+                Assert.Equal("None", endpoint.DriftSeverity);
+            });
+            Assert.Contains(drift.Endpoints, endpoint => endpoint.ProbeVantage == "branch-office");
+            Assert.Contains(drift.Endpoints, endpoint => endpoint.ProbeVantage == "cloud");
         }
 
         [Fact]

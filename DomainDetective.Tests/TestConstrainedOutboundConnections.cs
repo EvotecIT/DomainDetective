@@ -4,6 +4,34 @@ using System.Net.Sockets;
 namespace DomainDetective.Tests;
 
 public class TestConstrainedOutboundConnections {
+#if NET8_0_OR_GREATER
+    [Theory]
+    [InlineData("origin.example", 443, "https://origin.example/", true)]
+    [InlineData("origin.example", 8443, "https://origin.example:8443/", true)]
+    [InlineData("proxy.example", 8080, "https://origin.example/", false)]
+    [InlineData("origin.example", 8080, "https://origin.example/", false)]
+    public void HttpTransportEndpointIdentifiesOnlyTheRequestOrigin(
+        string connectionHost,
+        int connectionPort,
+        string requestUrl,
+        bool expected) {
+        var connectionEndpoint = new DnsEndPoint(connectionHost, connectionPort);
+
+        Assert.Equal(
+            expected,
+            CertificateAnalysis.IsOriginTransportEndpoint(connectionEndpoint, new Uri(requestUrl)));
+    }
+#endif
+
+    [Fact]
+    public void MailAddressFamilyTreatsMappedIpv4AsIpv4() {
+        IPAddress mapped = IPAddress.Parse("::ffff:192.0.2.40");
+
+        Assert.True(MailTransportConnector.Matches(mapped, MailTransportAddressFamily.IPv4));
+        Assert.False(MailTransportConnector.Matches(mapped, MailTransportAddressFamily.IPv6));
+        Assert.Equal(MailTransportAddressFamily.IPv4, MailTransportConnector.ToMailAddressFamily(mapped));
+    }
+
     [Fact]
     public async Task HealthCheckHostProbesPreserveAnalysisResolversWhenTopLevelResolverIsUnset() {
         var healthCheck = new DomainHealthCheck();
@@ -119,6 +147,84 @@ public class TestConstrainedOutboundConnections {
                 CancellationToken.None));
 
         Assert.Contains("was not approved", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MailConnectorNormalizesMappedPinnedAddressBeforeApprovalAndConnect() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try {
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var endpoint = new MailTransportEndpoint("mail.example.com", port) {
+                ConnectAddress = IPAddress.Parse("::ffff:127.0.0.1"),
+                AddressFamily = MailTransportAddressFamily.IPv4
+            };
+
+            var connect = MailTransportConnector.ConnectAsync(
+                endpoint,
+                (_, _) => Task.FromResult<IReadOnlyList<IPAddress>>(new[] { IPAddress.Loopback }),
+                CancellationToken.None);
+            using var accepted = await listener.AcceptTcpClientAsync();
+            using var client = await connect;
+
+            Assert.True(client.Connected);
+            var remote = Assert.IsType<IPEndPoint>(client.Client.RemoteEndPoint);
+            Assert.Equal(AddressFamily.InterNetwork, remote.AddressFamily);
+        } finally {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task CertificateConnectorNormalizesMappedAddressBeforeSocketCreation() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try {
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var analysis = new CertificateAnalysis {
+                OutboundAddressResolver = (_, _) => Task.FromResult<IReadOnlyList<IPAddress>>(
+                    new[] { IPAddress.Parse("::ffff:127.0.0.1") })
+            };
+
+            var connect = analysis.ConnectDirectAsync("service.invalid", port, CancellationToken.None);
+            using var accepted = await listener.AcceptTcpClientAsync();
+            using var client = await connect;
+
+            Assert.True(client.Connected);
+            Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+            var remote = Assert.IsType<IPEndPoint>(client.Client.RemoteEndPoint);
+            Assert.Equal(AddressFamily.InterNetwork, remote.AddressFamily);
+        } finally {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task AuxiliaryCertificateConnectionDoesNotOverwritePrimaryPeer() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try {
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var analysis = new CertificateAnalysis();
+            var setter = typeof(CertificateAnalysis)
+                .GetProperty(nameof(CertificateAnalysis.RemoteAddress))!
+                .GetSetMethod(nonPublic: true)!;
+            IPAddress primaryPeer = IPAddress.Parse("192.0.2.25");
+            setter.Invoke(analysis, new object[] { primaryPeer });
+
+            var connect = analysis.ConnectDirectAsync(
+                IPAddress.Loopback.ToString(),
+                port,
+                CancellationToken.None,
+                captureRemoteAddress: false);
+            using var accepted = await listener.AcceptTcpClientAsync();
+            using var client = await connect;
+
+            Assert.True(client.Connected);
+            Assert.Equal(primaryPeer, analysis.RemoteAddress);
+        } finally {
+            listener.Stop();
+        }
     }
 
     [Fact]

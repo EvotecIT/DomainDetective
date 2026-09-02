@@ -19,6 +19,203 @@ using DomainDetective.Tests.Fixtures;
 namespace DomainDetective.Tests {
     public class TestCertificateHTTP {
         [Fact]
+        public async Task RedirectEvidenceRetainsEveryFollowedHostInOrder() {
+            var analysis = new CertificateAnalysis();
+            var handler = new RedirectSequenceHandler();
+            using var client = new HttpClient(handler);
+
+            using HttpResponseMessage response = await analysis.SendWithRedirectEvidenceAsync(
+                client,
+                new Uri("https://origin.example/start"),
+                CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                new[] { "edge.azurefd.net", "origin.example", "edge.azurefd.net", "final.example" },
+                analysis.RedirectTargets);
+            Assert.Equal(
+                new[] { "origin.example", "edge.azurefd.net", "origin.example", "edge.azurefd.net", "final.example" },
+                handler.RequestHosts);
+        }
+
+        [Fact]
+        public async Task MultipleChoicesLocationIsFollowedAndRetainedAsEvidence() {
+            var analysis = new CertificateAnalysis();
+            var handler = new MultipleChoicesRedirectHandler();
+            using var client = new HttpClient(handler);
+
+            using HttpResponseMessage response = await analysis.SendWithRedirectEvidenceAsync(
+                client,
+                new Uri("https://origin.example/start"),
+                CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(new[] { "selected.example" }, analysis.RedirectTargets);
+            Assert.Equal(new[] { "origin.example", "selected.example" }, handler.RequestHosts);
+        }
+
+        [Fact]
+        public async Task HttpsRedirectDowngradeIsRetainedAsEvidenceButNotFollowed() {
+            var analysis = new CertificateAnalysis();
+            var handler = new HttpsDowngradeRedirectHandler();
+            using var client = new HttpClient(handler);
+
+            HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(() =>
+                analysis.SendWithRedirectEvidenceAsync(
+                    client,
+                    new Uri("https://secure.example/start"),
+                    CancellationToken.None));
+
+            Assert.Contains("downgrade", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(new[] { "https://secure.example/start" }, handler.RequestUris);
+            Assert.Equal(new[] { "plain.example" }, analysis.RedirectTargets);
+        }
+
+        [Fact]
+        public async Task RedirectChainUsesOneTimeoutBudget() {
+            var analysis = new CertificateAnalysis();
+            var handler = new SlowRedirectSequenceHandler();
+            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(3) };
+            var stopwatch = Stopwatch.StartNew();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                analysis.SendWithRedirectEvidenceAsync(
+                    client,
+                    new Uri("https://origin.example/start"),
+                    CancellationToken.None));
+            stopwatch.Stop();
+
+            Assert.InRange(handler.RequestCount, 1, 3);
+            Assert.True(
+                stopwatch.Elapsed < TimeSpan.FromSeconds(6),
+                $"Redirect chain exceeded one timeout budget: {stopwatch.Elapsed}.");
+        }
+
+        [Fact]
+        public async Task RedirectHeadersAreFollowedWithoutBufferingResponseContent() {
+            var analysis = new CertificateAnalysis();
+            var handler = new RedirectWithUnbufferableContentHandler();
+            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
+
+            using HttpResponseMessage response = await analysis.SendWithRedirectEvidenceAsync(
+                client,
+                new Uri("https://origin.example/start"),
+                CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(2, handler.RequestCount);
+        }
+
+        [Fact]
+        public async Task RedirectKeepsOriginPeerAddress() {
+            var analysis = new CertificateAnalysis();
+            var handler = new RemoteAddressRedirectHandler(analysis);
+            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
+
+            using HttpResponseMessage response = await analysis.SendWithRedirectEvidenceAsync(
+                client,
+                new Uri("https://origin.example/start"),
+                CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+            Assert.Equal(2, handler.RequestCount);
+        }
+
+        [Fact]
+        public async Task FullHttpProbeCapturesOriginRemoteAddress() {
+            using var cert = CreateSelfSigned("localhost");
+            var server = new TcpListenerFixture((l, t) => Task.Run(() => RunServer(l, cert, SslProtocols.Tls12, t), t));
+            await server.InitializeAsync();
+
+            try {
+                var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
+
+                await analysis.AnalyzeUrl("https://localhost", server.Port, new InternalLogger());
+
+                Assert.True(analysis.IsReachable);
+                Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+                Assert.NotNull(analysis.Certificate);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+#if NET472
+        [Fact]
+        public async Task FrameworkFullHttpUsesCertificateFromHttpConnection() {
+            using var peerOnlyCertificate = CreateSelfSigned("peer-only.invalid");
+            using var httpCertificate = CreateSelfSigned("localhost");
+            var server = new TcpListenerFixture((listener, token) => Task.Run(
+                () => RunFrameworkPairedCertificateServer(
+                    listener,
+                    peerOnlyCertificate,
+                    httpCertificate,
+                    token),
+                token));
+            await server.InitializeAsync();
+
+            try {
+                var analysis = new CertificateAnalysis {
+                    CaptureExtendedMetadata = false,
+                    CaptureTlsDetails = false
+                };
+
+                await analysis.AnalyzeUrl("https://localhost", server.Port, new InternalLogger());
+
+                Assert.True(analysis.IsReachable);
+                Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+                Assert.Equal(httpCertificate.Thumbprint, analysis.Certificate?.Thumbprint);
+                Assert.NotEqual(peerOnlyCertificate.Thumbprint, analysis.Certificate?.Thumbprint);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+#endif
+
+        [Fact]
+        public async Task DirectConnectorDisposesClientWhenConnectFails() {
+            var client = new CountingTcpClient();
+            var analysis = new CertificateAnalysis {
+                TcpClientFactory = _ => client
+            };
+
+            await Assert.ThrowsAnyAsync<SocketException>(() =>
+                analysis.ConnectDirectAsync(
+                    IPAddress.Loopback.ToString(),
+                    PortHelper.GetFreePort(),
+                    CancellationToken.None));
+
+            Assert.Equal(1, client.DisposeCount);
+        }
+
+#if NET8_0_OR_GREATER
+        [Fact]
+        public async Task FullHttpProbeCapturesPinnedRemoteAddress() {
+            using var cert = CreateSelfSigned("service.invalid");
+            var server = new TcpListenerFixture((l, t) => Task.Run(() => RunServer(l, cert, SslProtocols.Tls12, t), t));
+            await server.InitializeAsync();
+
+            try {
+                var logger = new InternalLogger();
+                var analysis = new CertificateAnalysis {
+                    CtLogQueryOverride = _ => Task.FromResult("[]"),
+                    OutboundAddressResolver = (_, _) => Task.FromResult<IReadOnlyList<IPAddress>>(new[] { IPAddress.Loopback })
+                };
+
+                await analysis.AnalyzeUrl("https://service.invalid", server.Port, logger);
+
+                Assert.True(analysis.IsReachable);
+                Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
+                Assert.NotNull(analysis.Certificate);
+            } finally {
+                await server.DisposeAsync();
+            }
+        }
+
+#endif
+
+        [Fact]
         public async Task UnreachableHostSetsIsReachableFalse() {
             var logger = new InternalLogger();
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
@@ -571,6 +768,203 @@ namespace DomainDetective.Tests {
             var req = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
             return CertificateLoaderCompat.LoadPkcs12(cert.Export(X509ContentType.Pfx));
+        }
+
+#if NET472
+        private static async Task RunFrameworkPairedCertificateServer(
+            TcpListener listener,
+            X509Certificate2 peerOnlyCertificate,
+            X509Certificate2 httpCertificate,
+            CancellationToken token) {
+            int connectionCount = 0;
+            try {
+                while (!token.IsCancellationRequested) {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask) {
+                        try { await clientTask; } catch { }
+                        break;
+                    }
+
+                    var client = await clientTask;
+                    int connectionNumber = Interlocked.Increment(ref connectionCount);
+                    _ = Task.Run(async () => {
+                        using var tcp = client;
+                        using var ssl = new SslStream(tcp.GetStream());
+                        X509Certificate2 certificate = connectionNumber == 1
+                            ? peerOnlyCertificate
+                            : httpCertificate;
+                        await ssl.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
+                        if (connectionNumber == 1) {
+                            return;
+                        }
+
+                        using var reader = new StreamReader(ssl);
+                        using var writer = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                        await reader.ReadLineAsync();
+                        string? line;
+                        do {
+                            line = await reader.ReadLineAsync();
+                        } while (!string.IsNullOrEmpty(line));
+                        await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                        await writer.WriteLineAsync("Content-Length: 0");
+                        await writer.WriteLineAsync();
+                    }, token);
+                }
+            } catch (Exception ex) when (token.IsCancellationRequested || ex is ObjectDisposedException) {
+                // ignore on shutdown
+            }
+        }
+#endif
+
+        private sealed class RedirectSequenceHandler : HttpMessageHandler {
+            public List<string> RequestHosts { get; } = new();
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                string host = request.RequestUri?.Host ?? string.Empty;
+                RequestHosts.Add(host);
+                HttpResponseMessage response;
+                if (RequestHosts.Count == 1) {
+                    response = new HttpResponseMessage(HttpStatusCode.Found);
+                    response.Headers.Location = new Uri("https://edge.azurefd.net/hop");
+                } else if (RequestHosts.Count == 2) {
+                    response = new HttpResponseMessage(HttpStatusCode.TemporaryRedirect);
+                    response.Headers.Location = new Uri("https://origin.example/return");
+                } else if (RequestHosts.Count == 3) {
+                    response = new HttpResponseMessage(HttpStatusCode.Found);
+                    response.Headers.Location = new Uri("https://edge.azurefd.net/again");
+                } else if (RequestHosts.Count == 4) {
+                    response = new HttpResponseMessage(HttpStatusCode.TemporaryRedirect);
+                    response.Headers.Location = new Uri("https://final.example/done");
+                } else {
+                    response = new HttpResponseMessage(HttpStatusCode.OK);
+                }
+                response.RequestMessage = request;
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class MultipleChoicesRedirectHandler : HttpMessageHandler {
+            public List<string> RequestHosts { get; } = new();
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestHosts.Add(request.RequestUri?.Host ?? string.Empty);
+                var response = new HttpResponseMessage(
+                    RequestHosts.Count == 1 ? HttpStatusCode.MultipleChoices : HttpStatusCode.OK) {
+                    RequestMessage = request
+                };
+                if (RequestHosts.Count == 1) {
+                    response.Headers.Location = new Uri("https://selected.example/destination");
+                }
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class HttpsDowngradeRedirectHandler : HttpMessageHandler {
+            public List<string> RequestUris { get; } = new();
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestUris.Add(request.RequestUri?.AbsoluteUri ?? string.Empty);
+                var response = new HttpResponseMessage(HttpStatusCode.Found) {
+                    RequestMessage = request
+                };
+                response.Headers.Location = new Uri("http://plain.example/destination");
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class SlowRedirectSequenceHandler : HttpMessageHandler {
+            public int RequestCount { get; private set; }
+
+            protected override async Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestCount++;
+                await Task.Delay(1650, cancellationToken);
+                var response = new HttpResponseMessage(HttpStatusCode.Found) {
+                    RequestMessage = request
+                };
+                response.Headers.Location = new Uri($"https://hop{RequestCount}.example/next");
+                return response;
+            }
+        }
+
+        private sealed class RedirectWithUnbufferableContentHandler : HttpMessageHandler {
+            public int RequestCount { get; private set; }
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestCount++;
+                var response = new HttpResponseMessage(
+                    RequestCount == 1 ? HttpStatusCode.Found : HttpStatusCode.OK) {
+                    RequestMessage = request
+                };
+                if (RequestCount == 1) {
+                    response.Headers.Location = new Uri("https://final.example/done");
+                    response.Content = new UnbufferableContent();
+                }
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class RemoteAddressRedirectHandler : HttpMessageHandler {
+            private readonly CertificateAnalysis _analysis;
+
+            public RemoteAddressRedirectHandler(CertificateAnalysis analysis) {
+                _analysis = analysis;
+            }
+
+            public int RequestCount { get; private set; }
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                RequestCount++;
+                var setter = typeof(CertificateAnalysis)
+                    .GetProperty(nameof(CertificateAnalysis.RemoteAddress))!
+                    .GetSetMethod(nonPublic: true)!;
+                setter.Invoke(_analysis, new object[] {
+                    RequestCount == 1 ? IPAddress.Loopback : IPAddress.IPv6Loopback
+                });
+
+                var response = new HttpResponseMessage(
+                    RequestCount == 1 ? HttpStatusCode.Found : HttpStatusCode.OK) {
+                    RequestMessage = request
+                };
+                if (RequestCount == 1) {
+                    response.Headers.Location = new Uri("https://final.example/done");
+                }
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class UnbufferableContent : HttpContent {
+            protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) {
+                return Task.FromException(new InvalidOperationException("Redirect content must not be buffered."));
+            }
+
+            protected override bool TryComputeLength(out long length) {
+                length = 0;
+                return false;
+            }
+        }
+
+        private sealed class CountingTcpClient : TcpClient {
+            public int DisposeCount { get; private set; }
+
+            protected override void Dispose(bool disposing) {
+                if (disposing) {
+                    DisposeCount++;
+                }
+                base.Dispose(disposing);
+            }
         }
     }
 }

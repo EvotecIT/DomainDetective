@@ -66,6 +66,9 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
     /// <summary>Best-effort inferred provider for apex CNAME target.</summary>
     public DnsCnameTargetProvider CnameTargetProvider { get; private set; } = DnsCnameTargetProvider.Unknown;
 
+    /// <summary>Best-effort inferred managed service for the apex CNAME target.</summary>
+    public DnsCnameTargetService CnameTargetService { get; private set; } = DnsCnameTargetService.Unknown;
+
     /// <summary>Flags describing the apex CNAME target (best-effort).</summary>
     public DnsCnameTargetFlags CnameTargetFlags { get; private set; } = DnsCnameTargetFlags.None;
 
@@ -542,6 +545,7 @@ public sealed partial class DnsInventoryAnalysis : IHasAssessments
         MailProviderScore = 0;
         MailProviderEvidence = Array.Empty<string>();
         CnameTargetProvider = DnsCnameTargetProvider.Unknown;
+        CnameTargetService = DnsCnameTargetService.Unknown;
         CnameTargetFlags = DnsCnameTargetFlags.None;
         CnameTargetEvidence = Array.Empty<string>();
         TxtSignals = DnsTxtSignals.None;
