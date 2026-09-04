@@ -264,9 +264,25 @@
       "reportPath": "./_reports/tool-route-fallbacks.json"
     },
     {
+      "task": "exec",
+      "id": "test-webmcp-dns-tool",
+      "dependsOn": "generate-tool-route-fallbacks",
+      "skipModes": ["dev"],
+      "command": "pwsh",
+      "argsList": [
+        "-NoLogo",
+        "-NoProfile",
+        "-File",
+        "./scripts/Test-WebMcpDnsTool.ps1",
+        "-SiteRoot",
+        "./_site"
+      ],
+      "workingDirectory": "."
+    },
+    {
       "task": "verify",
       "id": "verify-ci-final",
-      "dependsOn": "generate-tool-route-fallbacks",
+      "dependsOn": "test-webmcp-dns-tool",
       "modes": ["ci"],
       "config": "./site.json",
       "baseline": "./.powerforge/verify-baseline.json",
