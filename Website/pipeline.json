@@ -29,19 +29,6 @@
       "config": "./site.json"
     },
     {
-      "task": "verify",
-      "id": "verify-ci",
-      "dependsOn": "build-site",
-      "modes": ["ci"],
-      "config": "./site.json",
-      "baseline": "./.powerforge/verify-baseline.json",
-      "failOnNewWarnings": true,
-      "failOnNavLint": true,
-      "failOnThemeContract": true,
-      "warningPreviewCount": 10,
-      "errorPreviewCount": 10
-    },
-    {
       "task": "dotnet-build",
       "id": "build-library",
       "dependsOn": "verify-site",
