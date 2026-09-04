@@ -43,3 +43,9 @@ healthCheck.DnsEndpoint = DnsEndpoint.CloudflareWireFormat;
 ## Browser Compatibility
 
 When running in a browser (Blazor WASM), only DNS-over-HTTPS endpoints work because browsers cannot make raw UDP/TCP DNS queries. The DomainDetective website currently keeps the browser-safe DNS workspace focused on `Google DNS` and `Cloudflare DNS`, while fuller resolver choice stays in the local DnsClientX workflows.
+
+## ChatGPT Website Tool
+
+The [Raw DNS Query playground](/tools/raw-dns-query/) exposes the read-only `query_dns_records` Website Tool in supported browsers. ChatGPT can request one public DNS name and one supported record type through the existing browser workflow. The page switches to the Google DNS-over-HTTPS resolver, clears EDNS client-subnet and DNSSEC options, and leaves the complete visible result in the playground.
+
+The tool rejects local names, IP-like inputs, malformed labels, and unsupported record types. Its machine-readable response is capped at ten answers and 1,500 characters; a larger DNS response remains available in the visible page and is marked as truncated in the tool result. A caller can cancel the active network request. No hosted DomainDetective analysis API or authenticated workflow is involved.

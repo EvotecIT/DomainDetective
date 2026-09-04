@@ -172,7 +172,16 @@
     "A2AAgentCard": { "Enabled": false },
     "McpServerCard": { "Enabled": false },
     "OpenApi": { "Enabled": false },
-    "WebMcp": false,
+    "WebMcp": true,
+    "WebMcpTools": [
+      {
+        "Name": "query_dns_records",
+        "Route": "/tools/raw-dns-query/",
+        "Description": "Resolve one bounded public DNS record query and leave the result visible in the DomainDetective playground.",
+        "Kind": "page-tool",
+        "ReadOnly": true
+      }
+    ],
     "MarkdownNegotiation": false
   },
   "Cloudflare": {

@@ -2,6 +2,15 @@
     'use strict';
 
     var controllers = new WeakMap();
+    var webMcpToolName = 'query_dns_records';
+    var activeWebMcpController = null;
+    var webMcpRegistered = false;
+    var webMcpRegistrationController = null;
+    var allowedToolRecordTypes = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'CAA', 'SRV', 'PTR', 'SOA', 'DS', 'DNSKEY', 'RRSIG', 'NSEC', 'NSEC3', 'TLSA', 'HTTPS', 'SVCB'];
+    var nonPublicDnsSuffixes = [
+        'localhost', 'localdomain', 'local', 'home.arpa', 'internal', 'intranet', 'lan', 'home', 'corp', 'private',
+        'test', 'invalid', 'example', 'onion'
+    ];
 
     var recordTypeMap = {
         0: 'Reserved',
@@ -75,6 +84,140 @@
 
     function getEffectiveName(name) {
         return name ? name : 'example.com';
+    }
+
+    function normalizePublicDnsName(value) {
+        var name = String(value == null ? '' : value).trim().toLowerCase().replace(/\.$/, '');
+        if (name.length < 3 || name.length > 253 || name.indexOf('.') < 1 || /^[0-9.]+$/.test(name)) {
+            return null;
+        }
+        var labels = name.split('.');
+        if (labels.some(function (label) {
+            return label.length < 1 || label.length > 63 || !/^_?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label);
+        })) {
+            return null;
+        }
+        if (isNonPublicDnsName(name)) {
+            return null;
+        }
+        return name;
+    }
+
+    function isNonPublicDnsName(name) {
+        if (nonPublicDnsSuffixes.some(function (suffix) {
+            return name === suffix || name.endsWith('.' + suffix);
+        })) {
+            return true;
+        }
+
+        if (name.endsWith('.in-addr.arpa')) {
+            var reverseV4 = name.slice(0, -'.in-addr.arpa'.length).split('.');
+            if (reverseV4.length >= 1 && reverseV4.length <= 4 && reverseV4.every(function (part) { return /^\d{1,3}$/.test(part) && Number(part) <= 255; })) {
+                var octets = reverseV4.reverse().map(Number);
+                return octets[0] === 0 || octets[0] === 10 || octets[0] === 127 || octets[0] >= 224 ||
+                    (octets.length >= 2 && octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) ||
+                    (octets.length >= 2 && octets[0] === 169 && octets[1] === 254) ||
+                    (octets.length >= 2 && octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+                    (octets.length >= 2 && octets[0] === 192 && octets[1] === 168) ||
+                    (octets.length >= 2 && octets[0] === 198 && (octets[1] === 18 || octets[1] === 19));
+            }
+        }
+
+        if (name.endsWith('.ip6.arpa')) {
+            var reverseV6 = name.slice(0, -'.ip6.arpa'.length).split('.');
+            if (reverseV6.length >= 1 && reverseV6.length <= 32 && reverseV6.every(function (part) { return /^[0-9a-f]$/.test(part); })) {
+                var addressPrefix = reverseV6.reverse().join('');
+                return /^(?:fc|fd)/.test(addressPrefix) ||
+                    /^fe[89ab]/.test(addressPrefix) ||
+                    (addressPrefix.length === 32 && /^0{31}[01]$/.test(addressPrefix));
+            }
+        }
+
+        return false;
+    }
+
+    function trimToolText(value, maximum) {
+        var text = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+        return text.length <= maximum ? text : text.slice(0, maximum - 1) + '…';
+    }
+
+    function buildWebMcpResult(state, payload, provider) {
+        var answers = (payload.Answer || []).map(function (row) {
+            return {
+                name: trimToolText(row.name || row.Name || '', 120),
+                type: trimToolText(getTypeLabel(row.type || row.Type || ''), 12),
+                ttl: Number(row.TTL == null ? (row.ttl == null ? 0 : row.ttl) : row.TTL),
+                data: trimToolText(row.data || row.Data || '', 240)
+            };
+        });
+        var result = {
+            success: true,
+            name: state.name,
+            type: state.type,
+            provider: provider.label,
+            status: rcodeMap[payload.Status] || String(payload.Status == null ? 'UNKNOWN' : payload.Status),
+            totalAnswers: answers.length,
+            answers: answers.slice(0, 10),
+            outputTruncated: answers.length > 10
+        };
+        while (result.answers.length > 0 && JSON.stringify(result).length > 1500) {
+            result.answers.pop();
+            result.outputTruncated = true;
+        }
+        return result;
+    }
+
+    async function registerWebMcpTool(controller) {
+        activeWebMcpController = controller;
+        if (webMcpRegistered || !document.modelContext || typeof document.modelContext.registerTool !== 'function') {
+            return;
+        }
+        try {
+            webMcpRegistrationController = new AbortController();
+            await document.modelContext.registerTool({
+                name: webMcpToolName,
+                description: 'Resolve one bounded public DNS record query and leave the result visible in the DomainDetective playground.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        name: { type: 'string', minLength: 3, maxLength: 253, description: 'Public DNS name, for example example.com.' },
+                        type: { type: 'string', enum: allowedToolRecordTypes, default: 'A' }
+                    },
+                    required: ['name'],
+                    additionalProperties: false
+                },
+                annotations: {
+                    readOnlyHint: true,
+                    destructiveHint: false,
+                    idempotentHint: true,
+                    openWorldHint: true,
+                    untrustedContentHint: true
+                },
+                execute: async function (input, context) {
+                    if (!activeWebMcpController) {
+                        throw new Error('The Raw DNS Query playground is no longer available on this page.');
+                    }
+                    return activeWebMcpController.resolveFromWebMcp(input || {}, context && context.signal);
+                }
+            }, { signal: webMcpRegistrationController.signal });
+            webMcpRegistered = true;
+            document.body.setAttribute('data-webmcp-status', 'registered');
+        } catch (_) {
+            webMcpRegistrationController && webMcpRegistrationController.abort();
+            webMcpRegistrationController = null;
+            document.body.setAttribute('data-webmcp-status', 'failed');
+        }
+    }
+
+    async function unregisterWebMcpTool(controller) {
+        if (activeWebMcpController !== controller) {
+            return;
+        }
+        activeWebMcpController = null;
+        webMcpRegistrationController && webMcpRegistrationController.abort();
+        webMcpRegistrationController = null;
+        webMcpRegistered = false;
+        document.body.setAttribute('data-webmcp-status', 'disposed');
     }
 
     function buildSummaryCard(label, value, meta) {
@@ -514,25 +657,50 @@
             activeAbortController = null;
         }
 
-        async function resolveDns(state) {
+        function invalidateActiveRequest() {
+            latestRequestSequence = ++nextRequestSequence;
+            cancelActiveRequest();
+            elements.resolveButton.disabled = false;
+        }
+
+        function supersededResult(state) {
+            return {
+                success: false,
+                name: state.name,
+                type: state.type,
+                message: 'DNS query was superseded by a newer request.'
+            };
+        }
+
+        async function resolveDns(state, externalSignal) {
             if (!state.name) {
-                cancelActiveRequest();
+                invalidateActiveRequest();
                 elements.status.dataset.state = 'error';
                 elements.status.textContent = 'Enter a DNS name before resolving.';
                 elements.summary.innerHTML = '';
                 elements.records.innerHTML = '';
                 elements.jsonCode.textContent = '';
-                return;
+                return { success: false, message: 'Enter a DNS name before resolving.' };
             }
 
             if (!isValidEcsSubnet(state.ecs)) {
-                cancelActiveRequest();
+                invalidateActiveRequest();
                 elements.status.dataset.state = 'error';
                 elements.status.textContent = 'Use EDNS client subnet in IPv4 CIDR form, for example 203.0.113.0/24.';
                 elements.summary.innerHTML = '';
                 elements.records.innerHTML = '';
                 elements.jsonCode.textContent = '';
-                return;
+                return { success: false, message: 'Use EDNS client subnet in IPv4 CIDR form, for example 203.0.113.0/24.' };
+            }
+
+            if (externalSignal && externalSignal.aborted) {
+                invalidateActiveRequest();
+                elements.status.dataset.state = 'error';
+                elements.status.textContent = 'DNS query was cancelled.';
+                elements.summary.innerHTML = '';
+                elements.records.innerHTML = '';
+                elements.jsonCode.textContent = '';
+                return { success: false, name: state.name, type: state.type, message: elements.status.textContent };
             }
 
             writeStateToUrl(state);
@@ -544,18 +712,27 @@
             var requestSequence = ++nextRequestSequence;
             latestRequestSequence = requestSequence;
             cancelActiveRequest();
-            activeAbortController = new AbortController();
+            var requestAbortController = new AbortController();
+            var externallyAborted = false;
+            var handleExternalAbort = function () {
+                externallyAborted = true;
+                requestAbortController.abort();
+            };
+            activeAbortController = requestAbortController;
+            if (externalSignal) {
+                externalSignal.addEventListener('abort', handleExternalAbort, { once: true });
+            }
             elements.jsonCode.textContent = '';
             await highlight(root);
 
             try {
                 var response = await fetch(request.url.toString(), {
                     headers: request.provider.headers,
-                    signal: activeAbortController.signal
+                    signal: requestAbortController.signal
                 });
 
                 if (requestSequence !== latestRequestSequence) {
-                    return;
+                    return supersededResult(state);
                 }
 
                 if (!response.ok) {
@@ -564,7 +741,7 @@
 
                 var payload = await response.json();
                 if (requestSequence !== latestRequestSequence) {
-                    return;
+                    return supersededResult(state);
                 }
 
                 elements.status.dataset.state = 'success';
@@ -574,21 +751,38 @@
                 renderSections(payload, elements.records);
                 elements.jsonCode.textContent = JSON.stringify(payload, null, 2);
                 await highlight(root);
+                return buildWebMcpResult(state, payload, request.provider);
             } catch (error) {
                 if (requestSequence !== latestRequestSequence) {
-                    return;
+                    return supersededResult(state);
                 }
 
-                if (error && error.name === 'AbortError') {
-                    return;
+                if (error && error.name === 'AbortError' && !externallyAborted) {
+                    return {
+                        success: false,
+                        name: state.name,
+                        type: state.type,
+                        message: 'DNS query was cancelled.'
+                    };
                 }
 
                 elements.summary.innerHTML = '';
                 elements.records.innerHTML = '';
                 elements.jsonCode.textContent = '';
                 elements.status.dataset.state = 'error';
-                elements.status.textContent = error instanceof Error ? error.message : 'Failed to resolve DNS.';
+                elements.status.textContent = externallyAborted
+                    ? 'DNS query was cancelled.'
+                    : (error instanceof Error ? error.message : 'Failed to resolve DNS.');
+                return {
+                    success: false,
+                    name: state.name,
+                    type: state.type,
+                    message: trimToolText(elements.status.textContent, 300)
+                };
             } finally {
+                if (externalSignal) {
+                    externalSignal.removeEventListener('abort', handleExternalAbort);
+                }
                 if (requestSequence === latestRequestSequence) {
                     elements.resolveButton.disabled = false;
                     activeAbortController = null;
@@ -599,6 +793,38 @@
         function handleSubmit(event) {
             event.preventDefault();
             void resolveDns(getState());
+        }
+
+        async function resolveFromWebMcp(input, signal) {
+            var normalizedName = normalizePublicDnsName(input.name);
+            var requestedType = String(input.type || 'A').toUpperCase();
+            if (!normalizedName) {
+                invalidateActiveRequest();
+                elements.status.dataset.state = 'error';
+                elements.status.textContent = 'Enter a normalized public DNS name such as example.com.';
+                elements.summary.innerHTML = '';
+                elements.records.innerHTML = '';
+                elements.jsonCode.textContent = '';
+                return { success: false, message: elements.status.textContent };
+            }
+            if (allowedToolRecordTypes.indexOf(requestedType) < 0) {
+                invalidateActiveRequest();
+                elements.status.dataset.state = 'error';
+                elements.status.textContent = 'Choose one of the record types exposed by the Raw DNS Query playground.';
+                elements.summary.innerHTML = '';
+                elements.records.innerHTML = '';
+                elements.jsonCode.textContent = '';
+                return { success: false, name: normalizedName, message: elements.status.textContent };
+            }
+
+            elements.nameInput.value = normalizedName;
+            elements.typeInput.value = requestedType;
+            elements.providerInput.value = 'google';
+            elements.ecsInput.value = '';
+            elements.disableValidationInput.checked = false;
+            elements.showDnssecInput.checked = false;
+            syncDnssecControls(elements);
+            return resolveDns(getState(), signal);
         }
 
         function handleProviderChange() {
@@ -648,7 +874,7 @@
             void resolveDns(initialState);
         }
 
-        controllers.set(root, {
+        var controller = {
             form: elements.form,
             providerInput: elements.providerInput,
             nameInput: elements.nameInput,
@@ -660,8 +886,11 @@
             handleProviderChange: handleProviderChange,
             handleStateInput: handleStateInput,
             handleRootClick: handleRootClick,
-            cancelActiveRequest: cancelActiveRequest
-        });
+            cancelActiveRequest: invalidateActiveRequest,
+            resolveFromWebMcp: resolveFromWebMcp
+        };
+        controllers.set(root, controller);
+        void registerWebMcpTool(controller);
 
         return true;
     }
@@ -685,6 +914,7 @@
         controller.showDnssecInput.removeEventListener('change', controller.handleStateInput);
         root.removeEventListener('click', controller.handleRootClick);
         controller.cancelActiveRequest();
+        void unregisterWebMcpTool(controller);
         controllers.delete(root);
         return true;
     }

@@ -68,7 +68,7 @@ if (-not (Test-Path -LiteralPath $DeployWorkflowPath)) {
 }
 
 $deployWorkflowLines = @(Get-Content -LiteralPath $DeployWorkflowPath)
-$expectedDeployWorkflowUses = 'EvotecIT/PSPublishModule/.github/workflows/powerforge-website-deploy.yml@01c8da4a9e9c5ab53b772e595c0abb514d36f977'
+$expectedDeployWorkflowUses = 'EvotecIT/PSPublishModule/.github/workflows/powerforge-website-deploy.yml@2540d97039f41bae9bf79ae337f6be6bf8f7a44d'
 $deployWorkflowUses = $null
 $guardrailValue = $null
 $inDeployJob = $false

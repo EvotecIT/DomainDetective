@@ -29,19 +29,6 @@
       "config": "./site.json"
     },
     {
-      "task": "verify",
-      "id": "verify-ci",
-      "dependsOn": "build-site",
-      "modes": ["ci"],
-      "config": "./site.json",
-      "baseline": "./.powerforge/verify-baseline.json",
-      "failOnNewWarnings": true,
-      "failOnNavLint": true,
-      "failOnThemeContract": true,
-      "warningPreviewCount": 10,
-      "errorPreviewCount": 10
-    },
-    {
       "task": "dotnet-build",
       "id": "build-library",
       "dependsOn": "verify-site",
@@ -264,9 +251,25 @@
       "reportPath": "./_reports/tool-route-fallbacks.json"
     },
     {
+      "task": "exec",
+      "id": "test-webmcp-dns-tool",
+      "dependsOn": "generate-tool-route-fallbacks",
+      "skipModes": ["dev"],
+      "command": "pwsh",
+      "argsList": [
+        "-NoLogo",
+        "-NoProfile",
+        "-File",
+        "./scripts/Test-WebMcpDnsTool.ps1",
+        "-SiteRoot",
+        "./_site"
+      ],
+      "workingDirectory": "."
+    },
+    {
       "task": "verify",
       "id": "verify-ci-final",
-      "dependsOn": "generate-tool-route-fallbacks",
+      "dependsOn": "test-webmcp-dns-tool",
       "modes": ["ci"],
       "config": "./site.json",
       "baseline": "./.powerforge/verify-baseline.json",

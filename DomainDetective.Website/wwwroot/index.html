@@ -145,7 +145,10 @@
     <link rel="stylesheet" href="css/prism-theme.css" />
     <link rel="stylesheet" href="DomainDetective.Website.styles.css" />
 </head>
-<body>
+<body data-webmcp-page-tool
+      data-webmcp-tool-name="query_dns_records"
+      data-webmcp-tool-description="Resolve one bounded public DNS record query and leave the result visible in the DomainDetective playground."
+      data-webmcp-read-only="true">
     <div id="app">
         <div class="loading-screen">
             <div class="loading-brand">
@@ -170,7 +173,7 @@
     </div>
 
     <script src="js/app.js"></script>
-    <script src="js/raw-dns-query.js"></script>
+    <script src="js/raw-dns-query.js" data-powerforge-webmcp data-webmcp-tool-name="query_dns_records"></script>
     <script src="_framework/blazor.webassembly.js"></script>
 </body>
 </html>
