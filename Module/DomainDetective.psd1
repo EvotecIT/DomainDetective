@@ -20,5 +20,4 @@
     }
     RootModule           = 'DomainDetective.psm1'
     RequiredModules      = @()
-    ScriptsToProcess     = @()
 }
