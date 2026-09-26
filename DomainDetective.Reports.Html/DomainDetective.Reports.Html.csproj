@@ -11,8 +11,10 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <UseLocalHtmlForgeX Condition="'$(UseLocalHtmlForgeX)' == ''">false</UseLocalHtmlForgeX>
+    <!-- The assessment report uses HtmlForgeX features newer than the last package; a sibling checkout is preferred. -->
     <HtmlForgeXProjectPath Condition="'$(HtmlForgeXProjectPath)' == ''">..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj</HtmlForgeXProjectPath>
+    <UseLocalHtmlForgeX Condition="'$(UseLocalHtmlForgeX)' == '' And Exists('$(HtmlForgeXProjectPath)')">true</UseLocalHtmlForgeX>
+    <UseLocalHtmlForgeX Condition="'$(UseLocalHtmlForgeX)' == ''">false</UseLocalHtmlForgeX>
   </PropertyGroup>
 
   <ItemGroup>

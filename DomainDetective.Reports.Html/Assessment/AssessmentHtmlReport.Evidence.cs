@@ -33,9 +33,10 @@ public static partial class AssessmentHtmlReport {
     private static void RenderEvidence(AssessmentCheck row, CheckAssessment check) {
         if (check.Facts.Count == 0 && check.Evidence.Count == 0 && check.Highlights.Count == 0) return;
         row.AssessmentPanel(panel => {
-            panel.Title("Evidence").TitleIcon(TablerIconType.FileSearch).Settings(s => s.Flush());
+            panel.Title("Evidence").TitleIcon(TablerIconType.FileSearch);
             if (check.Highlights.Count > 0) panel.Add(BulletList(check.Highlights));
             if (check.Facts.Count > 0) {
+                if (check.Highlights.Count > 0) panel.Add(new HtmlTag("h4").Class("dd-evidence-title").Value("Details"));
                 panel.AssessmentFacts(facts => {
                     foreach (CheckFact fact in check.Facts) facts.Fact(fact.Label, fact.Value, fact.Value.Length > 40);
                 });

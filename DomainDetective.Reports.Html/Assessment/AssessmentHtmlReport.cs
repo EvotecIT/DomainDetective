@@ -92,11 +92,21 @@ public static partial class AssessmentHtmlReport {
             shell.Brand(options.Brand, null)
                 .Title(report.Title)
                 .Subtitle(options.Subtitle ?? DefaultSubtitle(report));
-            shell.Settings(settings => settings.NavigationLabel("Report sections"));
+            // A left menu keeps every domain visible with its grade and open checks, however many domains there are.
+            shell.Settings(settings => settings.NavigationLabel("Report sections")
+                .Navigation(AssessmentNavigationLayout.Sidebar, filterPlaceholder: "Filter domains"));
 
             shell.AddSection("Summary", section => {
                 section.Key("summary").NavigationIcon(TablerIconType.LayoutDashboard).Active();
                 RenderSummary(section, report, ids, options);
+            });
+            int attention = report.Domains.Sum(static d => d.ErrorChecks + d.WarningChecks);
+            bool anyError = report.Domains.Any(static d => d.ErrorChecks > 0);
+            shell.AddSection("Explore", section => {
+                section.Key("explore").NavigationIcon(TablerIconType.ListSearch)
+                    .NavigationDetail("Every check and finding")
+                    .Count(attention, anyError ? Severity.High : attention > 0 ? Severity.Elevated : Severity.Good, "checks need attention");
+                RenderExplore(section, report, ids);
             });
 
             if (report.Domains.Count == 1) {
@@ -105,7 +115,7 @@ public static partial class AssessmentHtmlReport {
             } else if (report.Domains.Count > 1) {
                 shell.AddNavigationGroup("Domains", group => {
                     group.Key("domains").NavigationIcon(TablerIconType.World);
-                    group.Settings(s => s.InlineUpTo(1).SearchAbove(8).Labels("Filter domains", "No matching domains", "Checks"));
+                    group.Settings(s => s.InlineUpTo(1).SearchAbove(8).Labels("Filter domains", "No matching domains", "Checks need attention"));
                     foreach (DomainAssessment domain in report.Domains) {
                         group.AddSection(domain.Domain, section => RenderDomain(section, domain, ids, options));
                     }
@@ -208,14 +218,11 @@ public static partial class AssessmentHtmlReport {
             .Subtitle(report.Domains.Count == 1 ? "The number that matters most for each control. Open one for the detail." : "Domains where each control passes.")
             .Settings(s => s.Flush())
             .AssessmentStats(stats => {
-                foreach (var (key, headline) in present) {
+                foreach (var (key, _) in present) {
                     if (report.Domains.Count == 1) {
                         DomainAssessment domain = report.Domains[0];
                         CheckAssessment check = domain.Checks.First(c => c.Key == key);
-                        CheckMetric? metric = check.Metrics.FirstOrDefault(m => m.Label == headline) ?? check.Metrics.FirstOrDefault();
-                        // A missing record is the headline whatever the control's usual number is.
-                        if (check.Metrics.Count > 0 && check.Metrics[0].Label == "Record") metric = check.Metrics[0];
-                        string value = metric?.Value ?? OutcomeLabel(check.Outcome);
+                        string value = Headline(check)?.Value ?? OutcomeLabel(check.Outcome);
                         stats.Stat(value, check.Title, OutcomeSeverity(check.Outcome), ids.Check(domain, check));
                     } else {
                         var results = report.Domains.Select(d => d.Checks.FirstOrDefault(c => c.Key == key)).Where(static c => c != null).ToList();
@@ -237,20 +244,27 @@ public static partial class AssessmentHtmlReport {
             .ToList();
         section.AssessmentPanel(panel => panel
             .Title("Coverage")
-            .Subtitle("Every check across every domain. Open a cell for the result.")
+            .Subtitle("Every check across every domain with its key number. Open a cell for the result; previous and next move along the row.")
             .Settings(s => s.Flush())
             .AssessmentCoverageMatrix(matrix => {
                 foreach (DomainAssessment domain in report.Domains) {
                     matrix.Column(ids.Domain(domain), domain.Domain, domain.Score.HasValue ? $"{domain.Grade} · {domain.Score}" : null);
                 }
                 foreach (CheckAssessment row in rows) {
-                    matrix.Row(row.Title, AreaLabel(row.Area), cells => {
+                    // Cells show the check's key number, so the row names it.
+                    string? metricLabel = report.Domains.SelectMany(d => d.Checks.Where(c => c.Key == row.Key)).Select(Headline).FirstOrDefault(static m => m != null)?.Label;
+                    matrix.Row(row.Title, metricLabel == null ? AreaLabel(row.Area) : AreaLabel(row.Area) + " · " + metricLabel, cells => {
                         foreach (DomainAssessment domain in report.Domains) {
                             CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == row.Key);
                             if (check == null) continue;
                             int failed = check.ErrorCount + check.WarningCount;
+                            CheckMetric? headline = Headline(check);
+                            string label = headline?.Value is { Length: > 0 and <= 18 } value ? value : OutcomeLabel(check.Outcome);
+                            string title = $"{check.Title} · {domain.Domain} · {OutcomeLabel(check.Outcome)}"
+                                + (headline != null ? $" · {headline.Label}: {headline.Value}" : string.Empty)
+                                + (failed > 0 ? $" · {Plural(failed, "finding")}" : string.Empty);
                             cells.Cell(ids.Domain(domain), OutcomeSeverity(check.Outcome), failed == 0 ? 1 : 0, failed,
-                                OutcomeLabel(check.Outcome), ids.Check(domain, check), $"{check.Title} · {domain.Domain}");
+                                label, ids.Check(domain, check), title);
                         }
                     });
                 }
@@ -260,7 +274,6 @@ public static partial class AssessmentHtmlReport {
     private static void RenderAbout(AssessmentReportSection section, DomainAssessmentReport report) {
         section.AssessmentPanel(panel => panel
             .Title("How this report is scored")
-            .Settings(s => s.Flush())
             .AssessmentFacts(facts => facts
                 .Fact("Check score", "100 when a check passes; 15 points off per warning (not below 50); with errors, 40 for the first, 10 less for each further error and 5 less per warning (not below 0).")
                 .Fact("Domain score", "Weighted average of scored checks. DMARC counts three times, SPF, DKIM, MX and DNSSEC twice.")
