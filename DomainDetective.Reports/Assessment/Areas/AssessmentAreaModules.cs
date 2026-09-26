@@ -60,10 +60,10 @@ internal static class AreaText {
         if (!string.IsNullOrWhiteSpace(text)) check.Evidence.Add(new CheckEvidence { Title = title, Kind = CheckEvidenceKind.Code, Text = text!.Trim() });
     }
 
-    internal static void List(CheckAssessment check, string title, IEnumerable<string?> items, int maxRows) {
+    internal static void List(CheckAssessment check, string title, IEnumerable<string?> items, int maxRows, bool isVolatile = false) {
         List<string> values = items.Where(static i => !string.IsNullOrWhiteSpace(i)).Select(static i => i!.Trim()).ToList();
         if (values.Count == 0) return;
-        var evidence = new CheckEvidence { Title = title, Kind = CheckEvidenceKind.List, Omitted = Math.Max(0, values.Count - maxRows) };
+        var evidence = new CheckEvidence { Title = title, Kind = CheckEvidenceKind.List, Omitted = Math.Max(0, values.Count - maxRows), Volatile = isVolatile };
         evidence.Items.AddRange(values.Take(maxRows));
         check.Evidence.Add(evidence);
     }
@@ -80,6 +80,12 @@ internal static class AreaText {
     internal static string N(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
 
     internal static string YesNo(bool value) => value ? "Yes" : "No";
+
+    /// <summary>
+    /// A date as yyyy-MM-dd. Results are stored and compared over time, so they carry dates rather than "in 12 days":
+    /// a relative value would read as a change every day.
+    /// </summary>
+    internal static string Day(DateTime value) => value.ToUniversalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     internal static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value!.Trim();
 

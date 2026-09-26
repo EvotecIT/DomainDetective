@@ -245,6 +245,12 @@ public sealed class CheckEvidence {
 
     /// <summary>Rows or items left out because the evidence was longer than the configured limit.</summary>
     public int Omitted { get; set; }
+
+    /// <summary>
+    /// True for evidence that changes between runs without the domain's configuration changing, such as the
+    /// addresses a name resolves to today. Monitoring leaves it out when deciding whether a result changed.
+    /// </summary>
+    public bool Volatile { get; set; }
 }
 
 /// <summary>A recommended action.</summary>

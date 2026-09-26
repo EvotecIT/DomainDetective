@@ -29,4 +29,14 @@ public static class DomainAssessmentJson {
     /// <param name="json">JSON text.</param>
     /// <returns>The assessment, or null for a JSON null.</returns>
     public static DomainAssessmentReport? Deserialize(string json) => JsonSerializer.Deserialize<DomainAssessmentReport>(json, Options);
+
+    /// <summary>Serializes one check as compact JSON, for storing each check's result on its own.</summary>
+    /// <param name="check">Check to serialize.</param>
+    /// <returns>The JSON text.</returns>
+    public static string SerializeCheck(CheckAssessment check) => JsonSerializer.Serialize(check, CompactOptions);
+
+    /// <summary>Reads a check written by <see cref="SerializeCheck"/>.</summary>
+    /// <param name="json">JSON text.</param>
+    /// <returns>The check, or null for a JSON null.</returns>
+    public static CheckAssessment? DeserializeCheck(string json) => JsonSerializer.Deserialize<CheckAssessment>(json, Options);
 }

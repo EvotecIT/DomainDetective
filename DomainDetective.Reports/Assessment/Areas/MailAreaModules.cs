@@ -49,8 +49,9 @@ internal sealed class SpfAreaModule : IAssessmentAreaModule {
                 m.Provider,
                 m.Depth > 0 ? m.SourceDomain : null
             }), maxRows);
-        List(check, "Addresses the record authorizes", spf.FlattenedUniqueIps, maxRows);
-        List(check, "Addresses authorized more than once", spf.FlattenedDuplicateIps, maxRows);
+        // Resolved addresses rotate (cloud mail and web hosts), so they are evidence of today, not configuration.
+        List(check, "Addresses the record authorizes", spf.FlattenedUniqueIps.OrderBy(static ip => ip, StringComparer.Ordinal), maxRows, isVolatile: true);
+        List(check, "Addresses authorized more than once", spf.FlattenedDuplicateIps.OrderBy(static ip => ip, StringComparer.Ordinal), maxRows, isVolatile: true);
         return true;
     }
 
@@ -158,17 +159,20 @@ internal sealed class DkimAreaModule : IAssessmentAreaModule {
         int invalid = found.Count(static s => !s.ValidPublicKey || !s.StartsCorrectly);
         int testing = found.Count(static s => (s.Flags ?? string.Empty).IndexOf('y') >= 0);
 
-        check.Metrics.Add(Metric("Selectors found", N(found.Count), found.Count == 0 ? MetricState.Warning : MetricState.Good, $"of {N(selectors.Count)} checked"));
+        // DomainDetective reports only the selectors it found unless asked to include missing ones; the note is shown
+        // only when the tried selectors are known.
+        string? tried = selectors.Count > found.Count ? $"of {N(selectors.Count)} checked" : null;
+        check.Metrics.Add(Metric("Selectors found", N(found.Count), found.Count == 0 ? MetricState.Warning : MetricState.Good, tried));
         check.Metrics.Add(Metric("Weak keys", N(weak), weak > 0 ? MetricState.Warning : found.Count > 0 ? MetricState.Good : MetricState.Neutral));
         check.Metrics.Add(Metric("Invalid records", N(invalid), invalid > 0 ? MetricState.Error : found.Count > 0 ? MetricState.Good : MetricState.Neutral));
         if (old > 0) check.Metrics.Add(Metric("Keys not rotated", N(old), MetricState.Warning));
         if (testing > 0) check.Metrics.Add(Metric("In testing mode", N(testing), MetricState.Warning, "t=y"));
 
-        Table(check, "Selectors", new[] { "Selector", "Key", "Age", "Flags", "Notes" },
+        Table(check, "Selectors", new[] { "Selector", "Key", "Created", "Flags", "Notes" },
             found.Select(static s => (IReadOnlyList<string?>)new[] {
                 s.Selector,
                 KeyLabel(s),
-                s.CreationDate.HasValue ? N(s.KeyAgeDays) + " days" : null,
+                s.CreationDate.HasValue ? Day(s.CreationDate.Value) : null,
                 NullIfEmpty(s.Flags),
                 string.Join(", ", Notes(s))
             }), maxRows);
@@ -212,18 +216,17 @@ internal sealed class MxAreaModule : IAssessmentAreaModule {
         if (!string.IsNullOrWhiteSpace(mx.ProviderPrimary)) check.Metrics.Add(Metric("Provider", mx.ProviderPrimary!.Trim()));
 
         if (mx.ProviderGateways.Count > 0) Fact(check, "Gateways", string.Join(", ", mx.ProviderGateways));
-        if (mx.MinMxTtl.HasValue) Fact(check, "TTL", mx.MinMxTtl == mx.MaxMxTtl ? $"{N(mx.MinMxTtl.Value)} s" : $"{N(mx.MinMxTtl.Value)}–{N(mx.MaxMxTtl ?? mx.MinMxTtl.Value)} s");
         if (mx.PointsToCname) Fact(check, "Points to a CNAME", "Yes — not allowed for MX targets");
         if (mx.PointsToIpAddress) Fact(check, "Points to an IP address", "Yes — MX must name a host");
         if (mx.PointsToNonExistentDomain) Fact(check, "Points to a missing name", "Yes");
         if (mx.PointsToDomainWithoutAOrAaaaRecord) Fact(check, "Host without an address", "Yes");
         if (!mx.MxRrsetConsistentAcrossNs) Fact(check, "Same answer from every name server", "No");
 
-        Table(check, "Mail servers", new[] { "Priority", "Host", "TTL" },
-            mx.Hosts.OrderBy(static h => h.Priority ?? int.MaxValue).Select(static h => (IReadOnlyList<string?>)new[] {
+        // TTLs are left out: a caching resolver reports the time remaining, which differs on every run.
+        Table(check, "Mail servers", new[] { "Priority", "Host" },
+            mx.Hosts.OrderBy(static h => h.Priority ?? int.MaxValue).ThenBy(static h => h.Host, StringComparer.OrdinalIgnoreCase).Select(static h => (IReadOnlyList<string?>)new[] {
                 h.Priority?.ToString(CultureInfo.InvariantCulture),
-                h.Host,
-                h.Ttl.HasValue ? N(h.Ttl.Value) + " s" : null
+                h.Host
             }), maxRows);
         return true;
     }
@@ -239,14 +242,18 @@ internal sealed class MailTlsAreaModule : IAssessmentAreaModule {
         int tls = servers.Count(static s => !string.IsNullOrWhiteSpace(s.Protocol));
         int certificateProblems = servers.Count(static s => !s.CertificateValid || !s.ChainValid || !s.HostnameMatch || s.IsExpired);
         int tls13 = servers.Count(static s => s.SupportsTls13 || s.Tls13Used);
-        int soonest = servers.Where(static s => !string.IsNullOrWhiteSpace(s.Protocol)).Select(static s => s.DaysToExpire).DefaultIfEmpty(int.MaxValue).Min();
+        MailTlsServerInfo? soonest = servers.Where(static s => !string.IsNullOrWhiteSpace(s.Protocol)).OrderBy(static s => s.DaysToExpire).FirstOrDefault();
 
         check.Metrics.Add(Metric("Encrypted", $"{N(tls)} of {N(servers.Count)}", tls == servers.Count ? MetricState.Good : MetricState.Error, "servers negotiating TLS"));
         check.Metrics.Add(Metric("Certificate problems", N(certificateProblems), certificateProblems > 0 ? MetricState.Error : MetricState.Good));
         check.Metrics.Add(Metric("TLS 1.3", $"{N(tls13)} of {N(servers.Count)}", tls13 == servers.Count ? MetricState.Good : MetricState.Neutral));
-        if (soonest != int.MaxValue) check.Metrics.Add(Metric("Next certificate expiry", N(soonest) + " days", soonest < 0 ? MetricState.Error : soonest <= 14 ? MetricState.Warning : MetricState.Good));
+        if (soonest != null) {
+            DateTime? expires = soonest.ValidTo ?? soonest.CertificateNotAfter;
+            int days = soonest.DaysToExpire;
+            check.Metrics.Add(Metric("Next certificate expiry", expires.HasValue ? Day(expires.Value) : N(days) + " days", days < 0 ? MetricState.Error : days <= 14 ? MetricState.Warning : MetricState.Good));
+        }
 
-        Table(check, "Servers", new[] { "Server", "Port", "Address", "Protocol", "Cipher", "Certificate", "Expires in" },
+        Table(check, "Servers", new[] { "Server", "Port", "Address", "Protocol", "Cipher", "Certificate", "Expires" },
             servers.Select(static s => (IReadOnlyList<string?>)new[] {
                 s.HostName,
                 s.Port.ToString(CultureInfo.InvariantCulture),
@@ -254,7 +261,7 @@ internal sealed class MailTlsAreaModule : IAssessmentAreaModule {
                 NullIfEmpty(s.Protocol) ?? "no TLS",
                 NullIfEmpty(s.CipherSuite),
                 CertificateState(s),
-                string.IsNullOrWhiteSpace(s.Protocol) ? null : N(s.DaysToExpire) + " days"
+                string.IsNullOrWhiteSpace(s.Protocol) || !(s.ValidTo ?? s.CertificateNotAfter).HasValue ? null : Day((s.ValidTo ?? s.CertificateNotAfter)!.Value)
             }), maxRows);
         return true;
     }
@@ -347,7 +354,7 @@ internal sealed class BimiAreaModule : IAssessmentAreaModule {
         check.Metrics.Add(Metric("Mark certificate", !hasVmc ? "None" : bimi.ValidVmc ? "Valid" : "Invalid", !hasVmc ? MetricState.Neutral : bimi.ValidVmc ? MetricState.Good : MetricState.Error, hasVmc ? null : "required by Gmail and Apple Mail"));
         if (bimi.VmcNotAfter.HasValue) {
             int days = (int)Math.Floor((bimi.VmcNotAfter.Value.ToUniversalTime() - DateTime.UtcNow).TotalDays);
-            check.Metrics.Add(Metric("Certificate expires in", N(days) + " days", days < 0 ? MetricState.Error : days <= 30 ? MetricState.Warning : MetricState.Good));
+            check.Metrics.Add(Metric("Certificate expires", Day(bimi.VmcNotAfter.Value), days < 0 ? MetricState.Error : days <= 30 ? MetricState.Warning : MetricState.Good));
         }
 
         Fact(check, "Logo location", bimi.Location);
