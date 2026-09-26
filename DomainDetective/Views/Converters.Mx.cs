@@ -113,6 +113,7 @@ public static partial class Converters
             PointsToLocalhost = analysis.PointsToLocalhost,
             Ipv6Supported = analysis.Ipv6Supported,
             MxTtlUniform = analysis.MxTtlUniform,
+            TtlsFromAuthoritativeServers = analysis.TtlsFromAuthoritativeServers,
             MxRrsetConsistentAcrossNs = analysis.MxRrsetConsistentAcrossNs,
             TargetAddressConsistentAcrossNs = analysis.TargetAddressConsistentAcrossNs,
             Assessments = analysis is IHasAssessments h ? h.Assessments : new List<Assessment>(),
@@ -243,6 +244,8 @@ public class MxInfo
     public bool Ipv6Supported { get; set; }
     /// <summary>True when MX TTL values are uniform across the RRset.</summary>
     public bool MxTtlUniform { get; set; }
+    /// <summary>True when the MX TTLs come from the domain's authoritative name servers rather than a resolver's cache.</summary>
+    public bool TtlsFromAuthoritativeServers { get; set; }
     /// <summary>True when MX RRsets are consistent across authoritative NS.</summary>
     public bool MxRrsetConsistentAcrossNs { get; set; }
     /// <summary>True when target A/AAAA answers are consistent across authoritative NS.</summary>
