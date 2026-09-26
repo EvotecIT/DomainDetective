@@ -36,14 +36,31 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public void ConvertChecks_PassesFinishedViewsThroughAndReportsChecksWithoutAView() {
+        public void ConvertChecks_PassesFinishedViewsThroughAndLeavesMessageHeadersOut() {
             var health = new DomainHealthCheck();
             var errors = new List<string>();
 
+            // MESSAGEHEADER is one of the default checks but describes a message, not the domain.
             IReadOnlyList<object> items = Converters.ConvertChecks(health, new[] { HealthCheckType.WEBSITE, HealthCheckType.MESSAGEHEADER }, errors);
 
             Assert.Contains(items, static item => item is WebsiteInfo);
-            Assert.Contains(errors, static e => e.StartsWith("MESSAGEHEADER", System.StringComparison.Ordinal));
+            Assert.Empty(errors);
+        }
+
+        [Fact]
+        public void ConvertChecks_EveryCheckOfADomainRunHasAView() {
+            var health = new DomainHealthCheck();
+            var errors = new List<string>();
+            var checks = new[] { HealthCheckType.ROBOTS, HealthCheckType.HPKP, HealthCheckType.SNMP, HealthCheckType.NTP, HealthCheckType.FLATTENINGSERVICE };
+
+            IReadOnlyList<object> items = Converters.ConvertChecks(health, checks, errors);
+
+            Assert.Empty(errors);
+            Assert.Contains(items, static item => item is RobotsTxtInfo);
+            Assert.Contains(items, static item => item is HpkpInfo);
+            Assert.Contains(items, static item => item is SnmpInfo);
+            Assert.Contains(items, static item => item is NtpInfo);
+            Assert.Contains(items, static item => item is FlatteningServiceInfo);
         }
 
         [Fact]

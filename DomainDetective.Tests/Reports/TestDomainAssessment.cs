@@ -16,7 +16,7 @@ namespace DomainDetective.Tests.Reports {
         private static List<object> SampleViews() => new() {
             new SpfRecordInfo {
                 Check = HealthCheckType.SPF, Area = AnalysisArea.Mail, Subject = "Example.org.",
-                SpfRecord = "v=spf1 include:_spf.example.net -all", SpfRecordExists = true, DnsLookupsCount = 2,
+                SpfRecord = "v=spf1 include:_spf.example.net -all", SpfRecordExists = true, DnsLookupsCount = 2, AllMechanism = "-all",
                 Assessments = new[] { Warning("SPF.Lookups.High", "Two lookups used."), Info("SPF.Record.Present", "Record present.") }
             },
             new DmarcRecordInfo {
@@ -24,8 +24,8 @@ namespace DomainDetective.Tests.Reports {
                 Assessments = new[] { Error("DMARC.Record.Missing", "No DMARC record published.") }
             },
             // Two selectors of one check are merged into one check with a results table.
-            new DkimRecordInfo { Check = HealthCheckType.DKIM, Area = AnalysisArea.Mail, Subject = "example.org", Selector = "s1", KeyLength = 2048 },
-            new DkimRecordInfo { Check = HealthCheckType.DKIM, Area = AnalysisArea.Mail, Subject = "example.org", Selector = "s2", KeyLength = 1024 },
+            new DkimRecordInfo { Check = HealthCheckType.DKIM, Area = AnalysisArea.Mail, Subject = "example.org", Selector = "s1", KeyLength = 2048, DkimRecordExists = true, ValidPublicKey = true, StartsCorrectly = true, ValidKeyLength = true },
+            new DkimRecordInfo { Check = HealthCheckType.DKIM, Area = AnalysisArea.Mail, Subject = "example.org", Selector = "s2", KeyLength = 1024, DkimRecordExists = true, ValidPublicKey = true, StartsCorrectly = true, WeakKey = true },
             new MxInfo { Check = HealthCheckType.MX, Area = AnalysisArea.Mail, Subject = "b.example" },
             // An inventory check is shown but not scored.
             new WildcardDnsInfo { Check = HealthCheckType.WILDCARDDNS, Area = AnalysisArea.DNS, Subject = "https://example.org/", CatchAll = false },
@@ -46,7 +46,8 @@ namespace DomainDetective.Tests.Reports {
             Assert.Equal(85, spf.Score);
             Assert.Equal("Sender Policy Framework", spf.LongTitle);
             Assert.Contains(spf.Evidence, static e => e.Kind == CheckEvidenceKind.Code && e.Text!.StartsWith("v=spf1", StringComparison.Ordinal));
-            Assert.Contains(spf.Facts, static f => f.Label == "DNS lookups count" && f.Value == "2");
+            Assert.Contains(spf.Metrics, static m => m.Label == "DNS lookups" && m.Value == "2 / 10" && m.State == MetricState.Good);
+            Assert.Contains(spf.Metrics, static m => m.Label == "Ends with" && m.Value == "-all (fail)" && m.State == MetricState.Good);
 
             CheckAssessment dmarc = domain.Checks.Single(static c => c.Key == "dmarc");
             Assert.Equal(CheckOutcome.Error, dmarc.Outcome);
@@ -57,7 +58,9 @@ namespace DomainDetective.Tests.Reports {
             Assert.Equal(2, dkim.Sources.Count);
             CheckEvidence results = dkim.Evidence.First();
             Assert.Equal(CheckEvidenceKind.Table, results.Kind);
+            Assert.Equal("Selectors", results.Title);
             Assert.Equal(2, results.Rows.Count);
+            Assert.Contains(dkim.Metrics, static m => m.Label == "Weak keys" && m.Value == "1" && m.State == MetricState.Warning);
 
             CheckAssessment wildcard = domain.Checks.Single(static c => c.Key == "wildcarddns");
             Assert.Equal(CheckOutcome.Pass, wildcard.Outcome);
@@ -72,6 +75,68 @@ namespace DomainDetective.Tests.Reports {
             Assert.Equal(1, domain.ErrorChecks);
             Assert.Contains(domain.Areas, static a => a.Area == AnalysisArea.Mail && a.Attention == 2);
             Assert.Equal(AnalysisArea.Mail, domain.Checks[0].Area);
+        }
+
+        [Fact]
+        public void Build_DmarcModuleShowsPolicyAndWhereReportsGo() {
+            var views = new List<object> {
+                new DmarcRecordInfo {
+                    Check = HealthCheckType.DMARC, Area = AnalysisArea.Mail, Subject = "example.org",
+                    DmarcRecordExists = true, DmarcRecord = "v=DMARC1; p=none; rua=mailto:d@example.org,mailto:r@vendor.example",
+                    Policy = "none", Pct = 50,
+                    MailtoRua = new[] { "mailto:d@example.org", "mailto:r@vendor.example" },
+                    UnauthorizedExternalReportDomains = new[] { "vendor.example" }
+                }
+            };
+
+            CheckAssessment dmarc = DomainAssessmentBuilder.Build(views).Domains.Single().Checks.Single();
+
+            Assert.Equal(new[] { "Policy", "Subdomains", "Applied to", "Aggregate reports", "Alignment" }, dmarc.Metrics.Select(static m => m.Label));
+            Assert.Equal(MetricState.Warning, dmarc.Metrics[0].State);
+            Assert.Equal("50%", dmarc.Metrics[2].Value);
+            Assert.Equal("none (inherited)", dmarc.Metrics[1].Value);
+            CheckEvidence destinations = Assert.Single(dmarc.Evidence, static e => e.Title == "Report destinations");
+            Assert.Equal(new[] { "Not needed", "Missing" }, destinations.Rows.Select(static r => r[2]));
+            // The curated reading replaces the generic property listing.
+            Assert.DoesNotContain(dmarc.Facts, static f => f.Label == "Mailto rua");
+        }
+
+        [Fact]
+        public void Build_ModulesReportMissingRecordsAsTheHeadline() {
+            var views = new List<object> {
+                new SpfRecordInfo { Check = HealthCheckType.SPF, Area = AnalysisArea.Mail, Subject = "example.org" },
+                new MtastsInfo { Check = HealthCheckType.MTASTS, Area = AnalysisArea.Mail, Subject = "example.org" }
+            };
+
+            DomainAssessment domain = DomainAssessmentBuilder.Build(views).Domains.Single();
+
+            CheckMetric spf = Assert.Single(domain.Checks.Single(static c => c.Key == "spf").Metrics);
+            Assert.Equal(("Record", "Missing", MetricState.Error), (spf.Label, spf.Value, spf.State));
+            CheckMetric sts = Assert.Single(domain.Checks.Single(static c => c.Key == "mtasts").Metrics);
+            Assert.Equal("Not published", sts.Value);
+        }
+
+        [Fact]
+        public void Build_NamesReportHistoryViews() {
+            var views = new List<object> { new DmarcAggregateTimeSeriesInfo { Subject = "example.org" } };
+
+            CheckAssessment reports = DomainAssessmentBuilder.Build(views).Domains.Single().Checks.Single();
+
+            Assert.Equal("dmarc-reports", reports.Key);
+            Assert.Equal("DMARC aggregate reports", reports.Title);
+            Assert.Equal(AnalysisArea.Mail, reports.Area);
+            Assert.False(reports.Scored);
+        }
+
+        [Fact]
+        public void Html_ShowsKeyNumbersAndControls() {
+            DomainAssessmentReport report = DomainAssessmentBuilder.Build(SampleViews().Where(static v => v is not MxInfo { Subject: "b.example" }).ToList());
+
+            string html = AssessmentHtmlReport.Render(report);
+
+            Assert.Contains("Controls", html);
+            Assert.Contains("DNS lookups · limit set by RFC 7208", html);
+            Assert.Contains("-all (fail)", html);
         }
 
         [Fact]

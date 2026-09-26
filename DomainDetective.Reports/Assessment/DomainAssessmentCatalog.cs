@@ -100,7 +100,10 @@ public static class DomainAssessmentCatalog {
         HealthCheckType.AGENTREADINESS,
         HealthCheckType.SPFFLATTENED,
         HealthCheckType.MAILLATENCY,
-        HealthCheckType.CONTACT
+        HealthCheckType.CONTACT,
+        HealthCheckType.ROBOTS,
+        HealthCheckType.NTP,
+        HealthCheckType.FLATTENINGSERVICE
     };
 
     // Mail authentication decides whether a domain can be spoofed, so it weighs more than other checks.

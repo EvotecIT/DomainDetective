@@ -34,6 +34,33 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task RepeatedMessagesStillReachEachAnalysis() {
+            // One health check verifying two domains logs "No DMARC record found." twice; the logger shows it once,
+            // but both analyses must record the finding, or the second domain would pass.
+            var logger = new InternalLogger();
+            var first = new DmarcAnalysis();
+            var second = new DmarcAnalysis();
+
+            await first.AnalyzeDmarcRecords(new List<DnsClientX.DnsAnswer>(), logger, "one.example");
+            await second.AnalyzeDmarcRecords(new List<DnsClientX.DnsAnswer>(), logger, "two.example");
+
+            Assert.Contains(first.Assessments, static a => a.Code == DmarcCodes.MissingRecord);
+            Assert.Contains(second.Assessments, static a => a.Code == DmarcCodes.MissingRecord);
+        }
+
+        [Fact]
+        public void RepeatedMessagesOutsideAnAnalysisAreRaisedOnce() {
+            var logger = new InternalLogger();
+            int raised = 0;
+            logger.OnWarningMessage += (_, _) => raised++;
+
+            logger.WriteWarning("same");
+            logger.WriteWarning("same");
+
+            Assert.Equal(1, raised);
+        }
+
+        [Fact]
         public async Task NestedCollectorEventsReachTheEnclosingCollector() {
             var logger = new InternalLogger();
             var outer = new FakeAnalysis();

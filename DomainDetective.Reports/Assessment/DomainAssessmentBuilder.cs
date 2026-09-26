@@ -99,9 +99,16 @@ public static class DomainAssessmentBuilder {
         AnalysisArea area = reader.Area(view) ?? AnalysisArea.General;
         if (area == AnalysisArea.General && kind.HasValue) area = DomainDetective.Views.Converters.AreaFor(kind.Value);
         string key = kind?.ToString().ToLowerInvariant() ?? KeyFromType(view.GetType());
+        (string Key, string Title, AnalysisArea Area) described = default;
+        if (!kind.HasValue && DescriptiveViews.TryGetValue(view.GetType().Name, out described)) {
+            key = described.Key;
+            area = described.Area;
+        }
         CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == key);
         if (check == null) {
-            (string title, string? longTitle) = kind.HasValue ? DomainAssessmentCatalog.TitleFor(kind.Value) : (DomainAssessmentViewReader.Humanize(key), null);
+            (string title, string? longTitle) = kind.HasValue ? DomainAssessmentCatalog.TitleFor(kind.Value)
+                : described.Title != null ? (described.Title, null)
+                : (DomainAssessmentViewReader.Humanize(key), null);
             CheckDescription? description = kind.HasValue ? CheckDescriptions.Get(kind.Value) : null;
             check = new CheckAssessment {
                 Key = key,
@@ -120,6 +127,13 @@ public static class DomainAssessmentBuilder {
         }
         check.Sources.Add(view);
     }
+
+    // Views that describe history rather than one check (imported reports, drift over time); informational, but named.
+    private static readonly Dictionary<string, (string Key, string Title, AnalysisArea Area)> DescriptiveViews = new(StringComparer.Ordinal) {
+        ["DmarcAggregateTimeSeriesInfo"] = ("dmarc-reports", "DMARC aggregate reports", AnalysisArea.Mail),
+        ["TlsRptReportsTimeSeriesInfo"] = ("tlsrpt-reports", "TLS-RPT reports", AnalysisArea.Mail),
+        ["RegistrationDriftInfo"] = ("registration-drift", "Registration changes", AnalysisArea.Security)
+    };
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, HealthCheckType?> InferredChecks = new();
 
@@ -148,6 +162,7 @@ public static class DomainAssessmentBuilder {
 
     private static void Finish(CheckAssessment check, int maxRows) {
         var perSourceFacts = new List<List<CheckFact>>();
+        var genericEvidence = new List<CheckEvidence>();
         foreach (object view in check.Sources) {
             DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(view.GetType());
             foreach (Assessment assessment in reader.Assessments(view)) {
@@ -170,8 +185,17 @@ public static class DomainAssessmentBuilder {
             check.Narrative ??= DomainAssessmentNarratives.Resolve(view, reader);
 
             var facts = new List<CheckFact>();
-            reader.ReadDetails(view, null, facts, check.Evidence, maxRows);
+            reader.ReadDetails(view, null, facts, genericEvidence, maxRows);
             perSourceFacts.Add(facts);
+        }
+
+        // A curated module replaces the generic property listing with the numbers and evidence that matter for the
+        // check; checks without one (or with views the module does not know) keep the generic reading.
+        IAssessmentAreaModule? module = AssessmentAreaModules.For(check.Check);
+        if (module != null && module.Describe(check, maxRows)) {
+            perSourceFacts.Clear();
+        } else {
+            check.Evidence.AddRange(genericEvidence);
         }
 
         if (perSourceFacts.Count == 1) {

@@ -128,18 +128,11 @@ namespace DomainDetective.PowerShell {
                         }
 
                         var items = new System.Collections.Generic.List<object>();
-                        var selection = HealthCheckType ?? new[] {
-                            DomainDetective.HealthCheckType.SPF,
-                            DomainDetective.HealthCheckType.DKIM,
-                            DomainDetective.HealthCheckType.DMARC,
-                            DomainDetective.HealthCheckType.MX,
-                            DomainDetective.HealthCheckType.DNSSEC,
-                            DomainDetective.HealthCheckType.DANE,
-                            DomainDetective.HealthCheckType.MTASTS,
-                            DomainDetective.HealthCheckType.TLSRPT,
-                            DomainDetective.HealthCheckType.DNSBL,
-                            DomainDetective.HealthCheckType.RPKI
-                        };
+                        // Export exactly what ran: the default checks plus the transport policies verified above.
+                        var selection = HealthCheckType ?? DomainDetective.DomainHealthCheck.DefaultChecks
+                            .Concat(new[] { DomainDetective.HealthCheckType.MTASTS, DomainDetective.HealthCheckType.TLSRPT })
+                            .Distinct()
+                            .ToArray();
 
                         // Mail classification is computed on demand; every other check converts through the
                         // library's shared check-to-view conversion. Input order is kept for the legacy layouts.

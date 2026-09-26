@@ -55,6 +55,11 @@ public static partial class AssessmentHtmlReport {
 
         string? lead = check.Summary ?? check.Description;
         if (!string.IsNullOrWhiteSpace(lead)) row.Text(lead!);
+        if (check.Metrics.Count > 0) {
+            row.AssessmentStats(stats => {
+                foreach (CheckMetric metric in check.Metrics) stats.Stat(metric.Value, MetricCaption(metric), MetricSeverity(metric.State));
+            });
+        }
 
         List<CheckFinding> findings = check.Findings
             .Where(f => options.ShowInfoFindings || f.Severity != AssessmentSeverity.Info)

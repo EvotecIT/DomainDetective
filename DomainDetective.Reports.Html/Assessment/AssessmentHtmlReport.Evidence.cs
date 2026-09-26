@@ -102,6 +102,16 @@ public static partial class AssessmentHtmlReport {
         return list;
     }
 
+    private static string MetricCaption(CheckMetric metric)
+        => string.IsNullOrWhiteSpace(metric.Note) ? metric.Label : metric.Label + " · " + metric.Note;
+
+    private static Severity? MetricSeverity(MetricState state) => state switch {
+        MetricState.Good => Severity.Good,
+        MetricState.Warning => Severity.Elevated,
+        MetricState.Error => Severity.High,
+        _ => null
+    };
+
     private static Severity OutcomeSeverity(CheckOutcome outcome) => outcome switch {
         CheckOutcome.Error => Severity.High,
         CheckOutcome.Warning => Severity.Elevated,

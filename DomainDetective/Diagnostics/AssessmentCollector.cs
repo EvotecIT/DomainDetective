@@ -30,6 +30,9 @@ public sealed class AssessmentCollector : IDisposable {
     private readonly AssessmentCollector? _parent;
     private bool _disposed;
 
+    /// <summary>True when an analysis in the current execution flow is collecting assessments.</summary>
+    internal static bool IsCollecting => Current.Value != null;
+
     private AssessmentCollector(InternalLogger logger, List<Assessment> sink, string? defaultCategory = null, string? defaultTarget = null, string? defaultSource = null) {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sink = sink ?? throw new ArgumentNullException(nameof(sink));

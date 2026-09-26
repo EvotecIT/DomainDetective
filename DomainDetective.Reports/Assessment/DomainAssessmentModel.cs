@@ -118,6 +118,12 @@ public sealed class CheckAssessment {
     /// <summary>One-line summary from the check, when it provides one.</summary>
     public string? Summary { get; set; }
 
+    /// <summary>
+    /// Key numbers for the check (SPF DNS lookups, DKIM selectors found, DMARC policy), in display order. Filled for
+    /// checks that have a curated reading; empty otherwise.
+    /// </summary>
+    public List<CheckMetric> Metrics { get; set; } = new();
+
     /// <summary>Warnings and errors (and informational notes) raised by the check.</summary>
     public List<CheckFinding> Findings { get; set; } = new();
 
@@ -169,6 +175,33 @@ public sealed class CheckFinding {
 
     /// <summary>Record, host or selector the finding applies to, when provided.</summary>
     public string? Target { get; set; }
+}
+
+/// <summary>Whether a key number is good, needs attention or is only informative.</summary>
+public enum MetricState {
+    /// <summary>Informative; neither good nor bad.</summary>
+    Neutral,
+    /// <summary>Meets the recommended state.</summary>
+    Good,
+    /// <summary>Works, but should be improved.</summary>
+    Warning,
+    /// <summary>Broken or unsafe.</summary>
+    Error
+}
+
+/// <summary>A key number of a check, such as "DNS lookups: 7 / 10".</summary>
+public sealed class CheckMetric {
+    /// <summary>What is measured.</summary>
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Formatted value.</summary>
+    public string Value { get; set; } = string.Empty;
+
+    /// <summary>Whether the value is good, needs attention or is informative.</summary>
+    public MetricState State { get; set; }
+
+    /// <summary>Short context for the value, such as the limit it is measured against.</summary>
+    public string? Note { get; set; }
 }
 
 /// <summary>A labelled value.</summary>

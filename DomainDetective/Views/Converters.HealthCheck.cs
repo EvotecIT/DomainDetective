@@ -43,6 +43,9 @@ public static partial class Converters {
             case HealthCheckType.DNSPROPAGATION:
                 // One view per record type, as the renderers expect.
                 return health.DnsPropagationSet?.Items.Select(static item => (object)Convert(item)) ?? Enumerable.Empty<object>();
+            case HealthCheckType.MESSAGEHEADER:
+                // Message header analysis describes one message, not the domain; it is reported on its own.
+                return Enumerable.Empty<object>();
             case HealthCheckType.HTTP when string.IsNullOrWhiteSpace(health.HttpAnalysis.Subject):
             case HealthCheckType.IPENRICHMENT when string.IsNullOrWhiteSpace(health.IpEnrichmentAnalysis.Subject):
             case HealthCheckType.AGENTREADINESS when string.IsNullOrWhiteSpace(health.AgentReadinessAnalysis.Subject):

@@ -154,6 +154,8 @@ public static partial class AssessmentHtmlReport {
             posture.Tile(report.Grade, "overall grade", GradeSeverity(report.Score));
         });
 
+        RenderControls(section, report, ids);
+
         var attention = report.Domains
             .SelectMany(static d => d.Checks.Select(c => (Domain: d, Check: c)))
             .Where(static x => x.Check.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
@@ -186,6 +188,44 @@ public static partial class AssessmentHtmlReport {
         });
 
         if (report.Domains.Count > 1) RenderCoverage(section, report, ids);
+    }
+
+    // The controls a reader looks for first, with the number that says most about each.
+    private static readonly (string Key, string Headline)[] Controls = {
+        ("dmarc", "Policy"), ("spf", "Ends with"), ("dkim", "Selectors found"), ("mx", "Mail servers"),
+        ("mtasts", "Mode"), ("tlsrpt", "Report addresses"), ("bimi", "Logo"), ("dnssec", string.Empty), ("caa", string.Empty)
+    };
+
+    /// <summary>
+    /// One tile per key control. For one domain the tile shows the control's headline number and opens the check; for
+    /// several it shows how many domains pass.
+    /// </summary>
+    private static void RenderControls(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
+        var present = Controls.Where(c => report.Domains.Any(d => d.Checks.Any(check => check.Key == c.Key))).ToList();
+        if (present.Count == 0) return;
+        section.AssessmentPanel(panel => panel
+            .Title("Controls")
+            .Subtitle(report.Domains.Count == 1 ? "The number that matters most for each control. Open one for the detail." : "Domains where each control passes.")
+            .Settings(s => s.Flush())
+            .AssessmentStats(stats => {
+                foreach (var (key, headline) in present) {
+                    if (report.Domains.Count == 1) {
+                        DomainAssessment domain = report.Domains[0];
+                        CheckAssessment check = domain.Checks.First(c => c.Key == key);
+                        CheckMetric? metric = check.Metrics.FirstOrDefault(m => m.Label == headline) ?? check.Metrics.FirstOrDefault();
+                        // A missing record is the headline whatever the control's usual number is.
+                        if (check.Metrics.Count > 0 && check.Metrics[0].Label == "Record") metric = check.Metrics[0];
+                        string value = metric?.Value ?? OutcomeLabel(check.Outcome);
+                        stats.Stat(value, check.Title, OutcomeSeverity(check.Outcome), ids.Check(domain, check));
+                    } else {
+                        var results = report.Domains.Select(d => d.Checks.FirstOrDefault(c => c.Key == key)).Where(static c => c != null).ToList();
+                        int passing = results.Count(static c => c!.Outcome is CheckOutcome.Pass or CheckOutcome.Info);
+                        string title = results[0]!.Title;
+                        Severity tone = passing == results.Count ? Severity.Good : results.Any(static c => c!.Outcome == CheckOutcome.Error) ? Severity.High : Severity.Elevated;
+                        stats.Stat($"{passing.ToString(CultureInfo.InvariantCulture)} / {results.Count.ToString(CultureInfo.InvariantCulture)}", title, tone);
+                    }
+                }
+            }));
     }
 
     private static void RenderCoverage(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
