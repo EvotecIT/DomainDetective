@@ -124,12 +124,13 @@ namespace DomainDetective.PowerShell {
         // Presentation profiles (optional)
         /// <para>Choose the HTML presentation profile.</para>
         /// <para>
-        /// <c>Document</c> provides a narrative, document-style layout; <c>Dashboard</c> focuses on
-        /// high-level, concise summaries suitable for quick review or portals.
+        /// <c>Assessment</c> (default) is a scored assessment report: a summary with what to fix first, coverage across
+        /// domains, and every check with findings, evidence and guidance. It works offline and follows the viewer's
+        /// light or dark theme. <c>Document</c> and <c>Dashboard</c> keep the previous long-form and compact layouts.
         /// </para>
         [Parameter(Mandatory = false)]
-        [ValidateSet("Document","Dashboard")]
-        public string HtmlProfile { get; set; } = "Document";
+        [ValidateSet("Assessment","Document","Dashboard")]
+        public string HtmlProfile { get; set; } = "Assessment";
 
         /// <para>Choose the Excel presentation profile.</para>
         /// <para>

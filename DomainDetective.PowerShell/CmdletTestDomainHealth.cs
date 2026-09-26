@@ -141,104 +141,19 @@ namespace DomainDetective.PowerShell {
                             DomainDetective.HealthCheckType.RPKI
                         };
 
+                        // Mail classification is computed on demand; every other check converts through the
+                        // library's shared check-to-view conversion. Input order is kept for the legacy layouts.
+                        var conversionErrors = new System.Collections.Generic.List<string>();
                         foreach (var kind in selection) {
-                            switch (kind) {
-                                case DomainDetective.HealthCheckType.SPF:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.DKIM:
-                                    items.AddRange(DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.DMARC:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.TYPOSQUATTING:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.TyposquattingAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.MX:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.DNSSEC:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.DANE:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.DNSBL:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.MTASTS:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.TLSRPT:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.RPKI:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.RpkiAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.MAILCLASSIFICATION:
-                                    {
-                                        var classifier = new MailDomainClassifier(healthCheck, logger);
-                                        var mc = await classifier.ClassifyAsync(domain);
-                                        items.Add(DomainDetective.Views.Converters.Convert(mc));
-                                        break;
-                                    }
-                                case DomainDetective.HealthCheckType.SUBDOMAINS:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.DNSINVENTORY:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.IPENRICHMENT:
-                                    if (!string.IsNullOrWhiteSpace(healthCheck.IpEnrichmentAnalysis.Subject))
-                                    {
-                                        items.Add(DomainDetective.Views.Converters.Convert(healthCheck.IpEnrichmentAnalysis));
-                                    }
-                                    break;
-                                case DomainDetective.HealthCheckType.HTTP:
-                                    if (!string.IsNullOrWhiteSpace(healthCheck.HttpAnalysis.Subject))
-                                    {
-                                        items.Add(DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis));
-                                    }
-                                    break;
-                                case DomainDetective.HealthCheckType.AGENTREADINESS:
-                                    if (!string.IsNullOrWhiteSpace(healthCheck.AgentReadinessAnalysis.Subject))
-                                    {
-                                        items.Add(DomainDetective.Views.Converters.Convert(healthCheck.AgentReadinessAnalysis));
-                                    }
-                                    break;
-                                case DomainDetective.HealthCheckType.SITEMAP:
-                                    if (!string.IsNullOrWhiteSpace(healthCheck.SitemapAnalysis.Subject))
-                                    {
-                                        items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SitemapAnalysis));
-                                    }
-                                    break;
-                                case DomainDetective.HealthCheckType.DNSTRACE:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.CTTIMELINE:
-                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.CtTimelineAnalysis));
-                                    break;
-                                case DomainDetective.HealthCheckType.DNSPROPAGATION:
-                                    try
-                                    {
-                                        var set = healthCheck.DnsPropagationSet;
-                                        if (set != null && set.Items.Count > 0)
-                                        {
-                                            foreach (var a in set.Items)
-                                            {
-                                                items.Add(DomainDetective.Views.Converters.Convert(a));
-                                            }
-                                        }
-                                    }
-                                    catch
-                                    {
-                                    }
-                                    break;
-                                default:
-                                    break; // unsupported here falls back to default path
+                            if (kind == DomainDetective.HealthCheckType.MAILCLASSIFICATION) {
+                                var classifier = new MailDomainClassifier(healthCheck, logger);
+                                var mc = await classifier.ClassifyAsync(domain);
+                                items.Add(DomainDetective.Views.Converters.Convert(mc));
+                            } else {
+                                items.AddRange(DomainDetective.Views.Converters.ConvertChecks(healthCheck, new[] { kind }, conversionErrors));
                             }
                         }
+                        foreach (var conversionError in conversionErrors) WriteWarning($"Report section skipped: {conversionError}");
 
                         try {
                             var hadUnsupportedFormats = false;
@@ -273,6 +188,7 @@ namespace DomainDetective.PowerShell {
 
                             if (reportResult.Success) {
                                 WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
+                                if (!string.IsNullOrWhiteSpace(reportResult.ErrorMessage)) WriteWarning(reportResult.ErrorMessage!);
                             } else {
                                 WriteWarning(reportResult.ErrorMessage ?? "Export failed.");
                             }

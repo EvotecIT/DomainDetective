@@ -39,6 +39,8 @@ internal static class CompositionReportDispatcher
                 return TryGenerateMarkdown(request, items, outputPath, out error);
             case ReportFormat.MarkdownHtml:
                 return TryGenerateMarkdownHtml(request, items, outputPath, out error);
+            case ReportFormat.Json:
+                return TryGenerateJson(request, items, outputPath, out error);
             default:
                 error = $"{format} composition is not supported.";
                 return false;
@@ -137,7 +139,9 @@ internal static class CompositionReportDispatcher
         {
             return false;
         }
-        var profileValue = ParseEnum(profileType, request.HtmlProfile, "Document");
+        var profileValue = ParseEnum(profileType, request.HtmlProfile, "Assessment");
+        // The assessment report follows the viewer's theme; the legacy layouts were designed for light.
+        string themeName = string.Equals(profileValue.ToString(), "Assessment", StringComparison.OrdinalIgnoreCase) ? "System" : "Light";
 
         // vNext: includes ThemeMode; keep fallback for older signatures.
         var themeType = GetType(HtmlThemeModeType, HtmlForgeXAssembly, out _);
@@ -165,7 +169,7 @@ internal static class CompositionReportDispatcher
                 null);
             if (methodWithTheme != null)
             {
-                var themeValue = Enum.Parse(themeType, "Light", ignoreCase: true);
+                var themeValue = Enum.Parse(themeType, themeName, ignoreCase: true);
                 return Invoke(methodWithTheme, new object?[] {
                     outputPath,
                     items,
@@ -230,7 +234,7 @@ internal static class CompositionReportDispatcher
 	                request.Ordering.SectionOrderMode,
 	                request.Ordering.SectionOrder,
 	                profileValue,
-	                Enum.Parse(parameters[12].ParameterType, "Light", ignoreCase: true)
+	                Enum.Parse(parameters[12].ParameterType, themeName, ignoreCase: true)
 	            }
 	            : new object?[] {
 	                outputPath,
@@ -248,6 +252,28 @@ internal static class CompositionReportDispatcher
 	            };
 
 	        return Invoke(method, invokeArgs, out error);
+	    }
+
+	    private static bool TryGenerateJson(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
+	    {
+	        error = null;
+	        try
+	        {
+	            DomainAssessmentReport report = DomainAssessmentBuilder.Build(items, new DomainAssessmentOptions
+	            {
+	                Title = request.Title,
+	                DomainOrder = request.Ordering.DomainOrder
+	            });
+	            string? directory = System.IO.Path.GetDirectoryName(outputPath);
+	            if (!string.IsNullOrEmpty(directory)) System.IO.Directory.CreateDirectory(directory);
+	            System.IO.File.WriteAllText(outputPath, DomainAssessmentJson.Serialize(report));
+	            return true;
+	        }
+	        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or NotSupportedException)
+	        {
+	            error = $"JSON composition failed: {ex.Message}";
+	            return false;
+	        }
 	    }
 
 	    private static MethodInfo? FindCompatibleHtmlGenerateMethod(Type reportType, Type profileType, Type? themeType)

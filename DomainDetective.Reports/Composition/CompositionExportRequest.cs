@@ -27,7 +27,7 @@ public sealed class CompositionExportRequest
     public int? HeaderLogoSizePx { get; set; }
     public int? FooterLogoSizePx { get; set; }
     public ProviderHelpRenderOptions? ProviderHelpOptions { get; set; }
-    public string HtmlProfile { get; set; } = "Document";
+    public string HtmlProfile { get; set; } = "Assessment";
     public string ExcelProfile { get; set; } = "Workbook";
     public string? ExportPath { get; set; }
     public string? DefaultOutputDirectory { get; set; }

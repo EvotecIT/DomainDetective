@@ -271,18 +271,19 @@ Accept wildcard characters: False
 ### -HtmlProfile
 Choose the HTML presentation profile.
 
-Document provides a narrative, document-style layout; Dashboard focuses on
-high-level, concise summaries suitable for quick review or portals.
+Assessment (default) is a scored assessment report: a summary with what to fix first, coverage across
+domains, and every check with findings, evidence and guidance. It works offline and follows the viewer's
+light or dark theme. Document and Dashboard keep the previous long-form and compact layouts.
 
 ```yaml
 Type: String
 Parameter Sets: Default, Inline
 Aliases: None
-Possible values: Document, Dashboard
+Possible values: Assessment, Document, Dashboard
 
 Required: False
 Position: named
-Default value: None
+Default value: Assessment
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -444,6 +445,8 @@ Accept wildcard characters: False
 ```
 
 ### -SectionOrder
+Applies to the Document and Dashboard layouts; the Assessment layout orders checks by area.
+
 Explicit section order to use when SectionOrderMode is Custom.
 
 Typical keys include: MX, SPF, DKIM, DMARC, ARC, BIMI, DNSBL, RPKI, NS, SOA, ZoneTransfer,
@@ -463,6 +466,8 @@ Accept wildcard characters: False
 ```
 
 ### -SectionOrderMode
+Applies to the Document and Dashboard layouts; the Assessment layout orders checks by area.
+
 Controls section ordering within each domain.
 
 Canonical uses the built-in order (e.g. MX, SPF, DKIM, DMARC, …), Input orders by

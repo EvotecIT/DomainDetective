@@ -10,7 +10,7 @@ namespace DomainDetective.Reports.Html;
 /// HtmlCompositionReport partial: provider chain/links section.
 /// </summary>
 public static partial class HtmlCompositionReport {
-    private static void RenderProvidersSection(Element page, List<KeyValuePair<string, DomainBucket>> ordered) {
+    private static void RenderProvidersSection(ContentContainer page, List<KeyValuePair<string, DomainBucket>> ordered) {
         var rows = new List<Dictionary<string, object>>();
         var helpByDomain = new List<(string Domain, List<DomainDetective.Views.ProviderHelpTopic> Topics)>();
         foreach (var kv in ordered) {

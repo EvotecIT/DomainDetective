@@ -12,7 +12,7 @@ namespace DomainDetective.Reports.Html;
 /// HtmlCompositionReport partial: helpers, models, and enums.
 /// </summary>
 public static partial class HtmlCompositionReport {
-    private static void AddDomainMarker(Element container, string domain) {
+    private static void AddDomainMarker(ContentContainer container, string domain) {
         if (container == null) throw new ArgumentNullException(nameof(container));
         if (string.IsNullOrWhiteSpace(domain)) throw new ArgumentException("A domain is required.", nameof(domain));
 
@@ -296,7 +296,7 @@ public static partial class HtmlCompositionReport {
         return c;
     }
 
-    private static void RenderTopFindingsList(Element container, IReadOnlyList<FindingSummary> topFindings, bool includeCode) {
+    private static void RenderTopFindingsList(ContentContainer container, IReadOnlyList<FindingSummary> topFindings, bool includeCode) {
         if (topFindings == null || topFindings.Count == 0) {
             container.Text("No warnings or errors detected.").Style(TablerTextStyle.Muted);
             return;

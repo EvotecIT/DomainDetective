@@ -10,7 +10,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderBackgroundSection(Element page, System.Collections.Generic.IReadOnlyList<object> items)
+    private static void RenderBackgroundSection(ContentContainer page, System.Collections.Generic.IReadOnlyList<object> items)
     {
         if (items == null || items.Count == 0)
         {

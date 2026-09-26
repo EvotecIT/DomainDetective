@@ -11,7 +11,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderDiagnosticsSection(Element page, List<KeyValuePair<string, DomainBucket>> ordered)
+    private static void RenderDiagnosticsSection(ContentContainer page, List<KeyValuePair<string, DomainBucket>> ordered)
     {
         if (ordered == null || ordered.Count == 0)
         {

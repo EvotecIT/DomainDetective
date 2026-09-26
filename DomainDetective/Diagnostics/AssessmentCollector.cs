@@ -1,11 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace DomainDetective;
 
 /// <summary>
 /// Bridges InternalLogger events into structured <see cref="Assessment"/> entries.
 /// </summary>
+/// <remarks>
+/// A collector only records events raised from the execution flow that created it (and flows started from there).
+/// Checks run concurrently against one logger, so without this every active collector would also record the other
+/// checks' warnings.
+/// </remarks>
 /// <para>Part of the DomainDetective project.</para>
 public sealed class AssessmentCollector : IDisposable {
     private readonly InternalLogger _logger;
@@ -19,6 +25,11 @@ public sealed class AssessmentCollector : IDisposable {
 
     private readonly object _lock = new();
 
+    // Collector chain of the current execution flow; parallel checks each see only their own chain.
+    private static readonly AsyncLocal<AssessmentCollector?> Current = new();
+    private readonly AssessmentCollector? _parent;
+    private bool _disposed;
+
     private AssessmentCollector(InternalLogger logger, List<Assessment> sink, string? defaultCategory = null, string? defaultTarget = null, string? defaultSource = null) {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sink = sink ?? throw new ArgumentNullException(nameof(sink));
@@ -27,9 +38,12 @@ public sealed class AssessmentCollector : IDisposable {
             _scope.Push(new ScopeFrame(defaultCategory, defaultTarget, defaultSource));
         }
 
-        _onWarn = (_, e) => Add(AssessmentSeverity.Warning, e.FullMessage, e.Code);
-        _onError = (_, e) => Add(AssessmentSeverity.Error, e.FullMessage, e.Code);
-        _onInfo  = (_, e) => Add(AssessmentSeverity.Info, e.FullMessage, e.Code);
+        _onWarn = (_, e) => { if (OwnsCurrentFlow()) Add(AssessmentSeverity.Warning, e.FullMessage, e.Code); };
+        _onError = (_, e) => { if (OwnsCurrentFlow()) Add(AssessmentSeverity.Error, e.FullMessage, e.Code); };
+        _onInfo  = (_, e) => { if (OwnsCurrentFlow()) Add(AssessmentSeverity.Info, e.FullMessage, e.Code); };
+
+        _parent = Current.Value;
+        Current.Value = this;
 
         _logger.OnWarningMessage += _onWarn;
         _logger.OnErrorMessage += _onError;
@@ -97,8 +111,22 @@ public sealed class AssessmentCollector : IDisposable {
         }
     }
 
+    /// <summary>
+    /// Whether the event being raised comes from this collector's flow: this collector, or a collector nested in it,
+    /// is the current one.
+    /// </summary>
+    private bool OwnsCurrentFlow() {
+        for (AssessmentCollector? collector = Current.Value; collector != null; collector = collector._parent) {
+            if (ReferenceEquals(collector, this)) return true;
+        }
+        return false;
+    }
+
     /// <summary>Executes the dispose operation.</summary>
     public void Dispose() {
+        if (_disposed) return;
+        _disposed = true;
+        if (ReferenceEquals(Current.Value, this)) Current.Value = _parent;
         _logger.OnWarningMessage -= _onWarn;
         _logger.OnErrorMessage -= _onError;
         _logger.OnInformationMessage -= _onInfo;

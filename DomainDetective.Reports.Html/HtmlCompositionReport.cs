@@ -48,6 +48,17 @@ public static partial class HtmlCompositionReport
             throw new ArgumentException("No items to compose.", nameof(items));
         }
 
+        if (profile == HtmlProfile.Assessment)
+        {
+            AssessmentHtmlReport.Generate(
+                path,
+                items,
+                new DomainAssessmentOptions { Title = titleOverride, DomainOrder = domainOrder },
+                new AssessmentHtmlOptions { Theme = themeMode },
+                openInBrowser);
+            return;
+        }
+
         var grouped = GroupBySubject(items);
         var ordered = domainOrder == DomainOrder.Input
             ? OrderDomainsByInput(items, grouped)

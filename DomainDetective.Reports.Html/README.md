@@ -1,47 +1,50 @@
 # DomainDetective HTML Reports
 
-This library provides HTML report generation for DomainDetective using HtmlForgeX.
+HTML report generation for DomainDetective using HtmlForgeX.
 
-## Usage
+## Assessment report
 
-### Basic Report
+The assessment report is a single offline HTML file with:
+
+- a summary: overall score and grade, scores per area (Mail, DNS, Web, ...), and what to fix first;
+- a coverage matrix of every check across every domain (when more than one domain is assessed);
+- one section per domain with every check that ran: outcome, findings, what the domain does well, how to fix it,
+  and the evidence behind the result (raw records, facts and tables).
+
 ```csharp
 var healthCheck = new DomainHealthCheck();
-await healthCheck.CheckDomainHealthAsync("example.com");
+await healthCheck.Verify("example.com");
 
-var report = new BasicDomainReport(healthCheck, "example.com");
-report.GenerateReport("report.html", openInBrowser: true);
+// Views for every check the run executed.
+var items = DomainDetective.Views.Converters.ConvertChecks(healthCheck);
+
+// Build and render in one step...
+AssessmentHtmlReport.Generate("report.html", items);
+
+// ...or build the model once and render it as HTML and JSON.
+DomainAssessmentReport assessment = DomainAssessmentBuilder.Build(items);
+AssessmentHtmlReport.Generate("report.html", assessment, new AssessmentHtmlOptions { Theme = ThemeMode.Dark });
+File.WriteAllText("report.json", DomainAssessmentJson.Serialize(assessment));
 ```
 
-### Simple Report with Scoring
-```csharp
-var report = new SimpleDomainReport(healthCheck, "example.com");
-report.GenerateReport("report.html");
-```
+`AssessmentHtmlOptions` controls the brand, subtitle, theme (system by default), library mode (offline by default) and
+whether informational findings are shown.
 
-### Advanced Security Report
-```csharp
-var report = new DomainSecurityReport(healthCheck, "example.com");
-report.GenerateReport("security-report.html");
-```
+### Scoring
 
-## Report Types
+- Check score: 100 when a check passes, 15 points off per warning (not below 50), 40 with one error and 10 less for
+  each further error.
+- Domain score: weighted average of scored checks. DMARC counts three times; SPF, DKIM, MX and DNSSEC twice.
+- Inventory and discovery checks (subdomains, DNS inventory, CT timeline, Microsoft 365, ...) are shown but not scored.
+- Grade: A from 90, B from 80, C from 70, D from 60, otherwise F.
 
-1. **BasicDomainReport** - Simple overview of domain configuration
-2. **SimpleDomainReport** - Includes scoring and recommendations
-3. **DomainSecurityReport** - Comprehensive report with categories, detailed scoring, and visualizations
+## Composition layouts
 
-## Features
-
-- 🎯 Security scoring system (0-100)
-- 📊 Category-based analysis (Impersonation, Privacy, Branding, Infrastructure)
-- 🎨 Beautiful UI using Tabler components
-- 📱 Responsive design
-- 🚀 No JavaScript/CSS knowledge required
-- 🔧 Fully customizable through C# API
+`HtmlCompositionReport.Generate(..., profile: HtmlProfile.Assessment)` renders the same assessment report. The
+`Document` and `Dashboard` profiles keep the previous long-form and compact layouts.
 
 ## Dependencies
 
-- HtmlForgeX 0.4.0
+- HtmlForgeX 1.1.0 or later
 - DomainDetective
 - DomainDetective.Reports
