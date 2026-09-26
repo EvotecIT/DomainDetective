@@ -378,6 +378,8 @@ namespace DomainDetective {
             if (domainName != null && getOrgDomain != null) {
                 orgDomain = getOrgDomain(domainName);
             }
+            // Report addresses outside the domain's organisation, judged once their authorisation is known.
+            var externalAddresses = new List<(string Address, string Domain)>();
             foreach (var mail in MailtoRua.Concat(MailtoRuf)) {
                 var at = mail.IndexOf('@');
                 if (at > -1 && at < mail.Length - 1) {
@@ -385,7 +387,7 @@ namespace DomainDetective {
                     reportDomains.Add(domain);
                     if (orgDomain != null && getOrgDomain != null &&
                         !string.Equals(getOrgDomain(domain), orgDomain, StringComparison.OrdinalIgnoreCase)) {
-                        logger?.WriteWarningCode(DmarcCodes.AlignmentMismatch, "Report address {0} is not aligned with {1}.", mail, domainName);
+                        externalAddresses.Add((mail, domain));
                     }
                 }
             }
@@ -394,7 +396,7 @@ namespace DomainDetective {
                     reportDomains.Add(uri.Host);
                     if (orgDomain != null && getOrgDomain != null &&
                         !string.Equals(getOrgDomain(uri.Host), orgDomain, StringComparison.OrdinalIgnoreCase)) {
-                        logger?.WriteWarningCode(DmarcCodes.AlignmentMismatch, "Report address {0} is not aligned with {1}.", http, domainName);
+                        externalAddresses.Add((http, uri.Host));
                     }
                 }
             }
@@ -422,6 +424,16 @@ namespace DomainDetective {
                     r.Type == DnsRecordType.TXT &&
                     IsDmarcReportAuthorizationRecord(r.TxtConcatenatedData));
                 ExternalReportAuthorization[domain] = authorized;
+            }
+
+            // An external destination is legitimate when it publishes the reporting authorisation record (RFC 7489
+            // section 7.1); only destinations without it lose the reports and deserve a warning.
+            foreach (var (address, domain) in externalAddresses) {
+                if (ExternalReportAuthorization.TryGetValue(domain, out var authorized) && authorized) {
+                    logger?.WriteInformationCode(DmarcCodes.ExternalReportAuthorized, "Report address {0} is outside {1} and {2} authorizes receiving its reports.", address, domainName, domain);
+                } else {
+                    logger?.WriteWarningCode(DmarcCodes.ExternalReportUnauthorized, "Report address {0} is outside {1} and {2} does not publish the record authorizing its reports, so receivers will not send them.", address, domainName, domain);
+                }
             }
             // verify mandatory tags
             HasMandatoryTags = StartsCorrectly && policyTagFound;
