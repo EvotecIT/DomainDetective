@@ -112,6 +112,20 @@ namespace DomainDetective {
         /// </summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
+        /// <summary>
+        /// Optional override for the TTL an authoritative name server returns for a name and type; null when none
+        /// answered. Without it, TTLs come from the zone's own name servers (or from <see cref="QueryDnsOverride"/>
+        /// answers, which carry fixed TTLs).
+        /// </summary>
+        public Func<string, DnsRecordType, Task<int?>>? AuthoritativeTtlOverride { private get; set; }
+
+        /// <summary>
+        /// True when the evaluated TTLs are the configured values from the zone's authoritative name servers. When
+        /// false, no authoritative server answered: the TTLs are what a caching resolver had left, which counts down
+        /// between runs, so the too-short and A/AAAA mismatch findings are not raised.
+        /// </summary>
+        public bool TtlsFromAuthoritativeServers { get; private set; }
+
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(name, type);
@@ -209,11 +223,17 @@ namespace DomainDetective {
                 {
                     var name = $"{sel}._domainkey.{domainName}";
                     var dkimTxt = await QueryDns(name, DnsRecordType.TXT);
-                    var list = dkimTxt.Select(r => r.TTL).ToArray();
-                    DkimTxtTtls[name] = list;
-                    // Evaluate per selector
-                    Evaluate($"DKIM TXT ({sel})", list, MinTtlDkimSelectorSeconds, 86400, DnsSecSigned, logger);
+                    DkimTxtTtls[name] = dkimTxt.Select(r => r.TTL).ToArray();
                 }
+            }
+
+            // A caching resolver reports the time an answer has left in its cache, so the same zone would look too
+            // short on one run and fine on the next. TTLs are read from the zone's own name servers instead.
+            await UseAuthoritativeTtlsAsync(domainName, nsRecords, logger).ConfigureAwait(false);
+
+            foreach (var dkim in DkimTxtTtls) {
+                string selector = dkim.Key.Substring(0, dkim.Key.IndexOf("._domainkey.", StringComparison.OrdinalIgnoreCase));
+                Evaluate($"DKIM TXT ({selector})", dkim.Value, MinTtlDkimSelectorSeconds, 86400, DnsSecSigned, logger);
             }
 
             Evaluate("A", ATtls, 300, 86400, DnsSecSigned, logger);
@@ -398,10 +418,89 @@ namespace DomainDetective {
             }
         }
 
+        private bool UsesFixedAnswers => QueryDnsOverride != null || DnsConfiguration.QueryDnsOverride != null;
+
+        private async Task UseAuthoritativeTtlsAsync(string domainName, DnsAnswer[] nsRecords, InternalLogger logger) {
+            TtlsFromAuthoritativeServers = false;
+            Func<string, DnsRecordType, Task<int?>>? query = AuthoritativeTtlOverride;
+            if (query == null) {
+                // Fixed answers (tests, replays) already carry configured TTLs.
+                if (UsesFixedAnswers) {
+                    TtlsFromAuthoritativeServers = true;
+                    return;
+                }
+                System.Net.IPAddress? server = await FindAuthoritativeServerAsync(nsRecords).ConfigureAwait(false);
+                if (server == null) {
+                    logger?.WriteVerbose("TTL analysis for {0}: no authoritative name server answered; too-short findings are skipped.", domainName);
+                    return;
+                }
+                query = async (name, type) => {
+                    try {
+                        return await QueryTtlFromServer(server, name, (ushort)type, System.Threading.CancellationToken.None, 4000).ConfigureAwait(false);
+                    } catch (Exception) {
+                        return null;
+                    }
+                };
+            }
+
+            // Every record of an RRset shares one TTL, so the authoritative value replaces each resolver value.
+            async Task<int[]> Authoritative(string name, DnsRecordType type, int[] current) {
+                if (current.Length == 0) return current;
+                int? ttl = await query(name, type).ConfigureAwait(false);
+                if (!ttl.HasValue) return current;
+                TtlsFromAuthoritativeServers = true;
+                return Enumerable.Repeat(ttl.Value, current.Length).ToArray();
+            }
+
+            ATtls = await Authoritative(domainName, DnsRecordType.A, ATtls.ToArray()).ConfigureAwait(false);
+            AaaaTtls = await Authoritative(domainName, DnsRecordType.AAAA, AaaaTtls.ToArray()).ConfigureAwait(false);
+            MxTtls = await Authoritative(domainName, DnsRecordType.MX, MxTtls.ToArray()).ConfigureAwait(false);
+            NsTtls = await Authoritative(domainName, DnsRecordType.NS, NsTtls.ToArray()).ConfigureAwait(false);
+            if (SoaTtl > 0) SoaTtl = (await Authoritative(domainName, DnsRecordType.SOA, new[] { SoaTtl }).ConfigureAwait(false))[0];
+            SpfTxtTtls = await Authoritative(domainName, DnsRecordType.TXT, SpfTxtTtls.ToArray()).ConfigureAwait(false);
+            DmarcTxtTtls = await Authoritative($"_dmarc.{domainName}", DnsRecordType.TXT, DmarcTxtTtls.ToArray()).ConfigureAwait(false);
+            MtastsTxtTtls = await Authoritative($"_mta-sts.{domainName}", DnsRecordType.TXT, MtastsTxtTtls.ToArray()).ConfigureAwait(false);
+            TlsRptTxtTtls = await Authoritative($"_smtp._tls.{domainName}", DnsRecordType.TXT, TlsRptTxtTtls.ToArray()).ConfigureAwait(false);
+            foreach (string name in DkimTxtTtls.Keys.ToArray()) {
+                DkimTxtTtls[name] = await Authoritative(name, DnsRecordType.TXT, DkimTxtTtls[name].ToArray()).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<System.Net.IPAddress?> FindAuthoritativeServerAsync(DnsAnswer[] nsRecords) {
+            string[] hosts = nsRecords
+                .Where(r => r.Type == DnsRecordType.NS)
+                .Select(r => (r.Data ?? string.Empty).Trim().TrimEnd('.'))
+                .Where(h => h.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(h => h, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            foreach (string host in hosts) {
+                try {
+                    DnsAnswer[] addresses = await QueryDns(host, DnsRecordType.A).ConfigureAwait(false);
+                    foreach (DnsAnswer answer in addresses) {
+                        if (System.Net.IPAddress.TryParse(answer.Data, out System.Net.IPAddress? ip)) return ip;
+                    }
+                } catch (Exception) {
+                }
+            }
+            return null;
+        }
+
         private void Evaluate(string recordType, IEnumerable<int> ttls, int min, int max, bool dnssecSigned, InternalLogger logger) {
             var list = ttls?.ToArray() ?? Array.Empty<int>();
             var allGood = true;
             foreach (var ttl in list) {
+                // A resolver's cache countdown only understates a TTL, so without authoritative values only
+                // too-long findings are reliable.
+                if (!TtlsFromAuthoritativeServers) {
+                    if (ttl > max) {
+                        var longMsg = $"{recordType} TTL {ttl} exceeds recommended {max} seconds.";
+                        _warnings.Add(longMsg);
+                        logger?.WriteWarningCode(TtlCodes.TooLong, longMsg);
+                        allGood = false;
+                    }
+                    continue;
+                }
                 if (dnssecSigned && ttl >= min && ttl < 3600) {
                     var msg = $"{recordType} TTL {ttl} is shorter than recommended 3600 seconds for DNSSEC-signed zones.";
                     _warnings.Add(msg);
@@ -425,7 +524,7 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(TtlCodes.Optimal, $"{recordType} TTLs within recommended range.");
             }
 
-            if ((recordType == "A" || recordType == "AAAA") && ATtls.Any() && AaaaTtls.Any()) {
+            if (TtlsFromAuthoritativeServers && (recordType == "A" || recordType == "AAAA") && ATtls.Any() && AaaaTtls.Any()) {
                 var avgA = ATtls.Average();
                 var avgAaaa = AaaaTtls.Average();
                 var ratio = Math.Max(avgA, avgAaaa) / Math.Min(avgA, avgAaaa);
