@@ -111,13 +111,13 @@ public static partial class AssessmentHtmlReport {
 
             if (report.Domains.Count == 1) {
                 DomainAssessment domain = report.Domains[0];
-                shell.AddSection(domain.Domain, section => RenderDomain(section, domain, ids, options));
+                shell.AddSection(domain.Domain, section => RenderDomain(section, domain, ids, options, report.GeneratedAtUtc));
             } else if (report.Domains.Count > 1) {
                 shell.AddNavigationGroup("Domains", group => {
                     group.Key("domains").NavigationIcon(TablerIconType.World);
                     group.Settings(s => s.InlineUpTo(1).SearchAbove(8).Labels("Filter domains", "No matching domains", "Checks need attention"));
                     foreach (DomainAssessment domain in report.Domains) {
-                        group.AddSection(domain.Domain, section => RenderDomain(section, domain, ids, options));
+                        group.AddSection(domain.Domain, section => RenderDomain(section, domain, ids, options, report.GeneratedAtUtc));
                     }
                 });
             }

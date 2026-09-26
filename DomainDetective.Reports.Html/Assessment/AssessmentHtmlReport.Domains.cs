@@ -9,7 +9,7 @@ using Severity = HtmlForgeX.AssessmentSeverity;
 namespace DomainDetective.Reports.Html;
 
 public static partial class AssessmentHtmlReport {
-    private static void RenderDomain(AssessmentReportSection section, DomainAssessment domain, CheckIds ids, AssessmentHtmlOptions options) {
+    private static void RenderDomain(AssessmentReportSection section, DomainAssessment domain, CheckIds ids, AssessmentHtmlOptions options, DateTimeOffset generatedAt) {
         int attention = domain.ErrorChecks + domain.WarningChecks;
         section.Key(ids.Domain(domain))
             .NavigationIcon(TablerIconType.World)
@@ -22,13 +22,15 @@ public static partial class AssessmentHtmlReport {
         section.AssessmentScopeHeader(header => {
             header.Eyebrow("Domain")
                 .Title(domain.Domain)
-                .Description(DomainSummary(domain));
+                .Description(DomainVerdict(domain) + " " + DomainSummary(domain));
             if (domain.Score.HasValue) header.Chip("Grade " + domain.Grade, GradeSeverity(domain.Score));
             header.Metric("Score", domain.Score?.ToString(CultureInfo.InvariantCulture) ?? "-", GradeSeverity(domain.Score));
             foreach (AreaScore area in domain.Areas.Where(static a => a.Score.HasValue)) {
                 header.Metric(AreaLabel(area.Area), area.Score!.Value.ToString(CultureInfo.InvariantCulture), GradeSeverity(area.Score));
             }
         });
+
+        RenderDomainProfile(section, domain, ids, generatedAt);
 
         section.AssessmentChecks(list => {
             foreach (var area in domain.Checks.GroupBy(static c => c.Area)) {

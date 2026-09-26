@@ -140,6 +140,23 @@ namespace DomainDetective.Tests.Reports {
         }
 
         [Fact]
+        public void Html_DomainProfileDrawsTheMailChainAndAVerdict() {
+            DomainAssessmentReport report = DomainAssessmentBuilder.Build(SampleViews().Where(static v => v is not MxInfo { Subject: "b.example" }).ToList());
+
+            string html = AssessmentHtmlReport.Render(report);
+
+            Assert.Contains("Can anyone send as example.org?", html);
+            Assert.Contains("hfx-as-flow", html);
+            Assert.Contains("DKIM · signed by", html);
+            Assert.Contains("DMARC · policy", html);
+            // The missing DMARC record is the headline of its step and the first thing to fix.
+            Assert.Contains("hfx-as-flow-step is-emphasis", html);
+            Assert.Contains("Fix first: DMARC", html);
+            // The weak selector is called out as its own line.
+            Assert.Contains("s2 · RSA 1,024", html);
+        }
+
+        [Fact]
         public void Build_InfersCheckAndAreaForHandBuiltViews() {
             // As built in PowerShell: only the subject and status are set, so Check is left at its default (DMARC).
             var views = new List<object> {
