@@ -27,6 +27,20 @@ public class TestMessageAuthenticationEvidence {
         Assert.Equal("pass", analysis.DmarcResult);
     }
 
+    [Fact]
+    public void OriginalAuthenticationAloneCannotBecomeConfiguredSummary() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.com\r\nAuthentication-Results-Original: mx.example; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com; dmarc=pass header.from=example.com\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.Single(analysis.AuthenticationResults);
+        Assert.Null(analysis.DkimResult);
+        Assert.Null(analysis.SpfResult);
+        Assert.Null(analysis.DmarcResult);
+        Assert.NotEqual(MessageAuthenticationTrust.Configured, analysis.AuthenticationTrust);
+        Assert.Null(analysis.DkimAlignment);
+        Assert.Null(analysis.SpfAlignment);
+    }
+
     [Theory]
     [InlineData("other.example")]
     [InlineData("example.com")]

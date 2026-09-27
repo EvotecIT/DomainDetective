@@ -48,6 +48,15 @@ public partial class DomainHealthCheck {
             });
             cancellationToken.ThrowIfCancellationRequested();
             return analysis;
+        } catch (FormatException) {
+            // Header evidence is still useful when the full MIME parser cannot
+            // produce a message suitable for cryptographic verification.
+            cancellationToken.ThrowIfCancellationRequested();
+            analysis.SignatureVerification.Add(new MessageSignatureVerification {
+                Method = "DKIM / ARC", Status = MessageSignatureStatus.Inconclusive,
+                Explanation = "Original MIME message could not be parsed; signature verification was not performed."
+            });
+            return analysis;
         }
         var hasBodyBoundary = boundary >= 0;
         var locator = new MessagePublicKeyLocator(options, DnsConfiguration);

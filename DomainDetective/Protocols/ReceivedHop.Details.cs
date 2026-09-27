@@ -26,7 +26,7 @@ public partial class ReceivedHop {
 
     private static readonly Regex ClausePattern = new(@"\b(?<key>from|by|with|via|id|for)\s+", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
     private static readonly Regex AddressPattern = new(@"\[(?:IPv6:)?(?<ip>[0-9a-f:.%]+)\]|\b(?<ip>(?:\d{1,3}\.){3}\d{1,3})\b", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
-    private static readonly Regex TlsPattern = new(@"\b(?:version\s*=\s*|using\s+)?(?<version>TLSv?[_ .]?1[_.]?[0-3])\b", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+    private static readonly Regex TlsPattern = new(@"\b(?:version\s*=\s*|using\s+)?(?<version>TLSv?[_ .]?1[_.]?[0-3])\b(?!\.[a-z0-9_-])", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
     private static readonly Regex CipherPattern = new(@"\bcipher\s*[= ]\s*(?<cipher>[a-z0-9_-]+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
     private static readonly Regex EximCipherPattern = new(@"\bX=TLSv?1[._][0-3]:(?<cipher>[a-z0-9_-]+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
     private static readonly Regex HeloPattern = new(@"\bhelo\s*=\s*(?<host>[^\s)]+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
@@ -34,7 +34,7 @@ public partial class ReceivedHop {
 
     private void ParseDetails(string normalized, string beforeDate) {
         var matches = ClausePattern.Matches(SearchableReceivedText(beforeDate, hideComments: true));
-        var transportText = SearchableReceivedText(normalized, hideComments: false);
+        var identityText = SearchableReceivedText(normalized, hideComments: false);
         var clauses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < matches.Count; i++) {
             var match = matches[i];
@@ -55,7 +55,20 @@ public partial class ReceivedHop {
         Via = Host("via");
         FromIp = clauses.TryGetValue("from", out var source) ? ParseIp(source) : null;
         ByIp = clauses.TryGetValue("by", out var destination) ? ParseIp(destination) : null;
-        var helo = HeloPattern.Match(transportText);
+        // TLS markers may be reported in transport clauses or connection comments.
+        // Hostnames, message IDs and recipients are identities, not TLS evidence.
+        string TransportClause(string key, bool omitHost) {
+            if (!clauses.TryGetValue(key, out var value)) { return string.Empty; }
+            if (!omitHost || value.StartsWith("(", StringComparison.Ordinal)) { return value; }
+            var separator = value.IndexOfAny(new[] { ' ', '\t', '(' });
+            return separator < 0 ? string.Empty : value.Substring(separator).Trim();
+        }
+        var transportText = SearchableReceivedText(string.Join(" ", new[] {
+            TransportClause("from", true), TransportClause("by", true),
+            TransportClause("with", false), TransportClause("via", true)
+        }), hideComments: false);
+        transportText = HeloPattern.Replace(transportText, " ");
+        var helo = HeloPattern.Match(identityText);
         Helo = helo.Success ? helo.Groups["host"].Value : FromHost;
         var reverse = ReversePattern.Match(source ?? string.Empty);
         ReportedReverseDns = reverse.Success ? reverse.Groups["host"].Value : null;

@@ -30,6 +30,20 @@ public class TestMessageCompletionBoundaries {
         Assert.Equal("Plain", hop.ProtocolClass);
     }
 
+    [Theory]
+    [InlineData("from tls1.2.example by receiver.example with ESMTP")]
+    [InlineData("from sender.example by tls1.3.example with ESMTP")]
+    [InlineData("from sender.example by receiver.example with ESMTP id TLSv1.3")]
+    [InlineData("from sender.example by receiver.example with ESMTP via tls1.2.example")]
+    [InlineData("from sender.example (helo=tls1.2.example) by receiver.example with ESMTP")]
+    [InlineData("from sender.example (tls1.2.example [203.0.113.2]) by receiver.example with ESMTP")]
+    public void HostAndIdTokensAreNotTlsEvidence(string raw) {
+        var hop = ReceivedHop.Parse(raw);
+        Assert.Null(hop.TlsVersion);
+        Assert.Null(hop.TlsCipher);
+        Assert.Equal("Plain", hop.ProtocolClass);
+    }
+
     [Fact]
     public async Task ExpectedMxFindingsSurviveLoggerlessFullMessageComparison() {
         var raw = "From: sender@example.org\r\nX-MS-Exchange-Organization-AuthAs: Anonymous\r\nX-Forefront-Antispam-Report: CIP:203.0.113.20;H:sender.example.org\r\nReceived: from sender.example.org by tenant.mail.protection.outlook.com with ESMTP; Tue, 24 Oct 2023 12:34:56 +0000\r\n\r\nbody";

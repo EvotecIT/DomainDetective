@@ -64,6 +64,12 @@ public partial class MessageHeaderAnalysis {
         var trusted = new HashSet<string>(_headerOptions.TrustedAuthServIds.Select(NormalizeIdentity), StringComparer.OrdinalIgnoreCase);
         foreach (var observation in AuthenticationResults) {
             var id = NormalizeIdentity(observation.AuthServId);
+            if (observation.HeaderName.Equals("Authentication-Results-Original", StringComparison.OrdinalIgnoreCase)) {
+                // A preserved original is evidence of an earlier claim, not a result
+                // authored by the configured receiver at this delivery boundary.
+                observation.Trust = id.Length == 0 ? MessageAuthenticationTrust.Absent : MessageAuthenticationTrust.Unverified;
+                continue;
+            }
             observation.Trust = id.Length == 0 ? MessageAuthenticationTrust.Absent
                 : trusted.Contains(id) ? MessageAuthenticationTrust.Configured
                 : ReceivedHops.Any(hop => string.Equals(id, NormalizeIdentity(hop.ByHost), StringComparison.OrdinalIgnoreCase))
@@ -74,8 +80,7 @@ public partial class MessageHeaderAnalysis {
         var selected = AuthenticationResults.Where(value => value.Methods.Count > 0 && value.Trust == MessageAuthenticationTrust.Configured
             && value.HeaderName.Equals("Authentication-Results", StringComparison.OrdinalIgnoreCase)).ToList();
         if (selected.Count == 0) {
-            var first = AuthenticationResults.FirstOrDefault(value => value.Methods.Count > 0 && value.HeaderName.Equals("Authentication-Results", StringComparison.OrdinalIgnoreCase))
-                ?? AuthenticationResults.FirstOrDefault(value => value.Methods.Count > 0 && value.HeaderName != "Received-SPF");
+            var first = AuthenticationResults.FirstOrDefault(value => value.Methods.Count > 0 && value.HeaderName.Equals("Authentication-Results", StringComparison.OrdinalIgnoreCase));
             if (first != null) { selected.Add(first); }
         }
         var primary = selected.FirstOrDefault();
