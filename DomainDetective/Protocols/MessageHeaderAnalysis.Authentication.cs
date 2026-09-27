@@ -7,6 +7,7 @@ namespace DomainDetective;
 public partial class MessageHeaderAnalysis {
     private MessageHeaderAnalysisOptions _headerOptions = new();
     private int _receivedHeadersEvaluated;
+    private readonly List<MessageAuthenticationEvidence> _selectedAuthenticationEvidence = new();
 
     /// <summary>All receiver-reported authentication observations with their provenance.</summary>
     public List<MessageAuthenticationEvidence> AuthenticationResults { get; } = new();
@@ -59,6 +60,7 @@ public partial class MessageHeaderAnalysis {
         AuthenticationTrust = MessageAuthenticationTrust.None;
         AuthServId = null;
         SpfEvidence = null;
+        _selectedAuthenticationEvidence.Clear();
         var trusted = new HashSet<string>(_headerOptions.TrustedAuthServIds.Select(NormalizeIdentity), StringComparer.OrdinalIgnoreCase);
         foreach (var observation in AuthenticationResults) {
             var id = NormalizeIdentity(observation.AuthServId);
@@ -76,6 +78,7 @@ public partial class MessageHeaderAnalysis {
             if (first != null) { selected.Add(first); }
         }
         var primary = selected.FirstOrDefault();
+        _selectedAuthenticationEvidence.AddRange(selected);
         if (primary != null) {
             AuthServId = primary.AuthServId;
             AuthenticationTrust = primary.Trust;
@@ -84,6 +87,7 @@ public partial class MessageHeaderAnalysis {
         foreach (var group in methods.GroupBy(AuthenticationIdentity, StringComparer.OrdinalIgnoreCase)) {
             if (group.Select(value => value.Result).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1) { AuthenticationConflict = true; }
         }
+        AuthenticationConflict |= ConflictingDkimObservations(methods.Where(method => method.Method == "dkim")).Count > 0;
         string? Result(string name) => methods.FirstOrDefault(value => value.Method.Equals(name, StringComparison.OrdinalIgnoreCase))?.Result;
         DkimResult = Result("dkim");
         SpfResult = Result("spf");
@@ -109,6 +113,21 @@ public partial class MessageHeaderAnalysis {
     }
 
     private static string GetIdentity(MessageAuthenticationMethod method, string property) => method.Properties.TryGetValue(property, out var value) ? value : string.Empty;
+    private static HashSet<MessageAuthenticationMethod> ConflictingDkimObservations(IEnumerable<MessageAuthenticationMethod> methods) {
+        var conflicts = new HashSet<MessageAuthenticationMethod>();
+        foreach (var domain in methods.GroupBy(method => GetIdentity(method, "header.d"), StringComparer.OrdinalIgnoreCase)) {
+            var domainResults = domain.Select(method => method.Result).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var unspecifiedResults = domain.Where(method => GetIdentity(method, "header.s").Length == 0)
+                .Select(method => method.Result).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            foreach (var selector in domain.GroupBy(method => GetIdentity(method, "header.s"), StringComparer.OrdinalIgnoreCase)) {
+                // An omitted selector can refer to any signature from this domain.
+                var results = selector.Key.Length == 0 ? domainResults
+                    : selector.Select(method => method.Result).Concat(unspecifiedResults).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                if (results.Length > 1) { foreach (var method in selector) { conflicts.Add(method); } }
+            }
+        }
+        return conflicts;
+    }
     private static string AuthenticationIdentity(MessageAuthenticationMethod method) => method.Method + ":" +
         (method.Method == "spf" ? GetIdentity(method, "smtp.mailfrom") + ":" + GetIdentity(method, "smtp.helo")
         : method.Method == "dmarc" ? GetIdentity(method, "header.from")

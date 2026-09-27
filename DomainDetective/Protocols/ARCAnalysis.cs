@@ -117,7 +117,7 @@ namespace DomainDetective {
             var groups = new Dictionary<int, Dictionary<string, List<string>>>();
             void Add(string kind, IEnumerable<string> values) {
                 foreach (var value in values) {
-                    var tags = MessageHeaderValueParser.ParseTags(value, out var duplicateTags);
+                    var tags = ParseInstanceTags(kind, value, out var duplicateTags);
                     if (duplicateTags) { StructureIssues.Add(kind + " repeats a tag."); }
                     if (!tags.TryGetValue("i", out var instanceText) || !int.TryParse(instanceText, out var instance) || instance < 1 || instance > 50) {
                         StructureIssues.Add(kind + " has an invalid or out-of-range instance (1..50).");
@@ -181,7 +181,8 @@ namespace DomainDetective {
             var sequences = new[] { ArcSealHeaders, ArcMessageSignatureHeaders, ArcAuthenticationResultsHeaders };
             int[]? previousSequence = null;
             foreach (var headers in sequences) {
-                var sequence = headers.Select(value => MessageHeaderValueParser.ParseTags(value))
+                var kind = ReferenceEquals(headers, ArcAuthenticationResultsHeaders) ? "AAR" : "signature";
+                var sequence = headers.Select(value => ParseInstanceTags(kind, value, out _))
                     .Select(tags => tags.TryGetValue("i", out var text) && int.TryParse(text, out var n) ? n : 0).ToArray();
                 if (!sequence.SequenceEqual(Enumerable.Range(1, top)) && !sequence.SequenceEqual(Enumerable.Range(1, top).Reverse())) {
                     StructureIssues.Add("ARC instances are out of order.");
@@ -195,6 +196,14 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(ArcCodes.SealsIntact, "ARC seals contain signature values; cryptographic verification not performed");
                 logger?.WriteInformationCode(ArcCodes.ChainValid, "ARC header structure is complete; cryptographic verification not performed");
             }
+        }
+        private static Dictionary<string, string> ParseInstanceTags(string kind, string value, out bool duplicateTags) {
+            if (kind != "AAR") { return MessageHeaderValueParser.ParseTags(value, out duplicateTags); }
+            var clauses = MessageHeaderValueParser.Split(value, stripComments: true);
+            var tags = MessageHeaderValueParser.ParseTags(clauses[0], out duplicateTags);
+            // AAR's remaining clauses are authentication methods, not a DKIM tag list.
+            duplicateTags |= clauses.Skip(1).Any(clause => MessageHeaderValueParser.ParseTags(clause).ContainsKey("i"));
+            return tags;
         }
         /// <summary>Structured assessments captured during ARC analysis.</summary>
         public List<Assessment> Assessments { get; } = new();

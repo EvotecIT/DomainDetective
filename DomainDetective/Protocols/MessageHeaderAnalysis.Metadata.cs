@@ -37,6 +37,7 @@ public partial class MessageHeaderAnalysis {
 
     private void ResetMessageMetadata() {
         Source = null;
+        _selectedAuthenticationEvidence.Clear();
         Findings.Clear();
         FromAddresses.Clear();
         ReplyToAddresses.Clear();
@@ -123,10 +124,11 @@ public partial class MessageHeaderAnalysis {
                 Timestamp = ParseUnixTime(Tag("t")), Expires = ParseUnixTime(Tag("x")),
                 BodyLength = long.TryParse(Tag("l"), out var length) && length >= 0 ? length : null
             };
-            var observation = AuthenticationResults.FirstOrDefault(value => value.Trust == AuthenticationTrust && string.Equals(value.AuthServId, AuthServId, StringComparison.OrdinalIgnoreCase));
-            signature.ReceiverResult = observation?.Methods.FirstOrDefault(method => method.Method == "dkim"
+            var results = _selectedAuthenticationEvidence.SelectMany(value => value.Methods).Where(method => method.Method == "dkim"
                 && string.Equals(GetIdentity(method, "header.d"), signature.Domain, StringComparison.OrdinalIgnoreCase)
-                && (!method.Properties.ContainsKey("header.s") || string.Equals(GetIdentity(method, "header.s"), signature.Selector, StringComparison.OrdinalIgnoreCase)))?.Result;
+                && (!method.Properties.ContainsKey("header.s") || string.Equals(GetIdentity(method, "header.s"), signature.Selector, StringComparison.OrdinalIgnoreCase)))
+                .Select(method => method.Result).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            signature.ReceiverResult = results.Length > 1 ? "conflict" : results.FirstOrDefault();
             DkimSignatures.Add(signature);
             if (string.Equals(signature.Algorithm, "rsa-sha1", StringComparison.OrdinalIgnoreCase)) { AddFinding("HEADERS.DKIM.WeakHash", AssessmentSeverity.Warning, "DKIM uses deprecated SHA-1."); }
             if (signature.BodyLength.HasValue) { AddFinding("HEADERS.DKIM.BodyLength", AssessmentSeverity.Warning, "DKIM l= limits the signed body; appended content may be outside the signature."); }
@@ -137,11 +139,13 @@ public partial class MessageHeaderAnalysis {
 
     private void AnalyzeAlignment() {
         var from = FromAddresses.Count == 1 ? FromAddresses[0].Domain : null;
-        var selected = AuthenticationResults.FirstOrDefault(value => value.Trust == AuthenticationTrust && string.Equals(value.AuthServId, AuthServId, StringComparison.OrdinalIgnoreCase));
         var spf = SpfEvidence?.Methods.FirstOrDefault(method => method.Method == "spf");
         var envelope = spf == null ? ReturnPathAddresses.FirstOrDefault()?.Domain : AddressDomain(GetIdentity(spf, "smtp.mailfrom"));
         SpfAlignment = Alignment(from, envelope);
-        var dkimDomains = selected?.Methods.Where(method => method.Method == "dkim" && method.Result == "pass").Select(method => GetIdentity(method, "header.d")).ToArray() ?? Array.Empty<string>();
+        var dkimMethods = _selectedAuthenticationEvidence.SelectMany(value => value.Methods).Where(method => method.Method == "dkim").ToArray();
+        var conflicts = ConflictingDkimObservations(dkimMethods);
+        var dkimDomains = dkimMethods.Where(method => method.Result == "pass" && !conflicts.Contains(method))
+            .Select(method => GetIdentity(method, "header.d")).ToArray();
         var alignments = dkimDomains.Select(domain => Alignment(from, domain)).ToArray();
         DkimAlignment = alignments.Contains("Strict") ? "Strict" : alignments.Contains("Relaxed") ? "Relaxed" : alignments.Contains("None") ? "None" : null;
         if (SpfAlignment == "None") { AddFinding("HEADERS.SPF.NotAligned", AssessmentSeverity.Info, "The reported envelope identity is not aligned with From; SPF cannot contribute to DMARC for this identity."); }

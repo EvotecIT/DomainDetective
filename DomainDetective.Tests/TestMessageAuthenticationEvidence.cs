@@ -1,6 +1,65 @@
 namespace DomainDetective.Tests;
 
 public class TestMessageAuthenticationEvidence {
+    [Theory]
+    [InlineData("mx.example")]
+    [InlineData("other.example")]
+    public void DkimMetadataUsesEverySelectedConfiguredObservation(string secondWriter) {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.com\r\nDKIM-Signature: d=example.com; s=test; h=from; b=abc\r\nAuthentication-Results: mx.example; spf=pass smtp.mailfrom=example.com\r\nAuthentication-Results: " + secondWriter + "; dkim=pass header.d=example.com header.s=test\r\n", new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example", "other.example" } });
+        Assert.Equal("pass", analysis.DkimResult);
+        Assert.Equal("pass", Assert.Single(analysis.DkimSignatures).ReceiverResult);
+        Assert.Equal("Strict", analysis.DkimAlignment);
+    }
+
+    [Fact]
+    public void OriginalAuthenticationCannotReplaceSelectedNormalObservation() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.com\r\nDKIM-Signature: d=example.com; s=test; h=from; b=abc\r\nAuthentication-Results-Original: mx.example; dkim=fail header.d=example.com\r\nAuthentication-Results: mx.example; dkim=pass header.d=example.com\r\n");
+        Assert.Equal("pass", analysis.DkimResult);
+        Assert.Equal("pass", Assert.Single(analysis.DkimSignatures).ReceiverResult);
+        Assert.Equal("Strict", analysis.DkimAlignment);
+    }
+
+    [Fact]
+    public void ConflictingDkimIdentityCannotEstablishAlignment() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.com\r\nDKIM-Signature: d=example.com; s=test; h=from; b=abc\r\nAuthentication-Results: mx.example; dkim=pass header.d=example.com header.s=test\r\nAuthentication-Results: mx.example; dkim=fail header.d=example.com header.s=test\r\n", new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.True(analysis.AuthenticationConflict);
+        Assert.Equal("conflict", Assert.Single(analysis.DkimSignatures).ReceiverResult);
+        Assert.Null(analysis.DkimAlignment);
+    }
+
+    [Theory]
+    [InlineData("dkim=pass header.d=example.com; dkim=pass header.d=other.example", true)]
+    [InlineData("dkim=pass header.d=example.com; i=1", false)]
+    public void ArcAuthenticationHistoryAllowsRepeatedMethodsButRejectsRepeatedInstance(string methods, bool valid) {
+        var analysis = new ARCAnalysis();
+        analysis.Analyze("ARC-Seal: cv=none; i=1; d=example.com; b=abc\r\nARC-Message-Signature: d=example.com; i=1; b=abc\r\nARC-Authentication-Results: i=1; mx.example; " + methods + "\r\n");
+        Assert.Equal(valid, analysis.ValidChain);
+        if (valid) { Assert.Equal(2, Assert.Single(analysis.Instances).Authentication!.Methods.Count); }
+        else { Assert.Contains(analysis.StructureIssues, issue => issue.Contains("repeats a tag")); }
+    }
+
+    [Fact]
+    public void ArcSignatureTagsStillRejectDuplicateInstances() {
+        var analysis = new ARCAnalysis();
+        analysis.Analyze("ARC-Seal: i=1; i=1; cv=none; b=abc\r\nARC-Message-Signature: i=1; b=abc\r\nARC-Authentication-Results: i=1; mx.example; dkim=pass\r\n");
+        Assert.False(analysis.ValidChain);
+        Assert.Contains(analysis.StructureIssues, issue => issue.Contains("repeats a tag"));
+    }
+
+    [Theory]
+    [InlineData("", true, "conflict", null)]
+    [InlineData(" header.s=other", false, "pass", "Strict")]
+    public void DkimConflictMatchingPreservesIndependentKnownSelectors(string secondSelector, bool conflict, string receiverResult, string? alignment) {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.com\r\nDKIM-Signature: d=example.com; s=test; h=from; b=abc\r\nAuthentication-Results: mx.example; dkim=pass header.d=example.com header.s=test; dkim=fail header.d=example.com" + secondSelector + "\r\n", new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.Equal(conflict, analysis.AuthenticationConflict);
+        Assert.Equal(receiverResult, Assert.Single(analysis.DkimSignatures).ReceiverResult);
+        Assert.Equal(alignment, analysis.DkimAlignment);
+    }
+
     [Fact]
     public void ExplicitTrustSelectsExactGatewayAndPreservesOtherClaims() {
         var analysis = new MessageHeaderAnalysis();
