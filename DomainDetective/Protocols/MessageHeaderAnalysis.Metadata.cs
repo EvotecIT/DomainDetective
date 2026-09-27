@@ -138,7 +138,7 @@ public partial class MessageHeaderAnalysis {
     }
 
     private void AnalyzeAlignment() {
-        var from = FromAddresses.Count == 1 ? FromAddresses[0].Domain : null;
+        var from = FromAddresses.Count == 1 && !DuplicateHeaders.ContainsKey("From") ? FromAddresses[0].Domain : null;
         var spf = SpfEvidence?.Methods.FirstOrDefault(method => method.Method == "spf");
         var envelope = spf == null ? ReturnPathAddresses.FirstOrDefault()?.Domain : AddressDomain(GetIdentity(spf, "smtp.mailfrom"));
         SpfAlignment = Alignment(from, envelope);

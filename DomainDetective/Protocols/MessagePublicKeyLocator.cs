@@ -41,10 +41,10 @@ internal sealed class MessagePublicKeyLocator : DkimPublicKeyLocatorBase {
         var host = selector.ToLowerInvariant() + "._domainkey." + normalizedDomain.ToLowerInvariant();
         if (host.Length > 253) { throw new ArgumentException("DKIM key lookup name exceeds DNS limits.", nameof(selector)); }
         try {
+            if (!methods.Split(':').Contains("dns/txt", StringComparer.OrdinalIgnoreCase)) { throw new NotSupportedException("Only dns/txt key acquisition is supported."); }
             if (_dnsKeys.Contains(host)) { UsedDns = true; }
             if (!_records.TryGetValue(host, out var record)) {
                 if (!_options.AllowDnsLookups) { throw new InvalidOperationException("Public key unavailable offline for " + host + "."); }
-                if (!methods.Split(':').Contains("dns/txt", StringComparer.OrdinalIgnoreCase)) { throw new NotSupportedException("Only dns/txt key acquisition is supported."); }
                 if (++_queries > _options.MaximumDnsQueries) { throw new InvalidOperationException("Public-key DNS query limit reached."); }
                 UsedDns = true;
                 var answers = await _dns.QueryDNS(host, DnsRecordType.TXT, cancellationToken: cancellationToken).ConfigureAwait(false);

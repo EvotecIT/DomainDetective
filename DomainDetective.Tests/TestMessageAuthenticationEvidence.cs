@@ -12,13 +12,30 @@ public class TestMessageAuthenticationEvidence {
         Assert.Equal("Strict", analysis.DkimAlignment);
     }
 
-    [Fact]
-    public void OriginalAuthenticationCannotReplaceSelectedNormalObservation() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OriginalAuthenticationCannotReplaceSelectedNormalObservation(bool configured) {
         var analysis = new MessageHeaderAnalysis();
-        analysis.Parse("From: sender@example.com\r\nDKIM-Signature: d=example.com; s=test; h=from; b=abc\r\nAuthentication-Results-Original: mx.example; dkim=fail header.d=example.com\r\nAuthentication-Results: mx.example; dkim=pass header.d=example.com\r\n");
+        analysis.Parse("From: sender@example.com\r\nDKIM-Signature: d=example.com; s=test; h=from; b=abc\r\nAuthentication-Results-Original: mx.example; dkim=fail header.d=example.com; spf=fail smtp.mailfrom=example.com; dmarc=fail header.from=example.com\r\nAuthentication-Results: mx.example; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com; dmarc=pass header.from=example.com\r\n", new MessageHeaderAnalysisOptions { TrustedAuthServIds = configured ? new[] { "mx.example" } : Array.Empty<string>() });
         Assert.Equal("pass", analysis.DkimResult);
         Assert.Equal("pass", Assert.Single(analysis.DkimSignatures).ReceiverResult);
         Assert.Equal("Strict", analysis.DkimAlignment);
+        Assert.False(analysis.AuthenticationConflict);
+        Assert.Equal(2, analysis.AuthenticationResults.Count);
+        Assert.Equal("pass", analysis.SpfResult);
+        Assert.Equal("pass", analysis.DmarcResult);
+    }
+
+    [Theory]
+    [InlineData("other.example")]
+    [InlineData("example.com")]
+    public void DuplicateFromCannotEstablishAlignment(string firstDomain) {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@" + firstDomain + "\r\nfRoM: sender@example.com\r\nAuthentication-Results: mx.example; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com\r\n");
+        Assert.Null(analysis.DkimAlignment);
+        Assert.Null(analysis.SpfAlignment);
+        Assert.Contains(analysis.Findings, finding => finding.Code == "HEADERS.Field.Duplicate");
     }
 
     [Fact]

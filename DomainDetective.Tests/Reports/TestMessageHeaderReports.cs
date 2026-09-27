@@ -14,7 +14,7 @@ public class TestMessageHeaderReports {
         Directory.CreateDirectory(directory);
         try {
             var message = new MessageHeaderAnalysis();
-            message.Parse("From: sender@example.com\r\nTo: recipient@example.net\r\nSubject: =HYPERLINK(\"https://invalid.example\") <img src=x onerror=alert(1)>\r\nAuthentication-Results: mx.example; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com\r\nX-Note: direction\u202Econtrol\r\n", new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+            message.Parse("From: sender@example.com\r\nTo: recipient@example.net\r\nSubject: =HYPERLINK(\"https://invalid.example\") <img src=x onerror=alert(1)>\r\nAuthentication-Results: mx.example; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com\r\nX-MS-Exchange-Organization-AuthAs: Internal\r\nX-Note: direction\u202Econtrol\r\n", new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
             var messages = new[] { message };
             var htmlPath = System.IO.Path.Combine(directory, "message.html");
             var mdHtmlPath = System.IO.Path.Combine(directory, "message-markdown.html");
@@ -53,6 +53,11 @@ public class TestMessageHeaderReports {
                     using (var workbookStream = workbookEntry.Open()) {
                         var workbook = XDocument.Load(workbookStream);
                         Assert.Equal("Overview", workbook.Descendants().First(node => node.Name.LocalName == "sheet").Attribute("name")?.Value);
+                        var names = workbook.Descendants().Where(node => node.Name.LocalName == "sheet").Select(node => node.Attribute("name")!.Value).ToArray();
+                        Assert.All(names, name => Assert.InRange(name.Length, 1, 31));
+                        Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+                        Assert.Contains(names, name => name.StartsWith("Receiver-reported", StringComparison.Ordinal));
+                        Assert.Contains(names, name => name.StartsWith("Exchange", StringComparison.Ordinal));
                     }
                     foreach (var entry in archive.Entries.Where(entry => entry.FullName.StartsWith("xl/worksheets/", StringComparison.Ordinal) && entry.FullName.EndsWith(".xml", StringComparison.Ordinal))) {
                         using var stream = entry.Open();

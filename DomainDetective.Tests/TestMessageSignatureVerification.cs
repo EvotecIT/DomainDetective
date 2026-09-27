@@ -50,6 +50,28 @@ public class TestMessageSignatureVerification {
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnsupportedQueryMethodCannotUseOfflineOrCachedDnsKey(bool cachedDns) {
+        var sample = SignedMessage();
+        var key = sample.Options.PublicKeyRecords.Single().Value;
+        using var health = new DomainHealthCheck();
+        var queries = 0;
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => {
+            queries++;
+            return Task.FromResult(new[] { new DnsClientX.DnsAnswer { DataRaw = key, Type = DnsClientX.DnsRecordType.TXT } });
+        };
+        if (cachedDns) { sample.Options.PublicKeyRecords.Clear(); sample.Options.AllowDnsLookups = true; }
+        var locator = new MessagePublicKeyLocator(sample.Options, health.DnsConfiguration);
+        if (cachedDns) { await locator.LocatePublicKeyAsync("dns/txt", "example.com", "s1"); }
+        locator.BeginVerification();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => locator.LocatePublicKeyAsync("unsupported", "example.com", "s1"));
+        Assert.Contains("Only dns/txt", error.Message);
+        Assert.Equal(cachedDns ? 1 : 0, queries);
+        Assert.False(locator.UsedDns);
+    }
+
+    [Theory]
     [InlineData("Original body", "Tampered body")]
     [InlineData("Original signed content", "Tampered signed content")]
     public async Task ModifiedSignedContentDoesNotVerify(string original, string replacement) {

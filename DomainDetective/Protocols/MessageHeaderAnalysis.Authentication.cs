@@ -71,7 +71,8 @@ public partial class MessageHeaderAnalysis {
         }
         // Prefer explicit trust, then the topmost normal receiver observation. Route matches
         // are informational and never promote attacker-provided lower headers to authority.
-        var selected = AuthenticationResults.Where(value => value.Methods.Count > 0 && value.Trust == MessageAuthenticationTrust.Configured && value.HeaderName != "Received-SPF").ToList();
+        var selected = AuthenticationResults.Where(value => value.Methods.Count > 0 && value.Trust == MessageAuthenticationTrust.Configured
+            && value.HeaderName.Equals("Authentication-Results", StringComparison.OrdinalIgnoreCase)).ToList();
         if (selected.Count == 0) {
             var first = AuthenticationResults.FirstOrDefault(value => value.Methods.Count > 0 && value.HeaderName.Equals("Authentication-Results", StringComparison.OrdinalIgnoreCase))
                 ?? AuthenticationResults.FirstOrDefault(value => value.Methods.Count > 0 && value.HeaderName != "Received-SPF");
