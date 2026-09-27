@@ -11,16 +11,17 @@ public static partial class MessageHeaderOfficeReport {
         document.AsFluent().Info(i => i.Title("Email Message Analysis").Author("DomainDetective").Company("Evotec").Application("OfficeIMO.Excel")).End();
         var composer = new SheetComposer(document, "Overview");
         composer.Title("Email Message Analysis", $"Generated {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+        var briefs = messages.Select(MessageHeaderReportBrief.Build).ToArray();
         composer.KpiRow(new (string, object?)[] {
             ("Messages", messages.Count),
-            ("Errors", messages.Sum(m => m.Assessments.Count(a => a.Severity == AssessmentSeverity.Error))),
-            ("Warnings", messages.Sum(m => m.Assessments.Count(a => a.Severity == AssessmentSeverity.Warning)))
+            ("Errors", briefs.Sum(brief => brief.Findings.Count(a => a.Severity == AssessmentSeverity.Error))),
+            ("Warnings", briefs.Sum(brief => brief.Findings.Count(a => a.Severity == AssessmentSeverity.Warning)))
         }, perRow: 3);
         ExcelReportLayout.Section(composer, "How to read this report");
         ExcelReportLayout.Paragraph(composer, "Review the brief and next steps first. Navigation links to supporting evidence sheets; filter their Input column to follow a specific message. Receiver-reported passes are distinct from cryptographic verification.");
         for (var i = 0; i < messages.Count; i++) {
             var message = messages[i];
-            var brief = MessageHeaderReportBrief.Build(message);
+            var brief = briefs[i];
             ExcelReportLayout.Section(composer, "Message " + (i + 1) + " — " + brief.SubjectLabel);
             ExcelReportLayout.Paragraph(composer, MessageHeaderReport.VisibleText(message.From) + " → " + MessageHeaderReport.VisibleText(message.To));
             ExcelReportLayout.Paragraph(composer, brief.Summary);

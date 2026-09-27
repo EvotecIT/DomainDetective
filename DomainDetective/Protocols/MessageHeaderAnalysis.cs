@@ -326,6 +326,7 @@ namespace DomainDetective {
 
             DateTimeOffset? first = null;
             DateTimeOffset? prev = null;
+            var timestampCount = 0;
             foreach (var hop in ReceivedHops) {
                 hop.HopDelay = null;
                 if (!hop.Timestamp.HasValue) {
@@ -335,6 +336,7 @@ namespace DomainDetective {
                 if (!first.HasValue) {
                     first = hop.Timestamp;
                 }
+                timestampCount++;
                 if (prev.HasValue) {
                     var delay = hop.Timestamp.Value - prev.Value;
                     hop.HopDelay = delay;
@@ -349,7 +351,7 @@ namespace DomainDetective {
                 prev = hop.Timestamp;
             }
 
-            if (first.HasValue && prev.HasValue) {
+            if (timestampCount >= 2 && first.HasValue && prev.HasValue) {
                 TotalTransitTime = prev.Value - first.Value;
             }
         }

@@ -4,3 +4,7 @@
 .message-checkbox { display: flex; gap: .6rem; align-items: center; }
 .message-error { color: var(--danger-color, #b42318); }
 .message-analyzer ::deep td { overflow-wrap: anywhere; }
+.message-brief-subject { font-weight: 650; overflow-wrap: anywhere; }
+.message-brief-summary { font-size: 1.05rem; line-height: 1.5; }
+.message-brief-list { display: grid; gap: .75rem; margin: .5rem 0; padding-left: 1.4rem; line-height: 1.5; }
+.message-brief-list li { overflow-wrap: anywhere; }

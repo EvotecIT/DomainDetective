@@ -62,7 +62,7 @@ public static class MessageHeaderReport {
                 new[] { "Rspamd symbols", string.Join(", ", message.RspamdSymbols) }, new[] { "List-Id", Value(message.ListId) },
                 new[] { "List-Unsubscribe", Value(message.ListUnsubscribe) }, new[] { "One-click advertised", Value(message.ListUnsubscribeOneClick) }
             }),
-            new("Findings", new[] { "Severity", "Code", "Message" }, message.Assessments.Select(value => new[] { Value(value.Severity), Value(value.Code), Value(value.Message) })),
+            new("Findings", new[] { "Severity", "Code", "Message" }, MessageHeaderReportFindings.Build(message).Select(value => new[] { Value(value.Severity), Value(value.Code), Value(value.Message) })),
             new("All header fields", new[] { "Field", "Value" }, message.Fields.Select(value => new[] { value.Name, value.Value }))
         };
         return sections;
@@ -82,8 +82,32 @@ public static class MessageHeaderReport {
     /// <summary>Produces an offline plain-text report suitable for console output.</summary>
     public static string ToText(MessageHeaderAnalysis message) {
         var output = new StringBuilder();
+        var brief = MessageHeaderReportBrief.Build(message);
+        output.AppendLine("Message analysis");
+        if (brief.SubjectLabel.Length > 0) { output.AppendLine("Subject: " + brief.SubjectLabel); }
+        output.AppendLine("Assessment: " + brief.Summary);
+        output.AppendLine();
+        output.AppendLine("What the evidence establishes");
+        foreach (var item in brief.Evidence) { output.AppendLine("- " + item); }
+        output.AppendLine();
+        output.AppendLine("Priority findings");
+        if (brief.Findings.Count == 0) { output.AppendLine("No warning or error findings."); }
+        foreach (var finding in brief.Findings) { output.AppendLine("- " + finding.Severity + " | " + finding.Code + " | " + VisibleText(finding.Message)); }
+        output.AppendLine();
+        output.AppendLine("Recommended next steps");
+        if (brief.Actions.Count == 0) { output.AppendLine("No specific corrective action was identified from the supplied evidence."); }
+        foreach (var action in brief.Actions) {
+            output.AppendLine("- " + VisibleText(action.Title));
+            output.AppendLine("  Why: " + VisibleText(action.Why));
+            output.AppendLine("  How: " + VisibleText(action.How));
+            output.AppendLine("  Verify: " + VisibleText(action.Verify));
+        }
+        output.AppendLine();
+        output.AppendLine("Evidence appendix");
+        output.AppendLine();
         foreach (var section in Build(message).Where(section => section.Rows.Count > 0)) {
             output.AppendLine(section.Title);
+            output.AppendLine(string.Join(" | ", section.Columns));
             foreach (var row in section.Rows) { output.AppendLine(string.Join(" | ", row)); }
             output.AppendLine();
         }

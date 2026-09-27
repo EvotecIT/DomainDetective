@@ -124,7 +124,8 @@ public class TestMessageAuthenticationEvidence {
         var analysis = new MessageHeaderAnalysis();
         analysis.Parse("Authentication-Results: mx.example; dmarc=fail\r\nAuthentication-Results: mx.example; dmarc=pass\r\n", new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
         Assert.True(analysis.AuthenticationConflict);
-        Assert.Equal("fail", analysis.DmarcResult);
+        Assert.Null(analysis.DmarcResult);
+        Assert.Equal(2, analysis.AuthenticationResults.Count);
     }
 
     [Fact]

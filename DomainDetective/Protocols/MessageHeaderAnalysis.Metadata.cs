@@ -87,6 +87,7 @@ public partial class MessageHeaderAnalysis {
             }
         }
         if (AuthenticationConflict) { AddFinding("HEADERS.Auth.Conflict", AssessmentSeverity.Warning, "Selected authentication observations conflict or repeat identity properties; gateway sanitization and result provenance require review."); }
+        if (_dmarcIdentityMismatch) { AddFinding("HEADERS.DMARC.IdentityMismatch", AssessmentSeverity.Warning, "A selected receiver reported DMARC for a different From domain; that claim cannot establish this message's DMARC result."); }
         if (AuthenticationTrust != MessageAuthenticationTrust.Configured) {
             AddFinding("HEADERS.Auth.Unverified", AssessmentSeverity.Info, "Authentication results are receiver-reported claims. Route matching and header order do not prove their writer; configure exact trusted identifiers and gateway sanitization.");
         }

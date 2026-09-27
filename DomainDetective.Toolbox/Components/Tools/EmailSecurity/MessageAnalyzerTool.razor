@@ -27,6 +27,34 @@
     @if (_error != null) { <p role="alert" class="message-error">@_error</p> }
     @if (_busy) { <LoadingSpinner /> }
     else if (_sections != null) {
+        @if (_brief != null) {
+            <ResultCard Title="Message assessment" Status="@(_brief.Findings.Count > 0 ? ResultCard.ResultStatus.Warning : ResultCard.ResultStatus.Info)">
+                @if (_brief.SubjectLabel.Length > 0) { <p class="message-brief-subject">@_brief.SubjectLabel</p> }
+                <p class="message-brief-summary">@_brief.Summary</p>
+            </ResultCard>
+            <ResultCard Title="What the evidence establishes" Status="ResultCard.ResultStatus.Info">
+                <ul class="message-brief-list">
+                    @foreach (var item in _brief.Evidence) { <li>@item</li> }
+                </ul>
+            </ResultCard>
+            @if (_brief.Findings.Count > 0) {
+                <ResultCard Title="Priority findings" Status="ResultCard.ResultStatus.Warning">
+                    <ul class="message-brief-list">
+                        @foreach (var finding in _brief.Findings) { <li><strong>@finding.Severity: @finding.Code</strong><br />@finding.Message</li> }
+                    </ul>
+                </ResultCard>
+            }
+            @if (_brief.Actions.Count > 0) {
+                <ResultCard Title="Recommended next steps" Status="ResultCard.ResultStatus.Info">
+                    <ol class="message-brief-list">
+                        @foreach (var action in _brief.Actions) {
+                            <li><strong>@action.Title</strong><br /><span>Why: @action.Why</span><br /><span>How: @action.How</span><br /><span>Verify: @action.Verify</span></li>
+                        }
+                    </ol>
+                </ResultCard>
+            }
+        }
+        <h3>Evidence appendix</h3>
         @foreach (var section in _sections.Where(section => section.Rows.Count > 0)) {
             <ResultCard Title="@section.Title" @key="section">
                 <ResultTable Columns="@section.Columns.ToArray()">

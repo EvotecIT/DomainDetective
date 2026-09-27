@@ -17,11 +17,13 @@ public partial class MessageAnalyzerTool {
     private string? _fileName;
     private byte[]? _fileBytes;
     private IReadOnlyList<MessageHeaderReport.Section>? _sections;
+    private MessageHeaderReportBrief? _brief;
     private string? _reportText;
 
     private async Task ReadFileAsync(InputFileChangeEventArgs args) {
         _error = null;
         _sections = null;
+        _brief = null;
         _reportText = null;
         ClearFile();
         _busy = true;
@@ -40,6 +42,7 @@ public partial class MessageAnalyzerTool {
     private async Task AnalyzeAsync() {
         _error = null;
         _sections = null;
+        _brief = null;
         _reportText = null;
         _busy = true;
         try {
@@ -56,6 +59,7 @@ public partial class MessageAnalyzerTool {
                 : health.AnalyzeMessageHeaders(_fileBytes == null ? _headerText : Encoding.UTF8.GetString(_fileBytes), options.HeaderOptions, SplitNames(_expectedMx), _lifetime.Token);
             if (_verifySignatures) { result.CompareExpectedMx(SplitNames(_expectedMx)); }
             result.Source = _fileName;
+            _brief = MessageHeaderReportBrief.Build(result);
             _sections = MessageHeaderReport.Build(result);
             _reportText = MessageHeaderReport.ToText(result);
         } catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
@@ -76,6 +80,7 @@ public partial class MessageAnalyzerTool {
         _headerText = string.Empty;
         _publicKeys = string.Empty;
         _sections = null;
+        _brief = null;
         _reportText = null;
         _error = null;
     }

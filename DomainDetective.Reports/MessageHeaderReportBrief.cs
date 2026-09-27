@@ -20,7 +20,7 @@ public sealed class MessageHeaderReportBrief {
     /// <summary>Interprets observed results without equating receiver claims with cryptographic proof.</summary>
     public static MessageHeaderReportBrief Build(MessageHeaderAnalysis message) {
         if (message == null) { throw new ArgumentNullException(nameof(message)); }
-        var findings = message.Assessments.Where(a => a.Severity != AssessmentSeverity.Info).OrderByDescending(a => a.Severity).ToArray();
+        var findings = MessageHeaderReportFindings.Build(message).Where(a => a.Severity != AssessmentSeverity.Info).OrderByDescending(a => a.Severity).ToArray();
         var errors = findings.Count(a => a.Severity == AssessmentSeverity.Error);
         var warnings = findings.Length - errors;
         var evidence = new List<string>();
@@ -41,13 +41,15 @@ public sealed class MessageHeaderReportBrief {
         evidence.Add($"Identity alignment: SPF {message.SpfAlignment ?? "unknown"}; reported DKIM {message.DkimAlignment ?? "unknown"}. Alignment and cryptographic verification answer different questions.");
         var invalid = message.SignatureVerification.Count(result => result.Status == MessageSignatureStatus.Invalid);
         var inconclusive = message.SignatureVerification.Count(result => result.Status == MessageSignatureStatus.Inconclusive);
-        var verificationSummary = invalid > 0 ? $"Cryptographic verification failed for {invalid} signature or chain result(s). "
-            : inconclusive > 0 ? $"Cryptographic verification could not reach a conclusion for {inconclusive} result(s). " : string.Empty;
-        var actions = RecommendationEngine.FromProblems(findings).ToList();
-        if (invalid > 0 || inconclusive > 0) {
+        var notPerformed = message.SignatureVerification.Count(result => result.Status == MessageSignatureStatus.NotPerformed);
+        var verificationSummary = invalid > 0 ? $"Cryptographic verification failed for {invalid} {ResultLabel(invalid)}. "
+            : inconclusive > 0 ? $"Cryptographic verification could not reach a conclusion for {inconclusive} {ResultLabel(inconclusive)}. "
+            : notPerformed > 0 ? $"Cryptographic verification was not performed for {notPerformed} {ResultLabel(notPerformed)}. " : string.Empty;
+        var actions = RecommendationEngine.FromProblems(message.Assessments).ToList();
+        if (invalid > 0 || inconclusive > 0 || notPerformed > 0) {
             actions.Insert(0, new RecommendationAdvice {
                 Title = "Investigate signature verification results",
-                Why = "An invalid or inconclusive result cannot establish cryptographic validity of this message.",
+                Why = "An invalid, inconclusive, or unperformed result cannot establish cryptographic validity of this message.",
                 How = "Preserve the original MIME bytes, review each verification explanation and key source, and compare with receiver authentication evidence.",
                 Verify = "Repeat verification against the preserved original message and the correct public key; keep receiver claims and local verification separate."
             });
@@ -61,10 +63,12 @@ public sealed class MessageHeaderReportBrief {
             SubjectLabel = subject,
             Summary = verificationSummary + (findings.Length == 0
                 ? "No warning or error assessments were raised for the supplied evidence. This does not establish that the sender or message is safe."
-                : $"Review {errors} error(s) and {warnings} warning(s) before relying on the authentication or delivery evidence."),
+                : $"Review {errors} {(errors == 1 ? "error" : "errors")} and {warnings} {(warnings == 1 ? "warning" : "warnings")} before relying on the authentication or delivery evidence."),
             Evidence = evidence.Select(MessageHeaderReport.VisibleText).ToArray(),
             Findings = findings,
             Actions = actions
         };
     }
+
+    private static string ResultLabel(int count) => count == 1 ? "signature or chain result" : "signature or chain results";
 }

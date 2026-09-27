@@ -8,6 +8,8 @@ public partial class MessageHeaderAnalysis {
     private MessageHeaderAnalysisOptions _headerOptions = new();
     private int _receivedHeadersEvaluated;
     private readonly List<MessageAuthenticationEvidence> _selectedAuthenticationEvidence = new();
+    private readonly HashSet<string> _conflictedAuthenticationMethods = new(StringComparer.OrdinalIgnoreCase);
+    private bool _dmarcIdentityMismatch;
 
     /// <summary>All receiver-reported authentication observations with their provenance.</summary>
     public List<MessageAuthenticationEvidence> AuthenticationResults { get; } = new();
@@ -57,6 +59,8 @@ public partial class MessageHeaderAnalysis {
         CompAuthResult = null;
         CompAuthReason = null;
         AuthenticationConflict = false;
+        _conflictedAuthenticationMethods.Clear();
+        _dmarcIdentityMismatch = false;
         AuthenticationTrust = MessageAuthenticationTrust.None;
         AuthServId = null;
         SpfEvidence = null;
@@ -100,11 +104,27 @@ public partial class MessageHeaderAnalysis {
             methods.AddRange(fallback.SelectMany(value => value.Methods));
             if (primary == null && fallback.Count > 0) { AuthServId = fallback[0].AuthServId; AuthenticationTrust = fallback[0].Trust; }
         }
-        AuthenticationConflict = methods.Any(method => method.DuplicateProperties.Count > 0);
-        foreach (var group in methods.GroupBy(AuthenticationIdentity, StringComparer.OrdinalIgnoreCase)) {
-            if (group.Select(value => value.Result).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1) { AuthenticationConflict = true; }
+        foreach (var method in methods.Where(method => method.DuplicateProperties.Count > 0)) {
+            _conflictedAuthenticationMethods.Add(method.Method);
         }
-        AuthenticationConflict |= ConflictingDkimObservations(methods.Where(method => method.Method == "dkim")).Count > 0;
+        foreach (var group in methods.GroupBy(AuthenticationIdentity, StringComparer.OrdinalIgnoreCase)) {
+            if (group.Select(value => value.Result).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1) {
+                _conflictedAuthenticationMethods.Add(group.First().Method);
+            }
+        }
+        if (ConflictingDkimObservations(methods.Where(method => method.Method == "dkim")).Count > 0) {
+            _conflictedAuthenticationMethods.Add("dkim");
+        }
+        var anyAuthenticationConflict = _conflictedAuthenticationMethods.Count > 0;
+        // DMARC only describes the RFC5322.From identity. An unrelated header.from
+        // must remain in raw evidence without controlling this message's outcome.
+        var dmarcMethods = SelectDmarcMethods(methods);
+        _conflictedAuthenticationMethods.Remove("dmarc");
+        if (dmarcMethods.Any(method => method.DuplicateProperties.Count > 0)
+            || dmarcMethods.Select(method => method.Result).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1) {
+            _conflictedAuthenticationMethods.Add("dmarc");
+        }
+        AuthenticationConflict = anyAuthenticationConflict || _conflictedAuthenticationMethods.Count > 0;
         string? Result(string name) {
             var method = methods.FirstOrDefault(value => value.Method.Equals(name, StringComparison.OrdinalIgnoreCase));
             return method?.DuplicateProperties.Count > 0 ? "ambiguous" : method?.Result;
@@ -112,7 +132,7 @@ public partial class MessageHeaderAnalysis {
         DkimResult = Result("dkim");
         SpfResult = Result("spf");
         SpfEvidence = _selectedAuthenticationEvidence.FirstOrDefault(value => value.Methods.Any(method => method.Method == "spf"));
-        DmarcResult = Result("dmarc");
+        DmarcResult = HasAuthenticationConflict("dmarc") ? "ambiguous" : dmarcMethods.FirstOrDefault()?.Result;
         ArcResult = Result("arc");
         CompAuthResult = Result("compauth");
         var compauth = methods.FirstOrDefault(value => value.Method == "compauth");
@@ -124,6 +144,33 @@ public partial class MessageHeaderAnalysis {
     }
 
     private static string GetIdentity(MessageAuthenticationMethod method, string property) => method.DuplicateProperties.Count == 0 && method.Properties.TryGetValue(property, out var value) ? value : string.Empty;
+    private bool HasAuthenticationConflict(string method) => _conflictedAuthenticationMethods.Contains(method);
+    private List<MessageAuthenticationMethod> SelectDmarcMethods(List<MessageAuthenticationMethod> methods) {
+        var dmarc = methods.Where(method => method.Method == "dmarc").ToList();
+        if (DuplicateHeaders.ContainsKey("From") || !TryGetDomain(From, out var fromDomain)) { return new List<MessageAuthenticationMethod>(); }
+        var actualDomain = NormalizeDomainIdentity(fromDomain);
+        if (actualDomain.Length == 0) { return new List<MessageAuthenticationMethod>(); }
+        var matching = new List<MessageAuthenticationMethod>();
+        var unspecified = new List<MessageAuthenticationMethod>();
+        foreach (var method in dmarc) {
+            if (method.DuplicateProperties.Count > 0) { continue; }
+            if (!method.Properties.TryGetValue("header.from", out var reportedDomain)) {
+                unspecified.Add(method);
+            } else if (string.Equals(NormalizeDomainIdentity(reportedDomain), actualDomain, StringComparison.OrdinalIgnoreCase)) {
+                matching.Add(method);
+            } else {
+                _dmarcIdentityMismatch = true;
+            }
+        }
+        if (matching.Count == 0 && _dmarcIdentityMismatch) { return new List<MessageAuthenticationMethod>(); }
+        matching.AddRange(unspecified);
+        return matching;
+    }
+    private static string NormalizeDomainIdentity(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) { return string.Empty; }
+        try { return Helpers.DomainHelper.ValidateIdn(value!).ToLowerInvariant(); }
+        catch (ArgumentException) { return string.Empty; }
+    }
     private static HashSet<MessageAuthenticationMethod> ConflictingDkimObservations(IEnumerable<MessageAuthenticationMethod> methods) {
         var conflicts = new HashSet<MessageAuthenticationMethod>();
         foreach (var domain in methods.GroupBy(method => GetIdentity(method, "header.d"), StringComparer.OrdinalIgnoreCase)) {

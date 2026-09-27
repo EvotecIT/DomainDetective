@@ -8,6 +8,64 @@ using DomainDetective.Reports.Office;
 namespace DomainDetective.Tests.Reports;
 
 public class TestMessageHeaderReports {
+    [Theory]
+    [InlineData(MessageSignatureStatus.Invalid, "Cryptographic verification failed")]
+    [InlineData(MessageSignatureStatus.Inconclusive, "Cryptographic verification could not reach a conclusion")]
+    [InlineData(MessageSignatureStatus.NotPerformed, "Cryptographic verification was not performed")]
+    public void VerificationFailureAppearsInReportFindingsAndCounts(MessageSignatureStatus status, string summaryText) {
+        var message = new MessageHeaderAnalysis();
+        message.Parse("From: sender@example.org\r\nSubject: verification case\r\n");
+        message.SignatureVerification.Add(new MessageSignatureVerification { Method = "DKIM", Status = status, Explanation = "Test verification outcome." });
+        var brief = MessageHeaderReportBrief.Build(message);
+        Assert.Contains(summaryText, brief.Summary);
+        Assert.DoesNotContain("No warning or error assessments were raised", brief.Summary);
+        Assert.Contains(brief.Findings, finding => finding.Code == "HEADERS.Verify." + status);
+        Assert.Contains("HEADERS.Verify." + status, MessageHeaderReport.ToText(message));
+        Assert.Contains(brief.Actions, action => action.Title == "Investigate signature verification results");
+    }
+
+    [Fact]
+    public void PlainTextEvidenceIncludesColumnLabels() {
+        var message = new MessageHeaderAnalysis();
+        message.Parse("From: sender@example.org\r\nReceived: from sender.example by mx.example with ESMTP; Wed, 17 Jun 2026 12:00:00 +0000\r\n");
+        var text = MessageHeaderReport.ToText(message);
+        Assert.True(text.IndexOf("Message analysis", StringComparison.Ordinal) < text.IndexOf("Evidence appendix", StringComparison.Ordinal));
+        Assert.Contains("Recommended next steps", text);
+        Assert.Contains("Header index | From | IP | By | Protocol | TLS | Cipher | Reported time | Delay", text);
+    }
+
+    [Fact]
+    public void OfficeOverviewCountsLocalVerificationOutcomes() {
+        var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dd-verification-report-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try {
+            var message = new MessageHeaderAnalysis();
+            message.Parse("From: sender@example.org\r\nSubject: verification case\r\n");
+            message.SignatureVerification.Add(new MessageSignatureVerification { Method = "DKIM", Status = MessageSignatureStatus.Invalid, Explanation = "Signature mismatch." });
+            message.SignatureVerification.Add(new MessageSignatureVerification { Method = "ARC", Status = MessageSignatureStatus.Inconclusive, Explanation = "Key unavailable." });
+            message.SignatureVerification.Add(new MessageSignatureVerification { Method = "DKIM", Status = MessageSignatureStatus.NotPerformed, Explanation = "Signature limit reached." });
+            var excelPath = System.IO.Path.Combine(directory, "verification.xlsx");
+            var wordPath = System.IO.Path.Combine(directory, "verification.docx");
+            MessageHeaderOfficeReport.GenerateExcel(excelPath, new[] { message });
+            MessageHeaderOfficeReport.GenerateWord(wordPath, new[] { message });
+            using (var archive = ZipFile.OpenRead(excelPath)) {
+                using var stream = archive.GetEntry("xl/worksheets/sheet1.xml")!.Open();
+                var sheet = XDocument.Load(stream);
+                string Cell(string reference) => sheet.Descendants().First(node => node.Name.LocalName == "c" && node.Attribute("r")?.Value == reference)
+                    .Elements().First(node => node.Name.LocalName == "v").Value;
+                Assert.Equal("1", Cell("B5"));
+                Assert.Equal("2", Cell("C5"));
+            }
+            using (var archive = ZipFile.OpenRead(wordPath)) {
+                using var stream = archive.GetEntry("word/document.xml")!.Open();
+                var text = XDocument.Load(stream).Root!.Value;
+                Assert.Contains("HEADERS.Verify.Invalid", text);
+                Assert.Contains("HEADERS.Verify.Inconclusive", text);
+                Assert.Contains("HEADERS.Verify.NotPerformed", text);
+            }
+        } finally { Directory.Delete(directory, recursive: true); }
+    }
+
     [Fact]
     public void EvidenceAppearsInEveryFormatWithoutExecutingHeaderContent() {
         var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dd-message-reports-" + Guid.NewGuid().ToString("N"));

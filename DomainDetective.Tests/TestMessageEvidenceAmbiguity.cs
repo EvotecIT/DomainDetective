@@ -50,6 +50,75 @@ public class TestMessageEvidenceAmbiguity {
         Assert.Null(analysis.SpfAlignment);
     }
 
+    [Fact]
+    public void SpfConflictDoesNotHideIndependentDmarcInboxFailure() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.org\r\nTo: recipient@example.org\r\n" +
+            "Authentication-Results: mx.example; spf=pass smtp.mailfrom=example.org; dmarc=fail header.from=example.org\r\n" +
+            "Authentication-Results: mx.example; spf=fail smtp.mailfrom=example.org; dmarc=fail header.from=example.org\r\n" +
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.True(analysis.AuthenticationConflict);
+        Assert.False(analysis.SpfFailedOrSoftFailed);
+        Assert.True(analysis.DmarcFailed);
+        Assert.True(analysis.AuthenticationFailedDeliveredToInbox);
+        Assert.Contains(analysis.Assessments, value => value.Code == MessageHeaderCodes.AuthenticationFailedDeliveredToInbox);
+    }
+
+    [Fact]
+    public void DkimConflictDoesNotHideIndependentDmarcInboxFailure() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.org\r\nTo: recipient@example.org\r\n" +
+            "Authentication-Results: mx.example; dkim=pass header.d=example.org header.s=mail; dmarc=fail header.from=example.org\r\n" +
+            "Authentication-Results: mx.example; dkim=fail header.d=example.org header.s=mail; dmarc=fail header.from=example.org\r\n" +
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.True(analysis.AuthenticationConflict);
+        Assert.False(analysis.DkimMissingOrFailed);
+        Assert.True(analysis.DmarcFailed);
+        Assert.True(analysis.AuthenticationFailedDeliveredToInbox);
+    }
+
+    [Fact]
+    public void DmarcConflictDoesNotHideIndependentSpfFailure() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.org\r\n" +
+            "Authentication-Results: mx.example; spf=fail smtp.mailfrom=example.org; dmarc=fail header.from=example.org\r\n" +
+            "Authentication-Results: mx.example; spf=fail smtp.mailfrom=example.org; dmarc=pass header.from=example.org\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.True(analysis.AuthenticationConflict);
+        Assert.True(analysis.SpfFailedOrSoftFailed);
+        Assert.False(analysis.DmarcFailed);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DmarcSelectionUsesTheActualFromIdentity(bool unrelatedFirst) {
+        const string unrelated = "Authentication-Results: mx.example; dmarc=pass header.from=other.org\r\n";
+        const string matching = "Authentication-Results: mx.example; dmarc=fail header.from=example.org\r\n";
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.org\r\nTo: recipient@example.org\r\n" +
+            (unrelatedFirst ? unrelated + matching : matching + unrelated) +
+            "X-Microsoft-Antispam-Mailbox-Delivery: dest:I\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.Equal("fail", analysis.DmarcResult);
+        Assert.True(analysis.DmarcFailed);
+        Assert.True(analysis.AuthenticationFailedDeliveredToInbox);
+        Assert.Contains(analysis.Assessments, value => value.Code == "HEADERS.DMARC.IdentityMismatch");
+    }
+
+    [Fact]
+    public void UnrelatedDmarcIdentityCannotEstablishMessageResult() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.org\r\nAuthentication-Results: mx.example; dmarc=pass header.from=other.org\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.Null(analysis.DmarcResult);
+        Assert.False(analysis.DmarcFailed);
+        Assert.Contains(analysis.Assessments, value => value.Code == "HEADERS.DMARC.IdentityMismatch");
+        Assert.Contains(analysis.AuthenticationResults[0].Methods, method => method.Method == "dmarc" && method.Result == "pass");
+    }
+
     [Theory]
     [InlineData("other.example")]
     [InlineData("example.org")]

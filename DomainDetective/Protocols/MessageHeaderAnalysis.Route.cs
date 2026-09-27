@@ -201,9 +201,9 @@ namespace DomainDetective {
                 && IsAnonymousExchangeAuth();
             DirectToExchangeOnlineObserved = _rawDirectToExchangeOnlineObserved;
 
-            DmarcFailed = !AuthenticationConflict && IsFailureResult(TrustedDmarcResult, treatMissingAsFailure: false);
-            DkimMissingOrFailed = !AuthenticationConflict && IsFailureResult(TrustedDkimResult, treatMissingAsFailure: true);
-            SpfFailedOrSoftFailed = !AuthenticationConflict && IsFailureResult(TrustedSpfResult, treatMissingAsFailure: false);
+            DmarcFailed = !HasAuthenticationConflict("dmarc") && IsFailureResult(TrustedDmarcResult, treatMissingAsFailure: false);
+            DkimMissingOrFailed = !HasAuthenticationConflict("dkim") && IsFailureResult(TrustedDkimResult, treatMissingAsFailure: true);
+            SpfFailedOrSoftFailed = !HasAuthenticationConflict("spf") && IsFailureResult(TrustedSpfResult, treatMissingAsFailure: false);
             SameDomainSelfSpoof = !DuplicateHeaders.ContainsKey("From") && !DuplicateHeaders.ContainsKey("To") && TryGetDomain(From, out var fromDomain)
                 && HasRecipientDomain(To, fromDomain);
 

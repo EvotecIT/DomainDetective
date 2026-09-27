@@ -35,5 +35,14 @@ namespace DomainDetective.Tests {
             Assert.Equal("pass", analysis.DmarcResult);
             Assert.Equal("pass", analysis.ArcResult);
         }
+
+        [Fact]
+        public void OneTimestampCannotEstablishTransitDuration() {
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse("From: sender@example.org\r\nReceived: from sender.example by mx.example with ESMTP; Wed, 17 Jun 2026 12:00:00 +0000\r\n");
+            Assert.Single(analysis.ReceivedHops);
+            Assert.Null(analysis.TotalTransitTime);
+            Assert.Null(analysis.ReceivedHops[0].HopDelay);
+        }
     }
 }
