@@ -68,7 +68,7 @@ public static class MxWordSectionWriter
         if (scope == ReportScope.Minimal) return;
 
         // Good posture
-        if (scope != ReportScope.Minimal && mx.Positives != null && mx.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && mx.Positives != null && mx.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");
@@ -158,7 +158,7 @@ public static class MxWordSectionWriter
         for (int i = 0; i < rows.Count; i++) { t.Rows[i].Cells[0].AddParagraph(rows[i].Key); t.Rows[i].Cells[1].AddParagraph(rows[i].Value); }
 
         // Positives
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

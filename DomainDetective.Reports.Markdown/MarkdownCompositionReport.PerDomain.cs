@@ -10,7 +10,7 @@ namespace DomainDetective.Reports.Markdown;
 public static partial class MarkdownCompositionReport
 {
     // Extracted per-domain writer to keep the core file lean and under 500 lines.
-    private static void WritePerDomain(MarkdownDoc md, List<KeyValuePair<string, DomainBucket>> domains, OrderingOptions? ordering, Dictionary<string, List<string>> inputSectionOrder)
+    private static void WritePerDomain(MarkdownDoc md, List<KeyValuePair<string, DomainBucket>> domains, OrderingOptions? ordering, Dictionary<string, List<string>> inputSectionOrder, bool showInfoFindings)
     {
         var mode = ordering?.SectionOrderMode ?? SectionOrderMode.Canonical;
         var custom = SectionOrdering.NormalizeSectionList(ordering?.SectionOrder ?? Array.Empty<string>());
@@ -60,7 +60,7 @@ public static partial class MarkdownCompositionReport
                     md.H3("Sending Signals").Ul(cls.SendingSignals.ToArray());
                 }
                 var clsFind = (cls.Assessments ?? Array.Empty<DomainDetective.Assessment>())
-                    .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                    .Where(a => a != null && (showInfoFindings || a.Severity != DomainDetective.AssessmentSeverity.Info))
                     .Select(a => (IReadOnlyList<string>)new[]
                     {
                         a.Severity.ToString(),
@@ -132,7 +132,7 @@ public static partial class MarkdownCompositionReport
 
                 if (cls.Recommendations?.Count > 0)
                     md.H3("Recommendations").Ul(cls.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
-                if (cls.Positives?.Count > 0)
+                if (showInfoFindings && (cls.Positives?.Count > 0))
                     md.H3("Positives").Ul(cls.Positives.Select(r => r.Title ?? r.Code).ToArray());
                 RenderReferences(md, MergeReferences(cls.References, narrative?.References));
             }
@@ -155,13 +155,13 @@ public static partial class MarkdownCompositionReport
                 {
                     md.H3("Highlights").Ul(sec.Highlights.ToArray());
                 }
-                if (sec.Positives.Count > 0)
+                if (showInfoFindings && (sec.Positives.Count > 0))
                 {
                     md.H3("Positives").Ul(sec.Positives.ToArray());
                 }
                 if (sec.Findings.Count > 0)
                 {
-                    var findingRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    var findingRows = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
                     md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(findingRows).AlignLeft(0, 1, 2, 3));
                 }
                 if (sec.Services.Count > 0)
@@ -220,13 +220,13 @@ public static partial class MarkdownCompositionReport
                 {
                     md.H3("Highlights").Ul(sec.Highlights.ToArray());
                 }
-                if (sec.Positives.Count > 0)
+                if (showInfoFindings && (sec.Positives.Count > 0))
                 {
                     md.H3("Positives").Ul(sec.Positives.ToArray());
                 }
                 if (sec.Findings.Count > 0)
                 {
-                    var rows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    var rows = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
                     md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(rows).AlignLeft(0, 1, 2, 3));
                 }
                 if (sec.Categories.Count > 0)
@@ -311,13 +311,13 @@ public static partial class MarkdownCompositionReport
                     t.AlignLeft(0, 1);
                 });
 
-                if (sec.Positives.Count > 0)
+                if (showInfoFindings && (sec.Positives.Count > 0))
                 {
                     md.H3("Positives").Ul(sec.Positives.ToArray());
                 }
                 if (sec.Findings.Count > 0)
                 {
-                    var rows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    var rows = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
                     md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(rows).AlignLeft(0, 1, 2, 3));
                 }
                 if (sec.Documents.Count > 0)
@@ -394,13 +394,13 @@ public static partial class MarkdownCompositionReport
                         t.AlignLeft(0, 1);
                     });
                 }
-                if (sec.Positives.Count > 0)
+                if (showInfoFindings && (sec.Positives.Count > 0))
                 {
                     md.H3("Positives").Ul(sec.Positives.ToArray());
                 }
                 if (sec.Findings.Count > 0)
                 {
-                    var findingRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    var findingRows = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[] { a.Severity, a.Code, a.Target, a.Message }).ToList();
                     md.H3("Findings").Table(t => t.Headers("Severity", "Code", "Target", "Message").Rows(findingRows).AlignLeft(0, 1, 2, 3));
                 }
                 if (b.Typosquatting.KindCounts.Count > 0)
@@ -500,13 +500,13 @@ public static partial class MarkdownCompositionReport
                     .AlignLeft(0, 1));
 
                 md.H3("Desired State Conformance");
-                if (ds.Positives != null && ds.Positives.Count > 0)
+                if (showInfoFindings && (ds.Positives != null && ds.Positives.Count > 0))
                 {
                     md.H4("Good posture").Ul(ds.Positives.Select(p => p.Title ?? p.Code ?? string.Empty).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray());
                 }
 
                 var desiredFind = (ds.DesiredAssessments ?? Array.Empty<DomainDetective.Assessment>())
-                    .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                    .Where(a => a != null && (showInfoFindings || a.Severity != DomainDetective.AssessmentSeverity.Info))
                     .Select(a => (IReadOnlyList<string>)new[]
                     {
                         a.Severity.ToString(),
@@ -541,13 +541,13 @@ public static partial class MarkdownCompositionReport
                 if (ds.Mode != DomainDetective.DesiredState.DesiredStateMode.BaselineOnly)
                 {
                     md.H3("Best-Practice Gaps");
-                    if (ds.BestPracticePositives != null && ds.BestPracticePositives.Count > 0)
+                    if (showInfoFindings && (ds.BestPracticePositives != null && ds.BestPracticePositives.Count > 0))
                     {
                         md.H4("Good posture").Ul(ds.BestPracticePositives.Select(p => p.Title ?? p.Code ?? string.Empty).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray());
                     }
 
                     var bestFind = (ds.BestPracticeAssessments ?? Array.Empty<DomainDetective.Assessment>())
-                        .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                        .Where(a => a != null && (showInfoFindings || a.Severity != DomainDetective.AssessmentSeverity.Info))
                         .Select(a => (IReadOnlyList<string>)new[]
                         {
                             a.Severity.ToString(),
@@ -593,8 +593,8 @@ public static partial class MarkdownCompositionReport
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     if (sec.Highlights.Count > 0) md.H3("Highlights").Ul(sec.Highlights.ToArray());
-                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
-                    var spfFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (sec.Positives.Count > 0)) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var spfFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (spfFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(spfFind).AlignLeft(0,1,2,3));
                     RenderNarrative(md, narrative);
                     if (!string.IsNullOrWhiteSpace(sec.SpfRecord)) { md.H3("Evidence").P("SPF Record:"); md.Code("", sec.SpfRecord!); }
@@ -615,8 +615,8 @@ public static partial class MarkdownCompositionReport
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     if (sec.Highlights.Count > 0) md.H3("Highlights").Ul(sec.Highlights.ToArray());
-                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
-                    var dmFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (sec.Positives.Count > 0)) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var dmFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (dmFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dmFind).AlignLeft(0,1,2,3));
                     RenderNarrative(md, narrative);
                     if (!string.IsNullOrWhiteSpace(sec.DmarcRecord)) { md.H3("Evidence").P("DMARC Record:"); md.Code("", sec.DmarcRecord!); }
@@ -650,8 +650,8 @@ public static partial class MarkdownCompositionReport
                 {
                     if (sec.Rows.Count > 0) { var dkimRows = sec.Rows.Select(x => (IReadOnlyList<string>)new[]{ x.Selector, x.Status, x.KeyBits, x.Hash, x.Weak ? "Yes" : "No", x.Flags, (x.TtlSeconds?.ToString() ?? "-"), x.CnameResolved ? "Yes" : "No", (x.CnameTtlSeconds?.ToString() ?? "-") }).ToList(); md.Table(t => t.Headers("Selector","Status","Key Bits","Alg","Weak","Flags","TTL (s)","CNAME Resolved","CNAME TTL (s)").Rows(dkimRows).AlignLeft(0,1,2,3,4,5,6,7,8)); }
                     if (sec.Highlights.Count > 0) md.H3("Highlights").Ul(sec.Highlights.ToArray());
-                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
-                    var dkFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (sec.Positives.Count > 0)) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var dkFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (dkFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dkFind).AlignLeft(0,1,2,3));
                     RenderNarrative(md, narrative);
                     if (sec.Rows.Any(r => !string.IsNullOrWhiteSpace(r.Record))) { md.H3("Evidence"); foreach (var r in sec.Rows.Where(r => !string.IsNullOrWhiteSpace(r.Record))) { md.H4($"Selector {r.Selector}"); md.Code("", r.Record); } }
@@ -670,8 +670,8 @@ public static partial class MarkdownCompositionReport
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     if (sec.Records.Count > 0) { md.H3("MX Records"); md.Table(tt => { tt.Headers("Host"); foreach (var r2 in sec.Records) tt.Row(r2); tt.AlignLeft(0); }); }
                     if (!string.IsNullOrWhiteSpace(sec.MailTlsSmtp) || !string.IsNullOrWhiteSpace(sec.MailTlsImap) || !string.IsNullOrWhiteSpace(sec.MailTlsPop)) { md.H3("MailTLS"); md.Table(t => t.Headers("Service","Status").Row("SMTP", sec.MailTlsSmtp ?? "-").Row("IMAP", sec.MailTlsImap ?? "-").Row("POP3", sec.MailTlsPop ?? "-").AlignLeft(0,1)); }
-                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
-                    var mxFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (sec.Positives.Count > 0)) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var mxFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (mxFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mxFind).AlignLeft(0,1,2,3));
                     RenderNarrative(md, narrative);
                     var raw = b.Mx.Raw;
@@ -704,8 +704,8 @@ public static partial class MarkdownCompositionReport
                 if (sec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
-                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
-                    var mtFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (sec.Positives.Count > 0)) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var mtFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (mtFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mtFind).AlignLeft(0,1,2,3));
                     RenderNarrative(md, narrative);
                     var raw = b.Mtasts.Raw;
@@ -751,8 +751,8 @@ public static partial class MarkdownCompositionReport
                 if (sec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
-                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
-                    var trFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (sec.Positives.Count > 0)) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var trFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (trFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(trFind).AlignLeft(0,1,2,3));
                     RenderNarrative(md, narrative);
                     bool hasEvidence = !string.IsNullOrWhiteSpace(b.TlsRpt.TlsRptRecord)
@@ -832,8 +832,8 @@ public static partial class MarkdownCompositionReport
                 var sec = SectionProjectors.BuildMailTls(b.SmtpTls, b.ImapTls, b.PopTls);
                 if (sec != null)
                 {
-                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
-                    var mtFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (sec.Positives.Count > 0)) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var mtFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (mtFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mtFind).AlignLeft(0,1,2,3));
                 }
                 RenderNarrative(md, narrative);
@@ -861,7 +861,7 @@ public static partial class MarkdownCompositionReport
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     if (sec.Findings.Count > 0)
                     {
-                        var dnsblRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                        var dnsblRows = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                         md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dnsblRows).AlignLeft(0,1,2,3));
                     }
                     RenderNarrative(md, narrative);
@@ -907,8 +907,8 @@ public static partial class MarkdownCompositionReport
                 if (sec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
-                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
-                    var nsFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (sec.Positives.Count > 0)) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var nsFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (nsFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(nsFind));
                     RenderNarrative(md, narrative);
                     var raw = b.Ns.Raw;
@@ -956,7 +956,7 @@ public static partial class MarkdownCompositionReport
                 if (sec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
-                    var soaFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    var soaFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (soaFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(soaFind));
                     RenderNarrative(md, narrative);
                     var raw = b.Soa.Raw;
@@ -989,8 +989,8 @@ public static partial class MarkdownCompositionReport
                 if (sec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
-                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
-                    var caaFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (sec.Positives.Count > 0)) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var caaFind = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (caaFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(caaFind));
                     RenderNarrative(md, narrative);
                     var raw = b.Caa.Raw;
@@ -1024,8 +1024,8 @@ public static partial class MarkdownCompositionReport
                 if (dsec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in dsec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
-                    if (dsec.Positives.Count > 0) md.H3("Positives").Ul(dsec.Positives.ToArray());
-                    var dnsFind = dsec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (showInfoFindings && (dsec.Positives.Count > 0)) md.H3("Positives").Ul(dsec.Positives.ToArray());
+                    var dnsFind = dsec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (dnsFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dnsFind));
                     RenderNarrative(md, narrative);
                     var raw = b.Dnssec.Raw;
@@ -1090,7 +1090,7 @@ public static partial class MarkdownCompositionReport
                 if (dasec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in dasec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
-                    var daFind = dasec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    var daFind = dasec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (daFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(daFind));
                     RenderNarrative(md, narrative);
                     var raw = b.Dane.Raw;

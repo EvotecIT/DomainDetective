@@ -314,7 +314,8 @@ internal static class CompositionReportDispatcher
                 typeof(IReadOnlyList<object>),
                 typeof(ReportScope),
                 typeof(OrderingOptions),
-                profileType
+                profileType,
+                typeof(bool)
             },
             null);
         if (method == null)
@@ -328,7 +329,8 @@ internal static class CompositionReportDispatcher
             items,
             request.Scope,
             request.Ordering,
-            profileValue
+            profileValue,
+            request.ShowInfoFindings
         }, out error);
     }
 
@@ -359,7 +361,8 @@ internal static class CompositionReportDispatcher
                 typeof(string),
                 typeof(IReadOnlyList<object>),
                 typeof(ReportScope),
-                typeof(OrderingOptions)
+                typeof(OrderingOptions),
+                typeof(bool)
             },
             null);
         if (method == null)
@@ -372,7 +375,8 @@ internal static class CompositionReportDispatcher
             outputPath,
             items,
             request.Scope,
-            request.Ordering
+            request.Ordering,
+            request.ShowInfoFindings
         }, out error);
     }
 

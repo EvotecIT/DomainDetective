@@ -7,7 +7,7 @@ using OfficeIMO.Excel.Fluent;
 namespace DomainDetective.Reports.Office;
 
 public static partial class ExcelCompositionReport {
-    private static void BuildOverviewSheet(ExcelDocument doc, IReadOnlyList<object> items, DomainOrder order, List<KeyValuePair<string, DomainBucket>> domains) {
+    private static void BuildOverviewSheet(ExcelDocument doc, IReadOnlyList<object> items, DomainOrder order, List<KeyValuePair<string, DomainBucket>> domains, ReportScope scope) {
         var overview = new SheetComposer(doc, "Overview");
         overview.Title("Security Overview", $"Generated {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
         var rows = ExecutiveSummaryBuilder.Build(items, order);
@@ -28,7 +28,7 @@ public static partial class ExcelCompositionReport {
             }
         }
         ExcelReportLayout.Section(overview, "Report navigation");
-        ExcelReportLayout.Paragraph(overview, "Index links to every sheet. Recommendations explains why to act, what to change and how to verify. Findings retains assessment messages and codes. Matrix and Summary compare control status; domain sheets contain supporting records.");
+        ExcelReportLayout.Paragraph(overview, scope == ReportScope.Minimal ? "Index links to the overview, action plan and findings. Technical supporting records are omitted from this minimal report." : "Index links to every sheet. Recommendations explains why to act, what to change and how to verify. Findings retains assessment messages and codes. Matrix and Summary compare control status; domain sheets contain supporting records.");
         for (var column = 1; column <= 6; column++) { overview.Sheet.SetColumnWidth(column, 18); }
         overview.Sheet.MergeRange("A1:F1");
         overview.Sheet.MergeRange("A2:F2");

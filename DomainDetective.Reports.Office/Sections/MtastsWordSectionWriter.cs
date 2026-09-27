@@ -60,7 +60,7 @@ public static class MtastsWordSectionWriter
         }
 
         // Good posture
-        if (scope != ReportScope.Minimal && mtasts.Positives != null && mtasts.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && mtasts.Positives != null && mtasts.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");
@@ -126,7 +126,7 @@ public static class MtastsWordSectionWriter
         var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
         for (int i=0;i<rows.Count;i++){ t.Rows[i].Cells[0].AddParagraph(rows[i].Key); t.Rows[i].Cells[1].AddParagraph(rows[i].Value); }
 
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

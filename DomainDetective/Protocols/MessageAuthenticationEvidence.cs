@@ -25,6 +25,8 @@ public sealed class MessageAuthenticationMethod {
     public string Result { get; internal set; } = string.Empty;
     /// <summary>Identity and reason properties associated with this method.</summary>
     public Dictionary<string, string> Properties { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Repeated property names; their values cannot establish a unique identity.</summary>
+    public List<string> DuplicateProperties { get; } = new();
     /// <summary>Original method clause.</summary>
     public string Raw { get; internal set; } = string.Empty;
 }
@@ -33,6 +35,8 @@ public sealed class MessageAuthenticationMethod {
 public sealed class MessageAuthenticationEvidence {
     /// <summary>Authentication service identifier, if supplied.</summary>
     public string? AuthServId { get; internal set; }
+    /// <summary>Whether repeated writer properties prevent attributing this observation.</summary>
+    public bool AmbiguousAuthServId { get; internal set; }
     /// <summary>Header field name, including original or ARC variants.</summary>
     public string HeaderName { get; internal set; } = string.Empty;
     /// <summary>Original order amongst authentication headers, newest first.</summary>

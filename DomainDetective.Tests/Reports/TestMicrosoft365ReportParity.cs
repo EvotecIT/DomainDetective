@@ -196,7 +196,7 @@ public class TestMicrosoft365ReportParity
         Assert.Contains("Company", markdown, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Contoso", markdown, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("M365 Workloads", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Strong 1 [Mail/Protocol 1]", markdown, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Strong 1 \\[Mail/Protocol 1\\]", markdown, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Accepted Domains", markdown, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Domain Evidence", markdown, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Primary 1 (Strong), DKIM-derived 1 (Moderate), Namespace-derived 1 (Strong)", markdown, StringComparison.OrdinalIgnoreCase);

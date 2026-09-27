@@ -20,7 +20,10 @@ public static partial class ExcelCompositionReport {
         IReadOnlyList<object> items,
         ReportScope scope,
         OrderingOptions? ordering = null,
-        ExcelProfile profile = ExcelProfile.Workbook) {
+        ExcelProfile profile = ExcelProfile.Workbook) => Generate(path, items, scope, ordering, profile, true);
+
+    /// <summary>Generates a workbook with explicit detail scope and informational finding visibility.</summary>
+    public static void Generate(string path, IReadOnlyList<object> items, ReportScope scope, OrderingOptions? ordering, ExcelProfile profile, bool showInfoFindings) {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
         var compGroups = CompositionBuilder.GroupBySubject(items);
         var order = (ordering != null) ? ordering.DomainOrder : DomainOrder.Alphabetical;
@@ -35,15 +38,16 @@ public static partial class ExcelCompositionReport {
             .Application("OfficeIMO.Excel")
             .Keywords("excel,report,domains")).End();
 
-        BuildOverviewSheet(doc, items, order, domains);
-        AssessmentEvidenceOfficeSections.WriteExcel(doc, AssessmentEvidenceInfo.Collect(items));
+        BuildOverviewSheet(doc, items, order, domains, scope);
+        AssessmentEvidenceOfficeSections.WriteExcel(doc, AssessmentEvidenceInfo.Collect(items), showInfoFindings);
+        // Dashboard rollups are the executive summary, rather than technical records.
         if (profile == ExcelProfile.Dashboard)
         {
             try { BuildDiscoveryDashboardSheet(doc, domains); } catch (Exception ex) { Trace.TraceWarning("ExcelCompositionReport: failed to build dashboard sheet: {0}", ex.Message); }
         }
 
         // Per-domain sheets (skip in Dashboard profile)
-        if (profile != ExcelProfile.Dashboard)
+        if (profile != ExcelProfile.Dashboard && scope != ReportScope.Minimal)
         {
             var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var kv in domains)
@@ -74,20 +78,20 @@ public static partial class ExcelCompositionReport {
             {
                 var auth = cols[0];
                 ApplyBlock(auth, BuildEmailAuthenticationOverviewBlock(b));
-                ApplyBlock(auth, BuildDesiredStateBlock(s, b));
-                ApplyBlock(auth, BuildSpfBlock(s, b));
-                ApplyBlock(auth, BuildDkimBlock(s, b));
-                ApplyBlock(auth, BuildDmarcBlock(b));
+                ApplyBlock(auth, BuildDesiredStateBlock(s, b, showInfoFindings));
+                ApplyBlock(auth, BuildSpfBlock(s, b, showInfoFindings));
+                ApplyBlock(auth, BuildDkimBlock(s, b, showInfoFindings));
+                ApplyBlock(auth, BuildDmarcBlock(b, showInfoFindings));
                 ApplyBlock(auth, BuildBimiBlock(b));
                 ApplyBlock(auth, BuildClassificationBlock(b));
-                ApplyBlock(auth, BuildMicrosoft365Block(b));
+                ApplyBlock(auth, BuildMicrosoft365Block(b, showInfoFindings));
                 RenderProviderBlock(s, auth, b);
 
                 var transport = cols[1];
                 transport.Section("Transport");
                 ApplyBlock(transport, BuildTransportSummaryBlock(b));
                 ApplyBlock(transport, BuildMailTlsBlock(s, b));
-                ApplyBlock(transport, BuildMxBlock(b));
+                ApplyBlock(transport, BuildMxBlock(b, showInfoFindings));
                 ApplyBlock(transport, BuildArcBlock(b));
 
                 var infra = cols[2];
@@ -97,14 +101,14 @@ public static partial class ExcelCompositionReport {
                 ApplyBlock(infra, BuildNsBlock(b));
                 ApplyBlock(infra, BuildSoaBlock(b));
                 ApplyBlock(infra, BuildDnsInventoryBlock(b));
-                ApplyBlock(infra, BuildDnsTraceBlock(b));
-                ApplyBlock(infra, BuildDnsPropagationBlock(b));
-                ApplyBlock(infra, BuildDnsAmplificationBlock(b));
-                ApplyBlock(infra, BuildDnsOverTlsBlock(b));
-                ApplyBlock(infra, BuildCtTimelineBlock(b));
-                ApplyBlock(infra, BuildHttpBlock(b));
-                ApplyBlock(infra, BuildTyposquattingBlock(b));
-                ApplyBlock(infra, BuildIpEnrichmentBlock(b));
+                ApplyBlock(infra, BuildDnsTraceBlock(b, showInfoFindings));
+                ApplyBlock(infra, BuildDnsPropagationBlock(b, showInfoFindings));
+                ApplyBlock(infra, BuildDnsAmplificationBlock(b, showInfoFindings));
+                ApplyBlock(infra, BuildDnsOverTlsBlock(b, showInfoFindings));
+                ApplyBlock(infra, BuildCtTimelineBlock(b, showInfoFindings));
+                ApplyBlock(infra, BuildHttpBlock(b, showInfoFindings));
+                ApplyBlock(infra, BuildTyposquattingBlock(b, showInfoFindings));
+                ApplyBlock(infra, BuildIpEnrichmentBlock(b, showInfoFindings));
                 ApplyBlock(infra, BuildCaaBlock(b));
                 ApplyBlock(infra, BuildRpkiBlock(b));
                 ApplyBlock(infra, BuildZoneTransferBlock(b));
@@ -210,7 +214,7 @@ public static partial class ExcelCompositionReport {
         }
         catch { }
 
-        BuildRecommendationsSheet(doc, items);
+
 
         // References sheet (Word parity)
         try
@@ -244,7 +248,9 @@ public static partial class ExcelCompositionReport {
         }
         catch { }
 
-        } // end if (profile != ExcelProfile.Dashboard)
+        } // end if (profile != ExcelProfile.Dashboard && scope != ReportScope.Minimal)
+
+        BuildRecommendationsSheet(doc, items);
 
         // Index
         SheetIndex.Add(doc, sheetName: "Index", placeFirst: true, includeNamedRanges: false);

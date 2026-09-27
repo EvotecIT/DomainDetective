@@ -20,7 +20,7 @@ public static partial class ExcelCompositionReport {
         return column => column.Section("Email Authentication");
     }
 
-    private static Action<SheetComposer.ColumnComposer>? BuildSpfBlock(SheetComposer composer, DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildSpfBlock(SheetComposer composer, DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.Spf == null)
         {
@@ -54,7 +54,7 @@ public static partial class ExcelCompositionReport {
 
             if ((projection?.Findings.Count ?? 0) > 0)
             {
-                var rows = projection!.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                var rows = projection!.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                 var range = column.TableFrom(rows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
                 composer.ApplyColumnSizing(range, opt =>
                 {
@@ -103,7 +103,7 @@ public static partial class ExcelCompositionReport {
         };
     }
 
-    private static Action<SheetComposer.ColumnComposer>? BuildDkimBlock(SheetComposer composer, DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildDkimBlock(SheetComposer composer, DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.Dkim == null || bucket.Dkim.Count == 0)
         {
@@ -144,7 +144,7 @@ public static partial class ExcelCompositionReport {
 
             if (projection != null && projection.Findings.Count > 0)
             {
-                var rows = projection.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                var rows = projection.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                 var range = column.TableFrom(rows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
                 composer.ApplyColumnSizing(range, opt =>
                 {
@@ -172,7 +172,7 @@ public static partial class ExcelCompositionReport {
         };
     }
 
-    private static Action<SheetComposer.ColumnComposer>? BuildDmarcBlock(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildDmarcBlock(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.Dmarc == null)
         {
@@ -227,7 +227,7 @@ public static partial class ExcelCompositionReport {
             }
 
             var dmarcPositives = d.Positives;
-            if (dmarcPositives != null && dmarcPositives.Count > 0)
+            if (showInfoFindings && (dmarcPositives != null && dmarcPositives.Count > 0))
             {
                 column.Section("Positives").BulletedList(dmarcPositives.Select(p => p.Title ?? p.Code).ToArray());
             }

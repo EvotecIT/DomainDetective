@@ -13,7 +13,7 @@ namespace DomainDetective.Tests;
 public class TestWordComposition
 {
     [Fact]
-    public void BasicHeadingsAndReferencesArePresent_AndDomainsColumnCaps()
+    public void BasicHeadingsAndReferencesArePresent_AndAllFindingTargetsRemainVisible()
     {
         // Build a minimal SPF view with RFC reference and many targets for a single warning code
         var assessments = new List<Assessment>();
@@ -66,8 +66,10 @@ public class TestWordComposition
             Assert.Contains("Overview", xml);
             Assert.Contains("All References", xml);
 
-            // Domains column capping: expect "+2 more" when 8 targets and cap=6
-            Assert.Contains("+2 more", xml);
+            // The complete findings appendix retains every affected target.
+            for (int i = 1; i <= 8; i++) { Assert.Contains($"d{i}.example.com", xml); }
+            Assert.DoesNotContain("[Company name]", xml);
+            Assert.DoesNotContain("No table of contents entries found.", xml);
         }
         finally
         {

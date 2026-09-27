@@ -61,7 +61,7 @@ public static class DmarcAggregateWordSectionWriter
         if (scope == ReportScope.Minimal) return;
 
         // Good posture
-        if (aggregate.Positives != null && aggregate.Positives.Count > 0)
+        if (showInfoFindings && aggregate.Positives != null && aggregate.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("Positive posture signals observed in the ingested aggregate reports:");

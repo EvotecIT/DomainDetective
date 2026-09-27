@@ -86,7 +86,7 @@ public partial class MessageHeaderAnalysis {
                 AddFinding("HEADERS.Unicode.DirectionControl", AssessmentSeverity.Warning, $"Field {field.Name} contains Unicode direction controls; display their code points when reporting.");
             }
         }
-        if (AuthenticationConflict) { AddFinding("HEADERS.Auth.Conflict", AssessmentSeverity.Warning, "Selected authentication observations disagree about the same identity; gateway sanitization and result provenance require review."); }
+        if (AuthenticationConflict) { AddFinding("HEADERS.Auth.Conflict", AssessmentSeverity.Warning, "Selected authentication observations conflict or repeat identity properties; gateway sanitization and result provenance require review."); }
         if (AuthenticationTrust != MessageAuthenticationTrust.Configured) {
             AddFinding("HEADERS.Auth.Unverified", AssessmentSeverity.Info, "Authentication results are receiver-reported claims. Route matching and header order do not prove their writer; configure exact trusted identifiers and gateway sanitization.");
         }
@@ -142,16 +142,19 @@ public partial class MessageHeaderAnalysis {
     private void AnalyzeAlignment() {
         var from = FromAddresses.Count == 1 && !DuplicateHeaders.ContainsKey("From") ? FromAddresses[0].Domain : null;
         var spf = SpfEvidence?.Methods.FirstOrDefault(method => method.Method == "spf");
-        var envelope = spf == null ? ReturnPathAddresses.FirstOrDefault()?.Domain : AddressDomain(GetIdentity(spf, "smtp.mailfrom"));
+        var envelope = spf == null ? (DuplicateHeaders.ContainsKey("Return-Path") ? null : ReturnPathAddresses.FirstOrDefault()?.Domain) : AddressDomain(GetIdentity(spf, "smtp.mailfrom"));
         if (spf != null && string.IsNullOrEmpty(envelope)
             && (spf.Properties.ContainsKey("smtp.mailfrom") || GetHeaderValue("Return-Path")?.Trim() == "<>")) {
             envelope = AddressDomain(GetIdentity(spf, "smtp.helo"));
             if (string.IsNullOrEmpty(envelope)) { envelope = AddressDomain(GetIdentity(spf, "helo")); }
         }
-        SpfAlignment = Alignment(from, envelope);
+        var spfMethods = _selectedAuthenticationEvidence.SelectMany(value => value.Methods).Where(method => method.Method == "spf");
+        var spfConflict = spf != null && spfMethods.Where(method => string.Equals(AuthenticationIdentity(method), AuthenticationIdentity(spf), StringComparison.OrdinalIgnoreCase))
+            .Select(method => method.Result).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1;
+        SpfAlignment = spfConflict || spf?.DuplicateProperties.Count > 0 ? null : Alignment(from, envelope);
         var dkimMethods = _selectedAuthenticationEvidence.SelectMany(value => value.Methods).Where(method => method.Method == "dkim").ToArray();
         var conflicts = ConflictingDkimObservations(dkimMethods);
-        var dkimDomains = dkimMethods.Where(method => method.Result == "pass" && !conflicts.Contains(method))
+        var dkimDomains = dkimMethods.Where(method => method.Result == "pass" && method.DuplicateProperties.Count == 0 && !conflicts.Contains(method))
             .Select(method => GetIdentity(method, "header.d")).ToArray();
         var alignments = dkimDomains.Select(domain => Alignment(from, domain)).ToArray();
         DkimAlignment = alignments.Contains("Strict") ? "Strict" : alignments.Contains("Relaxed") ? "Relaxed" : alignments.Contains("None") ? "None" : null;

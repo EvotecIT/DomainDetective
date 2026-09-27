@@ -61,8 +61,8 @@ internal static class MessageHeaderValueParser {
                 Result = match.Groups["result"].Value.ToLowerInvariant(), Raw = clauses[i]
             };
             foreach (Match property in PropertyPattern.Matches(clauses[i].Substring(match.Length))) {
-                method.Properties[property.Groups["key"].Value] = property.Groups["quoted"].Success
-                    ? property.Groups["quoted"].Value : property.Groups["value"].Value;
+                AddProperty(method, property.Groups["key"].Value, property.Groups["quoted"].Success
+                    ? property.Groups["quoted"].Value : property.Groups["value"].Value);
             }
             result.Methods.Add(method);
         }
@@ -97,10 +97,18 @@ internal static class MessageHeaderValueParser {
         foreach (Match property in PropertyPattern.Matches(string.Join("; ", clauses))) {
             var key = property.Groups["key"].Value;
             var text = property.Groups["quoted"].Success ? property.Groups["quoted"].Value : property.Groups["value"].Value;
-            if (key.Equals("receiver", StringComparison.OrdinalIgnoreCase)) { evidence.AuthServId = text; }
-            method.Properties[key.Equals("envelope-from", StringComparison.OrdinalIgnoreCase) ? "smtp.mailfrom" : key] = text;
+            AddProperty(method, key.Equals("envelope-from", StringComparison.OrdinalIgnoreCase) ? "smtp.mailfrom" : key.Equals("helo", StringComparison.OrdinalIgnoreCase) ? "smtp.helo" : key, text);
+            if (key.Equals("receiver", StringComparison.OrdinalIgnoreCase)) {
+                evidence.AmbiguousAuthServId = method.DuplicateProperties.Contains("receiver");
+                evidence.AuthServId = evidence.AmbiguousAuthServId ? null : text;
+            }
         }
         evidence.Methods.Add(method);
         return evidence;
+    }
+
+    private static void AddProperty(MessageAuthenticationMethod method, string key, string value) {
+        if (method.Properties.ContainsKey(key)) { method.DuplicateProperties.Add(key.ToLowerInvariant()); }
+        else { method.Properties[key] = value; }
     }
 }

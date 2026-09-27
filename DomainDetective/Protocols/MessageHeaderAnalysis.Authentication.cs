@@ -85,23 +85,28 @@ public partial class MessageHeaderAnalysis {
             AuthenticationTrust = primary.Trust;
         }
         var methods = selected.SelectMany(value => value.Methods).ToList();
+        if (!methods.Any(method => method.Method == "spf")) {
+            var fallback = AuthenticationResults.Where(value => value.HeaderName == "Received-SPF" && value.Methods.Count > 0 && value.Trust == MessageAuthenticationTrust.Configured).ToList();
+            if (fallback.Count == 0 && AuthenticationTrust != MessageAuthenticationTrust.Configured) {
+                var first = AuthenticationResults.FirstOrDefault(value => value.HeaderName == "Received-SPF" && value.Methods.Count > 0);
+                if (first != null) { fallback.Add(first); }
+            }
+            _selectedAuthenticationEvidence.AddRange(fallback);
+            methods.AddRange(fallback.SelectMany(value => value.Methods));
+            if (primary == null && fallback.Count > 0) { AuthServId = fallback[0].AuthServId; AuthenticationTrust = fallback[0].Trust; }
+        }
+        AuthenticationConflict = methods.Any(method => method.DuplicateProperties.Count > 0);
         foreach (var group in methods.GroupBy(AuthenticationIdentity, StringComparer.OrdinalIgnoreCase)) {
             if (group.Select(value => value.Result).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1) { AuthenticationConflict = true; }
         }
         AuthenticationConflict |= ConflictingDkimObservations(methods.Where(method => method.Method == "dkim")).Count > 0;
-        string? Result(string name) => methods.FirstOrDefault(value => value.Method.Equals(name, StringComparison.OrdinalIgnoreCase))?.Result;
+        string? Result(string name) {
+            var method = methods.FirstOrDefault(value => value.Method.Equals(name, StringComparison.OrdinalIgnoreCase));
+            return method?.DuplicateProperties.Count > 0 ? "ambiguous" : method?.Result;
+        }
         DkimResult = Result("dkim");
         SpfResult = Result("spf");
-        SpfEvidence = selected.FirstOrDefault(value => value.Methods.Any(method => method.Method == "spf"));
-        if (SpfResult == null) {
-            var fallback = AuthenticationResults.FirstOrDefault(value => value.HeaderName == "Received-SPF" && value.Methods.Count > 0 && value.Trust == MessageAuthenticationTrust.Configured)
-                ?? (AuthenticationTrust != MessageAuthenticationTrust.Configured ? AuthenticationResults.FirstOrDefault(value => value.HeaderName == "Received-SPF" && value.Methods.Count > 0) : null);
-            if (fallback != null) {
-                SpfEvidence = fallback;
-                SpfResult = fallback.Methods[0].Result;
-                if (primary == null) { AuthServId = fallback.AuthServId; AuthenticationTrust = fallback.Trust; }
-            }
-        }
+        SpfEvidence = _selectedAuthenticationEvidence.FirstOrDefault(value => value.Methods.Any(method => method.Method == "spf"));
         DmarcResult = Result("dmarc");
         ArcResult = Result("arc");
         CompAuthResult = Result("compauth");
@@ -113,7 +118,7 @@ public partial class MessageHeaderAnalysis {
         _trustedDmarcResult = DmarcResult;
     }
 
-    private static string GetIdentity(MessageAuthenticationMethod method, string property) => method.Properties.TryGetValue(property, out var value) ? value : string.Empty;
+    private static string GetIdentity(MessageAuthenticationMethod method, string property) => method.DuplicateProperties.Count == 0 && method.Properties.TryGetValue(property, out var value) ? value : string.Empty;
     private static HashSet<MessageAuthenticationMethod> ConflictingDkimObservations(IEnumerable<MessageAuthenticationMethod> methods) {
         var conflicts = new HashSet<MessageAuthenticationMethod>();
         foreach (var domain in methods.GroupBy(method => GetIdentity(method, "header.d"), StringComparer.OrdinalIgnoreCase)) {
@@ -130,8 +135,12 @@ public partial class MessageHeaderAnalysis {
         return conflicts;
     }
     private static string AuthenticationIdentity(MessageAuthenticationMethod method) => method.Method + ":" +
-        (method.Method == "spf" ? GetIdentity(method, "smtp.mailfrom") + ":" + GetIdentity(method, "smtp.helo")
+        (method.Method == "spf" ? SpfIdentity(method)
         : method.Method == "dmarc" ? GetIdentity(method, "header.from")
         : GetIdentity(method, "header.d") + ":" + GetIdentity(method, "header.s"));
     private static string NormalizeIdentity(string? value) => (value ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+    private static string SpfIdentity(MessageAuthenticationMethod method) {
+        var mailfrom = GetIdentity(method, "smtp.mailfrom").Trim('<', '>');
+        return mailfrom.Length > 0 ? "mailfrom:" + mailfrom : "helo:" + GetIdentity(method, "smtp.helo");
+    }
 }

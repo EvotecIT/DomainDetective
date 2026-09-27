@@ -1,6 +1,7 @@
 using MimeKit;
 using MimeKit.Cryptography;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -32,11 +33,14 @@ public partial class DomainHealthCheck {
         var analysis = new MessageHeaderAnalysis();
         analysis.Parse(Encoding.UTF8.GetString(messageBytes, 0, headerBytes), options.HeaderOptions, _logger);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var deadline = Stopwatch.StartNew();
         timeout.CancelAfter(options.Timeout);
         using var stream = new MemoryStream(messageBytes, writable: false);
         MimeMessage message;
         try {
             message = await MimeMessage.LoadAsync(stream, timeout.Token).ConfigureAwait(false);
+            // Timers have platform-dependent resolution; enforce the elapsed budget too.
+            if (deadline.Elapsed >= options.Timeout) { throw new OperationCanceledException(timeout.Token); }
         } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
             analysis.SignatureVerification.Add(new MessageSignatureVerification {
                 Method = "DKIM / ARC", Status = MessageSignatureStatus.Inconclusive,
@@ -64,6 +68,8 @@ public partial class DomainHealthCheck {
             locator.BeginVerification();
             try {
                 var valid = await dkim.VerifyAsync(message, header, timeout.Token).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (deadline.Elapsed >= options.Timeout) { throw new OperationCanceledException(timeout.Token); }
                 result.Status = valid ? MessageSignatureStatus.Valid : MessageSignatureStatus.Invalid;
                 result.Explanation = valid ? "Original message verifies using the available public key. This does not establish delivery-time DNS or sender intent." : "Signature did not validate the supplied message.";
             } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
@@ -90,6 +96,8 @@ public partial class DomainHealthCheck {
                 locator.BeginVerification();
                 try {
                     var arc = await new ArcVerifier(locator).VerifyAsync(message, timeout.Token).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (deadline.Elapsed >= options.Timeout) { throw new OperationCanceledException(timeout.Token); }
                     result.Status = arc.Chain == ArcSignatureValidationResult.Pass ? MessageSignatureStatus.Valid : MessageSignatureStatus.Invalid;
                     result.Explanation = "ARC cryptographic chain result: " + arc.Chain + ". A valid chain does not by itself establish trust in the sealers or their claims.";
                 } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {

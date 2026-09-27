@@ -67,8 +67,8 @@ public partial class ReceivedHop {
         var protocol = (With ?? string.Empty).ToUpperInvariant();
         ProtocolClass = protocol.Contains("HTTP") ? "Http" : protocol.Contains("MAPI") ? "Mapi"
             : protocol.Contains("LOCAL") ? "Local" : protocol.EndsWith("SMTPSA", StringComparison.Ordinal) || protocol.EndsWith("LMTPSA", StringComparison.Ordinal) ? "TlsAuthenticated"
+            : protocol.EndsWith("SMTPA", StringComparison.Ordinal) || protocol.EndsWith("LMTPA", StringComparison.Ordinal) ? (TlsVersion != null ? "TlsAuthenticated" : "Authenticated")
             : protocol.EndsWith("SMTPS", StringComparison.Ordinal) || protocol.EndsWith("LMTPS", StringComparison.Ordinal) || TlsVersion != null ? "Tls"
-            : protocol.EndsWith("SMTPA", StringComparison.Ordinal) || protocol.EndsWith("LMTPA", StringComparison.Ordinal) ? "Authenticated"
             : protocol.Contains("SMTP") || protocol.Contains("LMTP") ? "Plain" : null;
         if (IPAddress.TryParse(FromIp, out var ip)) {
             if (ip.IsIPv4MappedToIPv6) { ip = ip.MapToIPv4(); }

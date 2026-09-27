@@ -83,7 +83,7 @@ public static class MailClassificationWordSectionWriter
         }
 
         // Good posture
-        if (scope != ReportScope.Minimal && info.Positives != null && info.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && info.Positives != null && info.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

@@ -39,7 +39,7 @@ public static class ArcWordSectionWriter
         if (scope == ReportScope.Minimal) return;
 
         // Positives
-        if (scope != ReportScope.Minimal && arc.Positives != null && arc.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && arc.Positives != null && arc.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

@@ -9,13 +9,10 @@ using OfficeIMO.Excel.Fluent;
 namespace DomainDetective.Reports.Office;
 
 internal static class AssessmentEvidenceOfficeSections {
-    internal static IEnumerable<AssessmentEvidenceInfo> AdditionalWordFindings(IReadOnlyList<object> items) =>
-        AssessmentEvidenceInfo.Collect(items.Where(item => item is AssessmentEvidenceInfo || item is DomainDetective.Views.AgentReadinessInfo || item is DomainDetective.Views.SitemapInfo).ToArray());
-
     internal static void WriteWord(WordDocument document, WordList headings, IEnumerable<AssessmentEvidenceInfo> sections, bool showInfoFindings) {
         foreach (var section in sections) {
-            headings.AddItem("Additional assessment evidence — " + MessageHeaderReport.VisibleText(section.Subject));
-            document.AddParagraph("These completed checks do not have a dedicated technical section. Their findings and recommended actions remain part of this report and its warning/error totals.");
+            headings.AddItem("Assessment findings and actions — " + MessageHeaderReport.VisibleText(section.Subject));
+            document.AddParagraph("Findings from every completed check are prioritized below, followed by the supplied actions and verification steps. Technical records appear in the detailed sections when requested.");
             foreach (var finding in section.Assessments.Where(finding => showInfoFindings || finding.Severity != AssessmentSeverity.Info)) {
                 document.AddParagraph(MessageHeaderReport.VisibleText($"{finding.Severity} · {finding.Category} · {finding.Target} [{finding.Code}]")).SetBold();
                 document.AddParagraph(MessageHeaderReport.VisibleText(finding.Message));
@@ -30,13 +27,13 @@ internal static class AssessmentEvidenceOfficeSections {
         }
     }
 
-    internal static void WriteExcel(ExcelDocument document, IReadOnlyList<AssessmentEvidenceInfo> sections) {
+    internal static void WriteExcel(ExcelDocument document, IReadOnlyList<AssessmentEvidenceInfo> sections, bool showInfoFindings) {
         if (sections.Count == 0) { return; }
         var composer = new SheetComposer(document, "Findings");
         composer.Title("Assessment findings");
         ExcelReportLayout.Section(composer, "Coverage");
         ExcelReportLayout.Paragraph(composer, "This evidence appendix retains findings from every supplied assessment view, including checks without dedicated technical sections. Use the overview and action plan first. Long values continue in ordered Text part rows.");
-        var rows = sections.SelectMany(section => section.Assessments.Select(a => new[] {
+        var rows = sections.SelectMany(section => section.Assessments.Where(a => showInfoFindings || a.Severity != AssessmentSeverity.Info).Select(a => new[] {
             MessageHeaderReport.VisibleText(section.Subject), a.Severity.ToString(), MessageHeaderReport.VisibleText(a.Category),
             MessageHeaderReport.VisibleText(a.Target), MessageHeaderReport.VisibleText(a.Message), MessageHeaderReport.VisibleText(a.Code)
         })).ToArray();

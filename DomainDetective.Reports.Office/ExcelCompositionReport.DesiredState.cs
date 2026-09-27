@@ -7,7 +7,7 @@ namespace DomainDetective.Reports.Office;
 
 public static partial class ExcelCompositionReport
 {
-    private static Action<SheetComposer.ColumnComposer>? BuildDesiredStateBlock(SheetComposer composer, DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildDesiredStateBlock(SheetComposer composer, DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.DesiredState == null)
         {
@@ -35,7 +35,7 @@ public static partial class ExcelCompositionReport
 
             if (projection.DesiredFindings.Count > 0)
             {
-                var rows = projection.DesiredFindings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                var rows = projection.DesiredFindings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                 var range = column.TableFrom(rows, title: "Desired State Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
                 composer.ApplyColumnSizing(range, opt =>
                 {
@@ -60,7 +60,7 @@ public static partial class ExcelCompositionReport
 
             if (!projection.IsBaselineOnly && projection.BestPracticeFindings.Count > 0)
             {
-                var rows = projection.BestPracticeFindings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                var rows = projection.BestPracticeFindings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                 var range = column.TableFrom(rows, title: "Best-Practice Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
                 composer.ApplyColumnSizing(range, opt =>
                 {

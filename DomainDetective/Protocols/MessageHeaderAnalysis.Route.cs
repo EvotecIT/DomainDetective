@@ -107,7 +107,7 @@ namespace DomainDetective {
                 RemoveAssessment(MessageHeaderCodes.DirectToExchangeOnlineObserved);
             }
 
-            ExpectedMxBypassed = !ExpectedMxObserved && _rawDirectToExchangeOnlineObserved;
+            ExpectedMxBypassed = OmittedReceivedHops == 0 && !ExpectedMxObserved && _rawDirectToExchangeOnlineObserved;
             if (ExpectedMxBypassed) {
                 AddIssue(MessageHeaderIssue.DirectToExchangeOnline);
                 AddIssue(MessageHeaderIssue.ExpectedMxBypassed);
@@ -201,10 +201,10 @@ namespace DomainDetective {
                 && IsAnonymousExchangeAuth();
             DirectToExchangeOnlineObserved = _rawDirectToExchangeOnlineObserved;
 
-            DmarcFailed = IsFailureResult(TrustedDmarcResult, treatMissingAsFailure: false);
-            DkimMissingOrFailed = IsFailureResult(TrustedDkimResult, treatMissingAsFailure: true);
-            SpfFailedOrSoftFailed = IsFailureResult(TrustedSpfResult, treatMissingAsFailure: false);
-            SameDomainSelfSpoof = TryGetDomain(From, out var fromDomain)
+            DmarcFailed = !AuthenticationConflict && IsFailureResult(TrustedDmarcResult, treatMissingAsFailure: false);
+            DkimMissingOrFailed = !AuthenticationConflict && IsFailureResult(TrustedDkimResult, treatMissingAsFailure: true);
+            SpfFailedOrSoftFailed = !AuthenticationConflict && IsFailureResult(TrustedSpfResult, treatMissingAsFailure: false);
+            SameDomainSelfSpoof = !DuplicateHeaders.ContainsKey("From") && !DuplicateHeaders.ContainsKey("To") && TryGetDomain(From, out var fromDomain)
                 && HasRecipientDomain(To, fromDomain);
 
             AuthenticationFailedDeliveredToInbox = DeliveredToInbox && DmarcFailed;

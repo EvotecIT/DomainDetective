@@ -121,7 +121,7 @@ public static partial class ExcelCompositionReport {
         };
     }
 
-    private static Action<SheetComposer.ColumnComposer>? BuildDnsTraceBlock(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildDnsTraceBlock(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.DnsTrace == null)
         {
@@ -209,13 +209,13 @@ public static partial class ExcelCompositionReport {
 
             if (projection != null && projection.Findings.Count > 0)
             {
-                var frows = projection.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                var frows = projection.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                 column.TableFrom(frows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
         };
     }
 
-    private static Action<SheetComposer.ColumnComposer>? BuildCtTimelineBlock(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildCtTimelineBlock(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.CtTimeline == null)
         {
@@ -284,7 +284,7 @@ public static partial class ExcelCompositionReport {
 
             if (projection != null && projection.Findings.Count > 0)
             {
-                var frows = projection.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                var frows = projection.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                 column.TableFrom(frows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
         };
