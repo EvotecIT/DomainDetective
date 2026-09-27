@@ -36,6 +36,7 @@ public static partial class ExcelCompositionReport {
             .Keywords("excel,report,domains")).End();
 
         BuildOverviewSheet(doc, items, order, domains);
+        AssessmentEvidenceOfficeSections.WriteExcel(doc, AssessmentEvidenceInfo.Collect(items));
         if (profile == ExcelProfile.Dashboard)
         {
             try { BuildDiscoveryDashboardSheet(doc, domains); } catch (Exception ex) { Trace.TraceWarning("ExcelCompositionReport: failed to build dashboard sheet: {0}", ex.Message); }
@@ -209,48 +210,7 @@ public static partial class ExcelCompositionReport {
         }
         catch { }
 
-        // All Recommendations sheet
-        try
-        {
-            var recSheet = new SheetComposer(doc, "Recommendations");
-            recSheet.Title("All Recommendations");
-            var recRows = new List<object>();
-            foreach (var kv in domains)
-            {
-                string d = kv.Key; var b = kv.Value;
-                void AddRecs(string section, IEnumerable<DomainDetective.RecommendationAdvice>? list)
-                {
-                    if (list == null) return;
-                    foreach (var r in list) recRows.Add(new { Domain = d, Section = section, Title = r.Title ?? r.Code });
-                }
-                AddRecs("MX", b.Mx?.Recommendations);
-                AddRecs("SPF", b.Spf?.Recommendations);
-                if (b.Dkim.Count>0) AddRecs("DKIM", b.Dkim.SelectMany(x => x.Recommendations ?? new List<DomainDetective.RecommendationAdvice>()));
-                AddRecs("DMARC", b.Dmarc?.Recommendations);
-                AddRecs("MTA-STS", b.Mtasts?.Recommendations);
-                AddRecs("TLS-RPT", b.TlsRpt?.Recommendations);
-                AddRecs("DNSBL", b.Dnsbl?.Recommendations);
-                AddRecs("Microsoft 365", b.Microsoft365?.Recommendations);
-                AddRecs("NS", b.Ns?.Recommendations);
-                AddRecs("SOA", b.Soa?.Recommendations);
-                AddRecs("DNS Amplification", b.DnsAmplification?.Recommendations);
-                AddRecs("DNS over TLS", b.DnsOverTls?.Recommendations);
-                AddRecs("CAA", b.Caa?.Recommendations);
-                AddRecs("RPKI", b.Rpki?.Recommendations);
-                AddRecs("ZoneTransfer", b.ZoneTransfer?.Recommendations);
-                AddRecs("Wildcard", b.Wildcard?.Recommendations);
-            }
-            if (recRows.Count == 0) recRows.Add(new { Domain = "—", Section = "—", Title = "No recommendations" });
-            var recRange = recSheet.TableFrom(recRows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => { v.FreezeHeaderRow = true; });
-            recSheet.ApplyColumnSizing(recRange, opt => {
-                opt.MediumHeaders.Add("Domain");
-                opt.ShortHeaders.Add("Section");
-                opt.LongHeaders.Add("Title");
-                opt.WrapHeaders.Add("Title");
-            });
-            recSheet.Finish(autoFitColumns: true);
-        }
-        catch { }
+        BuildRecommendationsSheet(doc, items);
 
         // References sheet (Word parity)
         try
@@ -290,6 +250,13 @@ public static partial class ExcelCompositionReport {
         SheetIndex.Add(doc, sheetName: "Index", placeFirst: true, includeNamedRanges: false);
         SheetIndex.AddBackLinks(doc, tocSheetName: "Index", row: 2, col: 1, text: "← Index");
 
+        foreach (var sheet in doc.Sheets) {
+            sheet.SetGridlinesVisible(false);
+            sheet.ApplyPrintLayout(new ExcelPrintLayoutOptions {
+                Preset = ExcelPrintLayoutPreset.Report, FitToWidth = 1, FitToHeight = 0,
+                Orientation = OfficeIMO.OfficePageOrientation.Landscape
+            });
+        }
         doc.Save();
 
 #if NET8_0_OR_GREATER

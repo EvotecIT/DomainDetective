@@ -15,8 +15,21 @@ public static class MessageHeaderMarkdownReport {
         var document = MarkdownDoc.Create().H1("Email Message Analysis");
         for (var i = 0; i < messages.Count; i++) {
             document.H2("Message " + (i + 1));
+            var brief = MessageHeaderReportBrief.Build(messages[i]);
+            document.H3("Executive brief").P(MarkdownReportText.Escape(brief.Summary));
+            document.H3("What the evidence establishes").Ul(brief.Evidence.Select(MarkdownReportText.Escape).ToArray());
+            document.H3("Priority findings").Ul(brief.Findings.Select(a => MarkdownReportText.Escape(MessageHeaderReport.VisibleText($"{a.Severity}: {a.Message} [{a.Code}]"))).ToArray());
+            document.H3("Recommended next steps");
+            foreach (var action in brief.Actions) {
+                document.P(MarkdownReportText.Escape(MessageHeaderReport.VisibleText(action.Title)));
+                if (!string.IsNullOrWhiteSpace(action.Why)) { document.P(MarkdownReportText.Escape(MessageHeaderReport.VisibleText(action.Why))); }
+                if (!string.IsNullOrWhiteSpace(action.How)) { document.P("Action: " + MarkdownReportText.Escape(MessageHeaderReport.VisibleText(action.How))); }
+                if (!string.IsNullOrWhiteSpace(action.Verify)) { document.P("Verify: " + MarkdownReportText.Escape(MessageHeaderReport.VisibleText(action.Verify))); }
+            }
+            if (brief.Actions.Count == 0) { document.P("Retain the original MIME message and corroborate receiver claims before making a trust decision."); }
+            document.H3("Evidence appendix");
             foreach (var section in MessageHeaderReport.Build(messages[i]).Where(section => section.Rows.Count > 0)) {
-                document.H3(section.Title).Table(table => table.Headers(section.Columns.ToArray()).Rows(section.Rows.Select(row => (IReadOnlyList<string>)row.Select(EscapeCell).ToArray())));
+                document.H3(section.Title).Table(table => table.Headers(section.Columns.ToArray()).Rows(section.Rows.Select(row => (IReadOnlyList<string>)row.Select(MarkdownReportText.Escape).ToArray())));
             }
         }
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".");
@@ -25,12 +38,4 @@ public static class MessageHeaderMarkdownReport {
         } else { File.WriteAllText(path, document.ToMarkdown(), Encoding.UTF8); }
     }
 
-    private static string EscapeCell(string value) {
-        var text = new StringBuilder();
-        foreach (var ch in value) {
-            if ("\\`*_{}[]()!|<>".IndexOf(ch) >= 0) { text.Append('\\'); }
-            text.Append(ch);
-        }
-        return text.ToString();
-    }
 }

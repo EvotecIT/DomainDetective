@@ -3,7 +3,15 @@
 ## Goals
 - Reusable, format-agnostic report structure for specific areas (SPF, DMARC, DKIM, MX, DNSSEC, TLS, MTA-STS, DANE, HTTP, DNSBL) and aggregate (single- and multi-domain) reports.
 - Consistent content: Summary, Findings (assessments), Actions (recommendations), Evidence (tables, samples), with numbering (1, 1.1, 1.1.1).
-- Word and HTML as primary targets; PDF to follow, Excel for data-first exports.
+- Word and HTML as primary targets; PDF to follow, Excel combines a reader-oriented overview and action plan with filterable evidence worksheets.
+
+## Reader-oriented exports
+
+General Word, Excel, Markdown and MarkdownHtml generators compose the completed health-check views rather than rerunning mail classification. The overview states the scope and warning/error totals. Recommendations explain why to act, what to change and how to verify. Completed checks without dedicated technical sections retain their assessment findings and catalog advice. An empty analysis does not produce an apparently healthy document.
+
+Excel includes a compact overview, navigation, an action plan, a complete findings sheet and control/domain evidence. Long text continues in ordered rows, with explicit text-part labels. Worksheets print one page wide with unrestricted vertical continuation. Evidence remains filterable, while the opening sheet explains what the reader should review first.
+
+Message reports use the same brief across formats. Receiver authentication claims, identity alignment, route declarations and local cryptographic verification remain separate. Original fields and signature observations belong in the evidence appendix.
 
 ## Structure
 - Cover: title, logo (optional), generated at, author.

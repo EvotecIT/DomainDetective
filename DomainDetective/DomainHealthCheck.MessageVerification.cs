@@ -34,7 +34,17 @@ public partial class DomainHealthCheck {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(options.Timeout);
         using var stream = new MemoryStream(messageBytes, writable: false);
-        var message = await MimeMessage.LoadAsync(stream, timeout.Token).ConfigureAwait(false);
+        MimeMessage message;
+        try {
+            message = await MimeMessage.LoadAsync(stream, timeout.Token).ConfigureAwait(false);
+        } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
+            analysis.SignatureVerification.Add(new MessageSignatureVerification {
+                Method = "DKIM / ARC", Status = MessageSignatureStatus.Inconclusive,
+                Explanation = "Verification deadline reached while loading the original MIME message; signature verification was not performed."
+            });
+            cancellationToken.ThrowIfCancellationRequested();
+            return analysis;
+        }
         var hasBodyBoundary = boundary >= 0;
         var locator = new MessagePublicKeyLocator(options, DnsConfiguration);
         var dkim = new DkimVerifier(locator);

@@ -6,35 +6,26 @@ using OfficeIMO.Excel.Fluent;
 
 namespace DomainDetective.Reports.Office;
 
-public static partial class ExcelCompositionReport
-{
-    private static void BuildRecommendationsSheet(ExcelDocument doc, List<KeyValuePair<string, DomainBucket>> domains)
-    {
-        try
-        {
-            var recSheet = new SheetComposer(doc, "Recommendations");
-            recSheet.Title("Consolidated Recommendations");
-            var rows = new List<object>();
-            foreach (var kv in domains)
-            {
-                var b = kv.Value;
-                var recs = new List<DomainDetective.RecommendationAdvice>();
-                void Pull(IEnumerable<DomainDetective.RecommendationAdvice>? r) { if (r == null) return; recs.AddRange(r); }
-                Pull(b.Mx?.Recommendations); Pull(b.Spf?.Recommendations); Pull(b.Dmarc?.Recommendations); Pull(b.Dnsbl?.Recommendations);
-                foreach (var d in b.Dkim) Pull(d.Recommendations);
-                foreach (var g in recs.GroupBy(x => x.Code ?? x.Title))
-                {
-                    var first = g.First();
-                    rows.Add(new { Domain = kv.Key, Code = first.Code, Title = first.Title, How = first.How });
-                }
+public static partial class ExcelCompositionReport {
+    private static void BuildRecommendationsSheet(ExcelDocument doc, IReadOnlyList<object> items) {
+        var recSheet = new SheetComposer(doc, "Recommendations");
+        recSheet.Title("Action Plan", "Use the reason, corrective action and verification guidance to plan changes from the supplied assessment evidence.");
+        var recRows = new List<string[]>();
+        foreach (var evidence in AssessmentEvidenceInfo.Collect(items)) {
+            foreach (var action in evidence.Recommendations) {
+                recRows.Add(new[] { evidence.Subject, action.Code ?? "General", action.Title ?? action.Code ?? string.Empty, action.Why ?? string.Empty, action.How ?? string.Empty, action.Verify ?? string.Empty }.Select(MessageHeaderReport.VisibleText).ToArray());
             }
-            if (rows.Count > 0)
-            {
-                recSheet.TableFrom(rows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
-            }
-            recSheet.Finish(autoFitColumns: true);
         }
-        catch { }
+        if (recRows.Count == 0) recRows.Add(new[] { "—", "—", "No recommendations", "No actionable recommendations are present in the supplied views.", "Retain the assessment evidence.", "Confirm the scope of checks performed." });
+        var recRange = ExcelReportText.Table(recSheet, new[] { "Domain", "Code", "Title", "Why", "Action", "Verify" }, recRows.ToArray(), new[] { 18d, 16d, 30d, 45d, 55d, 45d });
+        recSheet.Sheet.MergeRange("A1:F1");
+        recSheet.Sheet.MergeRange("A2:F2");
+        recSheet.Sheet.CellFontSize(1, 1, 20);
+        recSheet.Sheet.CellWrapText(2, 1);
+        recSheet.Sheet.SetRowHeight(1, 36);
+        recSheet.Sheet.SetRowHeight(2, 32);
+        recSheet.Sheet.SetGridlinesVisible(false);
+        recSheet.Finish(autoFitColumns: false, autoFitRows: false);
+
     }
 }
-

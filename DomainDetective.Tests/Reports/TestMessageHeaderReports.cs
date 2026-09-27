@@ -48,6 +48,9 @@ public class TestMessageHeaderReports {
                 Assert.Contains("mx.example", text);
                 Assert.Contains("Configured", text);
                 Assert.Contains("[U+202E]", text);
+                Assert.Contains("What the evidence establishes", text);
+                Assert.Contains("Recommended next steps", text);
+                Assert.Contains("does not establish", text);
                 if (path == excelPath) {
                     var workbookEntry = archive.GetEntry("xl/workbook.xml")!;
                     using (var workbookStream = workbookEntry.Open()) {
@@ -64,8 +67,10 @@ public class TestMessageHeaderReports {
                         var worksheet = XDocument.Load(stream);
                         Assert.DoesNotContain(worksheet.Descendants(), node => node.Name.LocalName == "f");
                         Assert.Contains(worksheet.Descendants(), node => node.Name.LocalName == "pane" && node.Attribute("state")?.Value == "frozen");
-                        Assert.Contains(worksheet.Descendants(), node => node.Name.LocalName == "col" && double.Parse(node.Attribute("width")!.Value, System.Globalization.CultureInfo.InvariantCulture) >= 60);
-                        Assert.Contains(worksheet.Descendants(), node => node.Name.LocalName == "row" && node.Attribute("ht") != null);
+                        if (entry.FullName != "xl/worksheets/sheet1.xml" && !worksheet.Descendants().Any(node => node.Name.LocalName == "hyperlinks")) {
+                            Assert.Contains(worksheet.Descendants(), node => node.Name.LocalName == "col" && double.Parse(node.Attribute("width")!.Value, System.Globalization.CultureInfo.InvariantCulture) >= 60);
+                            Assert.Contains(worksheet.Descendants(), node => node.Name.LocalName == "row" && node.Attribute("ht") != null);
+                        }
                     }
                 }
             }

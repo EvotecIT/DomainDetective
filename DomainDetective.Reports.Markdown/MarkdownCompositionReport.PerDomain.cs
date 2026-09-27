@@ -24,8 +24,8 @@ public static partial class MarkdownCompositionReport
                 .Row("Classification", b.Classification?.Classification ?? "-")
                 .Row("Confidence", b.Classification?.Confidence ?? "-")
                 .Row("Status", ComputeStatus(b))
-                .Row("Warnings", ((b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.AgentReadiness?.WarningCount ?? 0) + (b.Sitemap?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + (b.Typosquatting?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount)).ToString(CultureInfo.InvariantCulture))
-                .Row("Errors", ((b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.AgentReadiness?.ErrorCount ?? 0) + (b.Sitemap?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + (b.Typosquatting?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount)).ToString(CultureInfo.InvariantCulture))
+                .Row("Warnings", b.Warnings.ToString(CultureInfo.InvariantCulture))
+                .Row("Errors", b.Errors.ToString(CultureInfo.InvariantCulture))
                 .AlignLeft(0,1));
 
             void RenderClassification()

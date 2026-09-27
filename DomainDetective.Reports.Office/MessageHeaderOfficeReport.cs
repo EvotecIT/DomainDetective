@@ -15,12 +15,41 @@ public static partial class MessageHeaderOfficeReport {
     public static void GenerateWord(string path, IReadOnlyList<MessageHeaderAnalysis> messages) {
         Validate(path, messages);
         using var document = WordDocument.Create(path);
+        WordReportCommon.ApplyBuiltInProperties(document, "Email Message Analysis", "Authentication and delivery evidence", "mail,headers,authentication", "Email", "DomainDetective");
+        WordReportCommon.AddHeader(document, "DomainDetective", "Email Message Analysis");
+        WordReportCommon.AddFooter(document, "Authentication claims and verification are separate evidence");
+        document.Settings.UpdateFieldsOnOpen = true;
         document.AddParagraph("Email Message Analysis").SetBold().SetFontSize(24);
-        document.AddParagraph("Receiver claims, gateway provenance, and cryptographic verification are separate evidence.").SetFontSize(11);
+        document.AddParagraph($"{messages.Count} message(s) · Generated {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC").SetFontSize(11);
+        var headings = document.AddTableOfContentList(WordListStyle.Headings111);
+        headings.AddItem("Executive brief");
+        document.AddParagraph("Start with the conclusions and next steps below. The evidence appendix preserves receiver claims, route records and original header fields for investigation.");
         for (var i = 0; i < messages.Count; i++) {
-            document.AddParagraph("Message " + (i + 1)).SetBold().SetFontSize(18);
+            var message = messages[i];
+            var brief = MessageHeaderReportBrief.Build(message);
+            headings.AddItem("Message " + (i + 1) + " — " + brief.SubjectLabel, 1);
+            document.AddParagraph(MessageHeaderReport.VisibleText(message.From) + " → " + MessageHeaderReport.VisibleText(message.To)).SetItalic();
+            document.AddParagraph(brief.Summary).SetBold();
+            headings.AddItem("What the evidence establishes", 2);
+            AddBriefList(document, brief.Evidence);
+            headings.AddItem("Priority findings", 2);
+            AddBriefList(document, brief.Findings.Select(a => MessageHeaderReport.VisibleText($"{a.Severity}: {a.Message} [{a.Code}]")), "No warning or error assessments were raised.");
+            headings.AddItem("Recommended next steps", 2);
+            foreach (var action in brief.Actions) {
+                var actionHeading = document.AddParagraph(MessageHeaderReport.VisibleText(action.Title)).SetBold();
+                actionHeading.KeepWithNext = true;
+                if (!string.IsNullOrWhiteSpace(action.Why)) { document.AddParagraph(MessageHeaderReport.VisibleText(action.Why)); }
+                if (!string.IsNullOrWhiteSpace(action.How)) { document.AddParagraph("Action: " + MessageHeaderReport.VisibleText(action.How)); }
+                if (!string.IsNullOrWhiteSpace(action.Verify)) { document.AddParagraph("Verify: " + MessageHeaderReport.VisibleText(action.Verify)); }
+            }
+            if (brief.Actions.Count == 0) { document.AddParagraph("Retain the original MIME message and corroborate receiver claims before making a trust decision."); }
+        }
+        document.AddPageBreak();
+        headings.AddItem("Evidence appendix");
+        for (var i = 0; i < messages.Count; i++) {
+            headings.AddItem("Message " + (i + 1), 1);
             foreach (var section in MessageHeaderReport.Build(messages[i]).Where(section => section.Rows.Count > 0)) {
-                document.AddParagraph(section.Title).SetBold().SetFontSize(14);
+                headings.AddItem(section.Title, 2);
                 // Wide evidence grids are rendered as individual records, retaining readable type.
                 var records = section.Columns.Count == 2
                     ? new[] { section.Rows }
@@ -59,6 +88,7 @@ public static partial class MessageHeaderOfficeReport {
     public static void GenerateExcel(string path, IReadOnlyList<MessageHeaderAnalysis> messages) {
         Validate(path, messages);
         using var document = ExcelDocument.Create(path);
+        WriteOverviewSheet(document, messages);
         var evidence = messages.Select(MessageHeaderReport.Build).ToArray();
         foreach (var title in evidence.SelectMany(sections => sections).Select(section => section.Title).Distinct()) {
             var sections = evidence.Select((values, index) => new { Section = values.First(section => section.Title == title), Message = index + 1 }).ToArray();
@@ -72,9 +102,20 @@ public static partial class MessageHeaderOfficeReport {
                 }))).ToArray();
                 columns = new[] { "Input", "Record", "Field", "Value" };
             }
-            WriteEvidenceSheet(document, title == "Message" ? "Overview" : title, title, columns, rows);
+            WriteEvidenceSheet(document, title == "Message" ? "Message details" : title, title, columns, rows);
         }
+        document.AddTableOfContents(sheetName: "Navigation", placeFirst: false);
+        var navigation = document.Sheets.First(sheet => sheet.Name == "Navigation");
+        navigation.Freeze(topRows: 3);
+        navigation.SetGridlinesVisible(false);
         document.Save();
+    }
+
+    private static void AddBriefList(WordDocument document, IEnumerable<string> values, string? empty = null) {
+        var entries = values.ToArray();
+        if (entries.Length == 0) { if (empty != null) { document.AddParagraph(empty); } return; }
+        var list = document.AddList(WordListStyle.Bulleted);
+        foreach (var value in entries) { list.AddItem(value); }
     }
 
     private static void Validate(string path, IReadOnlyList<MessageHeaderAnalysis> messages) {

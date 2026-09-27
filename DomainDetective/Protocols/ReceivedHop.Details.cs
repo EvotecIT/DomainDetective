@@ -33,16 +33,8 @@ public partial class ReceivedHop {
     private static readonly Regex ReversePattern = new(@"\(\s*(?<host>[a-z0-9_-]+(?:\.[a-z0-9_-]+)+)\.?\s+\[", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
 
     private void ParseDetails(string normalized, string beforeDate) {
-        var mask = new StringBuilder(beforeDate.Length);
-        var depth = 0;
-        var escaped = false;
-        foreach (var ch in beforeDate) {
-            if (!escaped && ch == '(') { depth++; }
-            mask.Append(depth == 0 ? ch : ' ');
-            if (!escaped && ch == ')') { depth = Math.Max(0, depth - 1); }
-            escaped = !escaped && ch == '\\';
-        }
-        var matches = ClausePattern.Matches(mask.ToString());
+        var matches = ClausePattern.Matches(SearchableReceivedText(beforeDate, hideComments: true));
+        var transportText = SearchableReceivedText(normalized, hideComments: false);
         var clauses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < matches.Count; i++) {
             var match = matches[i];
@@ -63,14 +55,14 @@ public partial class ReceivedHop {
         Via = Host("via");
         FromIp = clauses.TryGetValue("from", out var source) ? ParseIp(source) : null;
         ByIp = clauses.TryGetValue("by", out var destination) ? ParseIp(destination) : null;
-        var helo = HeloPattern.Match(normalized);
+        var helo = HeloPattern.Match(transportText);
         Helo = helo.Success ? helo.Groups["host"].Value : FromHost;
         var reverse = ReversePattern.Match(source ?? string.Empty);
         ReportedReverseDns = reverse.Success ? reverse.Groups["host"].Value : null;
-        var tls = TlsPattern.Match(normalized);
+        var tls = TlsPattern.Match(transportText);
         TlsVersion = tls.Success ? "TLS " + tls.Groups["version"].Value.ToUpperInvariant().Replace("TLS", "").Replace("V", "").Replace("_", ".").Replace(" ", "").TrimStart('.') : null;
-        var cipher = CipherPattern.Match(normalized);
-        if (!cipher.Success) { cipher = EximCipherPattern.Match(normalized); }
+        var cipher = CipherPattern.Match(transportText);
+        if (!cipher.Success) { cipher = EximCipherPattern.Match(transportText); }
         TlsCipher = cipher.Success ? cipher.Groups["cipher"].Value : null;
         var protocol = (With ?? string.Empty).ToUpperInvariant();
         ProtocolClass = protocol.Contains("HTTP") ? "Http" : protocol.Contains("MAPI") ? "Mapi"
@@ -86,6 +78,24 @@ public partial class ReceivedHop {
                 || (bytes.Length == 4 && (bytes[0] == 10 || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
                     || (bytes[0] == 192 && bytes[1] == 168) || (bytes[0] == 169 && bytes[1] == 254) || (bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127)));
         }
+    }
+
+    private static string SearchableReceivedText(string value, bool hideComments) {
+        var mask = new StringBuilder(value.Length);
+        var depth = 0;
+        var quoted = false;
+        var escaped = false;
+        foreach (var ch in value) {
+            var wasComment = depth > 0;
+            if (!escaped) {
+                if (ch == '"' && depth == 0) { quoted = !quoted; }
+                else if (!quoted && ch == '(') { depth++; }
+                else if (!quoted && ch == ')') { depth = Math.Max(0, depth - 1); }
+            }
+            mask.Append(quoted || (ch == '"' && !wasComment) || (hideComments && (depth > 0 || wasComment)) ? ' ' : ch);
+            escaped = !escaped && ch == '\\';
+        }
+        return mask.ToString();
     }
 
     private static string? ParseIp(string text) {

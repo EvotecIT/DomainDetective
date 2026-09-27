@@ -2,10 +2,11 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Recommendations;
 
-internal sealed class MessageHeaderRecommendations : IRecommendationProvider
+internal sealed partial class MessageHeaderRecommendations : IRecommendationProvider
 {
     public void Register(IDictionary<string, RecommendationAdvice> map)
     {
+        RegisterEvidenceAdvice(map);
         map[MessageHeaderCodes.DkimPass] = new RecommendationAdvice
         {
             Code = MessageHeaderCodes.DkimPass,

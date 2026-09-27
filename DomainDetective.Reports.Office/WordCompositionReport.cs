@@ -385,6 +385,8 @@ public static partial class WordCompositionReport {
             }
         } catch { /* skip summary on edge cases */ }
 
+        AssessmentEvidenceOfficeSections.WriteWord(doc, headings, AssessmentEvidenceOfficeSections.AdditionalWordFindings(items), showInfoFindings);
+
         // Background narratives (global) when requested
         if (placeGlobal) {
             BackgroundWordSectionWriter.Write(doc, headings, 1, items);

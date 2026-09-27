@@ -24,6 +24,26 @@ public static class MessageHeaderHtmlReport {
             page.H1("Email Message Analysis");
             for (var i = 0; i < messages.Count; i++) {
                 page.H2("Message " + (i + 1));
+                var brief = MessageHeaderReportBrief.Build(messages[i]);
+                page.Row(row => row.Column(TablerColumnNumber.Twelve, column => column.Card(card => {
+                    card.Header(header => header.Title("Executive brief"));
+                    card.Body(body => {
+                        body.Text(brief.Summary);
+                        body.H5("What the evidence establishes");
+                        body.AddList(list => list.WithItems(items => { foreach (var line in brief.Evidence) { items.Item(line); } }));
+                        body.H5("Priority findings");
+                        body.AddList(list => list.WithItems(items => { foreach (var finding in brief.Findings) { items.Item(MessageHeaderReport.VisibleText($"{finding.Severity}: {finding.Message} [{finding.Code}]")); } }));
+                        body.H5("Recommended next steps");
+                        foreach (var action in brief.Actions) {
+                            body.H5(MessageHeaderReport.VisibleText(action.Title));
+                            if (!string.IsNullOrWhiteSpace(action.Why)) { body.Text(MessageHeaderReport.VisibleText(action.Why)); }
+                            if (!string.IsNullOrWhiteSpace(action.How)) { body.Text("Action: " + MessageHeaderReport.VisibleText(action.How)); }
+                            if (!string.IsNullOrWhiteSpace(action.Verify)) { body.Text("Verify: " + MessageHeaderReport.VisibleText(action.Verify)); }
+                        }
+                        if (brief.Actions.Count == 0) { body.Text("Retain the original MIME message and corroborate receiver claims before making a trust decision."); }
+                    });
+                })));
+                page.H3("Evidence appendix");
                 foreach (var section in MessageHeaderReport.Build(messages[i]).Where(section => section.Rows.Count > 0)) {
                     page.Row(row => row.Column(TablerColumnNumber.Twelve, column => column.Card(card => {
                         card.Header(header => header.Title(section.Title));

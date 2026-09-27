@@ -8,10 +8,11 @@ namespace DomainDetective.Reports.Office;
 
 public static partial class MessageHeaderOfficeReport {
     private static void WriteEvidenceSheet(ExcelDocument document, string name, string title, string[] columns, string[][] rows) {
+        (columns, rows) = ExcelReportText.Expand(columns, rows, columns.Select(column => Math.Max(128, (int)(ColumnWidth(column) - 4) * 20)).ToArray());
         var composer = new SheetComposer(document, name);
         var sheet = composer.Sheet;
         composer.Title(title == "Message" ? "Email Message Analysis" : title);
-        composer.Paragraph("Reported claims and cryptographic verification remain separate. Filter by Input to compare messages.");
+        composer.Paragraph("Reported claims and cryptographic verification remain separate. Filter by Input to compare messages. Text part labels identify ordered continuations of long values.");
         composer.Spacer();
         using var data = new DataTable();
         foreach (var column in columns) { data.Columns.Add(column, typeof(string)); }
@@ -52,7 +53,7 @@ public static partial class MessageHeaderOfficeReport {
         });
     }
 
-    private static double ColumnWidth(string column) => column == "Input" || column == "Record" ? 12
+    private static double ColumnWidth(string column) => column == "Input" || column == "Record" || column == "Text part" ? 12
         : column == "Value" || column == "Message" || column == "Explanation" || column == "Authentication claims" ? 95
         : column == "Properties" || column == "Signed headers" ? 65
         : column == "Field" || column == "Code" ? 38

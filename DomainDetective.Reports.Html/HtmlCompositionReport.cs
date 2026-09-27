@@ -84,6 +84,7 @@ public static partial class HtmlCompositionReport
         document.Configuration.ApexCharts.LazyInitByDefault = true;
         document.Configuration.Tabs.NoHashNavigationByDefault = true;
 
+        document.Head.AddCssInline(TrustedCss.FromTrustedSource(".card-body{overflow-x:auto;min-width:0}.card-body .table td{white-space:normal;overflow-wrap:anywhere}"));
         document.Body.Page(page =>
         {
             page.Layout = TablerLayout.Combo;
@@ -115,6 +116,26 @@ public static partial class HtmlCompositionReport
                 catch { }
             }
             try { RenderHeaderBanner(page, headerTitle); } catch { }
+            foreach (var evidence in items.OfType<AssessmentEvidenceInfo>()) {
+                page.Row(row => row.Column(TablerColumnNumber.Twelve, column => column.Card(card => {
+                    card.Header(header => header.Title("Additional assessment evidence — " + MessageHeaderReport.VisibleText(evidence.Subject)));
+                    card.Body(body => {
+                        body.Text("These completed checks do not have a dedicated technical section. Their findings and recommended actions remain part of this report and its warning/error totals.");
+                        foreach (var finding in evidence.Assessments) {
+                            body.H5(MessageHeaderReport.VisibleText($"{finding.Severity} · {finding.Category} · {finding.Target}"));
+                            body.Text(MessageHeaderReport.VisibleText(finding.Message));
+                            body.Text("Finding code: " + MessageHeaderReport.VisibleText(finding.Code));
+                        }
+                        body.H5("Recommended actions");
+                        foreach (var action in evidence.Recommendations) {
+                            body.H5(MessageHeaderReport.VisibleText(action.Title));
+                            if (!string.IsNullOrWhiteSpace(action.Why)) { body.Text("Why: " + MessageHeaderReport.VisibleText(action.Why)); }
+                            if (!string.IsNullOrWhiteSpace(action.How)) { body.Text("Action: " + MessageHeaderReport.VisibleText(action.How)); }
+                            if (!string.IsNullOrWhiteSpace(action.Verify)) { body.Text("Verify: " + MessageHeaderReport.VisibleText(action.Verify)); }
+                        }
+                    });
+                })));
+            }
 
             var multiDomain = grouped.Count > 1;
             if (narrativePlacement == NarrativePlacement.Global)
