@@ -16,6 +16,8 @@ The summary prefers configured ordinary Authentication-Results observations, the
 
 SPF and DKIM identity alignment reports `Strict`, `Relaxed`, `None`, or an unknown/null result when evidence is insufficient. Duplicate From fields leave alignment unknown because clients may select different identities. Relaxed alignment uses the bundled full Public Suffix List, including private suffixes, wildcard rules, exceptions, and IDN normalization. Alignment is separate from successful authentication and does not evaluate a delivery-time DMARC policy.
 
+For a reported null reverse path, SPF alignment uses the reported HELO identity, including `Received-SPF` evidence. A HELO-only observation without evidence of a null reverse path leaves MAIL FROM alignment unknown.
+
 ## Original-message verification
 
 `AnalyzeMessageAsync` and `AnalyzeMessageFileAsync(..., verifySignatures: true)` verify DKIM and ARC cryptographically through MimeKit. Supply original message bytes, including the body. Reconstructing a MIME message from displayed headers can change signed content.
@@ -90,6 +92,8 @@ The reusable report projection powers the browser, CLI text output, and dedicate
 Received timestamps retain delivery order. Negative adjacent delays flag clock skew rather than reorder the route. TLS versions and ciphers are reported evidence from Microsoft, Postfix, and Exim syntax. HELO, reported reverse DNS, private addresses, RFC 3848 protocol classes, and provider hints remain observations rather than live verification.
 
 Diagnostics include duplicate singleton fields, Unicode direction controls, differing Reply-To domains, malformed DKIM metadata, deprecated hashes, limited signed-body length, expiry at analysis time, unsigned From, configured-result conflicts, omitted route hops, incomplete ARC sets, and forwarding witnesses. Exchange and Microsoft filtering fields retain raw values alongside documented meanings. Undocumented authentication mechanism codes remain unknown; an unsupported interpretation is never guessed.
+
+One-click unsubscribe metadata requires the post token and a single HTTPS target in an unambiguous header pair. This describes the advertised mechanism; DKIM coverage, signature validity, and endpoint behavior remain separate. Unsubscribe URLs are never fetched. Public-key DNS outcomes, including failed lookups, are reused per host within one verification operation so repeated signatures do not exhaust the query budget on the same key.
 
 Default resource bounds are 2 MiB of header characters, 200 Received hops, 25 MiB of original MIME bytes, 50 DKIM verifications, 50 public-key DNS query requests, and a 30-second verification deadline. C# callers can configure these limits. Omitted hops and skipped signatures are explicit; oversized inputs are rejected. The browser limits files to 25 MiB, pasted headers to 2 MiB characters, key JSON to 1 MiB characters, and displayed rows to 200 per section; its complete text report retains all parsed rows. CLI key files are limited to 1 MiB.
 

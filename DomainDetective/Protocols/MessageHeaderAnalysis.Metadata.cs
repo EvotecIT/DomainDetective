@@ -74,7 +74,9 @@ public partial class MessageHeaderAnalysis {
         ArcStructure.Analyze(RawHeaders ?? string.Empty, maximumHeaderCharacters: _headerOptions.MaximumHeaderCharacters);
         ListId = GetHeaderValue("List-Id");
         ListUnsubscribe = GetHeaderValue("List-Unsubscribe");
-        ListUnsubscribeOneClick = string.Equals(GetHeaderValue("List-Unsubscribe-Post")?.Trim(), "List-Unsubscribe=One-Click", StringComparison.OrdinalIgnoreCase);
+        ListUnsubscribeOneClick = !DuplicateHeaders.ContainsKey("List-Unsubscribe") && !DuplicateHeaders.ContainsKey("List-Unsubscribe-Post")
+            && string.Equals(GetHeaderValue("List-Unsubscribe-Post")?.Trim(), "List-Unsubscribe=One-Click", StringComparison.OrdinalIgnoreCase)
+            && HasOneHttpsUnsubscribeTarget(ListUnsubscribe);
         var singleton = new HashSet<string>(new[] { "From", "Sender", "Reply-To", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID", "Return-Path", "In-Reply-To", "References" }, StringComparer.OrdinalIgnoreCase);
         foreach (var field in DuplicateHeaders.Keys.Where(singleton.Contains)) {
             AddFinding("HEADERS.Field.Duplicate", AssessmentSeverity.Warning, $"Singleton field {field} occurs {DuplicateHeaders[field].Count} times; clients can select different values.");
@@ -141,6 +143,11 @@ public partial class MessageHeaderAnalysis {
         var from = FromAddresses.Count == 1 && !DuplicateHeaders.ContainsKey("From") ? FromAddresses[0].Domain : null;
         var spf = SpfEvidence?.Methods.FirstOrDefault(method => method.Method == "spf");
         var envelope = spf == null ? ReturnPathAddresses.FirstOrDefault()?.Domain : AddressDomain(GetIdentity(spf, "smtp.mailfrom"));
+        if (spf != null && string.IsNullOrEmpty(envelope)
+            && (spf.Properties.ContainsKey("smtp.mailfrom") || GetHeaderValue("Return-Path")?.Trim() == "<>")) {
+            envelope = AddressDomain(GetIdentity(spf, "smtp.helo"));
+            if (string.IsNullOrEmpty(envelope)) { envelope = AddressDomain(GetIdentity(spf, "helo")); }
+        }
         SpfAlignment = Alignment(from, envelope);
         var dkimMethods = _selectedAuthenticationEvidence.SelectMany(value => value.Methods).Where(method => method.Method == "dkim").ToArray();
         var conflicts = ConflictingDkimObservations(dkimMethods);
@@ -172,6 +179,37 @@ public partial class MessageHeaderAnalysis {
         if (string.IsNullOrWhiteSpace(value)) { return null; }
         var at = value!.LastIndexOf('@');
         return (at >= 0 ? value.Substring(at + 1) : value).Trim('<', '>');
+    }
+
+    private static bool HasOneHttpsUnsubscribeTarget(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) { return false; }
+        var target = new StringBuilder();
+        var inTarget = false;
+        var commentDepth = 0;
+        var escaped = false;
+        var httpsTargets = 0;
+        foreach (var ch in value!) {
+            if (inTarget) {
+                if (ch == '<') { return false; }
+                if (ch != '>') {
+                    // RFC 2369 tolerates MTA-inserted whitespace within URI brackets.
+                    if (!char.IsWhiteSpace(ch)) { target.Append(ch); }
+                    continue;
+                }
+                if (!Uri.TryCreate(target.ToString(), UriKind.Absolute, out var uri) || !uri.IsWellFormedOriginalString()) { return false; }
+                if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) && uri.Host.Length > 0) { httpsTargets++; }
+                target.Clear();
+                inTarget = false;
+            } else if (commentDepth > 0) {
+                if (escaped) { escaped = false; continue; }
+                if (ch == '\\') { escaped = true; }
+                else if (ch == '(') { commentDepth++; }
+                else if (ch == ')') { commentDepth--; }
+            } else if (ch == '(') { commentDepth++; }
+            else if (ch == '<') { inTarget = true; }
+            else if (!char.IsWhiteSpace(ch) && ch != ',') { return false; }
+        }
+        return !inTarget && commentDepth == 0 && httpsTargets == 1;
     }
 
     private static void ParseMailboxes(string? value, List<MessageMailbox> target) {

@@ -1,6 +1,57 @@
 namespace DomainDetective.Tests;
 
 public class TestMessageSupplementalEvidence {
+    [Theory]
+    [InlineData("Authentication-Results: mx.example; spf=pass smtp.mailfrom=<> smtp.helo=example.com", "Strict")]
+    [InlineData("Authentication-Results: mx.example; spf=pass smtp.mailfrom=\"\" smtp.helo=mail.example.com", "Relaxed")]
+    [InlineData("Received-SPF: pass; receiver=mx.example; envelope-from=<>; helo=example.com", "Strict")]
+    [InlineData("Authentication-Results: mx.example; spf=pass smtp.mailfrom=other.example smtp.helo=example.com", "None")]
+    [InlineData("Authentication-Results: mx.example; spf=pass smtp.helo=example.com", null)]
+    public void SpfHeloFallbackRequiresANullReversePath(string evidence, string? alignment) {
+        var message = new MessageHeaderAnalysis();
+        message.Parse("From: sender@example.com\r\n" + evidence + "\r\n");
+        Assert.Equal(alignment, message.SpfAlignment);
+    }
+
+    [Theory]
+    [InlineData("192.168.1.2", true)]
+    [InlineData("172.16.0.1", true)]
+    [InlineData("10.0.0.1", true)]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("169.254.1.1", true)]
+    [InlineData("100.64.0.1", true)]
+    [InlineData("8.8.8.8", false)]
+    public void MappedIpv4UsesTheSamePrivateClassification(string address, bool privateIp) {
+        var mapped = ReceivedHop.Parse("from sender.example [IPv6:::ffff:" + address + "] by mx.example with ESMTP");
+        var ipv4 = ReceivedHop.Parse("from sender.example [" + address + "] by mx.example with ESMTP");
+        Assert.Equal(privateIp, ipv4.IsPrivateIp);
+        Assert.Equal(ipv4.IsPrivateIp, mapped.IsPrivateIp);
+        Assert.NotNull(mapped.FromIp);
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("<mailto:leave@example.com>", false)]
+    [InlineData("<http://example.com/leave>", false)]
+    [InlineData("<https://example.com/leave>", true)]
+    [InlineData("< https://example.com/\r\n leave >", true)]
+    [InlineData("<mailto:leave@example.com>, <https://example.com/leave>", true)]
+    [InlineData("(comment <https://invalid.example>) <https://example.com/leave(a,b)>", true)]
+    [InlineData("(comment <https://example.com/leave>)", false)]
+    [InlineData("<https://example.com/one>, <https://example.com/two>", false)]
+    public void OneClickAdvertisementRequiresOneHttpsEndpoint(string? targets, bool advertised) {
+        var message = new MessageHeaderAnalysis();
+        message.Parse("List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n" + (targets == null ? "" : "List-Unsubscribe: " + targets + "\r\n"));
+        Assert.Equal(advertised, message.ListUnsubscribeOneClick);
+    }
+
+    [Fact]
+    public void DuplicateUnsubscribeFieldsCannotAdvertiseAnUnambiguousOneClickTarget() {
+        var message = new MessageHeaderAnalysis();
+        message.Parse("List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\nList-Unsubscribe: <https://example.com/one>\r\nList-Unsubscribe: <https://example.com/two>\r\n");
+        Assert.False(message.ListUnsubscribeOneClick);
+    }
+
     [Fact]
     public void DifferentSpfIdentitiesDoNotProduceAFalseConflict() {
         var message = new MessageHeaderAnalysis();

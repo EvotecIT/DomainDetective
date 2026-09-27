@@ -79,6 +79,7 @@ public partial class ReceivedHop {
             : protocol.EndsWith("SMTPA", StringComparison.Ordinal) || protocol.EndsWith("LMTPA", StringComparison.Ordinal) ? "Authenticated"
             : protocol.Contains("SMTP") || protocol.Contains("LMTP") ? "Plain" : null;
         if (IPAddress.TryParse(FromIp, out var ip)) {
+            if (ip.IsIPv4MappedToIPv6) { ip = ip.MapToIPv4(); }
             var bytes = ip.GetAddressBytes();
             IsPrivateIp = IPAddress.IsLoopback(ip) || ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal
                 || (bytes.Length == 16 && (bytes[0] & 0xfe) == 0xfc)

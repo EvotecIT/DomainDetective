@@ -69,6 +69,8 @@ public class TestMessageSignatureVerification {
         Assert.Contains("Only dns/txt", error.Message);
         Assert.Equal(cachedDns ? 1 : 0, queries);
         Assert.False(locator.UsedDns);
+        await locator.LocatePublicKeyAsync("dns/txt", "example.com", "s1");
+        Assert.Equal(cachedDns ? 1 : 0, queries);
     }
 
     [Theory]
@@ -88,6 +90,36 @@ public class TestMessageSignatureVerification {
         using var health = new DomainHealthCheck();
         var analysis = await health.AnalyzeMessageAsync(sample.Bytes);
         Assert.Equal(MessageSignatureStatus.Inconclusive, Assert.Single(analysis.SignatureVerification).Status);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedDnsKeyIsQueriedOnceAndDoesNotConsumeAnotherSelectorsBudget(bool malformed) {
+        var sample = SignedMessage();
+        var key = sample.Options.PublicKeyRecords.Single().Value;
+        sample.Options.PublicKeyRecords.Clear();
+        sample.Options.AllowDnsLookups = true;
+        sample.Options.MaximumDnsQueries = 2;
+        using var health = new DomainHealthCheck();
+        var queries = new List<string>();
+        health.DnsConfiguration.QueryDnsOverride = (host, _) => {
+            queries.Add(host);
+            return Task.FromResult(host.StartsWith("s1.", StringComparison.Ordinal) ? new[] { new DnsClientX.DnsAnswer { DataRaw = key, Type = DnsClientX.DnsRecordType.TXT } }
+                : malformed ? new[] { new DnsClientX.DnsAnswer { DataRaw = "not a public key", Type = DnsClientX.DnsRecordType.TXT } } : Array.Empty<DnsClientX.DnsAnswer>());
+        };
+        using var input = new MemoryStream(sample.Bytes);
+        var message = MimeMessage.Load(input);
+        var signature = message.Headers.First(header => header.Id == HeaderId.DkimSignature);
+        var missingSelector = signature.Value.Replace("s=s1", "s=missing");
+        Assert.NotEqual(signature.Value, missingSelector);
+        message.Headers.Insert(0, new Header(HeaderId.DkimSignature, missingSelector));
+        message.Headers.Insert(0, new Header(HeaderId.DkimSignature, missingSelector));
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+        var analysis = await health.AnalyzeMessageAsync(output.ToArray(), sample.Options);
+        Assert.Equal(new[] { "missing._domainkey.example.com", "s1._domainkey.example.com" }, queries);
+        Assert.Equal(new[] { MessageSignatureStatus.Inconclusive, MessageSignatureStatus.Inconclusive, MessageSignatureStatus.Valid }, analysis.SignatureVerification.Select(value => value.Status));
     }
 
     [Fact]
