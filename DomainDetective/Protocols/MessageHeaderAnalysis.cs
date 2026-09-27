@@ -44,7 +44,7 @@ namespace DomainDetective {
         public string? ArcResult { get; private set; }
         /// <summary>Optional spam related headers.</summary>
         public Dictionary<string, string> SpamHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
-        /// <summary>Ignored DKIM-Signature headers with invalid signature values.</summary>
+        /// <summary>Retained DKIM-Signature headers with invalid signature encoding.</summary>
         public List<string> InvalidDkimSignatures { get; } = new();
 
         private bool _hasTrustedAuthenticationResults;
@@ -69,13 +69,37 @@ namespace DomainDetective {
             Parse(rawHeaders, logger, emitRouteDiagnostics: true);
         }
 
-        internal void Parse(string rawHeaders, InternalLogger? logger, bool emitRouteDiagnostics) {
+        /// <summary>Parses headers offline with explicit authentication provenance and resource limits.</summary>
+        /// <param name="rawHeaders">Raw header text or a full MIME message whose body is ignored.</param>
+        /// <param name="options">Trust and resource settings.</param>
+        /// <param name="logger">Optional diagnostics logger.</param>
+        public void Parse(string rawHeaders, MessageHeaderAnalysisOptions options, InternalLogger? logger = null) {
+            Parse(rawHeaders, logger, emitRouteDiagnostics: true, options);
+        }
+
+        internal void Parse(string rawHeaders, InternalLogger? logger, bool emitRouteDiagnostics, MessageHeaderAnalysisOptions? options = null) {
+            _headerOptions = options ?? new MessageHeaderAnalysisOptions();
+            if (_headerOptions.TrustedAuthServIds == null) {
+                throw new ArgumentException("TrustedAuthServIds must not be null.", nameof(options));
+            }
+            if (_headerOptions.MaximumHeaderCharacters < 1 || _headerOptions.MaximumReceivedHops < 1) {
+                throw new ArgumentOutOfRangeException(nameof(options), "Header and hop limits must be positive.");
+            }
+            rawHeaders = ExtractHeaderBlock(rawHeaders);
+            if (rawHeaders.Length > _headerOptions.MaximumHeaderCharacters) {
+                throw new ArgumentException("Message header exceeds MaximumHeaderCharacters.", nameof(rawHeaders));
+            }
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "HEADERS") : null;
             RawHeaders = rawHeaders;
             Headers.Clear();
             DuplicateHeaders.Clear();
             ReceivedHops.Clear();
             SpamHeaders.Clear();
+            InvalidDkimSignatures.Clear();
+            AuthenticationResults.Clear();
+            Fields.Clear();
+            ResetMessageMetadata();
+            _receivedHeadersEvaluated = 0;
             Issues.Clear();
             Assessments.Clear();
             TotalTransitTime = null;
@@ -94,6 +118,8 @@ namespace DomainDetective {
             _trustedSpfResult = null;
             _trustedDmarcResult = null;
             ResetRouteDiagnostics();
+            SelectAuthenticationEvidence();
+            HasClockSkew = false;
             if (string.IsNullOrWhiteSpace(rawHeaders)) {
                 logger?.WriteVerbose("No headers supplied for parsing.");
                 return;
@@ -115,8 +141,10 @@ namespace DomainDetective {
                         logger?.WriteErrorCode(MessageHeaderCodes.MimeParseFailed, "MimeKit failed to parse headers: {0}", ex.Message);
                         ParseManually(rawHeaders, logger);
                         ComputeTransitTime();
+                        SelectAuthenticationEvidence();
                         AnalyzeRouteHeaders(logger);
                         DetermineIssues();
+                        AnalyzeMessageMetadata();
                         if (emitRouteDiagnostics) {
                             EmitRouteDiagnostics(logger);
                         }
@@ -127,25 +155,27 @@ namespace DomainDetective {
                     AddHeaderValue(header.Field, header.Value);
                 }
                 ComputeTransitTime();
+                SelectAuthenticationEvidence();
             } catch (Exception ex) {
                 logger?.WriteErrorCode(MessageHeaderCodes.ParseFailed, "Failed to parse message headers: {0}", ex.Message);
             }
 
             if (string.Equals(DkimResult, "pass", StringComparison.OrdinalIgnoreCase)) {
-                logger?.WriteInformationCode(MessageHeaderCodes.DkimPass, "DKIM authentication passed");
+                logger?.WriteInformationCode(MessageHeaderCodes.DkimPass, "Selected receiver reports DKIM pass ({0} provenance)", AuthenticationTrust);
             }
             if (string.Equals(SpfResult, "pass", StringComparison.OrdinalIgnoreCase)) {
-                logger?.WriteInformationCode(MessageHeaderCodes.SpfPass, "SPF authentication passed");
+                logger?.WriteInformationCode(MessageHeaderCodes.SpfPass, "Selected SPF field reports pass ({0} provenance)", SpfEvidence?.Trust ?? AuthenticationTrust);
             }
             if (string.Equals(DmarcResult, "pass", StringComparison.OrdinalIgnoreCase)) {
-                logger?.WriteInformationCode(MessageHeaderCodes.DmarcPass, "DMARC authentication passed");
+                logger?.WriteInformationCode(MessageHeaderCodes.DmarcPass, "Selected receiver reports DMARC pass ({0} provenance)", AuthenticationTrust);
             }
             if (string.Equals(ArcResult, "pass", StringComparison.OrdinalIgnoreCase)) {
-                logger?.WriteInformationCode(MessageHeaderCodes.ArcPass, "ARC authentication passed");
+                logger?.WriteInformationCode(MessageHeaderCodes.ArcPass, "Selected receiver reports ARC pass ({0} provenance)", AuthenticationTrust);
             }
 
             AnalyzeRouteHeaders(logger);
             DetermineIssues();
+            AnalyzeMessageMetadata();
             if (emitRouteDiagnostics) {
                 EmitRouteDiagnostics(logger);
             }
@@ -161,13 +191,13 @@ namespace DomainDetective {
         }
 
         private void AddHeaderValue(string field, string value) {
+            Fields.Add(new MessageHeaderField { Name = field, Value = value });
             var normalized = CanonicalizeValue(value);
             var lower = field.ToLowerInvariant();
 
             if (lower == "dkim-signature" && !HasValidSignature(normalized)) {
                 InvalidDkimSignatures.Add(normalized);
                 AddIssue(MessageHeaderIssue.InvalidDkim);
-                return;
             }
 
             if (Headers.TryGetValue(field, out var existing)) {
@@ -181,9 +211,12 @@ namespace DomainDetective {
 
             switch (lower) {
                 case "received":
-                    var hop = ReceivedHop.Parse(value);
-                    hop.HeaderIndex = ReceivedHops.Count;
-                    ReceivedHops.Add(hop);
+                    _receivedHeadersEvaluated++;
+                    if (ReceivedHops.Count < _headerOptions.MaximumReceivedHops) {
+                        var hop = ReceivedHop.Parse(value);
+                        hop.HeaderIndex = _receivedHeadersEvaluated - 1;
+                        ReceivedHops.Add(hop);
+                    }
                     break;
                 case "from":
                     From = value;
@@ -200,7 +233,11 @@ namespace DomainDetective {
                     }
                     break;
                 case "authentication-results":
-                    ParseAuthenticationResults(value);
+                case "authentication-results-original":
+                    AuthenticationResults.Add(MessageHeaderValueParser.ParseAuthentication(field, value, AuthenticationResults.Count));
+                    break;
+                case "received-spf":
+                    AuthenticationResults.Add(MessageHeaderValueParser.ParseReceivedSpf(value, AuthenticationResults.Count));
                     break;
             }
 
@@ -252,46 +289,6 @@ namespace DomainDetective {
             Commit();
         }
 
-        private void ParseAuthenticationResults(string value) {
-            string? dkim = null;
-            string? spf = null;
-            string? dmarc = null;
-            string? arc = null;
-
-            foreach (var part in value.Split(';')) {
-                var trimmed = part.Trim();
-                if (trimmed.StartsWith("dkim=", StringComparison.OrdinalIgnoreCase)) {
-                    dkim = trimmed.Substring(5).Trim();
-                } else if (trimmed.StartsWith("spf=", StringComparison.OrdinalIgnoreCase)) {
-                    spf = trimmed.Substring(4).Trim();
-                } else if (trimmed.StartsWith("dmarc=", StringComparison.OrdinalIgnoreCase)) {
-                    dmarc = trimmed.Substring(6).Trim();
-                } else if (trimmed.StartsWith("arc=", StringComparison.OrdinalIgnoreCase)) {
-                    arc = trimmed.Substring(4).Trim();
-                }
-            }
-
-            if (dkim != null) {
-                DkimResult = dkim;
-            }
-            if (spf != null) {
-                SpfResult = spf;
-            }
-            if (dmarc != null) {
-                DmarcResult = dmarc;
-            }
-            if (arc != null) {
-                ArcResult = arc;
-            }
-
-            if (!_hasTrustedAuthenticationResults && (dkim != null || spf != null || dmarc != null || arc != null)) {
-                _hasTrustedAuthenticationResults = true;
-                _trustedDkimResult = dkim;
-                _trustedSpfResult = spf;
-                _trustedDmarcResult = dmarc;
-            }
-        }
-
         private static bool HasValidSignature(string value) {
             foreach (var part in value.Split(';')) {
                 var trimmed = part.Trim();
@@ -304,21 +301,16 @@ namespace DomainDetective {
         }
 
         private static bool IsValidBase64(string input) {
-            input = input.Trim();
-            if (input.Length == 0 || input.Length % 4 != 0) {
+            input = LinearWhitespace.Replace(input.Trim(), string.Empty);
+            if (input.Length == 0) {
                 return false;
             }
-#if NET8_0_OR_GREATER
-            Span<byte> buffer = stackalloc byte[input.Length];
-            return Convert.TryFromBase64String(input, buffer, out _);
-#else
             try {
                 Convert.FromBase64String(input);
                 return true;
             } catch (FormatException) {
                 return false;
             }
-#endif
         }
 
         private void ComputeTransitTime() {
@@ -329,24 +321,15 @@ namespace DomainDetective {
                 return;
             }
 
-            ReceivedHops.Sort((a, b) => {
-                if (a.Timestamp.HasValue && b.Timestamp.HasValue) {
-                    return a.Timestamp.Value.CompareTo(b.Timestamp.Value);
-                }
-                if (a.Timestamp.HasValue) {
-                    return -1;
-                }
-                if (b.Timestamp.HasValue) {
-                    return 1;
-                }
-                return 0;
-            });
+            ReceivedHops.Reverse();
+            HasClockSkew = false;
 
             DateTimeOffset? first = null;
             DateTimeOffset? prev = null;
             foreach (var hop in ReceivedHops) {
                 hop.HopDelay = null;
                 if (!hop.Timestamp.HasValue) {
+                    prev = null;
                     continue;
                 }
                 if (!first.HasValue) {
@@ -355,6 +338,7 @@ namespace DomainDetective {
                 if (prev.HasValue) {
                     var delay = hop.Timestamp.Value - prev.Value;
                     hop.HopDelay = delay;
+                    HasClockSkew |= delay < TimeSpan.Zero;
                     if (!MaxHopDelay.HasValue || delay > MaxHopDelay.Value) {
                         MaxHopDelay = delay;
                     }
@@ -365,7 +349,7 @@ namespace DomainDetective {
                 prev = hop.Timestamp;
             }
 
-            if (first.HasValue && prev.HasValue && prev > first) {
+            if (first.HasValue && prev.HasValue) {
                 TotalTransitTime = prev.Value - first.Value;
             }
         }

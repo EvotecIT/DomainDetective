@@ -675,7 +675,7 @@ public class TestMessageHeaderIssues {
         var analysis = new MessageHeaderAnalysis();
         analysis.Parse(raw, new InternalLogger());
 
-        Assert.Equal("pass header.from=example.net", analysis.DmarcResult);
+        Assert.Equal("fail", analysis.DmarcResult);
         Assert.True(analysis.AuthenticationFailedDeliveredToInbox);
         Assert.Contains(MessageHeaderIssue.AuthenticationFailedDeliveredToInbox, analysis.Issues);
     }

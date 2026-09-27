@@ -1,0 +1,43 @@
+@using Microsoft.AspNetCore.Components.Forms
+@implements IAsyncDisposable
+
+<div class="message-analyzer">
+    <p>Analysis runs locally. Headers and message bodies are never sent to a server. Reported authentication, signature verification, and gateway trust are shown separately.</p>
+    <form @onsubmit="AnalyzeAsync" @onsubmit:preventDefault>
+        <label for="message-file">Header file or original .eml message (up to 25 MiB)</label>
+        <InputFile id="message-file" OnChange="ReadFileAsync" accept=".eml,.txt" disabled="@_busy" />
+        @if (_fileName != null) { <p>Loaded: @_fileName <button type="button" @onclick="ClearFile" disabled="@_busy">Remove file</button></p> }
+        <label for="message-text">Or paste header text</label>
+        <textarea id="message-text" @bind="_headerText" @bind:event="oninput" rows="9" maxlength="2097152" disabled="@(_busy || _fileBytes != null)"></textarea>
+        <label for="message-trust">Trusted gateway authserv-ids (comma separated, exact matches)</label>
+        <input id="message-trust" @bind="_trustedIds" @bind:event="oninput" disabled="@_busy" placeholder="mx.example.com" />
+        <label for="message-mx">Expected public MX hosts (comma separated)</label>
+        <input id="message-mx" @bind="_expectedMx" @bind:event="oninput" disabled="@_busy" placeholder="gateway.example.com" />
+        <label class="message-checkbox"><input type="checkbox" @bind="_verifySignatures" disabled="@_busy" /> Verify DKIM and ARC from the original .eml file</label>
+        @if (_verifySignatures) {
+            <label for="message-keys">Offline public keys (JSON dictionary of DNS name to TXT record)</label>
+            <textarea id="message-keys" @bind="_publicKeys" @bind:event="oninput" rows="4" maxlength="1048576" disabled="@_busy" placeholder="s1._domainkey.example.com: v=DKIM1; k=rsa; p=..."></textarea>
+            <p>Use original message bytes. A missing key produces an inconclusive result. This browser tool performs no DNS lookups.</p>
+        }
+        <div class="tool-input-actions">
+            <button type="submit" class="tool-run-btn" disabled="@_busy">@(_busy ? "Analyzing..." : "Analyze locally")</button>
+            <button type="button" class="tool-run-btn tool-run-btn-secondary" @onclick="Clear" disabled="@_busy">Clear message</button>
+        </div>
+    </form>
+    @if (_error != null) { <p role="alert" class="message-error">@_error</p> }
+    @if (_busy) { <LoadingSpinner /> }
+    else if (_sections != null) {
+        @foreach (var section in _sections.Where(section => section.Rows.Count > 0)) {
+            <ResultCard Title="@section.Title" @key="section">
+                <ResultTable Columns="@section.Columns.ToArray()">
+                    @foreach (var row in section.Rows.Take(200)) {
+                        <tr @key="row">@foreach (var cell in row) { <td>@cell</td> }</tr>
+                    }
+                </ResultTable>
+                @if (section.Rows.Count > 200) { <p>Showing 200 of @section.Rows.Count rows. The complete text report below contains all results.</p> }
+            </ResultCard>
+        }
+        <label for="message-report">Complete text report (select and copy)</label>
+        <textarea id="message-report" value="@_reportText" readonly rows="10"></textarea>
+    } else { <p>Choose a message or paste its headers to start.</p> }
+</div>

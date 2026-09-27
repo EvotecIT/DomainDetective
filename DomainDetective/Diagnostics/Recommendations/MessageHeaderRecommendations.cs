@@ -9,9 +9,9 @@ internal sealed class MessageHeaderRecommendations : IRecommendationProvider
         map[MessageHeaderCodes.DkimPass] = new RecommendationAdvice
         {
             Code = MessageHeaderCodes.DkimPass,
-            Title = "DKIM authentication passed",
-            Why = "A valid DKIM signature confirms the message was authorized by the sending domain.",
-            How = "Continue monitoring DKIM results and rotate keys regularly.",
+            Title = "Receiver reports DKIM pass",
+            Why = "The selected Authentication-Results field reports a pass. Its provenance and gateway sanitization determine whether that claim is authoritative.",
+            How = "Review the selected authserv-id and trust level; verify the original MIME message when independent cryptographic evidence is needed.",
             Links = new[] { "https://datatracker.ietf.org/doc/html/rfc6376" },
             Domain = RecommendationDomain.Dkim,
             Tags = new[] { "dkim", "email", "authentication" }
@@ -19,9 +19,9 @@ internal sealed class MessageHeaderRecommendations : IRecommendationProvider
         map[MessageHeaderCodes.SpfPass] = new RecommendationAdvice
         {
             Code = MessageHeaderCodes.SpfPass,
-            Title = "SPF authentication passed",
-            Why = "Passing SPF verifies the sending host was permitted to send on behalf of the domain.",
-            How = "Maintain accurate SPF records for all sending services.",
+            Title = "Receiver reports SPF pass",
+            Why = "The selected receiver reports that its observed sending host passed SPF. Headers alone do not reproduce the original SMTP session or delivery-time DNS.",
+            How = "Confirm receiver provenance and inspect the reported envelope identity and its alignment with From.",
             Links = new[] { "https://datatracker.ietf.org/doc/html/rfc7208" },
             Domain = RecommendationDomain.Spf,
             Tags = new[] { "spf", "email", "authentication" }
@@ -29,9 +29,9 @@ internal sealed class MessageHeaderRecommendations : IRecommendationProvider
         map[MessageHeaderCodes.DmarcPass] = new RecommendationAdvice
         {
             Code = MessageHeaderCodes.DmarcPass,
-            Title = "DMARC alignment passed",
-            Why = "Successful DMARC alignment improves deliverability and protects against spoofing.",
-            How = "Monitor DMARC reports and maintain alignment of SPF and DKIM.",
+            Title = "Receiver reports DMARC pass",
+            Why = "The selected receiver reports DMARC pass; this is an authentication observation with the displayed provenance.",
+            How = "Confirm gateway trust and review SPF/DKIM identities and alignment alongside DMARC aggregate reports.",
             Links = new[] { "https://datatracker.ietf.org/doc/html/rfc7489" },
             Domain = RecommendationDomain.Dmarc,
             Tags = new[] { "dmarc", "email", "authentication" }
@@ -39,9 +39,9 @@ internal sealed class MessageHeaderRecommendations : IRecommendationProvider
         map[MessageHeaderCodes.ArcPass] = new RecommendationAdvice
         {
             Code = MessageHeaderCodes.ArcPass,
-            Title = "ARC chain validated",
-            Why = "A valid ARC chain preserves authentication results through forwarding services.",
-            How = "Ensure intermediaries correctly sign and relay ARC headers.",
+            Title = "Receiver reports ARC pass",
+            Why = "The selected receiver reports ARC pass. This is separate from local structure checks, cryptographic verification, and trust in the sealers.",
+            How = "Verify the original MIME message and assess the forwarding services before relying on their authentication claims.",
             Links = new[] { "https://datatracker.ietf.org/doc/html/rfc8617" },
             Domain = RecommendationDomain.EmailAuth,
             Tags = new[] { "arc", "email", "authentication" }

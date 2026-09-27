@@ -13,8 +13,8 @@ public class TestArcNarrative
         var hc = new DomainHealthCheck();
         var result = await hc.VerifyARCAsync(raw);
         var sections = ArcNarrative.Build(result);
-        Assert.Contains("ARC chain is valid and sequential.", sections.Highlights);
-        Assert.Contains("ARC chain validated", sections.Positives);
-        Assert.Contains("ARC seals include signatures", sections.Positives);
+        Assert.Contains("ARC header structure is complete and sequential; cryptographic verification is separate.", sections.Highlights);
+        Assert.Contains("ARC header structure complete", sections.Positives);
+        Assert.Contains("ARC seals contain signature values", sections.Positives);
     }
 }

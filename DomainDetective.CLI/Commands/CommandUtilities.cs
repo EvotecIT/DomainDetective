@@ -100,37 +100,6 @@ internal static class CommandUtilities {
 
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    internal static void AnalyzeMessageHeader(FileInfo? file, string? header, bool json, string[]? expectedMx = null) {
-        string? headerText = null;
-        if (file != null) {
-            if (!file.Exists) {
-                throw new FileNotFoundException($"File not found: {file.FullName}", file.FullName);
-            }
-            headerText = File.ReadAllText(file.FullName);
-        } else if (!string.IsNullOrWhiteSpace(header)) {
-            headerText = header;
-        }
-
-        if (string.IsNullOrWhiteSpace(headerText)) {
-            AnsiConsole.MarkupLine("[red]No header text provided.[/]");
-            return;
-        }
-
-        var hc = new DomainHealthCheck();
-        var result = expectedMx != null && expectedMx.Length > 0
-            ? hc.CheckMessageHeaders(headerText, expectedMx)
-            : hc.CheckMessageHeaders(headerText);
-
-        if (json) {
-            var jsonText = JsonSerializer.Serialize(result, JsonOptions.Default);
-            Console.WriteLine(jsonText);
-        } else {
-            CliHelpers.ShowPropertiesTable("Message Header Analysis", result, false);
-        }
-    }
-
-    [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     internal static void AnalyzeARC(FileInfo? file, string? header, bool json) {
         string? headerText = null;
         if (file != null) {

@@ -8,7 +8,8 @@ namespace DomainDetective.Tests {
             var analysis = new MessageHeaderAnalysis();
             analysis.Parse(raw, new InternalLogger());
 
-            Assert.False(analysis.Headers.ContainsKey("DKIM-Signature"));
+            Assert.True(analysis.Headers.ContainsKey("DKIM-Signature"));
+            Assert.Single(analysis.DkimSignatures);
             Assert.Single(analysis.InvalidDkimSignatures);
             Assert.Contains(MessageHeaderIssue.InvalidDkim, analysis.Issues);
         }

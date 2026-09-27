@@ -15,7 +15,7 @@ public class TestMessageHeaderNarrative
         var sections = MessageHeaderNarrative.Build(analysis, analysis.Assessments);
         Assert.Contains(sections.Highlights, h => h.Contains("sender@example.com"));
         Assert.Contains(sections.Details, d => d.Contains("DKIM result: pass"));
-        Assert.Contains(sections.Positives, p => p.Contains("DKIM authentication passed"));
+        Assert.Contains(sections.Positives, p => p.Contains("Receiver reports DKIM pass"));
         Assert.Contains(sections.Highlights, h => h.Contains("Total transit time"));
     }
 }
