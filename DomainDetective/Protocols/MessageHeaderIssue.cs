@@ -6,9 +6,9 @@ namespace DomainDetective;
 public enum MessageHeaderIssue {
     /// <summary>No ARC headers were found.</summary>
     MissingArc,
-    /// <summary>The ARC chain exists but failed validation.</summary>
+    /// <summary>The ARC header structure is incomplete or invalid; cryptographic verification is separate.</summary>
     InvalidArc,
-    /// <summary>One or more DKIM signatures were invalid.</summary>
+    /// <summary>One or more DKIM-Signature fields contain malformed signature encoding; cryptographic verification is separate.</summary>
     InvalidDkim,
     /// <summary>The message appears to have entered Exchange Online directly.</summary>
     DirectToExchangeOnline,

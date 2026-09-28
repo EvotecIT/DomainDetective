@@ -55,6 +55,7 @@ public static class ExecutiveSummaryBuilder
             warn += b.Arc?.WarningCount ?? 0; err += b.Arc?.ErrorCount ?? 0;
             warn += b.Bimi?.WarningCount ?? 0; err += b.Bimi?.ErrorCount ?? 0;
             // Optional sections
+            warn += b.AdditionalEvidence?.WarningCount ?? 0; err += b.AdditionalEvidence?.ErrorCount ?? 0;
             warn += b.Mtasts?.WarningCount ?? 0; err += b.Mtasts?.ErrorCount ?? 0;
             warn += b.TlsRpt?.WarningCount ?? 0; err += b.TlsRpt?.ErrorCount ?? 0;
             warn += b.Dnsbl?.WarningCount ?? 0; err += b.Dnsbl?.ErrorCount ?? 0;
@@ -71,6 +72,19 @@ public static class ExecutiveSummaryBuilder
             warn += b.DnsAmplification?.WarningCount ?? 0; err += b.DnsAmplification?.ErrorCount ?? 0;
             warn += b.DnsOverTls?.WarningCount ?? 0; err += b.DnsOverTls?.ErrorCount ?? 0;
             warn += b.Microsoft365?.WarningCount ?? 0; err += b.Microsoft365?.ErrorCount ?? 0;
+            warn += b.Http?.WarningCount ?? 0; err += b.Http?.ErrorCount ?? 0;
+            warn += b.AgentReadiness?.WarningCount ?? 0; err += b.AgentReadiness?.ErrorCount ?? 0;
+            warn += b.Sitemap?.WarningCount ?? 0; err += b.Sitemap?.ErrorCount ?? 0;
+            warn += b.Typosquatting?.WarningCount ?? 0; err += b.Typosquatting?.ErrorCount ?? 0;
+            warn += b.CtTimeline?.WarningCount ?? 0; err += b.CtTimeline?.ErrorCount ?? 0;
+            warn += b.IpEnrichment?.WarningCount ?? 0; err += b.IpEnrichment?.ErrorCount ?? 0;
+            warn += b.Subdomains?.WarningCount ?? 0; err += b.Subdomains?.ErrorCount ?? 0;
+            warn += b.DnsInventory?.WarningCount ?? 0; err += b.DnsInventory?.ErrorCount ?? 0;
+            warn += b.DnsTrace?.WarningCount ?? 0; err += b.DnsTrace?.ErrorCount ?? 0;
+            warn += b.DnsPropagation.Sum(x => x.WarningCount); err += b.DnsPropagation.Sum(x => x.ErrorCount);
+            warn += b.DmarcAggregate?.WarningCount ?? 0; err += b.DmarcAggregate?.ErrorCount ?? 0;
+            warn += b.Registration?.WarningCount ?? 0; err += b.Registration?.ErrorCount ?? 0;
+            warn += b.TlsRptReports?.WarningCount ?? 0; err += b.TlsRptReports?.ErrorCount ?? 0;
             // Mail TLS trio
             warn += (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0);
             err  += (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0);

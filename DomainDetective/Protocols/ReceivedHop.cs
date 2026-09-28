@@ -5,7 +5,7 @@ using MimeKit.Utils;
 namespace DomainDetective;
 
 /// <summary>Represents a parsed <c>Received</c> header hop.</summary>
-public class ReceivedHop {
+public partial class ReceivedHop {
     /// <summary>Host specified in the <c>from</c> clause.</summary>
     public string? FromHost { get; set; }
     /// <summary>IP address specified in the <c>from</c> clause.</summary>
@@ -31,10 +31,6 @@ public class ReceivedHop {
 
     private static readonly Regex FoldingWhitespace = new("\r?\n[ \t]+", RegexOptions.Compiled);
     private static readonly Regex LinearWhitespace = new("[ \t]+", RegexOptions.Compiled);
-    private static readonly Regex HeaderRegex = new(
-        @"^from\s+(?<fromHost>[^\s]+)(?:\s+\((?<fromDetails>.*?)\))?\s+by\s+(?<byHost>[^\s]+)(?:\s+\((?<byDetails>.*?)\))?(?:\s+with\s+(?<with>[^\s]+))?(?:\s+id\s+(?<id>[^\s]+))?(?:\s+for\s+(?<for>.+))?",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex IpRegex = new("\\[(?<ip>[0-9A-Fa-f:.]+)\\]", RegexOptions.Compiled);
 
     /// <summary>Parses a <c>Received</c> header value into a <see cref="ReceivedHop"/>.</summary>
     /// <param name="raw">Raw header value.</param>
@@ -44,8 +40,20 @@ public class ReceivedHop {
         var noFold = FoldingWhitespace.Replace(raw, " ");
         var normalized = LinearWhitespace.Replace(noFold, " ").Trim();
 
-        var searchStart = Math.Max(0, normalized.Length - 200);
-        var idx = normalized.LastIndexOf(';', normalized.Length - 1, normalized.Length - searchStart);
+        var idx = -1;
+        var depth = 0;
+        var quoted = false;
+        var escaped = false;
+        for (var i = 0; i < normalized.Length; i++) {
+            var ch = normalized[i];
+            if (!escaped) {
+                if (ch == '"' && depth == 0) { quoted = !quoted; }
+                else if (!quoted && ch == '(') { depth++; }
+                else if (!quoted && ch == ')') { depth = Math.Max(0, depth - 1); }
+                else if (!quoted && depth == 0 && ch == ';') { idx = i; }
+            }
+            escaped = !escaped && ch == '\\';
+        }
         var before = normalized;
         if (idx >= 0) {
             var datePart = normalized.Substring(idx + 1).Trim();
@@ -55,36 +63,9 @@ public class ReceivedHop {
             }
         }
 
-        var match = HeaderRegex.Match(before);
-        if (match.Success) {
-            hop.FromHost = match.Groups["fromHost"].Value;
-            hop.ByHost = match.Groups["byHost"].Value;
-            if (match.Groups["with"].Success) {
-                hop.With = match.Groups["with"].Value;
-            }
-            if (match.Groups["id"].Success) {
-                hop.Id = match.Groups["id"].Value;
-            }
-            if (match.Groups["for"].Success) {
-                hop.For = match.Groups["for"].Value;
-            }
-
-            var fromDetails = match.Groups["fromDetails"].Value;
-            if (!string.IsNullOrEmpty(fromDetails)) {
-                hop.FromIp = ExtractIp(fromDetails);
-            }
-            var byDetails = match.Groups["byDetails"].Value;
-            if (!string.IsNullOrEmpty(byDetails)) {
-                hop.ByIp = ExtractIp(byDetails);
-            }
-        }
-
+        hop.ParseDetails(normalized, before);
         return hop;
     }
 
-    private static string? ExtractIp(string details) {
-        var ipMatch = IpRegex.Match(details);
-        return ipMatch.Success ? ipMatch.Groups["ip"].Value : null;
-    }
 }
 

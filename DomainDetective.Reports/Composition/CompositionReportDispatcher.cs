@@ -143,6 +143,35 @@ internal static class CompositionReportDispatcher
         var themeType = GetType(HtmlThemeModeType, HtmlForgeXAssembly, out _);
         if (themeType != null)
         {
+            var methodWithInfo = reportType.GetMethod(
+                "Generate",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] {
+                    typeof(string), typeof(IReadOnlyList<object>), typeof(ReportScope), typeof(bool),
+                    typeof(NarrativePlacement), typeof(string), typeof(string), typeof(string),
+                    typeof(DomainOrder), typeof(SectionOrderMode), typeof(string[]), profileType,
+                    themeType, typeof(bool)
+                },
+                null);
+            if (methodWithInfo != null)
+            {
+                var themeValue = Enum.Parse(themeType, "Light", ignoreCase: true);
+                return Invoke(methodWithInfo, new object?[] {
+                    outputPath, items, request.Scope, request.OpenInBrowser, request.NarrativePlacement,
+                    request.Title, request.Creator, request.Subject, request.Ordering.DomainOrder,
+                    request.Ordering.SectionOrderMode, request.Ordering.SectionOrder, profileValue,
+                    themeValue, request.ShowInfoFindings
+                }, out error);
+            }
+        }
+        if (!request.ShowInfoFindings)
+        {
+            error = "The HTML composition generator does not support informational finding filtering.";
+            return false;
+        }
+        if (themeType != null)
+        {
             var methodWithTheme = reportType.GetMethod(
                 "Generate",
                 BindingFlags.Public | BindingFlags.Static,
@@ -314,7 +343,8 @@ internal static class CompositionReportDispatcher
                 typeof(IReadOnlyList<object>),
                 typeof(ReportScope),
                 typeof(OrderingOptions),
-                profileType
+                profileType,
+                typeof(bool)
             },
             null);
         if (method == null)
@@ -328,7 +358,8 @@ internal static class CompositionReportDispatcher
             items,
             request.Scope,
             request.Ordering,
-            profileValue
+            profileValue,
+            request.ShowInfoFindings
         }, out error);
     }
 
@@ -359,7 +390,8 @@ internal static class CompositionReportDispatcher
                 typeof(string),
                 typeof(IReadOnlyList<object>),
                 typeof(ReportScope),
-                typeof(OrderingOptions)
+                typeof(OrderingOptions),
+                typeof(bool)
             },
             null);
         if (method == null)
@@ -372,7 +404,8 @@ internal static class CompositionReportDispatcher
             outputPath,
             items,
             request.Scope,
-            request.Ordering
+            request.Ordering,
+            request.ShowInfoFindings
         }, out error);
     }
 

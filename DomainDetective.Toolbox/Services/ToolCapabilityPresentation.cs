@@ -12,6 +12,14 @@ public static class ToolCapabilityPresentation {
     public static ToolCapabilityInfo Build(ToolDefinition tool, ToolsDeploymentMode deploymentMode) {
         ArgumentNullException.ThrowIfNull(tool);
 
+        if (tool.Slug == "message-analyzer") {
+            return new ToolCapabilityInfo(
+                "Local browser analysis",
+                "Message parsing and offline signature verification run in your browser without uploading content or querying DNS.",
+                new[] { "Header provenance, route, and filtering evidence", "DKIM and ARC verification with supplied public keys", "Complete copyable text report" },
+                new[] { "Explicit DNS key acquisition through CLI, PowerShell, or C#", "Batch files and HTML, Word, Excel, or Markdown exports" });
+        }
+
         if (deploymentMode == ToolsDeploymentMode.HostedOnline) {
             return new ToolCapabilityInfo(
                 "Online coverage",

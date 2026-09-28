@@ -54,7 +54,8 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task RfcExampleIsValid() {
+        public async Task SyntheticMultiInstanceHeadersHaveCompleteStructure() {
+            // Includes synthetic signature values; this is structural evidence only.
             var raw = File.ReadAllText("Data/arc-rfc-example.txt");
             var hc = new DomainHealthCheck();
             var result = await hc.VerifyARCAsync(raw);

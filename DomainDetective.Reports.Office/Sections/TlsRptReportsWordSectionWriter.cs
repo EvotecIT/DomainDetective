@@ -64,7 +64,7 @@ public static class TlsRptReportsWordSectionWriter
         if (scope == ReportScope.Minimal) return;
 
         // Good posture
-        if (reports.Positives != null && reports.Positives.Count > 0)
+        if (showInfoFindings && reports.Positives != null && reports.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("Positive posture signals observed in the ingested TLS-RPT reports:");

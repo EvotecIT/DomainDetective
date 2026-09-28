@@ -180,7 +180,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
 	                    if (formatEnum == ReportFormat.Html || formatEnum == ReportFormat.Word)
 	                    {
 	                        var conversionErrors = new List<string>();
-	                        var items = BuildCompositionItems(healthCheck, settings.Domain, settings.StorePath, settings.IncludeDnsTrace, conversionErrors);
+	                        var items = HealthCheckReportItems.BuildItems(healthCheck, settings.Domain, settings.StorePath, settings.IncludeDnsTrace, conversionErrors);
 	
 	                        if (formatEnum == ReportFormat.Word)
 	                        {
@@ -303,139 +303,6 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                 ? "Report generation failed."
                 : result.ErrorMessage);
         }
-    }
-
-    private static List<object> BuildCompositionItems(DomainHealthCheck healthCheck, string domain, string? storePath, bool includeDnsTrace, List<string> conversionErrors)
-    {
-        var items = new List<object>();
-        if (conversionErrors == null)
-        {
-            throw new ArgumentNullException(nameof(conversionErrors));
-        }
-
-        // Core DNS/mail policy checks from this run
-        void TryAdd(string name, Func<object> factory)
-        {
-            try
-            {
-                items.Add(factory());
-            }
-            catch (Exception ex)
-            {
-                conversionErrors.Add($"{name}: {ex.GetType().Name}: {ex.Message}");
-            }
-        }
-
-        void TryAddRange<T>(string name, Func<IEnumerable<T>> factory)
-        {
-            try
-            {
-                var values = factory();
-                if (values != null)
-                {
-                    items.AddRange(values.Cast<object>());
-                }
-            }
-            catch (Exception ex)
-            {
-                conversionErrors.Add($"{name}: {ex.GetType().Name}: {ex.Message}");
-            }
-        }
-
-        TryAdd("MX", () => DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
-        TryAdd("SPF", () => DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis));
-        TryAddRange("DKIM", () => DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis));
-        TryAdd("DMARC", () => DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis));
-        TryAdd("TYPOSQUATTING", () => DomainDetective.Views.Converters.Convert(healthCheck.TyposquattingAnalysis));
-        TryAdd("CAA", () => DomainDetective.Views.Converters.Convert(healthCheck.CAAAnalysis));
-        TryAdd("DNSBL", () => DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis));
-        TryAdd("RPKI", () => DomainDetective.Views.Converters.Convert(healthCheck.RpkiAnalysis));
-        TryAdd("NS", () => DomainDetective.Views.Converters.Convert(healthCheck.NSAnalysis));
-        TryAdd("SOA", () => DomainDetective.Views.Converters.Convert(healthCheck.SOAAnalysis));
-        TryAdd("TTL", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsTtlAnalysis));
-        TryAdd("ZONETRANSFER", () => DomainDetective.Views.Converters.Convert(healthCheck.ZoneTransferAnalysis));
-        TryAdd("WILDCARDDNS", () => DomainDetective.Views.Converters.Convert(healthCheck.WildcardDnsAnalysis));
-        TryAdd("MTASTS", () => DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis));
-        TryAdd("TLSRPT", () => DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis));
-        TryAdd("DANE", () => DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis));
-        TryAdd("DNSSEC", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis));
-        TryAdd("CTTIMELINE", () => DomainDetective.Views.Converters.Convert(healthCheck.CtTimelineAnalysis));
-        TryAdd("SUBDOMAINS", () => DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis));
-        TryAdd("DNSINVENTORY", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis));
-        TryAdd("DNSAMPLIFICATION", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsAmplificationAnalysis));
-        TryAdd("DNSOVERTLS", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsOverTlsAnalysis));
-        if (!string.IsNullOrWhiteSpace(healthCheck.HttpAnalysis.Subject))
-        {
-            TryAdd("HTTP", () => DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis));
-        }
-        if (!string.IsNullOrWhiteSpace(healthCheck.IpEnrichmentAnalysis.Subject))
-        {
-            TryAdd("IPENRICHMENT", () => DomainDetective.Views.Converters.Convert(healthCheck.IpEnrichmentAnalysis));
-        }
-        try
-        {
-            var set = healthCheck.DnsPropagationSet;
-            if (set != null && set.Items.Count > 0)
-            {
-                foreach (var a in set.Items)
-                {
-                    TryAdd("DNSPROPAGATION", () => DomainDetective.Views.Converters.Convert(a));
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            conversionErrors.Add($"DNSPROPAGATION: {ex.GetType().Name}: {ex.Message}");
-        }
-        if (includeDnsTrace)
-        {
-            TryAdd("DNSTRACE", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis));
-        }
-
-        // Optional time-series sections from a store (only when data exists)
-        if (!string.IsNullOrWhiteSpace(storePath))
-        {
-            try
-            {
-                var dmarcStore = new DmarcAggregateTimeSeriesStore(storePath!);
-                var snaps = dmarcStore.LoadSnapshots(domain);
-                if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
-            }
-            catch (Exception ex)
-            {
-                conversionErrors.Add($"DMARC-AGGREGATE-STORE: {ex.GetType().Name}: {ex.Message}");
-            }
-
-            try
-            {
-                var tlsStore = new TlsRptTimeSeriesStore(storePath!);
-                var snaps = tlsStore.LoadSnapshots(domain);
-                if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
-            }
-            catch (Exception ex)
-            {
-                conversionErrors.Add($"TLSRPT-STORE: {ex.GetType().Name}: {ex.Message}");
-            }
-
-            try
-            {
-                var regStore = new RegistrationTimeSeriesStore(storePath!);
-                var snaps = regStore.LoadSnapshots(domain);
-                if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
-            }
-            catch (Exception ex)
-            {
-                conversionErrors.Add($"REGISTRATION-STORE: {ex.GetType().Name}: {ex.Message}");
-            }
-        }
-
-        // Composition generators require at least one supported view object.
-        if (items.Count == 0)
-        {
-            TryAdd("MX", () => DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
-        }
-
-        return items;
     }
 
     private static void TryOpenWithShell(string path)

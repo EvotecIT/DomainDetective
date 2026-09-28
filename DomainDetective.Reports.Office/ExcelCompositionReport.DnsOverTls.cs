@@ -7,7 +7,7 @@ namespace DomainDetective.Reports.Office;
 
 public static partial class ExcelCompositionReport
 {
-    private static Action<SheetComposer.ColumnComposer>? BuildDnsOverTlsBlock(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildDnsOverTlsBlock(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket == null || bucket.DnsOverTls == null)
         {
@@ -61,7 +61,7 @@ public static partial class ExcelCompositionReport
 
             if (projection.Findings.Count > 0)
             {
-                var frows = projection.Findings.Select(f => new { f.Severity, f.Code, f.Target, f.Message }).ToList();
+                var frows = projection.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(f => new { f.Severity, f.Code, f.Target, f.Message }).ToList();
                 column.TableFrom(frows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
         };

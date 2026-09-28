@@ -46,11 +46,11 @@ namespace DomainDetective {
                 }
 
                 if (trimmed.StartsWith("!")) {
-                    list._exceptionRules.Add(trimmed.Substring(1));
+                    list._exceptionRules.Add(Canonicalize(trimmed.Substring(1)));
                 } else if (trimmed.StartsWith("*.", StringComparison.Ordinal)) {
-                    list._wildcardRules.Add(trimmed.Substring(2));
+                    list._wildcardRules.Add(Canonicalize(trimmed.Substring(2)));
                 } else {
-                    list._exactRules.Add(trimmed);
+                    list._exactRules.Add(Canonicalize(trimmed));
                 }
             }
 
@@ -76,30 +76,8 @@ namespace DomainDetective {
                 return false;
             }
 
-            domain = DomainHelper.ValidateIdn(domain);
-            ValidateLabels(domain);
-            domain = domain.ToLowerInvariant();
-            if (_exceptionRules.Contains(domain)) {
-                return false;
-            }
-            if (_exactRules.Contains(domain)) {
-                return true;
-            }
-
-            foreach (var rule in _wildcardRules) {
-                if (domain.EndsWith("." + rule, StringComparison.OrdinalIgnoreCase)) {
-                    var prefixLength = domain.Length - rule.Length - 1;
-                    if (prefixLength > 0 && domain.IndexOf('.', 0, prefixLength) == -1) {
-                        // only one label before rule
-                        return true;
-                    }
-                    if (prefixLength > 0) {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
+            var clean = Canonicalize(domain);
+            return clean.Split('.').Length == GetPublicSuffixLabelCount(clean);
         }
 
         public string GetRegistrableDomain(string domain) {
@@ -107,24 +85,44 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domain));
             }
 
-            var clean = DomainHelper.ValidateIdn(domain).ToLowerInvariant();
+            var clean = Canonicalize(domain);
             var parts = clean.Split('.');
             if (parts.Length <= 1) {
                 return clean;
             }
 
-            for (int i = 0; i < parts.Length; i++) {
-                var candidate = string.Join(".", parts.Skip(i));
-                if (IsPublicSuffix(candidate)) {
-                    if (i == 0) {
-                        return clean;
-                    }
+            var suffixLabels = GetPublicSuffixLabelCount(clean);
+            return string.Join(".", parts.Skip(Math.Max(0, parts.Length - suffixLabels - 1)));
+        }
 
-                    return string.Join(".", parts.Skip(i - 1));
+        // Exceptions prevail over all other rules; otherwise use the longest match.
+        // A wildcard consumes exactly one label, and the implicit default rule is '*'.
+        private int GetPublicSuffixLabelCount(string domain) {
+            var labels = domain.Split('.');
+            var longest = 1;
+            for (var i = 0; i < labels.Length; i++) {
+                var candidate = string.Join(".", labels.Skip(i));
+                var count = labels.Length - i;
+                if (_exceptionRules.Contains(candidate)) {
+                    return count - 1;
+                }
+                if (_exactRules.Contains(candidate)) {
+                    longest = Math.Max(longest, count);
+                }
+                if (i > 0 && _wildcardRules.Contains(candidate)) {
+                    longest = Math.Max(longest, count + 1);
                 }
             }
+            return longest;
+        }
 
-            return string.Join(".", parts.Skip(parts.Length - 2));
+        private static string Canonicalize(string domain) {
+            var clean = DomainHelper.ValidateIdn(domain.Trim().TrimEnd('.')).ToLowerInvariant();
+            ValidateLabels(clean);
+            if (clean.Split('.').Any(label => label.Length == 0)) {
+                throw new ArgumentException("Domain labels cannot be empty.", nameof(domain));
+            }
+            return clean;
         }
 
         private static void ValidateLabels(string domain) {

@@ -15,7 +15,7 @@ namespace DomainDetective.Reports.Office;
 /// Implemented using OfficeIMO.Excel.
 /// </summary>
 public static partial class ExcelCompositionReport {
-    private static Action<SheetComposer.ColumnComposer>? BuildMicrosoft365Block(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildMicrosoft365Block(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.Microsoft365 == null)
         {
@@ -71,13 +71,13 @@ public static partial class ExcelCompositionReport {
 
             if (sec.Findings.Count > 0)
             {
-                var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                var rows = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                 column.TableFrom(rows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
         };
     }
 
-    private static Action<SheetComposer.ColumnComposer>? BuildHttpBlock(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildHttpBlock(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.Http == null)
         {
@@ -163,13 +163,13 @@ public static partial class ExcelCompositionReport {
 
             if (projection != null && projection.Findings.Count > 0)
             {
-                var frows = projection.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                var frows = projection.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                 column.TableFrom(frows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
         };
     }
 
-    private static Action<SheetComposer.ColumnComposer>? BuildIpEnrichmentBlock(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildIpEnrichmentBlock(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.IpEnrichment == null)
         {
@@ -252,13 +252,13 @@ public static partial class ExcelCompositionReport {
 
             if (projection != null && projection.Findings.Count > 0)
             {
-                var frows = projection.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                var frows = projection.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                 column.TableFrom(frows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
         };
     }
 
-    private static Action<SheetComposer.ColumnComposer>? BuildTyposquattingBlock(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildTyposquattingBlock(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.Typosquatting == null)
         {
@@ -387,7 +387,7 @@ public static partial class ExcelCompositionReport {
 
             if (projection != null && projection.Findings.Count > 0)
             {
-                var findings = projection.Findings.Select(finding => new { finding.Severity, finding.Code, finding.Target, finding.Message }).ToList();
+                var findings = projection.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(finding => new { finding.Severity, finding.Code, finding.Target, finding.Message }).ToList();
                 column.TableFrom(findings, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
         };

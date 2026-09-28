@@ -79,7 +79,7 @@ public static class DkimWordSectionWriter
                                 .Where(t => !string.IsNullOrWhiteSpace(t))
                                 .Distinct()
                                 .ToList();
-            if (positives.Count > 0)
+            if (showInfoFindings && positives.Count > 0)
             {
                 headings.AddItem("Good posture", baseLevel);
                 doc.AddParagraph("This domain demonstrates the following positive posture:");
@@ -221,7 +221,7 @@ public static class DkimWordSectionWriter
             table.Rows[i + 1].Cells[6].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.Status) ? "-" : r.Status;
         }
 
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

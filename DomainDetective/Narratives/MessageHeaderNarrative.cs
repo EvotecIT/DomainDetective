@@ -18,8 +18,8 @@ public static class MessageHeaderNarrative
         var category = "Email";
         var keywords = "email,headers,DomainDetective";
         var creator = "DomainDetective";
-        var intro = "Parses raw email headers to reveal routing details and authentication results.";
-        var why = "Inspecting message headers helps verify sender authenticity and diagnose delivery delays.";
+        var intro = "Interprets message headers as receiver-reported authentication and routing evidence.";
+        var why = "Use this evidence to investigate identity alignment and delivery delays. Cryptographic validity requires verification of the original MIME message; a reported pass alone does not establish sender authenticity.";
 
         var hi = new List<string>();
         var det = new List<string>();

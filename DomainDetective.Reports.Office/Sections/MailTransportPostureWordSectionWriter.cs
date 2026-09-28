@@ -38,7 +38,7 @@ public static class MailTransportPostureWordSectionWriter
             return;
         }
 
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

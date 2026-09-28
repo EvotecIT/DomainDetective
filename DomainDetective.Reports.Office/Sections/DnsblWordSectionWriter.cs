@@ -40,7 +40,7 @@ public static class DnsblWordSectionWriter
         t.Rows[4].Cells[1].AddParagraph(dnsbl.Summary ?? string.Empty);
 
         // Good posture
-        if (scope != ReportScope.Minimal && dnsbl.Positives != null && dnsbl.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && dnsbl.Positives != null && dnsbl.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");
@@ -125,7 +125,7 @@ public static class DnsblWordSectionWriter
         var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
         for (int i=0;i<rows.Count;i++){ t.Rows[i].Cells[0].AddParagraph(rows[i].Item1); t.Rows[i].Cells[1].AddParagraph(rows[i].Item2); }
 
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

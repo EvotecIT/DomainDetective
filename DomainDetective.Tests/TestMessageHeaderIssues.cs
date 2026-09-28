@@ -5,6 +5,35 @@ namespace DomainDetective.Tests;
 
 public class TestMessageHeaderIssues {
     [Fact]
+    public void ReceiverClaimsDoNotBecomeSignatureOrArcStructureIssues() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.com\r\nAuthentication-Results: mx.example; dkim=fail header.d=example.com; arc=fail\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.DoesNotContain(MessageHeaderIssue.InvalidDkim, analysis.Issues);
+        Assert.DoesNotContain(MessageHeaderIssue.InvalidArc, analysis.Issues);
+        Assert.Contains(MessageHeaderIssue.MissingArc, analysis.Issues);
+    }
+
+    [Fact]
+    public void CompleteArcStructureDoesNotRequireAReceiverClaim() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("ARC-Seal: i=1; cv=none; d=example.com; b=YWJj\r\n" +
+            "ARC-Message-Signature: i=1; d=example.com; b=YWJj\r\n" +
+            "ARC-Authentication-Results: i=1; mx.example; dkim=pass\r\n");
+        Assert.True(analysis.ArcStructure.ValidChain);
+        Assert.DoesNotContain(MessageHeaderIssue.MissingArc, analysis.Issues);
+        Assert.DoesNotContain(MessageHeaderIssue.InvalidArc, analysis.Issues);
+    }
+
+    [Fact]
+    public void IncompleteArcStructureProducesStructuralIssue() {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("ARC-Seal: i=1; cv=none; d=example.com; b=YWJj\r\n");
+        Assert.Equal(ArcChainState.Invalid, analysis.ArcStructure.ChainState);
+        Assert.Contains(MessageHeaderIssue.InvalidArc, analysis.Issues);
+    }
+
+    [Fact]
     public void MissingArcIsReported() {
         var raw = File.ReadAllText("Data/dkimvalidator-headers.txt");
         var analysis = new MessageHeaderAnalysis();
@@ -675,7 +704,7 @@ public class TestMessageHeaderIssues {
         var analysis = new MessageHeaderAnalysis();
         analysis.Parse(raw, new InternalLogger());
 
-        Assert.Equal("pass header.from=example.net", analysis.DmarcResult);
+        Assert.Equal("fail", analysis.DmarcResult);
         Assert.True(analysis.AuthenticationFailedDeliveredToInbox);
         Assert.Contains(MessageHeaderIssue.AuthenticationFailedDeliveredToInbox, analysis.Issues);
     }

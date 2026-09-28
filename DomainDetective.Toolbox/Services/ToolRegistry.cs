@@ -35,6 +35,17 @@ public sealed class ToolRegistry {
 
         // Email Security
         new ToolDefinition {
+            Name = "Email Message Analyzer",
+            Slug = "message-analyzer",
+            Description = "Analyze message headers and verify DKIM/ARC locally with offline public keys. Message content stays in your browser.",
+            Category = ToolCategory.EmailSecurity,
+            Icon = "mail",
+            BrowserCompatible = true,
+            CliExample = "domaindetective AnalyzeMessageHeader --file message.eml",
+            PowerShellExample = "Get-DDEmailMessageHeaderInfo -Path './message.eml'",
+            CSharpExample = "using var health = new DomainHealthCheck();\nvar analysis = await health.AnalyzeMessageFileAsync(\"message.eml\");"
+        },
+        new ToolDefinition {
             Name = "SPF Lookup",
             Slug = "spf",
             Description = "Validate SPF records and check for misconfigurations",

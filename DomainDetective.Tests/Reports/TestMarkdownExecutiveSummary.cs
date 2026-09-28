@@ -26,7 +26,7 @@ namespace DomainDetective.Tests.Reports
             Assert.Contains("DNSSEC", text);
             Assert.Contains("RPKI", text);
             Assert.Contains("chain=valid", text, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("All valid (2/2)", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("All valid \\(2/2\\)", text, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]

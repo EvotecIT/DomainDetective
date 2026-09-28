@@ -77,7 +77,7 @@ public static class ZoneTransferWordSectionWriter
         var t = doc.AddTable(sec.Summary.Count, 2, WordTableStyle.TableGrid);
         for (int i=0;i<sec.Summary.Count;i++){ var kv = sec.Summary[i]; t.Rows[i].Cells[0].AddParagraph(kv.Key); t.Rows[i].Cells[1].AddParagraph(kv.Value); }
 
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");
