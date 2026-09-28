@@ -119,4 +119,10 @@ public class TestMessageSupplementalEvidence {
         Assert.Contains("Microsoft 365", ReceivedHop.Parse("from sender.example by tenant.mail.protection.outlook.com with ESMTP").ProviderHints);
         Assert.Empty(ReceivedHop.Parse("from sender.example by tenant.mail.protection.outlook.com.attacker.example with ESMTP").ProviderHints);
     }
+
+    [Fact]
+    public void ProviderHintsIncludeSenderHostWhenReceiverIsUnrecognized() {
+        var hop = ReceivedHop.Parse("from aspmx.l.google.com by internal.example with ESMTP");
+        Assert.Contains("Google Workspace", hop.ProviderHints);
+    }
 }

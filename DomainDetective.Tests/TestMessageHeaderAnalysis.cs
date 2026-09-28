@@ -44,5 +44,50 @@ namespace DomainDetective.Tests {
             Assert.Null(analysis.TotalTransitTime);
             Assert.Null(analysis.ReceivedHops[0].HopDelay);
         }
+
+        [Fact]
+        public void UndatedHopDoesNotHideClockSkewBetweenObservedTimestamps() {
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse("Received: from middle.example by destination.example; Wed, 17 Jun 2026 12:00:00 +0000\r\n"
+                + "Received: from source.example by middle.example\r\n"
+                + "Received: from origin.example by source.example; Wed, 17 Jun 2026 12:05:00 +0000\r\n");
+            Assert.Null(analysis.TotalTransitTime);
+            Assert.True(analysis.HasClockSkew);
+            Assert.All(analysis.ReceivedHops, hop => Assert.Null(hop.HopDelay));
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void UndatedRouteEndpointCannotEstablishTotalTransit(bool oldestUndated) {
+            const string datedEarly = "Received: from first.example by second.example; Wed, 17 Jun 2026 12:00:00 +0000\r\n";
+            const string datedLate = "Received: from second.example by third.example; Wed, 17 Jun 2026 12:05:00 +0000\r\n";
+            const string undated = "Received: from origin.example by first.example\r\n";
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse(oldestUndated ? datedLate + datedEarly + undated : undated + datedLate + datedEarly);
+            Assert.Equal(3, analysis.ReceivedHops.Count);
+            Assert.Null(analysis.TotalTransitTime);
+        }
+
+        [Fact]
+        public void OmittedRouteHopCannotEstablishTotalTransit() {
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse("Received: from second.example by third.example; Wed, 17 Jun 2026 12:05:00 +0000\r\n"
+                + "Received: from first.example by second.example; Wed, 17 Jun 2026 12:00:00 +0000\r\n"
+                + "Received: from origin.example by first.example; Wed, 17 Jun 2026 11:50:00 +0000\r\n",
+                new MessageHeaderAnalysisOptions { MaximumReceivedHops = 2 });
+            Assert.Equal(1, analysis.OmittedReceivedHops);
+            Assert.Null(analysis.TotalTransitTime);
+        }
+
+        [Fact]
+        public void UndatedInteriorHopStillAllowsEndpointSpan() {
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse("Received: from middle.example by destination.example; Wed, 17 Jun 2026 12:05:00 +0000\r\n"
+                + "Received: from source.example by middle.example\r\n"
+                + "Received: from origin.example by source.example; Wed, 17 Jun 2026 12:00:00 +0000\r\n");
+            Assert.Equal(TimeSpan.FromMinutes(5), analysis.TotalTransitTime);
+            Assert.All(analysis.ReceivedHops, hop => Assert.Null(hop.HopDelay));
+        }
     }
 }

@@ -24,6 +24,8 @@ public partial class MessageHeaderAnalysis {
     public List<MessageHeaderFinding> Findings { get; } = new();
     /// <summary>Cryptographic outcomes populated only by full-message verification.</summary>
     public List<MessageSignatureVerification> SignatureVerification { get; } = new();
+    /// <summary>Whether a complete original MIME message was inspected for DKIM and ARC signatures.</summary>
+    public bool OriginalMessageInspectedForSignatures { get; internal set; }
     /// <summary>Observed strict, relaxed, or absent SPF identity alignment; no policy is assumed.</summary>
     public string? SpfAlignment { get; private set; }
     /// <summary>Observed strict, relaxed, or absent DKIM alignment using passing receiver identities.</summary>
@@ -44,6 +46,7 @@ public partial class MessageHeaderAnalysis {
         ReturnPathAddresses.Clear();
         DkimSignatures.Clear();
         SignatureVerification.Clear();
+        OriginalMessageInspectedForSignatures = false;
         ArcStructure = new ARCAnalysis();
         SpfAlignment = null;
         DkimAlignment = null;

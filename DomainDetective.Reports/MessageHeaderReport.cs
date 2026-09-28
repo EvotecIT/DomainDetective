@@ -40,7 +40,9 @@ public static class MessageHeaderReport {
                 new[] { "Composite authentication", Value(message.CompAuthResult) }, new[] { "Composite reason", Value(message.CompAuthReason) }, new[] { "Composite reason meaning", Value(message.CompAuthReasonMeaning) }
             }),
             new("Cryptographic verification", new[] { "Method", "Domain", "Selector", "Outcome", "DNS used", "Explanation" },
-                message.SignatureVerification.Count == 0 ? new[] { new[] { "DKIM / ARC", "", "", "Not performed", "False", "Header analysis does not establish cryptographic validity. Supply an original MIME message for verification." } }
+                message.SignatureVerification.Count == 0 ? new[] { message.OriginalMessageInspectedForSignatures
+                    ? new[] { "DKIM / ARC", "", "", "No signatures present", "False", "The supplied original MIME message contains no DKIM or ARC signatures to verify." }
+                    : new[] { "DKIM / ARC", "", "", "Not performed", "False", "Header analysis does not establish cryptographic validity. Supply an original MIME message for verification." } }
                 : message.SignatureVerification.Select(value => new[] { value.Method, Value(value.Domain), Value(value.Selector), Value(value.Status), Value(value.UsedDns), value.Explanation })),
             new("Receiver-reported authentication", new[] { "Field", "Writer", "Provenance", "Method", "Result", "Properties" },
                 message.AuthenticationResults.SelectMany(value => value.Methods.Select(method => new[] { value.HeaderName, Value(value.AuthServId), Value(value.Trust), method.Method, method.Result, string.Join("; ", method.Properties.Select(pair => pair.Key + "=" + pair.Value)) }))),

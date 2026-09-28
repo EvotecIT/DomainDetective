@@ -326,6 +326,7 @@ namespace DomainDetective {
 
             DateTimeOffset? first = null;
             DateTimeOffset? prev = null;
+            DateTimeOffset? lastObserved = null;
             var timestampCount = 0;
             foreach (var hop in ReceivedHops) {
                 hop.HopDelay = null;
@@ -337,6 +338,7 @@ namespace DomainDetective {
                     first = hop.Timestamp;
                 }
                 timestampCount++;
+                if (lastObserved.HasValue && hop.Timestamp.Value < lastObserved.Value) { HasClockSkew = true; }
                 if (prev.HasValue) {
                     var delay = hop.Timestamp.Value - prev.Value;
                     hop.HopDelay = delay;
@@ -349,10 +351,14 @@ namespace DomainDetective {
                     }
                 }
                 prev = hop.Timestamp;
+                lastObserved = hop.Timestamp;
             }
 
-            if (timestampCount >= 2 && first.HasValue && prev.HasValue) {
-                TotalTransitTime = prev.Value - first.Value;
+            if (timestampCount >= 2 && first.HasValue && prev.HasValue && OmittedReceivedHops == 0
+                && ReceivedHops[0].Timestamp.HasValue && ReceivedHops[ReceivedHops.Count - 1].Timestamp.HasValue) {
+                var elapsed = prev.Value - first.Value;
+                if (elapsed >= TimeSpan.Zero) { TotalTransitTime = elapsed; }
+                else { HasClockSkew = true; }
             }
         }
 

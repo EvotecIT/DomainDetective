@@ -59,6 +59,7 @@ public partial class DomainHealthCheck {
             return analysis;
         }
         var hasBodyBoundary = boundary >= 0;
+        analysis.OriginalMessageInspectedForSignatures = hasBodyBoundary;
         var locator = new MessagePublicKeyLocator(options, DnsConfiguration);
         var dkim = new DkimVerifier(locator);
         var count = 0;

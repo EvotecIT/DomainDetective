@@ -139,6 +139,34 @@ public class TestMessageSignatureVerification {
     }
 
     [Fact]
+    public async Task SplitDnsTxtChunksVerifyTheOriginalMessage() {
+        var sample = SignedMessage();
+        var key = sample.Options.PublicKeyRecords.Single().Value;
+        sample.Options.PublicKeyRecords.Clear();
+        sample.Options.AllowDnsLookups = true;
+        var split = 180;
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => Task.FromResult(new[] {
+            new DnsClientX.DnsAnswer { Type = DnsClientX.DnsRecordType.TXT,
+                DataRaw = "\"" + key.Substring(0, split) + "\" \"" + key.Substring(split) + "\"" }
+        });
+        var result = await health.AnalyzeMessageAsync(sample.Bytes, sample.Options);
+        Assert.Equal(MessageSignatureStatus.Valid, Assert.Single(result.SignatureVerification).Status);
+    }
+
+    [Fact]
+    public async Task CompleteUnsignedMimeMessageIsReportedAsInspected() {
+        var bytes = Encoding.UTF8.GetBytes("From: sender@example.org\r\nSubject: unsigned\r\n\r\nOriginal body\r\n");
+        using var health = new DomainHealthCheck();
+        var result = await health.AnalyzeMessageAsync(bytes);
+        Assert.Empty(result.SignatureVerification);
+        Assert.True(result.OriginalMessageInspectedForSignatures);
+        var brief = DomainDetective.Reports.MessageHeaderReportBrief.Build(result);
+        Assert.Contains(brief.Evidence, item => item.Contains("No DKIM or ARC signatures were present", StringComparison.Ordinal));
+        Assert.Contains("No signatures present", DomainDetective.Reports.MessageHeaderReport.ToText(result));
+    }
+
+    [Fact]
     public async Task HeaderOnlyInputCannotClaimCryptographicValidity() {
         var sample = SignedMessage();
         var text = Encoding.UTF8.GetString(sample.Bytes);
@@ -146,6 +174,7 @@ public class TestMessageSignatureVerification {
         if (boundary < 0) { boundary = text.IndexOf("\n\n", StringComparison.Ordinal); }
         using var health = new DomainHealthCheck();
         var result = await health.AnalyzeMessageAsync(Encoding.UTF8.GetBytes(text.Substring(0, boundary)), sample.Options);
+        Assert.False(result.OriginalMessageInspectedForSignatures);
         Assert.Equal(MessageSignatureStatus.NotPerformed, Assert.Single(result.SignatureVerification).Status);
     }
 

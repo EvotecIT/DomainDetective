@@ -53,7 +53,7 @@ internal sealed class MessagePublicKeyLocator : DkimPublicKeyLocatorBase {
                 cacheKeyFailure = true;
                 _dnsKeys.Add(host);
                 var answers = await _dns.QueryDNS(host, DnsRecordType.TXT, cancellationToken: cancellationToken).ConfigureAwait(false);
-                var candidates = answers.Select(answer => answer.Data).Where(value => MessageHeaderValueParser.ParseTags(value).ContainsKey("p")).Distinct(StringComparer.Ordinal).ToArray();
+                var candidates = answers.Select(answer => answer.TxtConcatenatedData).Where(value => MessageHeaderValueParser.ParseTags(value).ContainsKey("p")).Distinct(StringComparer.Ordinal).ToArray();
                 if (candidates.Length != 1) { throw new InvalidOperationException("Exactly one DKIM public-key record is required for " + host + "."); }
                 record = candidates[0];
                 _records[host] = record;

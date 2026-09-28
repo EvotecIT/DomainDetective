@@ -25,7 +25,9 @@ public sealed class MessageHeaderReportBrief {
         var warnings = findings.Length - errors;
         var evidence = new List<string>();
         if (message.SignatureVerification.Count == 0) {
-            evidence.Add("Cryptographic verification was not performed. Reported DKIM or ARC passes are receiver claims, not proof of the original message's validity.");
+            evidence.Add(message.OriginalMessageInspectedForSignatures
+                ? "No DKIM or ARC signatures were present in the supplied original MIME message. There is no signature to verify; receiver authentication claims remain separate."
+                : "Cryptographic verification was not performed. Reported DKIM or ARC passes are receiver claims, not proof of the original message's validity.");
         } else {
             foreach (var result in message.SignatureVerification) {
                 evidence.Add($"{result.Method} cryptographic verification: {result.Status}. {result.Explanation}");
@@ -44,7 +46,8 @@ public sealed class MessageHeaderReportBrief {
         var notPerformed = message.SignatureVerification.Count(result => result.Status == MessageSignatureStatus.NotPerformed);
         var verificationSummary = invalid > 0 ? $"Cryptographic verification failed for {invalid} {ResultLabel(invalid)}. "
             : inconclusive > 0 ? $"Cryptographic verification could not reach a conclusion for {inconclusive} {ResultLabel(inconclusive)}. "
-            : notPerformed > 0 ? $"Cryptographic verification was not performed for {notPerformed} {ResultLabel(notPerformed)}. " : string.Empty;
+            : notPerformed > 0 ? $"Cryptographic verification was not performed for {notPerformed} {ResultLabel(notPerformed)}. "
+            : message.OriginalMessageInspectedForSignatures && message.SignatureVerification.Count == 0 ? "No DKIM or ARC signatures were present for local verification. " : string.Empty;
         var actions = RecommendationEngine.FromProblems(message.Assessments).ToList();
         if (invalid > 0 || inconclusive > 0 || notPerformed > 0) {
             actions.Insert(0, new RecommendationAdvice {

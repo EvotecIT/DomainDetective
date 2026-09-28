@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -48,7 +49,9 @@ public partial class ReceivedHop {
         }
         FromHost = Host("from");
         ByHost = Host("by");
-        ProviderHints = Providers.Email.EmailProviderDetector.DetectReportedHost(ByHost ?? FromHost);
+        ProviderHints = Providers.Email.EmailProviderDetector.DetectReportedHost(ByHost)
+            .Concat(Providers.Email.EmailProviderDetector.DetectReportedHost(FromHost))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         With = Host("with");
         Id = Host("id");
         For = clauses.TryGetValue("for", out var recipient) ? recipient : null;
