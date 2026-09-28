@@ -16,7 +16,7 @@
         <label class="message-checkbox"><input type="checkbox" @bind="_verifySignatures" disabled="@_busy" /> Verify DKIM and ARC from the original .eml file</label>
         @if (_verifySignatures) {
             <label for="message-keys">Offline public keys (JSON dictionary of DNS name to TXT record)</label>
-            <textarea id="message-keys" @bind="_publicKeys" @bind:event="oninput" rows="4" maxlength="1048576" disabled="@_busy" placeholder="s1._domainkey.example.com: v=DKIM1; k=rsa; p=..."></textarea>
+            <textarea id="message-keys" @bind="_publicKeys" @bind:event="oninput" rows="4" maxlength="1048576" disabled="@_busy" placeholder="@OfflineKeyPlaceholder"></textarea>
             <p>Use original message bytes. A missing key produces an inconclusive result. This browser tool performs no DNS lookups.</p>
         }
         <div class="tool-input-actions">

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Components.Forms;
 namespace DomainDetective.Toolbox.Components.Tools.EmailSecurity;
 
 public partial class MessageAnalyzerTool {
+    private const string OfflineKeyPlaceholder = "{\"s1._domainkey.example.com\":\"v=DKIM1; k=rsa; p=BASE64_PUBLIC_KEY\"}";
     private readonly CancellationTokenSource _lifetime = new();
     private string _headerText = string.Empty;
     private string _trustedIds = string.Empty;

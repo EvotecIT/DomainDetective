@@ -57,6 +57,7 @@ public partial class DomainHealthCheck {
         var result = verifySignatures
             ? await AnalyzeMessageAsync(bytes, options, cancellationToken).ConfigureAwait(false)
             : AnalyzeMessageHeaders(Encoding.UTF8.GetString(bytes), options.HeaderOptions, expectedMxHosts, cancellationToken);
+        if (!verifySignatures && complete) { result.HadBody = stream.Length > buffer.Length; }
         result.Source = Path.GetFullPath(path);
         if (verifySignatures) { result.CompareExpectedMx(expectedMxHosts, _logger); }
         return result;

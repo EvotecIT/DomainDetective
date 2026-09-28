@@ -35,6 +35,16 @@ public class TestMessageHeaderReports {
     }
 
     [Fact]
+    public void HostOnlyReceivedHopDoesNotClaimPublicIpEvidence() {
+        var message = new MessageHeaderAnalysis();
+        message.Parse("Received: from sender.example by mx.example; Wed, 17 Jun 2026 12:00:00 +0000\r\n");
+        var route = Assert.Single(MessageHeaderReport.Build(message), section => section.Title == "Received path (delivery order)");
+        var row = Assert.Single(route.Rows);
+        Assert.Equal(string.Empty, row[2]);
+        Assert.Equal(string.Empty, row[11]);
+    }
+
+    [Fact]
     public void OfficeOverviewCountsLocalVerificationOutcomes() {
         var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dd-verification-report-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);

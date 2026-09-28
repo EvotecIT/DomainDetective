@@ -137,7 +137,8 @@ namespace DomainDetective {
             Add("AS", ArcSealHeaders);
             Add("AMS", ArcMessageSignatureHeaders);
             Add("AAR", ArcAuthenticationResultsHeaders);
-            SealsIncludeSignatures = ArcSealHeaders.Count > 0;
+            SealsIncludeSignatures = ArcSealHeaders.Count > 0 && ArcSealHeaders.All(seal =>
+                MessageHeaderValueParser.ParseTags(seal).TryGetValue("b", out var signature) && !string.IsNullOrWhiteSpace(signature));
             var top = groups.Count == 0 ? 0 : groups.Keys.Max();
             for (var instance = 1; instance <= top; instance++) {
                 if (!groups.TryGetValue(instance, out var values)) {

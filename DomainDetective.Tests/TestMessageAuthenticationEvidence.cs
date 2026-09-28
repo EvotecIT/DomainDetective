@@ -62,6 +62,22 @@ public class TestMessageAuthenticationEvidence {
     }
 
     [Theory]
+    [InlineData("spf", "smtp.mailfrom=example.com")]
+    [InlineData("dkim", "header.d=example.com header.s=test")]
+    public void ConflictingConfiguredIdentityHasAmbiguousSummary(string method, string identity) {
+        foreach (var first in new[] { "pass", "fail" }) {
+            var second = first == "pass" ? "fail" : "pass";
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse("From: sender@example.com\r\n" +
+                $"Authentication-Results: mx.example; {method}={first} {identity}\r\n" +
+                $"Authentication-Results: mx.example; {method}={second} {identity}\r\n",
+                new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+            Assert.True(analysis.AuthenticationConflict);
+            Assert.Equal("ambiguous", method == "spf" ? analysis.SpfResult : analysis.DkimResult);
+        }
+    }
+
+    [Theory]
     [InlineData("dkim=pass header.d=example.com; dkim=pass header.d=other.example", true)]
     [InlineData("dkim=pass header.d=example.com; i=1", false)]
     public void ArcAuthenticationHistoryAllowsRepeatedMethodsButRejectsRepeatedInstance(string methods, bool valid) {
@@ -78,6 +94,15 @@ public class TestMessageAuthenticationEvidence {
         analysis.Analyze("ARC-Seal: i=1; i=1; cv=none; b=abc\r\nARC-Message-Signature: i=1; b=abc\r\nARC-Authentication-Results: i=1; mx.example; dkim=pass\r\n");
         Assert.False(analysis.ValidChain);
         Assert.Contains(analysis.StructureIssues, issue => issue.Contains("repeats a tag"));
+    }
+
+    [Fact]
+    public void DuplicateArcSealsCannotClaimAllSignaturesArePresent() {
+        var analysis = new ARCAnalysis();
+        analysis.Analyze("ARC-Seal: i=1; cv=none; b=abc\r\nARC-Seal: i=1; cv=none; b=\r\n" +
+            "ARC-Message-Signature: i=1; b=abc\r\nARC-Authentication-Results: i=1; mx.example; dkim=pass\r\n");
+        Assert.False(analysis.ValidChain);
+        Assert.False(analysis.SealsIncludeSignatures);
     }
 
     [Theory]
@@ -135,6 +160,15 @@ public class TestMessageAuthenticationEvidence {
         Assert.True(analysis.HadBody);
         Assert.Null(analysis.DmarcResult);
         Assert.Empty(analysis.AuthenticationResults);
+    }
+
+    [Theory]
+    [InlineData("From: sender@example.com\r\n\r\n")]
+    [InlineData("From: sender@example.com\n\n")]
+    public void EmptyBodySeparatorDoesNotClaimBodyEvidence(string headers) {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse(headers);
+        Assert.False(analysis.HadBody);
     }
 
     [Fact]

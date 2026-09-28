@@ -143,8 +143,8 @@ namespace DomainDetective {
                         ComputeTransitTime();
                         SelectAuthenticationEvidence();
                         AnalyzeRouteHeaders(logger);
-                        DetermineIssues();
                         AnalyzeMessageMetadata();
+                        DetermineIssues();
                         if (emitRouteDiagnostics) {
                             EmitRouteDiagnostics(logger);
                         }
@@ -174,8 +174,8 @@ namespace DomainDetective {
             }
 
             AnalyzeRouteHeaders(logger);
-            DetermineIssues();
             AnalyzeMessageMetadata();
+            DetermineIssues();
             if (emitRouteDiagnostics) {
                 EmitRouteDiagnostics(logger);
             }
@@ -369,18 +369,12 @@ namespace DomainDetective {
         }
 
         private void DetermineIssues() {
-            var dkimResult = DkimResult;
-            if (InvalidDkimSignatures.Count > 0 ||
-                (!string.IsNullOrWhiteSpace(dkimResult) &&
-                 !string.Equals(dkimResult, "pass", StringComparison.OrdinalIgnoreCase))) {
+            if (InvalidDkimSignatures.Count > 0) {
                 AddIssue(MessageHeaderIssue.InvalidDkim);
             }
-
-            var arcResult = ArcResult;
-            if (string.IsNullOrWhiteSpace(arcResult) ||
-                string.Equals(arcResult, "none", StringComparison.OrdinalIgnoreCase)) {
+            if (ArcStructure.ChainState == ArcChainState.Missing) {
                 AddIssue(MessageHeaderIssue.MissingArc);
-            } else if (!string.Equals(arcResult, "pass", StringComparison.OrdinalIgnoreCase)) {
+            } else if (ArcStructure.ChainState == ArcChainState.Invalid) {
                 AddIssue(MessageHeaderIssue.InvalidArc);
             }
 

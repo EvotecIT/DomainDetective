@@ -7,6 +7,19 @@ public class TestMessageFileInput {
     [Theory]
     [InlineData("\r\n")]
     [InlineData("\n")]
+    public async Task EmptyBodyFileDoesNotClaimBodyEvidence(string newline) {
+        var path = Path.GetTempFileName();
+        try {
+            File.WriteAllText(path, "From: sender@example.com" + newline + newline);
+            using var health = new DomainHealthCheck();
+            var result = await health.AnalyzeMessageFileAsync(path);
+            Assert.False(result.HadBody);
+        } finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData("\r\n")]
+    [InlineData("\n")]
     public async Task HeaderOnlyFileReadStopsBeforeLargeBody(string newline) {
         var path = Path.GetTempFileName();
         try {

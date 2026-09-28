@@ -95,7 +95,8 @@ public partial class DomainHealthCheck {
             }
             result.UsedDns = locator.UsedDns;
         }
-        if (message.Headers.Any(header => header.Field.StartsWith("ARC-", StringComparison.OrdinalIgnoreCase))) {
+        if (message.Headers.Any(header => header.Field.Equals("ARC-Seal", StringComparison.OrdinalIgnoreCase)
+            || header.Field.Equals("ARC-Message-Signature", StringComparison.OrdinalIgnoreCase))) {
             var result = new MessageSignatureVerification { Method = "ARC" };
             analysis.SignatureVerification.Add(result);
             if (!hasBodyBoundary) {

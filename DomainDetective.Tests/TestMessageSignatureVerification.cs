@@ -167,6 +167,15 @@ public class TestMessageSignatureVerification {
     }
 
     [Fact]
+    public async Task UnknownArcExtensionDoesNotTriggerCryptographicVerification() {
+        var bytes = Encoding.UTF8.GetBytes("From: sender@example.org\r\nARC-Test: value\r\n\r\nOriginal body\r\n");
+        using var health = new DomainHealthCheck();
+        var result = await health.AnalyzeMessageAsync(bytes);
+        Assert.Empty(result.SignatureVerification);
+        Assert.DoesNotContain(result.Assessments, assessment => assessment.Code == "HEADERS.Verify.Invalid");
+    }
+
+    [Fact]
     public async Task HeaderOnlyInputCannotClaimCryptographicValidity() {
         var sample = SignedMessage();
         var text = Encoding.UTF8.GetString(sample.Bytes);

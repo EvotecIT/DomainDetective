@@ -30,7 +30,7 @@ public partial class MessageHeaderAnalysis {
     /// <summary>Received fields omitted due to the configured resource limit.</summary>
     public int OmittedReceivedHops => Math.Max(0, _receivedHeadersEvaluated - ReceivedHops.Count);
     /// <summary>Whether any body followed the supplied header block. The body is not analyzed by Parse.</summary>
-    public bool HadBody { get; private set; }
+    public bool HadBody { get; internal set; }
     /// <summary>Local input filename when analysis originated from a file.</summary>
     public string? Source { get; set; }
     /// <summary>Whether the selected configured results disagree about the same authentication identity.</summary>
@@ -49,7 +49,7 @@ public partial class MessageHeaderAnalysis {
         var lfEnd = text.IndexOf("\n\n", StringComparison.Ordinal);
         if (lfEnd >= 0 && (end < 0 || lfEnd < end)) { end = lfEnd; }
         if (end >= 0) {
-            hadBody = true;
+            hadBody = end + (end == lfEnd ? 2 : 4) < text.Length;
             return text.Substring(0, end) + "\r\n\r\n";
         }
         return text;
@@ -127,7 +127,7 @@ public partial class MessageHeaderAnalysis {
         AuthenticationConflict = anyAuthenticationConflict || _conflictedAuthenticationMethods.Count > 0;
         string? Result(string name) {
             var method = methods.FirstOrDefault(value => value.Method.Equals(name, StringComparison.OrdinalIgnoreCase));
-            return method?.DuplicateProperties.Count > 0 ? "ambiguous" : method?.Result;
+            return HasAuthenticationConflict(name) ? "ambiguous" : method?.Result;
         }
         DkimResult = Result("dkim");
         SpfResult = Result("spf");
