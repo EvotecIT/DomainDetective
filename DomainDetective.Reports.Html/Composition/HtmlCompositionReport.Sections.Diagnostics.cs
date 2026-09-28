@@ -11,7 +11,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderDiagnosticsSection(Element page, List<KeyValuePair<string, DomainBucket>> ordered)
+    private static void RenderDiagnosticsSection(Element page, List<KeyValuePair<string, DomainBucket>> ordered, bool showInfoFindings)
     {
         if (ordered == null || ordered.Count == 0)
         {
@@ -28,7 +28,7 @@ public static partial class HtmlCompositionReport
             }
             foreach (var a in assessments)
             {
-                if (a == null)
+                if (a == null || (!showInfoFindings && a.Severity == DomainDetective.AssessmentSeverity.Info))
                 {
                     continue;
                 }

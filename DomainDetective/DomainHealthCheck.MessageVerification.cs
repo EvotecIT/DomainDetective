@@ -32,6 +32,7 @@ public partial class DomainHealthCheck {
         }
         var analysis = new MessageHeaderAnalysis();
         analysis.Parse(Encoding.UTF8.GetString(messageBytes, 0, headerBytes), options.HeaderOptions, _logger);
+        analysis.HadBody = boundary >= 0 && boundary < messageBytes.Length;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var deadline = Stopwatch.StartNew();
         timeout.CancelAfter(options.Timeout);

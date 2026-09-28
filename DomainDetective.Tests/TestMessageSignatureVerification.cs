@@ -10,6 +10,15 @@ using System.Text;
 namespace DomainDetective.Tests;
 
 public class TestMessageSignatureVerification {
+    [Theory]
+    [InlineData("Original body", true)]
+    [InlineData("", false)]
+    public async Task FullMessageAnalysisReportsActualBodyPresence(string body, bool expected) {
+        using var health = new DomainHealthCheck();
+        var result = await health.AnalyzeMessageAsync(Encoding.UTF8.GetBytes("From: sender@example.org\r\n\r\n" + body));
+        Assert.Equal(expected, result.HadBody);
+    }
+
     private static readonly Lazy<AsymmetricCipherKeyPair> Keys = new(() => {
         var generator = new RsaKeyPairGenerator();
         generator.Init(new KeyGenerationParameters(new SecureRandom(), 2048));

@@ -42,6 +42,25 @@ public static partial class HtmlCompositionReport
         string[]? sectionOrder = null,
         HtmlProfile profile = HtmlProfile.Document,
         ThemeMode themeMode = ThemeMode.Light)
+        => Generate(path, items, scope, openInBrowser, narrativePlacement, titleOverride, authorOverride,
+            descriptionOverride, domainOrder, sectionOrderMode, sectionOrder, profile, themeMode, true);
+
+    /// <summary>Generates HTML with explicit informational finding visibility.</summary>
+    public static void Generate(
+        string path,
+        IReadOnlyList<object> items,
+        ReportScope scope,
+        bool openInBrowser,
+        NarrativePlacement narrativePlacement,
+        string? titleOverride,
+        string? authorOverride,
+        string? descriptionOverride,
+        DomainOrder domainOrder,
+        SectionOrderMode sectionOrderMode,
+        string[]? sectionOrder,
+        HtmlProfile profile,
+        ThemeMode themeMode,
+        bool showInfoFindings)
     {
         if (items == null || items.Count == 0)
         {
@@ -116,26 +135,6 @@ public static partial class HtmlCompositionReport
                 catch { }
             }
             try { RenderHeaderBanner(page, headerTitle); } catch { }
-            foreach (var evidence in items.OfType<AssessmentEvidenceInfo>()) {
-                page.Row(row => row.Column(TablerColumnNumber.Twelve, column => column.Card(card => {
-                    card.Header(header => header.Title("Additional assessment evidence — " + MessageHeaderReport.VisibleText(evidence.Subject)));
-                    card.Body(body => {
-                        body.Text("These completed checks do not have a dedicated technical section. Their findings and recommended actions remain part of this report and its warning/error totals.");
-                        foreach (var finding in evidence.Assessments) {
-                            body.H5(MessageHeaderReport.VisibleText($"{finding.Severity} · {finding.Category} · {finding.Target}"));
-                            body.Text(MessageHeaderReport.VisibleText(finding.Message));
-                            body.Text("Finding code: " + MessageHeaderReport.VisibleText(finding.Code));
-                        }
-                        body.H5("Recommended actions");
-                        foreach (var action in evidence.Recommendations) {
-                            body.H5(MessageHeaderReport.VisibleText(action.Title));
-                            if (!string.IsNullOrWhiteSpace(action.Why)) { body.Text("Why: " + MessageHeaderReport.VisibleText(action.Why)); }
-                            if (!string.IsNullOrWhiteSpace(action.How)) { body.Text("Action: " + MessageHeaderReport.VisibleText(action.How)); }
-                            if (!string.IsNullOrWhiteSpace(action.Verify)) { body.Text("Verify: " + MessageHeaderReport.VisibleText(action.Verify)); }
-                        }
-                    });
-                })));
-            }
 
             var multiDomain = grouped.Count > 1;
             if (narrativePlacement == NarrativePlacement.Global)
@@ -151,6 +150,7 @@ public static partial class HtmlCompositionReport
                 try { RenderDashboardDmarc(page, ordered); } catch { }
                 try { RenderDashboardDkim(page, ordered); } catch { }
                 try { RenderDashboardMailTls(page, ordered); } catch { }
+                RenderAssessmentEvidence(page, items, showInfoFindings);
                 return;
             }
 
@@ -208,13 +208,39 @@ public static partial class HtmlCompositionReport
 
                     tabs.AddTab("Diagnostics", diagTab =>
                     {
-                        RenderDiagnosticsSection(diagTab, ordered);
+                        RenderDiagnosticsSection(diagTab, ordered, showInfoFindings);
                     }).WithIcon(TablerIconType.Activity)
                       .WithBadge(diagnosticsTotal.ToString(), diagnosticsBadge);
                 });
             }));
+            RenderAssessmentEvidence(page, items, showInfoFindings);
         });
 
         document.Save(path, openInBrowser);
+    }
+
+    private static void RenderAssessmentEvidence(Element page, IReadOnlyList<object> items, bool showInfoFindings) {
+        foreach (var evidence in AssessmentEvidenceInfo.Collect(items)) {
+            var visibleFindings = evidence.Assessments.Where(finding => showInfoFindings || finding.Severity != AssessmentSeverity.Info).ToArray();
+            if (visibleFindings.Length == 0 && evidence.Recommendations.Count == 0) { continue; }
+            page.Row(row => row.Column(TablerColumnNumber.Twelve, column => column.Card(card => {
+                card.Header(header => header.Title("Assessment evidence — " + MessageHeaderReport.VisibleText(evidence.Subject)));
+                card.Body(body => {
+                    body.Text("Findings and recommended actions from every completed check appear here. Technical records remain in the detailed sections where available.");
+                    foreach (var finding in visibleFindings) {
+                        body.H5(MessageHeaderReport.VisibleText($"{finding.Severity} · {finding.Category} · {finding.Target}"));
+                        body.Text(MessageHeaderReport.VisibleText(finding.Message));
+                        body.Text("Finding code: " + MessageHeaderReport.VisibleText(finding.Code));
+                    }
+                    if (evidence.Recommendations.Count > 0) { body.H5("Recommended actions"); }
+                    foreach (var action in evidence.Recommendations) {
+                        body.H5(MessageHeaderReport.VisibleText(action.Title));
+                        if (!string.IsNullOrWhiteSpace(action.Why)) { body.Text("Why: " + MessageHeaderReport.VisibleText(action.Why)); }
+                        if (!string.IsNullOrWhiteSpace(action.How)) { body.Text("Action: " + MessageHeaderReport.VisibleText(action.How)); }
+                        if (!string.IsNullOrWhiteSpace(action.Verify)) { body.Text("Verify: " + MessageHeaderReport.VisibleText(action.Verify)); }
+                    }
+                });
+            })));
+        }
     }
 }

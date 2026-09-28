@@ -11,6 +11,59 @@ public class TestReportCoverage {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task HtmlCompositionRetainsOrdinaryViewInfoOnlyWhenRequested(bool showInfo) {
+        var path = Path.Combine(Path.GetTempPath(), "dd-html-view-info-" + Guid.NewGuid().ToString("N") + ".html");
+        try {
+            var view = new IpEnrichmentInfo {
+                Subject = "example.org", Rows = Array.Empty<IpEnrichmentRow>(),
+                AsnCounts = new Dictionary<int, int>(), CountryCounts = new Dictionary<string, int>(),
+                Assessments = new[] {
+                    new Assessment { Severity = AssessmentSeverity.Info, Code = "IP.INFO.TEST", Message = "ordinary-info-marker", Category = "IP", Target = "example.org" },
+                    new Assessment { Severity = AssessmentSeverity.Warning, Code = "IP.WARN.TEST", Message = "ordinary-warning-marker", Category = "IP", Target = "example.org" }
+                }
+            };
+            var result = await CompositionExportService.ExportAsync(new CompositionExportRequest {
+                Items = new object[] { view }, Formats = new[] { ReportFormat.Html },
+                ExportPath = path, ShowInfoFindings = showInfo, AutoCollectTtl = false
+            });
+            Assert.True(Assert.Single(result.Reports).Success, result.Reports[0].ErrorMessage);
+            var html = File.ReadAllText(path);
+            Assert.Contains("ordinary-warning-marker", html);
+            if (showInfo) { Assert.Contains("ordinary-info-marker", html); }
+            else { Assert.DoesNotContain("ordinary-info-marker", html); }
+        } finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HtmlCompositionHonorsInformationalFindingVisibility(bool showInfo) {
+        var path = Path.Combine(Path.GetTempPath(), "dd-html-info-" + Guid.NewGuid().ToString("N") + ".html");
+        try {
+            var findings = new[] {
+                new Assessment { Severity = AssessmentSeverity.Info, Code = "INFO.TEST", Message = "info-evidence-marker", Category = "Test", Target = "example.org" },
+                new Assessment { Severity = AssessmentSeverity.Warning, Code = "WARN.TEST", Message = "warning-evidence-marker", Category = "Test", Target = "example.org" }
+            };
+            var result = await CompositionExportService.ExportAsync(new CompositionExportRequest {
+                Items = new object[] {
+                    new SpfRecordInfo { Subject = "example.org", Assessments = findings },
+                    new AssessmentEvidenceInfo("example.org", findings)
+                },
+                Formats = new[] { ReportFormat.Html }, ExportPath = path, ShowInfoFindings = showInfo, AutoCollectTtl = false
+            });
+            Assert.True(Assert.Single(result.Reports).Success, result.Reports[0].ErrorMessage);
+            var html = File.ReadAllText(path);
+            Assert.Contains("warning-evidence-marker", html);
+            Assert.Contains("Overall Grade", html);
+            Assert.True(html.IndexOf("Assessment evidence", StringComparison.Ordinal) > html.IndexOf("Overall Grade", StringComparison.Ordinal));
+            if (showInfo) { Assert.Contains("info-evidence-marker", html); }
+            else { Assert.DoesNotContain("info-evidence-marker", html); }
+        } finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task MarkdownRetainsFindingsForViewsWithoutDedicatedSections(bool html) {
         using var health = new DomainHealthCheck();
         health.RpkiAnalysis.Subject = "example.org";
