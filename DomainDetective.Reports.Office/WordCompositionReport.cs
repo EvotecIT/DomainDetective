@@ -98,7 +98,7 @@ public static partial class WordCompositionReport {
         // A concise front page opens cleanly in Word and PDF, even when no company
         // branding was supplied. The canned cover/TOC carried unresolved placeholders.
         doc.AddParagraph(title).SetBold().SetFontSize(24);
-        doc.AddParagraph($"{grouped.Count} domain(s) · Generated {generatedAt:yyyy-MM-dd HH:mm}").SetFontSize(11);
+        doc.AddParagraph($"{grouped.Count} {(grouped.Count == 1 ? "domain" : "domains")} · Generated {generatedAt:yyyy-MM-dd HH:mm}").SetFontSize(11);
         WordReportCommon.AddHeader(doc, WordReportCommon.ResolveHeaderLeftText(headerText, new { Title = title }, title),
             $"Generated: {generatedAt:yyyy-MM-dd HH:mm:ss}", logoPath, watermarkText, headerLogoSizePx);
         WordReportCommon.AddFooter(doc, footerText, null, logoPath, footerLogoSizePx);
@@ -269,69 +269,75 @@ public static partial class WordCompositionReport {
 
             // Provider chain + quick links (Executive Summary)
             try {
-                var helpOpts = providerHelp ?? new ProviderHelpRenderOptions();
-                headings.AddItem("Mail Providers", 1);
-                foreach (var row in allRows) {
-                    var domain = row.Key;
-                    var bucket = row.Value;
-                    var chain = ProviderChainBuilder.Build(bucket.Mx, bucket.Spf);
+                var hasDetectedProvider = allRows.Any(row => {
+                    var chain = ProviderChainBuilder.Build(row.Value.Mx, row.Value.Spf);
+                    return !string.IsNullOrWhiteSpace(chain.Primary) || chain.Gateways.Count > 0 || chain.Outbound.Count > 0;
+                });
+                if (hasDetectedProvider) {
+                    var helpOpts = providerHelp ?? new ProviderHelpRenderOptions();
+                    headings.AddItem("Mail Providers", 1);
+                    foreach (var row in allRows) {
+                        var domain = row.Key;
+                        var bucket = row.Value;
+                        var chain = ProviderChainBuilder.Build(bucket.Mx, bucket.Spf);
 
-                    // Build badges and confidence
-                    var badges = new List<string>();
-                    int confidencePct = 0;
-                    try { confidencePct = (int)Math.Round(Math.Max(0.0, Math.Min(1.0, (bucket.Mx?.ProviderPrimaryScore ?? 0.0) / 1.2)) * 100.0); } catch { }
-                    // Resolve provider metadata for hints
-                    DomainDetective.Providers.Email.IMailProvider? providerMeta = null;
-                    if (!string.IsNullOrWhiteSpace(chain.Primary)) {
-                        providerMeta = DomainDetective.Providers.Email.ProviderRegistry.All.FirstOrDefault(p => string.Equals(p?.DisplayName, chain.Primary, StringComparison.OrdinalIgnoreCase));
-                        if (providerMeta?.SingleMxOk == true) badges.Add("[Single‑MX OK]");
-                    }
-                    if (chain.Gateways.Count > 0) badges.Add("[Gateway]");
-                    if (chain.Outbound.Count > 0) badges.Add("[Outbound]");
+                        // Build badges and confidence
+                        var badges = new List<string>();
+                        int confidencePct = 0;
+                        try { confidencePct = (int)Math.Round(Math.Max(0.0, Math.Min(1.0, (bucket.Mx?.ProviderPrimaryScore ?? 0.0) / 1.2)) * 100.0); } catch { }
+                        // Resolve provider metadata for hints
+                        DomainDetective.Providers.Email.IMailProvider? providerMeta = null;
+                        if (!string.IsNullOrWhiteSpace(chain.Primary)) {
+                            providerMeta = DomainDetective.Providers.Email.ProviderRegistry.All.FirstOrDefault(p => string.Equals(p?.DisplayName, chain.Primary, StringComparison.OrdinalIgnoreCase));
+                            if (providerMeta?.SingleMxOk == true) badges.Add("[Single‑MX OK]");
+                        }
+                        if (chain.Gateways.Count > 0) badges.Add("[Gateway]");
+                        if (chain.Outbound.Count > 0) badges.Add("[Outbound]");
 
-                    // Compose provider chain text with confidence and hints
-                    var chainParts = new List<string>();
-                    if (!string.IsNullOrWhiteSpace(chain.Primary)) chainParts.Add($"Primary: {chain.Primary}");
-                    if (chain.Gateways.Count > 0) chainParts.Add($"Gateways: {string.Join(", ", chain.Gateways)}");
-                    if (chain.Outbound.Count > 0) chainParts.Add($"Outbound: {string.Join(", ", chain.Outbound)}");
-                    var baseLine = chainParts.Count > 0 ? string.Join("; ", chainParts) : "(no provider detected)";
-                    var hintParts = new List<string>();
-                    if (confidencePct > 0) hintParts.Add($"Confidence {confidencePct}%");
-                    if (providerMeta != null) {
-                        if (providerMeta.MinimumDkimSelectorsToPass > 0) hintParts.Add($"DKIM min {providerMeta.MinimumDkimSelectorsToPass}");
-                        if (providerMeta.RecommendedMinMxRecords > 0) hintParts.Add($"Rec MX {providerMeta.RecommendedMinMxRecords}");
-                    }
-                    var hintText = hintParts.Count > 0 ? $" — {string.Join(" · ", hintParts)}" : string.Empty;
-                    var badgeText = badges.Count > 0 ? $" {string.Join(" ", badges)}" : string.Empty;
-                    doc.AddParagraph($"{domain}: {baseLine}{hintText}{badgeText}");
+                        // Compose provider chain text with confidence and hints
+                        var chainParts = new List<string>();
+                        if (!string.IsNullOrWhiteSpace(chain.Primary)) chainParts.Add($"Primary: {chain.Primary}");
+                        if (chain.Gateways.Count > 0) chainParts.Add($"Gateways: {string.Join(", ", chain.Gateways)}");
+                        if (chain.Outbound.Count > 0) chainParts.Add($"Outbound: {string.Join(", ", chain.Outbound)}");
+                        var baseLine = chainParts.Count > 0 ? string.Join("; ", chainParts) : "(no provider detected)";
+                        var hintParts = new List<string>();
+                        if (confidencePct > 0) hintParts.Add($"Confidence {confidencePct}%");
+                        if (providerMeta != null) {
+                            if (providerMeta.MinimumDkimSelectorsToPass > 0) hintParts.Add($"DKIM min {providerMeta.MinimumDkimSelectorsToPass}");
+                            if (providerMeta.RecommendedMinMxRecords > 0) hintParts.Add($"Rec MX {providerMeta.RecommendedMinMxRecords}");
+                        }
+                        var hintText = hintParts.Count > 0 ? $" — {string.Join(" · ", hintParts)}" : string.Empty;
+                        var badgeText = badges.Count > 0 ? $" {string.Join(" ", badges)}" : string.Empty;
+                        doc.AddParagraph($"{domain}: {baseLine}{hintText}{badgeText}");
 
-                    // Quick links for primary provider (DMARC/SPF/DKIM), if available
-                    try {
-                        var links = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
-                        var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, chain.Primary, StringComparison.OrdinalIgnoreCase))
-                                          ?? links?.FirstOrDefault();
-                        var topics = primaryHelp?.Topics;
-                        if (topics != null && topics.Count > 0) {
-                            var ordered = (helpOpts.TopicOrder?.Length > 0)
-                                ? topics.OrderBy(t => Array.IndexOf(helpOpts.TopicOrder, (t?.Topic ?? string.Empty).ToUpperInvariant())).ToList()
-                                : topics.ToList();
-                            var top = ordered.Where(t => !string.IsNullOrWhiteSpace(t?.Url)).Take(3).ToList();
-                            if (top.Count > 0) {
-                                var l = doc.AddList(WordListStyle.Bulleted);
-                                foreach (var t in top) {
-                                    var p = l.AddItem(string.Empty);
-                                    var text = string.IsNullOrWhiteSpace(t.Title) ? ($"{primaryHelp!.ProviderName} — {t.Topic}") : t.Title!;
-                                    try { p.AddHyperLink(text, new Uri(t.Url!), addStyle: true); } catch { p.AddText(text + ": " + t.Url); }
+                        // Quick links for primary provider (DMARC/SPF/DKIM), if available
+                        try {
+                            var links = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
+                            var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, chain.Primary, StringComparison.OrdinalIgnoreCase))
+                                              ?? links?.FirstOrDefault();
+                            var topics = primaryHelp?.Topics;
+                            if (topics != null && topics.Count > 0) {
+                                var ordered = (helpOpts.TopicOrder?.Length > 0)
+                                    ? topics.OrderBy(t => Array.IndexOf(helpOpts.TopicOrder, (t?.Topic ?? string.Empty).ToUpperInvariant())).ToList()
+                                    : topics.ToList();
+                                var top = ordered.Where(t => !string.IsNullOrWhiteSpace(t?.Url)).Take(3).ToList();
+                                if (top.Count > 0) {
+                                    var l = doc.AddList(WordListStyle.Bulleted);
+                                    foreach (var t in top) {
+                                        var p = l.AddItem(string.Empty);
+                                        var text = string.IsNullOrWhiteSpace(t.Title) ? ($"{primaryHelp!.ProviderName} — {t.Topic}") : t.Title!;
+                                        try { p.AddHyperLink(text, new Uri(t.Url!), addStyle: true); } catch { p.AddText(text + ": " + t.Url); }
+                                    }
                                 }
                             }
-                        }
+                        } catch { }
+                    }
+                    // Add legend for badges and confidence
+                    try {
+                        var legend = doc.AddParagraph("Legend: Confidence = detection certainty; [Single‑MX OK] = vendor supports single MX; [Gateway] = inbound security gateway present; [Outbound] = separate sender platform detected.");
+                        legend.SetItalic(true);
                     } catch { }
                 }
-                // Add legend for badges and confidence
-                try {
-                    var legend = doc.AddParagraph("Legend: Confidence = detection certainty; [Single‑MX OK] = vendor supports single MX; [Gateway] = inbound security gateway present; [Outbound] = separate sender platform detected.");
-                    legend.SetItalic(true);
-                } catch { }
             } catch { }
 
             // Footnote for MAILTLS rollup sources
@@ -578,7 +584,6 @@ public static partial class WordCompositionReport {
             var refs = ReferencesCollector.CollectAll(compMap.Values);
             if (refs.Count > 0) {
                 headings.AddItem("All References");
-                doc.AddParagraph("References cited across all sections. Use these for standards and implementation guidance.");
                 var list = doc.AddList(WordListStyle.Bulleted);
                 foreach (var r in refs) {
                     var fmt = LinkFormatter.Format(r);

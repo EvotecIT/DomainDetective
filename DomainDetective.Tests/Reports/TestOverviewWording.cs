@@ -24,8 +24,9 @@ namespace DomainDetective.Tests.Reports
             items.Add(new DomainDetective.Views.SpfRecordInfo { Subject = "sample.net", Status = "OK" });
 
             var text = OverviewWording.ComposeFromItems(items);
-            var expected = "This report summarizes the email security posture for 2 domain(s). The table highlights the presence and status of key controls (MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, MAILTLS) and the count of warnings/errors detected. Total across all domains: 0 warning(s), 0 error(s).";
+            var expected = "This report summarizes the email security posture for 2 domains. The table highlights the presence and status of key controls (MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, MAILTLS) and the count of warnings/errors detected. Total across all domains: 0 warnings, 0 errors.";
             Assert.Equal(expected, text);
+            Assert.Contains("1 domain", OverviewWording.ComposeFromItems(new List<object> { new DomainDetective.Views.SpfRecordInfo { Subject = "example.com", Status = "OK" } }));
         }
     }
 }

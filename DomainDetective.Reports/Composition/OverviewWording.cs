@@ -22,7 +22,7 @@ public static class OverviewWording
     /// </summary>
     public static string ComposeFromItems(IReadOnlyList<object> items)
     {
-        if (items == null || items.Count == 0) return "This report summarizes the email security posture for 0 domain(s).";
+        if (items == null || items.Count == 0) return "This report summarizes the email security posture for 0 domains.";
 
         var grouped = CompositionBuilder.GroupBySubject(items);
         int domainsCount = grouped.Count;
@@ -75,6 +75,8 @@ public static class OverviewWording
         int totalWarn = rows.Sum(r => r.Warnings);
         int totalErr = rows.Sum(r => r.Errors);
 
-        return $"This report summarizes the email security posture for {domainsCount} domain(s). The table highlights the presence and status of key controls ({controlsText}) and the count of warnings/errors detected. Total across all domains: {totalWarn} warning(s), {totalErr} error(s).";
+        return $"This report summarizes the email security posture for {CountLabel(domainsCount, "domain")}. The table highlights the presence and status of key controls ({controlsText}) and the count of warnings/errors detected. Total across all domains: {CountLabel(totalWarn, "warning")}, {CountLabel(totalErr, "error")}.";
     }
+
+    private static string CountLabel(int count, string name) => $"{count} {name}{(count == 1 ? string.Empty : "s")}";
 }

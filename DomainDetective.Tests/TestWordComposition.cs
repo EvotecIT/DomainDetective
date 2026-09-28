@@ -65,6 +65,9 @@ public class TestWordComposition
             Assert.Contains("Executive Summary", xml);
             Assert.Contains("Overview", xml);
             Assert.Contains("All References", xml);
+            Assert.Contains("1 domain", xml);
+            Assert.DoesNotContain("Mail Providers", xml);
+            Assert.DoesNotContain("Legend: Confidence", xml);
 
             // The complete findings appendix retains every affected target.
             for (int i = 1; i <= 8; i++) { Assert.Contains($"d{i}.example.com", xml); }
