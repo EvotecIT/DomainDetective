@@ -12,7 +12,7 @@ namespace DomainDetective.Reports.Html;
 public static partial class HtmlCompositionReport
 {
     private static void RenderDomainsTabbed(
-        Element page,
+        ContentContainer page,
         List<KeyValuePair<string, DomainBucket>> ordered,
         SectionOrderMode sectionOrderMode,
         string[] normalizedCustom,

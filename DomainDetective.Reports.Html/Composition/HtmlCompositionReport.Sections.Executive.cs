@@ -24,7 +24,7 @@ public static partial class HtmlCompositionReport
         public int Count { get; set; }
     }
 
-    private static void RenderHeaderBanner(Element page, string title)
+    private static void RenderHeaderBanner(ContentContainer page, string title)
     {
         page.Row(r =>
         {
@@ -45,7 +45,7 @@ public static partial class HtmlCompositionReport
         });
     }
 
-    private static void RenderExecutiveSummary(Element page, List<KeyValuePair<string, DomainBucket>> ordered, System.Collections.Generic.List<DomainDetective.Reports.ExecutiveSummaryBuilder.Row> rows, string overviewLine)
+    private static void RenderExecutiveSummary(ContentContainer page, List<KeyValuePair<string, DomainBucket>> ordered, System.Collections.Generic.List<DomainDetective.Reports.ExecutiveSummaryBuilder.Row> rows, string overviewLine)
     {
         var controlRollup = BuildControlRollup(rows);
         var m365WorkloadRollup = BuildM365WorkloadRollup(ordered);

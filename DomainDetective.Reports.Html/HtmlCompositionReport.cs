@@ -219,7 +219,7 @@ public static partial class HtmlCompositionReport
         document.Save(path, openInBrowser);
     }
 
-    private static void RenderAssessmentEvidence(Element page, IReadOnlyList<object> items, bool showInfoFindings) {
+    private static void RenderAssessmentEvidence(ContentContainer page, IReadOnlyList<object> items, bool showInfoFindings) {
         foreach (var evidence in AssessmentEvidenceInfo.Collect(items)) {
             var visibleFindings = evidence.Assessments.Where(finding => showInfoFindings || finding.Severity != AssessmentSeverity.Info).ToArray();
             if (visibleFindings.Length == 0 && evidence.Recommendations.Count == 0) { continue; }

@@ -11,7 +11,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderDomainsAccordion(Element page, List<KeyValuePair<string, DomainBucket>> ordered, SectionOrderMode sectionOrderMode, string[] normalizedCustom, Dictionary<string, List<string>> inputSectionOrder)
+    private static void RenderDomainsAccordion(ContentContainer page, List<KeyValuePair<string, DomainBucket>> ordered, SectionOrderMode sectionOrderMode, string[] normalizedCustom, Dictionary<string, List<string>> inputSectionOrder)
     {
         page.Row(row => {
             row.Column(TablerColumnNumber.Twelve, col => {

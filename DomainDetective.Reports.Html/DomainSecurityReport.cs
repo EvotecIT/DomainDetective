@@ -146,7 +146,7 @@ public class DomainSecurityReport {
                         header.Title($"{icon} {category.Name}")
                               .Avatar(avatar => {
                                   avatar.BackgroundColor(color, "#FFFFFF")
-                                        .Text(icon);
+                                        .Initials(icon);
                               });
                     })
                     .Body(body => {
