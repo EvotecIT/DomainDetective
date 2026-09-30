@@ -11,7 +11,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderAllReferencesSection(Element page, IReadOnlyList<object> items)
+    private static void RenderAllReferencesSection(ContentContainer page, IReadOnlyList<object> items)
     {
         var comp = DomainDetective.Reports.CompositionBuilder.GroupBySubject(items);
         var refs = DomainDetective.Reports.ReferencesCollector.CollectAll(comp.Values);
