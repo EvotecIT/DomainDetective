@@ -6,6 +6,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 #if NET8_0_OR_GREATER
+using HtmlTinkerX;
 using Microsoft.Playwright;
 #endif
 
@@ -92,29 +93,17 @@ internal static class DomainDetectiveVisualProvider
         linkedCts.CancelAfter(options.BrowserCaptureTimeout);
         try
         {
-            using var playwright = await Playwright.CreateAsync()
-                .WaitAsync(linkedCts.Token)
-                .ConfigureAwait(false);
-            await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            await using var session = await HtmlBrowser.OpenSessionAsync(url, new HtmlBrowserLaunchOptions
             {
-                Headless = true
-            }).WaitAsync(linkedCts.Token).ConfigureAwait(false);
-            await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-            {
-                ViewportSize = new ViewportSize
-                {
-                    Width = Math.Max(320, options.BrowserViewportWidth),
-                    Height = Math.Max(240, options.BrowserViewportHeight)
-                },
+                Headless = true,
+                ViewportWidth = Math.Max(320, options.BrowserViewportWidth),
+                ViewportHeight = Math.Max(240, options.BrowserViewportHeight),
                 // Typosquatting probes intentionally continue through invalid certificates.
-                IgnoreHTTPSErrors = options.HttpRequestOptions.DisableTlsValidation
-            }).WaitAsync(linkedCts.Token).ConfigureAwait(false);
-            var page = await context.NewPageAsync().WaitAsync(linkedCts.Token).ConfigureAwait(false);
-            await page.GotoAsync(url, new PageGotoOptions
-            {
-                WaitUntil = WaitUntilState.NetworkIdle,
-                Timeout = (float)options.BrowserCaptureTimeout.TotalMilliseconds
-            }).WaitAsync(linkedCts.Token).ConfigureAwait(false);
+                IgnoreHTTPSErrors = options.HttpRequestOptions.DisableTlsValidation,
+                LoadState = HtmlBrowserLoadState.NetworkIdle,
+                Timeout = (int)Math.Min(int.MaxValue, options.BrowserCaptureTimeout.TotalMilliseconds)
+            }, linkedCts.Token).ConfigureAwait(false);
+            var page = session.Page;
 
             if (options.BrowserPostLoadDelay > TimeSpan.Zero)
             {
