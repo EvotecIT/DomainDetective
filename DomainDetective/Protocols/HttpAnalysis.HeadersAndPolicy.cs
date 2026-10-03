@@ -102,13 +102,14 @@ namespace DomainDetective {
             var parts = headerValue.Split(';');
             foreach (var part in parts) {
                 var trimmed = part.Trim();
-                if (trimmed.StartsWith("frame-ancestors", StringComparison.OrdinalIgnoreCase)) {
+                int separator = trimmed.IndexOfAny(new[] { ' ', '\t' });
+                var directive = separator < 0 ? trimmed : trimmed.Substring(0, separator);
+                if (string.Equals(directive, "frame-ancestors", StringComparison.OrdinalIgnoreCase)) {
                     CspFrameAncestorsPresent = true;
                 }
                 if (trimmed.IndexOf("'unsafe-inline'", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     trimmed.IndexOf("'unsafe-eval'", StringComparison.OrdinalIgnoreCase) >= 0) {
                     CspUnsafeDirectives = true;
-                    break;
                 }
             }
         }
