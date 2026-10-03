@@ -31,55 +31,22 @@ namespace DomainDetective
                 AddPartToResolvedLists(part, logger, domain, depth, path);
             }
 
-            foreach (var part in parts)
+            foreach (var part in ReachableSpfTerms(parts))
             {
                 var token = part.Trim('"');
-                if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase))
-                {
-                    var inc = token.Substring(8);
-                    if (string.IsNullOrWhiteSpace(inc)) continue;
-                    if (!visited.Add(inc)) continue;
-                    string? includeRecord = null;
-                    if (TestSpfRecords.TryGetValue(inc, out var fake))
-                    {
-                        includeRecord = fake;
+                if (token.Length > 0 && "+-~?".IndexOf(token[0]) >= 0) token = token.Substring(1);
+                bool include = token.StartsWith("include:", StringComparison.OrdinalIgnoreCase);
+                bool redirect = token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase);
+                if (!include && !redirect) continue;
+                string target = token.Substring(include ? 8 : 9);
+                if (target.Length == 0 || target.IndexOf('%') >= 0 || !visited.Add(target)) continue;
+                try {
+                    var child = await ResolveSpfRecordForCounting(target, logger, include ? "include" : "redirect");
+                    if (!string.IsNullOrWhiteSpace(child)) {
+                        await CollectMechanismsAsync(target, child!, new List<string>(path) { target }, depth + 1, visited, logger);
                     }
-                    else
-                    {
-                        var answers = await DnsConfiguration.QueryDNS(
-                            inc,
-                            DnsRecordType.TXT,
-                            "SPF1",
-                            includeAliasesInFilter: true);
-                        if (answers != null && answers.Length > 0) includeRecord = answers[0].Data;
-                    }
-                    if (!string.IsNullOrWhiteSpace(includeRecord))
-                    {
-                        var next = new List<string>(path) { inc };
-                        await CollectMechanismsAsync(inc, includeRecord!, next, depth + 1, visited, logger);
-                    }
-                    visited.Remove(inc);
-                }
-                else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase))
-                {
-                    var redir = token.Substring(9);
-                    if (string.IsNullOrWhiteSpace(redir)) continue;
-                    string? redirectRecord = null;
-                    if (TestSpfRecords.TryGetValue(redir, out var fakeR)) redirectRecord = fakeR;
-                    else
-                    {
-                        var answers = await DnsConfiguration.QueryDNS(
-                            redir,
-                            DnsRecordType.TXT,
-                            "SPF1",
-                            includeAliasesInFilter: true);
-                        if (answers != null && answers.Length > 0) redirectRecord = answers[0].Data;
-                    }
-                    if (!string.IsNullOrWhiteSpace(redirectRecord))
-                    {
-                        var next = new List<string>(path) { redir };
-                        await CollectMechanismsAsync(redir, redirectRecord!, next, depth + 1, visited, logger);
-                    }
+                } finally {
+                    visited.Remove(target);
                 }
             }
         }

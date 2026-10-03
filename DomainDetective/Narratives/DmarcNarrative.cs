@@ -38,8 +38,12 @@ public static class DmarcNarrative
 
         if (!string.IsNullOrWhiteSpace(dmarc.Policy))
         {
-            hi.Add($"Policy: {dmarc.Policy}{(dmarc.Policy.Equals("No policy", StringComparison.OrdinalIgnoreCase) ? " (monitoring only)" : string.Empty)}");
+            hi.Add($"Published policy: {dmarc.Policy}");
         }
+        if (!string.IsNullOrEmpty(dmarc.EffectivePolicyShort))
+            hi.Add($"Effective policy: {dmarc.EffectivePolicyShort}{(dmarc.IsTestMode ? " (test mode)" : string.Empty)}.");
+        if (dmarc.DnsQueryFailed) hi.Add("Policy discovery failed; policy absence was not established.");
+        if (dmarc.ReportingQueryFailed) hi.Add("Reporting query failed; authorization was not established for every destination.");
 
         if (!string.IsNullOrWhiteSpace(dmarc.SubPolicy))
         {
@@ -66,9 +70,9 @@ public static class DmarcNarrative
             det.Add($"Reporting interval: {dmarc.ReportingInterval}");
         if (!string.IsNullOrWhiteSpace(dmarc.Percent))
         {
-            det.Add(dmarc.Percent);
-            if (dmarc.Percent.StartsWith("100%", StringComparison.OrdinalIgnoreCase))
-                hi.Add("pct=100 (full enforcement).");
+            det.Add($"Legacy sampling percentage: {dmarc.Percent}");
+            if (dmarc.Assessments.Any(assessment => assessment.Code == DmarcCodes.Percent100))
+                hi.Add("Legacy percentage tag pct=100 is published.");
         }
 
         if (dmarc.MailtoRua != null && dmarc.MailtoRua.Count > 0)
@@ -94,8 +98,7 @@ public static class DmarcNarrative
         // References
         var refs = new List<string>
         {
-            "https://datatracker.ietf.org/doc/html/rfc7489",
-            "https://datatracker.ietf.org/doc/html/draft-ietf-dmarcbis-base"
+            "https://www.rfc-editor.org/rfc/rfc9989.html"
         };
 
         try

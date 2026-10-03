@@ -331,13 +331,13 @@ public class TestDMARCAnalysis {
 
         [Fact]
         public async Task UnknownTagsAreCollected() {
-            var dmarcRecord = "v=DMARC1; p=none; foo=bar; test; x=y";
+            var dmarcRecord = "v=DMARC1; p=none; foo=bar; test=ignored; x=y";
             var healthCheck = new DomainHealthCheck();
 
             await healthCheck.CheckDMARC(dmarcRecord);
 
             Assert.Contains("foo=bar", healthCheck.DmarcAnalysis.UnknownTags);
-            Assert.Contains("test", healthCheck.DmarcAnalysis.UnknownTags);
+            Assert.Contains("test=ignored", healthCheck.DmarcAnalysis.UnknownTags);
             Assert.Contains("x=y", healthCheck.DmarcAnalysis.UnknownTags);
         }
 
@@ -453,21 +453,28 @@ public class TestDMARCAnalysis {
         }
 
         [Fact]
-        public async Task ExceedsCharacterLimitWhenTrimmed() {
-            var record = "v=DMARC1; p=none " + new string('a', 239);
+        public async Task CombinedTxtPolicyHasNo255CharacterCeiling() {
+            var record = "v=DMARC1; p=none; x=" + new string('a', 300);
             var healthCheck = new DomainHealthCheck();
-            await healthCheck.CheckDMARC(record);
+            await healthCheck.DmarcAnalysis.AnalyzeDmarcRecords(new[] {
+                new DnsAnswer { Type = DnsRecordType.TXT,
+                    DataRaw = "\"" + record.Substring(0, 200) + "\" \"" + record.Substring(200) + "\"" }
+            }, new InternalLogger());
 
-            Assert.True(healthCheck.DmarcAnalysis.ExceedsCharacterLimit);
+            Assert.Equal(record, healthCheck.DmarcAnalysis.DmarcRecord);
+            Assert.True(healthCheck.DmarcAnalysis.IsPolicyValid);
+            Assert.False(healthCheck.DmarcAnalysis.ExceedsCharacterLimit);
+            Assert.DoesNotContain(healthCheck.DmarcAnalysis.Assessments, a => a.Code == DmarcCodes.RecordLengthExceeds);
         }
 
         [Fact]
         public async Task RecognizesDmarcBisTags() {
-            var record = "v=DMARC1; p=reject; np=none; psd=quarantine; rfb=1";
+            var record = "v=DMARC1; p=reject; np=none; psd=n; rfb=1";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckDMARC(record);
             Assert.Equal("none", healthCheck.DmarcAnalysis.NonexistentPolicyShort);
-            Assert.Equal("quarantine", healthCheck.DmarcAnalysis.PublicSuffixPolicyShort);
+            Assert.Equal("n", healthCheck.DmarcAnalysis.PublicSuffixPolicyShort);
+            Assert.Equal("Organizational domain", healthCheck.DmarcAnalysis.PublicSuffixPolicy);
             Assert.Equal("1", healthCheck.DmarcAnalysis.RfbShort);
             Assert.DoesNotContain("np=none", healthCheck.DmarcAnalysis.UnknownTags);
         }

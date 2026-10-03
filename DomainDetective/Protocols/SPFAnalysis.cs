@@ -22,6 +22,12 @@ namespace DomainDetective {
     public partial class SpfAnalysis : IHasAssessments {
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
+        /// <summary>True when the latest policy discovery failed rather than proving policy absence.</summary>
+        public bool DnsQueryFailed { get; private set; }
+        /// <summary>Response code of a failed policy lookup, when a DNS response was received.</summary>
+        public DnsResponseCode? DnsQueryResponseCode { get; private set; }
+        /// <summary>Operational error evidence from the failed policy lookup.</summary>
+        public string? DnsQueryError { get; private set; }
         internal DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
         /// <summary>DNS TTL (seconds) of the SPF TXT record as returned by DNS.</summary>
@@ -172,6 +178,12 @@ namespace DomainDetective {
 
         /// <summary>Executes the reset operation.</summary>
         public void Reset() {
+            Assessments.Clear();
+            DenyAll = false;
+            _flatteningLimitations.Clear();
+            DnsQueryFailed = false;
+            DnsQueryResponseCode = null;
+            DnsQueryError = null;
             SpfRecord = string.Empty;
             SpfRecords = new List<string>();
             SpfRecordExists = false;
@@ -225,6 +237,15 @@ namespace DomainDetective {
             EffectiveSpfSends = false;
         }
 
+        internal void RecordDnsQueryFailure(Exception exception, InternalLogger logger) {
+            Reset();
+            DnsQueryFailed = true;
+            DnsQueryResponseCode = (exception as DnsQueryFailureException)?.Response.Status;
+            DnsQueryError = exception.Message;
+            using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: Subject);
+            logger.WriteWarningCode(SpfCodes.QueryFailed, "SPF DNS query failed for {0}: {1}", Subject ?? string.Empty, exception.Message);
+        }
+
         /// <summary>Analyzes spf records.</summary>
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: Subject);
@@ -259,7 +280,7 @@ namespace DomainDetective {
             // However for analysis we only need the record text. Prefer Data, but fall back to DataRaw when supplied directly (tests).
             if (txtRecords.Count == 1) {
                 var first = txtRecords.First();
-                SpfRecord = TrimQuotes(first.DataRaw ?? first.Data ?? string.Empty);
+                SpfRecord = first.TxtConcatenatedData;
             } else {
                 // if there are multiple records, we need to join them together to analyze them
                 SpfRecord = string.Join(" ", SpfRecords);
@@ -271,7 +292,7 @@ namespace DomainDetective {
             CheckCharacterLimits(txtRecords);
 
             // check the SPF record starts correctly
-            StartsCorrectly = StartsCorrectly || SpfRecord.StartsWith("v=spf1", StringComparison.OrdinalIgnoreCase);
+            StartsCorrectly = IsSpfPolicyRecord(SpfRecord);
 
             // Emit high-level assessments for presence/version/length
             if (!SpfRecordExists) {
@@ -289,6 +310,7 @@ namespace DomainDetective {
 
             // loop through the parts of the SPF record for remaining checks
             var parts = TokenizeSpfRecord(SpfRecord).ToArray();
+            PermError |= SpfRecordExists && !TryValidateSpfSyntax(SpfRecord, out _, out _, out _);
             DebugTokens = parts;
             if (DebugSpf) {
                 try { System.Console.Error.WriteLine($"[SPF DEBUG] StartsCorrectly={StartsCorrectly} SpfRecord='{SpfRecord}'"); } catch { }
@@ -298,7 +320,7 @@ namespace DomainDetective {
             }
 
             // check that the SPF record does not exceed 10 DNS lookups
-            int dnsLookups = await CountDnsLookups(parts, _visitedDomains, new List<string>(), logger);
+            int dnsLookups = PermError || MultipleSpfRecords ? 0 : await CountDnsLookups(parts, _visitedDomains, new List<string>(), logger);
             DnsLookupsCount = dnsLookups;
             ExceedsDnsLookups = ExceedsDnsLookups || DnsLookupsCount > 10;
 
@@ -306,7 +328,7 @@ namespace DomainDetective {
             MultipleAllMechanisms = MultipleAllMechanisms || CountAllMechanisms(parts) > 1;
 
             if (MultipleAllMechanisms) {
-                logger?.WriteWarningCode(SpfCodes.AllMultiple, "SPF contains multiple 'all' mechanisms; only the last is effective.");
+                logger?.WriteWarningCode(SpfCodes.AllMultiple, "SPF contains multiple 'all' mechanisms; only the first is effective.");
             }
 
             // add the parts to the appropriate lists with provenance
@@ -348,7 +370,7 @@ namespace DomainDetective {
                     .Select(t => t.Trim('"'))
                     .ToArray();
                 // Find the last occurrence of an all-mechanism token without relying on Reverse()
-                var rawAll = rawTokens.LastOrDefault(t => IsAllMechanism(t));
+                var rawAll = rawTokens.FirstOrDefault(t => IsAllMechanism(t));
                 if (!string.IsNullOrWhiteSpace(rawAll)) {
                     AllMechanism = rawAll;
                 }
@@ -362,9 +384,8 @@ namespace DomainDetective {
 
             // Detect deny-all posture: no allow mechanisms and terminal -all.
             try {
-                bool allow = Ipv4Records.Count > 0 || Ipv6Records.Count > 0 || ARecords.Count > 0 || MxRecords.Count > 0 ||
-                            PtrRecords.Count > 0 || ExistsRecords.Count > 0 || IncludeRecords.Count > 0 || HasRedirect;
-                DenyAll = SpfRecordExists && !allow && AllMechanism?.Equals("-all", StringComparison.OrdinalIgnoreCase) == true;
+                DenyAll = SpfRecordExists && !PermError && !MultipleSpfRecords
+                    && parts.Skip(1).FirstOrDefault(term => !TryGetSpfModifier(term, out _, out _))?.Equals("-all", StringComparison.OrdinalIgnoreCase) == true;
             } catch {
                 DenyAll = false;
             }
@@ -373,7 +394,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(AllMechanism)) {
                 logger?.WriteWarningCode(SpfCodes.AllMissing, "No terminal '-all' mechanism present; consider adding '-all'.");
             } else if (!AllMechanism!.Equals("-all", StringComparison.OrdinalIgnoreCase)) {
-                logger?.WriteWarningCode(SpfCodes.AllSoft, $"SPF ends with '{AllMechanism}'. Consider '-all' once senders are validated.");
+                logger?.WriteWarningCode(SpfCodes.AllSoft, $"SPF's first all mechanism is '{AllMechanism}'. Consider '-all' once senders are validated.");
             }
 
             // Build provenance tree for mechanisms (top-level + includes/redirects)

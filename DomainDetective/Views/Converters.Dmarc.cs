@@ -25,6 +25,10 @@ public static partial class Converters
             StartsCorrectly = analysis.StartsCorrectly,
             IsPolicyValid = analysis.IsPolicyValid,
             Policy = analysis.Policy,
+            EffectivePolicy = analysis.EffectivePolicyShort,
+            IsTestMode = analysis.IsTestMode,
+            DnsQueryFailed = analysis.DnsQueryFailed,
+            ReportingQueryFailed = analysis.ReportingQueryFailed,
             SubPolicy = analysis.SubPolicy,
             NonexistentPolicy = analysis.NonexistentPolicy,
             PublicSuffixPolicy = analysis.PublicSuffixPolicy,
@@ -103,6 +107,14 @@ public class DmarcRecordInfo
     public bool IsPolicyValid { get; set; }
     /// <summary>Policy (p=).</summary>
     public string Policy { get; set; } = string.Empty;
+    /// <summary>Policy governing the subject after inheritance, fallback and test mode.</summary>
+    public string EffectivePolicy { get; set; } = string.Empty;
+    /// <summary>Whether the published policy enables test mode.</summary>
+    public bool IsTestMode { get; set; }
+    /// <summary>Whether policy discovery failed.</summary>
+    public bool DnsQueryFailed { get; set; }
+    /// <summary>Whether auxiliary reporting queries failed while preserving policy evidence.</summary>
+    public bool ReportingQueryFailed { get; set; }
     /// <summary>Subdomain policy (sp=).</summary>
     public string SubPolicy { get; set; } = string.Empty;
     /// <summary>Nonexistent domain policy (np=, DMARCbis).</summary>
