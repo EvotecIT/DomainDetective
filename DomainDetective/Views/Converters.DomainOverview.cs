@@ -320,9 +320,9 @@ public static partial class Converters {
     private static AggregateCheckStatusInfo BuildDomainDaneStatus(DaneRecordInfo info) => new AggregateCheckStatusInfo {
         Key = "dane",
         Label = "DANE",
-        State = info.NumberOfRecords == 0 ? AggregateCheckState.Info : DaneAuthenticationCheckState(info),
-        Value = info.NumberOfRecords > 0 ? $"{info.ValidRecordCount} valid" : "Missing",
-        Detail = info.NumberOfRecords > 0 ? $"{info.RecommendedRecordCount} recommended TLSA record(s)" : "No TLSA records published."
+        State = info.HasAuthenticationFailures || info.ErrorCount > 0 ? AggregateCheckState.Fail : info.DnsQueryFailed ? AggregateCheckState.Warning : info.NumberOfRecords == 0 ? AggregateCheckState.Info : DaneAuthenticationCheckState(info),
+        Value = info.NumberOfRecords > 0 ? $"{info.ValidRecordCount} valid" : info.DnsQueryFailed ? "Query failed" : "Missing",
+        Detail = info.DnsQueryFailed ? "DNS lookup failed; TLSA coverage was not established for every service." : info.NumberOfRecords > 0 ? $"{info.RecommendedRecordCount} recommended TLSA record(s)" : "No TLSA records published."
     };
 
     private static AggregateCheckStatusInfo BuildDomainDnssecStatus(DnsSecInfo info) => new AggregateCheckStatusInfo {

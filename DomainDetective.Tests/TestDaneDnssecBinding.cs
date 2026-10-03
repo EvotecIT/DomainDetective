@@ -11,6 +11,47 @@ namespace DomainDetective.Tests;
 
 public class TestDaneDnssecBinding {
     [Theory]
+    [InlineData("ports")]
+    [InlineData("services")]
+    [InlineData("https")]
+    [InlineData("smtp-mx")]
+    public async Task ResolverFailureDoesNotClaimTlsaAbsence(string route) {
+        using var check = new DomainHealthCheck();
+        check.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) =>
+            Task.FromResult(new DnsResponse { Status = DnsResponseCode.ServerFailure });
+
+        switch (route) {
+            case "ports":
+                await check.VerifyDANE("example.com", new[] { 443 });
+                break;
+            case "services":
+                await check.VerifyDANE(new[] { new ServiceDefinition("example.com", 443) });
+                break;
+            case "https":
+                await check.VerifyDANE("example.com", new[] { ServiceType.HTTPS });
+                break;
+            default:
+                await check.VerifyDANE("example.com", new[] { ServiceType.SMTP });
+                break;
+        }
+
+        Assert.True(check.DaneAnalysis.DnsQueryFailed);
+        Assert.Single(check.DaneAnalysis.FailedDnsQueries);
+        Assert.Contains(check.DaneAnalysis.Assessments, assessment => assessment.Code == DaneCodes.QueryFailed);
+        Assert.DoesNotContain(check.DaneAnalysis.Assessments, assessment => assessment.Code == DaneCodes.NoRecords);
+        Assert.DoesNotContain(DomainDetective.Narratives.DaneNarrative.Build(check.DaneAnalysis).Highlights,
+            highlight => highlight == "No TLSA records published.");
+        var view = DomainDetective.Views.Converters.Convert(check.DaneAnalysis);
+        Assert.True(view.DnsQueryFailed);
+        Assert.Equal("Query failed", Assert.Single(
+            DomainDetective.Views.Converters.ConvertDomainOverview(check, "example.com").MailDnsChecks,
+            status => status.Key == "dane").Value);
+        Assert.Equal("Query failed", Assert.Single(
+            DomainDetective.Views.Converters.ConvertMicrosoft365Overview(check, "example.com").MailDnsChecks,
+            status => status.Key == "dane").Value);
+    }
+
+    [Theory]
     [InlineData("same", DaneAuthenticationStatus.Authenticated)]
     [InlineData("changed", DaneAuthenticationStatus.Inconclusive)]
     [InlineData("foreign-extra", DaneAuthenticationStatus.Inconclusive)]
@@ -121,6 +162,8 @@ public class TestDaneDnssecBinding {
         Assert.Equal(1, queries);
         Assert.Equal("_443._tcp.example.com", Assert.Single(check.DaneAnalysis.QueriedNames));
         Assert.Empty(check.DaneAnalysis.AnalysisResults);
+        Assert.False(check.DaneAnalysis.DnsQueryFailed);
+        Assert.Contains(check.DaneAnalysis.Assessments, assessment => assessment.Code == DaneCodes.NoRecords);
         Assert.False(check.DaneAnalysis.AllServicesAuthenticated);
     }
 }

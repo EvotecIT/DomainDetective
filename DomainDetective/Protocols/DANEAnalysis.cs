@@ -40,6 +40,18 @@ namespace DomainDetective {
         /// <summary>Fully qualified TLSA owner names that were queried (e.g., _443._tcp.example.com).</summary>
         public List<string> QueriedNames { get; private set; } = new List<string>();
 
+        private readonly List<string> _failedDnsQueries = new List<string>();
+        /// <summary>True when service discovery could not establish TLSA presence or absence for every query.</summary>
+        public bool DnsQueryFailed => _failedDnsQueries.Count > 0;
+        /// <summary>DNS names whose service discovery queries failed.</summary>
+        public IReadOnlyList<string> FailedDnsQueries => _failedDnsQueries;
+
+        internal void RecordDnsQueryFailure(string name, string detail, InternalLogger logger) {
+            if (_failedDnsQueries.Contains(name, StringComparer.OrdinalIgnoreCase)) return;
+            _failedDnsQueries.Add(name);
+            logger.WriteWarningCode(DaneCodes.QueryFailed, "DANE DNS query failed for {0}: {1}", name, detail);
+        }
+
         /// <summary>Ports that were probed for TLSA lookups.</summary>
         public List<int> QueriedPorts { get; private set; } = new List<int>();
 
@@ -60,6 +72,7 @@ namespace DomainDetective {
         /// <summary>Executes the reset operation.</summary>
         public void Reset() {
             ResetResults();
+            _failedDnsQueries.Clear();
             QueriedNames = new List<string>();
             QueriedPorts = new List<int>();
             QueriedServiceTypes = new List<ServiceType>();

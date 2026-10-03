@@ -15,6 +15,15 @@ internal sealed class DaneRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Medium,
             Verify = "dig _25._tcp.mail.example.com TLSA and validate fields."
         };
+        map[DaneCodes.QueryFailed] = new RecommendationAdvice {
+            Code = DaneCodes.QueryFailed,
+            Title = "DANE DNS query failed",
+            Why = "A failed DNS lookup cannot establish whether a service publishes TLSA records.",
+            How = "Retry the TLSA or MX lookup and check resolver availability before changing the policy.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "dane", "tlsa", "dns" },
+            Effort = RecommendationEffort.Low
+        };
         map[DaneCodes.UsageNotNumeric] = new RecommendationAdvice {
             Code = DaneCodes.UsageNotNumeric,
             Title = "TLSA usage not numeric",

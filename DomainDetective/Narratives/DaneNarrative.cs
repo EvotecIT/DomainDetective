@@ -30,7 +30,11 @@ public static class DaneNarrative
         var negatives = new List<string>();
         var remediations = new List<string>();
 
-        if (dane == null || dane.NumberOfRecords == 0)
+        if (dane?.DnsQueryFailed == true)
+        {
+            hi.Add("TLSA service discovery is incomplete because a DNS query failed.");
+        }
+        if ((dane == null || dane.NumberOfRecords == 0) && dane?.DnsQueryFailed != true)
         {
             hi.Add("No TLSA records published.");
         }

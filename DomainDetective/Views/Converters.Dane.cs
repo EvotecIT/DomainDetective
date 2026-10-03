@@ -26,6 +26,8 @@ public static partial class Converters
             HasDuplicateRecords = analysis.HasDuplicateRecords,
             HasInvalidRecords = analysis.HasInvalidRecords,
             QueriedNames = analysis.QueriedNames.ToList(),
+            DnsQueryFailed = analysis.DnsQueryFailed,
+            FailedDnsQueries = analysis.FailedDnsQueries.ToList(),
             QueriedPorts = analysis.QueriedPorts.ToList(),
             QueriedServiceTypes = analysis.QueriedServiceTypes.Select(static serviceType => serviceType.ToString()).ToList(),
             Records = records,
@@ -40,7 +42,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{analysis.NumberOfRecords} records; invalid {(analysis.HasInvalidRecords ? "yes" : "no")}",
+            Summary = $"{analysis.NumberOfRecords} records; invalid {(analysis.HasInvalidRecords ? "yes" : "no")}{(analysis.DnsQueryFailed ? "; DNS query failed" : string.Empty)}",
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
@@ -76,6 +78,10 @@ public class DaneRecordInfo
     public bool HasInvalidRecords { get; set; }
     /// <summary>Gets or sets the queried names value.</summary>
     public IReadOnlyList<string> QueriedNames { get; set; } = System.Array.Empty<string>();
+    /// <summary>Whether TLSA or MX service discovery failed for at least one DNS name.</summary>
+    public bool DnsQueryFailed { get; set; }
+    /// <summary>DNS names whose service discovery queries failed.</summary>
+    public IReadOnlyList<string> FailedDnsQueries { get; set; } = System.Array.Empty<string>();
     /// <summary>Gets or sets the queried ports value.</summary>
     public IReadOnlyList<int> QueriedPorts { get; set; } = System.Array.Empty<int>();
     /// <summary>Gets or sets the queried service types value.</summary>
