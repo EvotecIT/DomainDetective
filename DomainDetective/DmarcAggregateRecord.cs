@@ -46,6 +46,17 @@ public sealed class DmarcAggregateRecord {
     /// <summary>DKIM result (auth_results/dkim/result).</summary>
     public string? DkimResult { get; set; }
 
+    /// <summary>All reported DKIM observations, in report order; legacy scalar properties project the first.</summary>
+    public List<DmarcDkimAuthenticationResult> DkimResults { get; } = new();
+    /// <summary>All reported SPF observations, including scope; legacy scalar properties project the first.</summary>
+    public List<DmarcSpfAuthenticationResult> SpfResults { get; } = new();
+    /// <summary>Envelope sender domain recorded by the reporter.</summary>
+    public string? EnvelopeFrom { get; set; }
+    /// <summary>Envelope recipient domain recorded by the reporter.</summary>
+    public string? EnvelopeTo { get; set; }
+    /// <summary>Uninterpreted record-level extension elements with their XML namespaces.</summary>
+    public List<string> Extensions { get; } = new();
+
     /// <summary>Policy evaluation reasons (policy_evaluated/reason/type and comments).</summary>
     public List<string> Reasons { get; set; } = new List<string>();
 
@@ -55,4 +66,3 @@ public sealed class DmarcAggregateRecord {
     /// <summary>Enriched: Country derived from SourceIp.</summary>
     public string? Country { get; set; }
 }
-
