@@ -56,7 +56,8 @@ public static class DaneNarrative
                     DaneAuthenticationStatus.Inconclusive => "Service authentication evidence is incomplete.",
                     _ => "Service authentication was not checked."
                 });
-                if (!string.IsNullOrEmpty(r.AuthenticationExplanation)) det.Add(r.AuthenticationExplanation);
+                var explanation = r.AuthenticationExplanation;
+                if (explanation != null && explanation.Length > 0) det.Add(explanation);
                 det.Add($"Usage: {r.CertificateUsage}; Selector: {r.SelectorField}; Matching: {r.MatchingTypeField}; Length: {r.LengthOfCertificateAssociationData}");
             }
         }
