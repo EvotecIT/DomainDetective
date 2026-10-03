@@ -92,7 +92,7 @@ public class DaneRecordInfo
     public bool AllCertificateAssociationsMatch { get; set; }
     /// <summary>Whether service authentication was evaluated.</summary>
     public bool AuthenticationValidationPerformed { get; set; }
-    /// <summary>Whether every service with usable TLSA records has an authenticated alternative.</summary>
+    /// <summary>Whether every queried service has an authenticated TLSA alternative.</summary>
     public bool AllServicesAuthenticated { get; set; }
     /// <summary>Whether a service failed every usable TLSA alternative.</summary>
     public bool HasAuthenticationFailures { get; set; }

@@ -11,10 +11,14 @@ namespace DomainDetective.Tests;
 
 public class TestDaneDnssecBinding {
     [Theory]
-    [InlineData(true, false, DaneAuthenticationStatus.Authenticated)]
-    [InlineData(false, false, DaneAuthenticationStatus.Inconclusive)]
-    [InlineData(false, true, DaneAuthenticationStatus.Inconclusive)]
-    public async Task LiveTlsAuthenticationUsesTheSameValidatedTlsaData(bool sameRecord, bool unrelatedOwner, DaneAuthenticationStatus expected) {
+    [InlineData("same", DaneAuthenticationStatus.Authenticated)]
+    [InlineData("changed", DaneAuthenticationStatus.Inconclusive)]
+    [InlineData("foreign-extra", DaneAuthenticationStatus.Inconclusive)]
+    [InlineData("foreign-only", DaneAuthenticationStatus.NotChecked)]
+    [InlineData("alias", DaneAuthenticationStatus.Authenticated)]
+    [InlineData("mixed-foreign", DaneAuthenticationStatus.Authenticated)]
+    public async Task LiveTlsAuthenticationUsesTheSameValidatedTlsaData(string scenario, DaneAuthenticationStatus expected) {
+        bool sameRecord = scenario == "same" || scenario == "alias" || scenario == "foreign-only" || scenario == "mixed-foreign";
         using RSA key = RSA.Create(2048);
         var request = new CertificateRequest("CN=example.com", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         using X509Certificate2 created = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
@@ -39,30 +43,85 @@ public class TestDaneDnssecBinding {
             }, guard.Token);
         }, guard.Token);
         try {
-            using var check = new DomainHealthCheck { OutboundAddressResolver = (_, _) => Task.FromResult<IReadOnlyList<IPAddress>>(new[] { IPAddress.Loopback }) };
+            var outboundHosts = new List<string>();
+            using var check = new DomainHealthCheck { OutboundAddressResolver = (host, _) => {
+                outboundHosts.Add(host);
+                return Task.FromResult<IReadOnlyList<IPAddress>>(new[] { IPAddress.Loopback });
+            } };
             int tlsaQueries = 0;
             check.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
                 var response = new DnsResponse { Status = DnsResponseCode.NoError };
                 if (type == DnsRecordType.TLSA) {
                     int query = Interlocked.Increment(ref tlsaQueries);
-                    response.Answers = new[] { new DnsAnswer { Name = owner, Type = type, DataRaw = "3 0 1 " + (query == 1 || sameRecord ? digest : new string('0', 64)) } };
-                    if (query > 1 && unrelatedOwner) response.Answers = response.Answers.Append(new DnsAnswer {
+                    string answerOwner = scenario == "foreign-only" || scenario == "alias" ||
+                        (scenario == "mixed-foreign" && name != owner) ? $"_{port}._tcp.unrelated.example" : owner;
+                    response.Answers = new[] { new DnsAnswer { Name = answerOwner, Type = type, DataRaw = "3 0 1 " + (query == 1 || sameRecord ? digest : new string('0', 64)) } };
+                    if (query > 1 && scenario == "foreign-extra") response.Answers = response.Answers.Append(new DnsAnswer {
                         Name = $"_{port}._tcp.unrelated.example", Type = type, DataRaw = "3 0 1 " + digest
                     }).ToArray();
+                    if (scenario == "alias") typeof(DnsResponse).GetProperty(nameof(DnsResponse.RequestedAnswerPresent))!.SetValue(response, true);
                     typeof(DnsResponse).GetProperty(nameof(DnsResponse.DnsSecValidationStatus))!
                         .SetValue(response, query > 1 ? DnsSecValidationStatus.Secure : DnsSecValidationStatus.NotRequested);
                 }
                 return Task.FromResult(response);
             };
-            await check.VerifyDANE("example.com", new[] { port }, guard.Token);
-            await server;
-            Assert.Equal(2, tlsaQueries);
-            Assert.Equal(expected, Assert.Single(check.DaneAnalysis.AnalysisResults).AuthenticationStatus);
-            Assert.Equal(sameRecord, check.DaneAnalysis.AllServicesAuthenticated);
+            if (scenario == "mixed-foreign") {
+                await check.VerifyDANE(new[] {
+                    new ServiceDefinition("example.com", port), new ServiceDefinition("other.example", port)
+                }, guard.Token);
+            } else {
+                await check.VerifyDANE("example.com", new[] { port }, guard.Token);
+            }
+            if (scenario == "foreign-only") {
+                Assert.Empty(check.DaneAnalysis.AnalysisResults);
+                Assert.Empty(outboundHosts);
+                Assert.Equal(1, tlsaQueries);
+                Assert.False(check.DaneAnalysis.AllServicesAuthenticated);
+            } else {
+                await server;
+                Assert.Equal(scenario == "mixed-foreign" ? 3 : 2, tlsaQueries);
+                Assert.Equal(expected, Assert.Single(check.DaneAnalysis.AnalysisResults).AuthenticationStatus);
+                Assert.Equal(owner, Assert.Single(check.DaneAnalysis.AnalysisResults).DomainName);
+                Assert.Contains("example.com", outboundHosts);
+                Assert.DoesNotContain("unrelated.example", outboundHosts);
+                Assert.Equal(sameRecord && scenario != "mixed-foreign", check.DaneAnalysis.AllServicesAuthenticated);
+            }
         } finally {
             guard.Cancel();
             listener.Stop();
+            try { await server; }
+            catch (Exception exception) when (guard.IsCancellationRequested && (exception is OperationCanceledException || exception is SocketException)) { }
         }
+    }
+
+    [Theory]
+    [InlineData("services")]
+    [InlineData("service-type")]
+    public async Task ForeignTlsaOwnerCannotAuthenticateAnExplicitOrNamedService(string route) {
+        using var check = new DomainHealthCheck();
+        int queries = 0;
+        check.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
+            Assert.Equal(DnsRecordType.TLSA, type);
+            Interlocked.Increment(ref queries);
+            return Task.FromResult(new DnsResponse {
+                Status = DnsResponseCode.NoError,
+                Answers = new[] { new DnsAnswer {
+                    Name = "_443._tcp.unrelated.example", Type = DnsRecordType.TLSA,
+                    DataRaw = "3 1 1 " + new string('A', 64)
+                } }
+            });
+        };
+
+        if (route == "services") {
+            await check.VerifyDANE(new[] { new ServiceDefinition("example.com", 443) });
+        } else {
+            await check.VerifyDANE("example.com", new[] { ServiceType.HTTPS });
+        }
+
+        Assert.Equal(1, queries);
+        Assert.Equal("_443._tcp.example.com", Assert.Single(check.DaneAnalysis.QueriedNames));
+        Assert.Empty(check.DaneAnalysis.AnalysisResults);
+        Assert.False(check.DaneAnalysis.AllServicesAuthenticated);
     }
 }
 #endif

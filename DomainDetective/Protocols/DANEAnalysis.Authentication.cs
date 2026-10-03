@@ -21,10 +21,13 @@ public partial class DANEAnalysis {
     public bool HasAuthenticationFailures => AnalysisResults.Where(record => record.ValidDANERecord)
         .GroupBy(record => record.DomainName, StringComparer.OrdinalIgnoreCase)
         .Any(group => group.All(record => record.AuthenticationStatus == DaneAuthenticationStatus.Failed));
-    /// <summary>Whether every TLSA owner with usable records has at least one authenticated association.</summary>
+    /// <summary>Whether every queried service has at least one authenticated TLSA association.</summary>
     public bool AllServicesAuthenticated => AnalysisResults.Any(record => record.ValidDANERecord)
-        && AnalysisResults.Where(record => record.ValidDANERecord).GroupBy(record => record.DomainName, StringComparer.OrdinalIgnoreCase)
-            .All(group => group.Any(record => record.AuthenticationStatus == DaneAuthenticationStatus.Authenticated));
+        && (QueriedNames.Count > 0 ? QueriedNames : AnalysisResults.Where(record => record.ValidDANERecord)
+                .Select(record => record.DomainName).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
+            .All(owner => AnalysisResults.Any(record => record.ValidDANERecord
+                && record.DomainName.Equals(owner, StringComparison.OrdinalIgnoreCase)
+                && record.AuthenticationStatus == DaneAuthenticationStatus.Authenticated));
 
     private static void AuthenticateCertificate(DANERecordAnalysis record, DaneCertificateEvidence evidence, X509Certificate2[] matching) {
         if (record.CertificateUsage != TlsaUsage.DaneTa && matching.Length == 0) {

@@ -17,10 +17,13 @@ namespace DomainDetective {
 
         private async Task<DnsAnswer[]> QueryDaneDns(string name, CancellationToken cancellationToken) {
             if (DaneAnalysis.QueryDnsOverride != null) {
-                return await DaneAnalysis.QueryDnsOverride(name, DnsRecordType.TLSA);
+                return DANEAnalysis.BindServiceTlsaAnswers(name,
+                    await DaneAnalysis.QueryDnsOverride(name, DnsRecordType.TLSA));
             }
 
-            return await DnsConfiguration.QueryDNS(name, DnsRecordType.TLSA, cancellationToken: cancellationToken);
+            var responses = await DnsConfiguration.QueryFullDNSOrdered(new[] { name }, DnsRecordType.TLSA,
+                cancellationToken: cancellationToken);
+            return DANEAnalysis.BindServiceTlsaAnswers(name, responses[0]);
         }
     }
 }

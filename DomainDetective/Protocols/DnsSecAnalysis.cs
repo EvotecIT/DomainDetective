@@ -146,9 +146,11 @@ namespace DomainDetective {
                 : "DnsClientXValidationNotAvailable";
             ValidationStatus = MapValidationStatus(subjectResponse.DnsSecValidationStatus);
             ChainValid = subjectResponse.DnsSecValidationStatus == DnsSecValidationStatus.Secure;
-            if (ChainValid) ValidatedSubjectRecords = (subjectResponse.Answers ?? Array.Empty<DnsAnswer>())
-                .Where(answer => answer.Type == subjectRecordType
-                    && string.Equals(answer.Name?.TrimEnd('.'), domainName.TrimEnd('.'), StringComparison.OrdinalIgnoreCase))
+            if (ChainValid) ValidatedSubjectRecords = (subjectRecordType == DnsRecordType.TLSA
+                    ? DANEAnalysis.BindServiceTlsaAnswers(domainName, subjectResponse)
+                    : (subjectResponse.Answers ?? Array.Empty<DnsAnswer>())
+                        .Where(answer => answer.Type == subjectRecordType
+                            && string.Equals(answer.Name?.TrimEnd('.'), domainName.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)))
                 .Select(answer => new DnsAnswer { Name = answer.Name, Type = answer.Type, DataRaw = answer.Data ?? answer.DataRaw })
                 .ToArray();
             DsMatch = ChainValid;
