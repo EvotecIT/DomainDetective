@@ -66,7 +66,9 @@ internal sealed class MessagePublicKeyLocator : DkimPublicKeyLocatorBase {
                 _keyPolicies.Add(host, policy);
             }
             policy.ValidateUse(domain, _algorithm, _identity);
-            return GetPublicKey(record);
+            // Policy accepts RFC 6376 FWS; give the cryptographic decoder only
+            // normalized key material, rather than relying on its tag parser.
+            return GetPublicKey("k=" + policy.KeyType + "; p=" + policy.PublicKey);
         } catch (OperationCanceledException) { throw; }
         catch (DkimKeyPolicyException ex) { PolicyFailures.Add(ex.Message); throw; }
         catch (Exception ex) {

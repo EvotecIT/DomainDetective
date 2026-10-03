@@ -7,6 +7,7 @@ namespace DomainDetective.Tests;
 public partial class TestMessageSignatureVerification {
     [Theory]
     [InlineData("v=DKIM1; k=rsa;", MessageSignatureStatus.Valid)]
+    [InlineData("v=DKIM1; k = rsa;", MessageSignatureStatus.Valid)]
     [InlineData("k=rsa;", MessageSignatureStatus.Valid)]
     [InlineData("v=DKIM1; h=sha256; s=email; t=y:s; k=rsa;", MessageSignatureStatus.Valid)]
     [InlineData("v=DKIM2; k=rsa;", MessageSignatureStatus.Invalid)]
@@ -15,6 +16,9 @@ public partial class TestMessageSignatureVerification {
     [InlineData("v=DKIM1; h=sha1; k=rsa;", MessageSignatureStatus.Invalid)]
     [InlineData("v=DKIM1; s=other; k=rsa;", MessageSignatureStatus.Invalid)]
     [InlineData("v=DKIM1; p=QUJD; k=rsa;", MessageSignatureStatus.Invalid)]
+    [InlineData("v=DKIM1; k=;", MessageSignatureStatus.Invalid)]
+    [InlineData("v=DKIM1; k=rsa; s=email:future-;", MessageSignatureStatus.Invalid)]
+    [InlineData("v=DKIM1; k=rsa; t=y:future-;", MessageSignatureStatus.Invalid)]
     public async Task KeyPolicyConstrainsRealSignaturesAndDnsAssessment(string policy, MessageSignatureStatus expected) {
         var sample = SignedMessage();
         string key = sample.Options.PublicKeyRecords.Single().Value.Split(new[] { "p=" }, StringSplitOptions.None)[1];
@@ -38,6 +42,16 @@ public partial class TestMessageSignatureVerification {
         using var health = new DomainHealthCheck();
         var signature = Assert.Single((await health.AnalyzeMessageAsync(sample.Bytes, sample.Options)).SignatureVerification);
         Assert.True(expected == signature.Status, signature.Explanation);
+    }
+
+    [Fact]
+    public async Task PublicKeyTagWhitespacePreservesCryptographicVerification() {
+        var sample = SignedMessage();
+        sample.Options.PublicKeyRecords["s1._domainkey.example.com"] = sample.Options.PublicKeyRecords.Single().Value
+            .Replace("k=rsa", "k = rsa").Replace("p=", "p = ");
+        using var health = new DomainHealthCheck();
+        var signature = Assert.Single((await health.AnalyzeMessageAsync(sample.Bytes, sample.Options)).SignatureVerification);
+        Assert.True(signature.Status == MessageSignatureStatus.Valid, signature.Explanation);
     }
 
     [Fact]

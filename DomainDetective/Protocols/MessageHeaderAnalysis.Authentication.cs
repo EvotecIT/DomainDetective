@@ -168,37 +168,13 @@ public partial class MessageHeaderAnalysis {
     }
     private static string NormalizeDomainIdentity(string? value) {
         if (string.IsNullOrWhiteSpace(value)) { return string.Empty; }
-        try { return Helpers.DomainHelper.ValidateIdn(value!).ToLowerInvariant(); }
+        try { return Helpers.DomainHelper.ValidateIdn(value!).TrimEnd('.').ToLowerInvariant(); }
         catch (ArgumentException) { return string.Empty; }
     }
-    private static HashSet<MessageAuthenticationMethod> ConflictingDkimObservations(IEnumerable<MessageAuthenticationMethod> methods) {
-        var conflicts = new HashSet<MessageAuthenticationMethod>();
-        foreach (var domain in methods.GroupBy(method => GetIdentity(method, "header.d"), StringComparer.OrdinalIgnoreCase)) {
-            var observations = domain.ToArray();
-            for (int i = 0; i < observations.Length; i++) {
-                for (int j = i + 1; j < observations.Length; j++) {
-                    var first = observations[i];
-                    var second = observations[j];
-                    string firstSelector = GetIdentity(first, "header.s"), secondSelector = GetIdentity(second, "header.s");
-                    if (firstSelector.Length > 0 && secondSelector.Length > 0
-                        && !string.Equals(firstSelector, secondSelector, StringComparison.OrdinalIgnoreCase)) continue;
-                    string firstB = GetIdentity(first, "header.b"), secondB = GetIdentity(second, "header.b");
-                    // RFC 6008 prefixes are case-sensitive. Overlapping or omitted prefixes remain ambiguous.
-                    if (firstB.Length > 0 && secondB.Length > 0
-                        && !firstB.StartsWith(secondB, StringComparison.Ordinal) && !secondB.StartsWith(firstB, StringComparison.Ordinal)) continue;
-                    if (!string.Equals(first.Result, second.Result, StringComparison.OrdinalIgnoreCase)) {
-                        conflicts.Add(first); conflicts.Add(second);
-                    }
-                }
-            }
-        }
-        return conflicts;
-    }
-
     private static bool DkimObservationMatches(MessageAuthenticationMethod method, MessageDkimSignature signature) {
         if (method.DuplicateProperties.Count > 0
             || !string.Equals(NormalizeDomainIdentity(GetIdentity(method, "header.d")), NormalizeDomainIdentity(signature.Domain), StringComparison.OrdinalIgnoreCase)
-            || method.Properties.ContainsKey("header.s") && !string.Equals(GetIdentity(method, "header.s"), signature.Selector, StringComparison.OrdinalIgnoreCase)) return false;
+            || method.Properties.ContainsKey("header.s") && !string.Equals(NormalizeSelectorIdentity(GetIdentity(method, "header.s")), NormalizeSelectorIdentity(signature.Selector), StringComparison.Ordinal)) return false;
         if (!method.Properties.ContainsKey("header.b")) return true;
         string prefix = GetIdentity(method, "header.b");
         return prefix.Length > 0 && signature.Tags.TryGetValue("b", out var value)

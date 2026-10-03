@@ -25,8 +25,10 @@ internal sealed class DkimKeyRecord {
         result.Tags = tags;
         result.DuplicateTags = duplicate;
         result.VersionValid = !result.VersionPresent || record.Split(';')[0].Split('=')[0].Trim() == "v" && tags["v"] == "DKIM1";
+        const string word = @"[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?";
+        if (tags.TryGetValue("k", out var keyType) && !Regex.IsMatch(keyType, "^" + word + "$")) result.SyntaxValid = false;
         foreach (string name in new[] { "h", "s", "t" }) {
-            if (tags.TryGetValue(name, out var value) && List(value).Any(item => !Regex.IsMatch(item, name == "s" ? @"^(?:\*|[A-Za-z][A-Za-z0-9-]*)$" : @"^[A-Za-z][A-Za-z0-9-]*$"))) result.SyntaxValid = false;
+            if (tags.TryGetValue(name, out var value) && List(value).Any(item => !Regex.IsMatch(item, name == "s" ? "^(?:\\*|" + word + ")$" : "^" + word + "$"))) result.SyntaxValid = false;
         }
         return result;
     }

@@ -1,6 +1,33 @@
 namespace DomainDetective.Tests;
 
 public class TestMessageHeaderPolicy {
+    [Theory]
+    [InlineData("test", "test", "QUFB", "QUFBQUFB", true)]
+    [InlineData("test", "test", "QUFB", "quFB", false)]
+    [InlineData("first", "second", "", "QUFB", false)]
+    [InlineData("", "second", "QUFB", "QUFBQUFB", true)]
+    [InlineData("test", "test", "", "QkJC", true)]
+    public void ConflictRequiresCompatibleSelectorAndOverlappingPrefix(string firstSelector, string secondSelector, string firstPrefix, string secondPrefix, bool conflict) {
+        string Properties(string selector, string prefix) => " header.d=example.com"
+            + (selector.Length == 0 ? "" : " header.s=" + selector) + (prefix.Length == 0 ? "" : " header.b=" + prefix);
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.com\r\nAuthentication-Results: mx.example; dkim=pass" + Properties(firstSelector, firstPrefix)
+            + "; dkim=fail" + Properties(secondSelector, secondPrefix) + "\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.Equal(conflict, analysis.AuthenticationConflict);
+        Assert.Equal(conflict ? "ambiguous" : "pass", analysis.DkimResult);
+    }
+
+    [Fact]
+    public void ManyEquivalentObservationsRemainConsistentWithinTheHeaderLimit() {
+        string repeated = string.Concat(Enumerable.Repeat("; dkim=pass header.d=example.com header.s=test header.b=QUFB", 10000));
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.com\r\nAuthentication-Results: mx.example" + repeated + "\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.Equal(10000, Assert.Single(analysis.AuthenticationResults).Methods.Count);
+        Assert.False(analysis.AuthenticationConflict);
+        Assert.Equal("pass", analysis.DkimResult);
+    }
     [Fact]
     public void EncodedWordsCannotCreateTrustedAuthenticationProvenance() {
         var analysis = new MessageHeaderAnalysis();
@@ -47,5 +74,20 @@ public class TestMessageHeaderPolicy {
             "DKIM-Signature: d=example.com; s=test; h=from; b=QkJCQkJC\r\n" +
             "Authentication-Results: mx.example; dkim=pass header.d=example.com header.s=test\r\n");
         Assert.All(analysis.DkimSignatures, signature => Assert.Equal("ambiguous", signature.ReceiverResult));
+    }
+
+    [Theory]
+    [InlineData("bücher.com", "xn--bcher-kva.com", "test", "test")]
+    [InlineData("example.com", "example.com", "bücher", "xn--bcher-kva")]
+    public void InternationalizedIdentitiesHaveOneConflictBoundary(string firstDomain, string secondDomain, string firstSelector, string secondSelector) {
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse($"From: sender@{secondDomain}\r\n" +
+            $"DKIM-Signature: d={secondDomain}; s={secondSelector}; h=from; b=QUFBQUFB\r\n" +
+            $"Authentication-Results: mx.example; dkim=pass header.d={firstDomain} header.s={firstSelector} header.b=QUFB; dkim=fail header.d={secondDomain} header.s={secondSelector} header.b=QUFB\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.True(analysis.AuthenticationConflict);
+        Assert.Equal("ambiguous", analysis.DkimResult);
+        Assert.Equal("conflict", Assert.Single(analysis.DkimSignatures).ReceiverResult);
+        Assert.NotEqual("Strict", analysis.DkimAlignment);
     }
 }

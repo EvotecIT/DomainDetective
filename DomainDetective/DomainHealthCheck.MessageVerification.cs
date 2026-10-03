@@ -30,12 +30,12 @@ public partial class DomainHealthCheck {
         if (options.HeaderOptions.MaximumHeaderCharacters < 1 || headerBytes > (long)options.HeaderOptions.MaximumHeaderCharacters * 4) {
             throw new ArgumentException("MIME header exceeds MaximumHeaderCharacters.", nameof(messageBytes));
         }
-        var analysis = new MessageHeaderAnalysis();
-        analysis.Parse(Encoding.UTF8.GetString(messageBytes, 0, headerBytes), options.HeaderOptions, _logger);
-        analysis.HadBody = boundary >= 0 && boundary < messageBytes.Length;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var deadline = Stopwatch.StartNew();
         timeout.CancelAfter(options.Timeout);
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse(Encoding.UTF8.GetString(messageBytes, 0, headerBytes), options.HeaderOptions, _logger);
+        analysis.HadBody = boundary >= 0 && boundary < messageBytes.Length;
         using var stream = new MemoryStream(messageBytes, writable: false);
         MimeMessage message;
         try {
