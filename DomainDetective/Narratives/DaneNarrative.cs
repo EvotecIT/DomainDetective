@@ -50,6 +50,13 @@ public static class DaneNarrative
                     DaneAssociationMatchStatus.CheckFailed => "Certificate association could not be checked.",
                     _ => "Certificate association was not checked."
                 });
+                hi.Add(r.AuthenticationStatus switch {
+                    DaneAuthenticationStatus.Authenticated => "Service authentication satisfies the TLSA requirements.",
+                    DaneAuthenticationStatus.Failed => "Service authentication failed the TLSA requirements.",
+                    DaneAuthenticationStatus.Inconclusive => "Service authentication evidence is incomplete.",
+                    _ => "Service authentication was not checked."
+                });
+                if (!string.IsNullOrEmpty(r.AuthenticationExplanation)) det.Add(r.AuthenticationExplanation);
                 det.Add($"Usage: {r.CertificateUsage}; Selector: {r.SelectorField}; Matching: {r.MatchingTypeField}; Length: {r.LengthOfCertificateAssociationData}");
             }
         }

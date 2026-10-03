@@ -67,6 +67,7 @@ namespace DomainDetective {
 
         /// <summary>Gets a value indicating whether a response for the requested subject carried authenticated-data evidence.</summary>
         public bool SubjectAuthenticData { get; private set; }
+        internal IReadOnlyList<string> ValidatedSubjectRecords { get; private set; } = Array.Empty<string>();
 
         /// <summary>Describes the evidence used for the DNSSEC result.</summary>
         public string ValidationMethod { get; private set; } = string.Empty;
@@ -144,6 +145,7 @@ namespace DomainDetective {
                 : "DnsClientXValidationNotAvailable";
             ValidationStatus = MapValidationStatus(subjectResponse.DnsSecValidationStatus);
             ChainValid = subjectResponse.DnsSecValidationStatus == DnsSecValidationStatus.Secure;
+            if (ChainValid) ValidatedSubjectRecords = Values(subjectResponse, subjectRecordType);
             DsMatch = ChainValid;
 
             string validationMessage = string.IsNullOrWhiteSpace(subjectResponse.DnsSecValidationMessage)
@@ -234,6 +236,7 @@ namespace DomainDetective {
             ValidatedZone = null;
             ValidationMethod = "DnsClientXLocalValidation";
             ValidationStatus = DnssecValidationStatus.NotChecked;
+            ValidatedSubjectRecords = Array.Empty<string>();
             DnsKeys = Array.Empty<string>();
             Signatures = Array.Empty<string>();
             Rrsigs = Array.Empty<RrsigInfo>();

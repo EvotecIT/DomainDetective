@@ -291,6 +291,10 @@ namespace DomainDetective {
         public DaneAssociationMatchStatus AssociationMatchStatus { get; set; }
         /// <summary>Gets a value indicating whether live certificate evidence matched the association data.</summary>
         public bool CertificateMatches => AssociationMatchStatus == DaneAssociationMatchStatus.Match;
+        /// <summary>Authentication result, separate from matching association bytes.</summary>
+        public DaneAuthenticationStatus AuthenticationStatus { get; internal set; }
+        /// <summary>Reason for the current authentication result.</summary>
+        public string? AuthenticationExplanation { get; internal set; }
         /// <summary>Gets or sets whether the usage field is valid.</summary>
         public bool ValidUsage { get; set; }
         /// <summary>Gets or sets whether the selector field is valid.</summary>
