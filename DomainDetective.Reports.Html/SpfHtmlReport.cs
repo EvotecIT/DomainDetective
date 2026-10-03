@@ -11,6 +11,7 @@ public static class SpfHtmlReport
     /// <summary>Generates the HTML output.</summary>
     public static void Generate(string path, DomainDetective.SpfAnalysis spf, string domain, bool openInBrowser)
     {
+        var spfView = DomainDetective.Views.Converters.Convert(spf);
         using var document = new Document
         {
             Head =
@@ -56,9 +57,9 @@ public static class SpfHtmlReport
             page.Divider("Summary");
             page.Row(row =>
             {
-                InfoCard(row, "Record Present", spf.SpfRecordExists ? "Yes" : "No", spf.SpfRecordExists ? "#10B981" : "#EF4444");
-                InfoCard(row, "Starts Correctly", spf.StartsCorrectly ? "Yes" : "No", spf.StartsCorrectly ? "#10B981" : "#F59E0B");
-                InfoCard(row, "DNS Lookups", spf.DnsLookupsCount.ToString(), spf.ExceedsDnsLookups ? "#EF4444" : "#3B82F6");
+                InfoCard(row, "Record Present", spfView.RecordPresence, spfView.RecordPresence == "Unknown" ? "#F59E0B" : spf.SpfRecordExists ? "#10B981" : "#EF4444");
+                InfoCard(row, "Starts Correctly", spfView.StartsCorrectlyLabel, spfView.StartsCorrectlyLabel == "Unknown" ? "#F59E0B" : spf.StartsCorrectly ? "#10B981" : "#F59E0B");
+                InfoCard(row, "DNS Lookups", spf.DnsQueryFailed && !spf.SpfRecordExists ? "Unknown" : spf.DnsLookupsCount.ToString(), spf.DnsQueryFailed ? "#F59E0B" : spf.ExceedsDnsLookups ? "#EF4444" : "#3B82F6");
                 InfoCard(row, "Multiple 'all'", spf.MultipleAllMechanisms ? "Yes" : "No", spf.MultipleAllMechanisms ? "#EF4444" : "#3B82F6");
             });
 
@@ -379,5 +380,3 @@ public static class SpfHtmlReport
         }
     }
 }
-
-

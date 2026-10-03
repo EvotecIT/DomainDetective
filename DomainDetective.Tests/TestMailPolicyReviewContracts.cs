@@ -1,11 +1,89 @@
 using DnsClientX;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using DomainDetective.Narratives;
+using DomainDetective.Views;
 
 namespace DomainDetective.Tests;
 
 public class TestMailPolicyReviewContracts {
+    [Theory]
+    [InlineData("a", DnsRecordType.A)]
+    [InlineData("mx", DnsRecordType.MX)]
+    public async Task AddressProjectionReportsFailedResolverLookups(string mechanism, DnsRecordType failedType) {
+        var (check, _) = Create();
+        await check.CheckSPF("v=spf1 " + mechanism + " -all");
+        check.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => Task.FromResult(
+            new DnsResponse { Status = type == failedType ? DnsResponseCode.ServerFailure : DnsResponseCode.NoError });
+
+        var projection = await check.SpfAnalysis.GetFlattenedIpAnalysis("example.com");
+
+        Assert.False(check.SpfAnalysis.FlatteningComplete);
+        Assert.Contains(check.SpfAnalysis.FlatteningLimitations, reason => reason.Contains("lookup failed"));
+        Assert.False(projection.Complete);
+        var view = Converters.Convert(projection);
+        Assert.Equal("Warning", view.Status);
+        Assert.Contains(view.Assessments, assessment => assessment.Code == "SPF.Flattening.Incomplete");
+        Assert.False(Converters.Convert(check.SpfAnalysis).FlatteningComplete);
+    }
+
+    [Fact]
+    public async Task AddressProjectionTreatsSuccessfulEmptyAnswersAsComplete() {
+        var (check, _) = Create();
+        await check.CheckSPF("v=spf1 a -all");
+        check.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) =>
+            Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+
+        var projection = await check.SpfAnalysis.GetFlattenedIpAnalysis("example.com");
+
+        Assert.Empty(projection.UniqueIps);
+        Assert.True(projection.Complete);
+        Assert.Equal("OK", Converters.Convert(projection).Status);
+    }
+
+    [Fact]
+    public async Task FailedSpfDiscoveryCannotProduceACompleteEmptyProjection() {
+        var (check, _) = Create();
+        check.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) =>
+            Task.FromResult(new DnsResponse { Status = DnsResponseCode.ServerFailure });
+        await check.VerifySPF("example.com");
+
+        var projection = await check.SpfAnalysis.GetFlattenedIpAnalysis("example.com");
+
+        Assert.True(check.SpfAnalysis.DnsQueryFailed);
+        Assert.False(projection.Complete);
+        Assert.Contains(projection.Limitations, limitation => limitation.Contains("DNS query failed"));
+        Assert.Equal("Warning", Converters.Convert(projection).Status);
+    }
+
+    [Fact]
+    public async Task MailSummariesDescribeDiscoveryFailureWithoutClaimingMissingPolicy() {
+        var (check, _) = Create();
+        check.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) =>
+            Task.FromResult(new DnsResponse { Status = DnsResponseCode.ServerFailure });
+        await check.VerifySPF("example.com");
+        await check.VerifyDMARC("example.com");
+
+        var summary = check.BuildSummary();
+        Assert.True(summary.SpfDnsQueryFailed);
+        Assert.True(summary.DmarcDnsQueryFailed);
+        Assert.DoesNotContain(CheckDescriptions.Get(HealthCheckType.SPF)!.Remediation, summary.Hints);
+        Assert.DoesNotContain(CheckDescriptions.Get(HealthCheckType.DMARC)!.Remediation, summary.Hints);
+
+        Assert.DoesNotContain(SpfNarrative.Build(check.SpfAnalysis).Highlights,
+            highlight => highlight == "No SPF record is published.");
+        Assert.DoesNotContain(DmarcNarrative.Build(check.DmarcAnalysis).Highlights,
+            highlight => highlight == "No DMARC record is published.");
+        var domain = Converters.ConvertDomainOverview(check, "example.com");
+        var microsoft365 = Converters.ConvertMicrosoft365Overview(check, "example.com");
+        Assert.Equal("Query failed", Assert.Single(domain.MailDnsChecks, status => status.Key == "spf").Value);
+        Assert.Equal("Query failed", Assert.Single(domain.MailDnsChecks, status => status.Key == "dmarc").Value);
+        Assert.Equal("Query failed", Assert.Single(microsoft365.MailDnsChecks, status => status.Key == "spf").Value);
+        Assert.Equal("Query failed", Assert.Single(microsoft365.MailDnsChecks, status => status.Key == "dmarc").Value);
+    }
+
     [Fact]
     public async Task RepeatedMailAnalysisDoesNotRetainEarlierAbsenceClaims() {
         var (check, _) = Create();
@@ -230,6 +308,13 @@ public class TestMailPolicyReviewContracts {
         Assert.Equal(exists, check.DmarcAnalysis.SubjectDomainExists);
         Assert.Equal(status == DnsResponseCode.ServerFailure, check.DmarcAnalysis.DnsQueryFailed);
         Assert.DoesNotContain(check.DmarcAnalysis.Assessments, a => a.Code == DmarcCodes.MissingRecord);
+        if (status == DnsResponseCode.ServerFailure) {
+            Assert.Contains("DMARC record is published.", DmarcNarrative.Build(check.DmarcAnalysis).Highlights);
+            var overview = Converters.ConvertDomainOverview(check, "mail.example.com");
+            var dmarc = Assert.Single(overview.MailDnsChecks, item => item.Key == "dmarc");
+            Assert.NotEqual("Query failed", dmarc.Value);
+            Assert.Contains("full evaluation failed", dmarc.Detail);
+        }
     }
 
     private static DnsAnswer Txt(string text) => new() { Type = DnsRecordType.TXT, DataRaw = text };

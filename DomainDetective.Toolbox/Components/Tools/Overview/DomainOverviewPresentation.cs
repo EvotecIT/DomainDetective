@@ -430,13 +430,12 @@ internal static class DomainOverviewPresentation
 
     private static DomainOverviewDetailCardView BuildSpfCard(SpfRecordInfo info)
     {
-        var tags = new List<string>
-        {
-            info.SpfRecordExists ? "Published" : "Missing",
-            info.AllMechanism ?? "No all policy"
-        };
-
-        tags.Add(info.DnsLookupsCount + "/10 lookups");
+        bool queryFailed = info.DnsQueryFailed && !info.SpfRecordExists;
+        var tags = new List<string> { queryFailed ? "Query failed" : info.SpfRecordExists ? "Published" : "Missing" };
+        if (!queryFailed) {
+            tags.Add(info.AllMechanism ?? "No all policy");
+            tags.Add(info.DnsLookupsCount + "/10 lookups");
+        }
         if (info.HasRedirect)
         {
             tags.Add("Redirect");
@@ -462,8 +461,8 @@ internal static class DomainOverviewPresentation
         return new DomainOverviewDetailCardView
         {
             Title = "SPF policy",
-            ValueLabel = info.SpfRecordExists ? (info.AllMechanism ?? "Published") : "Missing",
-            Summary = $"DD evaluated SPF structure, lookup budget, includes, and flattening posture for the domain.",
+            ValueLabel = queryFailed ? "Query failed" : info.SpfRecordExists ? (info.AllMechanism ?? "Published") : "Missing",
+            Summary = queryFailed ? "SPF discovery failed; policy presence was not established." : "DD evaluated SPF structure, lookup budget, includes, and flattening posture for the domain.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -506,12 +505,13 @@ internal static class DomainOverviewPresentation
 
     private static DomainOverviewDetailCardView BuildDmarcCard(DmarcRecordInfo info)
     {
-        var tags = new List<string>
-        {
-            info.DmarcRecordExists ? "Published" : "Missing",
-            string.IsNullOrWhiteSpace(info.Policy) ? "No p=" : "p=" + info.Policy,
-            "rua " + (info.MailtoRua.Count + info.HttpRua.Count)
-        };
+        bool queryFailed = info.DnsQueryFailed && !info.DmarcRecordExists;
+        var tags = new List<string> { queryFailed ? "Query failed" : info.DmarcRecordExists ? "Published" : "Missing" };
+        if (!queryFailed) {
+            tags.Add(string.IsNullOrWhiteSpace(info.Policy) ? "No p=" : "p=" + info.Policy);
+            tags.Add("rua " + (info.MailtoRua.Count + info.HttpRua.Count));
+        }
+        if (info.DnsQueryFailed && info.DmarcRecordExists) tags.Add("Query incomplete");
 
         if (info.WeakPolicy)
         {
@@ -535,8 +535,8 @@ internal static class DomainOverviewPresentation
         return new DomainOverviewDetailCardView
         {
             Title = "DMARC policy",
-            ValueLabel = info.DmarcRecordExists ? (string.IsNullOrWhiteSpace(info.Policy) ? "Published" : info.Policy.ToUpperInvariant()) : "Missing",
-            Summary = "DD validated policy mode, alignment, and reporting destinations for the domain DMARC record.",
+            ValueLabel = queryFailed ? "Query failed" : info.DmarcRecordExists ? (string.IsNullOrWhiteSpace(info.Policy) ? "Published" : info.Policy.ToUpperInvariant()) : "Missing",
+            Summary = queryFailed ? "DMARC discovery failed; policy presence was not established." : info.DnsQueryFailed ? "A DNS query needed for full DMARC policy evaluation failed." : "DD validated policy mode, alignment, and reporting destinations for the domain DMARC record.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };

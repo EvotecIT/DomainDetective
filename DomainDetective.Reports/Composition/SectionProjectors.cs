@@ -12,11 +12,11 @@ public static partial class SectionProjectors
         var sec = new SpfSection { DnsLookupsCount = spf.DnsLookupsCount };
         sec.Summary.Add(("Status", spf.Status ?? "-"));
         sec.Summary.Add(("DNS Lookups", spf.DnsLookupsCount.ToString()));
-        sec.Summary.Add(("Record Present", spf.SpfRecordExists ? "Yes" : "No"));
+        sec.Summary.Add(("Record Present", spf.RecordPresence));
         sec.Summary.Add(("DNS TTL (s)", spf.DnsRecordTtl?.ToString() ?? "-"));
         sec.Summary.Add(("CNAME Resolved", spf.IsCnameResolved ? "Yes" : "No"));
         sec.Summary.Add(("CNAME TTL (s)", spf.CnameTtl?.ToString() ?? "-"));
-        if (spf.StartsCorrectly) sec.Summary.Add(("Starts Correctly", "Yes")); else sec.Summary.Add(("Starts Correctly", "No"));
+        sec.Summary.Add(("Starts Correctly", spf.StartsCorrectlyLabel));
         if (!string.IsNullOrWhiteSpace(spf.Raw?.AllMechanism)) sec.Summary.Add(("All Mechanism", spf.Raw!.AllMechanism!));
         // Findings (exclude Info)
         foreach (var a in (spf.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info))
@@ -72,18 +72,19 @@ public static partial class SectionProjectors
         if (d == null) return null;
         var sec = new DmarcSection
         {
-            Policy = string.IsNullOrWhiteSpace(d.Policy) ? "-" : d.Policy!,
+            Policy = string.IsNullOrWhiteSpace(d.Policy) ? d.RecordPresence == "Unknown" ? "Unknown" : "-" : d.Policy!,
             Status = d.Status ?? "-",
-            RuaCount = d.MailtoRua?.Count ?? 0,
-            RufCount = d.MailtoRuf?.Count ?? 0
+            RuaCount = (d.MailtoRua?.Count ?? 0) + (d.HttpRua?.Count ?? 0),
+            RufCount = (d.MailtoRuf?.Count ?? 0) + (d.HttpRuf?.Count ?? 0)
         };
         sec.Summary.Add(("Status", sec.Status));
+        sec.Summary.Add(("Record Present", d.RecordPresence));
         sec.Summary.Add(("Policy", sec.Policy));
         sec.Summary.Add(("DNS TTL (s)", d.DnsRecordTtl?.ToString() ?? "-"));
         sec.Summary.Add(("CNAME Resolved", d.IsCnameResolved ? "Yes" : "No"));
         sec.Summary.Add(("CNAME TTL (s)", d.CnameTtl?.ToString() ?? "-"));
-        sec.Summary.Add(("rua", sec.RuaCount.ToString()));
-        sec.Summary.Add(("ruf", sec.RufCount.ToString()));
+        sec.Summary.Add(("rua", d.RecordPresence == "Unknown" ? "Unknown" : sec.RuaCount.ToString()));
+        sec.Summary.Add(("ruf", d.RecordPresence == "Unknown" ? "Unknown" : sec.RufCount.ToString()));
         if (!string.IsNullOrWhiteSpace(d.DkimAlignment)) sec.Summary.Add(("adkim", d.DkimAlignment));
         if (!string.IsNullOrWhiteSpace(d.SpfAlignment)) sec.Summary.Add(("aspf", d.SpfAlignment));
         foreach (var a in (d.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info))

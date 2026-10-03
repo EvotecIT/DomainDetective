@@ -238,7 +238,9 @@ public class MonitorScheduler
     private static bool AreSummariesEqual(DomainSummary a, DomainSummary b)
     {
         return a.HasSpfRecord == b.HasSpfRecord &&
+            a.SpfDnsQueryFailed == b.SpfDnsQueryFailed &&
             a.HasDmarcRecord == b.HasDmarcRecord &&
+            a.DmarcDnsQueryFailed == b.DmarcDnsQueryFailed &&
             a.HasMxRecord == b.HasMxRecord &&
             a.ExpiryDate == b.ExpiryDate;
     }

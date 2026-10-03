@@ -23,11 +23,17 @@ namespace DomainDetective {
         /// <summary>Indicates whether the domain has an SPF record.</summary>
         public bool HasSpfRecord { get; init; }
 
+        /// <summary>SPF discovery failed, so record presence was not established.</summary>
+        public bool SpfDnsQueryFailed { get; init; }
+
         /// <summary>Indicates whether the SPF record appears valid.</summary>
         public bool SpfValid { get; init; }
 
         /// <summary>Indicates whether the domain has a DMARC record.</summary>
         public bool HasDmarcRecord { get; init; }
+
+        /// <summary>A DNS query needed for DMARC discovery or policy evaluation failed.</summary>
+        public bool DmarcDnsQueryFailed { get; init; }
 
         /// <summary>Policy configured in the DMARC record.</summary>
         public string DmarcPolicy { get; init; } = string.Empty;

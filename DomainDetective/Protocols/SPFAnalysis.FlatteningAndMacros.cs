@@ -58,14 +58,22 @@ namespace DomainDetective {
         public async Task<FlattenedSpfResult> GetFlattenedIpAnalysis(string domainName, InternalLogger? logger = null) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: domainName) : null;
             if (string.IsNullOrEmpty(SpfRecord)) {
-                FlattenedIpAnalysis = new FlattenedSpfResult { Subject = domainName };
+                _flatteningLimitations.Clear();
+                _flatteningLimitations.Add(DnsQueryFailed
+                    ? "SPF DNS query failed; policy presence and authorized addresses are unknown."
+                    : "No SPF policy is available for address projection.");
+                FlattenedIpAnalysis = new FlattenedSpfResult {
+                    Subject = domainName, Complete = false, Limitations = _flatteningLimitations.ToArray()
+                };
                 return FlattenedIpAnalysis;
             }
 
             _flatteningLimitations.Clear();
             if (PermError || MultipleSpfRecords) {
                 RetainFlatteningDependency("original policy", "invalid syntax or multiple policies prevents IP authorization analysis", logger);
-                FlattenedIpAnalysis = new FlattenedSpfResult { Subject = domainName };
+                FlattenedIpAnalysis = new FlattenedSpfResult {
+                    Subject = domainName, Complete = false, Limitations = _flatteningLimitations.ToArray()
+                };
                 return FlattenedIpAnalysis;
             }
 
@@ -94,7 +102,9 @@ namespace DomainDetective {
                 Tokens = tokens,
                 TokenIpMap = tokenIpMap,
                 UniqueIps = addresses.ToList(),
-                DuplicateIps = duplicates
+                DuplicateIps = duplicates,
+                Complete = FlatteningComplete,
+                Limitations = _flatteningLimitations.ToArray()
             };
 
             if (duplicates.Count == 0 && addresses.Count > 0) {

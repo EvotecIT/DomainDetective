@@ -490,5 +490,9 @@ namespace DomainDetective {
         public List<string> UniqueIps { get; set; } = new List<string>();
         /// <summary>Gets or sets the duplicate ips value.</summary>
         public List<string> DuplicateIps { get; set; } = new List<string>();
+        /// <summary>Whether the projected address set has no unresolved policy or DNS dependencies.</summary>
+        public bool Complete { get; set; } = true;
+        /// <summary>Reasons why the projected address set may be incomplete.</summary>
+        public IReadOnlyList<string> Limitations { get; set; } = Array.Empty<string>();
     }
 }

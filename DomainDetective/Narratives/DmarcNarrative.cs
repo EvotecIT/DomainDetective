@@ -32,43 +32,48 @@ public static class DmarcNarrative
         // Highlights
         hi.Add(dmarc.DmarcRecordExists
             ? "DMARC record is published."
-            : "No DMARC record is published.");
+            : dmarc.DnsQueryFailed
+                ? "DMARC policy discovery failed; record absence was not established."
+                : "No DMARC record is published.");
+        if (dmarc.DnsQueryFailed && dmarc.DmarcRecordExists)
+            hi.Add("A DNS query needed for full DMARC policy evaluation failed.");
         if (dmarc.DmarcRecordExists && dmarc.StartsCorrectly)
             hi.Add("Record starts with v=DMARC1.");
 
-        if (!string.IsNullOrWhiteSpace(dmarc.Policy))
+        if (dmarc.DmarcRecordExists && !string.IsNullOrWhiteSpace(dmarc.Policy))
         {
             hi.Add($"Published policy: {dmarc.Policy}");
         }
-        if (!string.IsNullOrEmpty(dmarc.EffectivePolicyShort))
+        if (dmarc.DmarcRecordExists && !string.IsNullOrEmpty(dmarc.EffectivePolicyShort))
             hi.Add($"Effective policy: {dmarc.EffectivePolicyShort}{(dmarc.IsTestMode ? " (test mode)" : string.Empty)}.");
-        if (dmarc.DnsQueryFailed) hi.Add("Policy discovery failed; policy absence was not established.");
         if (dmarc.ReportingQueryFailed) hi.Add("Reporting query failed; authorization was not established for every destination.");
 
-        if (!string.IsNullOrWhiteSpace(dmarc.SubPolicy))
+        if (dmarc.DmarcRecordExists && !string.IsNullOrWhiteSpace(dmarc.SubPolicy))
         {
             hi.Add($"Subdomain policy: {dmarc.SubPolicy}");
         }
 
-        if (!string.IsNullOrWhiteSpace(dmarc.DkimAlignment) || !string.IsNullOrWhiteSpace(dmarc.SpfAlignment))
+        if (dmarc.DmarcRecordExists && (!string.IsNullOrWhiteSpace(dmarc.DkimAlignment) || !string.IsNullOrWhiteSpace(dmarc.SpfAlignment)))
         {
             hi.Add($"Alignment: DKIM={dmarc.DkimAlignment ?? "?"}, SPF={dmarc.SpfAlignment ?? "?"}");
         }
         // Strict alignment positives
-        if (string.Equals(dmarc.DkimAlignment, "Strict", StringComparison.OrdinalIgnoreCase))
+        if (dmarc.DmarcRecordExists && string.Equals(dmarc.DkimAlignment, "Strict", StringComparison.OrdinalIgnoreCase))
             hi.Add("DKIM alignment is strict (adkim=s).");
-        if (string.Equals(dmarc.SpfAlignment, "Strict", StringComparison.OrdinalIgnoreCase))
+        if (dmarc.DmarcRecordExists && string.Equals(dmarc.SpfAlignment, "Strict", StringComparison.OrdinalIgnoreCase))
             hi.Add("SPF alignment is strict (aspf=s).");
 
-        var ruaCount = dmarc.MailtoRua?.Count ?? 0;
+        var ruaCount = (dmarc.MailtoRua?.Count ?? 0) + (dmarc.HttpRua?.Count ?? 0);
         var rufCount = (dmarc.MailtoRuf?.Count ?? 0) + (dmarc.HttpRuf?.Count ?? 0);
-        hi.Add($"Aggregate reporting (rua): {(ruaCount > 0 ? ruaCount + " address(es)" : "none")}");
-        hi.Add($"Forensic reporting (ruf): {(rufCount > 0 ? rufCount + " address(es)" : "none")}");
+        if (dmarc.DmarcRecordExists || !dmarc.DnsQueryFailed) {
+            hi.Add($"Aggregate reporting (rua): {(ruaCount > 0 ? ruaCount + " address(es)" : "none")}");
+            hi.Add($"Forensic reporting (ruf): {(rufCount > 0 ? rufCount + " address(es)" : "none")}");
+        }
 
         // Details
-        if (!string.IsNullOrWhiteSpace(dmarc.ReportingInterval))
+        if (dmarc.DmarcRecordExists && !string.IsNullOrWhiteSpace(dmarc.ReportingInterval))
             det.Add($"Reporting interval: {dmarc.ReportingInterval}");
-        if (!string.IsNullOrWhiteSpace(dmarc.Percent))
+        if (dmarc.DmarcRecordExists && !string.IsNullOrWhiteSpace(dmarc.Percent))
         {
             det.Add($"Legacy sampling percentage: {dmarc.Percent}");
             if (dmarc.Assessments.Any(assessment => assessment.Code == DmarcCodes.Percent100))

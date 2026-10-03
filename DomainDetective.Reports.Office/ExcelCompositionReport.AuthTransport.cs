@@ -37,8 +37,8 @@ public static partial class ExcelCompositionReport {
             var props = new List<(string, object?)>
             {
                 ("Status", spf.Status ?? "-"),
-                ("Record Present", spf.SpfRecordExists ? "Yes" : "No"),
-                ("Starts Correctly", spf.StartsCorrectly ? "Yes" : "No"),
+                ("Record Present", spf.RecordPresence),
+                ("Starts Correctly", spf.StartsCorrectlyLabel),
                 ("DNS TTL (s)", spf.DnsRecordTtl?.ToString() ?? "-"),
                 ("CNAME Resolved", spf.IsCnameResolved ? "Yes" : "No"),
                 ("CNAME TTL (s)", spf.CnameTtl?.ToString() ?? "-"),
@@ -184,18 +184,20 @@ public static partial class ExcelCompositionReport {
         {
             column.Section("DMARC").KeyValues(new (string, object?)[]
             {
-                ("Record Present", d.DmarcRecordExists ? "Yes" : "No"),
-                ("Starts Correctly", d.StartsCorrectly ? "Yes" : "No"),
+                ("Record Present", d.RecordPresence),
+                ("Starts Correctly", d.StartsCorrectlyLabel),
                 ("DNS TTL (s)", d.DnsRecordTtl?.ToString() ?? "-"),
                 ("CNAME Resolved", d.IsCnameResolved ? "Yes" : "No"),
                 ("CNAME TTL (s)", d.CnameTtl?.ToString() ?? "-"),
-                ("Policy (p)", d.Policy ?? "-"),
+                ("Policy (p)", d.Policy ?? (d.RecordPresence == "Unknown" ? "Unknown" : "-")),
                 ("Subdomain Policy (sp)", d.SubPolicy ?? "-"),
                 ("Percent (pct)", d.Percent ?? "-"),
                 ("Alignment", $"dkim={d.DkimAlignment ?? "?"} / spf={d.SpfAlignment ?? "?"}"),
                 ("Public Suffix Policy", string.IsNullOrWhiteSpace(d.PublicSuffixPolicy) ? "-" : d.PublicSuffixPolicy),
                 ("Nonexistent Policy", string.IsNullOrWhiteSpace(d.NonexistentPolicy) ? "-" : d.NonexistentPolicy),
-                ("Is Policy Valid", d.IsPolicyValid ? "Yes" : "No")
+                ("Is Policy Valid", d.RecordPresence == "Unknown" ? "Unknown" : d.IsPolicyValid ? "Yes" : "No"),
+                ("RUA Destinations", d.RecordPresence == "Unknown" ? "Unknown" : ((d.MailtoRua?.Count ?? 0) + (d.HttpRua?.Count ?? 0)).ToString()),
+                ("RUF Destinations", d.RecordPresence == "Unknown" ? "Unknown" : ((d.MailtoRuf?.Count ?? 0) + (d.HttpRuf?.Count ?? 0)).ToString())
             });
 
             if ((d.MailtoRua?.Count ?? 0) > 0 || (d.HttpRua?.Count ?? 0) > 0)
@@ -406,5 +408,3 @@ public static partial class ExcelCompositionReport {
     }
 
 }
-
-

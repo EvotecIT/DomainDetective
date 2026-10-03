@@ -29,20 +29,36 @@ public partial class SpfAnalysis {
             RetainFlatteningDependency(term, "sender-dependent macros prevent a concrete address projection", logger);
             return result;
         }
-        var hosts = name == "a" ? new[] { domain } : (await QueryDns(domain, DnsRecordType.MX))
+        DnsAnswer[]? mxAnswers = name == "mx" ? await QuerySpfAddressDns(domain, DnsRecordType.MX, term, logger) : null;
+        if (name == "mx" && mxAnswers == null) return result;
+        var hosts = name == "a" ? new[] { domain } : mxAnswers!
             .Where(answer => answer.Type == DnsRecordType.MX).Take(10).Select(answer => {
                 var parts = answer.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 return parts.Length == 0 ? string.Empty : parts[parts.Length - 1].TrimEnd('.');
             }).Where(host => !string.IsNullOrWhiteSpace(host)).ToArray();
         foreach (string host in hosts) {
-            foreach (var answer in (await QueryDns(host, DnsRecordType.A)).Concat(await QueryDns(host, DnsRecordType.AAAA))) {
+            var ipv4 = await QuerySpfAddressDns(host, DnsRecordType.A, term, logger);
+            var ipv6 = await QuerySpfAddressDns(host, DnsRecordType.AAAA, term, logger);
+            foreach (var answer in (ipv4 ?? Array.Empty<DnsAnswer>()).Concat(ipv6 ?? Array.Empty<DnsAnswer>())) {
                 if (answer.Type != DnsRecordType.A && answer.Type != DnsRecordType.AAAA || !IPAddress.TryParse(answer.Data, out var address)) continue;
-                bool ipv4 = address.AddressFamily == AddressFamily.InterNetwork;
-                int prefix = ipv4 ? ipv4Prefix : ipv6Prefix;
-                result.Add(address + (prefix == (ipv4 ? 32 : 128) ? string.Empty : "/" + prefix));
+                bool isIpv4 = address.AddressFamily == AddressFamily.InterNetwork;
+                int prefix = isIpv4 ? ipv4Prefix : ipv6Prefix;
+                result.Add(address + (prefix == (isIpv4 ? 32 : 128) ? string.Empty : "/" + prefix));
             }
         }
         return result;
+    }
+
+    private async Task<DnsAnswer[]?> QuerySpfAddressDns(string name, DnsRecordType type, string term, InternalLogger? logger) {
+        try {
+            return QueryDnsOverride != null
+                ? await QueryDnsOverride(name, type)
+                : await DnsConfiguration.QueryPolicyDNS(name, type);
+        } catch (Exception exception) when (exception is DnsQueryFailureException || exception is TaskCanceledException ||
+            exception is TimeoutException || exception is System.Net.Http.HttpRequestException) {
+            RetainFlatteningDependency(term, $"address lookup failed for {name} ({type}): {exception.Message}", logger);
+            return null;
+        }
     }
 
     // This sending signal is a bounded best-effort policy inspection, separate

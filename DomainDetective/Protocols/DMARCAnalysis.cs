@@ -415,7 +415,7 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DmarcCodes.Present, "DMARC record present");
             if (StartsCorrectly)
                 logger?.WriteInformationCode(DmarcCodes.StartsV1, "DMARC starts with v=DMARC1");
-            var ruaCount = MailtoRua?.Count ?? 0;
+            var ruaCount = (MailtoRua?.Count ?? 0) + (HttpRua?.Count ?? 0);
             if (ruaCount > 0)
                 logger?.WriteInformationCode(DmarcCodes.RuaPresent, $"Aggregate reporting (rua) configured: {ruaCount} address(es)");
             var rufCount = (MailtoRuf?.Count ?? 0) + (HttpRuf?.Count ?? 0);
