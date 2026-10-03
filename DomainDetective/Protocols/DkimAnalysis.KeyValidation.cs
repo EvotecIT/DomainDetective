@@ -10,7 +10,10 @@ public partial class DkimAnalysis {
     private static bool IsValidKeyRecord(DkimRecordAnalysis analysis) {
         return analysis.DkimRecordExists &&
                !analysis.MultipleRecords &&
+               analysis.ValidTagSyntax &&
                analysis.VersionValid &&
+               analysis.AllowsEmailService &&
+               analysis.AllowsSha256 &&
                analysis.PublicKeyExists &&
                analysis.ValidPublicKey &&
                analysis.ValidKeyType &&

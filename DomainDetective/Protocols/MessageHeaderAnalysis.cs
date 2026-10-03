@@ -152,7 +152,14 @@ namespace DomainDetective {
                     }
                 }
                 foreach (var header in message.Headers) {
-                    AddHeaderValue(header.Field, header.Value);
+                    string name = header.Field;
+                    bool structured = name.StartsWith("Authentication-Results", StringComparison.OrdinalIgnoreCase)
+                        || name.StartsWith("ARC-", StringComparison.OrdinalIgnoreCase)
+                        || name.Equals("DKIM-Signature", StringComparison.OrdinalIgnoreCase)
+                        || name.Equals("Received-SPF", StringComparison.OrdinalIgnoreCase)
+                        || name.Equals("Received", StringComparison.OrdinalIgnoreCase);
+                    AddHeaderValue(name, structured ? MessageHeaderValueParser.UnfoldRawValue(header) : header.Value,
+                        Encoding.UTF8.GetString(header.RawValue));
                 }
                 ComputeTransitTime();
                 SelectAuthenticationEvidence();
@@ -190,8 +197,8 @@ namespace DomainDetective {
             return collapsed.Trim();
         }
 
-        private void AddHeaderValue(string field, string value) {
-            Fields.Add(new MessageHeaderField { Name = field, Value = value });
+        private void AddHeaderValue(string field, string value, string? rawValue = null) {
+            Fields.Add(new MessageHeaderField { Name = field, Value = value, RawValue = rawValue ?? value });
             var normalized = CanonicalizeValue(value);
             var lower = field.ToLowerInvariant();
 
@@ -290,14 +297,8 @@ namespace DomainDetective {
         }
 
         private static bool HasValidSignature(string value) {
-            foreach (var part in value.Split(';')) {
-                var trimmed = part.Trim();
-                if (trimmed.StartsWith("b=", StringComparison.OrdinalIgnoreCase)) {
-                    var sig = trimmed.Substring(2).Trim();
-                    return IsValidBase64(sig);
-                }
-            }
-            return false;
+            return DkimTagList.TryParse(value, out var tags, out _) && tags.TryGetValue("b", out var signature)
+                && IsValidBase64(DkimTagList.RemoveFws(signature));
         }
 
         private static bool IsValidBase64(string input) {
