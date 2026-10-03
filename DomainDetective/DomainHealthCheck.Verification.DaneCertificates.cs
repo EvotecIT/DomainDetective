@@ -48,7 +48,9 @@ public partial class DomainHealthCheck {
                     // A changed RRset cannot confer DNSSEC trust on an earlier unauthenticated one.
                     bool tlsaValidated = dnssec.ValidationStatus == DnssecValidationStatus.Secure
                         && DaneAnalysis.AnalysisResults.Where(record => record.DomainName.Equals(owner, StringComparison.OrdinalIgnoreCase))
-                            .All(record => dnssec.ValidatedSubjectRecords.Any(value => SameTlsaRecord(value, record.DANERecord)));
+                            .All(record => dnssec.ValidatedSubjectRecords.Any(value =>
+                                string.Equals(value.Name?.TrimEnd('.'), owner.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)
+                                && SameTlsaRecord(value.DataRaw, record.DANERecord)));
 
                     if (port == (int)ServiceType.SMTP) {
                         var mailTls = new MailTlsAnalysis { OutboundAddressResolver = OutboundAddressResolver };

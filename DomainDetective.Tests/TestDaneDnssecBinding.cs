@@ -11,9 +11,10 @@ namespace DomainDetective.Tests;
 
 public class TestDaneDnssecBinding {
     [Theory]
-    [InlineData(true, DaneAuthenticationStatus.Authenticated)]
-    [InlineData(false, DaneAuthenticationStatus.Inconclusive)]
-    public async Task LiveTlsAuthenticationUsesTheSameValidatedTlsaData(bool sameRecord, DaneAuthenticationStatus expected) {
+    [InlineData(true, false, DaneAuthenticationStatus.Authenticated)]
+    [InlineData(false, false, DaneAuthenticationStatus.Inconclusive)]
+    [InlineData(false, true, DaneAuthenticationStatus.Inconclusive)]
+    public async Task LiveTlsAuthenticationUsesTheSameValidatedTlsaData(bool sameRecord, bool unrelatedOwner, DaneAuthenticationStatus expected) {
         using RSA key = RSA.Create(2048);
         var request = new CertificateRequest("CN=example.com", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         using X509Certificate2 created = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
@@ -45,6 +46,9 @@ public class TestDaneDnssecBinding {
                 if (type == DnsRecordType.TLSA) {
                     int query = Interlocked.Increment(ref tlsaQueries);
                     response.Answers = new[] { new DnsAnswer { Name = owner, Type = type, DataRaw = "3 0 1 " + (query == 1 || sameRecord ? digest : new string('0', 64)) } };
+                    if (query > 1 && unrelatedOwner) response.Answers = response.Answers.Append(new DnsAnswer {
+                        Name = $"_{port}._tcp.unrelated.example", Type = type, DataRaw = "3 0 1 " + digest
+                    }).ToArray();
                     typeof(DnsResponse).GetProperty(nameof(DnsResponse.DnsSecValidationStatus))!
                         .SetValue(response, query > 1 ? DnsSecValidationStatus.Secure : DnsSecValidationStatus.NotRequested);
                 }

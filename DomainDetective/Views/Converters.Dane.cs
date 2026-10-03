@@ -16,7 +16,7 @@ public static partial class Converters
         var validRecordCount = records.Count(static record => record.ValidDANERecord);
         var recommendedRecordCount = records.Count(static record => record.IsValidChoiceForSmtp || record.IsValidChoiceForHttps);
         if (analysis.HasAuthenticationFailures) status = "Error";
-        else if (analysis.AuthenticationValidationPerformed && !analysis.AllServicesAuthenticated && status != "Error") status = "Warning";
+        else if (!analysis.AllServicesAuthenticated && status != "Error") status = "Warning";
         return new DaneRecordInfo
         {
             Check = HealthCheckType.DANE,

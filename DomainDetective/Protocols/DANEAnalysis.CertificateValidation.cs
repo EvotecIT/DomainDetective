@@ -57,12 +57,13 @@ public partial class DANEAnalysis {
                 var candidates = SelectCandidates(record.CertificateUsage, serviceEvidence).ToArray();
                 var matching = candidates.Where(certificate => MatchesAssociation(record, certificate)).ToArray();
                 AuthenticateCertificate(record, serviceEvidence, matching);
-                var matched = matching.Length > 0 || record.AuthenticationStatus == DaneAuthenticationStatus.Authenticated;
+                var matched = matching.Length > 0;
                 record.AssociationMatchStatus = matched ? DaneAssociationMatchStatus.Match : DaneAssociationMatchStatus.NoMatch;
                 if (matched) {
                     logger.WriteInformationCode(DaneCodes.CertificateMatches, "TLSA association data matched live certificate evidence for {0}.", record.DomainName);
                 }
-            } catch (Exception ex) when (ex is CryptographicException || ex is FormatException || ex is ArgumentException) {
+            } catch (Exception ex) when (ex is CryptographicException || ex is FormatException || ex is ArgumentException
+                || ex is Org.BouncyCastle.Security.Certificates.CertificateException) {
                 record.AssociationMatchStatus = DaneAssociationMatchStatus.CheckFailed;
                 record.AuthenticationStatus = DaneAuthenticationStatus.Failed;
                 record.AuthenticationExplanation = "Certificate evidence could not be decoded: " + ex.Message;
@@ -91,6 +92,9 @@ public partial class DANEAnalysis {
             yield return evidence.EndEntityCertificate!;
             yield break;
         }
+
+        // A DANE-TA association can designate the end entity itself as the trust anchor.
+        if (usage == TlsaUsage.DaneTa) yield return evidence.EndEntityCertificate!;
 
         foreach (var certificate in evidence.CertificateChain) {
             if (!certificate.RawData.SequenceEqual(evidence.EndEntityCertificate!.RawData)) {

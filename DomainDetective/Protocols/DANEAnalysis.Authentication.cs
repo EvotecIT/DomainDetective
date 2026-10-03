@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Pkix;
 using Org.BouncyCastle.Utilities.Collections;
@@ -33,7 +36,7 @@ public partial class DANEAnalysis {
             var anchors = matching.Select(certificate => parser.ReadCertificate(certificate.RawData)).ToList();
             if (record.SelectorField == TlsaSelector.Cert && record.MatchingTypeField == TlsaMatchingType.Full) {
                 // RFC 7671 requires support for a full TA supplied only through DNS.
-                anchors.Add(parser.ReadCertificate(HexToBytes(record.CertificateAssociationData)));
+                anchors.Add(ReadDnsTrustAnchor(HexToBytes(record.CertificateAssociationData)));
             }
             var leaf = parser.ReadCertificate(evidence.EndEntityCertificate!.RawData);
             var chain = evidence.CertificateChain.Select(certificate => parser.ReadCertificate(certificate.RawData)).Append(leaf).ToArray();
@@ -62,6 +65,7 @@ public partial class DANEAnalysis {
                 IsRevocationEnabled = false,
                 Date = DateTime.UtcNow
             };
+            parameters.AddCertPathChecker(new TlsServerPurposeChecker());
             parameters.AddStoreCert(CollectionUtilities.CreateStore(chain));
             var path = new PkixCertPathBuilder().Build(parameters).CertPath.Certificates;
             var keyUsage = leaf.GetKeyUsage();
@@ -81,6 +85,30 @@ public partial class DANEAnalysis {
             return false;
         } catch (PkixNameConstraintValidatorException) {
             return false;
+        }
+    }
+
+    private static BcCertificate ReadDnsTrustAnchor(byte[] encoded) {
+        try {
+            // Full TLSA certificate data must be exactly one DER Certificate, not a
+            // PEM object, PKCS#7 bundle, a prefix followed by junk, or an empty parse.
+            var structure = X509CertificateStructure.GetInstance(Asn1Object.FromByteArray(encoded));
+            if (!structure.GetDerEncoded().SequenceEqual(encoded)) throw new FormatException("TLSA certificate data is not canonical DER.");
+            return new BcCertificate(structure);
+        } catch (Exception exception) when (exception is IOException || exception is ArgumentException
+            || exception is Org.BouncyCastle.Security.Certificates.CertificateException) {
+            throw new CryptographicException("TLSA certificate data is not one complete DER Certificate.", exception);
+        }
+    }
+
+    /// <summary>Processes TLS-purpose constraints while BC resolves critical path extensions.</summary>
+    private sealed class TlsServerPurposeChecker : PkixCertPathChecker {
+        public override void Init(bool forward) { }
+        public override bool IsForwardCheckingSupported() => true;
+        public override ISet<string> GetSupportedExtensions() => new HashSet<string> { X509Extensions.ExtendedKeyUsage.Id };
+        public override void Check(BcCertificate certificate, ISet<string> unresolvedCriticalExtensions) {
+            if (!AllowsTlsServer(certificate)) throw new PkixCertPathValidatorException("Certificate purpose does not allow TLS server authentication.");
+            unresolvedCriticalExtensions.Remove(X509Extensions.ExtendedKeyUsage.Id);
         }
     }
 

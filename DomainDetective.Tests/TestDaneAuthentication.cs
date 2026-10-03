@@ -80,6 +80,65 @@ public class TestDaneAuthentication {
         Validate(analysis, leaf, new[] { leaf }, true);
         Assert.Equal(DaneAuthenticationStatus.Authenticated, Assert.Single(analysis.AnalysisResults).AuthenticationStatus);
         Assert.True(analysis.AllServicesAuthenticated);
+        Assert.Equal(DaneAssociationMatchStatus.NoMatch, Assert.Single(analysis.AnalysisResults).AssociationMatchStatus);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == DaneCodes.CertificateMatches);
+    }
+
+    [Theory]
+    [InlineData("00")]
+    [InlineData("3000")]
+    [InlineData("trailing")]
+    public async Task MalformedDnsAnchorDoesNotStopAValidRolloverAlternative(string input) {
+        using var root = CreateRoot();
+        using var leaf = CreateLeaf(root, false);
+        string association = input == "trailing" ? Hex(root.RawData) + "00" : input;
+        var analysis = new DANEAnalysis();
+        await analysis.AnalyzeDANERecords(new[] {
+            new DnsAnswer { Name = Owner, Type = DnsRecordType.TLSA, DataRaw = "2 0 0 " + association },
+            new DnsAnswer { Name = Owner, Type = DnsRecordType.TLSA, DataRaw = "3 0 1 " + Digest(leaf.RawData) }
+        }, new InternalLogger());
+        Validate(analysis, leaf, new[] { leaf }, true);
+        Assert.Equal(DaneAuthenticationStatus.Failed, analysis.AnalysisResults[0].AuthenticationStatus);
+        Assert.Equal(DaneAuthenticationStatus.Authenticated, analysis.AnalysisResults[1].AuthenticationStatus);
+        Assert.True(analysis.AllServicesAuthenticated);
+    }
+
+    [Theory]
+    [InlineData("1.3.6.1.5.5.7.3.1", DaneAuthenticationStatus.Authenticated)]
+    [InlineData("1.3.6.1.5.5.7.3.2", DaneAuthenticationStatus.Failed)]
+    public async Task CriticalIntermediatePurposeIsProcessedDuringPathValidation(string purpose, DaneAuthenticationStatus expected) {
+        using var root = CreateRoot(pathLength: 1);
+        using var intermediate = CreateIntermediate(root, purpose);
+        using var leaf = CreateLeaf(intermediate, false);
+        var analysis = await Analyze(2, 0, 1, root);
+        Validate(analysis, leaf, new[] { leaf, intermediate, root }, true);
+        Assert.Equal(expected, Assert.Single(analysis.AnalysisResults).AuthenticationStatus);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task EndEntityCanBeItsOwnDaneTrustAnchor(int selector) {
+        using var key = RSA.Create(2048);
+        var request = new CertificateRequest("CN=example.com", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
+        request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, true));
+        using var leaf = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var analysis = await Analyze(2, selector, 1, leaf);
+        Validate(analysis, leaf, new[] { leaf }, true);
+        Assert.Equal(DaneAssociationMatchStatus.Match, Assert.Single(analysis.AnalysisResults).AssociationMatchStatus);
+        Assert.Equal(DaneAuthenticationStatus.Authenticated, Assert.Single(analysis.AnalysisResults).AuthenticationStatus);
+    }
+
+    [Fact]
+    public async Task SyntaxOnlyRecordsCannotProduceAnAuthenticatedSectionStatus() {
+        using var root = CreateRoot();
+        var analysis = await Analyze(3, 1, 1, root);
+        var view = DomainDetective.Views.Converters.Convert(analysis);
+        Assert.False(view.AuthenticationValidationPerformed);
+        Assert.False(view.AllServicesAuthenticated);
+        Assert.Equal("Warning", view.Status);
     }
 
     [Theory]
@@ -167,11 +226,12 @@ public class TestDaneAuthentication {
         return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-10), DateTimeOffset.UtcNow.AddDays(10));
     }
 
-    private static X509Certificate2 CreateIntermediate(X509Certificate2 issuer) {
+    private static X509Certificate2 CreateIntermediate(X509Certificate2 issuer, string? purpose = null) {
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=Intermediate", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, true, 0, true));
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign, true));
+        if (purpose != null) request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection { new Oid(purpose) }, true));
         using var certificate = request.Create(issuer, DateTimeOffset.UtcNow.AddDays(-3), DateTimeOffset.UtcNow.AddDays(3), new byte[] { 5, 6, 7, 8 });
         return certificate.CopyWithPrivateKey(key);
     }
