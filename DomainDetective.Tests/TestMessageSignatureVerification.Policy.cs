@@ -17,6 +17,8 @@ public partial class TestMessageSignatureVerification {
     [InlineData("v=DKIM1; s=other; k=rsa;", MessageSignatureStatus.Invalid)]
     [InlineData("v=DKIM1; p=QUJD; k=rsa;", MessageSignatureStatus.Invalid)]
     [InlineData("v=DKIM1; k=;", MessageSignatureStatus.Invalid)]
+    [InlineData("v=DKIM1; k=RSA;", MessageSignatureStatus.Invalid)]
+    [InlineData("v=DKIM1; k=Ed25519;", MessageSignatureStatus.Invalid)]
     [InlineData("v=DKIM1; k=rsa; s=email:future-;", MessageSignatureStatus.Invalid)]
     [InlineData("v=DKIM1; k=rsa; t=y:future-;", MessageSignatureStatus.Invalid)]
     public async Task KeyPolicyConstrainsRealSignaturesAndDnsAssessment(string policy, MessageSignatureStatus expected) {

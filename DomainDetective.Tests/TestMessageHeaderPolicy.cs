@@ -3,6 +3,8 @@ namespace DomainDetective.Tests;
 public class TestMessageHeaderPolicy {
     [Theory]
     [InlineData("test", "test", "QUFB", "QUFBQUFB", true)]
+    [InlineData("test", "test", "QUFBQUFB", "QUFB", true)]
+    [InlineData("test", "test", "QUFBQUFB", "QUFBQkJC", false)]
     [InlineData("test", "test", "QUFB", "quFB", false)]
     [InlineData("first", "second", "", "QUFB", false)]
     [InlineData("", "second", "QUFB", "QUFBQUFB", true)]
@@ -28,6 +30,17 @@ public class TestMessageHeaderPolicy {
         Assert.False(analysis.AuthenticationConflict);
         Assert.Equal("pass", analysis.DkimResult);
     }
+    [Fact]
+    public void LongObservationPrefixRemainsWithinTheHeaderContract() {
+        string prefix = new string('A', 1024 * 1024);
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse("From: sender@example.com\r\nAuthentication-Results: mx.example; dkim=pass header.d=example.com header.b=" + prefix + "\r\n",
+            new MessageHeaderAnalysisOptions { TrustedAuthServIds = new[] { "mx.example" } });
+        Assert.Single(Assert.Single(analysis.AuthenticationResults).Methods);
+        Assert.False(analysis.AuthenticationConflict);
+        Assert.Equal("pass", analysis.DkimResult);
+    }
+
     [Fact]
     public void EncodedWordsCannotCreateTrustedAuthenticationProvenance() {
         var analysis = new MessageHeaderAnalysis();

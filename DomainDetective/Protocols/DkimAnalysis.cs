@@ -156,8 +156,7 @@ namespace DomainDetective {
                         break;
                     case "k":
                         analysis.KeyType = value;
-                        analysis.ValidKeyType = string.Equals(value, "rsa", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(value, "ed25519", StringComparison.OrdinalIgnoreCase);
+                        analysis.ValidKeyType = keyPolicy.SupportedKeyType;
                         break;
                     case "c":
                         analysis.Canonicalization = value;
@@ -202,8 +201,7 @@ namespace DomainDetective {
             analysis.PublicKeyExists = !string.IsNullOrEmpty(analysis.PublicKey);
             analysis.KeyTypeExists = !string.IsNullOrEmpty(analysis.KeyType);
             analysis.KeyType = analysis.KeyTypeExists ? analysis.KeyType : "rsa";
-            analysis.ValidKeyType = string.Equals(analysis.KeyType, "rsa", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(analysis.KeyType, "ed25519", StringComparison.OrdinalIgnoreCase);
+            analysis.ValidKeyType = keyPolicy.SupportedKeyType;
             ValidatePublicKey(selector, analysis, logger);
 
             AnalysisResults[selector] = analysis;

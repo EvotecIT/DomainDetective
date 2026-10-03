@@ -13,6 +13,7 @@ internal sealed class DkimKeyRecord {
     internal bool VersionPresent => Tags.ContainsKey("v");
     internal bool VersionValid { get; private set; }
     internal string KeyType => Tags.TryGetValue("k", out var value) ? value : "rsa";
+    internal bool SupportedKeyType => KeyType == "rsa" || KeyType == "ed25519";
     internal string PublicKey => Tags.TryGetValue("p", out var value) ? DkimTagList.RemoveFws(value) : string.Empty;
     internal bool AllowsEmail => !Tags.TryGetValue("s", out var service) || List(service).Any(value => value == "*" || value == "email");
     internal bool StrictIdentity => Tags.TryGetValue("t", out var flags) && List(flags).Contains("s");
@@ -36,6 +37,7 @@ internal sealed class DkimKeyRecord {
     internal void ValidateUse(string domain, string? algorithm, string? identity) {
         if (!SyntaxValid) throw new DkimKeyPolicyException(DuplicateTags ? "DKIM key record repeats a tag." : "DKIM key tag syntax is invalid.");
         if (!VersionValid) throw new DkimKeyPolicyException("DKIM key version must be DKIM1 and its version tag must be first.");
+        if (!SupportedKeyType) throw new DkimKeyPolicyException("DKIM key type is unsupported or incorrectly cased.");
         if (!Tags.ContainsKey("p")) throw new DkimKeyPolicyException("DKIM key record has no p tag.");
         if (PublicKey.Length == 0) throw new DkimKeyPolicyException("DKIM public key is revoked.");
         if (!AllowsEmail) throw new DkimKeyPolicyException("DKIM key record does not permit the email service.");
