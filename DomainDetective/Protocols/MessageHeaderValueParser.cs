@@ -7,6 +7,7 @@ namespace DomainDetective;
 
 /// <summary>Bounded tokenization of header clauses, respecting quoted strings and nested comments.</summary>
 internal static class MessageHeaderValueParser {
+    internal static string UnfoldRawValue(MimeKit.Header header) => MimeKit.Header.Unfold(Encoding.UTF8.GetString(header.RawValue)).Trim();
     private static readonly Regex MethodPattern = new(@"^(?<method>[a-z0-9_-]+)(?:/\d+)?\s*=\s*(?<result>[a-z]+)\b", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
     private static readonly Regex PropertyPattern = new("(?<key>[a-z0-9_-]+(?:\\.[a-z0-9_-]+)?)\\s*=\\s*(?:\"(?<quoted>(?:\\\\.|[^\"\\\\])*)\"|(?<value>[^\\s;]+))", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
 

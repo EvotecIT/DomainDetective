@@ -59,7 +59,7 @@ namespace DomainDetective {
                 await concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try {
                     results[index] = await DnsConfiguration.QueryDNS(
-                        name: $"{selector}._domainkey.{domainName}",
+                        name: DkimDnsName.Lookup(domainName, selector),
                         recordType: DnsRecordType.TXT,
                         filter: string.Empty,
                         includeAliasesInFilter: true,

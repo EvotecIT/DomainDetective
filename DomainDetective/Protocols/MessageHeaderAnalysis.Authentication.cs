@@ -107,7 +107,7 @@ public partial class MessageHeaderAnalysis {
         foreach (var method in methods.Where(method => method.DuplicateProperties.Count > 0)) {
             _conflictedAuthenticationMethods.Add(method.Method);
         }
-        foreach (var group in methods.GroupBy(AuthenticationIdentity, StringComparer.OrdinalIgnoreCase)) {
+        foreach (var group in methods.Where(method => method.Method != "dkim").GroupBy(AuthenticationIdentity, StringComparer.OrdinalIgnoreCase)) {
             if (group.Select(value => value.Result).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1) {
                 _conflictedAuthenticationMethods.Add(group.First().Method);
             }
@@ -174,17 +174,35 @@ public partial class MessageHeaderAnalysis {
     private static HashSet<MessageAuthenticationMethod> ConflictingDkimObservations(IEnumerable<MessageAuthenticationMethod> methods) {
         var conflicts = new HashSet<MessageAuthenticationMethod>();
         foreach (var domain in methods.GroupBy(method => GetIdentity(method, "header.d"), StringComparer.OrdinalIgnoreCase)) {
-            var domainResults = domain.Select(method => method.Result).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            var unspecifiedResults = domain.Where(method => GetIdentity(method, "header.s").Length == 0)
-                .Select(method => method.Result).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            foreach (var selector in domain.GroupBy(method => GetIdentity(method, "header.s"), StringComparer.OrdinalIgnoreCase)) {
-                // An omitted selector can refer to any signature from this domain.
-                var results = selector.Key.Length == 0 ? domainResults
-                    : selector.Select(method => method.Result).Concat(unspecifiedResults).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-                if (results.Length > 1) { foreach (var method in selector) { conflicts.Add(method); } }
+            var observations = domain.ToArray();
+            for (int i = 0; i < observations.Length; i++) {
+                for (int j = i + 1; j < observations.Length; j++) {
+                    var first = observations[i];
+                    var second = observations[j];
+                    string firstSelector = GetIdentity(first, "header.s"), secondSelector = GetIdentity(second, "header.s");
+                    if (firstSelector.Length > 0 && secondSelector.Length > 0
+                        && !string.Equals(firstSelector, secondSelector, StringComparison.OrdinalIgnoreCase)) continue;
+                    string firstB = GetIdentity(first, "header.b"), secondB = GetIdentity(second, "header.b");
+                    // RFC 6008 prefixes are case-sensitive. Overlapping or omitted prefixes remain ambiguous.
+                    if (firstB.Length > 0 && secondB.Length > 0
+                        && !firstB.StartsWith(secondB, StringComparison.Ordinal) && !secondB.StartsWith(firstB, StringComparison.Ordinal)) continue;
+                    if (!string.Equals(first.Result, second.Result, StringComparison.OrdinalIgnoreCase)) {
+                        conflicts.Add(first); conflicts.Add(second);
+                    }
+                }
             }
         }
         return conflicts;
+    }
+
+    private static bool DkimObservationMatches(MessageAuthenticationMethod method, MessageDkimSignature signature) {
+        if (method.DuplicateProperties.Count > 0
+            || !string.Equals(NormalizeDomainIdentity(GetIdentity(method, "header.d")), NormalizeDomainIdentity(signature.Domain), StringComparison.OrdinalIgnoreCase)
+            || method.Properties.ContainsKey("header.s") && !string.Equals(GetIdentity(method, "header.s"), signature.Selector, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!method.Properties.ContainsKey("header.b")) return true;
+        string prefix = GetIdentity(method, "header.b");
+        return prefix.Length > 0 && signature.Tags.TryGetValue("b", out var value)
+            && DkimTagList.RemoveFws(value).StartsWith(prefix, StringComparison.Ordinal);
     }
     private static string AuthenticationIdentity(MessageAuthenticationMethod method) => method.Method + ":" +
         (method.Method == "spf" ? SpfIdentity(method)

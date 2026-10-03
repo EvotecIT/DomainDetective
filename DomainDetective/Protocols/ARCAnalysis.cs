@@ -91,11 +91,11 @@ namespace DomainDetective {
 
                     foreach (var header in message.Headers) {
                         if (header.Field.Equals("ARC-Seal", StringComparison.OrdinalIgnoreCase)) {
-                            ArcSealHeaders.Add(header.Value);
+                            ArcSealHeaders.Add(MessageHeaderValueParser.UnfoldRawValue(header));
                         } else if (header.Field.Equals("ARC-Authentication-Results", StringComparison.OrdinalIgnoreCase)) {
-                            ArcAuthenticationResultsHeaders.Add(header.Value);
+                            ArcAuthenticationResultsHeaders.Add(MessageHeaderValueParser.UnfoldRawValue(header));
                         } else if (header.Field.Equals("ARC-Message-Signature", StringComparison.OrdinalIgnoreCase)) {
-                            ArcMessageSignatureHeaders.Add(header.Value);
+                            ArcMessageSignatureHeaders.Add(MessageHeaderValueParser.UnfoldRawValue(header));
                         }
                     }
                 }
@@ -177,19 +177,6 @@ namespace DomainDetective {
                         ChainValidationFailed |= string.Equals(cv, "fail", StringComparison.OrdinalIgnoreCase);
                     }
                 }
-            }
-            // Header sets must appear in a consistent instance order in the message.
-            var sequences = new[] { ArcSealHeaders, ArcMessageSignatureHeaders, ArcAuthenticationResultsHeaders };
-            int[]? previousSequence = null;
-            foreach (var headers in sequences) {
-                var kind = ReferenceEquals(headers, ArcAuthenticationResultsHeaders) ? "AAR" : "signature";
-                var sequence = headers.Select(value => ParseInstanceTags(kind, value, out _))
-                    .Select(tags => tags.TryGetValue("i", out var text) && int.TryParse(text, out var n) ? n : 0).ToArray();
-                if (!sequence.SequenceEqual(Enumerable.Range(1, top)) && !sequence.SequenceEqual(Enumerable.Range(1, top).Reverse())) {
-                    StructureIssues.Add("ARC instances are out of order.");
-                }
-                if (previousSequence != null && !sequence.SequenceEqual(previousSequence)) { StructureIssues.Add("ARC field types disagree about instance order."); }
-                previousSequence = sequence;
             }
             ValidChain = StructureIssues.Count == 0 && top > 0;
             ChainState = ValidChain ? ArcChainState.Valid : ArcChainState.Invalid;
