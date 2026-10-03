@@ -134,7 +134,7 @@ namespace DomainDetective {
             }
 
             try {
-                var answers = await DnsConfiguration.QueryDNS(
+                var answers = await DnsConfiguration.QueryPolicyDNS(
                     domain,
                     DnsRecordType.TXT,
                     "SPF1",
@@ -150,7 +150,7 @@ namespace DomainDetective {
                     return null;
                 }
                 return records.FirstOrDefault();
-            } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+            } catch (Exception ex) when (ex is DnsQueryFailureException || ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
                 logger?.WriteWarningCode(SpfCodes.QueryFailed, "SPF {0} lookup failed for {1}: {2}", mechanism, domain, ex.Message);
                 return null;
             }
@@ -293,7 +293,7 @@ namespace DomainDetective {
                     ExpValue = normalized.Substring(4).Trim('"');
                     HasExp = true;
                 } else if (IsAllMechanism(token)) {
-                    AllMechanism = token.Trim('"');
+                    AllMechanism ??= token.Trim('"');
                 } else if (!IsAllowedMechanismOrModifier(normalized)) {
                     if (!UnknownMechanisms.Contains(token)) {
                         UnknownMechanisms.Add(token);
@@ -566,7 +566,7 @@ namespace DomainDetective {
         }
 
         private static bool IsAllowedMechanismOrModifier(string token) {
-            return token.Equals("a", StringComparison.OrdinalIgnoreCase)
+            return TryGetSpfModifier(token, out _, out _) || token.Equals("a", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("a/", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)

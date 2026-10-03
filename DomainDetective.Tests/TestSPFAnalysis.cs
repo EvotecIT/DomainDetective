@@ -361,25 +361,23 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task EscapedParenthesesHandled() {
+        public async Task LiteralParenthesesAreNotAValidRedirectDomain() {
             var spfRecord = @"v=spf1 redirect=example.com\(test\)";
             var healthCheck = new DomainHealthCheck();
 
             await healthCheck.CheckSPF(spfRecord);
 
-            Assert.True(healthCheck.SpfAnalysis.HasRedirect);
-            Assert.Equal("example.com(test)", healthCheck.SpfAnalysis.RedirectValue);
+            Assert.True(healthCheck.SpfAnalysis.PermError);
         }
 
         [Fact]
-        public async Task EscapedSpaceHandled() {
+        public async Task LiteralSpaceDoesNotBecomePartOfARedirectDomain() {
             var spfRecord = @"v=spf1 redirect=example.com\ test";
             var healthCheck = new DomainHealthCheck();
 
             await healthCheck.CheckSPF(spfRecord);
 
-            Assert.True(healthCheck.SpfAnalysis.HasRedirect);
-            Assert.Equal("example.com test", healthCheck.SpfAnalysis.RedirectValue);
+            Assert.True(healthCheck.SpfAnalysis.PermError);
         }
 
         [Fact]

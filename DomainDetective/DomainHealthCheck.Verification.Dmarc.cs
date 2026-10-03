@@ -18,11 +18,30 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
-            if (IsPublicSuffix) {
+            if (IsPublicSuffix && DmarcDiscoveryMode == DmarcDiscoveryMode.LegacyPublicSuffix) {
                 return;
             }
             DmarcAnalysis.Subject = domainName;
-            var dmarc = await DnsConfiguration.QueryDNS(
+            if (DmarcDiscoveryMode == DmarcDiscoveryMode.DnsTreeWalk) {
+                var discovery = new DmarcPolicyDiscovery((name, token) => DnsConfiguration.QueryPolicyDNS(
+                    name, DnsRecordType.TXT, includeAliasesInFilter: true, cancellationToken: token));
+                try {
+                    var result = await discovery.DiscoverAsync(domainName, cancellationToken).ConfigureAwait(false);
+                    var policyDomainName = result.Policy?.Domain ?? domainName;
+                    await DmarcAnalysis.AnalyzeDmarcRecords(result.Policy?.Answers ?? Array.Empty<DnsAnswer>(), _logger,
+                        domainName, getOrgDomain: null, policyDomainName: policyDomainName,
+                        getOrgDomainAsync: discovery.FindOrganizationalDomainAsync, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    DmarcAnalysis.OrganizationalDomain = result.OrganizationalDomain ?? DmarcAnalysis.OrganizationalDomain;
+                    DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy || policyDomainName != domainName);
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
+                } catch (Exception ex) when (ex is DnsQueryFailureException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException || ex is TaskCanceledException) {
+                    await DmarcAnalysis.AnalyzeDmarcRecords(null, _logger, domainName).ConfigureAwait(false);
+                    DmarcAnalysis.RecordDnsQueryFailure(ex, _logger);
+                }
+                return;
+            }
+            var dmarc = await DnsConfiguration.QueryPolicyDNS(
                 "_dmarc." + domainName,
                 DnsRecordType.TXT,
                 "DMARC1",
@@ -34,7 +53,7 @@ namespace DomainDetective {
                 if (!string.IsNullOrWhiteSpace(organizationalDomain) &&
                     !string.Equals(organizationalDomain, domainName, StringComparison.OrdinalIgnoreCase)) {
                     policyDomain = organizationalDomain;
-                    dmarc = await DnsConfiguration.QueryDNS(
+                    dmarc = await DnsConfiguration.QueryPolicyDNS(
                         "_dmarc." + policyDomain,
                         DnsRecordType.TXT,
                         "DMARC1",

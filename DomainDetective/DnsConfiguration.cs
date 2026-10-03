@@ -83,6 +83,24 @@ namespace DomainDetective {
             return ApplyLocalFilter(response.Answers, filter, includeAliasesInFilter);
         }
 
+        /// <summary>Queries one name while retaining response status, validation, and error evidence.</summary>
+        public async Task<DnsResponse> QueryDNSResponse(string name, DnsRecordType recordType,
+            string filter = "", bool includeAliasesInFilter = false, CancellationToken cancellationToken = default) {
+            ValidateName(name, recordType);
+            var response = await QueryResponseAsync(name, recordType, cancellationToken).ConfigureAwait(false);
+            return ApplyLocalFilter(response, filter, includeAliasesInFilter);
+        }
+
+        internal async Task<DnsAnswer[]> QueryPolicyDNS(string name, DnsRecordType recordType,
+            string filter = "", bool includeAliasesInFilter = false, CancellationToken cancellationToken = default) {
+            var response = await QueryDNSResponse(name, recordType, filter, includeAliasesInFilter, cancellationToken).ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(response.Error)
+                || response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
+                throw new DnsQueryFailureException(name, recordType, response);
+            }
+            return response.Answers ?? Array.Empty<DnsAnswer>();
+        }
+
         /// <summary>Queries multiple names and flattens their answer sets in input order.</summary>
         public Task<IEnumerable<DnsAnswer>> QueryDNS(string[] names, DnsRecordType recordType, string filter = "",
             CancellationToken cancellationToken = default) {
