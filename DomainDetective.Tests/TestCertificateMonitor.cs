@@ -7,18 +7,22 @@ namespace DomainDetective.Tests {
     public class TestCertificateMonitor {
         [Fact]
         public async Task ProducesSummaryCounts() {
-            var monitor = new CertificateMonitor();
-            await monitor.Analyze(new[] { "https://www.google.com", "https://nonexistent.invalid" });
-            if (monitor.Results.TrueForAll(r => !r.Analysis.IsReachable)) {
-                return;
-            }
+            var monitor = new CertificateMonitor {
+                AnalysisOverride = (url, _, _, _) => Task.FromResult(new CertificateAnalysis {
+                    IsReachable = url.Contains("good.example.test", StringComparison.Ordinal),
+                    IsValid = url.Contains("good.example.test", StringComparison.Ordinal)
+                })
+            };
+            await monitor.Analyze(new[] { "https://good.example.test", "https://unreachable.example.test" }, showProgress: false);
+
             Assert.Equal(2, monitor.Results.Count);
-            Assert.True(monitor.ValidCount >= 1);
-            Assert.True(monitor.FailedCount >= 1);
+            Assert.Equal(1, monitor.ValidCount);
+            Assert.Equal(1, monitor.FailedCount);
 
             var reachable = monitor.Results.Find(r => r.Analysis.IsReachable);
             Assert.NotNull(reachable);
-            Assert.Equal(reachable!.Analysis.TlsProtocol, reachable.Protocol);
+            Assert.Equal("good.example.test", reachable!.ResolvedHost);
+            Assert.False(monitor.Results.Find(r => r.Host == "https://unreachable.example.test")!.Analysis.IsReachable);
         }
 
         [Fact]
