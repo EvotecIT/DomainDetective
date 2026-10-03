@@ -46,10 +46,7 @@ namespace DomainDetective {
                 try {
                     bool dmarcStrongForSubdomains = false;
                     if (string.Equals(DmarcAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase) && DmarcAnalysis.DmarcRecordExists) {
-                        var effective = !string.IsNullOrWhiteSpace(DmarcAnalysis.SubPolicyShort)
-                            ? DmarcAnalysis.SubPolicyShort
-                            : DmarcAnalysis.PolicyShort;
-                        dmarcStrongForSubdomains = string.Equals(effective, "reject", StringComparison.OrdinalIgnoreCase);
+                        dmarcStrongForSubdomains = string.Equals(DmarcAnalysis.EffectiveSubdomainPolicyShort, "reject", StringComparison.OrdinalIgnoreCase);
                     }
 
                     var wildcard = "*." + domainName;

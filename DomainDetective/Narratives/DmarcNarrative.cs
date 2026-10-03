@@ -70,9 +70,9 @@ public static class DmarcNarrative
             det.Add($"Reporting interval: {dmarc.ReportingInterval}");
         if (!string.IsNullOrWhiteSpace(dmarc.Percent))
         {
-            det.Add(dmarc.Percent);
-            if (dmarc.Percent.StartsWith("100%", StringComparison.OrdinalIgnoreCase))
-                hi.Add("pct=100 (full enforcement).");
+            det.Add($"Legacy sampling percentage: {dmarc.Percent}");
+            if (dmarc.Assessments.Any(assessment => assessment.Code == DmarcCodes.Percent100))
+                hi.Add("Legacy percentage tag pct=100 is published.");
         }
 
         if (dmarc.MailtoRua != null && dmarc.MailtoRua.Count > 0)

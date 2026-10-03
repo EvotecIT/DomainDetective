@@ -133,6 +133,31 @@ public class TestMailPolicyReviewContracts {
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData("; pct=100")]
+    public async Task LegacyPercentageDoesNotClaimEnforcementInTestMode(string percent) {
+        var (check, _) = Create();
+        await check.CheckDMARC("v=DMARC1; p=quarantine; t=y" + percent);
+        Assert.Equal("none", check.DmarcAnalysis.EffectivePolicyShort);
+        Assert.DoesNotContain(check.DmarcAnalysis.Assessments, a => a.Message.Contains("full enforcement"));
+        Assert.Equal(percent.Length > 0, check.DmarcAnalysis.Assessments.Any(a => a.Code == DmarcCodes.Percent100));
+        Assert.DoesNotContain(DomainDetective.Narratives.DmarcNarrative.Build(check.DmarcAnalysis).Highlights,
+            text => text.Contains("full enforcement"));
+    }
+
+    [Fact]
+    public async Task TestModeDmarcDoesNotSuppressMissingWildcardSpfWarning() {
+        var (check, _) = Create(new() {
+            [("_dmarc.example.com", DnsRecordType.TXT)] = new[] { Txt("v=DMARC1; p=reject; t=y") },
+            [("example.com", DnsRecordType.TXT)] = new[] { Txt("v=spf1 -all") }
+        });
+        await check.VerifyDMARC("example.com");
+        await check.VerifySPF("example.com");
+        Assert.Equal("quarantine", check.DmarcAnalysis.EffectiveSubdomainPolicyShort);
+        Assert.Contains(check.SpfAnalysis.Assessments, a => a.Code == SpfCodes.WildcardMissing);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task DiscardedDmarcRecordsRetainDiagnosticEvidence(bool duplicateTag) {

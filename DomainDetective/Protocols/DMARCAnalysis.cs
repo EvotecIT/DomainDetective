@@ -425,8 +425,8 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DmarcCodes.AlignmentStrictDkim, "DKIM alignment strict (adkim=s)");
             if (string.Equals(SpfAShort, "s", StringComparison.OrdinalIgnoreCase))
                 logger?.WriteInformationCode(DmarcCodes.AlignmentStrictSpf, "SPF alignment strict (aspf=s)");
-            if (Pct.HasValue && Pct.Value >= 100)
-                logger?.WriteInformationCode(DmarcCodes.Percent100, "pct=100 (full enforcement)");
+            if (parsedTags.ContainsKey(TagPercent) && Pct.HasValue && Pct.Value >= 100)
+                logger?.WriteInformationCode(DmarcCodes.Percent100, "Legacy percentage tag pct=100 published");
         }
 
         internal static bool IsDmarcPolicyRecord(string? value) {

@@ -16,6 +16,11 @@ public partial class DmarcAnalysis {
     /// <summary>Observed existence of the author domain when choosing inherited np versus sp policy.</summary>
     public bool? SubjectDomainExists { get; internal set; }
 
+    /// <summary>Applicable policy for existing subdomains, including inherited sp and test-mode reduction.</summary>
+    public string EffectiveSubdomainPolicyShort => DnsQueryFailed || !DmarcRecordExists || MultipleRecords ? string.Empty
+        : IsPolicyValid ? PolicyWithTestMode(string.IsNullOrWhiteSpace(SubPolicyShort) ? PolicyShort : SubPolicyShort)
+        : EffectivePolicyShort == "none" ? "none" : string.Empty;
+
     private string PolicyWithTestMode(string policy) => !IsTestMode ? policy : policy switch {
         "reject" => "quarantine",
         "quarantine" => "none",
