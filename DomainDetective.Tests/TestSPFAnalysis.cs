@@ -522,8 +522,8 @@ namespace DomainDetective.Tests {
             healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 ip4:192.0.2.1 -all";
             healthCheck.SpfAnalysis.QueryDnsOverride = (name, type) => {
                 return (name, type) switch {
-                    ("mx.example.com", DnsRecordType.MX) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "10 mail.example.com" } }),
-                    ("mail.example.com", DnsRecordType.A) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "203.0.113.5" } }),
+                    ("mx.example.com", DnsRecordType.MX) => Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "10 mail.example.com" } }),
+                    ("mail.example.com", DnsRecordType.A) => Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "203.0.113.5" } }),
                     _ => Task.FromResult(Array.Empty<DnsAnswer>())
                 };
             };

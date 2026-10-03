@@ -27,9 +27,10 @@ namespace DomainDetective {
                 spf = await DnsConfiguration.QueryPolicyDNS(
                     domainName,
                     DnsRecordType.TXT,
-                    "SPF1",
                     includeAliasesInFilter: true,
                     cancellationToken: cancellationToken);
+                spf = spf.Where(answer => answer.Type == DnsRecordType.CNAME || answer.Type == DnsRecordType.TXT
+                    && SpfAnalysis.IsSpfPolicyRecord(answer.TxtConcatenatedData)).ToArray();
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                 throw;
             } catch (Exception ex) when (ex is DnsQueryFailureException || ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {

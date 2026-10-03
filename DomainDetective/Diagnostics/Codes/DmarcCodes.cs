@@ -15,6 +15,7 @@ internal static class DmarcCodes {
     public const string StartsInvalid = "DMARC.Record.StartsInvalid";
     public const string RecordLengthExceeds = "DMARC.Record.LengthExceeds";
     public const string QueryFailed = "DMARC.Query.Failed";
+    public const string ReportingQueryFailed = "DMARC.Reporting.QueryFailed";
 
     // Positive/posture signals
     /// <summary>DMARC record exists for the domain.</summary>

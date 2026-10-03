@@ -192,6 +192,7 @@ namespace DomainDetective {
             cancellationToken.ThrowIfCancellationRequested();
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DMARC", target: domainName);
             // reset all properties so repeated calls don't accumulate data
+            Assessments.Clear();
             DnsConfiguration ??= new DnsConfiguration();
             DmarcRecord = string.Empty;
             DmarcRecordExists = false;
@@ -233,8 +234,11 @@ namespace DomainDetective {
             DnsQueryFailed = false;
             DnsQueryError = null;
             OrganizationalDomain = null;
+            SubjectDomainExists = null;
             EffectivePolicyShort = string.Empty;
             IsTestMode = false;
+            ReportingQueryFailed = false;
+            ReportingQueryError = null;
             WeakPolicy = false;
             PolicyRecommendation = string.Empty;
 
@@ -398,88 +402,19 @@ namespace DomainDetective {
                 }
             }
 
-            var reportDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            bool hasOrgResolver = getOrgDomain != null || getOrgDomainAsync != null;
-            Task<string> ResolveOrg(string target) => getOrgDomainAsync != null
-                ? getOrgDomainAsync(target, cancellationToken) : Task.FromResult(getOrgDomain?.Invoke(target) ?? target);
-            string? orgDomain = null;
-            if (domainName != null && hasOrgResolver) {
-                orgDomain = await ResolveOrg(domainName).ConfigureAwait(false);
-                if (getOrgDomainAsync != null) OrganizationalDomain = orgDomain;
-            }
-            foreach (var mail in MailtoRua.Concat(MailtoRuf)) {
-                var at = mail.IndexOf('@');
-                if (at > -1 && at < mail.Length - 1) {
-                    var domain = mail.Substring(at + 1);
-                    reportDomains.Add(domain);
-                    if (orgDomain != null && hasOrgResolver &&
-                        !string.Equals(await ResolveOrg(domain).ConfigureAwait(false), orgDomain, StringComparison.OrdinalIgnoreCase)) {
-                        logger?.WriteWarningCode(DmarcCodes.AlignmentMismatch, "Report address {0} is not aligned with {1}.", mail, domainName);
-                    }
-                }
-            }
-            foreach (var http in HttpRua.Concat(HttpRuf)) {
-                if (Uri.TryCreate(http, UriKind.Absolute, out var uri)) {
-                    reportDomains.Add(uri.Host);
-                    if (orgDomain != null && hasOrgResolver &&
-                        !string.Equals(await ResolveOrg(uri.Host).ConfigureAwait(false), orgDomain, StringComparison.OrdinalIgnoreCase)) {
-                        logger?.WriteWarningCode(DmarcCodes.AlignmentMismatch, "Report address {0} is not aligned with {1}.", http, domainName);
-                    }
-                }
-            }
-
-            foreach (var domain in reportDomains) {
-                var policyDomain = PolicyDomain ?? domainName;
-                if (policyDomain == null) {
-                    continue;
-                }
-
-                if (hasOrgResolver) {
-                    var policyOrgDomain = await ResolveOrg(policyDomain).ConfigureAwait(false);
-                    var destinationOrgDomain = await ResolveOrg(domain).ConfigureAwait(false);
-                    if (!string.IsNullOrWhiteSpace(policyOrgDomain) &&
-                        string.Equals(policyOrgDomain, destinationOrgDomain, StringComparison.OrdinalIgnoreCase)) {
-                        continue;
-                    }
-                } else if (domain.Equals(policyDomain, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-
-                var authorizationName = $"{policyDomain}._report._dmarc.{domain}";
-                var records = await QueryDns(authorizationName, DnsRecordType.TXT, cancellationToken).ConfigureAwait(false);
-                var authorized = records != null && records.Any(r =>
-                    r.Type == DnsRecordType.TXT &&
-                    IsDmarcReportAuthorizationRecord(r.TxtConcatenatedData));
-                ExternalReportAuthorization[domain] = authorized;
-            }
             // verify mandatory tags
             HasMandatoryTags = StartsCorrectly && policyTagFound;
             IsPolicyValid &= DmarcPolicyTags.HasValidPolicy(parsedTags);
             EffectivePolicyShort = IsPolicyValid ? PolicyShort : DmarcPolicyTags.HasReportingFallback(parsedTags) ? "none" : string.Empty;
-            EffectivePolicyShort = PolicyWithTestMode(EffectivePolicyShort);
             // set the default value for the pct tag if it is not present
             Pct ??= 100;
-            UpdateAdvisory();
-            // Add high-level advisories as info assessments for consumers
-            if (!string.IsNullOrWhiteSpace(PolicyRecommendation)) {
-                Assessments.Add(new Assessment {
-                    Severity = AssessmentSeverity.Info,
-                    Category = "DMARC",
-                    Target = domainName,
-                    Code = "DMARC.Policy.Recommendation",
-                    Message = PolicyRecommendation!
-                });
-            }
-
+            EvaluatePolicyStrength(domainName != null && !string.Equals(domainName, PolicyDomain, StringComparison.OrdinalIgnoreCase));
+            await CheckReportingAuthorizationAsync(domainName, getOrgDomain, getOrgDomainAsync, logger, cancellationToken).ConfigureAwait(false);
             // Info-level positives (posture signals)
             if (DmarcRecordExists)
                 logger?.WriteInformationCode(DmarcCodes.Present, "DMARC record present");
             if (StartsCorrectly)
                 logger?.WriteInformationCode(DmarcCodes.StartsV1, "DMARC starts with v=DMARC1");
-            if (HasMandatoryTags && IsPolicyValid && string.Equals(PolicyShort, "reject", StringComparison.OrdinalIgnoreCase))
-                logger?.WriteInformationCode(DmarcCodes.PolicyReject, "DMARC policy reject in effect");
-            else if (HasMandatoryTags && IsPolicyValid && string.Equals(PolicyShort, "quarantine", StringComparison.OrdinalIgnoreCase))
-                logger?.WriteInformationCode(DmarcCodes.PolicyQuarantine, "DMARC policy quarantine in effect");
             var ruaCount = MailtoRua?.Count ?? 0;
             if (ruaCount > 0)
                 logger?.WriteInformationCode(DmarcCodes.RuaPresent, $"Aggregate reporting (rua) configured: {ruaCount} address(es)");
@@ -578,29 +513,10 @@ namespace DomainDetective {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(name, type);
             }
-            try {
-                if (type == DnsRecordType.TXT) {
-                    return await DnsConfiguration.QueryPolicyDNS(
-                        name,
-                        type,
-                        filter: string.Empty,
-                        includeAliasesInFilter: true, cancellationToken: cancellationToken);
-                }
-                return await DnsConfiguration.QueryPolicyDNS(name, type, cancellationToken: cancellationToken);
-            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
-                throw;
-            } catch (Exception ex) when (ex is DnsQueryFailureException || ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
-                // Log and continue with empty results to avoid flaky failures in constrained CI/network
-                Assessments.Add(new Assessment {
-                    Severity = AssessmentSeverity.Warning,
-                    Category = "DMARC",
-                    Target = name,
-                    Code = DmarcCodes.QueryFailed,
-                    Message = $"DMARC DNS query failed: {ex.Message}"
-                });
-                return Array.Empty<DnsAnswer>();
-            }
+            return await DnsConfiguration.QueryPolicyDNS(name, type, includeAliasesInFilter: true,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
         }
+
         private string TranslateAlignment(string alignment) {
             return alignment switch {
                 "s" => "Strict",
@@ -678,25 +594,45 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="checkSubdomainPolicy">Evaluates the <c>sp</c> tag when true.</param>
         public void EvaluatePolicyStrength(bool checkSubdomainPolicy = false) {
-            var policy = checkSubdomainPolicy && !string.IsNullOrWhiteSpace(SubPolicyShort)
-                && IsPolicyValid ? PolicyWithTestMode(SubPolicyShort) : EffectivePolicyShort;
-
-            WeakPolicy = string.Equals(policy, "none", StringComparison.OrdinalIgnoreCase);
+            if (DnsQueryFailed) {
+                EffectivePolicyShort = string.Empty;
+            } else if (IsPolicyValid) {
+                string governing = checkSubdomainPolicy && SubjectDomainExists == false && !string.IsNullOrWhiteSpace(NonexistentPolicyShort)
+                    ? NonexistentPolicyShort : checkSubdomainPolicy && !string.IsNullOrWhiteSpace(SubPolicyShort) ? SubPolicyShort : PolicyShort;
+                EffectivePolicyShort = PolicyWithTestMode(governing);
+            } else if (!string.IsNullOrEmpty(EffectivePolicyShort)) {
+                EffectivePolicyShort = "none"; // Valid reporting fallback cannot gain enforcement from sp or test mode.
+            }
+            WeakPolicy = string.Equals(EffectivePolicyShort, "none", StringComparison.OrdinalIgnoreCase);
             PolicyRecommendation = WeakPolicy ? "Consider quarantine or reject." : string.Empty;
+            Assessments.RemoveAll(assessment => assessment.Code == DmarcCodes.PolicyReject || assessment.Code == DmarcCodes.PolicyQuarantine
+                || assessment.Code == "DMARC.Policy.Recommendation");
+            string? code = EffectivePolicyShort == "reject" ? DmarcCodes.PolicyReject
+                : EffectivePolicyShort == "quarantine" ? DmarcCodes.PolicyQuarantine : null;
+            if (code != null && !MultipleRecords) Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Info, Category = "DMARC", Target = Subject, Code = code,
+                Message = $"DMARC policy {EffectivePolicyShort} in effect"
+            });
+            if (WeakPolicy) Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Info, Category = "DMARC", Target = Subject,
+                Code = "DMARC.Policy.Recommendation", Message = PolicyRecommendation
+            });
             UpdateAdvisory();
         }
 
         private void UpdateAdvisory() {
-            if (!DmarcRecordExists) {
+            if (DnsQueryFailed) {
+                Advisory = "Applicable DMARC policy could not be determined; policy absence was not established.";
+            } else if (!DmarcRecordExists) {
                 Advisory = "No DMARC record found.";
             } else if (MultipleRecords) {
                 Advisory = "Multiple DMARC records found; no policy can be applied.";
-            } else if (!StartsCorrectly || !HasMandatoryTags || !IsPolicyValid) {
+            } else if (!StartsCorrectly || string.IsNullOrEmpty(EffectivePolicyShort)) {
                 Advisory = "DMARC record misconfigured.";
             } else if (WeakPolicy) {
                 Advisory = "DMARC policy is weak.";
             } else {
-                Advisory = $"DMARC policy {PolicyShort} in effect.";
+                Advisory = $"DMARC policy {EffectivePolicyShort} in effect.";
             }
         }
 

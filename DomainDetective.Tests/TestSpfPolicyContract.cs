@@ -19,7 +19,6 @@ public class TestSpfPolicyContract {
     [Theory]
     [InlineData("v=spf1 ip4:192.0.2.1 bogus -all")]
     [InlineData("v=spf1 +all ip4:192.0.2.0/33")]
-    [InlineData("v=spf1 ip4:192.0.2.1 x=one x=two -all")]
     [InlineData("v=spf1 ip4:192.0.2.1 +redirect=example.net -all")]
     [InlineData("v=spf1 ++ip4:192.0.2.1 -all")]
     [InlineData("v=spf1 ip4:192.0.2.1 exists:%{z}.example.net -all")]

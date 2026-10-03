@@ -334,7 +334,7 @@ public partial class SpfAnalysis {
         };
     }
 
-    private static bool IsSpfPolicyRecord(string value) {
+    internal static bool IsSpfPolicyRecord(string value) {
         return value.Equals("v=spf1", StringComparison.OrdinalIgnoreCase) ||
                value.StartsWith("v=spf1 ", StringComparison.OrdinalIgnoreCase);
     }

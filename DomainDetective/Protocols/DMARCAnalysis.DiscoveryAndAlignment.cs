@@ -13,6 +13,8 @@ public partial class DmarcAnalysis {
     public string EffectivePolicyShort { get; private set; } = string.Empty;
     /// <summary>Whether the RFC 9989 test-mode tag requests one level less enforcement.</summary>
     public bool IsTestMode { get; private set; }
+    /// <summary>Observed existence of the author domain when choosing inherited np versus sp policy.</summary>
+    public bool? SubjectDomainExists { get; internal set; }
 
     private string PolicyWithTestMode(string policy) => !IsTestMode ? policy : policy switch {
         "reject" => "quarantine",
@@ -27,6 +29,11 @@ public partial class DmarcAnalysis {
     internal void RecordDnsQueryFailure(Exception exception, InternalLogger logger) {
         DnsQueryFailed = true;
         DnsQueryError = exception.Message;
+        EffectivePolicyShort = string.Empty;
+        WeakPolicy = false;
+        PolicyRecommendation = string.Empty;
+        Assessments.RemoveAll(assessment => assessment.Code == DmarcCodes.PolicyReject || assessment.Code == DmarcCodes.PolicyQuarantine
+            || assessment.Code == "DMARC.Policy.Recommendation");
         Advisory = "DMARC policy discovery failed; policy absence was not established.";
         using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "DMARC", target: Subject);
         logger.WriteWarningCode(DmarcCodes.QueryFailed, "DMARC DNS query failed for {0}: {1}", Subject ?? string.Empty, exception.Message);

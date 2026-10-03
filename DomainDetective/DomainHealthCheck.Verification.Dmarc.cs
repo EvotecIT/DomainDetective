@@ -25,18 +25,34 @@ namespace DomainDetective {
             if (DmarcDiscoveryMode == DmarcDiscoveryMode.DnsTreeWalk) {
                 var discovery = new DmarcPolicyDiscovery((name, token) => DnsConfiguration.QueryPolicyDNS(
                     name, DnsRecordType.TXT, includeAliasesInFilter: true, cancellationToken: token));
+                bool analyzed = false;
                 try {
                     var result = await discovery.DiscoverAsync(domainName, cancellationToken).ConfigureAwait(false);
                     var policyDomainName = result.Policy?.Domain ?? domainName;
                     await DmarcAnalysis.AnalyzeDmarcRecords(result.Policy?.Answers ?? Array.Empty<DnsAnswer>(), _logger,
                         domainName, getOrgDomain: null, policyDomainName: policyDomainName,
                         getOrgDomainAsync: discovery.FindOrganizationalDomainAsync, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    analyzed = true;
                     DmarcAnalysis.OrganizationalDomain = result.OrganizationalDomain ?? DmarcAnalysis.OrganizationalDomain;
+                    if (policyDomainName != domainName && DmarcAnalysis.IsPolicyValid && !string.IsNullOrEmpty(DmarcAnalysis.NonexistentPolicyShort)) {
+                        // NXDOMAIN at _dmarc does not establish that the author domain is absent.
+                        var existence = await DnsConfiguration.QueryDNSResponse(domainName, DnsRecordType.SOA,
+                            cancellationToken: cancellationToken).ConfigureAwait(false);
+                        if (!string.IsNullOrEmpty(existence.Error) || existence.Status != DnsResponseCode.NoError && existence.Status != DnsResponseCode.NXDomain)
+                            throw new DnsQueryFailureException(domainName, DnsRecordType.SOA, existence);
+                        DmarcAnalysis.SubjectDomainExists = existence.Status == DnsResponseCode.NoError;
+                    }
                     DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy || policyDomainName != domainName);
+                    using var diagnostics = AssessmentCollector.ForAnalysis(_logger, DmarcAnalysis, category: "DMARC", target: domainName);
+                    foreach (var rejected in result.Rejected) {
+                        int count = rejected.Answers.Count(answer => answer.Type == DnsRecordType.TXT && DmarcAnalysis.IsDmarcPolicyRecord(answer.TxtConcatenatedData));
+                        _logger.WriteWarningCode(count > 1 ? DmarcCodes.MultipleRecords : "DMARC.Record.SyntaxInvalid",
+                            "DMARC records at {0} were discarded during discovery: {1}.", rejected.Domain, count > 1 ? "multiple policies" : "invalid tag syntax");
+                    }
                 } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                     throw;
                 } catch (Exception ex) when (ex is DnsQueryFailureException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException || ex is TaskCanceledException) {
-                    await DmarcAnalysis.AnalyzeDmarcRecords(null, _logger, domainName).ConfigureAwait(false);
+                    if (!analyzed) await DmarcAnalysis.AnalyzeDmarcRecords(null, _logger, domainName).ConfigureAwait(false);
                     DmarcAnalysis.RecordDnsQueryFailure(ex, _logger);
                 }
                 return;

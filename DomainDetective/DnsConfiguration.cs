@@ -320,7 +320,8 @@ namespace DomainDetective {
             if (string.IsNullOrEmpty(filter)) return answers;
             return answers.Where(answer =>
                     includeAliasesInFilter && answer.Type == DnsRecordType.CNAME ||
-                    (answer.DataRaw ?? answer.Data ?? string.Empty).IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
+                    (answer.Type == DnsRecordType.TXT ? answer.TxtConcatenatedData : answer.DataRaw ?? answer.Data ?? string.Empty)
+                        .IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
                 .ToArray();
         }
 

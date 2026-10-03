@@ -178,6 +178,7 @@ namespace DomainDetective {
 
         /// <summary>Executes the reset operation.</summary>
         public void Reset() {
+            Assessments.Clear();
             DenyAll = false;
             _flatteningLimitations.Clear();
             DnsQueryFailed = false;
@@ -309,7 +310,7 @@ namespace DomainDetective {
 
             // loop through the parts of the SPF record for remaining checks
             var parts = TokenizeSpfRecord(SpfRecord).ToArray();
-            PermError |= !TryValidateSpfSyntax(SpfRecord, out _, out _, out _);
+            PermError |= SpfRecordExists && !TryValidateSpfSyntax(SpfRecord, out _, out _, out _);
             DebugTokens = parts;
             if (DebugSpf) {
                 try { System.Console.Error.WriteLine($"[SPF DEBUG] StartsCorrectly={StartsCorrectly} SpfRecord='{SpfRecord}'"); } catch { }
@@ -319,7 +320,7 @@ namespace DomainDetective {
             }
 
             // check that the SPF record does not exceed 10 DNS lookups
-            int dnsLookups = await CountDnsLookups(parts, _visitedDomains, new List<string>(), logger);
+            int dnsLookups = PermError || MultipleSpfRecords ? 0 : await CountDnsLookups(parts, _visitedDomains, new List<string>(), logger);
             DnsLookupsCount = dnsLookups;
             ExceedsDnsLookups = ExceedsDnsLookups || DnsLookupsCount > 10;
 

@@ -28,9 +28,8 @@ public partial class SpfAnalysis {
             invalidToken = term;
             if (TryGetSpfModifier(term, out string name, out string value)) {
                 invalidType = name;
-                if (!modifiers.Add(name) || !SpfMacroString.IsMatch(value)) return false;
-                if ((name.Equals("redirect", StringComparison.OrdinalIgnoreCase) || name.Equals("exp", StringComparison.OrdinalIgnoreCase))
-                    && !ValidSpfDomainSpec(value)) return false;
+                bool known = name.Equals("redirect", StringComparison.OrdinalIgnoreCase) || name.Equals("exp", StringComparison.OrdinalIgnoreCase);
+                if (!SpfMacroString.IsMatch(value) || known && (!modifiers.Add(name) || !ValidSpfDomainSpec(value))) return false;
                 continue;
             }
             string mechanism = "+-~?".IndexOf(term[0]) >= 0 ? term.Substring(1) : term;
@@ -78,12 +77,39 @@ public partial class SpfAnalysis {
 
     private static bool ValidSpfDomainSpec(string domain) {
         if (domain.Length == 0 || !SpfMacroString.IsMatch(domain)) return false;
-        // c/r/t are permitted only in explanation text, never in a DNS target.
-        if (Regex.IsMatch(domain, @"%\{[crt]", RegexOptions.IgnoreCase)) return false;
-        if (domain.EndsWith("}", StringComparison.Ordinal) || domain.EndsWith("%%", StringComparison.Ordinal)
-            || domain.EndsWith("%_", StringComparison.Ordinal) || domain.EndsWith("%-", StringComparison.Ordinal)) return true;
+        bool terminalExpansion = false;
+        for (int i = 0; i < domain.Length; i++) {
+            terminalExpansion = false;
+            if (domain[i] != '%') continue;
+            if (domain[i + 1] == '{') {
+                // c/r/t are explanation-only; escaped %%{c} is literal text.
+                if ("crtCRT".IndexOf(domain[i + 2]) >= 0) return false;
+                i = domain.IndexOf('}', i + 2);
+            } else {
+                i++;
+            }
+            terminalExpansion = i == domain.Length - 1;
+        }
+        if (terminalExpansion) return true;
         string[] labels = domain.TrimEnd('.').Split('.');
         return labels.Length > 1 && Regex.IsMatch(labels[labels.Length - 1], @"^(?:[A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*|[A-Za-z0-9]+-[A-Za-z0-9-]*[A-Za-z0-9])$");
+    }
+
+    // Syntax is checked separately over every term. DNS-dependent analysis only
+    // follows mechanisms before the first all; redirect is ignored with any all.
+    private static IEnumerable<string> ReachableSpfTerms(IEnumerable<string> terms) {
+        var source = terms.ToArray();
+        bool hasAll = source.Any(IsAllMechanism);
+        bool reachedAll = false;
+        foreach (string term in source) {
+            if (TryGetSpfModifier(term, out string modifier, out _)) {
+                if (!hasAll || !modifier.Equals("redirect", StringComparison.OrdinalIgnoreCase)) yield return term;
+                continue;
+            }
+            if (reachedAll) continue;
+            yield return term;
+            reachedAll = IsAllMechanism(term);
+        }
     }
 
     private static bool ValidSpfAddress(string cidr, AddressFamily family) {

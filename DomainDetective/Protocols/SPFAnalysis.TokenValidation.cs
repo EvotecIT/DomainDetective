@@ -56,7 +56,7 @@ namespace DomainDetective {
 
         private async Task<int> CountDnsLookups(string[] parts, HashSet<string> visitedDomains, List<string> path, InternalLogger? logger) {
             int dnsLookups = 0;
-            foreach (var part in parts) {
+            foreach (var part in ReachableSpfTerms(parts)) {
                 var token = part.Trim('"').Trim();
                 if (token.Length > 0 && "+-~?".IndexOf(token[0]) >= 0) {
                     token = token.Substring(1);
@@ -137,7 +137,6 @@ namespace DomainDetective {
                 var answers = await DnsConfiguration.QueryPolicyDNS(
                     domain,
                     DnsRecordType.TXT,
-                    "SPF1",
                     includeAliasesInFilter: true);
                 var records = answers
                     .Where(answer => answer.Type == DnsRecordType.TXT)
