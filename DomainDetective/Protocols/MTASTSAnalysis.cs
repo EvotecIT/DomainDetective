@@ -256,6 +256,7 @@ public class MTASTSAnalysis : IHasAssessments {
                 Policy = entry.Policy;
                 ParsePolicy(entry.Policy);
                 PolicyValid = PolicyValid && DnsRecordValid;
+                await EvaluateMxAlignmentAsync(domainName, cancellationToken);
                 UpdateAdvisory();
                 return;
             }
@@ -275,7 +276,7 @@ public class MTASTSAnalysis : IHasAssessments {
             PolicyValid = PolicyValid && DnsRecordValid;
             await EvaluateMxAlignmentAsync(domainName, cancellationToken);
             var expiration = DateTimeOffset.UtcNow.Add(CacheDuration);
-            if (ValidMaxAge && MaxAge > 0) {
+            if (ValidMaxAge) {
                 var maxAgeExpiration = DateTimeOffset.UtcNow.Add(TimeSpan.FromSeconds(MaxAge));
                 if (maxAgeExpiration < expiration) {
                     expiration = maxAgeExpiration;
@@ -515,7 +516,7 @@ public class MTASTSAnalysis : IHasAssessments {
                     case "max_age":
                         if (int.TryParse(value, out int ma)) {
                             MaxAge = ma;
-                            ValidMaxAge = ma > 0;
+                            ValidMaxAge = ma >= 0;
                         }
                         break;
                     case "mx":
@@ -527,7 +528,8 @@ public class MTASTSAnalysis : IHasAssessments {
                 }
             }
 
-            PolicyValid = PolicyValid && VersionPresent && ValidVersion && ValidMode && ValidMaxAge && HasMx && !HasDuplicateFields;
+            PolicyValid = PolicyValid && VersionPresent && ValidVersion && ValidMode && ValidMaxAge
+                && (Mode == "none" || HasMx) && !HasDuplicateFields;
         }
 
         private static bool PatternMatches(string pattern, string host)
