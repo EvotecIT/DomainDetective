@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Text.RegularExpressions;
 
 namespace DomainDetective;
 
@@ -17,15 +16,24 @@ internal sealed class MessagePublicKeyLocator : DkimPublicKeyLocatorBase {
     private readonly Dictionary<string, string> _records = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _dnsKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _failedKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DkimKeyRecord> _keyPolicies = new(StringComparer.OrdinalIgnoreCase);
+    private string? _algorithm;
+    private string? _identity;
     private int _queries;
     internal List<string> Failures { get; } = new();
+    internal List<string> PolicyFailures { get; } = new();
     internal bool UsedDns { get; private set; }
-    internal void BeginVerification() { UsedDns = false; }
+    internal void BeginVerification() { UsedDns = false; _algorithm = null; _identity = null; }
+    internal void BeginVerification(Dictionary<string, string>? signatureTags) {
+        BeginVerification();
+        _algorithm = signatureTags != null && signatureTags.TryGetValue("a", out var algorithm) ? algorithm : null;
+        _identity = signatureTags != null && signatureTags.TryGetValue("i", out var identity) ? identity : null;
+    }
 
     internal MessagePublicKeyLocator(MessageVerificationOptions options, DnsConfiguration dns) {
         _options = options;
         _dns = dns;
-        foreach (var pair in options.PublicKeyRecords) { _records[pair.Key.Trim().TrimEnd('.')] = pair.Value; }
+        foreach (var pair in options.PublicKeyRecords) { _records[DkimDnsName.NormalizeRecordName(pair.Key)] = pair.Value; }
     }
 
     public override AsymmetricKeyParameter LocatePublicKey(string methods, string domain, string selector, CancellationToken cancellationToken = default) {
@@ -34,13 +42,7 @@ internal sealed class MessagePublicKeyLocator : DkimPublicKeyLocatorBase {
 
     public override async Task<AsymmetricKeyParameter> LocatePublicKeyAsync(string methods, string domain, string selector, CancellationToken cancellationToken = default) {
         cancellationToken.ThrowIfCancellationRequested();
-        var normalizedDomain = Helpers.DomainHelper.ValidateIdn(domain);
-        if (string.IsNullOrWhiteSpace(selector) || selector.Length > 253 || !Regex.IsMatch(selector, @"^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1))
-            || selector.Split('.').Any(label => label.Length > 63)) {
-            throw new ArgumentException("Invalid DKIM selector.", nameof(selector));
-        }
-        var host = selector.ToLowerInvariant() + "._domainkey." + normalizedDomain.ToLowerInvariant();
-        if (host.Length > 253) { throw new ArgumentException("DKIM key lookup name exceeds DNS limits.", nameof(selector)); }
+        var host = DkimDnsName.Lookup(domain, selector);
         var cacheKeyFailure = false;
         try {
             if (!methods.Split(':').Contains("dns/txt", StringComparer.OrdinalIgnoreCase)) { throw new NotSupportedException("Only dns/txt key acquisition is supported."); }
@@ -53,13 +55,22 @@ internal sealed class MessagePublicKeyLocator : DkimPublicKeyLocatorBase {
                 cacheKeyFailure = true;
                 _dnsKeys.Add(host);
                 var answers = await _dns.QueryDNS(host, DnsRecordType.TXT, cancellationToken: cancellationToken).ConfigureAwait(false);
-                var candidates = answers.Select(answer => answer.TxtConcatenatedData).Where(value => MessageHeaderValueParser.ParseTags(value).ContainsKey("p")).Distinct(StringComparer.Ordinal).ToArray();
+                var candidates = answers.Where(answer => answer.Type == DnsRecordType.TXT)
+                    .Select(answer => answer.TxtConcatenatedData).ToArray();
                 if (candidates.Length != 1) { throw new InvalidOperationException("Exactly one DKIM public-key record is required for " + host + "."); }
                 record = candidates[0];
                 _records[host] = record;
             }
-            return GetPublicKey(record);
+            if (!_keyPolicies.TryGetValue(host, out var policy)) {
+                policy = DkimKeyRecord.Parse(record);
+                _keyPolicies.Add(host, policy);
+            }
+            policy.ValidateUse(domain, _algorithm, _identity);
+            // Policy accepts RFC 6376 FWS; give the cryptographic decoder only
+            // normalized key material, rather than relying on its tag parser.
+            return GetPublicKey("k=" + policy.KeyType + "; p=" + policy.PublicKey);
         } catch (OperationCanceledException) { throw; }
+        catch (DkimKeyPolicyException ex) { PolicyFailures.Add(ex.Message); throw; }
         catch (Exception ex) {
             if (cacheKeyFailure && !_failedKeys.ContainsKey(host)) { _failedKeys[host] = ex.Message; }
             Failures.Add(ex.Message);

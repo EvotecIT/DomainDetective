@@ -5,6 +5,8 @@ namespace DomainDetective;
 
 /// <summary>One original header field; repeatable fields remain separate.</summary>
 public sealed class MessageHeaderField {
+    /// <summary>Original field-value text retained by the MIME parser, including folding and encoded words.</summary>
+    public string RawValue { get; internal set; } = string.Empty;
     /// <summary>Header field name.</summary>
     public string Name { get; internal set; } = string.Empty;
     /// <summary>Original field value.</summary>
@@ -43,7 +45,7 @@ public sealed class MessageDkimSignature {
     public DateTimeOffset? Expires { get; internal set; }
     /// <summary>Signed body length limit, if supplied.</summary>
     public long? BodyLength { get; internal set; }
-    /// <summary>Matching receiver-reported result for this domain and selector.</summary>
+    /// <summary>Receiver-reported result correlated by domain, selector, and case-sensitive signature prefix when provided.</summary>
     public string? ReceiverResult { get; internal set; }
 }
 

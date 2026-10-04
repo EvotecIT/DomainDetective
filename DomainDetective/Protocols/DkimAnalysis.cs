@@ -128,71 +128,72 @@ namespace DomainDetective {
                 logger?.WriteErrorCode(DkimCodes.MultipleRecords, "Multiple DKIM TXT records found for selector {0}; a unique key record is required.", selector);
             }
 
-            var tags = analysis.DkimRecord.Split(';');
-            analysis.VersionTagPresent = tags.Any(tag => tag.TrimStart().StartsWith("v=", StringComparison.OrdinalIgnoreCase));
-            analysis.StartsCorrectly = analysis.DkimRecord.TrimStart().StartsWith("v=DKIM1", StringComparison.OrdinalIgnoreCase);
-            analysis.VersionValid = !analysis.VersionTagPresent || analysis.StartsCorrectly;
+            var keyPolicy = DkimKeyRecord.Parse(analysis.DkimRecord);
+            analysis.ValidTagSyntax = keyPolicy.SyntaxValid;
+            analysis.DuplicateTags = keyPolicy.DuplicateTags;
+            analysis.VersionTagPresent = keyPolicy.VersionPresent;
+            analysis.StartsCorrectly = keyPolicy.VersionPresent && keyPolicy.VersionValid;
+            analysis.VersionValid = keyPolicy.VersionValid;
+            analysis.AllowsEmailService = keyPolicy.AllowsEmail;
+            analysis.AllowsSha256 = !keyPolicy.Tags.TryGetValue("h", out var hashes) || hashes.Split(':').Any(hash => hash.Trim() == "sha256");
+            if (!analysis.ValidTagSyntax) logger?.WriteErrorCode("DKIM.Record.TagSyntaxInvalid", "DKIM key tag syntax is invalid or repeats a tag for selector {0}.", selector);
 
             // loop through the tags of the DKIM record
-            foreach (var tag in tags) {
-                var keyValue = tag.Split(new[] { '=' }, 2);
-                if (keyValue.Length == 2) {
-                    var key = keyValue[0].Trim();
-                    var value = keyValue[1].Trim();
-                    switch (key) {
-                        case "p":
-                            analysis.PublicKey = value;
-                            break;
-                        case "s":
-                            analysis.ServiceType = value;
-                            break;
-                        case "t":
-                            analysis.Flags = value;
-                            analysis.UnknownFlagCharacters = new string(value.ToLowerInvariant().Where(c => c != 'y' && c != 's').ToArray());
-                            analysis.ValidFlags = analysis.UnknownFlagCharacters.Length == 0;
-                            break;
-                        case "k":
-                            analysis.KeyType = value;
-                            analysis.ValidKeyType = string.Equals(value, "rsa", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(value, "ed25519", StringComparison.OrdinalIgnoreCase);
-                            break;
-                        case "c":
-                            analysis.Canonicalization = value;
-                            var parts = value.ToLowerInvariant().Split('/');
-                            analysis.ValidCanonicalization = parts.Length is 1 or 2;
-                            foreach (var part in parts)
+            foreach (var tag in keyPolicy.Tags) {
+                var key = tag.Key;
+                var value = tag.Value;
+                switch (key) {
+                    case "p":
+                        analysis.PublicKey = keyPolicy.PublicKey;
+                        break;
+                    case "s":
+                        analysis.ServiceType = value;
+                        break;
+                    case "t":
+                        analysis.Flags = value;
+                        analysis.UnknownFlagCharacters = string.Join(":", keyPolicy.UnknownFlags);
+                        analysis.ValidFlags = keyPolicy.SyntaxValid;
+                        break;
+                    case "k":
+                        analysis.KeyType = value;
+                        analysis.ValidKeyType = keyPolicy.SupportedKeyType;
+                        break;
+                    case "c":
+                        analysis.Canonicalization = value;
+                        var parts = value.ToLowerInvariant().Split('/');
+                        analysis.ValidCanonicalization = parts.Length is 1 or 2;
+                        foreach (var part in parts)
+                        {
+                            if (part != "simple" && part != "relaxed")
                             {
-                                if (part != "simple" && part != "relaxed")
+                                analysis.ValidCanonicalization = false;
+                                if (!analysis.UnknownCanonicalizationModes.Contains(part))
                                 {
-                                    analysis.ValidCanonicalization = false;
-                                    if (!analysis.UnknownCanonicalizationModes.Contains(part))
-                                    {
-                                        analysis.UnknownCanonicalizationModes.Add(part);
-                                        logger?.WriteErrorCode(DkimCodes.CanonicalizationUnknown, "Unknown canonicalization mode: {0}", part);
-                                    }
+                                    analysis.UnknownCanonicalizationModes.Add(part);
+                                    logger?.WriteErrorCode(DkimCodes.CanonicalizationUnknown, "Unknown canonicalization mode: {0}", part);
                                 }
                             }
-                            break;
-                        case "h":
-                            analysis.HashAlgorithm = value;
-                            if (value.IndexOf("sha1", StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                analysis.DeprecatedTags.Add($"h={value}");
-                                logger?.WriteWarningCode(DkimCodes.HashDeprecated, "Deprecated hash algorithm detected: {0}", value);
-                            }
-                            break;
-                        case "a":
-                            analysis.SignatureAlgorithm = value;
-                            break;
-                        case "g":
-                            analysis.DeprecatedTags.Add("g");
-                            logger?.WriteWarningCode(DkimCodes.TagGDeprecated, "DKIM tag 'g' is deprecated and ignored");
-                            break;
-                        case "q":
-                            analysis.DeprecatedTags.Add("q");
-                            logger?.WriteWarningCode(DkimCodes.TagQDeprecated, "DKIM tag 'q' is deprecated and ignored");
-                            break;
-                    }
+                        }
+                        break;
+                    case "h":
+                        analysis.HashAlgorithm = value;
+                        if (value.IndexOf("sha1", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            analysis.DeprecatedTags.Add($"h={value}");
+                            logger?.WriteWarningCode(DkimCodes.HashDeprecated, "Deprecated hash algorithm detected: {0}", value);
+                        }
+                        break;
+                    case "a":
+                        analysis.SignatureAlgorithm = value;
+                        break;
+                    case "g":
+                        analysis.DeprecatedTags.Add("g");
+                        logger?.WriteWarningCode(DkimCodes.TagGDeprecated, "DKIM tag 'g' is deprecated and ignored");
+                        break;
+                    case "q":
+                        analysis.DeprecatedTags.Add("q");
+                        logger?.WriteWarningCode(DkimCodes.TagQDeprecated, "DKIM tag 'q' is deprecated and ignored");
+                        break;
                 }
             }
 
@@ -200,8 +201,7 @@ namespace DomainDetective {
             analysis.PublicKeyExists = !string.IsNullOrEmpty(analysis.PublicKey);
             analysis.KeyTypeExists = !string.IsNullOrEmpty(analysis.KeyType);
             analysis.KeyType = analysis.KeyTypeExists ? analysis.KeyType : "rsa";
-            analysis.ValidKeyType = string.Equals(analysis.KeyType, "rsa", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(analysis.KeyType, "ed25519", StringComparison.OrdinalIgnoreCase);
+            analysis.ValidKeyType = keyPolicy.SupportedKeyType;
             ValidatePublicKey(selector, analysis, logger);
 
             AnalysisResults[selector] = analysis;
@@ -390,6 +390,14 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class DkimRecordAnalysis {
+        /// <summary>Whether the record has valid DKIM tag-list syntax.</summary>
+        public bool ValidTagSyntax { get; set; }
+        /// <summary>Whether a key record repeats a tag.</summary>
+        public bool DuplicateTags { get; set; }
+        /// <summary>Whether the service restriction permits email verification.</summary>
+        public bool AllowsEmailService { get; set; }
+        /// <summary>Whether the hash restriction permits SHA-256 signatures.</summary>
+        public bool AllowsSha256 { get; set; }
         /// <summary>Gets or sets the queried record name.</summary>
         public string? Name { get; set; }
         /// <summary>Gets or sets the full DKIM record text.</summary>
@@ -426,9 +434,9 @@ namespace DomainDetective {
         public string ServiceType { get; set; } = string.Empty;
         /// <summary>Gets or sets any flags defined for the record.</summary>
         public string? Flags { get; set; }
-        /// <summary>Gets unrecognized flag characters if <see cref="ValidFlags"/> is <c>false</c>.</summary>
+        /// <summary>Unrecognized flag names, colon-separated; unknown flags are ignored.</summary>
         public string UnknownFlagCharacters { get; set; } = string.Empty;
-        /// <summary>Gets or sets a value indicating whether all flag characters are valid.</summary>
+        /// <summary>Whether the colon-separated flag list has valid syntax.</summary>
         public bool ValidFlags { get; set; }
         /// <summary>Unrecognized canonicalization modes.</summary>
         public List<string> UnknownCanonicalizationModes { get; } = new();

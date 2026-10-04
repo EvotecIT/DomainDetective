@@ -9,7 +9,7 @@ using System.Text;
 
 namespace DomainDetective.Tests;
 
-public class TestMessageSignatureVerification {
+public partial class TestMessageSignatureVerification {
     [Theory]
     [InlineData("Original body", true)]
     [InlineData("", false)]
@@ -25,7 +25,7 @@ public class TestMessageSignatureVerification {
         return generator.GenerateKeyPair();
     });
 
-    private static (byte[] Bytes, MessageVerificationOptions Options) SignedMessage() {
+    private static (byte[] Bytes, MessageVerificationOptions Options) SignedMessage(string selector = "s1", string? identity = null) {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress("Sender", "sender@example.com"));
         message.To.Add(new MailboxAddress("Recipient", "recipient@example.net"));
@@ -33,16 +33,17 @@ public class TestMessageSignatureVerification {
         message.Date = DateTimeOffset.UtcNow;
         message.Body = new TextPart("plain") { Text = "Original body\r\n" };
         message.Prepare(EncodingConstraint.SevenBit);
-        var signer = new DkimSigner(Keys.Value.Private, "example.com", "s1") {
+        var signer = new DkimSigner(Keys.Value.Private, "example.com", selector) {
             SignatureAlgorithm = DkimSignatureAlgorithm.RsaSha256,
             HeaderCanonicalizationAlgorithm = DkimCanonicalizationAlgorithm.Relaxed,
             BodyCanonicalizationAlgorithm = DkimCanonicalizationAlgorithm.Relaxed
         };
+        if (identity != null) signer.AgentOrUserIdentifier = identity;
         signer.Sign(message, new[] { HeaderId.From, HeaderId.To, HeaderId.Subject, HeaderId.Date });
         using var stream = new MemoryStream();
         message.WriteTo(stream);
         var options = new MessageVerificationOptions();
-        options.PublicKeyRecords["s1._domainkey.example.com"] = "v=DKIM1; k=rsa; p=" + Convert.ToBase64String(SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(Keys.Value.Public).GetDerEncoded());
+        options.PublicKeyRecords[DkimDnsName.Lookup("example.com", selector)] = "v=DKIM1; k=rsa; p=" + Convert.ToBase64String(SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(Keys.Value.Public).GetDerEncoded());
         return (stream.ToArray(), options);
     }
 
@@ -128,7 +129,8 @@ public class TestMessageSignatureVerification {
         message.WriteTo(output);
         var analysis = await health.AnalyzeMessageAsync(output.ToArray(), sample.Options);
         Assert.Equal(new[] { "missing._domainkey.example.com", "s1._domainkey.example.com" }, queries);
-        Assert.Equal(new[] { MessageSignatureStatus.Inconclusive, MessageSignatureStatus.Inconclusive, MessageSignatureStatus.Valid }, analysis.SignatureVerification.Select(value => value.Status));
+        var failure = malformed ? MessageSignatureStatus.Invalid : MessageSignatureStatus.Inconclusive;
+        Assert.Equal(new[] { failure, failure, MessageSignatureStatus.Valid }, analysis.SignatureVerification.Select(value => value.Status));
     }
 
     [Fact]
@@ -215,11 +217,12 @@ public class TestMessageSignatureVerification {
     }
 
     private sealed class TestArcSigner : ArcSigner {
-        internal TestArcSigner() : base(Keys.Value.Private, "example.com", "s1", DkimSignatureAlgorithm.RsaSha256) { }
+        internal TestArcSigner(string selector = "s1") : base(Keys.Value.Private, "example.com", selector, DkimSignatureAlgorithm.RsaSha256) { }
 
         protected override AuthenticationResults GenerateArcAuthenticationResults(FormatOptions options, MimeMessage message, CancellationToken cancellationToken) {
             var results = new AuthenticationResults("mx.example.com");
             results.Results.Add(new AuthenticationMethodResult("dkim", "pass"));
+            if (message.Headers.Any(header => header.Id == HeaderId.ArcSeal)) results.Results.Add(new AuthenticationMethodResult("arc", "pass"));
             return results;
         }
 

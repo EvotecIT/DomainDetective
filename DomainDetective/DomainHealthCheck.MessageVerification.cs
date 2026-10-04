@@ -30,12 +30,12 @@ public partial class DomainHealthCheck {
         if (options.HeaderOptions.MaximumHeaderCharacters < 1 || headerBytes > (long)options.HeaderOptions.MaximumHeaderCharacters * 4) {
             throw new ArgumentException("MIME header exceeds MaximumHeaderCharacters.", nameof(messageBytes));
         }
-        var analysis = new MessageHeaderAnalysis();
-        analysis.Parse(Encoding.UTF8.GetString(messageBytes, 0, headerBytes), options.HeaderOptions, _logger);
-        analysis.HadBody = boundary >= 0 && boundary < messageBytes.Length;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var deadline = Stopwatch.StartNew();
         timeout.CancelAfter(options.Timeout);
+        var analysis = new MessageHeaderAnalysis();
+        analysis.Parse(Encoding.UTF8.GetString(messageBytes, 0, headerBytes), options.HeaderOptions, _logger);
+        analysis.HadBody = boundary >= 0 && boundary < messageBytes.Length;
         using var stream = new MemoryStream(messageBytes, writable: false);
         MimeMessage message;
         try {
@@ -65,7 +65,7 @@ public partial class DomainHealthCheck {
         var dkim = new DkimVerifier(locator);
         var count = 0;
         foreach (var header in message.Headers.Where(header => header.Id == HeaderId.DkimSignature)) {
-            var tags = MessageHeaderValueParser.ParseTags(header.Value);
+            bool validTags = DkimTagList.TryParse(MessageHeaderValueParser.UnfoldRawValue(header), out var tags, out _);
             tags.TryGetValue("d", out var domain);
             tags.TryGetValue("s", out var selector);
             var result = new MessageSignatureVerification { Method = "DKIM", Domain = domain, Selector = selector };
@@ -75,14 +75,23 @@ public partial class DomainHealthCheck {
                 result.Explanation = !hasBodyBoundary ? "Original message body boundary is unavailable; headers alone cannot establish DKIM validity." : "Configured DKIM signature limit reached; verification is incomplete.";
                 continue;
             }
+            if (!validTags) {
+                result.Status = MessageSignatureStatus.Invalid;
+                result.Explanation = "DKIM signature tag syntax is invalid or repeats a tag.";
+                continue;
+            }
             var failures = locator.Failures.Count;
-            locator.BeginVerification();
+            var policyFailures = locator.PolicyFailures.Count;
+            locator.BeginVerification(tags);
             try {
                 var valid = await dkim.VerifyAsync(message, header, timeout.Token).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (deadline.Elapsed >= options.Timeout) { throw new OperationCanceledException(timeout.Token); }
                 result.Status = valid ? MessageSignatureStatus.Valid : MessageSignatureStatus.Invalid;
                 result.Explanation = valid ? "Original message verifies using the available public key. This does not establish delivery-time DNS or sender intent." : "Signature did not validate the supplied message.";
+            } catch (DkimKeyPolicyException ex) {
+                result.Status = MessageSignatureStatus.Invalid;
+                result.Explanation = ex.Message;
             } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
                 result.Status = MessageSignatureStatus.Inconclusive;
                 result.Explanation = "Verification timeout reached.";
@@ -93,6 +102,10 @@ public partial class DomainHealthCheck {
             if (locator.Failures.Count > failures) {
                 result.Status = MessageSignatureStatus.Inconclusive;
                 result.Explanation = string.Join(" ", locator.Failures.Skip(failures));
+            }
+            if (locator.PolicyFailures.Count > policyFailures) {
+                result.Status = MessageSignatureStatus.Invalid;
+                result.Explanation = string.Join(" ", locator.PolicyFailures.Skip(policyFailures));
             }
             result.UsedDns = locator.UsedDns;
         }
@@ -105,7 +118,8 @@ public partial class DomainHealthCheck {
                 result.Explanation = "Original message body boundary is unavailable; full ARC verification was not performed.";
             } else {
                 var failures = locator.Failures.Count;
-                locator.BeginVerification();
+                var policyFailures = locator.PolicyFailures.Count;
+                locator.BeginVerification(null);
                 try {
                     var arc = await new ArcVerifier(locator).VerifyAsync(message, timeout.Token).ConfigureAwait(false);
                     cancellationToken.ThrowIfCancellationRequested();
@@ -120,6 +134,7 @@ public partial class DomainHealthCheck {
                     result.Explanation = "ARC verification could not complete: " + ex.Message;
                 }
                 if (locator.Failures.Count > failures) { result.Status = MessageSignatureStatus.Inconclusive; result.Explanation = string.Join(" ", locator.Failures.Skip(failures)); }
+                if (locator.PolicyFailures.Count > policyFailures) { result.Status = MessageSignatureStatus.Invalid; result.Explanation = string.Join(" ", locator.PolicyFailures.Skip(policyFailures)); }
                 result.UsedDns = locator.UsedDns;
             }
         }

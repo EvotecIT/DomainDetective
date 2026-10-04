@@ -157,14 +157,14 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task UnexpectedFlagCharactersDetected() {
-            const string record = "v=DKIM1; t=yz; k=rsa; p=QUJD;";
+        public async Task UnknownFlagNamesAreRetainedAndIgnored() {
+            const string record = "v=DKIM1; t=y:future; k=rsa; p=QUJD;";
 
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckDKIM(record);
 
-            Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidFlags);
-            Assert.Contains("z", healthCheck.DKIMAnalysis.AnalysisResults["default"].UnknownFlagCharacters);
+            Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidFlags);
+            Assert.Equal("future", healthCheck.DKIMAnalysis.AnalysisResults["default"].UnknownFlagCharacters);
             Assert.Equal(0, healthCheck.DKIMAnalysis.AnalysisResults["default"].KeyLength);
         }
 

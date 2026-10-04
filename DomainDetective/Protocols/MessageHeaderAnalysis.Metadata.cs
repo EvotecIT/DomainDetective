@@ -121,7 +121,7 @@ public partial class MessageHeaderAnalysis {
 
     private void AnalyzeDkimMetadata() {
         foreach (var field in Fields.Where(field => field.Name.Equals("DKIM-Signature", StringComparison.OrdinalIgnoreCase))) {
-            var tags = MessageHeaderValueParser.ParseTags(field.Value, out var duplicateTags);
+            DkimTagList.TryParse(field.Value, out var tags, out var duplicateTags);
             if (duplicateTags) { AddFinding("HEADERS.DKIM.DuplicateTag", AssessmentSeverity.Warning, "A DKIM signature repeats a tag; its metadata is ambiguous and cryptographic verification is required."); }
             string? Tag(string key) => tags.TryGetValue(key, out var value) ? value : null;
             var signature = new MessageDkimSignature {
@@ -130,16 +130,18 @@ public partial class MessageHeaderAnalysis {
                 Timestamp = ParseUnixTime(Tag("t")), Expires = ParseUnixTime(Tag("x")),
                 BodyLength = long.TryParse(Tag("l"), out var length) && length >= 0 ? length : null
             };
-            var results = _selectedAuthenticationEvidence.SelectMany(value => value.Methods).Where(method => method.Method == "dkim"
-                && string.Equals(GetIdentity(method, "header.d"), signature.Domain, StringComparison.OrdinalIgnoreCase)
-                && (!method.Properties.ContainsKey("header.s") || string.Equals(GetIdentity(method, "header.s"), signature.Selector, StringComparison.OrdinalIgnoreCase)))
-                .Select(method => method.Result).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            signature.ReceiverResult = results.Length > 1 ? "conflict" : results.FirstOrDefault();
             DkimSignatures.Add(signature);
             if (string.Equals(signature.Algorithm, "rsa-sha1", StringComparison.OrdinalIgnoreCase)) { AddFinding("HEADERS.DKIM.WeakHash", AssessmentSeverity.Warning, "DKIM uses deprecated SHA-1."); }
             if (signature.BodyLength.HasValue) { AddFinding("HEADERS.DKIM.BodyLength", AssessmentSeverity.Warning, "DKIM l= limits the signed body; appended content may be outside the signature."); }
             if (signature.Expires < DateTimeOffset.UtcNow) { AddFinding("HEADERS.DKIM.Expired", AssessmentSeverity.Info, "A DKIM signature is expired at analysis time; this does not establish its validity at delivery."); }
             if (!signature.SignedHeaders.Contains("from")) { AddFinding("HEADERS.DKIM.FromUnsigned", AssessmentSeverity.Warning, "A DKIM signature does not include From in h=."); }
+        }
+        var observations = _selectedAuthenticationEvidence.SelectMany(value => value.Methods).Where(method => method.Method == "dkim").ToArray();
+        foreach (var signature in DkimSignatures) {
+            var matching = observations.Where(method => DkimObservationMatches(method, signature)).ToArray();
+            var results = matching.Select(method => method.Result).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            bool ambiguous = matching.Any(method => DkimSignatures.Count(candidate => DkimObservationMatches(method, candidate)) > 1);
+            signature.ReceiverResult = results.Length > 1 ? "conflict" : ambiguous ? "ambiguous" : results.FirstOrDefault();
         }
     }
 
