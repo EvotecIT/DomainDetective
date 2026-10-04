@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -28,12 +27,6 @@ namespace DomainDetective {
 
         private const int MaxLabelLength = 63;
         private const int MaxHostNameLength = 253;
-        private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
-        private static readonly Regex _labelRegex = new(
-            $"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{{0,{MaxLabelLength - 2}}}[a-zA-Z0-9])?$",
-            RegexOptions.Compiled,
-            RegexTimeout);
-
         private static readonly string[] CloudHints = new[] {
             "amazonaws.com", "compute-1.amazonaws.com", "googleusercontent.com", "cloudflare.com", "azure.com", "windows.net",
             "digitalocean.com", "linode.com", "ovh.net", "hetzner", "akamaiedge.net", "akamaitechnologies.com", "fastly.net"
@@ -51,13 +44,26 @@ namespace DomainDetective {
 
             var labels = NormalizeHost(name).Split('.');
             foreach (var label in labels) {
-                if (label.Length > MaxLabelLength || !_labelRegex.IsMatch(label)) {
+                if (label.Length == 0 || label.Length > MaxLabelLength ||
+                    !IsAsciiLetterOrDigit(label[0]) || !IsAsciiLetterOrDigit(label[label.Length - 1])) {
                     return false;
+                }
+
+                for (int index = 1; index < label.Length - 1; index++) {
+                    char character = label[index];
+                    if (character != '-' && !IsAsciiLetterOrDigit(character)) {
+                        return false;
+                    }
                 }
             }
 
             return true;
         }
+
+        private static bool IsAsciiLetterOrDigit(char character) =>
+            (character >= 'a' && character <= 'z') ||
+            (character >= 'A' && character <= 'Z') ||
+            (character >= '0' && character <= '9');
 
         /// <summary>Represents PTR lookup result for a single address.</summary>
         /// <para>Part of the DomainDetective project.</para>
