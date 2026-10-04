@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,28 +37,44 @@ public sealed class UptimeProbeAnalysis : IHasAssessments
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>
-    /// Performs a HEAD probe (optionally falls back to GET) and records timing and posture.
+    /// Performs a HEAD probe, falls back to a header-only GET for 405/501 responses, and records timing and posture.
     /// </summary>
     public async Task ProbeAsync(string url, InternalLogger? logger = null, CancellationToken ct = default)
     {
         Subject = url;
+        Url = null;
+        Success = false;
+        StatusCode = 0;
+        TtfbMilliseconds = 0;
+        TotalMilliseconds = 0;
+        ImportantHeaders.Clear();
+        Assessments.Clear();
         Url = new Uri(url, UriKind.Absolute);
         var client = SharedHttpClient.Instance;
-        using var req = new HttpRequestMessage(HttpMethod.Head, Url);
         var sw = Stopwatch.StartNew();
+        HttpResponseMessage? response = null;
         try
         {
-            using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-            TtfbMilliseconds = sw.ElapsedMilliseconds;
-            StatusCode = (int)resp.StatusCode;
-            // Basic header posture
-            Capture("strict-transport-security", resp);
-            Capture("content-security-policy", resp);
-            Capture("x-content-type-options", resp);
-            Capture("referrer-policy", resp);
-            Capture("permissions-policy", resp);
+            using var headRequest = new HttpRequestMessage(HttpMethod.Head, Url);
+            response = await client.SendAsync(headRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.MethodNotAllowed || response.StatusCode == HttpStatusCode.NotImplemented)
+            {
+                response.Dispose();
+                response = null;
+                using var getRequest = new HttpRequestMessage(HttpMethod.Get, Url);
+                response = await client.SendAsync(getRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            }
 
-            if ((int)resp.StatusCode >= 200 && (int)resp.StatusCode < 400)
+            TtfbMilliseconds = sw.ElapsedMilliseconds;
+            StatusCode = (int)response.StatusCode;
+            // Basic header posture
+            Capture("strict-transport-security", response);
+            Capture("content-security-policy", response);
+            Capture("x-content-type-options", response);
+            Capture("referrer-policy", response);
+            Capture("permissions-policy", response);
+
+            if (StatusCode >= 200 && StatusCode < 400)
             {
                 Success = true;
                 logger?.WriteInformationCode(UptimeCodes.UptimeOk, $"Uptime OK {StatusCode} ({TtfbMilliseconds} ms TTFB)");
@@ -68,6 +85,10 @@ public sealed class UptimeProbeAnalysis : IHasAssessments
                 logger?.WriteWarningCode(UptimeCodes.UptimeBadStatus, $"Uptime status {StatusCode} ({TtfbMilliseconds} ms TTFB)");
             }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             TtfbMilliseconds = sw.ElapsedMilliseconds;
@@ -77,6 +98,7 @@ public sealed class UptimeProbeAnalysis : IHasAssessments
         }
         finally
         {
+            response?.Dispose();
             sw.Stop();
             TotalMilliseconds = sw.ElapsedMilliseconds;
         }
