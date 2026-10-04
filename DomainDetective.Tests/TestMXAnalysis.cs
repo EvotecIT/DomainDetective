@@ -132,4 +132,35 @@ namespace DomainDetective.Tests {
 
             Assert.Equal(new[] { "mail1.example.com", "mail2.example.com", "mail3.example.com" }, queriedHosts);
         }
+
+        [Fact]
+        public async Task ReportsMissingAddressesForEachMxHost() {
+            var analysis = new MXAnalysis {
+                Subject = "example.com",
+                QueryDnsOverride = (_, type) => Task.FromResult(type == DnsRecordType.NS
+                    ? new[] { new DnsAnswer { Type = DnsRecordType.NS, DataRaw = "ns.example.com" } }
+                    : Array.Empty<DnsAnswer>())
+            };
+            analysis.DnsConfiguration.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
+            var logger = new InternalLogger();
+            int publicWarnings = 0;
+            logger.OnWarningMessage += (_, e) => {
+                if (e.Code == MxCodes.TargetNoAddressRecords) {
+                    publicWarnings++;
+                }
+            };
+
+            await analysis.AnalyzeMxRecords(new[] {
+                new DnsAnswer { DataRaw = "10 mail1.example.com", Type = DnsRecordType.MX },
+                new DnsAnswer { DataRaw = "20 mail2.example.com", Type = DnsRecordType.MX }
+            }, logger);
+
+            var targets = analysis.Assessments
+                .Where(assessment => assessment.Code == MxCodes.TargetNoAddressRecords)
+                .Select(assessment => assessment.Target)
+                .OrderBy(target => target)
+                .ToArray();
+            Assert.Equal(new[] { "mail1.example.com", "mail2.example.com" }, targets);
+            Assert.Equal(1, publicWarnings);
+        }
     }}

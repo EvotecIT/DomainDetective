@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace DomainDetective;
 
@@ -8,14 +9,18 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public sealed class AssessmentCollector : IDisposable {
+    private static readonly AsyncLocal<AssessmentCollector?> ActiveCollector = new();
+
     private readonly InternalLogger _logger;
     private readonly List<Assessment> _sink;
+    private readonly AssessmentCollector? _parentCollector;
 
     private readonly Stack<ScopeFrame> _scope = new();
 
     private readonly EventHandler<LogEventArgs> _onWarn;
     private readonly EventHandler<LogEventArgs> _onError;
     private readonly EventHandler<LogEventArgs> _onInfo;
+    private readonly Action<AssessmentSeverity, LogEventArgs> _onSuppressedCoded;
 
     private readonly object _lock = new();
 
@@ -27,14 +32,19 @@ public sealed class AssessmentCollector : IDisposable {
             _scope.Push(new ScopeFrame(defaultCategory, defaultTarget, defaultSource));
         }
 
-        _onWarn = (_, e) => Add(AssessmentSeverity.Warning, e.FullMessage, e.Code);
-        _onError = (_, e) => Add(AssessmentSeverity.Error, e.FullMessage, e.Code);
-        _onInfo  = (_, e) => Add(AssessmentSeverity.Info, e.FullMessage, e.Code);
+        _onWarn = (_, e) => Capture(AssessmentSeverity.Warning, e);
+        _onError = (_, e) => Capture(AssessmentSeverity.Error, e);
+        _onInfo = (_, e) => Capture(AssessmentSeverity.Info, e);
+        _onSuppressedCoded = Capture;
 
         _logger.OnWarningMessage += _onWarn;
         _logger.OnErrorMessage += _onError;
         // Information is less frequently used but can carry useful advice
         _logger.OnInformationMessage += _onInfo;
+        _logger.OnSuppressedCodedMessage += _onSuppressedCoded;
+
+        _parentCollector = ActiveCollector.Value;
+        ActiveCollector.Value = this;
     }
 
     /// <summary>
@@ -98,12 +108,31 @@ public sealed class AssessmentCollector : IDisposable {
         }
     }
 
+    private void Capture(AssessmentSeverity severity, LogEventArgs eventArgs) {
+        if (IsActiveForCurrentFlow()) {
+            Add(severity, eventArgs.FullMessage, eventArgs.Code);
+        }
+    }
+
+    private bool IsActiveForCurrentFlow() {
+        for (var collector = ActiveCollector.Value; collector != null; collector = collector._parentCollector) {
+            if (ReferenceEquals(collector, this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>Executes the dispose operation.</summary>
     public void Dispose() {
         _logger.OnWarningMessage -= _onWarn;
         _logger.OnErrorMessage -= _onError;
         _logger.OnInformationMessage -= _onInfo;
+        _logger.OnSuppressedCodedMessage -= _onSuppressedCoded;
         _scope.Clear();
+        if (ReferenceEquals(ActiveCollector.Value, this)) {
+            ActiveCollector.Value = _parentCollector;
+        }
     }
 
     private readonly struct ScopeFrame {
