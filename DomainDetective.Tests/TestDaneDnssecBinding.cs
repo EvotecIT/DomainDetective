@@ -142,6 +142,9 @@ public class TestDaneDnssecBinding {
         using var check = new DomainHealthCheck();
         int queries = 0;
         check.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
+            if (type == DnsRecordType.CNAME) {
+                return Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+            }
             Assert.Equal(DnsRecordType.TLSA, type);
             Interlocked.Increment(ref queries);
             return Task.FromResult(new DnsResponse {
