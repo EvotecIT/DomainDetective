@@ -78,7 +78,7 @@ namespace DomainDetective {
                 _logger.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
                 await ValidateDaneCertificateAssociationsAsync(cancellationToken);
-            } else {
+            } else if (!DaneAnalysis.DnsQueryFailed) {
                 _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
         }
@@ -131,7 +131,7 @@ namespace DomainDetective {
                 _logger.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
                 await ValidateDaneCertificateAssociationsAsync(cancellationToken);
-            } else {
+            } else if (!DaneAnalysis.DnsQueryFailed) {
                 _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
         }
@@ -173,7 +173,7 @@ namespace DomainDetective {
                     case ServiceType.SMTP:
                         port = (int)ServiceType.SMTP;
                         fromMx = true;
-                        records = await GetMxRecordsAsync(domainName, cancellationToken);
+                        records = await QueryDaneMxDns(domainName, cancellationToken);
                         break;
                     case ServiceType.HTTPS:
                         port = (int)ServiceType.HTTPS;
@@ -217,7 +217,7 @@ namespace DomainDetective {
                 _logger.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
                 await ValidateDaneCertificateAssociationsAsync(cancellationToken);
-            } else {
+            } else if (!DaneAnalysis.DnsQueryFailed) {
                 _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
         }
