@@ -31,11 +31,11 @@ namespace DomainDetective {
         public bool ChainValidationFailed { get; private set; }
         /// <summary>True when any ARC headers were found.</summary>
         public bool ArcHeadersFound { get; private set; }
-        /// <summary>Indicates whether the ARC chain is sequential and complete.</summary>
+        /// <summary>Whether ARC sets are complete and sequential with no declared failed chain; signatures are not cryptographically verified.</summary>
         public bool ValidChain { get; private set; }
         /// <summary>True when all ARC-Seal headers include signatures.</summary>
         public bool SealsIncludeSignatures { get; private set; }
-        /// <summary>Overall status of the ARC chain.</summary>
+        /// <summary>Structural and declared ARC chain status; signatures are not cryptographically verified.</summary>
         public ArcChainState ChainState { get; private set; } = ArcChainState.Missing;
 
         /// <summary>Resets all analysis properties.</summary>
@@ -170,11 +170,14 @@ namespace DomainDetective {
                     }
                     if (kind == "AS") {
                         tags.TryGetValue("cv", out var cv);
-                        if ((instance == 1 && !string.Equals(cv, "none", StringComparison.OrdinalIgnoreCase)) ||
-                            (instance > 1 && !string.Equals(cv, "pass", StringComparison.OrdinalIgnoreCase) && !string.Equals(cv, "fail", StringComparison.OrdinalIgnoreCase))) {
+                        bool failed = string.Equals(cv, "fail", StringComparison.OrdinalIgnoreCase);
+                        if (failed) {
+                            StructureIssues.Add($"ARC instance {instance} declares cv=fail.");
+                        } else if ((instance == 1 && !string.Equals(cv, "none", StringComparison.OrdinalIgnoreCase)) ||
+                            (instance > 1 && !string.Equals(cv, "pass", StringComparison.OrdinalIgnoreCase))) {
                             StructureIssues.Add($"ARC instance {instance} has an invalid cv value.");
                         }
-                        ChainValidationFailed |= string.Equals(cv, "fail", StringComparison.OrdinalIgnoreCase);
+                        ChainValidationFailed |= failed;
                     }
                 }
             }
@@ -183,6 +186,13 @@ namespace DomainDetective {
             if (ValidChain && _collector != null) {
                 logger?.WriteInformationCode(ArcCodes.SealsIntact, "ARC seals contain signature values; cryptographic verification not performed");
                 logger?.WriteInformationCode(ArcCodes.ChainValid, "ARC header structure is complete; cryptographic verification not performed");
+            } else if (!ValidChain) {
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "ARC",
+                    Code = ArcCodes.ChainInvalid,
+                    Message = "ARC chain is incomplete, inconsistent, or declares failed validation: " + string.Join(" ", StructureIssues)
+                });
             }
         }
         private static Dictionary<string, string> ParseInstanceTags(string kind, string value, out bool duplicateTags) {
