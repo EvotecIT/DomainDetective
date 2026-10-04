@@ -1553,7 +1553,10 @@ body.pf-api-docs .type-detail-rail .type-toc ul::-webkit-scrollbar-thumb:hover {
     z-index: 50;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
   }
-  .api-sidebar.sidebar-open { display: flex; }
+  .api-sidebar.sidebar-open {
+    display: flex;
+    transform: translateX(0);
+  }
   .api-content { padding: 1.5rem; }
   .ix-nav { display: none; }
   .ix-footer-grid { grid-template-columns: 1fr; }
