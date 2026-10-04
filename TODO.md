@@ -6,7 +6,7 @@ Reviewed on 2026-10-04. This file tracks open work and qualification gaps. Compl
 
 | Area | Current source evidence | Remaining acceptance work |
 | --- | --- | --- |
-| DNSSEC-backed DANE | [DnsClientX DNSSEC #537](https://github.com/EvotecIT/DnsClientX/pull/537) and [DomainDetective DANE #1314](https://github.com/EvotecIT/DomainDetective/pull/1314) cover proof status and avoid treating a failed TLSA query as absence. | Qualify a real root-to-leaf DNSSEC chain and native Windows resolver policy. Model DANE-TA usage 2 path/name authentication separately from an association hash match. DomainDetective still pins DnsClientX 2.1.0; verify a public three-part DnsClientX release containing the fixes before upgrading that pin. |
+| DNSSEC-backed DANE | [DnsClientX DNSSEC #537](https://github.com/EvotecIT/DnsClientX/pull/537) and [DomainDetective DANE #1314](https://github.com/EvotecIT/DomainDetective/pull/1314) cover proof status and avoid treating a failed TLSA query as absence. [DANE-TA authentication](DomainDetective/Protocols/DANEAnalysis.Authentication.cs) separately checks a private-anchor certificate path and service name after association matching. | Qualify a real root-to-leaf DNSSEC chain, DANE-TA against live service evidence, and native Windows resolver policy. Check RFC 7671 section 7 CNAME-expanded TLSA base-domain selection; current lookups construct the TLSA owner from the supplied host. DomainDetective still pins DnsClientX 2.1.0; verify a public three-part DnsClientX release containing the fixes before upgrading that pin. |
 | DNS transport and response fidelity | [DnsClientX transport #538](https://github.com/EvotecIT/DnsClientX/pull/538) is merged; [resolver contracts #539](https://github.com/EvotecIT/DnsClientX/pull/539) tracks presentation, bootstrap, policy isolation, and diagnostics. | Qualify native NRPT/VPN behavior, live QUIC/HTTP/3, and quiet-host latency separately from loopback tests and controlled benchmarks. |
 | SPF, DKIM, ARC, and DMARC policy | [Mail policy #1311](https://github.com/EvotecIT/DomainDetective/pull/1311) and [message authentication #1310](https://github.com/EvotecIT/DomainDetective/pull/1310) cover the reviewed RFC 7208, 6376, 8617, and 9989 contracts. | Exercise internationalized DKIM/ARC selectors with full EAI signed-message fixtures. Keep DNS failures distinct from policy absence in every new summary and report surface. |
 | DMARC reports | [Report parsing #1312](https://github.com/EvotecIT/DomainDetective/pull/1312) covers the reviewed parsing defects. | Complete corpus qualification against RFC 9990 and RFC 9991, including real producer samples and size/resource limits. |
@@ -21,7 +21,7 @@ Reviewed on 2026-10-04. This file tracks open work and qualification gaps. Compl
 
 ## Protocol qualification
 
-- [ ] Add a separately modeled DANE-TA certificate path/name outcome without requiring public PKIX trust for a private anchor.
+- [ ] Qualify DANE-TA private-anchor path and service-name decisions against live certificate and DNSSEC evidence.
 - [ ] Qualify RFC 9990/9991 aggregate and failure reports with independent samples and bounded resource use.
 - [ ] Qualify internationalized DKIM/ARC selectors through A-label lookup and real EAI message verification.
 
