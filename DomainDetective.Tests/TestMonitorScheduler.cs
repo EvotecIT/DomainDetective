@@ -49,13 +49,16 @@ public class TestMonitorScheduler
     {
         var notifier = new CaptureNotifier();
         var callCount = 0;
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var scheduler = new MonitorScheduler
         {
             Notifier = notifier,
             SummaryOverride = async _ =>
             {
                 Interlocked.Increment(ref callCount);
-                await Task.Delay(100);
+                started.TrySetResult(true);
+                await release.Task;
                 return new DomainSummary { HasMxRecord = true, ExpiryDate = "2025" };
             },
             CertificateOverride = _ => Task.FromResult(new CertificateMonitor.Entry
@@ -69,7 +72,11 @@ public class TestMonitorScheduler
         };
         scheduler.Domains.Add("example.com");
 
-        await Task.WhenAll(scheduler.RunAsync(), scheduler.RunAsync());
+        var firstRun = scheduler.RunAsync();
+        await started.Task;
+        var overlappingRun = scheduler.RunAsync();
+        release.SetResult(true);
+        await Task.WhenAll(firstRun, overlappingRun);
 
         Assert.Equal(1, callCount);
         Assert.Single(notifier.Messages);
