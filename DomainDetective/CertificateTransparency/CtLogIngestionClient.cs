@@ -17,161 +17,9 @@ using System.Collections.Concurrent;
 namespace DomainDetective;
 
 /// <summary>
-/// Signed tree head metadata for one CT log at a point in time.
-/// </summary>
-/// <param name="TreeSize">Current tree size reported by the CT log.</param>
-/// <param name="ObservedAtUtc">UTC time when the tree head was read or refreshed locally.</param>
-public sealed record CtSignedTreeHead(
-    long TreeSize,
-    DateTimeOffset ObservedAtUtc);
-
-/// <summary>
-/// Raw RFC6962 entry payload as returned by <c>get-entries</c>.
-/// </summary>
-/// <param name="LeafInputBase64">Base64-encoded Merkle leaf.</param>
-/// <param name="ExtraDataBase64">Base64-encoded extra data payload.</param>
-public sealed record RawCtEntryPayload(
-    string LeafInputBase64,
-    string ExtraDataBase64);
-
-/// <summary>
-/// Certificate Transparency entry type encoded in the Merkle tree leaf.
-/// </summary>
-public enum CtLogEntryType {
-    /// <summary>Unknown or unsupported CT entry type.</summary>
-    Unknown = -1,
-    /// <summary>X.509 certificate entry.</summary>
-    X509 = 0,
-    /// <summary>Precertificate entry.</summary>
-    Precertificate = 1
-}
-
-/// <summary>
-/// Describes the CT log read API used by an endpoint.
-/// </summary>
-public enum CtLogApiKind {
-    /// <summary>RFC6962 JSON APIs such as <c>get-sth</c> and <c>get-entries</c>.</summary>
-    Rfc6962 = 0,
-    /// <summary>Static CT monitoring API with checkpoints and immutable data tiles.</summary>
-    StaticCt = 1
-}
-
-/// <summary>
-/// Describes one CT log endpoint.
-/// </summary>
-public sealed class CtLogDescriptor {
-    /// <summary>Base CT log URL.</summary>
-    public string Url { get; init; } = string.Empty;
-    /// <summary>Base64 CT log ID when supplied by an authoritative log list.</summary>
-    public string? LogId { get; init; }
-    /// <summary>Base64 public key when supplied by an authoritative log list.</summary>
-    public string? PublicKey { get; init; }
-    /// <summary>Maximum merge delay in seconds when supplied by an authoritative log list.</summary>
-    public int? MaximumMergeDelaySeconds { get; init; }
-    /// <summary>Read API used by this log.</summary>
-    public CtLogApiKind ApiKind { get; init; } = CtLogApiKind.Rfc6962;
-    /// <summary>Static CT monitoring prefix when <see cref="ApiKind"/> is <see cref="CtLogApiKind.StaticCt"/>.</summary>
-    public string? MonitoringUrl { get; init; }
-    /// <summary>Static CT submission prefix, or the RFC6962 base URL.</summary>
-    public string? SubmissionUrl { get; init; }
-    /// <summary>Human-readable CT log operator name when supplied by the log list.</summary>
-    public string? OperatorName { get; init; }
-    /// <summary>Human-readable log description when available.</summary>
-    public string? Description { get; init; }
-    /// <summary>Policy state supplied by the log list, for example usable, qualified, pending, retired, or rejected.</summary>
-    public string? State { get; init; }
-    /// <summary>True when the log list marks this log as retired.</summary>
-    public bool IsRetired { get; init; }
-    /// <summary>Temporal interval start when supplied by the log list.</summary>
-    public DateTimeOffset? TemporalStartUtc { get; init; }
-    /// <summary>Temporal interval end when supplied by the log list.</summary>
-    public DateTimeOffset? TemporalEndUtc { get; init; }
-    /// <summary>True when the log list marks this log read-only.</summary>
-    public bool IsReadOnly => IsState("readonly");
-    /// <summary>True when the log list marks this log pending.</summary>
-    public bool IsPending => IsState("pending");
-    /// <summary>True when the log list marks this log rejected.</summary>
-    public bool IsRejected => IsState("rejected");
-    /// <summary>True when the log list marks this log usable.</summary>
-    public bool IsUsable => IsState("usable");
-    /// <summary>True when the log list marks this log qualified.</summary>
-    public bool IsQualified => IsState("qualified");
-
-    private bool IsState(string state)
-        => string.Equals(State?.Trim(), state, StringComparison.OrdinalIgnoreCase);
-}
-
-/// <summary>
-/// Represents a decoded CT log entry suitable for durable ingestion.
-/// </summary>
-public sealed class CtLogIngestionEntry {
-    /// <summary>Base CT log URL.</summary>
-    public string LogUrl { get; init; } = string.Empty;
-    /// <summary>Entry index in the CT log.</summary>
-    public long EntryIndex { get; init; }
-    /// <summary>Tree size observed before fetching this entry batch.</summary>
-    public long TreeSize { get; init; }
-    /// <summary>CT entry timestamp from the Merkle tree leaf.</summary>
-    public DateTimeOffset? EntryTimestampUtc { get; init; }
-    /// <summary>Decoded CT entry type.</summary>
-    public CtLogEntryType EntryType { get; init; } = CtLogEntryType.Unknown;
-    /// <summary>True when this record came from a precertificate entry.</summary>
-    public bool IsPrecertificate => EntryType == CtLogEntryType.Precertificate;
-    /// <summary>Normalized certificate record derived from the CT entry DER bytes.</summary>
-    public CtCertificateRecord Certificate { get; init; } = new();
-}
-
-/// <summary>
-/// Represents one fetched CT log batch.
-/// </summary>
-public sealed class CtLogIngestionBatch {
-    /// <summary>Base CT log URL.</summary>
-    public string LogUrl { get; init; } = string.Empty;
-    /// <summary>Tree size observed before fetching this batch.</summary>
-    public long TreeSize { get; init; }
-    /// <summary>Requested first entry index.</summary>
-    public long StartIndex { get; init; }
-    /// <summary>Requested last entry index.</summary>
-    public long EndIndex { get; init; }
-    /// <summary>Decoded certificate entries.</summary>
-    public IReadOnlyList<CtLogIngestionEntry> Entries { get; init; } = Array.Empty<CtLogIngestionEntry>();
-    /// <summary>Diagnostics for skipped or undecodable CT entries.</summary>
-    public IReadOnlyList<string> Diagnostics { get; init; } = Array.Empty<string>();
-}
-
-/// <summary>
-/// Options for one CT log batch read.
-/// </summary>
-public sealed class CtLogIngestionBatchRequest {
-    /// <summary>Base CT log URL.</summary>
-    public string LogUrl { get; init; } = string.Empty;
-    /// <summary>Read API used by this log.</summary>
-    public CtLogApiKind ApiKind { get; init; } = CtLogApiKind.Rfc6962;
-    /// <summary>Static CT monitoring prefix used for checkpoint and tile reads.</summary>
-    public string? MonitoringUrl { get; init; }
-    /// <summary>First entry index to fetch.</summary>
-    public long StartIndex { get; init; }
-    /// <summary>Maximum entries to request. RFC6962 logs may return fewer entries.</summary>
-    public int BatchSize { get; init; } = 256;
-    /// <summary>
-    /// Optional signed tree size already obtained by the caller. When supplied, the batch read skips
-    /// an additional <c>get-sth</c> request and trusts this tree size for range clamping. Callers
-    /// should only supply a fresh value because a stale tree size can delay discovery of newer log
-    /// entries until a later refresh.
-    /// </summary>
-    public long? KnownTreeSize { get; init; }
-    /// <summary>HTTP request timeout.</summary>
-    public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
-    /// <summary>Maximum number of Static CT data tiles to fetch concurrently for one batch.</summary>
-    public int StaticTileFetchConcurrency { get; init; } = 1;
-    /// <summary>How much certificate metadata to decode for each entry.</summary>
-    public CtCertificateRecordDetailLevel CertificateDetailLevel { get; init; } = CtCertificateRecordDetailLevel.Full;
-}
-
-/// <summary>
 /// Reads native Certificate Transparency log entries and returns normalized certificate records.
 /// </summary>
-public sealed class CtLogIngestionClient {
+public sealed partial class CtLogIngestionClient {
     /// <summary>Maximum number of entries requested from one RFC6962 <c>get-entries</c> call.</summary>
     public const int MaxBatchSize = 8192;
     internal const int MaxResponseBodyBytes = 64 * 1024 * 1024;
@@ -258,12 +106,16 @@ public sealed class CtLogIngestionClient {
         int batchSize = Math.Max(1, Math.Min(request.BatchSize, MaxBatchSize));
         TimeSpan timeout = request.RequestTimeout > TimeSpan.Zero ? request.RequestTimeout : TimeSpan.FromSeconds(30);
         CtCertificateRecordDetailLevel certificateDetailLevel = request.CertificateDetailLevel;
-        long treeSize = request.KnownTreeSize is long knownTreeSize && knownTreeSize >= 0
+        CtSignedTreeHead? verifiedHead = request.RequireIntegrityVerification
+            ? await GetVerifiedSignedTreeHeadAsync(DescribeRequest(request), request.PreviousTreeHead, timeout, cancellationToken).ConfigureAwait(false)
+            : null;
+        long treeSize = verifiedHead?.TreeSize ?? (request.KnownTreeSize is long knownTreeSize && knownTreeSize >= 0
             ? knownTreeSize
-            : (await GetSignedTreeHeadAsync(logUrl, timeout, cancellationToken).ConfigureAwait(false)).TreeSize;
+            : (await GetSignedTreeHeadAsync(logUrl, timeout, cancellationToken).ConfigureAwait(false)).TreeSize);
         if (treeSize <= 0 || start >= treeSize) {
             return new CtLogIngestionBatch {
                 LogUrl = logUrl,
+                VerifiedTreeHead = verifiedHead,
                 TreeSize = treeSize,
                 StartIndex = start,
                 EndIndex = start - 1
@@ -272,6 +124,7 @@ public sealed class CtLogIngestionClient {
 
         long end = Math.Min(treeSize - 1, start + batchSize - 1);
         IReadOnlyList<RawCtEntryPayload> payloads = await GetEntriesAsync(logUrl, start, end, timeout, cancellationToken).ConfigureAwait(false);
+        if (verifiedHead != null) await VerifyRfcRangeAsync(logUrl, start, payloads, verifiedHead, timeout, cancellationToken).ConfigureAwait(false);
         long actualEnd = payloads.Count > 0 ? start + payloads.Count - 1 : start - 1;
         var entries = new List<CtLogIngestionEntry>(payloads.Count);
         var diagnostics = new List<string>();
@@ -279,6 +132,7 @@ public sealed class CtLogIngestionClient {
             cancellationToken.ThrowIfCancellationRequested();
             long entryIndex = start + i;
             if (!TryDecodeCertificate(payloads[i], out DateTimeOffset? timestampUtc, out CtLogEntryType entryType, out byte[]? certificateDer, out string? diagnostic)) {
+                if (request.RequireCompleteDecoding) throw new CtEntryDecodingException(logUrl, entryIndex, payloads[i], diagnostic ?? "Unknown entry encoding.");
                 if (!string.IsNullOrWhiteSpace(diagnostic)) {
                     diagnostics.Add($"Entry {entryIndex}: {diagnostic}");
                 }
@@ -286,6 +140,13 @@ public sealed class CtLogIngestionClient {
                 continue;
             }
 
+            if (request.RequireIntegrityVerification || request.RequireCompleteDecoding) {
+                try {
+                    await VerifyCertificateBindingAsync(payloads[i], certificateDer!, null, null, timeout, cancellationToken).ConfigureAwait(false);
+                } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
+                    throw new CtEntryDecodingException(logUrl, entryIndex, payloads[i], ex.Message, ex);
+                }
+            }
             try {
                 entries.Add(new CtLogIngestionEntry {
                     LogUrl = logUrl,
@@ -301,13 +162,15 @@ public sealed class CtLogIngestionClient {
                         isPrecertificate: entryType == CtLogEntryType.Precertificate,
                         detailLevel: certificateDetailLevel)
                 });
-            } catch (Exception ex) when (!ExceptionHelper.IsFatal(ex)) {
+            } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
+                if (request.RequireCompleteDecoding) throw new CtEntryDecodingException(logUrl, entryIndex, payloads[i], ex.Message, ex);
                 diagnostics.Add($"Entry {entryIndex}: certificate decode failed: {ex.Message}");
             }
         }
 
         return new CtLogIngestionBatch {
             LogUrl = logUrl,
+            VerifiedTreeHead = verifiedHead,
             TreeSize = treeSize,
             StartIndex = start,
             EndIndex = actualEnd,
@@ -393,198 +256,28 @@ public sealed class CtLogIngestionClient {
         if (document.RootElement.ValueKind != JsonValueKind.Object ||
             !document.RootElement.TryGetProperty("entries", out JsonElement entries) ||
             entries.ValueKind != JsonValueKind.Array) {
-            return Array.Empty<RawCtEntryPayload>();
+            throw new InvalidOperationException("CT get-entries response did not contain an entries array.");
         }
 
         var output = new List<RawCtEntryPayload>();
         foreach (JsonElement item in entries.EnumerateArray()) {
             if (item.ValueKind != JsonValueKind.Object) {
+                output.Add(new RawCtEntryPayload(string.Empty, string.Empty));
                 continue;
             }
 
             string? leafInput = GetString(item, "leaf_input");
             if (string.IsNullOrWhiteSpace(leafInput)) {
+                output.Add(new RawCtEntryPayload(string.Empty, GetString(item, "extra_data") ?? string.Empty));
                 continue;
             }
 
             output.Add(new RawCtEntryPayload(leafInput!, GetString(item, "extra_data") ?? string.Empty));
         }
 
+        if (output.Count > end - start + 1) throw new InvalidOperationException("CT get-entries returned more entries than requested.");
+
         return output;
-    }
-
-    private async Task<CtLogIngestionBatch> ReadStaticBatchAsync(
-        CtLogIngestionBatchRequest request,
-        string submissionUrl,
-        CancellationToken cancellationToken) {
-        string monitoringUrl = NormalizeLogUrl(request.MonitoringUrl) ??
-            throw new ArgumentException("Static CT logs require an absolute monitoring URL.", nameof(request));
-        long start = Math.Max(0, request.StartIndex);
-        int batchSize = Math.Max(1, Math.Min(request.BatchSize, MaxBatchSize));
-        TimeSpan timeout = request.RequestTimeout > TimeSpan.Zero ? request.RequestTimeout : TimeSpan.FromSeconds(30);
-        CtCertificateRecordDetailLevel certificateDetailLevel = request.CertificateDetailLevel;
-        long treeSize = request.KnownTreeSize is long knownTreeSize && knownTreeSize >= 0
-            ? knownTreeSize
-            : (await GetStaticSignedTreeHeadAsync(
-                monitoringUrl,
-                GetStaticCheckpointExpectedOrigin(submissionUrl, monitoringUrl, submissionUrl),
-                timeout,
-                cancellationToken).ConfigureAwait(false)).TreeSize;
-        if (treeSize <= 0 || start >= treeSize) {
-            return new CtLogIngestionBatch {
-                LogUrl = submissionUrl,
-                TreeSize = treeSize,
-                StartIndex = start,
-                EndIndex = start - 1
-            };
-        }
-
-        long end = Math.Min(treeSize - 1, start + batchSize - 1);
-        var entries = new List<CtLogIngestionEntry>();
-        var diagnostics = new List<string>();
-        IReadOnlyList<StaticCtDataTile> tiles = await GetStaticDataTilesAsync(
-            monitoringUrl,
-            start / StaticCtTileWidth,
-            end / StaticCtTileWidth,
-            treeSize,
-            timeout,
-            Math.Max(1, request.StaticTileFetchConcurrency),
-            cancellationToken).ConfigureAwait(false);
-        foreach (StaticCtDataTile tile in tiles) {
-            cancellationToken.ThrowIfCancellationRequested();
-            long tileStartIndex = tile.TileIndex * StaticCtTileWidth;
-            for (int tileOffset = 0; tileOffset < tile.Entries.Count; tileOffset++) {
-                long entryIndex = tileStartIndex + tileOffset;
-                if (entryIndex < start || entryIndex > end) {
-                    continue;
-                }
-
-                StaticCtTileEntry tileEntry = tile.Entries[tileOffset];
-                try {
-                    entries.Add(new CtLogIngestionEntry {
-                        LogUrl = submissionUrl,
-                        EntryIndex = entryIndex,
-                        TreeSize = treeSize,
-                        EntryTimestampUtc = tileEntry.TimestampUtc,
-                        EntryType = tileEntry.EntryType,
-                        Certificate = CtCertificateRecord.FromDer(
-                            CtProviderProfiles.NativeCtProviderId,
-                            tileEntry.CertificateDer,
-                            providerCertificateId: $"{submissionUrl}#{entryIndex}",
-                            entryTimestampUtc: tileEntry.TimestampUtc,
-                            isPrecertificate: tileEntry.EntryType == CtLogEntryType.Precertificate,
-                            detailLevel: certificateDetailLevel)
-                    });
-                } catch (Exception ex) when (!ExceptionHelper.IsFatal(ex)) {
-                    diagnostics.Add($"Entry {entryIndex}: certificate decode failed: {ex.Message}");
-                }
-            }
-        }
-
-        return new CtLogIngestionBatch {
-            LogUrl = submissionUrl,
-            TreeSize = treeSize,
-            StartIndex = start,
-            EndIndex = end,
-            Entries = entries,
-            Diagnostics = diagnostics
-        };
-    }
-
-    private async Task<IReadOnlyList<StaticCtDataTile>> GetStaticDataTilesAsync(
-        string monitoringUrl,
-        long firstTileIndex,
-        long lastTileIndex,
-        long treeSize,
-        TimeSpan timeout,
-        int fetchConcurrency,
-        CancellationToken cancellationToken) {
-        if (lastTileIndex < firstTileIndex) {
-            return Array.Empty<StaticCtDataTile>();
-        }
-
-        int tileCount = checked((int)(lastTileIndex - firstTileIndex + 1));
-        int concurrency = Math.Max(1, Math.Min(fetchConcurrency, tileCount));
-        var tiles = new StaticCtDataTile[tileCount];
-        if (concurrency == 1) {
-            for (int offset = 0; offset < tileCount; offset++) {
-                long tileIndex = firstTileIndex + offset;
-                tiles[offset] = new StaticCtDataTile(
-                    tileIndex,
-                    await GetStaticDataTileEntriesAsync(monitoringUrl, tileIndex, treeSize, timeout, cancellationToken).ConfigureAwait(false));
-            }
-
-            return tiles;
-        }
-
-        using var gate = new SemaphoreSlim(concurrency);
-        var tasks = new List<Task>(tileCount);
-        for (int offset = 0; offset < tileCount; offset++) {
-            int tileOffset = offset;
-            long tileIndex = firstTileIndex + offset;
-            tasks.Add(FetchTileAsync(tileOffset, tileIndex));
-        }
-
-        await Task.WhenAll(tasks).ConfigureAwait(false);
-        return tiles;
-
-        async Task FetchTileAsync(int tileOffset, long tileIndex) {
-            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try {
-                tiles[tileOffset] = new StaticCtDataTile(
-                    tileIndex,
-                    await GetStaticDataTileEntriesAsync(monitoringUrl, tileIndex, treeSize, timeout, cancellationToken).ConfigureAwait(false));
-            } finally {
-                gate.Release();
-            }
-        }
-    }
-
-    private async Task<CtSignedTreeHead> GetStaticSignedTreeHeadAsync(
-        string monitoringUrl,
-        string? expectedOrigin,
-        TimeSpan timeout,
-        CancellationToken cancellationToken) {
-        monitoringUrl = NormalizeLogUrl(monitoringUrl) ??
-            throw new ArgumentException("Static CT monitoring URL must be an absolute URL.", nameof(monitoringUrl));
-        string cacheKey = "static:" + monitoringUrl;
-        if (TryGetCachedSignedTreeHead(cacheKey, out CtSignedTreeHead cachedTreeHead)) {
-            return cachedTreeHead;
-        }
-
-        string checkpoint = await FetchTextAsync(CombineLogUrl(monitoringUrl, "checkpoint"), timeout, cancellationToken).ConfigureAwait(false);
-        long treeSize = ParseStaticCheckpointTreeSize(checkpoint, expectedOrigin);
-        var signedTreeHead = new CtSignedTreeHead(treeSize, DateTimeOffset.UtcNow);
-        CacheSignedTreeHead(cacheKey, signedTreeHead);
-        return signedTreeHead;
-    }
-
-    private async Task<IReadOnlyList<StaticCtTileEntry>> GetStaticDataTileEntriesAsync(
-        string monitoringUrl,
-        long tileIndex,
-        long treeSize,
-        TimeSpan timeout,
-        CancellationToken cancellationToken) {
-        long firstEntryIndex = tileIndex * StaticCtTileWidth;
-        int width = checked((int)Math.Min(StaticCtTileWidth, treeSize - firstEntryIndex));
-        if (width <= 0) {
-            return Array.Empty<StaticCtTileEntry>();
-        }
-
-        string encodedTileIndex = EncodeStaticTileIndex(tileIndex);
-        string relativePath = width == StaticCtTileWidth
-            ? $"tile/data/{encodedTileIndex}"
-            : $"tile/data/{encodedTileIndex}.p/{width}";
-        byte[] tileBytes;
-        int expectedWidth = width;
-        try {
-            tileBytes = await FetchBytesAsync(CombineLogUrl(monitoringUrl, relativePath), timeout, cancellationToken).ConfigureAwait(false);
-        } catch (HttpRequestException ex) when (width < StaticCtTileWidth && IsStaticPartialTileFallbackFailure(ex)) {
-            tileBytes = await FetchBytesAsync(CombineLogUrl(monitoringUrl, $"tile/data/{encodedTileIndex}"), timeout, cancellationToken).ConfigureAwait(false);
-            expectedWidth = StaticCtTileWidth;
-        }
-
-        return ParseStaticDataTile(tileBytes, expectedWidth);
     }
 
     private bool TryGetCachedSignedTreeHead(string logUrl, out CtSignedTreeHead signedTreeHead) {
@@ -790,345 +483,9 @@ public sealed class CtLogIngestionClient {
 #endif
     }
 
-    private static bool TryDecodeCertificate(
-        RawCtEntryPayload payload,
-        out DateTimeOffset? timestampUtc,
-        out CtLogEntryType entryType,
-        out byte[]? certificateDer,
-        out string? diagnostic) {
-        timestampUtc = null;
-        entryType = CtLogEntryType.Unknown;
-        certificateDer = null;
-        diagnostic = null;
-
-        byte[] leafBytes;
-        try {
-            leafBytes = Convert.FromBase64String(payload.LeafInputBase64);
-        } catch (FormatException) {
-            diagnostic = "leaf_input was not valid base64.";
-            return false;
-        }
-
-        if (!TryParseLeaf(leafBytes, out timestampUtc, out int rawEntryType, out byte[]? x509Leaf)) {
-            diagnostic = "leaf_input could not be parsed.";
-            return false;
-        }
-
-        entryType = rawEntryType switch {
-            X509EntryType => CtLogEntryType.X509,
-            PrecertEntryType => CtLogEntryType.Precertificate,
-            _ => CtLogEntryType.Unknown
-        };
-
-        if (rawEntryType == X509EntryType) {
-            certificateDer = x509Leaf;
-        } else if (rawEntryType == PrecertEntryType) {
-            if (string.IsNullOrWhiteSpace(payload.ExtraDataBase64)) {
-                diagnostic = "precertificate extra_data was empty.";
-                return false;
-            }
-
-            try {
-                certificateDer = TryExtractPrecertificateLeaf(Convert.FromBase64String(payload.ExtraDataBase64));
-            } catch (FormatException) {
-                diagnostic = "precertificate extra_data was not valid base64.";
-                return false;
-            }
-        }
-
-        if (certificateDer == null || certificateDer.Length == 0) {
-            diagnostic = "entry did not contain certificate bytes.";
-            return false;
-        }
-
-        return true;
-    }
-
-    private static IReadOnlyList<StaticCtTileEntry> ParseStaticDataTile(byte[] tileBytes, int expectedWidth) {
-        if (tileBytes == null) {
-            throw new ArgumentNullException(nameof(tileBytes));
-        }
-
-        var entries = new List<StaticCtTileEntry>(Math.Max(0, expectedWidth));
-        int offset = 0;
-        while (offset < tileBytes.Length) {
-            int entryOffset = offset;
-            if (!TryParseStaticTileLeaf(tileBytes, ref offset, out StaticCtTileEntry? entry)) {
-                throw new InvalidOperationException($"Static CT data tile could not be parsed at byte offset {entryOffset}.");
-            }
-
-            entries.Add(entry!);
-        }
-
-        if (expectedWidth > 0 && entries.Count != expectedWidth) {
-            throw new InvalidOperationException($"Static CT data tile contained {entries.Count} entries but {expectedWidth} were expected.");
-        }
-
-        return entries;
-    }
-
-    private static bool TryParseStaticTileLeaf(byte[] data, ref int offset, out StaticCtTileEntry? entry) {
-        entry = null;
-        int startOffset = offset;
-        if (!TryReadUInt64BigEndian(data, ref offset, out ulong timestampMs) ||
-            !TryReadUInt16BigEndian(data, ref offset, out int rawEntryType)) {
-            offset = startOffset;
-            return false;
-        }
-
-        DateTimeOffset? timestampUtc;
-        try {
-            timestampUtc = DateTimeOffset.FromUnixTimeMilliseconds((long)timestampMs);
-        } catch (ArgumentOutOfRangeException) {
-            timestampUtc = null;
-        }
-
-        byte[]? certificateDer = null;
-        CtLogEntryType entryType = rawEntryType switch {
-            X509EntryType => CtLogEntryType.X509,
-            PrecertEntryType => CtLogEntryType.Precertificate,
-            _ => CtLogEntryType.Unknown
-        };
-
-        if (rawEntryType == X509EntryType) {
-            if (!TryReadVector24(data, ref offset, out certificateDer)) {
-                offset = startOffset;
-                return false;
-            }
-        } else if (rawEntryType == PrecertEntryType) {
-            if (offset + 32 > data.Length) {
-                offset = startOffset;
-                return false;
-            }
-
-            offset += 32;
-            if (!TryReadVector24(data, ref offset, out _)) {
-                offset = startOffset;
-                return false;
-            }
-        } else {
-            offset = startOffset;
-            return false;
-        }
-
-        if (!TryReadVector16(data, ref offset, out _)) {
-            offset = startOffset;
-            return false;
-        }
-
-        if (rawEntryType == PrecertEntryType &&
-            !TryReadVector24(data, ref offset, out certificateDer)) {
-            offset = startOffset;
-            return false;
-        }
-
-        if (!TryReadVector16(data, ref offset, out byte[]? certificateChain)) {
-            offset = startOffset;
-            return false;
-        }
-
-        if (certificateDer == null || certificateDer.Length == 0 ||
-            certificateChain == null ||
-            certificateChain.Length % 32 != 0) {
-            offset = startOffset;
-            return false;
-        }
-
-        entry = new StaticCtTileEntry(timestampUtc, entryType, certificateDer);
-        return true;
-    }
-
-    private static bool TryParseLeaf(byte[] leafBytes, out DateTimeOffset? timestampUtc, out int entryType, out byte[]? x509LeafCertificate) {
-        timestampUtc = null;
-        entryType = -1;
-        x509LeafCertificate = null;
-        if (leafBytes == null || leafBytes.Length < 12) {
-            return false;
-        }
-
-        int offset = 2;
-        if (!TryReadUInt64BigEndian(leafBytes, ref offset, out ulong timestampMs) ||
-            !TryReadUInt16BigEndian(leafBytes, ref offset, out entryType)) {
-            return false;
-        }
-
-        try {
-            timestampUtc = DateTimeOffset.FromUnixTimeMilliseconds((long)timestampMs);
-        } catch (ArgumentOutOfRangeException) {
-            timestampUtc = null;
-        }
-
-        if (entryType == X509EntryType) {
-            return TryReadVector24(leafBytes, ref offset, out x509LeafCertificate);
-        }
-
-        if (entryType == PrecertEntryType) {
-            if (offset + 32 > leafBytes.Length) {
-                return false;
-            }
-
-            offset += 32;
-            return TryReadVector24(leafBytes, ref offset, out _);
-        }
-
-        return false;
-    }
-
-    private static byte[]? TryExtractPrecertificateLeaf(byte[] extraData) {
-        int offset = 0;
-        return TryReadVector24(extraData, ref offset, out byte[]? certBytes) ? certBytes : null;
-    }
-
-    private static bool TryReadUInt16BigEndian(byte[] data, ref int offset, out int value) {
-        value = 0;
-        if (data == null || offset < 0 || offset + 2 > data.Length) {
-            return false;
-        }
-
-        value = (data[offset] << 8) | data[offset + 1];
-        offset += 2;
-        return true;
-    }
-
-    private static bool TryReadUInt64BigEndian(byte[] data, ref int offset, out ulong value) {
-        value = 0;
-        if (data == null || offset < 0 || offset + 8 > data.Length) {
-            return false;
-        }
-
-        for (int i = 0; i < 8; i++) {
-            value = (value << 8) | data[offset + i];
-        }
-
-        offset += 8;
-        return true;
-    }
-
-    private static bool TryReadVector24(byte[] data, ref int offset, out byte[]? bytes) {
-        bytes = null;
-        if (!TryReadUInt24(data, ref offset, out int length) || length < 0 || offset + length > data.Length) {
-            return false;
-        }
-
-        bytes = new byte[length];
-        Buffer.BlockCopy(data, offset, bytes, 0, length);
-        offset += length;
-        return true;
-    }
-
-    private static bool TryReadVector16(byte[] data, ref int offset, out byte[]? bytes) {
-        bytes = null;
-        if (!TryReadUInt16BigEndian(data, ref offset, out int length) || length < 0 || offset + length > data.Length) {
-            return false;
-        }
-
-        bytes = new byte[length];
-        Buffer.BlockCopy(data, offset, bytes, 0, length);
-        offset += length;
-        return true;
-    }
-
-    private static bool TryReadUInt24(byte[] data, ref int offset, out int value) {
-        value = 0;
-        if (data == null || offset < 0 || offset + 3 > data.Length) {
-            return false;
-        }
-
-        value = (data[offset] << 16) | (data[offset + 1] << 8) | data[offset + 2];
-        offset += 3;
-        return true;
-    }
-
     private static string CombineLogUrl(string logUrl, string relative) {
         string baseUrl = logUrl.EndsWith("/", StringComparison.Ordinal) ? logUrl : logUrl + "/";
         return baseUrl + relative;
-    }
-
-    private static long ParseStaticCheckpointTreeSize(string checkpoint, string? expectedOrigin) {
-        if (string.IsNullOrWhiteSpace(checkpoint)) {
-            throw new InvalidOperationException("Static CT checkpoint was empty.");
-        }
-
-        string[] lines = checkpoint.Replace("\r\n", "\n").Split('\n');
-        if (lines.Length < 2) {
-            throw new InvalidOperationException("Static CT checkpoint did not include a tree size on the second line.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(expectedOrigin)) {
-            string checkpointOrigin = NormalizeStaticCheckpointOrigin(lines[0]);
-            string expected = NormalizeStaticCheckpointOrigin(expectedOrigin);
-            if (!string.Equals(checkpointOrigin, expected, StringComparison.OrdinalIgnoreCase)) {
-                throw new InvalidOperationException($"Static CT checkpoint origin '{checkpointOrigin}' did not match expected origin '{expected}'.");
-            }
-
-            if (!HasStaticCheckpointSignatureForOrigin(lines, expected)) {
-                throw new InvalidOperationException($"Static CT checkpoint did not include a note signature for expected origin '{expected}'.");
-            }
-        }
-
-        if (!long.TryParse(lines[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out long treeSize) ||
-            treeSize < 0) {
-            throw new InvalidOperationException("Static CT checkpoint did not include a tree size on the second line.");
-        }
-
-        return treeSize;
-    }
-
-    private static string? GetStaticCheckpointExpectedOrigin(string? logUrl, string? monitoringUrl, string? submissionUrl) {
-        string? normalizedMonitoringUrl = NormalizeLogUrl(monitoringUrl);
-        string? normalizedSubmissionUrl = NormalizeLogUrl(submissionUrl) ?? NormalizeLogUrl(logUrl);
-        if (string.IsNullOrWhiteSpace(normalizedSubmissionUrl) ||
-            string.Equals(normalizedSubmissionUrl, normalizedMonitoringUrl, StringComparison.OrdinalIgnoreCase)) {
-            return null;
-        }
-
-        return ToStaticCheckpointOrigin(normalizedSubmissionUrl!);
-    }
-
-    private static string ToStaticCheckpointOrigin(string normalizedUrl) {
-        Uri uri = new(normalizedUrl, UriKind.Absolute);
-        string path = uri.AbsolutePath.Trim('/');
-        return path.Length == 0 ? uri.Host : uri.Host + "/" + path;
-    }
-
-    private static string NormalizeStaticCheckpointOrigin(string? origin)
-        => (origin ?? string.Empty).Trim().TrimEnd('/');
-
-    /// <remarks>
-    /// Static CT checkpoints use note signatures. This check confirms a signature line for the
-    /// expected origin is present, but does not cryptographically verify the signature value.
-    /// </remarks>
-    private static bool HasStaticCheckpointSignatureForOrigin(string[] checkpointLines, string expectedOrigin) {
-        string asciiExpectedPrefix = "- " + expectedOrigin + " ";
-        string noteExpectedPrefix = "\u2014 " + expectedOrigin + " ";
-        foreach (string line in checkpointLines) {
-            string trimmed = line.Trim();
-            if (trimmed.StartsWith(asciiExpectedPrefix, StringComparison.OrdinalIgnoreCase) ||
-                trimmed.StartsWith(noteExpectedPrefix, StringComparison.OrdinalIgnoreCase)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string EncodeStaticTileIndex(long tileIndex) {
-        if (tileIndex < 0) {
-            throw new ArgumentOutOfRangeException(nameof(tileIndex));
-        }
-
-        var parts = new Stack<string>();
-        do {
-            parts.Push((tileIndex % 1000).ToString("000", CultureInfo.InvariantCulture));
-            tileIndex /= 1000;
-        } while (tileIndex > 0);
-
-        string[] pathParts = parts.ToArray();
-        for (int i = 0; i < pathParts.Length - 1; i++) {
-            pathParts[i] = "x" + pathParts[i];
-        }
-
-        return string.Join("/", pathParts);
     }
 
     private static void AppendLogListEntries(
@@ -1311,12 +668,5 @@ public sealed class CtLogIngestionClient {
 
     private sealed record CachedSignedTreeHead(CtSignedTreeHead Value, DateTimeOffset ExpiresAtUtc);
 
-    private sealed record StaticCtTileEntry(
-        DateTimeOffset? TimestampUtc,
-        CtLogEntryType EntryType,
-        byte[] CertificateDer);
 
-    private sealed record StaticCtDataTile(
-        long TileIndex,
-        IReadOnlyList<StaticCtTileEntry> Entries);
 }

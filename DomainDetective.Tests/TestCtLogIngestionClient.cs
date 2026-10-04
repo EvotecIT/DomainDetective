@@ -709,7 +709,7 @@ public sealed class TestCtLogIngestionClient {
             SendOverride = (_, _) => Task.FromResult(CreateBinaryResponse(tile))
         };
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        CtDataTileDecodingException exception = await Assert.ThrowsAsync<CtDataTileDecodingException>(() =>
             client.ReadBatchAsync(
                 new CtLogIngestionBatchRequest {
                     LogUrl = "https://log.ct.example.test/2026h1/",
@@ -723,6 +723,8 @@ public sealed class TestCtLogIngestionClient {
                 CancellationToken.None));
 
         Assert.Contains("contained 2 entries", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(Convert.ToBase64String(tile), exception.TileBase64);
+        Assert.Equal(1, exception.EntryIndex);
     }
 
     [Fact]
