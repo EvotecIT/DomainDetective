@@ -58,19 +58,23 @@ namespace DomainDetective {
             DaneAnalysis = new DANEAnalysis();
             DaneAnalysis.Subject = domainName;
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
-            using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName);
             var allDaneRecords = new List<DnsAnswer>();
-            _logger.WriteVerbose("Probing TLSA for {0} on ports: {1}", domainName, string.Join(", ", ports));
-            foreach (var port in ports) {
-                cancellationToken.ThrowIfCancellationRequested();
-                var query = CreateServiceQuery(port, domainName);
-                ValidateServiceQueryProtocol(query);
-                if (!DaneAnalysis.QueriedNames.Contains(query, StringComparer.OrdinalIgnoreCase))
-                    DaneAnalysis.QueriedNames.Add(query);
-                if (!DaneAnalysis.QueriedPorts.Contains(port))
-                    DaneAnalysis.QueriedPorts.Add(port);
-                var dane = await QueryDaneDns(query, cancellationToken);
-                allDaneRecords.AddRange(dane);
+            using (AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName)) {
+                _logger.WriteVerbose("Probing TLSA for {0} on ports: {1}", domainName, string.Join(", ", ports));
+                foreach (var port in ports) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var query = CreateServiceQuery(port, domainName);
+                    ValidateServiceQueryProtocol(query);
+                    if (!DaneAnalysis.QueriedNames.Contains(query, StringComparer.OrdinalIgnoreCase))
+                        DaneAnalysis.QueriedNames.Add(query);
+                    if (!DaneAnalysis.QueriedPorts.Contains(port))
+                        DaneAnalysis.QueriedPorts.Add(port);
+                    var dane = await QueryDaneDns(query, cancellationToken);
+                    allDaneRecords.AddRange(dane);
+                }
+                if (allDaneRecords.Count == 0 && !DaneAnalysis.DnsQueryFailed) {
+                    _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
+                }
             }
 
             if (allDaneRecords.Count > 0) {
@@ -78,8 +82,6 @@ namespace DomainDetective {
                 _logger.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
                 await ValidateDaneCertificateAssociationsAsync(cancellationToken);
-            } else if (!DaneAnalysis.DnsQueryFailed) {
-                _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
         }
 
@@ -100,29 +102,33 @@ namespace DomainDetective {
             string? target = null;
             try { target = services.Length == 1 ? NormalizeDomain(services[0].Host) : null; } catch { target = services[0].Host; }
             if (!string.IsNullOrWhiteSpace(target)) { DaneAnalysis.Subject = target; }
-            using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: target);
             var allDaneRecords = new List<DnsAnswer>();
-            _logger.WriteVerbose("Probing TLSA for explicit services on {0} (count: {1})", string.Join(", ", services.Select(s => s.Host).Distinct()), services.Length);
+            using (AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: target)) {
+                _logger.WriteVerbose("Probing TLSA for explicit services on {0} (count: {1})", string.Join(", ", services.Select(s => s.Host).Distinct()), services.Length);
 
-            foreach (var service in services.Distinct()) {
-                cancellationToken.ThrowIfCancellationRequested();
-                var host = NormalizeDomain(service.Host).TrimEnd('.');
-                var daneName = CreateServiceQuery(service.Port, host);
-                ValidateServiceQueryProtocol(daneName);
-                if (!DaneAnalysis.QueriedNames.Contains(daneName, StringComparer.OrdinalIgnoreCase))
-                    DaneAnalysis.QueriedNames.Add(daneName);
-                if (!DaneAnalysis.QueriedPorts.Contains(service.Port))
-                    DaneAnalysis.QueriedPorts.Add(service.Port);
-                if (service.Port == (int)ServiceType.SMTP) {
-                    if (!DaneAnalysis.QueriedServiceTypes.Contains(ServiceType.SMTP))
-                        DaneAnalysis.QueriedServiceTypes.Add(ServiceType.SMTP);
-                } else if (service.Port == (int)ServiceType.HTTPS) {
-                    if (!DaneAnalysis.QueriedServiceTypes.Contains(ServiceType.HTTPS))
-                        DaneAnalysis.QueriedServiceTypes.Add(ServiceType.HTTPS);
+                foreach (var service in services.Distinct()) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var host = NormalizeDomain(service.Host).TrimEnd('.');
+                    var daneName = CreateServiceQuery(service.Port, host);
+                    ValidateServiceQueryProtocol(daneName);
+                    if (!DaneAnalysis.QueriedNames.Contains(daneName, StringComparer.OrdinalIgnoreCase))
+                        DaneAnalysis.QueriedNames.Add(daneName);
+                    if (!DaneAnalysis.QueriedPorts.Contains(service.Port))
+                        DaneAnalysis.QueriedPorts.Add(service.Port);
+                    if (service.Port == (int)ServiceType.SMTP) {
+                        if (!DaneAnalysis.QueriedServiceTypes.Contains(ServiceType.SMTP))
+                            DaneAnalysis.QueriedServiceTypes.Add(ServiceType.SMTP);
+                    } else if (service.Port == (int)ServiceType.HTTPS) {
+                        if (!DaneAnalysis.QueriedServiceTypes.Contains(ServiceType.HTTPS))
+                            DaneAnalysis.QueriedServiceTypes.Add(ServiceType.HTTPS);
+                    }
+                    var dane = await QueryDaneDns(daneName, cancellationToken);
+                    if (dane.Any()) {
+                        allDaneRecords.AddRange(dane);
+                    }
                 }
-                var dane = await QueryDaneDns(daneName, cancellationToken);
-                if (dane.Any()) {
-                    allDaneRecords.AddRange(dane);
+                if (allDaneRecords.Count == 0 && !DaneAnalysis.DnsQueryFailed) {
+                    _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
                 }
             }
 
@@ -131,8 +137,6 @@ namespace DomainDetective {
                 _logger.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
                 await ValidateDaneCertificateAssociationsAsync(cancellationToken);
-            } else if (!DaneAnalysis.DnsQueryFailed) {
-                _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
         }
 
@@ -152,7 +156,6 @@ namespace DomainDetective {
             DaneAnalysis = new DANEAnalysis();
             DaneAnalysis.Subject = domainName;
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
-            using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName);
             if (serviceTypes == null || serviceTypes.Length == 0) {
                 serviceTypes = new[] { ServiceType.SMTP, ServiceType.HTTPS };
             }
@@ -163,62 +166,65 @@ namespace DomainDetective {
             }
 
             var allDaneRecords = new List<DnsAnswer>();
-            _logger.WriteVerbose("Probing TLSA for {0} using services: {1}", domainName, string.Join(", ", serviceTypes));
-            foreach (var serviceType in serviceTypes) {
-                cancellationToken.ThrowIfCancellationRequested();
-                int port;
-                IEnumerable<DnsAnswer> records;
-                bool fromMx;
-                switch (serviceType) {
-                    case ServiceType.SMTP:
-                        port = (int)ServiceType.SMTP;
-                        fromMx = true;
-                        records = await QueryDaneMxDns(domainName, cancellationToken);
-                        break;
-                    case ServiceType.HTTPS:
-                        port = (int)ServiceType.HTTPS;
-                        fromMx = false;
-                        records = new[] { new DnsAnswer { DataRaw = domainName } };
-                        break;
-                    default:
-                        throw new NotSupportedException("Service type not implemented.");
-                }
-
-                var recordData = records.Select(x => x.Data ?? x.DataRaw).Distinct();
-                foreach (var record in recordData) {
+            using (AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName)) {
+                _logger.WriteVerbose("Probing TLSA for {0} using services: {1}", domainName, string.Join(", ", serviceTypes));
+                foreach (var serviceType in serviceTypes) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    string domain;
-                    if (fromMx) {
-                        string[] parts = record.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length < 2 || string.IsNullOrWhiteSpace(parts[1])) {
-                            continue;
-                        }
-                        domain = parts[1].Trim('.');
-                    } else {
-                        domain = record;
+                    int port;
+                    IEnumerable<DnsAnswer> records;
+                    bool fromMx;
+                    switch (serviceType) {
+                        case ServiceType.SMTP:
+                            port = (int)ServiceType.SMTP;
+                            fromMx = true;
+                            records = await QueryDaneMxDns(domainName, cancellationToken);
+                            break;
+                        case ServiceType.HTTPS:
+                            port = (int)ServiceType.HTTPS;
+                            fromMx = false;
+                            records = new[] { new DnsAnswer { DataRaw = domainName } };
+                            break;
+                        default:
+                            throw new NotSupportedException("Service type not implemented.");
                     }
-                    var daneRecord = CreateServiceQuery(port, domain);
-                    ValidateServiceQueryProtocol(daneRecord);
-                    if (!DaneAnalysis.QueriedNames.Contains(daneRecord, StringComparer.OrdinalIgnoreCase))
-                        DaneAnalysis.QueriedNames.Add(daneRecord);
-                    if (!DaneAnalysis.QueriedPorts.Contains(port))
-                        DaneAnalysis.QueriedPorts.Add(port);
-                    if (!DaneAnalysis.QueriedServiceTypes.Contains(serviceType))
-                        DaneAnalysis.QueriedServiceTypes.Add(serviceType);
-                    var dane = await QueryDaneDns(daneRecord, cancellationToken);
-                    if (dane.Any()) {
-                        allDaneRecords.AddRange(dane);
-                    }
-                }
 
+                    var recordData = records.Select(x => x.Data ?? x.DataRaw).Distinct();
+                    foreach (var record in recordData) {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        string domain;
+                        if (fromMx) {
+                            string[] parts = record.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length < 2 || string.IsNullOrWhiteSpace(parts[1])) {
+                                continue;
+                            }
+                            domain = parts[1].Trim('.');
+                        } else {
+                            domain = record;
+                        }
+                        var daneRecord = CreateServiceQuery(port, domain);
+                        ValidateServiceQueryProtocol(daneRecord);
+                        if (!DaneAnalysis.QueriedNames.Contains(daneRecord, StringComparer.OrdinalIgnoreCase))
+                            DaneAnalysis.QueriedNames.Add(daneRecord);
+                        if (!DaneAnalysis.QueriedPorts.Contains(port))
+                            DaneAnalysis.QueriedPorts.Add(port);
+                        if (!DaneAnalysis.QueriedServiceTypes.Contains(serviceType))
+                            DaneAnalysis.QueriedServiceTypes.Add(serviceType);
+                        var dane = await QueryDaneDns(daneRecord, cancellationToken);
+                        if (dane.Any()) {
+                            allDaneRecords.AddRange(dane);
+                        }
+                    }
+
+                }
+                if (allDaneRecords.Count == 0 && !DaneAnalysis.DnsQueryFailed) {
+                    _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
+                }
             }
             if (allDaneRecords.Count > 0) {
                 cancellationToken.ThrowIfCancellationRequested();
                 _logger.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
                 await ValidateDaneCertificateAssociationsAsync(cancellationToken);
-            } else if (!DaneAnalysis.DnsQueryFailed) {
-                _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
         }
     }

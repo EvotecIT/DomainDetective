@@ -44,10 +44,11 @@ public sealed class AssessmentCollector : IDisposable {
         => new(logger, analysis.Assessments, category, target, source);
 
     /// <summary>
-    /// Pushes a new scope changing category/target/source for subsequent events.
+    /// Pushes a new scope, inheriting category, target, and source values that are not supplied.
     /// </summary>
     public IDisposable PushScope(string? category = null, string? target = null, string? source = null) {
-        _scope.Push(new ScopeFrame(category, target, source));
+        ScopeFrame parent = _scope.Count > 0 ? _scope.Peek() : default;
+        _scope.Push(new ScopeFrame(category ?? parent.Category, target ?? parent.Target, source ?? parent.Source));
         return new Popper(this);
     }
 
