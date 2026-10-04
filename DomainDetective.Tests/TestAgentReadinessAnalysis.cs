@@ -236,6 +236,11 @@ public class TestAgentReadinessAnalysis {
                 break;
             } catch (HttpListenerException) {
                 break;
+            } catch (InvalidOperationException) when (cancellationToken.IsCancellationRequested && !listener.IsListening) {
+                break;
+            } catch (ApplicationException ex) when (cancellationToken.IsCancellationRequested && ex.HResult == unchecked((int)0x80070006)) {
+                // .NET Framework can bind the accept handle after Stop has closed it.
+                break;
             }
 
             await Respond(ctx);
