@@ -243,7 +243,8 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task TotalLengthBoundary() {
-            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"cc";
+            // Three complete TXT character-strings keep the 255-byte chunk and 512-byte total boundaries independent.
+            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"cc\"";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckSPF(spfRecord);
 
@@ -253,7 +254,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task TotalLengthExceeded() {
-            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"ccc";
+            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"ccc\"";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckSPF(spfRecord);
 
