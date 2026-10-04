@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Stops a running uptime monitor.</summary>
-    /// <para>Part of the DomainDetective project.</para>
+    /// <para>Cancels the active probe and waits for its callbacks to finish.</para>
     /// <example>
     ///   <summary>Stop monitoring.</summary>
     ///   <code>Stop-DDUptimeMonitor -Monitor $monitor</code>
@@ -19,10 +19,9 @@ namespace DomainDetective.PowerShell {
         /// <summary>
         /// Stops the provided uptime monitor instance.
         /// </summary>
-        /// <returns>A completed task.</returns>
+        /// <returns>A task that completes after the active probe and callbacks stop.</returns>
         protected override Task ProcessRecordAsync() {
-            Monitor.Stop();
-            return Task.CompletedTask;
+            return Monitor.StopAsync();
         }
     }
 }
