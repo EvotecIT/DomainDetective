@@ -219,7 +219,7 @@ public sealed partial class CtLogIngestionClient {
             expectedWidth = StaticCtTileWidth;
         }
 
-        return ParseStaticDataTile(tileBytes, expectedWidth, monitoringUrl, tileIndex);
+        return ParseStaticDataTile(tileBytes, expectedWidth, monitoringUrl, tileIndex, cancellationToken);
     }
 
     private static long ParseStaticCheckpointTreeSize(string checkpoint, string? expectedOrigin) {

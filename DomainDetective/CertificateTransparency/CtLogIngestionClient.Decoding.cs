@@ -71,14 +71,20 @@ public sealed partial class CtLogIngestionClient {
         return true;
     }
 
-    private static IReadOnlyList<StaticCtTileEntry> ParseStaticDataTile(byte[] tileBytes, int expectedWidth, string monitoringUrl, long tileIndex) {
+    private static IReadOnlyList<StaticCtTileEntry> ParseStaticDataTile(byte[] tileBytes, int expectedWidth, string monitoringUrl, long tileIndex, CancellationToken cancellationToken) {
         if (tileBytes == null) {
             throw new ArgumentNullException(nameof(tileBytes));
         }
 
-        var entries = new List<StaticCtTileEntry>(Math.Max(0, expectedWidth));
+        if (expectedWidth is < 1 or > StaticCtTileWidth) throw new ArgumentOutOfRangeException(nameof(expectedWidth));
+        cancellationToken.ThrowIfCancellationRequested();
+        var entries = new List<StaticCtTileEntry>(expectedWidth);
         int offset = 0;
         while (offset < tileBytes.Length) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (entries.Count == expectedWidth)
+                throw new CtDataTileDecodingException(monitoringUrl, tileIndex * StaticCtTileWidth + expectedWidth, tileIndex,
+                    Convert.ToBase64String(tileBytes), $"Tile contains data beyond the expected {expectedWidth} entries.");
             int entryOffset = offset;
             if (!TryParseStaticTileLeaf(tileBytes, ref offset, out StaticCtTileEntry? entry)) {
                 throw new CtDataTileDecodingException(monitoringUrl, tileIndex * StaticCtTileWidth + entries.Count, tileIndex,

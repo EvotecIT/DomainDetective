@@ -252,6 +252,7 @@ public sealed partial class CtLogIngestionClient {
         }
 
         string json = await FetchJsonAsync(CombineLogUrl(logUrl, $"ct/v1/get-entries?start={start}&end={end}"), timeout, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         using var document = JsonDocument.Parse(json);
         if (document.RootElement.ValueKind != JsonValueKind.Object ||
             !document.RootElement.TryGetProperty("entries", out JsonElement entries) ||
@@ -259,8 +260,13 @@ public sealed partial class CtLogIngestionClient {
             throw new InvalidOperationException("CT get-entries response did not contain an entries array.");
         }
 
-        var output = new List<RawCtEntryPayload>();
+        cancellationToken.ThrowIfCancellationRequested();
+        int returnedCount = entries.GetArrayLength();
+        if (returnedCount > 0 && returnedCount - 1L > end - start)
+            throw new InvalidOperationException("CT get-entries returned more entries than requested.");
+        var output = new List<RawCtEntryPayload>(returnedCount);
         foreach (JsonElement item in entries.EnumerateArray()) {
+            cancellationToken.ThrowIfCancellationRequested();
             if (item.ValueKind != JsonValueKind.Object) {
                 output.Add(new RawCtEntryPayload(string.Empty, string.Empty));
                 continue;
@@ -274,8 +280,6 @@ public sealed partial class CtLogIngestionClient {
 
             output.Add(new RawCtEntryPayload(leafInput!, GetString(item, "extra_data") ?? string.Empty));
         }
-
-        if (output.Count > end - start + 1) throw new InvalidOperationException("CT get-entries returned more entries than requested.");
 
         return output;
     }

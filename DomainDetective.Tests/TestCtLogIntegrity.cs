@@ -13,6 +13,31 @@ using Org.BouncyCastle.X509;
 namespace DomainDetective.Tests;
 
 public sealed class TestCtLogIntegrity {
+    [Fact]
+    public async Task StaticBatch_VerifiesGrowthAcrossDataAndHashTileBoundaries() {
+        var fixture = new LogFixture(false, true, leafCount: 300);
+        var previous = new CtSignedTreeHead(257, DateTimeOffset.UtcNow) {RootHashBase64=Convert.ToBase64String(fixture.Root(0,257))};
+        CtLogIngestionBatch batch = await fixture.Client().ReadBatchAsync(fixture.Request(previous,start:254,batchSize:5));
+        Assert.Equal(300,batch.VerifiedTreeHead!.TreeSize);
+        Assert.Equal(254,batch.StartIndex);
+        Assert.Equal(258,batch.EndIndex);
+        Assert.Contains(1,fixture.HashTileLevels);
+        fixture.TamperMiddleLeaf=true;
+        fixture.TamperLeafIndex=255;
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>fixture.Client().ReadBatchAsync(fixture.Request(previous,start:254,batchSize:5)));
+    }
+
+    [Fact]
+    public async Task RfcEntries_HonorCancellationAfterAnOverrideReturnsItsResponse() {
+        using var cancellation = new CancellationTokenSource();
+        var client = new CtLogIngestionClient { HttpGetOverride = (_,_) => {
+            cancellation.Cancel();
+            return Task.FromResult("{\"entries\":[null]}");
+        }};
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>client.GetEntriesAsync(
+            "https://ct.example.test/",0,0,TimeSpan.FromSeconds(5),cancellation.Token));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -116,13 +141,15 @@ public sealed class TestCtLogIntegrity {
         public byte[][] Leaves { get; }
         public CtLogDescriptor Log { get; }
         public bool TamperMiddleLeaf { get; set; }
+        public int TamperLeafIndex { get; set; } = 2;
         public bool BadSignature { get; set; }
         public bool BadConsistency { get; set; }
         public int AuditCalls { get; private set; }
         public int HeadCalls { get; private set; }
         public int HashTileCalls { get; private set; }
+        public HashSet<int> HashTileLevels { get; } = new();
 
-        public LogFixture(bool rsa, bool isStatic = false) {
+        public LogFixture(bool rsa, bool isStatic = false, int leafCount = 7) {
             _rsa = rsa;
             _static = isStatic;
             if (rsa) {
@@ -142,13 +169,13 @@ public sealed class TestCtLogIntegrity {
                 PublicKey = Convert.ToBase64String(key), LogId = Convert.ToBase64String(Sha(key))
             };
             // v1 timestamped X509 leaves with a tiny invalid DER certificate, a valid TLS vector and no extensions.
-            Leaves = Enumerable.Range(0, 7).Select(i => new byte[] { 0,0, 0,0,0,0,0,0,0,(byte)(i+1), 0,0, 0,0,2, 0x30,0, 0,0 }).ToArray();
+            Leaves = Enumerable.Range(0, leafCount).Select(i => new byte[] { 0,0, 0,0,0,0,0,0,0,(byte)(i+1), 0,0, 0,0,2, 0x30,0, 0,0 }).ToArray();
         }
 
-        public CtLogIngestionBatchRequest Request(CtSignedTreeHead? previous = null, bool complete = false) => new() {
+        public CtLogIngestionBatchRequest Request(CtSignedTreeHead? previous = null, bool complete = false, long start = 1, int batchSize = 3) => new() {
             LogUrl = Log.Url, SubmissionUrl = Log.SubmissionUrl, MonitoringUrl = Log.MonitoringUrl, ApiKind = Log.ApiKind,
             PublicKey = Log.PublicKey, LogId = Log.LogId, RequireIntegrityVerification = true, PreviousTreeHead = previous,
-            RequireCompleteDecoding = complete, StartIndex = 1, BatchSize = 3, KnownTreeSize = 99
+            RequireCompleteDecoding = complete, StartIndex = start, BatchSize = batchSize, KnownTreeSize = 99
         };
 
         public CtLogIngestionClient Client() => new() { SendOverride = (request, _) => Task.FromResult(Respond(request.RequestUri!)) };
@@ -176,19 +203,30 @@ public sealed class TestCtLogIntegrity {
                 string origin = "ct.example.test/log";
                 byte[] keyIdentity = Encoding.UTF8.GetBytes(origin + "\n").Concat(new byte[] {5}).Concat(Convert.FromBase64String(Log.LogId!)).ToArray();
                 byte[] signature = Sha(keyIdentity).Take(4).Concat(UInt64(123)).Concat(Signature()).ToArray();
-                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($"{origin}\n7\n{Convert.ToBase64String(Root(0,7))}\n\n\u2014 {origin} {Convert.ToBase64String(signature)}\n") };
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($"{origin}\n{Leaves.Length}\n{Convert.ToBase64String(Root(0,Leaves.Length))}\n\n\u2014 {origin} {Convert.ToBase64String(signature)}\n") };
             }
             if (path.Contains("tile/data/")) {
                 byte[][] leaves = Leaves.Select(leaf => (byte[])leaf.Clone()).ToArray();
-                if (TamperMiddleLeaf) leaves[2][9] ^= 1;
-                return Bytes(leaves.SelectMany(leaf => leaf.Skip(2).Concat(new byte[] {0,0})).ToArray());
+                if (TamperMiddleLeaf) leaves[TamperLeafIndex][9] ^= 1;
+                string suffix=path.Substring(path.IndexOf("tile/data/",StringComparison.Ordinal)+10);
+                int tileIndex=int.Parse(suffix.Split('.')[0]);
+                int width=suffix.Contains(".p/") ? int.Parse(suffix.Split('/').Last()) : 256;
+                return Bytes(leaves.Skip(tileIndex*256).Take(width).SelectMany(leaf => leaf.Skip(2).Concat(new byte[] {0,0})).ToArray());
             }
-            if (path.Contains("tile/0/")) { HashTileCalls++; return Bytes(Leaves.SelectMany(HashLeaf).ToArray()); }
+            if (path.Contains("tile/")) {
+                HashTileCalls++;
+                string[] parts=path.Substring(path.IndexOf("tile/",StringComparison.Ordinal)+5).Split('/');
+                int level=int.Parse(parts[0]),tileIndex=int.Parse(parts[1].Split('.')[0]);
+                HashTileLevels.Add(level);
+                int nodeSize=(int)Math.Pow(256,level);
+                int width=parts[1].Contains(".p") ? int.Parse(parts.Last()) : 256;
+                return Bytes(Enumerable.Range(0,width).SelectMany(i=>Root((tileIndex*256+i)*nodeSize,nodeSize)).ToArray());
+            }
             throw new InvalidOperationException("Unexpected CT fixture URL: " + uri);
         }
 
         private byte[] Signature() {
-            byte[] message = new byte[] {0,1}.Concat(UInt64(123)).Concat(UInt64(7)).Concat(Root(0,7)).ToArray();
+            byte[] message = new byte[] {0,1}.Concat(UInt64(123)).Concat(UInt64((ulong)Leaves.Length)).Concat(Root(0,Leaves.Length)).ToArray();
             var signer = SignerUtilities.GetSigner(_rsa ? "SHA256withRSA" : "SHA256withECDSA");
             signer.Init(true, _keys.Private);
             signer.BlockUpdate(message, 0, message.Length);
