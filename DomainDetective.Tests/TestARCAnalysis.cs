@@ -69,5 +69,25 @@ namespace DomainDetective.Tests {
             var result = await hc.VerifyARCAsync(raw);
             Assert.Equal(ArcChainState.Missing, result.ChainState);
         }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task FailedSealInvalidatesCompleteArcChain(bool hasLaterPassingSeal) {
+            static string Set(int instance, string cv) =>
+                $"ARC-Seal: i={instance}; cv={cv}; b=YWJj\r\n" +
+                $"ARC-Message-Signature: i={instance}; b=YWJj\r\n" +
+                $"ARC-Authentication-Results: i={instance}; mx.example; dkim=pass\r\n";
+
+            string raw = Set(1, "none") + Set(2, "fail") + (hasLaterPassingSeal ? Set(3, "pass") : string.Empty);
+            var healthCheck = new DomainHealthCheck();
+            var analysis = await healthCheck.VerifyARCAsync(raw);
+
+            Assert.True(analysis.ChainValidationFailed);
+            Assert.False(analysis.ValidChain);
+            Assert.Equal(ArcChainState.Invalid, analysis.ChainState);
+            Assert.Contains(analysis.StructureIssues, issue => issue.Contains("cv=fail"));
+            Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == ArcCodes.ChainValid);
+        }
     }
 }
