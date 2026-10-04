@@ -189,10 +189,10 @@ namespace DomainDetective {
                     _logger.WriteWarningCode(DaneCodes.MxNotAuthenticated,
                         "MX service selection for {0} was not DNSSEC authenticated; TLSA matches cannot authenticate delivery to this domain.", domainName);
                 }
-                return (response.Answers ?? Array.Empty<DnsAnswer>())
-                    .Where(answer => answerOnlyOverride || answer.Type == DnsRecordType.MX &&
-                        string.Equals(answer.Name?.TrimEnd('.'), domainName.TrimEnd('.'), StringComparison.OrdinalIgnoreCase))
-                    .ToArray();
+                if (answerOnlyOverride) {
+                    return response.Answers ?? Array.Empty<DnsAnswer>();
+                }
+                return BindDaneMxAnswers(domainName, response);
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                 throw;
             } catch (Exception exception) when (exception is TimeoutException ||
@@ -200,6 +200,24 @@ namespace DomainDetective {
                 DaneAnalysis.RecordDnsQueryFailure(domainName, exception.Message, _logger);
                 return Array.Empty<DnsAnswer>();
             }
+        }
+
+        private static DnsAnswer[] BindDaneMxAnswers(string domainName, DnsResponse response) {
+            DnsAnswer[] mxRecords = (response.Answers ?? Array.Empty<DnsAnswer>())
+                .Where(answer => answer.Type == DnsRecordType.MX && !string.IsNullOrWhiteSpace(answer.Name))
+                .ToArray();
+            DnsAnswer[] direct = mxRecords.Where(answer =>
+                string.Equals(answer.Name.TrimEnd('.'), domainName.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (direct.Length > 0) {
+                return direct;
+            }
+
+            // DnsClientX sets this only after validating the complete answer's
+            // alias chain, before projecting CNAME/DNAME records from MX results.
+            return response.RequestedAnswerPresent && mxRecords.Length > 0 &&
+                mxRecords.Select(answer => answer.Name.TrimEnd('.'))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1
+                ? mxRecords : Array.Empty<DnsAnswer>();
         }
 
         private static string DescribeDaneDnsFailure(DnsResponse? response) {

@@ -271,6 +271,35 @@ public class TestDaneHostAlias {
         Assert.Equal(expected, check.DaneAnalysis.HasSecureTlsaRecords && check.DaneAnalysis.MxDnssecValidated == true);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MxAtExpandedOwnerRequiresValidatedAliasBinding(bool boundToQuery) {
+        using var check = new DomainHealthCheck();
+        check.DaneCertificateEvidenceOverride = (_, _, _) => Task.FromResult<DaneCertificateEvidence?>(null);
+        check.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
+            if (type == DnsRecordType.MX) {
+                DnsResponse mx = Response(DnsSecValidationStatus.Secure,
+                    new DnsAnswer { Name = "expanded.example.net", Type = type, DataRaw = "10 mx.example.net" });
+                typeof(DnsResponse).GetProperty(nameof(DnsResponse.RequestedAnswerPresent))!
+                    .SetValue(mx, boundToQuery);
+                return Task.FromResult(mx);
+            }
+            if (type == DnsRecordType.TLSA) {
+                return Task.FromResult(Response(DnsSecValidationStatus.Secure,
+                    new DnsAnswer { Name = name, Type = type, DataRaw = "3 1 1 " + new string('A', 64) }));
+            }
+            return Task.FromResult(Response(DnsSecValidationStatus.Secure));
+        };
+
+        await check.VerifyDANE("example.com", new[] { ServiceType.SMTP });
+
+        Assert.True(check.DaneAnalysis.MxDnssecValidated);
+        Assert.Equal(boundToQuery, check.DaneAnalysis.HasSecureTlsaRecords);
+        Assert.Equal(boundToQuery ? new[] { "_25._tcp.mx.example.net" } : Array.Empty<string>(),
+            check.DaneAnalysis.QueriedNames);
+    }
+
     private static DnsResponse Response(DnsSecValidationStatus validation, DnsAnswer? answer = null,
         DnsResponseCode status = DnsResponseCode.NoError) {
         var response = new DnsResponse {
