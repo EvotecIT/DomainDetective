@@ -46,6 +46,11 @@ namespace DomainDetective {
         public event EventHandler<LogEventArgs>? OnInformationMessage;
 
         /// <summary>
+        /// Delivers coded findings suppressed from public log events to assessment collectors.
+        /// </summary>
+        internal event Action<AssessmentSeverity, LogEventArgs>? OnSuppressedCodedMessage;
+
+        /// <summary>
         /// If true, will write verbose messages to console
         /// </summary>
         public bool IsVerbose { get; set; }
@@ -155,10 +160,12 @@ namespace DomainDetective {
         public void WriteErrorCode(string code, string message, params object?[] args) {
             lock (_lock) {
                 var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
+                var eventArgs = new LogEventArgs(formatted) { Code = code };
                 if (!_loggedMessages.Add(formatted)) {
+                    OnSuppressedCodedMessage?.Invoke(AssessmentSeverity.Error, eventArgs);
                     return;
                 }
-                OnErrorMessage?.Invoke(this, new LogEventArgs(formatted) { Code = code });
+                OnErrorMessage?.Invoke(this, eventArgs);
                 if (IsError) {
                     Console.WriteLine("[error] " + message, args);
                 }
@@ -198,10 +205,12 @@ namespace DomainDetective {
         public void WriteWarningCode(string code, string message, params object?[] args) {
             lock (_lock) {
                 var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
+                var eventArgs = new LogEventArgs(formatted) { Code = code };
                 if (!_loggedMessages.Add(formatted)) {
+                    OnSuppressedCodedMessage?.Invoke(AssessmentSeverity.Warning, eventArgs);
                     return;
                 }
-                OnWarningMessage?.Invoke(this, new LogEventArgs(formatted) { Code = code });
+                OnWarningMessage?.Invoke(this, eventArgs);
                 if (IsWarning) {
                     Console.WriteLine("[warning] " + message, args);
                 }
@@ -269,10 +278,12 @@ namespace DomainDetective {
         public void WriteInformationCode(string code, string message, params object?[] args) {
             lock (_lock) {
                 var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
+                var eventArgs = new LogEventArgs(formatted) { Code = code };
                 if (!_loggedMessages.Add(formatted)) {
+                    OnSuppressedCodedMessage?.Invoke(AssessmentSeverity.Info, eventArgs);
                     return;
                 }
-                OnInformationMessage?.Invoke(this, new LogEventArgs(formatted) { Code = code });
+                OnInformationMessage?.Invoke(this, eventArgs);
                 if (IsInformation) {
                     Console.WriteLine("[information] " + message, args);
                 }
