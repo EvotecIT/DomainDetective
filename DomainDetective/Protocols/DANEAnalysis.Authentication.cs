@@ -21,9 +21,10 @@ public partial class DANEAnalysis {
     public bool HasAuthenticationFailures => AnalysisResults.Where(record => record.ValidDANERecord)
         .GroupBy(record => record.DomainName, StringComparer.OrdinalIgnoreCase)
         .Any(group => group.All(record => record.AuthenticationStatus == DaneAuthenticationStatus.Failed));
-    /// <summary>Whether every queried service has at least one authenticated TLSA association.</summary>
-    public bool AllServicesAuthenticated => AnalysisResults.Any(record => record.ValidDANERecord)
-        && (QueriedNames.Count > 0 ? QueriedNames : AnalysisResults.Where(record => record.ValidDANERecord)
+    /// <summary>Whether every selected service has at least one authenticated TLSA association and SMTP MX selection, when used, was DNSSEC validated.</summary>
+    public bool AllServicesAuthenticated => !DnsQueryFailed && MxDnssecValidated != false
+        && AnalysisResults.Any(record => record.ValidDANERecord)
+        && (SelectedServiceOwners.Count > 0 ? SelectedServiceOwners : QueriedNames.Count > 0 ? QueriedNames : AnalysisResults.Where(record => record.ValidDANERecord)
                 .Select(record => record.DomainName).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
             .All(owner => AnalysisResults.Any(record => record.ValidDANERecord
                 && record.DomainName.Equals(owner, StringComparison.OrdinalIgnoreCase)

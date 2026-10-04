@@ -103,6 +103,9 @@ public class TestDaneDnssecBinding {
                     if (scenario == "alias") typeof(DnsResponse).GetProperty(nameof(DnsResponse.RequestedAnswerPresent))!.SetValue(response, true);
                     typeof(DnsResponse).GetProperty(nameof(DnsResponse.DnsSecValidationStatus))!
                         .SetValue(response, query > 1 ? DnsSecValidationStatus.Secure : DnsSecValidationStatus.NotRequested);
+                } else if (type == DnsRecordType.CNAME) {
+                    typeof(DnsResponse).GetProperty(nameof(DnsResponse.DnsSecValidationStatus))!
+                        .SetValue(response, DnsSecValidationStatus.Secure);
                 }
                 return Task.FromResult(response);
             };
@@ -142,15 +145,19 @@ public class TestDaneDnssecBinding {
         using var check = new DomainHealthCheck();
         int queries = 0;
         check.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
-            Assert.Equal(DnsRecordType.TLSA, type);
-            Interlocked.Increment(ref queries);
-            return Task.FromResult(new DnsResponse {
-                Status = DnsResponseCode.NoError,
-                Answers = new[] { new DnsAnswer {
+            var response = new DnsResponse { Status = DnsResponseCode.NoError };
+            if (type == DnsRecordType.TLSA) {
+                Interlocked.Increment(ref queries);
+                response.Answers = new[] { new DnsAnswer {
                     Name = "_443._tcp.unrelated.example", Type = DnsRecordType.TLSA,
                     DataRaw = "3 1 1 " + new string('A', 64)
-                } }
-            });
+                } };
+            } else {
+                Assert.Equal(DnsRecordType.CNAME, type);
+            }
+            typeof(DnsResponse).GetProperty(nameof(DnsResponse.DnsSecValidationStatus))!
+                .SetValue(response, DnsSecValidationStatus.Secure);
+            return Task.FromResult(response);
         };
 
         if (route == "services") {

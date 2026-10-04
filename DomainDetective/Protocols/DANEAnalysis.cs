@@ -40,6 +40,24 @@ namespace DomainDetective {
         /// <summary>Fully qualified TLSA owner names that were queried (e.g., _443._tcp.example.com).</summary>
         public List<string> QueriedNames { get; private set; } = new List<string>();
 
+        private readonly List<string> _selectedServiceOwners = new List<string>();
+        private readonly List<string> _secureTlsaOwners = new List<string>();
+        internal IReadOnlyList<string> SelectedServiceOwners => _selectedServiceOwners;
+        internal void SelectServiceOwner(string owner, bool secureTlsaRecords) {
+            if (!_selectedServiceOwners.Contains(owner, StringComparer.OrdinalIgnoreCase)) {
+                _selectedServiceOwners.Add(owner);
+            }
+            if (secureTlsaRecords && !_secureTlsaOwners.Contains(owner, StringComparer.OrdinalIgnoreCase)) {
+                _secureTlsaOwners.Add(owner);
+            }
+        }
+
+        /// <summary>Whether service discovery found a locally DNSSEC-validated TLSA RRset.</summary>
+        public bool HasSecureTlsaRecords => _secureTlsaOwners.Count > 0;
+
+        /// <summary>Whether MX records used for SMTP service selection were locally DNSSEC validated. Null when MX selection was not used.</summary>
+        public bool? MxDnssecValidated { get; internal set; }
+
         private readonly List<string> _failedDnsQueries = new List<string>();
         /// <summary>True when service discovery could not establish TLSA presence or absence for every query.</summary>
         public bool DnsQueryFailed => _failedDnsQueries.Count > 0;
@@ -73,6 +91,9 @@ namespace DomainDetective {
         public void Reset() {
             ResetResults();
             _failedDnsQueries.Clear();
+            _selectedServiceOwners.Clear();
+            _secureTlsaOwners.Clear();
+            MxDnssecValidated = null;
             QueriedNames = new List<string>();
             QueriedPorts = new List<int>();
             QueriedServiceTypes = new List<ServiceType>();
