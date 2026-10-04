@@ -1,6 +1,7 @@
 using DomainDetective.Monitoring;
 using System;
 using System.Management.Automation;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
@@ -63,16 +64,24 @@ namespace DomainDetective.PowerShell {
                 _monitor.Notifier = NotificationSenderFactory.CreateWebhook(WebhookUrl!);
             }
             // Map scriptblocks to callbacks that run in a fresh PowerShell instance.
-            if (OnDown != null)  _monitor.OnDown  = (probe, ct) => InvokeScriptAsync(OnDown, probe, "Down");
-            if (OnSlow != null)  _monitor.OnSlow  = (probe, ct) => InvokeScriptAsync(OnSlow, probe, "Slow");
-            if (OnUp   != null)  _monitor.OnUp    = (probe, ct) => InvokeScriptAsync(OnUp,   probe, "Up");
-            if (OnAny  != null)  _monitor.OnAny   = (probe, severity, ct) => InvokeScriptAsync(OnAny, probe, severity);
+            if (OnDown != null) {
+                _monitor.OnDown = (probe, ct) => InvokeScriptAsync(OnDown, probe, "Down", ct);
+            }
+            if (OnSlow != null) {
+                _monitor.OnSlow = (probe, ct) => InvokeScriptAsync(OnSlow, probe, "Slow", ct);
+            }
+            if (OnUp != null) {
+                _monitor.OnUp = (probe, ct) => InvokeScriptAsync(OnUp, probe, "Up", ct);
+            }
+            if (OnAny != null) {
+                _monitor.OnAny = (probe, severity, ct) => InvokeScriptAsync(OnAny, probe, severity, ct);
+            }
             _monitor.Start();
             WriteObject(_monitor);
             return Task.CompletedTask;
         }
 
-        private static Task InvokeScriptAsync(ScriptBlock script, UptimeProbeAnalysis probe, string? severity)
+        private static Task InvokeScriptAsync(ScriptBlock script, UptimeProbeAnalysis probe, string? severity, CancellationToken cancellation)
         {
             // Build a simple PSObject payload for convenience
             var payload = new PSObject();
@@ -87,13 +96,27 @@ namespace DomainDetective.PowerShell {
                 payload.Properties.Add(new PSNoteProperty("Severity", severity));
 
             return Task.Run(() => {
+                cancellation.ThrowIfCancellationRequested();
                 using (var ps = System.Management.Automation.PowerShell.Create())
                 {
                     ps.AddScript(script.ToString());
                     ps.AddArgument(payload);
-                    try { ps.Invoke(); } catch { /* swallow */ }
+                    using (cancellation.Register(() => {
+                        // Stop may be requested from the running scriptblock itself.
+                        ThreadPool.QueueUserWorkItem(_ => StopPowerShell(ps));
+                    })) {
+                        try { ps.Invoke(); } catch { /* best-effort callback */ }
+                    }
                 }
             });
+        }
+
+        private static void StopPowerShell(System.Management.Automation.PowerShell ps) {
+            try {
+                ps.Stop();
+            } catch {
+                // The callback may have completed and disposed its runspace already.
+            }
         }
     }
 }
