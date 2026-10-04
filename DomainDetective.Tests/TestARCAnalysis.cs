@@ -1,6 +1,7 @@
 using System.IO;
 using System.Threading.Tasks;
 using DomainDetective;
+using DomainDetective.Views;
 
 namespace DomainDetective.Tests {
     public class TestARCAnalysis {
@@ -27,6 +28,8 @@ namespace DomainDetective.Tests {
             var hc = new DomainHealthCheck();
             var result = await hc.VerifyARCAsync(raw);
             Assert.Equal(ArcChainState.Invalid, result.ChainState);
+            Assert.Equal("Warning", Converters.Convert(result).Status);
+            Assert.Contains(result.Assessments, assessment => assessment.Code == ArcCodes.ChainInvalid);
         }
 
         [Fact]
@@ -88,6 +91,12 @@ namespace DomainDetective.Tests {
             Assert.Equal(ArcChainState.Invalid, analysis.ChainState);
             Assert.Contains(analysis.StructureIssues, issue => issue.Contains("cv=fail"));
             Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == ArcCodes.ChainValid);
+            Assert.Equal("Warning", Converters.Convert(analysis).Status);
+
+            var direct = new ARCAnalysis();
+            direct.Analyze(raw);
+            Assert.Equal("Warning", Converters.Convert(direct).Status);
+            Assert.Contains(direct.Assessments, assessment => assessment.Code == ArcCodes.ChainInvalid);
         }
     }
 }

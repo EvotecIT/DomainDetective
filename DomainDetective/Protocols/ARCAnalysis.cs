@@ -186,6 +186,13 @@ namespace DomainDetective {
             if (ValidChain && _collector != null) {
                 logger?.WriteInformationCode(ArcCodes.SealsIntact, "ARC seals contain signature values; cryptographic verification not performed");
                 logger?.WriteInformationCode(ArcCodes.ChainValid, "ARC header structure is complete; cryptographic verification not performed");
+            } else if (!ValidChain) {
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "ARC",
+                    Code = ArcCodes.ChainInvalid,
+                    Message = "ARC chain is incomplete, inconsistent, or declares failed validation: " + string.Join(" ", StructureIssues)
+                });
             }
         }
         private static Dictionary<string, string> ParseInstanceTags(string kind, string value, out bool duplicateTags) {

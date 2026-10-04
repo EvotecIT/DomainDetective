@@ -28,6 +28,18 @@ internal sealed class ArcRecommendations : IRecommendationProvider {
             Verify = "Use ARC validation tools to confirm chain integrity."
         };
 
+        map[ArcCodes.ChainInvalid] = new RecommendationAdvice {
+            Code = ArcCodes.ChainInvalid,
+            Title = "ARC chain is incomplete or declares failed validation",
+            Why = "A missing or duplicate ARC field, a gap in instance numbers, or a failed cv declaration prevents a passing chain under RFC 8617. This check does not verify cryptographic signatures.",
+            How = "Inspect the reported ARC structure issues and obtain a complete chain from the sending intermediaries before relying on its authentication history.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "arc", "headers" },
+            Impact = "Forwarded authentication claims cannot be treated as a complete passing ARC chain.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm each instance has one ARC set, instance numbers are continuous, and cv is none for instance 1 and pass thereafter."
+        };
+
         map[ArcCodes.SealsIntact] = new RecommendationAdvice {
             Code = ArcCodes.SealsIntact,
             Title = "ARC seals contain signature values",
@@ -41,4 +53,3 @@ internal sealed class ArcRecommendations : IRecommendationProvider {
         };
     }
 }
-
