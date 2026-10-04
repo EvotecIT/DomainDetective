@@ -28,6 +28,11 @@ namespace DomainDetective {
             }
 
             _warnings.Clear();
+            _flatteningLimitations.Clear();
+            if (!TryValidateSpfSyntax(SpfRecord, out _, out _, out _)) {
+                RetainFlatteningDependency("original policy", "invalid syntax prevents equivalent flattening", logger);
+                return SpfRecord;
+            }
 
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var tokens = TokenizeSpfRecord(SpfRecord);
@@ -53,7 +58,22 @@ namespace DomainDetective {
         public async Task<FlattenedSpfResult> GetFlattenedIpAnalysis(string domainName, InternalLogger? logger = null) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: domainName) : null;
             if (string.IsNullOrEmpty(SpfRecord)) {
-                FlattenedIpAnalysis = new FlattenedSpfResult { Subject = domainName };
+                _flatteningLimitations.Clear();
+                _flatteningLimitations.Add(DnsQueryFailed
+                    ? "SPF DNS query failed; policy presence and authorized addresses are unknown."
+                    : "No SPF policy is available for address projection.");
+                FlattenedIpAnalysis = new FlattenedSpfResult {
+                    Subject = domainName, Complete = false, Limitations = _flatteningLimitations.ToArray()
+                };
+                return FlattenedIpAnalysis;
+            }
+
+            _flatteningLimitations.Clear();
+            if (PermError || MultipleSpfRecords) {
+                RetainFlatteningDependency("original policy", "invalid syntax or multiple policies prevents IP authorization analysis", logger);
+                FlattenedIpAnalysis = new FlattenedSpfResult {
+                    Subject = domainName, Complete = false, Limitations = _flatteningLimitations.ToArray()
+                };
                 return FlattenedIpAnalysis;
             }
 
@@ -63,29 +83,9 @@ namespace DomainDetective {
             var duplicates = new List<string>();
             var tokenIpMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var t in tokens) {
+            foreach (var t in ReachableSpfTerms(tokens)) {
                 var token = t.Trim('"');
-                var resolved = new List<string>();
-                if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
-                    resolved.Add(token.Substring(4));
-                } else if (token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
-                    resolved.Add(token.Substring(4));
-                } else if (token.Equals("a", StringComparison.OrdinalIgnoreCase) || token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
-                    var host = token.Length > 2 ? token.Substring(2) : domainName;
-                    var a = await QueryDns(host, DnsRecordType.A);
-                    var aaaa = await QueryDns(host, DnsRecordType.AAAA);
-                    resolved.AddRange(a.Concat(aaaa).Select(ans => ans.Data));
-                } else if (token.Equals("mx", StringComparison.OrdinalIgnoreCase) || token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
-                    var hostDomain = token.Length > 3 ? token.Substring(3) : domainName;
-                    var mxRecords = await QueryDns(hostDomain, DnsRecordType.MX);
-                    foreach (var mx in mxRecords) {
-                        var parts = mx.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        var host = parts.Length == 2 ? parts[1].TrimEnd('.') : mx.Data.TrimEnd('.');
-                        var a = await QueryDns(host, DnsRecordType.A);
-                        var aaaa = await QueryDns(host, DnsRecordType.AAAA);
-                        resolved.AddRange(a.Concat(aaaa).Select(ans => ans.Data));
-                    }
-                }
+                var resolved = await ResolveSpfAddressTermAsync(token, domainName, logger);
 
                 if (resolved.Count > 0) {
                     tokenIpMap[token] = resolved;
@@ -102,7 +102,9 @@ namespace DomainDetective {
                 Tokens = tokens,
                 TokenIpMap = tokenIpMap,
                 UniqueIps = addresses.ToList(),
-                DuplicateIps = duplicates
+                DuplicateIps = duplicates,
+                Complete = FlatteningComplete,
+                Limitations = _flatteningLimitations.ToArray()
             };
 
             if (duplicates.Count == 0 && addresses.Count > 0) {
@@ -132,6 +134,7 @@ namespace DomainDetective {
             }
 
             _warnings.Clear();
+            _flatteningLimitations.Clear();
 
             var lines = new List<string> { "v=spf1" };
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -164,160 +167,26 @@ namespace DomainDetective {
                 return;
             }
 
-            var flattened = await GetFlattenedSpf(logger);
-            if (string.IsNullOrWhiteSpace(flattened)) {
-                return;
-            }
-
-            var tokens = flattened
-                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => t.Trim('"'))
-                .Where(t => !t.Equals("v=spf1", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-
-            bool hasAuth = tokens.Any(t =>
-                t.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase) ||
-                t.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase) ||
-                t.Equals("a", StringComparison.OrdinalIgnoreCase) ||
-                t.StartsWith("a:", StringComparison.OrdinalIgnoreCase) ||
-                t.Equals("mx", StringComparison.OrdinalIgnoreCase) ||
-                t.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) ||
-                t.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)
-            );
-
-            EffectiveSpfSends = hasAuth;
-        }
-
-        private async Task<List<string>> FlattenTokens(IEnumerable<string> tokens, HashSet<string> visited, InternalLogger? logger) {
-            List<string> result = new();
-            foreach (var t in tokens) {
-                var token = t.Trim('"');
-                if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
-                    var domain = token.Substring(8);
-                    if (!string.IsNullOrEmpty(domain)) {
-                        if (!visited.Add(domain)) {
-                            CycleDetected = true;
-                            _warnings.Add($"Cycle detected when flattening include {domain}");
-                            logger?.WriteWarningCode(SpfCodes.IncludeCycle, $"Cycle detected when flattening include {domain}");
-                            continue;
-                        }
-
-                        string? includeRecord = null;
-                        if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
-                            includeRecord = fakeRecord;
-                        } else {
-                            var answers = await DnsConfiguration.QueryDNS(
-                                domain,
-                                DnsRecordType.TXT,
-                                "SPF1",
-                                includeAliasesInFilter: true);
-                            if (answers != null && answers.Length > 0) {
-                                includeRecord = answers[0].Data;
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(includeRecord)) {
-                            var record = includeRecord!;
-                            var flattened = await FlattenTokens(TokenizeSpfRecord(record), visited, logger);
-                            result.AddRange(flattened.Where(x =>
-                                !x.Equals("v=spf1", StringComparison.OrdinalIgnoreCase) &&
-                                !IsAllMechanism(x)));
-                        }
-
-                        visited.Remove(domain);
-                    }
-                } else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
-                    var domain = token.Substring(9);
-                    if (!string.IsNullOrEmpty(domain)) {
-                        string? redirectRecord = null;
-                        if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
-                            redirectRecord = fakeRecord;
-                        } else {
-                            var answers = await DnsConfiguration.QueryDNS(
-                                domain,
-                                DnsRecordType.TXT,
-                                "SPF1",
-                                includeAliasesInFilter: true);
-                            if (answers != null && answers.Length > 0) {
-                                redirectRecord = answers[0].Data;
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(redirectRecord)) {
-                            var record = redirectRecord!;
-                            return await FlattenTokens(TokenizeSpfRecord(record), visited, logger);
-                        }
-                    }
-                } else {
-                    if (!token.Equals("v=spf1", StringComparison.OrdinalIgnoreCase)) {
-                        result.Add(token);
-                    }
-                }
-            }
-
-            result.Insert(0, "v=spf1");
-            return result;
+            EffectiveSpfSends = await MayAuthorizeSendingAsync(SpfRecord, logger);
         }
 
         private async Task BuildTree(IEnumerable<string> tokens, HashSet<string> visited, int depth, List<string> lines, InternalLogger? logger) {
-            foreach (var t in tokens) {
-                var token = t.Trim('"');
-                if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
-                    var domain = token.Substring(8);
-                    lines.Add(new string(' ', depth * 2) + token);
-                    if (!string.IsNullOrEmpty(domain)) {
-                        if (!visited.Add(domain)) {
-                            CycleDetected = true;
-                            _warnings.Add($"Cycle detected when flattening include {domain}");
-                            logger?.WriteWarningCode(SpfCodes.IncludeCycle, $"Cycle detected when flattening include {domain}");
-                            continue;
-                        }
-                        string? includeRecord = null;
-                        if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
-                            includeRecord = fakeRecord;
-                        } else {
-                            var answers = await DnsConfiguration.QueryDNS(
-                                domain,
-                                DnsRecordType.TXT,
-                                "SPF1",
-                                includeAliasesInFilter: true);
-                            if (answers != null && answers.Length > 0) {
-                                includeRecord = answers[0].Data;
-                            }
-                        }
-                        if (!string.IsNullOrEmpty(includeRecord)) {
-                            var record = includeRecord!;
-                            await BuildTree(TokenizeSpfRecord(record), visited, depth + 1, lines, logger);
-                        }
-                        visited.Remove(domain);
-                    }
-                } else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
-                    var domain = token.Substring(9);
-                    lines.Add(new string(' ', depth * 2) + token);
-                    if (!string.IsNullOrEmpty(domain)) {
-                        string? redirectRecord = null;
-                        if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
-                            redirectRecord = fakeRecord;
-                        } else {
-                            var answers = await DnsConfiguration.QueryDNS(
-                                domain,
-                                DnsRecordType.TXT,
-                                "SPF1",
-                                includeAliasesInFilter: true);
-                            if (answers != null && answers.Length > 0) {
-                                redirectRecord = answers[0].Data;
-                            }
-                        }
-                        if (!string.IsNullOrEmpty(redirectRecord)) {
-                            var record = redirectRecord!;
-                            await BuildTree(TokenizeSpfRecord(record), visited, depth + 1, lines, logger);
-                        }
-                    }
-                    return;
-                } else {
-                    if (!token.Equals("v=spf1", StringComparison.OrdinalIgnoreCase)) {
-                        lines.Add(new string(' ', depth * 2) + token);
-                    }
+            if (depth > MaxDnsLookups) return;
+            foreach (var term in ReachableSpfTerms(tokens)) {
+                string token = term.Trim('"');
+                if (token.Equals("v=spf1", StringComparison.OrdinalIgnoreCase)) continue;
+                lines.Add(new string(' ', depth * 2) + token);
+                string mechanism = token.Length > 0 && "+-~?".IndexOf(token[0]) >= 0 ? token.Substring(1) : token;
+                bool include = mechanism.StartsWith("include:", StringComparison.OrdinalIgnoreCase);
+                bool redirect = mechanism.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase);
+                if (!include && !redirect) continue;
+                string domain = mechanism.Substring(include ? 8 : 9);
+                if (domain.Length == 0 || domain.IndexOf('%') >= 0 || !visited.Add(domain)) continue;
+                try {
+                    var record = await ResolveSpfRecordForCounting(domain, logger, include ? "include" : "redirect");
+                    if (!string.IsNullOrEmpty(record)) await BuildTree(TokenizeSpfRecord(record!), visited, depth + 1, lines, logger);
+                } finally {
+                    visited.Remove(domain);
                 }
             }
         }

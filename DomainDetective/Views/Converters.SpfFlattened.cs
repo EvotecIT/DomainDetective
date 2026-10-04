@@ -10,6 +10,13 @@ public static partial class Converters
         var tokens = result.Tokens?.Count ?? 0;
         var unique = result.UniqueIps?.Count ?? 0;
         var dupes = result.DuplicateIps?.Count ?? 0;
+        var assessments = result.Complete ? new List<Assessment>() : new List<Assessment> { new Assessment {
+            Severity = AssessmentSeverity.Warning,
+            Category = "SPF",
+            Code = "SPF.Flattening.Incomplete",
+            Target = result.Subject,
+            Message = "Address projection is incomplete: " + string.Join("; ", result.Limitations)
+        } };
         return new SpfFlattenedInfo
         {
             Check = HealthCheckType.SPFFLATTENED,
@@ -19,11 +26,13 @@ public static partial class Converters
             TokenIpMap = result.TokenIpMap ?? new Dictionary<string, List<string>>(),
             UniqueIps = result.UniqueIps ?? new List<string>(),
             DuplicateIps = result.DuplicateIps ?? new List<string>(),
-            Assessments = new List<Assessment>(),
-            Status = "OK",
-            WarningCount = 0,
+            Complete = result.Complete,
+            Limitations = result.Limitations,
+            Assessments = assessments,
+            Status = result.Complete ? "OK" : "Warning",
+            WarningCount = assessments.Count,
             ErrorCount = 0,
-            Summary = $"tokens {tokens}; unique {unique}; dupes {dupes}",
+            Summary = $"tokens {tokens}; unique {unique}; dupes {dupes}{(result.Complete ? string.Empty : "; incomplete projection")}",
             Recommendations = new List<RecommendationAdvice>(),
             References = new [] { "https://www.rfc-editor.org/rfc/rfc7208" },
             Raw = result
@@ -48,6 +57,10 @@ public sealed class SpfFlattenedInfo
     public IReadOnlyList<string> UniqueIps { get; set; } = null!;
     /// <summary>Gets or sets the duplicate ips value.</summary>
     public IReadOnlyList<string> DuplicateIps { get; set; } = null!;
+    /// <summary>Whether the projected address set has no unresolved dependencies.</summary>
+    public bool Complete { get; set; }
+    /// <summary>Reasons why the address projection may be incomplete.</summary>
+    public IReadOnlyList<string> Limitations { get; set; } = System.Array.Empty<string>();
     /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
     /// <summary>Gets or sets the status value.</summary>
@@ -65,4 +78,3 @@ public sealed class SpfFlattenedInfo
     /// <summary>Gets or sets the raw value.</summary>
     public FlattenedSpfResult Raw { get; set; } = null!;
 }
-

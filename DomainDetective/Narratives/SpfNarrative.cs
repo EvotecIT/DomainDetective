@@ -30,15 +30,18 @@ public static class SpfNarrative
         var remediations = new List<string>();
 
         // High-level highlights
-        hi.Add(spf.SpfRecordExists
-            ? "SPF record is published and begins with v=spf1."
-            : "No SPF record is published.");
+        hi.Add(spf.DnsQueryFailed
+            ? "SPF policy discovery failed; record absence was not established."
+            : spf.SpfRecordExists
+                ? "SPF record is published and begins with v=spf1."
+                : "No SPF record is published.");
         var allMechanism = spf.AllMechanism;
         if (allMechanism != null && !string.IsNullOrWhiteSpace(allMechanism))
         {
             hi.Add($"Policy ends with '{allMechanism}'. {ExplainAll(allMechanism)}");
         }
-        hi.Add($"DNS lookups used: {spf.DnsLookupsCount}/10 {(spf.ExceedsDnsLookups ? "(exceeds limit)" : "(within limit)")}");
+        if (!spf.DnsQueryFailed)
+            hi.Add($"DNS lookups used: {spf.DnsLookupsCount}/10 {(spf.ExceedsDnsLookups ? "(exceeds limit)" : "(within limit)")}");
         if (spf.UnknownMechanisms != null && spf.UnknownMechanisms.Count > 0)
             hi.Add($"Unknown mechanisms present: {string.Join(", ", spf.UnknownMechanisms.Distinct())}");
 

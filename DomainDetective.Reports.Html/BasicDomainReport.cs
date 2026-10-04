@@ -52,7 +52,7 @@ public class BasicDomainReport {
                                 
                                 // SPF
                                 if (_healthCheck.SpfAnalysis != null) {
-                                    var spfStatus = _healthCheck.SpfAnalysis.SpfRecordExists ? "✅ Found" : "❌ Not found";
+                                    var spfStatus = _healthCheck.SpfAnalysis.SpfRecordExists ? "✅ Found" : _healthCheck.SpfAnalysis.DnsQueryFailed ? "⚠ Query failed" : "❌ Not found";
                                     grid.AddItem("SPF Record", spfStatus);
                                     if (_healthCheck.SpfAnalysis.SpfRecordExists) {
                                         grid.AddItem("SPF Valid", _healthCheck.SpfAnalysis.StartsCorrectly ? "Yes" : "No");
@@ -61,7 +61,7 @@ public class BasicDomainReport {
                                 
                                 // DMARC
                                 if (_healthCheck.DmarcAnalysis != null) {
-                                    var dmarcStatus = _healthCheck.DmarcAnalysis.DmarcRecordExists ? "✅ Found" : "❌ Not found";
+                                    var dmarcStatus = _healthCheck.DmarcAnalysis.DmarcRecordExists ? "✅ Found" : _healthCheck.DmarcAnalysis.DnsQueryFailed ? "⚠ Query failed" : "❌ Not found";
                                     grid.AddItem("DMARC Record", dmarcStatus);
                                     if (_healthCheck.DmarcAnalysis.DmarcRecordExists) {
                                         grid.AddItem("DMARC Policy", _healthCheck.DmarcAnalysis.Policy ?? "None");

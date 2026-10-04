@@ -16,8 +16,8 @@ public static class SpfHtmlSectionWriter
 
         html.AddHeading($"SPF — {domain}", 2);
         html.AddTable(new[] {
-            new { Name = "Record Present", Value = spf.SpfRecordExists ? "Yes" : "No" },
-            new { Name = "Starts Correctly", Value = spf.StartsCorrectly ? "Yes" : "No" },
+            new { Name = "Record Present", Value = spf.RecordPresence },
+            new { Name = "Starts Correctly", Value = spf.StartsCorrectlyLabel },
             new { Name = "DNS TTL (s)", Value = spf.DnsRecordTtl?.ToString() ?? "-" },
             new { Name = "CNAME Resolved", Value = spf.IsCnameResolved ? "Yes" : "No" },
             new { Name = "CNAME TTL (s)", Value = spf.CnameTtl?.ToString() ?? "-" },

@@ -114,6 +114,8 @@ public class DomainSecurityReport {
                             // Score display
                             body.H1($"{_score.OverallScore}");
                             body.Text("out of 100").Style(TablerTextStyle.Muted).Weight(TablerFontWeight.Medium);
+                            if (_healthCheck.SpfAnalysis?.DnsQueryFailed == true || _healthCheck.DmarcAnalysis?.DnsQueryFailed == true)
+                                body.Text("Unverified mail policy DNS checks reduce this score.").Style(TablerTextStyle.Muted);
                         });
                 });
             });
@@ -280,13 +282,13 @@ public class DomainSecurityReport {
                     card.Header(h => h.Title("Email Authentication"));
                     card.Body(body => {
                         body.DataGrid(grid => {
-                            grid.AddItem("SPF Record", _healthCheck.SpfAnalysis?.SpfRecordExists == true ? "Found" : "Not found");
+                            grid.AddItem("SPF Record", _healthCheck.SpfAnalysis?.SpfRecordExists == true ? "Found" : _healthCheck.SpfAnalysis?.DnsQueryFailed == true ? "Query failed" : "Not found");
                             grid.AddItem("SPF Valid",
-                                _healthCheck.SpfAnalysis?.StartsCorrectly == true ? "Yes" : "No");
+                                _healthCheck.SpfAnalysis?.DnsQueryFailed == true && _healthCheck.SpfAnalysis.SpfRecordExists == false ? "Unknown" : _healthCheck.SpfAnalysis?.StartsCorrectly == true ? "Yes" : "No");
 
-                            grid.AddItem("DMARC Policy", _healthCheck.DmarcAnalysis?.Policy ?? "Not found");
+                            grid.AddItem("DMARC Policy", _healthCheck.DmarcAnalysis?.Policy ?? (_healthCheck.DmarcAnalysis?.DnsQueryFailed == true ? "Unknown" : "Not found"));
                             grid.AddItem("DMARC Valid",
-                                _healthCheck.DmarcAnalysis?.DmarcRecordExists == true ? "Yes" : "No");
+                                _healthCheck.DmarcAnalysis?.DmarcRecordExists == true ? "Yes" : _healthCheck.DmarcAnalysis?.DnsQueryFailed == true ? "Unknown" : "No");
 
                             grid.AddItem("DKIM Valid",
                                 _healthCheck.DKIMAnalysis?.AnalysisResults?.Count > 0 ? "Yes" : "No");
@@ -417,9 +419,9 @@ public class DomainSecurityReport {
             results.Add(new CheckResultRow {
                 Category = "Impersonation",
                 Check = "SPF Record",
-                Status = _healthCheck.SpfAnalysis.SpfRecordExists && _healthCheck.SpfAnalysis.StartsCorrectly ? "✅ Pass" : "❌ Fail",
-                Points = _healthCheck.SpfAnalysis.SpfRecordExists && _healthCheck.SpfAnalysis.StartsCorrectly ? "10/10" : "0/10",
-                Details = _healthCheck.SpfAnalysis.SpfRecordExists ? "SPF record found" : "No SPF record found"
+                Status = _healthCheck.SpfAnalysis.DnsQueryFailed && !_healthCheck.SpfAnalysis.SpfRecordExists ? "⚠ Unknown" : _healthCheck.SpfAnalysis.SpfRecordExists && _healthCheck.SpfAnalysis.StartsCorrectly ? "✅ Pass" : "❌ Fail",
+                Points = _healthCheck.SpfAnalysis.DnsQueryFailed && !_healthCheck.SpfAnalysis.SpfRecordExists ? "N/A" : _healthCheck.SpfAnalysis.SpfRecordExists && _healthCheck.SpfAnalysis.StartsCorrectly ? "10/10" : "0/10",
+                Details = _healthCheck.SpfAnalysis.SpfRecordExists ? "SPF record found" : _healthCheck.SpfAnalysis.DnsQueryFailed ? "SPF DNS query failed" : "No SPF record found"
             });
         }
         
@@ -431,7 +433,7 @@ public class DomainSecurityReport {
     private List<SecurityRecommendation> GenerateRecommendations() {
         var recommendations = new List<SecurityRecommendation>();
         
-        if (!_healthCheck.DmarcAnalysis?.DmarcRecordExists ?? true) {
+        if (_healthCheck.DmarcAnalysis?.DnsQueryFailed != true && _healthCheck.DmarcAnalysis?.DmarcRecordExists != true) {
             recommendations.Add(new SecurityRecommendation {
                 Priority = RecommendationPriority.Urgent,
                 Title = "Implement DMARC Policy",

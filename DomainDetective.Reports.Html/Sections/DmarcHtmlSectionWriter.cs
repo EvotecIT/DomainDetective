@@ -16,15 +16,15 @@ public static class DmarcHtmlSectionWriter
 
         html.AddHeading($"DMARC — {domain}", 2);
         html.AddTable(new[] {
-            new { Name = "Record Present", Value = dmarc.DmarcRecordExists ? "Yes" : "No" },
-            new { Name = "Policy", Value = dmarc.Policy ?? string.Empty },
+            new { Name = "Record Present", Value = dmarc.RecordPresence },
+            new { Name = "Policy", Value = dmarc.Policy ?? (dmarc.RecordPresence == "Unknown" ? "Unknown" : string.Empty) },
             new { Name = "DNS TTL (s)", Value = dmarc.DnsRecordTtl?.ToString() ?? "-" },
             new { Name = "CNAME Resolved", Value = dmarc.IsCnameResolved ? "Yes" : "No" },
             new { Name = "CNAME TTL (s)", Value = dmarc.CnameTtl?.ToString() ?? "-" },
             new { Name = "adkim/aspf", Value = $"{dmarc.DkimAlignment ?? "?"}/{dmarc.SpfAlignment ?? "?"}" },
             new { Name = "pct", Value = dmarc.Percent ?? string.Empty },
-            new { Name = "rua", Value = (dmarc.MailtoRua?.Count ?? 0).ToString() },
-            new { Name = "ruf", Value = (dmarc.MailtoRuf?.Count ?? 0).ToString() },
+            new { Name = "rua", Value = dmarc.RecordPresence == "Unknown" ? "Unknown" : ((dmarc.MailtoRua?.Count ?? 0) + (dmarc.HttpRua?.Count ?? 0)).ToString() },
+            new { Name = "ruf", Value = dmarc.RecordPresence == "Unknown" ? "Unknown" : ((dmarc.MailtoRuf?.Count ?? 0) + (dmarc.HttpRuf?.Count ?? 0)).ToString() },
             new { Name = "Status", Value = dmarc.Status ?? string.Empty }
         });
 

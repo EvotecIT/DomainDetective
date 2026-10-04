@@ -57,6 +57,8 @@ public class SimpleDomainReport {
                                                 .Body(b => {
                                                     b.H1($"{score}/100");
                                                     b.Text(GetRiskLevel(score)).Weight(TablerFontWeight.Medium);
+                                                    if (_healthCheck.SpfAnalysis?.DnsQueryFailed == true || _healthCheck.DmarcAnalysis?.DnsQueryFailed == true)
+                                                        b.Text("Unverified mail policy DNS checks reduce this score.");
                                                 });
                                     });
                                 });
@@ -67,10 +69,10 @@ public class SimpleDomainReport {
                                         grid.AsCompact();
 
                                         // Email Security
-                                        var spfStatus = _healthCheck.SpfAnalysis?.SpfRecordExists == true && _healthCheck.SpfAnalysis?.StartsCorrectly == true ? "✅ Pass" : "❌ Fail";
+                                        var spfStatus = _healthCheck.SpfAnalysis?.DnsQueryFailed == true && _healthCheck.SpfAnalysis.SpfRecordExists == false ? "⚠ Unknown" : _healthCheck.SpfAnalysis?.SpfRecordExists == true && _healthCheck.SpfAnalysis?.StartsCorrectly == true ? "✅ Pass" : "❌ Fail";
                                         grid.AddItem("SPF", spfStatus);
 
-                                        var dmarcStatus = _healthCheck.DmarcAnalysis?.DmarcRecordExists == true ? "✅ Pass" : "❌ Fail";
+                                        var dmarcStatus = _healthCheck.DmarcAnalysis?.DnsQueryFailed == true && _healthCheck.DmarcAnalysis.DmarcRecordExists == false ? "⚠ Unknown" : _healthCheck.DmarcAnalysis?.DmarcRecordExists == true ? "✅ Pass" : "❌ Fail";
                                         grid.AddItem("DMARC", dmarcStatus);
 
                                         var dkimStatus = _healthCheck.DKIMAnalysis?.AnalysisResults?.Count > 0 ? "✅ Pass" : "❌ Fail";
@@ -118,13 +120,13 @@ public class SimpleDomainReport {
                             body.DataGrid(grid => {
                                 // SPF
                                 if (_healthCheck.SpfAnalysis != null) {
-                                    grid.AddItem("SPF Record", _healthCheck.SpfAnalysis.SpfRecordExists && _healthCheck.SpfAnalysis.StartsCorrectly ? "Valid" : "Invalid");
-                                    grid.AddItem("SPF Status", _healthCheck.SpfAnalysis.SpfRecordExists ? "Found" : "Not found");
+                                    grid.AddItem("SPF Record", _healthCheck.SpfAnalysis.DnsQueryFailed && !_healthCheck.SpfAnalysis.SpfRecordExists ? "Unknown" : _healthCheck.SpfAnalysis.SpfRecordExists && _healthCheck.SpfAnalysis.StartsCorrectly ? "Valid" : "Invalid");
+                                    grid.AddItem("SPF Status", _healthCheck.SpfAnalysis.SpfRecordExists ? "Found" : _healthCheck.SpfAnalysis.DnsQueryFailed ? "Query failed" : "Not found");
                                     var allMechanism = _healthCheck.SpfAnalysis.AllMechanism;
-                                    var policy = string.IsNullOrWhiteSpace(allMechanism) ? "none" : allMechanism!.ToLowerInvariant();
+                                    var policy = _healthCheck.SpfAnalysis.DnsQueryFailed && !_healthCheck.SpfAnalysis.SpfRecordExists ? "unknown" : string.IsNullOrWhiteSpace(allMechanism) ? "none" : allMechanism!.ToLowerInvariant();
                                     grid.AddItem("SPF Policy", policy);
                                     var lookups = _healthCheck.SpfAnalysis.DnsLookupsCount;
-                                    var lookupsTxt = _healthCheck.SpfAnalysis.ExceedsDnsLookups ? $"{lookups}/10 (exceeds)" : $"{lookups}/10";
+                                    var lookupsTxt = _healthCheck.SpfAnalysis.DnsQueryFailed && !_healthCheck.SpfAnalysis.SpfRecordExists ? "Unknown" : _healthCheck.SpfAnalysis.ExceedsDnsLookups ? $"{lookups}/10 (exceeds)" : $"{lookups}/10";
                                     grid.AddItem("SPF Lookups", lookupsTxt);
                                     var spfProviders = SummarizeSpfProviders(_healthCheck.SpfAnalysis);
                                     if (!string.IsNullOrEmpty(spfProviders)) grid.AddItem("SPF Providers", spfProviders);
@@ -132,8 +134,8 @@ public class SimpleDomainReport {
 
                                 // DMARC
                                 if (_healthCheck.DmarcAnalysis != null) {
-                                    grid.AddItem("DMARC Policy", _healthCheck.DmarcAnalysis.Policy ?? "None");
-                                    grid.AddItem("DMARC Status", _healthCheck.DmarcAnalysis.DmarcRecordExists ? "Found" : "Not found");
+                                    grid.AddItem("DMARC Policy", _healthCheck.DmarcAnalysis.Policy ?? (_healthCheck.DmarcAnalysis.DnsQueryFailed ? "Unknown" : "None"));
+                                    grid.AddItem("DMARC Status", _healthCheck.DmarcAnalysis.DmarcRecordExists ? "Found" : _healthCheck.DmarcAnalysis.DnsQueryFailed ? "Query failed" : "Not found");
                                 }
 
                                 // DKIM
@@ -250,11 +252,11 @@ public class SimpleDomainReport {
     private string[] GenerateRecommendations() {
         var recommendations = new System.Collections.Generic.List<string>();
 
-        if (_healthCheck.DmarcAnalysis?.Policy == null || _healthCheck.DmarcAnalysis.Policy == "none") {
+        if (_healthCheck.DmarcAnalysis?.DnsQueryFailed != true && (_healthCheck.DmarcAnalysis?.Policy == null || _healthCheck.DmarcAnalysis.Policy == "none")) {
             recommendations.Add("🔴 Implement DMARC policy to protect against email spoofing");
         }
 
-        if (!(_healthCheck.SpfAnalysis?.SpfRecordExists == true && _healthCheck.SpfAnalysis?.StartsCorrectly == true)) {
+        if (_healthCheck.SpfAnalysis?.DnsQueryFailed != true && !(_healthCheck.SpfAnalysis?.SpfRecordExists == true && _healthCheck.SpfAnalysis?.StartsCorrectly == true)) {
             recommendations.Add("🟡 Fix SPF record issues to improve email deliverability");
         }
 

@@ -72,7 +72,7 @@ public sealed class MailDomainClassifier {
             var dmarc = _health.DmarcAnalysis;
             var bimi = _health.BimiAnalysis;
             if (bimi != null && dmarc != null) {
-                var policy = dmarc.Policy?.Trim()?.ToLowerInvariant();
+                var policy = dmarc.EffectivePolicyShort;
                 var policyEnforcing = policy == "reject" || policy == "quarantine";
                 var pctFull = !dmarc.Pct.HasValue || dmarc.Pct.Value >= 100;
                 if (bimi.BimiRecordExists && bimi.StartsCorrectly) {
