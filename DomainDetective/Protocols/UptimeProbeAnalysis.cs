@@ -42,7 +42,7 @@ public sealed class UptimeProbeAnalysis : IHasAssessments
     {
         Subject = url;
         Url = new Uri(url, UriKind.Absolute);
-        using var client = SharedHttpClient.Instance;
+        var client = SharedHttpClient.Instance;
         using var req = new HttpRequestMessage(HttpMethod.Head, Url);
         var sw = Stopwatch.StartNew();
         try
