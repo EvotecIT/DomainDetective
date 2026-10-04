@@ -16,8 +16,8 @@ public sealed class TestUptimeProbeContracts {
         listener.Start();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         Task<string[]> server = ServeAsync(listener, timeout.Token,
-            ("200 OK", "Strict-Transport-Security: max-age=3600\r\n", 0, null),
-            ("503 Service Unavailable", string.Empty, 0, null));
+            ("200 OK", "Strict-Transport-Security: max-age=3600\r\n", 0, null, TimeSpan.Zero),
+            ("503 Service Unavailable", string.Empty, 0, null, TimeSpan.Zero));
         string url = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/";
         var probe = new UptimeProbeAnalysis();
 
@@ -48,8 +48,8 @@ public sealed class TestUptimeProbeContracts {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var releaseGet = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Task<string[]> server = ServeAsync(listener, timeout.Token,
-            (headStatus, string.Empty, 0, null),
-            ("200 OK", "X-Content-Type-Options: nosniff\r\n", 1000000, releaseGet.Task));
+            (headStatus, string.Empty, 0, null, TimeSpan.Zero),
+            ("200 OK", "X-Content-Type-Options: nosniff\r\n", 1000000, releaseGet.Task, TimeSpan.Zero));
         string url = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/";
         var probe = new UptimeProbeAnalysis();
 
@@ -62,6 +62,29 @@ public sealed class TestUptimeProbeContracts {
             Assert.Equal(new[] { "HEAD", "GET" }, await server);
         } finally {
             releaseGet.TrySetResult(true);
+            timeout.Cancel();
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task FallbackTtfbMeasuresGetRatherThanRejectedHead() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        Task<string[]> server = ServeAsync(listener, timeout.Token,
+            ("405 Method Not Allowed", string.Empty, 0, null, TimeSpan.FromMilliseconds(700)),
+            ("200 OK", string.Empty, 0, null, TimeSpan.Zero));
+        string url = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/";
+        var probe = new UptimeProbeAnalysis();
+
+        try {
+            await probe.ProbeAsync(url, ct: timeout.Token);
+            Assert.True(probe.Success);
+            Assert.True(probe.TotalMilliseconds - probe.TtfbMilliseconds >= 500,
+                $"HEAD latency was included in GET TTFB: total={probe.TotalMilliseconds}, TTFB={probe.TtfbMilliseconds}");
+            Assert.Equal(new[] { "HEAD", "GET" }, await server);
+        } finally {
             timeout.Cancel();
             listener.Stop();
         }
@@ -103,10 +126,10 @@ public sealed class TestUptimeProbeContracts {
     }
 
     private static async Task<string[]> ServeAsync(TcpListener listener, CancellationToken token,
-        params (string Status, string Headers, int ContentLength, Task? KeepOpen)[] responses) {
+        params (string Status, string Headers, int ContentLength, Task? KeepOpen, TimeSpan DelayBeforeHeaders)[] responses) {
         var methods = new List<string>();
         try {
-            foreach ((string status, string headers, int contentLength, Task? keepOpen) in responses) {
+            foreach ((string status, string headers, int contentLength, Task? keepOpen, TimeSpan delayBeforeHeaders) in responses) {
 #if NET8_0_OR_GREATER
                 using TcpClient client = await listener.AcceptTcpClientAsync(token);
 #else
@@ -118,6 +141,7 @@ public sealed class TestUptimeProbeContracts {
                 Assert.True(read > 0);
                 string requestLine = Encoding.ASCII.GetString(request, 0, read);
                 methods.Add(requestLine.Split(' ')[0]);
+                if (delayBeforeHeaders > TimeSpan.Zero) await Task.Delay(delayBeforeHeaders, token);
                 byte[] response = Encoding.ASCII.GetBytes(
                     $"HTTP/1.1 {status}\r\n{headers}Content-Length: {contentLength}\r\nConnection: close\r\n\r\n");
                 await stream.WriteAsync(response, 0, response.Length, token);

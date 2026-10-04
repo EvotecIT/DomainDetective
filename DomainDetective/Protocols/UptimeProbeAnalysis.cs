@@ -52,6 +52,7 @@ public sealed class UptimeProbeAnalysis : IHasAssessments
         Url = new Uri(url, UriKind.Absolute);
         var client = SharedHttpClient.Instance;
         var sw = Stopwatch.StartNew();
+        var requestStopwatch = Stopwatch.StartNew();
         HttpResponseMessage? response = null;
         try
         {
@@ -62,10 +63,11 @@ public sealed class UptimeProbeAnalysis : IHasAssessments
                 response.Dispose();
                 response = null;
                 using var getRequest = new HttpRequestMessage(HttpMethod.Get, Url);
+                requestStopwatch.Restart();
                 response = await client.SendAsync(getRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             }
 
-            TtfbMilliseconds = sw.ElapsedMilliseconds;
+            TtfbMilliseconds = requestStopwatch.ElapsedMilliseconds;
             StatusCode = (int)response.StatusCode;
             // Basic header posture
             Capture("strict-transport-security", response);
@@ -91,7 +93,7 @@ public sealed class UptimeProbeAnalysis : IHasAssessments
         }
         catch (Exception ex)
         {
-            TtfbMilliseconds = sw.ElapsedMilliseconds;
+            TtfbMilliseconds = requestStopwatch.ElapsedMilliseconds;
             Success = false;
             Assessments.Add(new Assessment { Severity = AssessmentSeverity.Error, Category = "UPTIME", Target = url, Code = UptimeCodes.UptimeException, Message = ex.Message });
             logger?.WriteErrorCode(UptimeCodes.UptimeException, $"Uptime exception: {ex.Message}");
@@ -99,6 +101,7 @@ public sealed class UptimeProbeAnalysis : IHasAssessments
         finally
         {
             response?.Dispose();
+            requestStopwatch.Stop();
             sw.Stop();
             TotalMilliseconds = sw.ElapsedMilliseconds;
         }
