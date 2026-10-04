@@ -2,11 +2,8 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using DomainDetective.CLI;
-using System.Runtime.Versioning;
 using Xunit;
 
 namespace DomainDetective.CLI.Tests;
@@ -40,43 +37,12 @@ public class TestCliHelp
 
     private static string GetCliAssemblyPath()
     {
-        var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        var targetFramework = GetTargetFramework();
-        foreach (var configuration in new[] { "Release", "Debug" }) {
-            var cliAssemblyPath = Path.Combine(
-                repositoryRoot,
-                "DomainDetective.CLI",
-                "bin",
-                configuration,
-                targetFramework,
-                "DomainDetective.CLI.dll");
-            if (File.Exists(cliAssemblyPath)) {
-                return cliAssemblyPath;
-            }
+        var cliAssemblyPath = Path.Combine(AppContext.BaseDirectory, "DomainDetective.CLI.dll");
+        if (File.Exists(cliAssemblyPath)) {
+            return cliAssemblyPath;
         }
 
-        throw new FileNotFoundException($"Unable to locate DomainDetective.CLI.dll for {targetFramework}.");
-    }
-
-    private static string GetTargetFramework()
-    {
-        var frameworkName = typeof(TestCliHelp).Assembly
-            .GetCustomAttribute<TargetFrameworkAttribute>()?
-            .FrameworkName;
-
-        if (string.IsNullOrWhiteSpace(frameworkName)) {
-            throw new InvalidOperationException("Unable to determine test target framework.");
-        }
-
-        if (frameworkName.Contains("v8.0", StringComparison.OrdinalIgnoreCase)) {
-            return "net8.0";
-        }
-
-        if (frameworkName.Contains("v10.0", StringComparison.OrdinalIgnoreCase)) {
-            return "net10.0";
-        }
-
-        throw new InvalidOperationException($"Unsupported framework '{frameworkName}'.");
+        throw new FileNotFoundException($"Unable to locate DomainDetective.CLI.dll in the test output directory '{AppContext.BaseDirectory}'.");
     }
 
     private static string BuildArguments(string cliAssemblyPath, string[] args)
