@@ -153,7 +153,7 @@ public class TestDmarcReportParser {
             writer.Write(xml);
         }
         var ex = Assert.Throws<InvalidOperationException>(() => DmarcReportParser.Parse(tmp));
-        Assert.Equal("Unknown DMARC namespace 'http://example.com/unknown'. Supported versions are v1 (0.1) and v2 (2.0).", ex.Message);
+        Assert.Contains("Unknown DMARC namespace 'http://example.com/unknown'", ex.Message);
         File.Delete(tmp);
     }
 

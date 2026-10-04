@@ -30,4 +30,17 @@ public sealed class DmarcAggregateReport {
 
     /// <summary>Reporter contact email (report_metadata/email).</summary>
     public string? ReporterEmail { get; set; }
+
+    /// <summary>XML namespace identifying the report format.</summary>
+    public string XmlNamespace { get; set; } = string.Empty;
+    /// <summary>Report format version declared by the reporter.</summary>
+    public string? Version { get; set; }
+    /// <summary>Software identified in report_metadata/generator.</summary>
+    public string? Generator { get; set; }
+    /// <summary>Additional contact information supplied by the reporter.</summary>
+    public string? ExtraContactInfo { get; set; }
+    /// <summary>Errors reported by the generator, separate from local schema validation messages.</summary>
+    public List<string> ReportedErrors { get; } = new();
+    /// <summary>Uninterpreted top-level extension elements, serialized with their XML namespaces.</summary>
+    public List<string> Extensions { get; } = new();
 }
