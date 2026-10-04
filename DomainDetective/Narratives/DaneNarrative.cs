@@ -34,6 +34,10 @@ public static class DaneNarrative
         {
             hi.Add("TLSA service discovery is incomplete because a DNS query failed.");
         }
+        if (dane?.MxDnssecValidated == false)
+        {
+            hi.Add("MX service selection was not DNSSEC authenticated; a TLSA match for that host does not authenticate delivery to the requested domain.");
+        }
         if ((dane == null || dane.NumberOfRecords == 0) && dane?.DnsQueryFailed != true)
         {
             hi.Add("No TLSA records published.");

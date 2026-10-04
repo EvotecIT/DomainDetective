@@ -59,7 +59,7 @@ namespace DomainDetective {
             DaneAnalysis.Subject = domainName;
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
             var allDaneRecords = new List<DnsAnswer>();
-            var secureAliases = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            var secureAliases = new Dictionary<string, (string? Target, bool Failed)>(StringComparer.OrdinalIgnoreCase);
             using (AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName)) {
                 _logger.WriteVerbose("Probing TLSA for {0} on ports: {1}", domainName, string.Join(", ", ports));
                 foreach (var port in ports) {
@@ -102,7 +102,7 @@ namespace DomainDetective {
             try { target = services.Length == 1 ? NormalizeDomain(services[0].Host) : null; } catch { target = services[0].Host; }
             if (!string.IsNullOrWhiteSpace(target)) { DaneAnalysis.Subject = target; }
             var allDaneRecords = new List<DnsAnswer>();
-            var secureAliases = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            var secureAliases = new Dictionary<string, (string? Target, bool Failed)>(StringComparer.OrdinalIgnoreCase);
             using (AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: target)) {
                 _logger.WriteVerbose("Probing TLSA for explicit services on {0} (count: {1})", string.Join(", ", services.Select(s => s.Host).Distinct()), services.Length);
 
@@ -164,7 +164,7 @@ namespace DomainDetective {
             }
 
             var allDaneRecords = new List<DnsAnswer>();
-            var secureAliases = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            var secureAliases = new Dictionary<string, (string? Target, bool Failed)>(StringComparer.OrdinalIgnoreCase);
             using (AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName)) {
                 _logger.WriteVerbose("Probing TLSA for {0} using services: {1}", domainName, string.Join(", ", serviceTypes));
                 foreach (var serviceType in serviceTypes) {
@@ -197,6 +197,10 @@ namespace DomainDetective {
                                 continue;
                             }
                             domain = parts[1].Trim('.');
+                            // A Null MX ("0 .") explicitly names no mail server.
+                            if (domain.Length == 0) {
+                                continue;
+                            }
                         } else {
                             domain = record;
                         }
