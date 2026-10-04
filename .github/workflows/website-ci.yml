@@ -60,6 +60,6 @@ jobs:
       engine_mode: source
       runner_labels_json: ${{ github.event.repository.private && '["self-hosted","linux"]' || '["ubuntu-latest"]' }}
       powerforge_repository: EvotecIT/PSPublishModule
-      powerforge_ref: ed66623b4e30c6436cb39631cede09d482609c30
+      powerforge_ref: 4796105f9d7d3f32e38968518b5cbd31bbe7ae3b
       powerforge_web_tag: PowerForgeWeb-v1.0.0-preview-202604140746
       report_artifact_name: powerforge-website-reports
