@@ -287,6 +287,7 @@ public sealed class TestUptimeMonitorLifecycle {
     private sealed class LoopbackServer : IDisposable {
         private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
         private readonly Task _server;
+        private int _stopping;
 
         public string Url { get; }
 
@@ -311,10 +312,13 @@ public sealed class TestUptimeMonitorLifecycle {
                 // Closing the listener ends the test server.
             } catch (ObjectDisposedException) {
                 // Closing the listener ends the test server.
+            } catch (InvalidOperationException) when (Volatile.Read(ref _stopping) != 0) {
+                // .NET Framework can report a stopped listener as not listening.
             }
         }
 
         public void Dispose() {
+            Interlocked.Exchange(ref _stopping, 1);
             _listener.Stop();
             _server.GetAwaiter().GetResult();
         }
