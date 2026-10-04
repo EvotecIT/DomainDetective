@@ -89,6 +89,7 @@ public partial class DomainHealthCheck {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
+                using var collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: owner);
                 _logger.WriteWarningCode(DaneCodes.CertificateCheckFailed, "Unable to collect certificate evidence for {0}: {1}", owner, ex.Message);
             } finally {
                 foreach (var certificate in certificatesToDispose.Distinct()) {
