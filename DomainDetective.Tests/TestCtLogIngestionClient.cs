@@ -699,17 +699,19 @@ public sealed class TestCtLogIngestionClient {
         ], requestedUrls.OrderBy(static item => item, StringComparer.Ordinal).ToArray());
     }
 
-    [Fact]
-    public async Task ReadBatchAsync_RejectsStaticCtDataTileWithUnexpectedEntryCount() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReadBatchAsync_RejectsStaticCtDataTileWithUnexpectedEntryCount(bool malformedTrailingEntry) {
         byte[] certificateDer = LoadCertificateDer("multi.pem");
         byte[] first = CreateStaticCtX509Tile(certificateDer, DateTimeOffset.Parse("2026-01-02T03:04:05Z"));
-        byte[] second = CreateStaticCtX509Tile(certificateDer, DateTimeOffset.Parse("2026-01-02T03:04:06Z"));
+        byte[] second = malformedTrailingEntry ? new byte[] {0} : CreateStaticCtX509Tile(certificateDer, DateTimeOffset.Parse("2026-01-02T03:04:06Z"));
         byte[] tile = first.Concat(second).ToArray();
         var client = new CtLogIngestionClient {
             SendOverride = (_, _) => Task.FromResult(CreateBinaryResponse(tile))
         };
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        CtDataTileDecodingException exception = await Assert.ThrowsAsync<CtDataTileDecodingException>(() =>
             client.ReadBatchAsync(
                 new CtLogIngestionBatchRequest {
                     LogUrl = "https://log.ct.example.test/2026h1/",
@@ -722,7 +724,9 @@ public sealed class TestCtLogIngestionClient {
                 },
                 CancellationToken.None));
 
-        Assert.Contains("contained 2 entries", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("beyond the expected 1 entries", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(Convert.ToBase64String(tile), exception.TileBase64);
+        Assert.Equal(1, exception.EntryIndex);
     }
 
     [Fact]
