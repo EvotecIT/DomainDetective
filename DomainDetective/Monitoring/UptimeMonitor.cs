@@ -72,32 +72,39 @@ public sealed class UptimeMonitor : IDisposable
                     await probe.SaveSnapshotAsync(path).ConfigureAwait(false);
                 }
 
-                if (Notifier != null || OnDown != null || OnSlow != null || OnUp != null)
+                if (Notifier != null || OnDown != null || OnSlow != null || OnUp != null || OnAny != null)
                 {
+                    string severity;
                     if (!probe.Success || probe.StatusCode < MinStatusCodeOk || probe.StatusCode > MaxStatusCodeOk)
                     {
-                        if (Notifier != null)
-                            await Notifier.SendAsync($"Uptime DOWN: {url} status={probe.StatusCode} ttfb={probe.TtfbMilliseconds}ms").ConfigureAwait(false);
+                        severity = "Down";
+                        if (Notifier != null) {
+                            try {
+                                await Notifier.SendAsync($"Uptime DOWN: {url} status={probe.StatusCode} ttfb={probe.TtfbMilliseconds}ms").ConfigureAwait(false);
+                            } catch { }
+                        }
                         if (OnDown != null)
                             try { await OnDown(probe, CancellationToken.None).ConfigureAwait(false); } catch { }
-                        if (OnAny != null)
-                            try { await OnAny(probe, "Down", CancellationToken.None).ConfigureAwait(false); } catch { }
                     }
                     else if (probe.TtfbMilliseconds >= SlowTtfbMsThreshold)
                     {
-                        if (Notifier != null)
-                            await Notifier.SendAsync($"Uptime SLOW: {url} ttfb={probe.TtfbMilliseconds}ms").ConfigureAwait(false);
+                        severity = "Slow";
+                        if (Notifier != null) {
+                            try {
+                                await Notifier.SendAsync($"Uptime SLOW: {url} ttfb={probe.TtfbMilliseconds}ms").ConfigureAwait(false);
+                            } catch { }
+                        }
                         if (OnSlow != null)
                             try { await OnSlow(probe, CancellationToken.None).ConfigureAwait(false); } catch { }
-                        if (OnAny != null)
-                            try { await OnAny(probe, "Slow", CancellationToken.None).ConfigureAwait(false); } catch { }
                     }
-                    else if (OnUp != null)
+                    else
                     {
-                        try { await OnUp(probe, CancellationToken.None).ConfigureAwait(false); } catch { }
-                        if (OnAny != null)
-                            try { await OnAny(probe, "Up", CancellationToken.None).ConfigureAwait(false); } catch { }
+                        severity = "Up";
+                        if (OnUp != null)
+                            try { await OnUp(probe, CancellationToken.None).ConfigureAwait(false); } catch { }
                     }
+                    if (OnAny != null)
+                        try { await OnAny(probe, severity, CancellationToken.None).ConfigureAwait(false); } catch { }
                 }
             }
             catch { /* best-effort scheduler tick */ }
