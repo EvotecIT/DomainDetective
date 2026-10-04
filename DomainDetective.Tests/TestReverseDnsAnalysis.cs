@@ -125,5 +125,39 @@ namespace DomainDetective.Tests {
             Assert.False(result.IsValid);
             Assert.False(result.FcrDnsValid);
         }
+
+        [Theory]
+        [InlineData("a-b.example.com", true)]
+        [InlineData("-bad.example.com", false)]
+        [InlineData("bad-.example.com", false)]
+        [InlineData("bad_name.example.com", false)]
+        public async Task PtrLabelValidationPreservesHostNameRules(string ptrName, bool valid) {
+            var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]> {
+                [("mail.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "1.1.1.4" } },
+                [("4.1.1.1.in-addr.arpa", DnsRecordType.PTR)] = new[] { new DnsAnswer { DataRaw = ptrName } }
+            };
+            var analysis = CreateAnalysis(map);
+
+            await analysis.AnalyzeHosts(new[] { "mail.example.com" });
+
+            Assert.Equal(valid ? ptrName : null, Assert.Single(analysis.Results).PtrRecord);
+        }
+
+        [Fact]
+        public async Task PtrLabelValidationAccepts63CharactersButRejects64() {
+            var validLabel = new string('a', 63);
+            var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]> {
+                [("mail.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "1.1.1.5" } },
+                [("5.1.1.1.in-addr.arpa", DnsRecordType.PTR)] = new[] {
+                    new DnsAnswer { DataRaw = validLabel + ".example.com" },
+                    new DnsAnswer { DataRaw = validLabel + "a.example.com" }
+                }
+            };
+            var analysis = CreateAnalysis(map);
+
+            await analysis.AnalyzeHosts(new[] { "mail.example.com" });
+
+            Assert.Equal(new[] { validLabel + ".example.com" }, Assert.Single(analysis.Results).PtrRecords);
+        }
     }
 }
