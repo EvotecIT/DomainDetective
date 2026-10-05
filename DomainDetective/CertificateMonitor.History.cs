@@ -84,10 +84,14 @@ public partial class CertificateMonitor {
                     if (snapshots.Count == limit) {
                         break;
                     }
-                } catch {
+                } catch (JsonException) {
                     if (_historyMetadata.TryGetValue(candidate.Path, out var metadata)) {
                         metadata.InvalidPayload = true;
                     }
+                } catch {
+                    // Sharing/access failures are not evidence of corrupt payloads. Retry
+                    // their metadata and payload on a later call after the owner releases it.
+                    _historyMetadata.Remove(candidate.Path);
                 }
             }
             return snapshots.OrderBy(item => item.Snapshot.CapturedAtUtc).ThenBy(item => item.Order)

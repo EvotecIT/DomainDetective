@@ -42,6 +42,19 @@ public class TestInventoryHistorySelection {
         Assert.Equal("second", Assert.Single(scope.Monitor.LoadInventorySnapshots(latestOnly: true)).Entries[0].Host);
     }
 
+    [Fact]
+    public void TransientPayloadReadFailureDoesNotPermanentlyHideTheLatestSnapshot() {
+        using var scope = new HistoryScope();
+        DateTimeOffset start = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
+        scope.Write("older.json", start, "older");
+        scope.Write("latest.json", start.AddDays(1), "latest");
+        Assert.Equal("latest", Assert.Single(scope.Monitor.LoadInventorySnapshots(latestOnly: true)).Entries[0].Host);
+        using (File.Open(Path.Combine(scope.Inventory, "latest.json"), FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+            Assert.Equal("older", Assert.Single(scope.Monitor.LoadInventorySnapshots(latestOnly: true)).Entries[0].Host);
+        }
+        Assert.Equal("latest", Assert.Single(scope.Monitor.LoadInventorySnapshots(latestOnly: true)).Entries[0].Host);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
