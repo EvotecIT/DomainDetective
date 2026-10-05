@@ -4,6 +4,8 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using System.Threading;
+using DnsClientX;
 using Xunit.Sdk;
 using Xunit;
 namespace DomainDetective.Tests {
@@ -272,26 +274,31 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task DetectsSnmpUdpBanner() {
-            var port = GetFreePort();
-            using var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
-            var task = Task.Run(async () => {
-                var r = await udp.ReceiveAsync();
-                await udp.SendAsync(new byte[] { 1 }, 1, r.RemoteEndPoint);
-            });
+            // Reserve the actual UDP endpoint for the entire scan and arm receive before probing.
+            using var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+            int port = ((IPEndPoint)udp.Client.LocalEndPoint!).Port;
+            using var cancellation = new CancellationTokenSource();
+            var task = RespondAsync();
             try {
                 var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
                 Assert.Equal("SNMP", analysis.Results[port].Banner);
             } finally {
-                if (await Task.WhenAny(task, Task.Delay(1500)) != task) {
-                    udp.Close();
-                }
+                cancellation.Cancel();
+                udp.Close();
+                await task;
+            }
+
+            async Task RespondAsync() {
                 try {
-                    await task;
-                } catch (ObjectDisposedException) {
-                } catch (SocketException) {
-                }
-                PortHelper.ReleasePort(port);
+                    while (true) {
+                        var request = await udp.ReceiveAsync().WaitWithCancellation(cancellation.Token);
+                        Assert.Equal(SnmpAnalysis.Probe, request.Buffer);
+                        byte[] response = (byte[])request.Buffer.Clone();
+                        response[13] = 0xa2; // GetResponse-PDU, retaining the request ID and community.
+                        await udp.SendAsync(response, response.Length, request.RemoteEndPoint);
+                    }
+                } catch (Exception) when (cancellation.IsCancellationRequested) { }
             }
         }
 
