@@ -111,7 +111,16 @@ public partial class AutodiscoverHttpAnalysis {
         using var output = new MemoryStream();
         byte[] buffer = new byte[8192];
         while (true) {
-            int read = await stream.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, MaxResponseBodyBytes - output.Length + 1L), token).ConfigureAwait(false);
+            // Framework HTTP streams may only check the token before starting a read.
+            // Stop waiting at the deadline; disposing the owned response stream aborts its active read.
+            Task<int> reading = stream.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, MaxResponseBodyBytes - output.Length + 1L), token);
+            int read;
+            try { read = await reading.WaitWithCancellation(token).ConfigureAwait(false); }
+            catch (OperationCanceledException) {
+                _ = reading.ContinueWith(completed => { _ = completed.Exception; }, CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                throw;
+            }
             if (read == 0) break;
             if (output.Length + read > MaxResponseBodyBytes) throw new HttpRequestException("Autodiscover response body exceeds its byte limit.");
             output.Write(buffer, 0, read);
@@ -119,7 +128,9 @@ public partial class AutodiscoverHttpAnalysis {
         Encoding encoding = Encoding.UTF8;
         try { if (!string.IsNullOrEmpty(content.Headers.ContentType?.CharSet)) encoding = Encoding.GetEncoding(content.Headers.ContentType!.CharSet!.Trim('"')); }
         catch (ArgumentException) { }
-        return encoding.GetString(output.ToArray());
+        output.Position = 0;
+        using var reader = new StreamReader(output, encoding, detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
     }
     private static string? Snippet(string body) => body.Length == 0 ? null : body.Length > 512 ? body.Substring(0, 512) : body;
 }
