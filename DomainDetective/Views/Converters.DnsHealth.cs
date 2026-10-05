@@ -21,11 +21,14 @@ public static partial class Converters
             ApexAddressesByServer = analysis.ApexAddressesByServer,
             ApexAddressesConsistent = analysis.ApexAddressesConsistent,
             ServersResponsive = analysis.ServersResponsive,
+            SoaSerialConsistency = analysis.SoaSerialConsistency,
+            ApexAddressesConsistency = analysis.ApexAddressesConsistency,
+            ProbeResults = analysis.ProbeResults,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warn,
             ErrorCount = err,
-            Summary = $"SOA consistent: {analysis.SoaSerialConsistent}; Apex consistent: {analysis.ApexAddressesConsistent}",
+            Summary = $"SOA: {analysis.SoaSerialConsistency}; Apex: {analysis.ApexAddressesConsistency}; responded: {analysis.ProbeResults.FindAll(probe => probe.HasResponse).Count}/{analysis.ProbeResults.Count}",
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
@@ -55,6 +58,12 @@ public class DnsHealthInfo
     public bool ApexAddressesConsistent { get; set; }
     /// <summary>Gets or sets the servers responsive value.</summary>
     public bool ServersResponsive { get; set; }
+    /// <summary>Gets or sets the SOA comparison conclusion, including insufficient evidence.</summary>
+    public DnsHealthConsistencyStatus SoaSerialConsistency { get; set; }
+    /// <summary>Gets or sets the apex comparison conclusion, including insufficient evidence.</summary>
+    public DnsHealthConsistencyStatus ApexAddressesConsistency { get; set; }
+    /// <summary>Gets or sets per-address query coverage and response diagnostics.</summary>
+    public IReadOnlyList<DnsHealthProbeResult> ProbeResults { get; set; } = System.Array.Empty<DnsHealthProbeResult>();
     /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
     /// <summary>Gets or sets the status value.</summary>

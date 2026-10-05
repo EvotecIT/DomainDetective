@@ -362,7 +362,7 @@ public sealed partial class TestDesiredState {
     public void Evaluate_DnsHealthSoaSerialInconsistent_AddsWarning() {
         var health = new DomainHealthCheck();
         health.DnsHealthAnalysis.SoaSerialByServer["192.0.2.1"] = 1;
-        typeof(DnsHealthAnalysis).GetProperty("SoaSerialConsistent", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DnsHealthAnalysis, false);
+        typeof(DnsHealthAnalysis).GetProperty("SoaSerialConsistency", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DnsHealthAnalysis, DnsHealthConsistencyStatus.Inconsistent);
 
         var profile = new DesiredStateProfile {
             DnsHealth = new DesiredStateDnsHealthPolicy {

@@ -39,12 +39,16 @@ public static class DnsHealthNarrative
 
         if (analysis != null)
         {
-            hi.Add(analysis.SoaSerialConsistent
-                ? "SOA serial numbers match across authoritative servers."
-                : "SOA serial numbers differ across authoritative servers.");
-            hi.Add(analysis.ApexAddressesConsistent
-                ? "A/AAAA records for zone apex are consistent across servers."
-                : "A/AAAA records for zone apex differ among servers.");
+            hi.Add(analysis.SoaSerialConsistency switch {
+                DnsHealthConsistencyStatus.Consistent => "SOA serial numbers match across authoritative servers.",
+                DnsHealthConsistencyStatus.Inconsistent => "SOA serial numbers differ across observed authoritative servers.",
+                _ => "Insufficient authoritative evidence to confirm SOA serial consistency."
+            });
+            hi.Add(analysis.ApexAddressesConsistency switch {
+                DnsHealthConsistencyStatus.Consistent => "A/AAAA records for zone apex are consistent across servers.",
+                DnsHealthConsistencyStatus.Inconsistent => "A/AAAA records for zone apex differ among observed servers.",
+                _ => "Insufficient authoritative evidence to confirm apex A/AAAA consistency."
+            });
             hi.Add(analysis.ServersResponsive
                 ? "All authoritative servers responded to queries."
                 : "Some authoritative servers did not respond.");
@@ -60,6 +64,9 @@ public static class DnsHealthNarrative
             foreach (var kv in analysis.ApexAddressesByServer)
             {
                 det.Add($"Apex answers from {kv.Key}: {string.Join(", ", kv.Value)}");
+            }
+            foreach (var probe in analysis.ProbeResults) {
+                det.Add($"{probe.ServerAddress} {probe.RecordType}: {probe.ResponseCode?.ToString() ?? "unanswered"}; {probe.Answers.Count} records; {probe.ElapsedMilliseconds} ms{(string.IsNullOrEmpty(probe.Error) ? string.Empty : "; " + probe.Error)}");
             }
 
             (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());

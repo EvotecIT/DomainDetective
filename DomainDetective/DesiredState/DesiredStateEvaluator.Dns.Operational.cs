@@ -73,7 +73,9 @@ public static partial class DesiredStateEvaluator {
                 Category = "DesiredState",
                 Target = domain,
                 Code = DesiredStateCodes.DnsHealthSoaSerialInconsistent,
-                Message = "Desired state requires SOA serial to be consistent across authoritative servers, but it differed."
+                Message = dnsHealth.SoaSerialConsistency == DnsHealthConsistencyStatus.Inconsistent
+                    ? "Desired state requires SOA serial consistency, but observed authoritative serials differ."
+                    : "Desired state requires SOA serial consistency, but authoritative evidence is incomplete."
             });
         }
 
@@ -83,7 +85,9 @@ public static partial class DesiredStateEvaluator {
                 Category = "DesiredState",
                 Target = domain,
                 Code = DesiredStateCodes.DnsHealthApexInconsistent,
-                Message = "Desired state requires apex A/AAAA answers to be consistent across authoritative servers, but they differed."
+                Message = dnsHealth.ApexAddressesConsistency == DnsHealthConsistencyStatus.Inconsistent
+                    ? "Desired state requires apex A/AAAA consistency, but observed authoritative answers differ."
+                    : "Desired state requires apex A/AAAA consistency, but authoritative evidence is incomplete."
             });
         }
     }
@@ -183,4 +187,3 @@ public static partial class DesiredStateEvaluator {
         }
     }
 }
-

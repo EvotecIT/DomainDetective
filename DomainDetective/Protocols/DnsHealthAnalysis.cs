@@ -6,167 +6,149 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DomainDetective {
-    /// <summary>
-    /// Performs targeted DNS health checks that require querying authoritative servers directly
-    /// (SOA serial skew and apex A/AAAA consistency across NS).
-    /// </summary>
-    /// <para>Part of the DomainDetective project.</para>
-    public class DnsHealthAnalysis : IHasAssessments {
-        /// <summary>Gets or sets the subject value.</summary>
-        public string? Subject { get; set; }
-        /// <summary>Gets or sets the dns configuration value.</summary>
-        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
+namespace DomainDetective;
 
-        /// <summary>Optional parsed-response override for direct authoritative probes.</summary>
-        public Func<IPAddress, DnsMessage, CancellationToken, Task<DnsResponse?>>? QueryResponseOverride { get; set; }
+/// <summary>Compares authoritative SOA and apex records with bounded probes and explicit coverage.</summary>
+public partial class DnsHealthAnalysis : IHasAssessments {
+    /// <summary>Gets or sets the analyzed domain.</summary>
+    public string? Subject { get; set; }
+    /// <summary>Gets or sets the resolver used for nameserver discovery.</summary>
+    public DnsConfiguration DnsConfiguration { get; set; } = new();
+    /// <summary>Optional parsed-response override for direct authoritative probes.</summary>
+    public Func<IPAddress, DnsMessage, CancellationToken, Task<DnsResponse?>>? QueryResponseOverride { get; set; }
+    /// <summary>Maximum concurrent discovery or authoritative queries. Values below one use one worker.</summary>
+    public int QueryConcurrency { get; set; } = 6;
+    /// <summary>Deadline for one authoritative probe, including UDP-to-TCP fallback.</summary>
+    public int QueryTimeoutMilliseconds { get; set; } = 4000;
+    /// <summary>Total discovery and probing budget. Expiration retains incomplete coverage.</summary>
+    public int AnalysisTimeoutMilliseconds { get; set; } = 15000;
+    /// <summary>Gets the discovered nameserver hostnames.</summary>
+    public List<string> NameServers { get; } = new();
+    /// <summary>Gets nameservers for which no address was discovered.</summary>
+    public List<string> UnresolvedNameServers { get; } = new();
+    /// <summary>Gets the number of distinct authoritative addresses targeted.</summary>
+    public int ExpectedServerCount { get; private set; }
+    /// <summary>Gets every planned probe, including unanswered and budget-exhausted probes.</summary>
+    public List<DnsHealthProbeResult> ProbeResults { get; } = new();
+    /// <summary>Gets authoritative SOA serials by address.</summary>
+    public Dictionary<string, long> SoaSerialByServer { get; } = new();
+    /// <summary>Gets the SOA comparison conclusion.</summary>
+    public DnsHealthConsistencyStatus SoaSerialConsistency { get; private set; }
+    /// <summary>True only when at least two endpoints agree with complete SOA coverage.</summary>
+    public bool SoaSerialConsistent => SoaSerialConsistency == DnsHealthConsistencyStatus.Consistent;
+    /// <summary>Gets apex A/AAAA sets from endpoints with both successful authoritative responses, including NODATA.</summary>
+    public Dictionary<string, List<string>> ApexAddressesByServer { get; } = new();
+    /// <summary>Gets the apex comparison conclusion.</summary>
+    public DnsHealthConsistencyStatus ApexAddressesConsistency { get; private set; }
+    /// <summary>True only when at least two endpoints agree with complete apex coverage.</summary>
+    public bool ApexAddressesConsistent => ApexAddressesConsistency == DnsHealthConsistencyStatus.Consistent;
+    /// <summary>True when every discovered address replied to every probe and no nameserver remains unresolved.</summary>
+    public bool ServersResponsive { get; private set; }
+    /// <summary>Gets the per-run assessments.</summary>
+    public List<Assessment> Assessments { get; } = new();
 
-        /// <summary>Gets or sets the name servers value.</summary>
-        public List<string> NameServers { get; private set; } = new();
-        /// <summary>Gets the soa serial by server value.</summary>
-        public Dictionary<string, long> SoaSerialByServer { get; } = new();
-        /// <summary>Gets or sets the soa serial consistent value.</summary>
-        public bool SoaSerialConsistent { get; private set; }
+    /// <summary>Analyzes authoritative consistency and responsiveness without multiplying timeout budgets.</summary>
+    public async Task Analyze(string domainName, InternalLogger logger, CancellationToken cancellationToken = default) {
+        if (QueryTimeoutMilliseconds <= 0) throw new ArgumentOutOfRangeException(nameof(QueryTimeoutMilliseconds));
+        if (AnalysisTimeoutMilliseconds <= 0) throw new ArgumentOutOfRangeException(nameof(AnalysisTimeoutMilliseconds));
+        using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSHEALTH", target: domainName);
+        Subject = domainName;
+        NameServers.Clear(); UnresolvedNameServers.Clear(); ProbeResults.Clear();
+        SoaSerialByServer.Clear(); ApexAddressesByServer.Clear(); Assessments.Clear();
+        ExpectedServerCount = 0; ServersResponsive = false;
+        SoaSerialConsistency = ApexAddressesConsistency = DnsHealthConsistencyStatus.InsufficientEvidence;
+        int concurrency = Math.Max(1, QueryConcurrency);
+        int queryTimeout = QueryTimeoutMilliseconds;
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(AnalysisTimeoutMilliseconds);
 
-        /// <summary>Gets the apex addresses by server value.</summary>
-        public Dictionary<string, List<string>> ApexAddressesByServer { get; } = new();
-        /// <summary>Gets or sets the apex addresses consistent value.</summary>
-        public bool ApexAddressesConsistent { get; private set; }
-
-        /// <summary>Gets or sets the servers responsive value.</summary>
-        public bool ServersResponsive { get; private set; }
-
-        /// <summary>Gets the assessments value.</summary>
-        public List<Assessment> Assessments { get; } = new();
-
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken) {
-            return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken).ConfigureAwait(false);
+        DnsAnswer[] nameservers;
+        try {
+            nameservers = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS,
+                cancellationToken: budget.Token).ConfigureAwait(false);
+        } catch (Exception) when (!cancellationToken.IsCancellationRequested) {
+            logger.WriteWarningCode(DnsHealthCodes.CoverageIncomplete, "Nameserver discovery did not complete; DNS health evidence is incomplete");
+            return;
         }
-
-        /// <summary>Executes the analyze operation.</summary>
-        public async Task Analyze(string domainName, InternalLogger logger, CancellationToken cancellationToken = default) {
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSHEALTH", target: domainName);
-            Subject = domainName;
-            NameServers.Clear();
-            SoaSerialByServer.Clear();
-            ApexAddressesByServer.Clear();
-            SoaSerialConsistent = true;
-            ApexAddressesConsistent = true;
-            ServersResponsive = true;
-
-            // Discover NS hostnames and their addresses
-            var nsAnswers = await QueryDns(domainName, DnsRecordType.NS, cancellationToken).ConfigureAwait(false);
-            var nsHosts = nsAnswers.Select(a => a.Data.Trim('.')).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            NameServers.AddRange(nsHosts);
-            var nsIps = new List<(string host, IPAddress ip)>();
-            foreach (var ns in nsHosts) {
-                cancellationToken.ThrowIfCancellationRequested();
-                var a = await QueryDns(ns, DnsRecordType.A, cancellationToken).ConfigureAwait(false);
-                foreach (var ans in a) {
-                    if (IPAddress.TryParse(ans.Data, out var ip)) {
-                        nsIps.Add((ns, ip));
-                    }
-                }
-                var aaaa = await QueryDns(ns, DnsRecordType.AAAA, cancellationToken).ConfigureAwait(false);
-                foreach (var ans in aaaa) {
-                    if (IPAddress.TryParse(ans.Data, out var ip6)) {
-                        nsIps.Add((ns, ip6));
-                    }
-                }
-            }
-
-            if (nsIps.Count == 0) {
-                return;
-            }
-
-            // Query SOA serial and apex A/AAAA directly from each server
-            foreach (var (host, ip) in nsIps) {
-                cancellationToken.ThrowIfCancellationRequested();
-                var serverKey = ip.ToString();
-                var serial = await QuerySoaSerial(ip, domainName, cancellationToken);
-                if (serial.HasValue) {
-                    SoaSerialByServer[serverKey] = serial.Value;
-                }
-                var apex = await QueryApexAddresses(ip, domainName, cancellationToken);
-                if (apex.Count > 0) {
-                    ApexAddressesByServer[serverKey] = apex;
-                }
-            }
-
-            // Evaluate consistency
-            if (SoaSerialByServer.Count > 1) {
-                var first = SoaSerialByServer.First().Value;
-                foreach (var kv in SoaSerialByServer) {
-                    if (kv.Value != first) { SoaSerialConsistent = false; break; }
-                }
-            }
-
-            if (!SoaSerialConsistent) {
-                logger?.WriteWarningCode(DnsHealthCodes.SoaSerialSkew, "SOA serial numbers differ across authoritative servers");
-            } else {
-                logger?.WriteInformationCode(DnsHealthCodes.SoaSerialConsistent, "SOA serial numbers consistent across authoritative servers");
-            }
-
-            if (ApexAddressesByServer.Count > 1) {
-                string Canonical(List<string> list) {
-                    var arr = list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                    arr.Sort(StringComparer.OrdinalIgnoreCase);
-                    return string.Join(",", arr);
-                }
-                string? baseline = null;
-                foreach (var kv in ApexAddressesByServer) {
-                    var canon = Canonical(kv.Value);
-                    if (baseline == null) baseline = canon;
-                    else if (!string.Equals(baseline, canon, StringComparison.OrdinalIgnoreCase)) { ApexAddressesConsistent = false; break; }
-                }
-            }
-
-            if (!ApexAddressesConsistent) {
-                logger?.WriteWarningCode(DnsHealthCodes.ApexInconsistent, "A/AAAA answers for zone apex differ across authoritative servers");
-            }
-
-            ServersResponsive = SoaSerialByServer.Count == nsIps.Count && ApexAddressesByServer.Count == nsIps.Count;
-            if (ServersResponsive) {
-                logger?.WriteInformationCode(DnsHealthCodes.ServersResponsive, "All authoritative name servers responded to queries");
-            }
-        }
-
-        private async Task<DnsResponse?> QueryAuthoritativeAsync(IPAddress server, DnsMessage query,
-            CancellationToken token) {
-            if (QueryResponseOverride != null) {
-                return await QueryResponseOverride(server, query, token).ConfigureAwait(false);
-            }
-            DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
-                server.ToString(), 53, query, 4000, useTcpFallback: true, cancellationToken: token).ConfigureAwait(false);
-            return result.Response;
-        }
-
-        private async Task<long?> QuerySoaSerial(IPAddress server, string zone, CancellationToken token) {
+        cancellationToken.ThrowIfCancellationRequested();
+        string[] hosts = nameservers.Where(answer => answer.Type == DnsRecordType.NS)
+            .Select(answer => answer.Data.TrimEnd('.')).Where(host => !string.IsNullOrWhiteSpace(host))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        NameServers.AddRange(hosts);
+        var discovery = hosts.SelectMany(host => new[] { (host, DnsRecordType.A), (host, DnsRecordType.AAAA) }).ToArray();
+        IPAddress[][] addresses = await RunWorkers(discovery.Length, concurrency, async index => {
+            cancellationToken.ThrowIfCancellationRequested();
             try {
-                var query = new DnsMessage(zone, DnsRecordType.SOA, new DnsMessageOptions(RecursionDesired: false));
-                DnsResponse? response = await QueryAuthoritativeAsync(server, query, token).ConfigureAwait(false);
-                string? data = response?.Answers
-                    .Where(answer => answer.Type == DnsRecordType.SOA)
-                    .Select(answer => answer.Data ?? answer.DataRaw)
-                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-                string[] parts = (data ?? string.Empty).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                return parts.Length >= 3 && long.TryParse(parts[2], out long serial) ? serial : (long?)null;
-            } catch (OperationCanceledException) { throw; } catch { }
-            return null;
-        }
-
-        private async Task<List<string>> QueryApexAddresses(IPAddress server, string zone, CancellationToken token) {
-            var list = new List<string>();
-            async Task Fetch(DnsRecordType type) {
-                var query = new DnsMessage(zone, type, new DnsMessageOptions(RecursionDesired: false));
-                DnsResponse? response = await QueryAuthoritativeAsync(server, query, token).ConfigureAwait(false);
-                list.AddRange((response?.Answers ?? Array.Empty<DnsAnswer>())
-                    .Where(answer => answer.Type == type && !string.IsNullOrWhiteSpace(answer.Data ?? answer.DataRaw))
-                    .Select(answer => answer.Data ?? answer.DataRaw));
+                budget.Token.ThrowIfCancellationRequested();
+                var answers = await DnsConfiguration.QueryDNS(discovery[index].host, discovery[index].Item2,
+                    cancellationToken: budget.Token).ConfigureAwait(false);
+                return answers.Select(answer => IPAddress.TryParse(answer.Data, out var ip) ? ip : null)
+                    .Where(ip => ip != null).Select(ip => ip!).Distinct().ToArray();
+            } catch (Exception) when (!cancellationToken.IsCancellationRequested) { return Array.Empty<IPAddress>(); }
+        }).ConfigureAwait(false);
+        var servers = new Dictionary<IPAddress, List<string>>();
+        for (int i = 0; i < hosts.Length; i++) {
+            IPAddress[] found = addresses[i * 2].Concat(addresses[i * 2 + 1]).Distinct().ToArray();
+            if (found.Length == 0) UnresolvedNameServers.Add(hosts[i]);
+            foreach (var ip in found) {
+                if (!servers.TryGetValue(ip, out var owners)) servers[ip] = owners = new List<string>();
+                owners.Add(hosts[i]);
             }
-            try { await Fetch(DnsRecordType.A).ConfigureAwait(false); } catch (OperationCanceledException) { throw; } catch { }
-            try { await Fetch(DnsRecordType.AAAA).ConfigureAwait(false); } catch (OperationCanceledException) { throw; } catch { }
-            return list;
+        }
+        ExpectedServerCount = servers.Count;
+        var probes = servers.SelectMany(server => new[] { DnsRecordType.SOA, DnsRecordType.A, DnsRecordType.AAAA }
+            .Select(type => (server.Key, server.Value, type))).ToArray();
+        ProbeResults.AddRange(await RunWorkers(probes.Length, concurrency, index =>
+            ProbeAsync(probes[index].Key, probes[index].Value, domainName, probes[index].type,
+                queryTimeout, budget.Token, cancellationToken)).ConfigureAwait(false));
+        cancellationToken.ThrowIfCancellationRequested();
+        Evaluate(logger);
+    }
+
+    private void Evaluate(InternalLogger logger) {
+        foreach (var server in ProbeResults.GroupBy(probe => probe.ServerAddress)) {
+            var soa = server.Single(probe => probe.RecordType == DnsRecordType.SOA);
+            string? data = soa.Answers.Select(answer => answer.Data).FirstOrDefault();
+            string[] parts = (data ?? string.Empty).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (soa.ResponseSucceeded && soa.IsAuthoritative && parts.Length >= 3 && long.TryParse(parts[2], out long serial)) {
+                SoaSerialByServer[server.Key] = serial;
+            }
+            var apex = server.Where(probe => probe.RecordType != DnsRecordType.SOA).ToArray();
+            if (apex.All(probe => probe.ResponseSucceeded && probe.IsAuthoritative)) {
+                ApexAddressesByServer[server.Key] = apex.SelectMany(probe => probe.Answers)
+                    .Select(answer => answer.Data).Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
+            }
+        }
+        SoaSerialConsistency = Compare(SoaSerialByServer.Count, SoaSerialByServer.Values.Select(value => value.ToString()).Distinct().Count());
+        ApexAddressesConsistency = Compare(ApexAddressesByServer.Count,
+            ApexAddressesByServer.Values.Select(values => string.Join(",", values)).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        if (SoaSerialConsistency == DnsHealthConsistencyStatus.Inconsistent) {
+            logger.WriteWarningCode(DnsHealthCodes.SoaSerialSkew, "SOA serial numbers differ across observed authoritative servers");
+        } else if (SoaSerialConsistent) {
+            logger.WriteInformationCode(DnsHealthCodes.SoaSerialConsistent, "SOA serial numbers consistent across authoritative servers");
+        }
+        if (ApexAddressesConsistency == DnsHealthConsistencyStatus.Inconsistent) {
+            logger.WriteWarningCode(DnsHealthCodes.ApexInconsistent, "A/AAAA answers for zone apex differ across observed authoritative servers");
+        }
+        ServersResponsive = ExpectedServerCount > 0 && UnresolvedNameServers.Count == 0
+            && ProbeResults.All(probe => probe.HasResponse);
+        if (ServersResponsive) logger.WriteInformationCode(DnsHealthCodes.ServersResponsive, "All authoritative name servers responded to queries");
+        if (!ServersResponsive || !SoaSerialConsistent || !ApexAddressesConsistent) {
+            if (UnresolvedNameServers.Count > 0 || ProbeResults.Any(probe => !probe.HasResponse)
+                || SoaSerialConsistency == DnsHealthConsistencyStatus.InsufficientEvidence
+                || ApexAddressesConsistency == DnsHealthConsistencyStatus.InsufficientEvidence) {
+                logger.WriteWarningCode(DnsHealthCodes.CoverageIncomplete, "DNS health coverage is incomplete; consistency cannot be confirmed for every authoritative server");
+            }
+        }
+        foreach (var probe in ProbeResults.Where(probe => probe.HasResponse && (!probe.ResponseSucceeded || !probe.IsAuthoritative))) {
+            string detail = probe.Error ?? (!probe.IsAuthoritative ? "Non-authoritative DNS response." : probe.ResponseCode!.Value.ToString());
+            logger.WriteWarningCode(DnsHealthCodes.QueryFailed, $"{probe.ServerAddress} {probe.RecordType}: {detail}");
         }
     }
+
+    private DnsHealthConsistencyStatus Compare(int observed, int distinct) => distinct > 1
+        ? DnsHealthConsistencyStatus.Inconsistent
+        : observed >= 2 && observed == ExpectedServerCount && UnresolvedNameServers.Count == 0
+            ? DnsHealthConsistencyStatus.Consistent : DnsHealthConsistencyStatus.InsufficientEvidence;
 }
