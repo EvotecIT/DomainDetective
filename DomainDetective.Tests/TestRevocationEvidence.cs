@@ -106,6 +106,36 @@ public partial class TestRevocationEvidence {
         Assert.Null(ParseOcsp(new OCSPRespGenerator().Generate(OcspRespStatus.Successful, response).GetEncoded(), leaf, issuer));
     }
 
+    [Theory]
+    [InlineData(KeyUsage.NonRepudiation, false)]
+    [InlineData(KeyUsage.DigitalSignature, true)]
+    public void RecognizedDelegatedOcspAuthorizationVariantsRemainUsable(int keyUsage, bool criticalNoCheck) {
+        var issuerKeys = Keys();
+        var issuer = Certificate("CN=Issuer", BigInteger.One, issuerKeys, null, null, ca: true);
+        var leaf = Certificate("CN=Leaf", BigInteger.Ten, Keys(), issuer, issuerKeys);
+        var responderKeys = Keys();
+        var responder = Certificate("CN=Responder", BigInteger.Two, responderKeys, issuer, issuerKeys,
+            ocspPurpose: true, noCheck: true, keyUsage: keyUsage, criticalNoCheck: criticalNoCheck);
+        var generator = new BasicOcspRespGenerator(responderKeys.Public);
+        generator.AddResponse(new CertificateID(CertificateID.DigestSha1, issuer, leaf.SerialNumber), null, Now.AddMinutes(-10), Now.AddHours(1), null);
+        var response = generator.Generate(new Asn1SignatureFactory("SHA256WITHRSA", responderKeys.Private), new[] { responder }, Now);
+        Assert.Equal(false, ParseOcsp(new OCSPRespGenerator().Generate(OcspRespStatus.Successful, response).GetEncoded(), leaf, issuer));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void CertificateDistributionPointScopeCannotBeTreatedAsCompleteIssuerEvidence(bool limitedReasons, bool namedCrlIssuer) {
+        var issuerKeys = Keys();
+        var issuer = Certificate("CN=Issuer", BigInteger.One, issuerKeys, null, null, ca: true);
+        var leaf = Certificate("CN=Leaf", BigInteger.Ten, Keys(), issuer, issuerKeys,
+            crlUrl: "http://crl.example.test/list", limitedCrlReasons: limitedReasons, namedCrlIssuer: namedCrlIssuer);
+        var generator = new X509V2CrlGenerator();
+        generator.SetIssuerDN(issuer.SubjectDN); generator.SetThisUpdate(Now.AddMinutes(-10)); generator.SetNextUpdate(Now.AddHours(1));
+        byte[] bytes = generator.Generate(new Asn1SignatureFactory("SHA256WITHRSA", issuerKeys.Private)).GetEncoded();
+        Assert.Null(CertificateRevocationEvidence.CrlStatus(bytes, leaf, issuer, Now));
+    }
+
     private static AsymmetricCipherKeyPair Keys() {
         var generator = new RsaKeyPairGenerator();
         generator.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
@@ -113,19 +143,19 @@ public partial class TestRevocationEvidence {
     }
 
     private static X509Certificate Certificate(string name, BigInteger serial, AsymmetricCipherKeyPair keys,
-        X509Certificate? issuer, AsymmetricCipherKeyPair? issuerKeys, bool ca = false, bool ocspPurpose = false, bool noCheck = false, bool unknownCritical = false, string? ocspUrl = null, string? crlUrl = null) {
+        X509Certificate? issuer, AsymmetricCipherKeyPair? issuerKeys, bool ca = false, bool ocspPurpose = false, bool noCheck = false, bool unknownCritical = false, string? ocspUrl = null, string? crlUrl = null, int? keyUsage = null, bool criticalNoCheck = false, bool limitedCrlReasons = false, bool namedCrlIssuer = false) {
         var generator = new X509V3CertificateGenerator();
         var subject = new X509Name(name);
         generator.SetSerialNumber(serial); generator.SetIssuerDN(issuer?.SubjectDN ?? subject); generator.SetSubjectDN(subject);
         generator.SetNotBefore(Now.AddDays(-1)); generator.SetNotAfter(Now.AddDays(1)); generator.SetPublicKey(keys.Public);
         generator.AddExtension(X509Extensions.BasicConstraints, true, new BasicConstraints(ca));
-        generator.AddExtension(X509Extensions.KeyUsage, true, new KeyUsage(ca ? KeyUsage.KeyCertSign | KeyUsage.CrlSign : KeyUsage.DigitalSignature));
+        generator.AddExtension(X509Extensions.KeyUsage, true, new KeyUsage(keyUsage ?? (ca ? KeyUsage.KeyCertSign | KeyUsage.CrlSign : KeyUsage.DigitalSignature)));
         if (ocspUrl != null) generator.AddExtension(X509Extensions.AuthorityInfoAccess, false,
             new AuthorityInformationAccess(new AccessDescription(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.5.5.7.48.1"), new GeneralName(GeneralName.UniformResourceIdentifier, ocspUrl))));
         if (crlUrl != null) generator.AddExtension(X509Extensions.CrlDistributionPoints, false,
-            new CrlDistPoint(new[] { new DistributionPoint(new DistributionPointName(new GeneralNames(new GeneralName(GeneralName.UniformResourceIdentifier, crlUrl))), null, null) }));
+            new CrlDistPoint(new[] { new DistributionPoint(new DistributionPointName(new GeneralNames(new GeneralName(GeneralName.UniformResourceIdentifier, crlUrl))), limitedCrlReasons ? new ReasonFlags(ReasonFlags.KeyCompromise) : null, namedCrlIssuer ? new GeneralNames(new GeneralName(issuer!.SubjectDN)) : null) }));
         if (ocspPurpose) generator.AddExtension(X509Extensions.ExtendedKeyUsage, false, new ExtendedKeyUsage(KeyPurposeID.id_kp_OCSPSigning));
-        if (noCheck) generator.AddExtension(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.5.5.7.48.1.5"), false, Org.BouncyCastle.Asn1.DerNull.Instance);
+        if (noCheck) generator.AddExtension(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.5.5.7.48.1.5"), criticalNoCheck, Org.BouncyCastle.Asn1.DerNull.Instance);
         if (unknownCritical) generator.AddExtension(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.2.3.4.5"), true, Org.BouncyCastle.Asn1.DerNull.Instance);
         return generator.Generate(new Asn1SignatureFactory("SHA256WITHRSA", (issuerKeys ?? keys).Private));
     }

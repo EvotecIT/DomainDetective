@@ -39,6 +39,13 @@ internal static class CertificateRevocationEvidence {
     internal static bool? CrlStatus(byte[] bytes, X509Certificate leaf, X509Certificate issuer, DateTime nowUtc) {
         try {
             if (!IsIssuer(leaf, issuer)) return null;
+            var distributionPoints = leaf.GetExtensionValue(X509Extensions.CrlDistributionPoints);
+            if (distributionPoints != null) {
+                var points = CrlDistPoint.GetInstance(Asn1Object.FromByteArray(distributionPoints.GetOctets())).GetDistributionPoints();
+                // This API has no selected distribution-point context. A reason-limited or
+                // separately named CRL issuer cannot establish complete issuer evidence.
+                if (points.Any(point => point.Reasons != null || point.CrlIssuer != null)) return null;
+            }
             _ = Asn1Object.FromByteArray(bytes);
             var crl = new X509CrlParser().ReadCrl(bytes);
             if (!crl.IssuerDN.Equivalent(issuer.SubjectDN) || crl.ThisUpdate > nowUtc + ClockSkew
@@ -72,12 +79,14 @@ internal static class CertificateRevocationEvidence {
             if (signer.Equals(issuer)) return true;
             if (!IsIssuer(signer, issuer) || signer.GetExtendedKeyUsage()?.Contains(KeyPurposeID.id_kp_OCSPSigning) != true) return false;
             var critical = signer.GetCriticalExtensionOids();
+            const string noCheckOid = "1.3.6.1.5.5.7.48.1.5";
             if (critical != null && critical.Any(oid => !oid.Equals(X509Extensions.BasicConstraints.Id)
-                && !oid.Equals(X509Extensions.KeyUsage.Id) && !oid.Equals(X509Extensions.ExtendedKeyUsage.Id))) return false;
+                && !oid.Equals(X509Extensions.KeyUsage.Id) && !oid.Equals(X509Extensions.ExtendedKeyUsage.Id)
+                && !oid.Equals(noCheckOid))) return false;
             var usage = signer.GetKeyUsage();
-            if (usage != null && (usage.Length == 0 || !usage[0])) return false;
+            if (usage != null && !((usage.Length > 0 && usage[0]) || (usage.Length > 1 && usage[1]))) return false;
             // Delegated signer revocation cannot be skipped unless its issuer authorized no-check.
-            var noCheck = signer.GetExtensionValue(new DerObjectIdentifier("1.3.6.1.5.5.7.48.1.5"));
+            var noCheck = signer.GetExtensionValue(new DerObjectIdentifier(noCheckOid));
             return noCheck != null && Asn1Object.FromByteArray(noCheck.GetOctets()) is DerNull;
         } catch (Exception) {
             return false;
