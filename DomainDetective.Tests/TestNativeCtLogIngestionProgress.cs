@@ -72,7 +72,7 @@ public class TestNativeCtLogIngestionProgress {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CallerCancellationPersistsOnlyCompletedPrefixWithoutOpeningCircuit(bool shared) {
+    public async Task CallerCancellationLeavesCheckpointUnchangedWithoutOpeningCircuit(bool shared) {
         using var scope = new CursorScope();
         using var caller = new CancellationTokenSource();
         var source = new NativeCtLogSubdomainDiscovery {
@@ -89,7 +89,7 @@ public class TestNativeCtLogIngestionProgress {
         var saved = NativeCtCursorState.Load(options.CursorStatePath);
         string key = shared ? NativeCtCursorState.BuildSharedKey(LogUrl, new[] { "example.test" })
             : NativeCtCursorState.BuildKey("example.test", LogUrl);
-        Assert.Equal(1, saved.GetLastProcessedIndex(key));
+        Assert.Null(saved.GetLastProcessedIndex(key));
         Assert.False(saved.IsCircuitOpen(NativeCtCursorState.BuildLogHealthKey(LogUrl), DateTimeOffset.UtcNow, out _));
     }
 
