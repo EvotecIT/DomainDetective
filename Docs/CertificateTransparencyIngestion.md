@@ -29,4 +29,6 @@ Complete decoding throws `CtEntryDecodingException` with the failed index and or
 
 Precertificate names and metadata must match the signed TBSCertificate. The reader removes CT poison/SCT-list extensions and supports the issuer and Authority Key Identifier transformation for dedicated precertificate signers. This verifies the logged fields; it does not establish Web PKI trust, certificate validity, or acceptance by a browser. Inclusion and consistency from one retained anchor also do not establish agreement with independent witnesses.
 
+Certificate bytes must contain exactly one DER-encoded X.509 certificate. The reader rejects PKCS#7 containers, PEM, BER and trailing data, including in dedicated precertificate signer chains. The certificate materialized into the record must match the checked DER bytes.
+
 Verification and complete decoding are opt-in to preserve existing ingestion behavior. Applications that leave complete decoding disabled receive diagnostics for skipped certificates and must decide whether advancing over those entries meets their delivery contract.

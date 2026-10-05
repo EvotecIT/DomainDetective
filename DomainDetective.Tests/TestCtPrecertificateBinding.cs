@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
@@ -13,6 +14,83 @@ using Org.BouncyCastle.X509;
 namespace DomainDetective.Tests;
 
 public sealed class TestCtPrecertificateBinding {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task CompleteDecoding_RejectsCertificateContainers(bool isStatic, bool issuerContainer) {
+        AsymmetricCipherKeyPair rootKey = Key(), signerKey = Key(), leafKey = Key();
+        var rootName = new X509Name("CN=Boundary Root");
+        var signerName = new X509Name("CN=Boundary Signer");
+        X509Certificate root = Certificate(rootName, rootName, rootKey, rootKey, ca: true);
+        X509Certificate signer = Certificate(signerName, rootName, signerKey, rootKey, ca: true, ctSigner: true);
+        X509Certificate final = Certificate(new X509Name("CN=logged.example.test"), rootName, leafKey, rootKey);
+        X509Certificate pre = Certificate(new X509Name("CN=logged.example.test"), issuerContainer ? signerName : rootName,
+            leafKey, issuerContainer ? signerKey : rootKey, poison: true, leafAuthority: issuerContainer ? (byte)2 : (byte)1);
+        byte[] tbs = final.CertificateStructure.TbsCertificate.GetDerEncoded();
+        byte[] issuerHash = Hash(root.CertificateStructure.TbsCertificate.SubjectPublicKeyInfo.GetDerEncoded());
+        byte[] leaf = new byte[] {0,0, 0,0,0,0,0,0,0,1, 0,1}.Concat(issuerHash).Concat(Vector(tbs)).Concat(new byte[] {0,0}).ToArray();
+        byte[] certificateBytes = issuerContainer ? pre.GetEncoded() : Pkcs7(pre);
+        byte[] signerBytes = issuerContainer ? Pkcs7(signer) : signer.GetEncoded();
+        byte[] rootBytes = root.GetEncoded();
+        byte[] extra = Vector(certificateBytes).Concat(Vector(Vector(signerBytes).Concat(Vector(rootBytes)).ToArray())).ToArray();
+        CtLogIngestionClient client = Client(leaf, extra);
+        CtLogIngestionBatchRequest request = Request();
+        if (isStatic) {
+            byte[] fingerprints = issuerContainer ? Hash(signerBytes).Concat(Hash(rootBytes)).ToArray() : Array.Empty<byte>();
+            byte[] tile = leaf.Skip(2).Concat(Vector(certificateBytes))
+                .Concat(new byte[] {(byte)(fingerprints.Length >> 8), (byte)fingerprints.Length}).Concat(fingerprints).ToArray();
+            client = new CtLogIngestionClient {
+                SendOverride = (message, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {
+                    Content = new ByteArrayContent(message.RequestUri!.AbsolutePath.Contains("/issuer/") ?
+                        (message.RequestUri.AbsolutePath.EndsWith(Hex(Hash(signerBytes))) ? signerBytes : rootBytes) : tile)
+                })
+            };
+            request = new CtLogIngestionBatchRequest {
+                LogUrl = "https://ct.example.test/binding/", MonitoringUrl = "https://ct.example.test/binding/", ApiKind = CtLogApiKind.StaticCt,
+                StartIndex = 0, BatchSize = 1, KnownTreeSize = 1, RequireCompleteDecoding = true
+            };
+        }
+
+        CtEntryDecodingException error = await Assert.ThrowsAsync<CtEntryDecodingException>(() => client.ReadBatchAsync(request));
+        Assert.Equal(0, error.EntryIndex);
+        Assert.NotEmpty(error.Payload.ExtraDataBase64);
+    }
+
+    private static byte[] Pkcs7(X509Certificate certificate) {
+        AsymmetricCipherKeyPair key = Key();
+        // Keep the logged certificate first even when the CMS certificate SET is DER-sorted.
+        string unit = new string('x', 64);
+        var name = new X509Name($"CN=unrelated.example.test,OU={unit},OU={unit},OU={unit}");
+        X509Certificate unrelated = Certificate(name, name, key, key, ca: true);
+        var digestAlgorithm = new AlgorithmIdentifier(new DerObjectIdentifier("2.16.840.1.101.3.4.2.1"));
+        var signatureAlgorithm = new AlgorithmIdentifier(new DerObjectIdentifier("1.2.840.10045.4.3.2"));
+        var signer = new DerSequence(DerInteger.ValueOf(1),
+            new IssuerAndSerialNumber(unrelated.IssuerDN, unrelated.SerialNumber), digestAlgorithm,
+            signatureAlgorithm, new DerOctetString(new DerSequence(DerInteger.ValueOf(1), DerInteger.ValueOf(1)).GetEncoded()));
+        byte[] container = new ContentInfo(PkcsObjectIdentifiers.SignedData,
+            new SignedData(DerInteger.ValueOf(1), new DerSet(digestAlgorithm),
+                new ContentInfo(PkcsObjectIdentifiers.Data, new DerOctetString(new byte[] { 42 })),
+                new BerSet(certificate.CertificateStructure, unrelated.CertificateStructure), null, new DerSet(signer))).GetEncoded();
+        // The old binding parser selects the first certificate; Windows' compatibility loader selects the signer.
+        Assert.Equal(certificate.GetEncoded(), new X509CertificateParser().ReadCertificate(container).GetEncoded());
+#if !NET10_0_OR_GREATER
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows)) {
+            using var loaded = Helpers.CertificateLoaderCompat.LoadCertificate(container);
+            Assert.Equal(unrelated.GetEncoded(), loaded.RawData);
+        }
+#endif
+        return container;
+    }
+
+    private static byte[] Hash(byte[] data) {
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        return sha256.ComputeHash(data);
+    }
+
+    private static string Hex(byte[] data) => BitConverter.ToString(data).Replace("-", "").ToLowerInvariant();
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
