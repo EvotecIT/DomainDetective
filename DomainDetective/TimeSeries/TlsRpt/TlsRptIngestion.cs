@@ -40,7 +40,7 @@ public static class TlsRptIngestion
                 var snapshot = TlsRptSnapshotBuilder.Build(report, domain, source: "File", sourceId: file);
                 if (deduplicate)
                 {
-                    var key = $"{snapshot.Domain}|{snapshot.ReportId}|{snapshot.RangeBeginUtc?.UtcDateTime:o}|{snapshot.RangeEndUtc?.UtcDateTime:o}|{snapshot.ReporterOrgName}";
+                    var key = TlsRptTimeSeriesStore.GetSnapshotFileName(snapshot);
                     if (!string.IsNullOrWhiteSpace(snapshot.ReportId) && !seen.Add(key))
                     {
                         continue;
@@ -84,7 +84,7 @@ public static class TlsRptIngestion
             var snapshot = TlsRptSnapshotBuilder.Build(report, domain, source: "IMAP", sourceId: fileName);
             if (deduplicate)
             {
-                var key = $"{snapshot.Domain}|{snapshot.ReportId}|{snapshot.RangeBeginUtc?.UtcDateTime:o}|{snapshot.RangeEndUtc?.UtcDateTime:o}|{snapshot.ReporterOrgName}";
+                var key = TlsRptTimeSeriesStore.GetSnapshotFileName(snapshot);
                 if (!string.IsNullOrWhiteSpace(snapshot.ReportId) && !seen.Add(key))
                 {
                     return Task.FromResult<TlsRptSnapshot?>(null);

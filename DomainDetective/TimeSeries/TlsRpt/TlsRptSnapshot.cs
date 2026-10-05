@@ -29,7 +29,7 @@ public sealed class TlsRptSnapshot
     /// <summary>True when per-MX failure rows were attributed from receiving-mx-hostname, rather than policy patterns.</summary>
     /// <remarks>Older stored snapshots lack this evidence; reimport their original reports to obtain verified attribution.</remarks>
     public bool MxFailureAttributionVerified { get; set; }
-    /// <summary>Version of receiving-host count interpretation; version 2 accounts for overlapping failure types.</summary>
+    /// <summary>Version of receiving-host count interpretation; version 2 accounts for overlapping failure types and applied policies.</summary>
     public int ReceivingMxInterpretationVersion { get; set; }
     /// <summary>Gets or sets the observed receiving-host failure rows.</summary>
     public List<TlsRptMxSnapshot> MxHosts { get; set; } = new();

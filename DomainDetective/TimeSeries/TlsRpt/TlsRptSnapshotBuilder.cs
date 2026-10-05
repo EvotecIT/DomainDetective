@@ -11,12 +11,13 @@ internal static class TlsRptSnapshotBuilder {
         var domains = allPolicies.Select(p => NormalizeDomain(p.Policy?.PolicyDomain)).Where(d => d.Length > 0).Distinct().ToList();
         string resolvedDomain = NormalizeDomain(domain);
         bool callerScope = resolvedDomain.Length > 0;
+        bool daneOnly = allPolicies.Count > 0 && allPolicies.All(IsDane);
         if (!callerScope) {
+            if (daneOnly) throw new ArgumentException("A recipient domain is required for DANE reports; the TLSA base domain does not identify the recipient.", nameof(domain));
             if (domains.Count != 1) throw new ArgumentException("A domain is required for reports with no policy-domain or multiple domains.", nameof(domain));
             resolvedDomain = domains[0];
         }
         var recipientPolicies = allPolicies.Where(p => NormalizeDomain(p.Policy?.PolicyDomain) == resolvedDomain).ToList();
-        bool daneOnly = allPolicies.Count > 0 && allPolicies.All(IsDane);
         if (domains.Count > 0 && recipientPolicies.Count == 0 && !(callerScope && daneOnly))
             throw new FormatException($"TLS-RPT report policy-domain mismatch: expected '{resolvedDomain}', found '{string.Join(", ", domains)}'.");
         // DANE policy-domain is the TLSA base domain, not the envelope recipient.
@@ -82,9 +83,15 @@ internal static class TlsRptSnapshotBuilder {
             snapshot.ValidationMessages.Add("Non-exclusive or inconsistent failure details cannot determine distinct sessions per receiving host; per-type counts and policy summaries remain reported.");
         }
         foreach (var row in policyHosts.Values) {
-            if (!hosts.TryGetValue(row.MxHost, out var aggregate)) hosts[row.MxHost] = aggregate = new TlsRptMxSnapshot { MxHost = row.MxHost, FailedSessionsKnown = true };
-            aggregate.FailedSessionsKnown &= row.FailedSessionsKnown;
-            aggregate.FailedSessions = checked(aggregate.FailedSessions + row.FailedSessions);
+            if (!hosts.TryGetValue(row.MxHost, out var aggregate)) {
+                hosts[row.MxHost] = aggregate = new TlsRptMxSnapshot { MxHost = row.MxHost,
+                    FailedSessionsKnown = row.FailedSessionsKnown, FailedSessions = row.FailedSessions };
+            } else {
+                // Applied policies can describe the same sessions. Their receiving-host
+                // observations do not establish a disjoint union across policies.
+                aggregate.FailedSessionsKnown = false;
+                aggregate.FailedSessions = 0;
+            }
             foreach (var pair in row.FailureByType) aggregate.FailureByType[pair.Key] = checked((aggregate.FailureByType.TryGetValue(pair.Key, out int old) ? old : 0) + pair.Value);
         }
     }
@@ -92,7 +99,11 @@ internal static class TlsRptSnapshotBuilder {
     private static bool IsDane(TlsRptPolicyResult policy) => string.Equals(policy.Policy?.PolicyType, "tlsa", StringComparison.OrdinalIgnoreCase);
     private static bool MatchesMx(string? pattern, string? host) {
         pattern = NormalizeDomain(pattern); host = NormalizeDomain(host);
-        return pattern.StartsWith("*.", StringComparison.Ordinal) ? host.EndsWith(pattern.Substring(1), StringComparison.Ordinal) : host == pattern;
+        if (!pattern.StartsWith("*.", StringComparison.Ordinal)) return host == pattern;
+        string suffix = pattern.Substring(1);
+        if (!host.EndsWith(suffix, StringComparison.Ordinal)) return false;
+        string label = host.Substring(0, host.Length - suffix.Length);
+        return label.Length > 0 && label.IndexOf('.') < 0;
     }
     private static string NormalizeDomain(string? domain) => (domain ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
 }

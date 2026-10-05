@@ -80,12 +80,13 @@ public class TestTlsRptPolicyAttribution {
     }
 
     [Fact]
-    public void DanePolicyWithoutMxPatternsAndUnspecifiedDomainRemainExplicit() {
+    public void DanePolicyRequiresExplicitRecipientDomain() {
         string policy = Policy("example.com", "[]", 3, 0).Replace("\"policy-type\":\"sts\"", "\"policy-type\":\"tlsa\"").Replace("\"mx-host\":[],", "");
         using var input = new MemoryStream(Encoding.UTF8.GetBytes(Report(policy)));
         var report = TlsRptReportParser.Parse(input);
         Assert.Empty(Assert.Single(report.Policies).Policy.MxHostPatterns);
-        var snapshot = TlsRptSnapshotBuilder.Build(report, "", "File", null);
+        Assert.Throws<ArgumentException>(() => TlsRptSnapshotBuilder.Build(report, "", "File", null));
+        var snapshot = TlsRptSnapshotBuilder.Build(report, "example.com", "File", null);
         Assert.Equal("example.com", snapshot.Domain);
         Assert.Equal(3, snapshot.TotalSuccessfulSessions);
         Assert.Empty(snapshot.MxHosts);
