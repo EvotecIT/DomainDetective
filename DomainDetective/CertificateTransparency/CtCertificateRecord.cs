@@ -226,6 +226,11 @@ public sealed class CtCertificateRecord
             CtCertificateRecordDetailLevel.Full);
     }
 
+    internal static IReadOnlyList<string> ExtractDnsNames(X509Certificate2 certificate)
+    {
+        return ExtractDnsNames(certificate, CtCertificateDer.Parse(certificate.RawData).SubjectDN);
+    }
+
     private static IReadOnlyList<string> ExtractDnsNames(X509Certificate2 certificate, X509Name subject)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

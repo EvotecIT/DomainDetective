@@ -42,7 +42,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
     }
 
     private static bool TryProcessEntry(
-        CtEntryPayload payload,
+        RawCtEntryPayload payload,
         string baseDomain,
         bool exactMatchOnly,
         int maxSubdomains,
@@ -148,7 +148,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
     }
 
     private static bool TryProcessEntryForDomains(
-        CtEntryPayload payload,
+        RawCtEntryPayload payload,
         HashSet<string> baseDomains,
         HashSet<string> exactMatchDomains,
         int maxSubdomainsPerDomain,
@@ -444,72 +444,8 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         return value;
     }
 
-    private static IReadOnlyCollection<string> ExtractCandidateNames(X509Certificate2 certificate) {
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        var dnsName = SafeGetNameInfo(certificate, X509NameType.DnsName);
-        if (!string.IsNullOrWhiteSpace(dnsName)) {
-            names.Add(dnsName!);
-        }
-
-        var simpleName = SafeGetNameInfo(certificate, X509NameType.SimpleName);
-        if (!string.IsNullOrWhiteSpace(simpleName)) {
-            names.Add(simpleName!);
-        }
-
-        var commonName = TryExtractCommonName(certificate.Subject);
-        if (!string.IsNullOrWhiteSpace(commonName)) {
-            names.Add(commonName!);
-        }
-
-        var sanNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var extension in certificate.Extensions.OfType<X509Extension>()) {
-            if (!string.Equals(extension.Oid?.Value, SubjectAlternativeNameOid, StringComparison.Ordinal)) {
-                continue;
-            }
-
-            foreach (var dns in ParseDnsNamesFromSanExtension(extension.RawData)) {
-                sanNames.Add(dns);
-            }
-
-            if (sanNames.Count == 0) {
-                foreach (var dns in ParseDnsNamesFromSanText(extension.Format(true))) {
-                    sanNames.Add(dns);
-                }
-            }
-        }
-
-        foreach (var san in sanNames) {
-            names.Add(san);
-        }
-
-        return names;
-    }
-
-    private static string? SafeGetNameInfo(X509Certificate2 certificate, X509NameType type) {
-        try {
-            return certificate.GetNameInfo(type, false);
-        } catch {
-            return null;
-        }
-    }
-
-    private static string? TryExtractCommonName(string? subject) {
-        if (string.IsNullOrWhiteSpace(subject)) {
-            return null;
-        }
-
-        var parts = subject!.Split(',');
-        foreach (var part in parts) {
-            var trimmed = part.Trim();
-            if (trimmed.StartsWith("CN=", StringComparison.OrdinalIgnoreCase)) {
-                var value = trimmed.Substring(3).Trim();
-                return value.Length == 0 ? null : value;
-            }
-        }
-
-        return null;
-    }
+    private static IReadOnlyCollection<string> ExtractCandidateNames(X509Certificate2 certificate)
+        => CtCertificateRecord.ExtractDnsNames(certificate);
 
     private static string? NormalizeThumbprint(string? value) {
         if (string.IsNullOrWhiteSpace(value)) {
@@ -563,119 +499,6 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         return 0;
-    }
-
-    private static IEnumerable<string> ParseDnsNamesFromSanText(string? formattedSan) {
-        if (string.IsNullOrWhiteSpace(formattedSan)) {
-            yield break;
-        }
-
-        var lines = formattedSan!
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => line.Trim());
-
-        foreach (var line in lines) {
-            const string dnsNamePrefix = "DNS Name=";
-            const string dnsShortPrefix = "DNS:";
-
-            if (line.StartsWith(dnsNamePrefix, StringComparison.OrdinalIgnoreCase)) {
-                var value = line.Substring(dnsNamePrefix.Length).Trim();
-                if (!string.IsNullOrWhiteSpace(value)) {
-                    yield return value;
-                }
-            } else if (line.StartsWith(dnsShortPrefix, StringComparison.OrdinalIgnoreCase)) {
-                var value = line.Substring(dnsShortPrefix.Length).Trim();
-                if (!string.IsNullOrWhiteSpace(value)) {
-                    yield return value;
-                }
-            }
-        }
-    }
-
-    private static IEnumerable<string> ParseDnsNamesFromSanExtension(byte[] rawData) {
-        if (rawData == null || rawData.Length == 0) {
-            yield break;
-        }
-
-        var offset = 0;
-        if (!TryReadTagAndLength(rawData, ref offset, expectedTag: 0x04, out var octetLength)) {
-            yield break;
-        }
-        if (offset + octetLength > rawData.Length) {
-            yield break;
-        }
-
-        var innerOffset = offset;
-        if (!TryReadTagAndLength(rawData, ref innerOffset, expectedTag: 0x30, out var sequenceLength)) {
-            yield break;
-        }
-        var sequenceEnd = innerOffset + sequenceLength;
-        if (sequenceEnd > offset + octetLength) {
-            yield break;
-        }
-
-        while (innerOffset < sequenceEnd) {
-            var tag = rawData[innerOffset++];
-            if (!TryReadAsnLength(rawData, ref innerOffset, out var length)) {
-                yield break;
-            }
-            if (innerOffset + length > sequenceEnd) {
-                yield break;
-            }
-
-            if (tag == 0x82 && length > 0) {
-                var value = Encoding.ASCII.GetString(rawData, innerOffset, length).Trim();
-                if (!string.IsNullOrWhiteSpace(value)) {
-                    yield return value;
-                }
-            }
-
-            innerOffset += length;
-        }
-    }
-
-    private static bool TryReadTagAndLength(byte[] data, ref int offset, byte expectedTag, out int length) {
-        length = 0;
-        if (data == null || offset < 0 || offset >= data.Length) {
-            return false;
-        }
-
-        var tag = data[offset++];
-        if (tag != expectedTag) {
-            return false;
-        }
-
-        return TryReadAsnLength(data, ref offset, out length);
-    }
-
-    private static bool TryReadAsnLength(byte[] data, ref int offset, out int length) {
-        length = 0;
-        if (data == null || offset < 0 || offset >= data.Length) {
-            return false;
-        }
-
-        var first = data[offset++];
-        if ((first & 0x80) == 0) {
-            length = first;
-            return true;
-        }
-
-        var count = first & 0x7F;
-        if (count <= 0 || count > 4 || offset + count > data.Length) {
-            return false;
-        }
-
-        int value = 0;
-        for (int i = 0; i < count; i++) {
-            value = (value << 8) | data[offset++];
-        }
-
-        if (value < 0) {
-            return false;
-        }
-
-        length = value;
-        return true;
     }
 
     private static bool TryParseLeaf(byte[] leafBytes, out DateTimeOffset? timestampUtc, out int entryType, out byte[]? x509LeafCertificate) {
@@ -819,13 +642,4 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         public long TreeSize { get; }
     }
 
-    private readonly struct CtEntryPayload {
-        public CtEntryPayload(string leafInputBase64, string extraDataBase64) {
-            LeafInputBase64 = leafInputBase64;
-            ExtraDataBase64 = extraDataBase64;
-        }
-
-        public string LeafInputBase64 { get; }
-        public string ExtraDataBase64 { get; }
-    }
 }

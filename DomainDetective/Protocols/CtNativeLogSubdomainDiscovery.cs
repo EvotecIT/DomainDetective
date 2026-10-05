@@ -136,7 +136,6 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
 
     private const int X509EntryType = 0;
     private const int PrecertEntryType = 1;
-    private const string SubjectAlternativeNameOid = "2.5.29.17";
     private const string HistoricalAllLogsListUrl = "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json";
     private const string KnownBogusCtLogUrlPrefix = "https://ct.example.com/bogus/";
 
@@ -191,7 +190,6 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 consumedLogBudget++;
                 var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
                 status.TreeSize = sth.TreeSize;
-                result.LogsSucceeded++;
                 var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
                 status.StartIndex = start;
                 status.EstimatedLagBefore = start >= sth.TreeSize ? 0 : (sth.TreeSize - start);
@@ -202,6 +200,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     status.LastProcessedIndex = sth.TreeSize - 1;
                     status.EstimatedLagAfter = 0;
                     status.Succeeded = true;
+                    result.LogsSucceeded++;
                     continue;
                 }
 
@@ -234,32 +233,33 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                         break;
                     }
 
-                    for (int i = 0; i < entries.Count; i++) {
-                        cancellationToken.ThrowIfCancellationRequested();
+                    try {
+                        for (int i = 0; i < entries.Count; i++) {
+                            cancellationToken.ThrowIfCancellationRequested();
 
-                        if (options.MaxCtRowsToProcess > 0 && result.CertificateObservationCount >= options.MaxCtRowsToProcess) {
-                            result.ResultsCapped = true;
-                            break;
-                        }
-
-                        if (TryProcessEntry(entries[i], baseDomain, options.ExactMatchOnly, options.MaxSubdomains, result, logger, out var matchedObservationCount)) {
-                            if (matchedObservationCount > 0) {
-                                result.CertificateObservationCount += matchedObservationCount;
-                                if (options.StopAfterMatchedObservations > 0 &&
-                                    result.CertificateObservationCount >= options.StopAfterMatchedObservations) {
-                                    stoppedAfterMatchedObservationTarget = true;
-                                }
+                            if (options.MaxCtRowsToProcess > 0 && result.CertificateObservationCount >= options.MaxCtRowsToProcess) {
+                                result.ResultsCapped = true;
+                                break;
                             }
-                            lastProcessed = batchStart + i;
-                        } else {
-                            result.ResultsCapped = true;
-                            lastProcessed = batchStart + i;
-                            break;
-                        }
-                    }
 
-                    if (lastProcessed >= start) {
-                        cursor.SetLastProcessedIndex(key, lastProcessed);
+                            if (TryProcessEntry(entries[i], baseDomain, options.ExactMatchOnly, options.MaxSubdomains, result, logger, out var matchedObservationCount)) {
+                                if (matchedObservationCount > 0) {
+                                    result.CertificateObservationCount += matchedObservationCount;
+                                    if (options.StopAfterMatchedObservations > 0 &&
+                                        result.CertificateObservationCount >= options.StopAfterMatchedObservations) {
+                                        stoppedAfterMatchedObservationTarget = true;
+                                    }
+                                }
+                                lastProcessed = batchStart + i;
+                            } else {
+                                result.ResultsCapped = true;
+                                break;
+                            }
+                        }
+                    } finally {
+                        if (lastProcessed >= start) {
+                            cursor.SetLastProcessedIndex(key, lastProcessed);
+                        }
                     }
 
                     if (result.ResultsCapped) {
@@ -269,7 +269,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                         break;
                     }
 
-                    batchStart = batchEnd + 1;
+                    batchStart += entries.Count;
                 }
 
                 logger?.WriteVerbose(
@@ -284,6 +284,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                     ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
                     : null;
                 status.Succeeded = true;
+                result.LogsSucceeded++;
 
                 if (result.ResultsCapped) {
                     break;
@@ -291,6 +292,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 if (stoppedAfterMatchedObservationTarget) {
                     break;
                 }
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                cursor.Save(options.CursorStatePath);
+                throw;
             } catch (Exception ex) {
                 (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex, options, logDescriptor);
                 cursor.RecordFailure(
@@ -407,45 +411,21 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         int maxConcurrentLogs = Math.Min(
             processingItems.Count,
             Math.Max(1, options.MaxConcurrentLogs > 0 ? options.MaxConcurrentLogs : 1));
-        if (maxConcurrentLogs <= 1 || processingItems.Count <= 1) {
-            foreach (SharedLogProcessingWorkItem workItem in processingItems) {
-                await ProcessSharedLogAsync(
-                        workItem,
-                        domainSet,
-                        exactMatchDomainSet,
-                        options,
-                        cursor,
-                        result,
-                        state,
-                        logger,
-                        cancellationToken)
-                    .ConfigureAwait(false);
+        int nextLog = -1;
+        async Task ProcessLogsAsync() {
+            while (true) {
+                cancellationToken.ThrowIfCancellationRequested();
+                int index = Interlocked.Increment(ref nextLog);
+                if (index >= processingItems.Count) return;
+                await ProcessSharedLogAsync(processingItems[index], domainSet, exactMatchDomainSet,
+                    options, cursor, result, state, logger, cancellationToken).ConfigureAwait(false);
             }
-        } else {
-            using var gate = new SemaphoreSlim(maxConcurrentLogs, maxConcurrentLogs);
-            var tasks = new List<Task>(processingItems.Count);
-            foreach (SharedLogProcessingWorkItem workItem in processingItems) {
-                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-                tasks.Add(Task.Run(async () => {
-                    try {
-                        await ProcessSharedLogAsync(
-                                workItem,
-                                domainSet,
-                                exactMatchDomainSet,
-                                options,
-                                cursor,
-                                result,
-                                state,
-                                logger,
-                                cancellationToken)
-                            .ConfigureAwait(false);
-                    } finally {
-                        gate.Release();
-                    }
-                }, cancellationToken));
-            }
-
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        try {
+            await Task.WhenAll(Enumerable.Range(0, Math.Max(1, maxConcurrentLogs))
+                .Select(_ => ProcessLogsAsync())).ConfigureAwait(false);
+        } finally {
+            cursor.Save(options.CursorStatePath);
         }
 
         if (state.StoppedAfterMatchedObservationTarget) {
@@ -473,9 +453,6 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         try {
             var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
             status.TreeSize = sth.TreeSize;
-            lock (state.Sync) {
-                result.LogsSucceeded++;
-            }
 
             var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(workItem.CursorKey), options.InitialBackfillEntriesPerLog);
             status.StartIndex = start;
@@ -488,6 +465,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 status.LastProcessedIndex = sth.TreeSize - 1;
                 status.EstimatedLagAfter = 0;
                 status.Succeeded = true;
+                lock (state.Sync) { result.LogsSucceeded++; }
                 return;
             }
 
@@ -527,54 +505,55 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 }
 
                 var shouldStop = false;
-                for (int i = 0; i < entries.Count; i++) {
-                    cancellationToken.ThrowIfCancellationRequested();
+                try {
+                    for (int i = 0; i < entries.Count; i++) {
+                        cancellationToken.ThrowIfCancellationRequested();
 
-                    lock (state.Sync) {
-                        if (result.ResultsCapped || state.StoppedAfterMatchedObservationTarget) {
-                            shouldStop = true;
-                        } else if (options.MaxCtRowsToProcess > 0 &&
-                                   result.CertificateObservationCount >= options.MaxCtRowsToProcess) {
-                            result.ResultsCapped = true;
-                            shouldStop = true;
-                        } else if (TryProcessEntryForDomains(
-                                       entries[i],
-                                       domainSet,
-                                       exactMatchDomainSet,
-                                       options.MaxSubdomains,
-                                       result,
-                                       logger,
-                                       out int matchedObservationCount)) {
-                            lastProcessed = batchStart + i;
-                            if (matchedObservationCount > 0) {
-                                result.CertificateObservationCount += matchedObservationCount;
-                                if (options.StopAfterMatchedObservations > 0 &&
-                                    result.CertificateObservationCount >= options.StopAfterMatchedObservations) {
-                                    state.StoppedAfterMatchedObservationTarget = true;
-                                    shouldStop = true;
+                        lock (state.Sync) {
+                            if (result.ResultsCapped || state.StoppedAfterMatchedObservationTarget) {
+                                shouldStop = true;
+                            } else if (options.MaxCtRowsToProcess > 0 &&
+                                       result.CertificateObservationCount >= options.MaxCtRowsToProcess) {
+                                result.ResultsCapped = true;
+                                shouldStop = true;
+                            } else if (TryProcessEntryForDomains(
+                                           entries[i],
+                                           domainSet,
+                                           exactMatchDomainSet,
+                                           options.MaxSubdomains,
+                                           result,
+                                           logger,
+                                           out int matchedObservationCount)) {
+                                lastProcessed = batchStart + i;
+                                if (matchedObservationCount > 0) {
+                                    result.CertificateObservationCount += matchedObservationCount;
+                                    if (options.StopAfterMatchedObservations > 0 &&
+                                        result.CertificateObservationCount >= options.StopAfterMatchedObservations) {
+                                        state.StoppedAfterMatchedObservationTarget = true;
+                                        shouldStop = true;
+                                    }
                                 }
+                            } else {
+                                result.ResultsCapped = true;
+                                shouldStop = true;
                             }
-                        } else {
-                            result.ResultsCapped = true;
-                            lastProcessed = batchStart + i;
-                            shouldStop = true;
+                        }
+
+                        if (shouldStop) {
+                            break;
                         }
                     }
-
-                    if (shouldStop) {
-                        break;
+                } finally {
+                    if (lastProcessed >= start) {
+                        cursor.SetLastProcessedIndex(workItem.CursorKey, lastProcessed);
                     }
-                }
-
-                if (lastProcessed >= start) {
-                    cursor.SetLastProcessedIndex(workItem.CursorKey, lastProcessed);
                 }
 
                 if (shouldStop) {
                     break;
                 }
 
-                batchStart = batchEnd + 1;
+                batchStart += entries.Count;
             }
 
             int observationCountSnapshot;
@@ -593,6 +572,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 ? ComputeRemainingLag(status.TreeSize.Value, status.LastProcessedIndex)
                 : null;
             status.Succeeded = true;
+            lock (state.Sync) { result.LogsSucceeded++; }
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
         } catch (Exception ex) {
             (int failureThreshold, TimeSpan circuitDuration) = ResolveCircuitBreakerPolicy(ex, options, workItem.Descriptor);
             cursor.RecordFailure(
@@ -1417,80 +1399,6 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         return new CtSignedTreeHead(treeSize.Value);
-    }
-
-    private async Task<IReadOnlyList<CtEntryPayload>> GetEntriesAsync(
-        string logUrl,
-        long start,
-        long end,
-        NativeCtLogSubdomainDiscoveryOptions options,
-        CancellationToken cancellationToken) {
-        if (start > end) {
-            return Array.Empty<CtEntryPayload>();
-        }
-
-        var url = CombineLogUrl(logUrl, $"ct/v1/get-entries?start={start}&end={end}");
-        var json = await FetchJsonWithRetryAsync(url, options, cancellationToken).ConfigureAwait(false);
-        await DelayIfRequestedAsync(options.RequestDelay, cancellationToken).ConfigureAwait(false);
-
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        if (root.ValueKind != JsonValueKind.Object) {
-            return Array.Empty<CtEntryPayload>();
-        }
-        if (!root.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array) {
-            return Array.Empty<CtEntryPayload>();
-        }
-
-        var list = new List<CtEntryPayload>();
-        foreach (var item in entries.EnumerateArray()) {
-            if (item.ValueKind != JsonValueKind.Object) {
-                continue;
-            }
-
-            var leafInput = GetString(item, "leaf_input");
-            if (string.IsNullOrWhiteSpace(leafInput)) {
-                continue;
-            }
-
-            var extraData = GetString(item, "extra_data") ?? string.Empty;
-            list.Add(new CtEntryPayload(leafInput!, extraData));
-        }
-
-        return list;
-    }
-
-    private async Task<string> FetchJsonAsync(
-        string url,
-        TimeSpan requestTimeout,
-        CancellationToken cancellationToken) {
-        using var timeoutCts = requestTimeout > TimeSpan.Zero && requestTimeout != Timeout.InfiniteTimeSpan
-            ? new CancellationTokenSource(requestTimeout)
-            : null;
-        using var linkedCts = timeoutCts != null
-            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
-            : null;
-        var effectiveToken = linkedCts?.Token ?? cancellationToken;
-
-        if (QueryOverride != null) {
-            try {
-                return await QueryOverride(url, effectiveToken).ConfigureAwait(false);
-            } catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested) {
-                throw new TimeoutException($"Native CT request timed out after {requestTimeout} for {url}.");
-            }
-        }
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        HttpResponseMessage response;
-        try {
-            response = await SharedHttpClient.Instance.SendAsync(request, effectiveToken).ConfigureAwait(false);
-        } catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested) {
-            throw new TimeoutException($"Native CT request timed out after {requestTimeout} for {url}.");
-        }
-        using (response) {
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        }
     }
 
     private async Task<string> FetchJsonWithRetryAsync(
