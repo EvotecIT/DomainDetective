@@ -16,6 +16,53 @@ namespace DomainDetective.Tests;
 
 public sealed class TestCtPrecertificateBinding {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StaticDedicatedPrecertificatesReuseValidatedIssuersWithinOneBatch(bool oversizedIssuer) {
+        AsymmetricCipherKeyPair rootKey = Key(), signerKey = Key(), leafKey = Key();
+        var rootName = new X509Name("CN=Fixture Root");
+        var signerName = new X509Name("CN=Fixture Precertificate Signer");
+        X509Certificate root = Certificate(rootName, rootName, rootKey, rootKey, ca: true, paddingBytes: oversizedIssuer ? 65536 : 0);
+        X509Certificate signer = Certificate(signerName, rootName, signerKey, rootKey, ca: true, ctSigner: true);
+        X509Certificate final = Certificate(new X509Name("CN=login.example.test"), rootName, leafKey, rootKey);
+        X509Certificate pre = Certificate(new X509Name("CN=login.example.test"), signerName,
+            leafKey, signerKey, poison: true, leafAuthority: 2);
+        byte[] rootBytes = root.GetEncoded(), signerBytes = signer.GetEncoded();
+        byte[] fingerprints = Hash(signerBytes).Concat(Hash(rootBytes)).ToArray();
+        byte[] leaf = new byte[] { 0, 0, 0, 0, 0, 0, 0, 1, 0, 1 }
+            .Concat(Hash(root.CertificateStructure.TbsCertificate.SubjectPublicKeyInfo.GetDerEncoded()))
+            .Concat(Vector(final.CertificateStructure.TbsCertificate.GetDerEncoded())).Concat(new byte[] { 0, 0 }).ToArray();
+        byte[] entry = leaf.Concat(Vector(pre.GetEncoded())).Concat(new byte[] { 0, 64 }).Concat(fingerprints).ToArray();
+        byte[] tile = Enumerable.Range(0, 32).SelectMany(_ => entry).ToArray();
+        int issuerRequests = 0;
+        bool corruptIssuer = false;
+        var client = new CtLogIngestionClient {
+            SendOverride = (message, _) => {
+                bool issuer = message.RequestUri!.AbsolutePath.Contains("/issuer/");
+                if (issuer) issuerRequests++;
+                byte[] content = issuer
+                    ? (corruptIssuer || !message.RequestUri.AbsolutePath.EndsWith(Hex(Hash(signerBytes))) ? rootBytes : signerBytes)
+                    : tile;
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(content) });
+            }
+        };
+        var request = new CtLogIngestionBatchRequest {
+            LogUrl = "https://ct.example.test/binding/", MonitoringUrl = "https://ct.example.test/binding/", ApiKind = CtLogApiKind.StaticCt,
+            StartIndex = 0, BatchSize = 32, KnownTreeSize = 32, RequireCompleteDecoding = true
+        };
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(request);
+        Assert.Equal(32, batch.Entries.Count);
+        Assert.All(batch.Entries, value => Assert.Contains("login.example.test", value.Certificate.DnsNames));
+        int expectedRequests = oversizedIssuer ? 33 : 2;
+        Assert.Equal(expectedRequests, issuerRequests);
+
+        // A new batch fetches and validates anew; reuse never accepts a mismatched issuer fingerprint.
+        corruptIssuer = true;
+        await Assert.ThrowsAsync<CtEntryDecodingException>(() => client.ReadBatchAsync(request));
+        Assert.Equal(expectedRequests + 1, issuerRequests);
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]
@@ -147,7 +194,7 @@ public sealed class TestCtPrecertificateBinding {
     }
 
     private static X509Certificate Certificate(X509Name subject, X509Name issuer, AsymmetricCipherKeyPair key,
-        AsymmetricCipherKeyPair signingKey, bool ca = false, bool ctSigner = false, bool poison = false, byte leafAuthority = 1) {
+        AsymmetricCipherKeyPair signingKey, bool ca = false, bool ctSigner = false, bool poison = false, byte leafAuthority = 1, int paddingBytes = 0) {
         var generator = new X509V3CertificateGenerator();
         generator.SetSerialNumber(BigInteger.One);
         generator.SetIssuerDN(issuer);
@@ -162,6 +209,7 @@ public sealed class TestCtPrecertificateBinding {
         if (ctSigner) generator.AddExtension(X509Extensions.ExtendedKeyUsage, true,
             new DerSequence(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.4")));
         if (poison) generator.AddExtension(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.3"), true, DerNull.Instance);
+        if (paddingBytes > 0) generator.AddExtension(new DerObjectIdentifier("1.2.3.4.5"), false, new DerOctetString(new byte[paddingBytes]));
         return generator.Generate(new Asn1SignatureFactory("SHA256withECDSA", signingKey.Private));
     }
 }

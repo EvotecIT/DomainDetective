@@ -5,6 +5,36 @@ namespace DomainDetective.Tests;
 
 public sealed class CtCertificateRecordTests {
     [Theory]
+    [InlineData(CtCertificateRecordDetailLevel.Full)]
+    [InlineData(CtCertificateRecordDetailLevel.NamesOnly)]
+    public void FromDer_UsesActualCommonNameAttributes(CtCertificateRecordDetailLevel detail) {
+        using RSA key = RSA.Create(2048);
+        var request = new CertificateRequest("CN=actual.example.test, O=\"Acme, CN=target.example.test, OU=Lab\"",
+            key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var san = new SubjectAlternativeNameBuilder();
+        san.AddDnsName("san.example.test");
+        request.CertificateExtensions.Add(san.Build());
+        using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var record = CtCertificateRecord.FromDer("test", certificate.Export(X509ContentType.Cert), detailLevel: detail);
+        Assert.Equal(new[] { "actual.example.test", "san.example.test" }, record.DnsNames);
+    }
+
+    [Theory]
+    [InlineData(CtCertificateRecordDetailLevel.Full)]
+    [InlineData(CtCertificateRecordDetailLevel.NamesOnly)]
+    public void FromDer_QuotedOrganizationCannotInventCommonName(CtCertificateRecordDetailLevel detail) {
+        using RSA key = RSA.Create(2048);
+        var request = new CertificateRequest("O=\"Acme, CN=target.example.test, OU=Lab\"",
+            key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var san = new SubjectAlternativeNameBuilder();
+        san.AddDnsName("san.example.test");
+        request.CertificateExtensions.Add(san.Build());
+        using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var record = CtCertificateRecord.FromDer("test", certificate.Export(X509ContentType.Cert), detailLevel: detail);
+        Assert.Equal(new[] { "san.example.test" }, record.DnsNames);
+    }
+
+    [Theory]
     [InlineData("pkcs7")]
     [InlineData("pem")]
     [InlineData("trailing")]

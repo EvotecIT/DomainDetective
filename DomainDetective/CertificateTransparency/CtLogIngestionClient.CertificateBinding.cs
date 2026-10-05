@@ -13,7 +13,8 @@ namespace DomainDetective;
 public sealed partial class CtLogIngestionClient {
     // Precertificate DER lives in unauthenticated extra data. Its certificate fields must match the signed TBS.
     private async Task VerifyCertificateBindingAsync(RawCtEntryPayload payload, byte[] certificateDer, string? monitoringUrl,
-        byte[]? staticIssuerFingerprints, TimeSpan timeout, CancellationToken cancellationToken) {
+        byte[]? staticIssuerFingerprints, TimeSpan timeout, CancellationToken cancellationToken,
+        Dictionary<string, byte[]>? issuerCache = null) {
         byte[] leaf = DecodeRequiredBase64(payload.LeafInputBase64, "entry leaf");
         if (leaf.Length < 12 || leaf[0] != 0 || leaf[1] != 0) throw new InvalidOperationException("CT leaf has an unsupported version or type.");
         int offset = 2;
@@ -48,8 +49,16 @@ public sealed partial class CtLogIngestionClient {
                 byte[] fingerprint = new byte[32];
                 Buffer.BlockCopy(staticIssuerFingerprints, i * 32, fingerprint, 0, 32);
                 string hex = BitConverter.ToString(fingerprint).Replace("-", "").ToLowerInvariant();
-                byte[] issuer = await FetchBytesAsync(CombineLogUrl(monitoringUrl, "issuer/" + hex), timeout, cancellationToken).ConfigureAwait(false);
+                string issuerUrl = CombineLogUrl(monitoringUrl, "issuer/" + hex);
+                byte[] issuer;
+                if (issuerCache != null && issuerCache.TryGetValue(issuerUrl, out byte[]? cached)) {
+                    issuer = cached;
+                } else {
+                    issuer = await FetchBytesAsync(issuerUrl, timeout, cancellationToken).ConfigureAwait(false);
+                }
                 if (!CtMerkleTree.Equal(CtMerkleTree.Hash(issuer), fingerprint)) throw new InvalidOperationException("Static CT issuer does not match its fingerprint.");
+                // Retain at most 4 MiB of issuer bytes per batch. Larger issuers still undergo normal validation.
+                if (issuerCache != null && issuerCache.Count < 64 && issuer.Length <= 64 * 1024) issuerCache[issuerUrl] = issuer;
                 fetched.Add(issuer);
             }
             issuers = fetched;

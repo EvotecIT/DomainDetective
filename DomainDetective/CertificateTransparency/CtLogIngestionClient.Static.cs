@@ -50,6 +50,7 @@ public sealed partial class CtLogIngestionClient {
         long end = Math.Min(treeSize - 1, start + batchSize - 1);
         var entries = new List<CtLogIngestionEntry>();
         var diagnostics = new List<string>();
+        var issuerCache = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         IReadOnlyList<StaticCtDataTile> tiles = await GetStaticDataTilesAsync(
             monitoringUrl,
             start / StaticCtTileWidth,
@@ -82,7 +83,7 @@ public sealed partial class CtLogIngestionClient {
                 if (request.RequireIntegrityVerification || request.RequireCompleteDecoding) {
                     try {
                         await VerifyCertificateBindingAsync(new RawCtEntryPayload(Convert.ToBase64String(tileEntry.LeafInput), Convert.ToBase64String(tileEntry.ExtraData)),
-                            tileEntry.CertificateDer, monitoringUrl, tileEntry.IssuerFingerprints, timeout, cancellationToken).ConfigureAwait(false);
+                            tileEntry.CertificateDer, monitoringUrl, tileEntry.IssuerFingerprints, timeout, cancellationToken, issuerCache).ConfigureAwait(false);
                     } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
                         throw new CtEntryDecodingException(submissionUrl, entryIndex,
                             new RawCtEntryPayload(Convert.ToBase64String(tileEntry.LeafInput), Convert.ToBase64String(tileEntry.ExtraData)), ex.Message, ex) {
