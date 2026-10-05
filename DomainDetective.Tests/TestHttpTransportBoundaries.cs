@@ -69,6 +69,62 @@ public class TestHttpTransportBoundaries {
         }
     }
 
+    [Fact]
+    public async Task SameOriginServerCookieProgressionIsPreserved() {
+        Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
+        using var server = StartListener(out var url);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var peer = Task.Run(async () => {
+            var initial = await server.GetContextAsync().WaitWithCancellation(cancellation.Token);
+            initial.Response.AddHeader("Set-Cookie", "issued=server; Path=/");
+            initial.Response.StatusCode = 302;
+            initial.Response.RedirectLocation = url + "final";
+            initial.Response.Close();
+            var final = await server.GetContextAsync().WaitWithCancellation(cancellation.Token);
+            var cookie = final.Request.Cookies["issued"]?.Value;
+            final.Response.Close();
+            return cookie;
+        });
+        try {
+            var analysis = new HttpAnalysis { RequestVersion = HttpVersion.Version11 };
+            await analysis.AnalyzeUrl(url, false, new InternalLogger(), cancellationToken: cancellation.Token);
+            Assert.True(analysis.IsReachable);
+            Assert.Equal("server", await peer);
+        } finally {
+            cancellation.Cancel(); server.Stop(); await IgnoreStoppedAsync(peer);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StaticScanKeepsDocumentSizeSeparateFromCapturedPrefix(bool chunked) {
+        Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
+        using var server = StartListener(out var url);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        const int length = 2 * 1024 * 1024 + 17;
+        var peer = Task.Run(async () => {
+            var context = await server.GetContextAsync().WaitWithCancellation(cancellation.Token);
+            context.Response.SendChunked = chunked;
+            if (!chunked) context.Response.ContentLength64 = length;
+            try { await context.Response.OutputStream.WriteAsync(new byte[length], 0, length, cancellation.Token); }
+            catch (IOException) { /* The bounded reader may close its body stream early. */ }
+            finally { context.Response.Close(); }
+        });
+        try {
+            var scan = new WebStaticScanAnalysis { LinkOnly = true, FollowLinks = false };
+            await scan.Analyze(url, new InternalLogger(), cancellation.Token);
+            var request = Assert.Single(scan.Requests);
+            Assert.True(request.BodyTruncated);
+            Assert.Equal(2 * 1024 * 1024, request.CapturedBodyLength);
+            Assert.Equal(chunked ? (long?)null : length, request.ContentLength);
+            Assert.Equal(chunked ? 0 : length, scan.Hosts[new Uri(url).Host].Bytes);
+            await peer;
+        } finally {
+            cancellation.Cancel(); server.Stop(); await IgnoreStoppedAsync(peer);
+        }
+    }
+
     private static HttpListener StartListener(out string url) {
         var port = PortHelper.GetFreePort();
         var listener = new HttpListener();

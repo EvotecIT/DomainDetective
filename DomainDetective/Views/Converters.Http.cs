@@ -29,6 +29,7 @@ public static partial class Converters
 	            StatusCode = analysis.StatusCode,
 	            BodyLength = analysis.BodyLength,
                 BodyTruncated = analysis.BodyTruncated,
+                DeclaredContentLength = analysis.DeclaredContentLength,
 	            BodySha256 = analysis.BodySha256,
 	            ResponseTime = analysis.ResponseTime,
                 ProtocolVersion = analysis.ProtocolVersion?.ToString(),
@@ -141,6 +142,8 @@ public class HttpInfo
     public int? BodyLength { get; set; }
     /// <summary>True when body evidence is only a prefix, with no complete-body hash.</summary>
     public bool BodyTruncated { get; set; }
+    /// <summary>Content-Length declared by the final response, independent of captured bytes.</summary>
+    public long? DeclaredContentLength { get; set; }
     /// <summary>Gets or sets the body sha256 value.</summary>
     public string? BodySha256 { get; set; }
     /// <summary>Gets or sets the response time value.</summary>

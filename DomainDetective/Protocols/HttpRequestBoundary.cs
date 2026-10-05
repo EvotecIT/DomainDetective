@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -55,6 +56,7 @@ internal static class HttpRequestBoundary {
             }
             var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             if ((int)response.StatusCode < 300 || (int)response.StatusCode >= 400 || response.Headers.Location == null) {
+                response.RequestMessage ??= request;
                 return response; // Caller owns the final response, including its unread body.
             }
             try {
@@ -67,11 +69,22 @@ internal static class HttpRequestBoundary {
                     && next.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)) {
                     throw new HttpRequestException("HTTPS to HTTP redirects are not allowed.");
                 }
+                method = GetRedirectMethod(method, response.StatusCode);
                 currentUri = next;
             } finally {
                 response.Dispose();
             }
         }
+    }
+
+    internal static HttpMethod GetRedirectMethod(HttpMethod method, HttpStatusCode statusCode) {
+        if (statusCode == HttpStatusCode.SeeOther && method != HttpMethod.Head) {
+            return HttpMethod.Get;
+        }
+        if ((statusCode == HttpStatusCode.MovedPermanently || statusCode == HttpStatusCode.Found) && method == HttpMethod.Post) {
+            return HttpMethod.Get;
+        }
+        return method;
     }
 
     private static void AddHeader(HttpRequestMessage request, string name, string? value, List<string>? names) {

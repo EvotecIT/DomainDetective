@@ -12,6 +12,9 @@ public partial class HttpAnalysis {
     /// <summary>Maximum response-body bytes captured. Defaults to 2 MiB; must be positive.</summary>
     public int MaxBodyBytes { get; set; } = 2 * 1024 * 1024;
 
+    /// <summary>Content-Length declared by the final response, independent of captured bytes.</summary>
+    public long? DeclaredContentLength { get; private set; }
+
     /// <summary>True when the captured body is a prefix. Its SHA-256 is then unavailable.</summary>
     public bool BodyTruncated { get; private set; }
 

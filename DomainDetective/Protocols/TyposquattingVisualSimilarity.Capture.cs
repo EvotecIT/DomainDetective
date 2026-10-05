@@ -296,8 +296,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
 
         using var handler = new HttpClientHandler
         {
-            AllowAutoRedirect = false,
-            UseCookies = false
+            AllowAutoRedirect = false
         };
 
         if (options.HttpRequestOptions.DisableTlsValidation)

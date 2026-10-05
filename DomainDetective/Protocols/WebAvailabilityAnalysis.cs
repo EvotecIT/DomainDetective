@@ -216,17 +216,8 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         return uri.IsDefaultPort || uri.Port == 443;
     }
 
-    private static HttpMethod GetRedirectMethod(HttpMethod method, HttpStatusCode statusCode) {
-        if (statusCode == HttpStatusCode.SeeOther && method != HttpMethod.Head) {
-            return HttpMethod.Get;
-        }
-
-        if ((statusCode == HttpStatusCode.MovedPermanently || statusCode == HttpStatusCode.Found) && method == HttpMethod.Post) {
-            return HttpMethod.Get;
-        }
-
-        return method;
-    }
+    private static HttpMethod GetRedirectMethod(HttpMethod method, HttpStatusCode statusCode) =>
+        HttpRequestBoundary.GetRedirectMethod(method, statusCode);
 
     private async Task<WebAvailabilityOriginTlsResult> ProbeOriginTlsAsync(
         WebOriginTlsEndpoint endpoint,

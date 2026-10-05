@@ -273,7 +273,7 @@ namespace DomainDetective {
                 if (MaxBodyBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaxBodyBytes));
                 using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
 	            requestOptions ??= new HttpRequestOptions();
-            var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false } : null;
+            var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = false } : null;
                 using var handler = HttpHandlerFactory?.Invoke() ?? configurableHandler!;
                 HttpRequestBoundary.DisableAutoRedirect(handler);
 	            ProxyUsed = null;
@@ -327,6 +327,9 @@ namespace DomainDetective {
                     }
                 }
                 sw.Stop();
+                var finalMethod = response.RequestMessage?.Method ?? httpMethod;
+                RequestMethodUsed = (HttpRequestMethod)Enum.Parse(typeof(HttpRequestMethod), finalMethod.Method, true);
+                DeclaredContentLength = response.Content.Headers.ContentLength;
                 StatusCode = (int)response.StatusCode;
                 ResponseTime = sw.Elapsed;
                 IsReachable = response.IsSuccessStatusCode;

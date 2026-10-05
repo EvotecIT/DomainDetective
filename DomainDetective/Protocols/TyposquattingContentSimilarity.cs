@@ -50,6 +50,8 @@ public sealed class TyposquattingSourceContentProfile
     public TyposquattingPageContentFingerprint? BodyFingerprint { get; init; }
     /// <summary>Gets or sets the body length value.</summary>
     public int? BodyLength { get; init; }
+    /// <summary>True when body evidence is a prefix and excluded from whole-page similarity scoring.</summary>
+    public bool BodyTruncated { get; init; }
     /// <summary>Gets or sets the page title value.</summary>
     public string PageTitle { get; init; } = string.Empty;
     /// <summary>Gets or sets the final host value.</summary>
@@ -117,8 +119,9 @@ public static class TyposquattingContentSimilarityAnalyzer
         {
             Domain = domain,
             BodySha256 = http?.BodySha256 ?? string.Empty,
-            BodyFingerprint = options.EnableFuzzyBodyFingerprint ? TyposquattingContentFingerprinting.Build(http?.Body) : null,
+            BodyFingerprint = options.EnableFuzzyBodyFingerprint && http?.BodyTruncated != true ? TyposquattingContentFingerprinting.Build(http?.Body) : null,
             BodyLength = http?.BodyLength,
+            BodyTruncated = http?.BodyTruncated == true,
             PageTitle = FirstNonEmpty(webStaticScan?.PageTitle, ExtractPageTitle(http?.Body)),
             FinalHost = GetFinalHost(http),
             TechDetections = NormalizeList(webStaticScan?.TechDetections)
@@ -172,7 +175,7 @@ public static class TyposquattingContentSimilarityAnalyzer
         int? fuzzySimilarity = null;
         int? fuzzyDistance = null;
 
-        if (!string.IsNullOrWhiteSpace(profile.BodySha256)
+        if (!profile.BodyTruncated && http?.BodyTruncated != true && !string.IsNullOrWhiteSpace(profile.BodySha256)
             && !string.IsNullOrWhiteSpace(candidateBodySha256)
             && string.Equals(candidateBodySha256, profile.BodySha256, StringComparison.OrdinalIgnoreCase))
         {
@@ -181,7 +184,7 @@ public static class TyposquattingContentSimilarityAnalyzer
             signals.Add("matches source page body hash");
         }
 
-        if (!matchedExactBodyHash && options.EnableFuzzyBodyFingerprint)
+        if (!profile.BodyTruncated && http?.BodyTruncated != true && !matchedExactBodyHash && options.EnableFuzzyBodyFingerprint)
         {
             var candidateFingerprint = TyposquattingContentFingerprinting.Build(http?.Body);
             var similarity = TyposquattingContentFingerprinting.Compare(profile.BodyFingerprint, candidateFingerprint);
@@ -202,7 +205,7 @@ public static class TyposquattingContentSimilarityAnalyzer
             }
         }
 
-        if (profile.BodyLength.HasValue
+        if (!profile.BodyTruncated && http?.BodyTruncated != true && profile.BodyLength.HasValue
             && http?.BodyLength is int candidateBodyLength
             && profile.BodyLength.Value > 0)
         {

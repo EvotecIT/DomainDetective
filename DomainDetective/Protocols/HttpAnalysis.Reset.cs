@@ -12,6 +12,7 @@ public partial class HttpAnalysis {
         Http3Supported = false;
         HstsPresent = false;
         BodyTruncated = false;
+        DeclaredContentLength = null;
         RequestMethodUsed = HttpRequestMethod.Get;
         TlsValidationDisabled = false;
         ProxyUsed = null;

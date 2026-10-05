@@ -166,6 +166,55 @@ public class TestHttpRequestBoundaries {
         Assert.Equal(new[] { true, false, false }, seen);
     }
 
+    [Theory]
+    [InlineData(301, HttpRequestMethod.Post, HttpRequestMethod.Get)]
+    [InlineData(302, HttpRequestMethod.Post, HttpRequestMethod.Get)]
+    [InlineData(303, HttpRequestMethod.Put, HttpRequestMethod.Get)]
+    [InlineData(303, HttpRequestMethod.Head, HttpRequestMethod.Head)]
+    [InlineData(307, HttpRequestMethod.Post, HttpRequestMethod.Post)]
+    [InlineData(308, HttpRequestMethod.Post, HttpRequestMethod.Post)]
+    public async Task RedirectMethodsAndReportedMethodStayConsistent(int status, HttpRequestMethod original, HttpRequestMethod final) {
+        var methods = new List<string>();
+        var analysis = new HttpAnalysis {
+            HttpHandlerFactory = () => new HttpStubMessageHandler((request, _) => {
+                methods.Add(request.Method.Method);
+                var response = new HttpResponseMessage(methods.Count == 1 ? (HttpStatusCode)status : HttpStatusCode.OK);
+                if (methods.Count == 1) response.Headers.Location = new Uri("/final", UriKind.Relative);
+                return response;
+            })
+        };
+        await analysis.AnalyzeUrl("https://origin.test/", false, new InternalLogger(), requestOptions: new HttpRequestOptions { Method = original });
+        Assert.Equal(new[] { original.ToString().ToUpperInvariant(), final.ToString().ToUpperInvariant() }, methods);
+        Assert.Equal(final, analysis.RequestMethodUsed);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task IncompleteBodiesDoNotCreateWholePageSimilarity(bool sourceTruncated, bool candidateTruncated) {
+        var prefix = "<p>alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega.</p>";
+        var source = StubAnalysis(new StringContent(prefix + (sourceTruncated ? "different source suffix" : "")));
+        source.MaxBodyBytes = System.Text.Encoding.UTF8.GetByteCount(prefix);
+        await source.AnalyzeUrl("https://source.test/", false, new InternalLogger(), captureBody: true);
+        var candidateHttp = StubAnalysis(new StringContent(prefix + (candidateTruncated ? "different candidate suffix" : "")));
+        candidateHttp.MaxBodyBytes = source.MaxBodyBytes;
+        await candidateHttp.AnalyzeUrl("https://other.test/", false, new InternalLogger(), captureBody: true);
+        var options = new TyposquattingContentSimilarityOptions {
+            Enabled = true, IncludeWebStaticScan = false,
+            HttpOverride = (_, _) => Task.FromResult<HttpAnalysis?>(source)
+        };
+        var profile = await TyposquattingContentSimilarityAnalyzer.BuildProfileAsync("source.test", new DnsConfiguration(), null, options);
+        var candidate = new TyposquattingCandidate {
+            Domain = "other.test", Enrichment = new TyposquattingCandidateEnrichment { Http = candidateHttp }
+        };
+        var match = TyposquattingContentSimilarityAnalyzer.CompareCandidate(candidate, profile!, options);
+        Assert.Equal(sourceTruncated, profile!.BodyTruncated);
+        Assert.Equal(0, match.Score);
+        Assert.False(match.LikelyImpersonating);
+        Assert.Null(match.FuzzyFingerprintSimilarity);
+    }
+
     private static HttpRequestOptions Credentials() {
         var options = new HttpRequestOptions { Cookie = "session=secret" };
         options.Headers["cOoKiE"] = "second=secret";
