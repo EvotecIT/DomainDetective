@@ -117,6 +117,11 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 return true;
             }
 
+            if (!HasCapacityForEntry(result.Subdomains, matchedNames, maxSubdomains)) {
+                result.Warnings.Add($"Native CT certificate exceeds the remaining subdomain capacity for {baseDomain}; no part of this entry was emitted. Increase MaxSubdomains to replay it.");
+                return false;
+            }
+
             var issuer = cert.Issuer;
             if (!string.IsNullOrWhiteSpace(issuer)) {
                 result.IssuerCounts[issuer] = result.IssuerCounts.TryGetValue(issuer, out var existing) ? existing + 1 : 1;
@@ -223,6 +228,14 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             }
 
             foreach (var pair in matchedByDomain) {
+                result.SubdomainsByDomain.TryGetValue(pair.Key, out var existingMap);
+                if (!HasCapacityForEntry(existingMap, pair.Value, maxSubdomainsPerDomain)) {
+                    result.Warnings.Add($"Native CT certificate exceeds the remaining subdomain capacity for {pair.Key}; no part of this entry was emitted. Increase MaxSubdomains to replay it.");
+                    return false;
+                }
+            }
+
+            foreach (var pair in matchedByDomain) {
                 if (!result.SubdomainsByDomain.TryGetValue(pair.Key, out var map)) {
                     map = new Dictionary<string, NativeCtSubdomainObservation>(StringComparer.OrdinalIgnoreCase);
                     result.SubdomainsByDomain[pair.Key] = map;
@@ -241,6 +254,13 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
         }
 
         return true;
+    }
+
+    private static bool HasCapacityForEntry(Dictionary<string, NativeCtSubdomainObservation>? map,
+        IEnumerable<string> names, int maximum) {
+        if (maximum <= 0) return true;
+        int newNames = names.Distinct(StringComparer.OrdinalIgnoreCase).Count(name => map == null || !map.ContainsKey(name));
+        return newNames <= maximum - (map?.Count ?? 0);
     }
 
     private static bool UpsertObservation(

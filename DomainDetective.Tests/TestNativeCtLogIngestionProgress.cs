@@ -96,7 +96,7 @@ public class TestNativeCtLogIngestionProgress {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PartiallyProcessedCertificateRemainsEligibleOnRestart(bool shared) {
+    public async Task CappedCertificateIsAtomicAndRemainsEligibleOnRestart(bool shared) {
         using var scope = new CursorScope();
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=first.example.test", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -116,7 +116,23 @@ public class TestNativeCtLogIngestionProgress {
             }
         };
         var options = scope.Options(); options.MaxSubdomains = 1;
-        Assert.Null(Assert.Single(await Run(source, options, shared)).LastProcessedIndex);
+        if (shared) {
+            var capped = await source.DiscoverForDomainsAsync(new[] { "example.test" }, options, new InternalLogger(), default);
+            Assert.True(capped.ResultsCapped);
+            Assert.Contains(capped.Warnings, warning => warning.Contains("Increase MaxSubdomains"));
+            Assert.Empty(capped.SubdomainsByDomain["example.test"]);
+            Assert.Null(Assert.Single(capped.LogStatuses).LastProcessedIndex);
+            Assert.Equal(0, capped.CertificateObservationCount);
+        } else {
+            var capped = await source.DiscoverAsync(options, new InternalLogger(), default);
+            Assert.True(capped.ResultsCapped);
+            Assert.Contains(capped.Warnings, warning => warning.Contains("Increase MaxSubdomains"));
+            Assert.Empty(capped.Subdomains);
+            Assert.Empty(capped.IssuerCounts);
+            Assert.Null(capped.FirstSeenUtc);
+            Assert.Null(Assert.Single(capped.LogStatuses).LastProcessedIndex);
+            Assert.Equal(0, capped.CertificateObservationCount);
+        }
         options.MaxSubdomains = 10;
         if (shared) {
             var result = await source.DiscoverForDomainsAsync(new[] { "example.test" }, options, new InternalLogger(), default);
