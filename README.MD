@@ -924,3 +924,25 @@ See [`TODO.md`](./TODO.md) for the current backlog and roadmap.
 ## Contributing
 
 Issues, ideas, and pull requests are welcome. If you are not sure where to start, open an issue with the scenario you are trying to automate or the analysis gap you want covered.
+
+### Batch health checks in .NET
+
+`DomainHealthCheck.VerifyBatchAsync` admits domains as workers become available and returns results in input order. `MaxDomainParallelism` limits active domain runs. Check or factory failures appear in each result's `Error`; caller cancellation stops admission and drains active workers.
+
+Dispose each returned `DomainHealthCheckRun` to release library-created health checks. A custom `healthCheckFactory` supplies independent instances and retains ownership of them; disposing a batch result leaves those instances available to the caller. If input enumeration or cancellation prevents a result list from being returned, the library releases its own instances after workers finish.
+
+```csharp
+var runs = await DomainHealthCheck.VerifyBatchAsync(domains,
+    new[] { HealthCheckType.DMARC, HealthCheckType.SPF },
+    executionOptions: new HealthCheckExecutionOptions { MaxDomainParallelism = 4 },
+    cancellationToken: cancellationToken);
+try {
+    foreach (var run in runs) {
+        Console.WriteLine($"{run.DomainName}: {run.Error?.Message ?? "completed"}");
+    }
+} finally {
+    foreach (var run in runs) {
+        run.Dispose();
+    }
+}
+```
