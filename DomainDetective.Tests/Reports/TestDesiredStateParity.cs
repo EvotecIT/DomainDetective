@@ -63,10 +63,12 @@ public class TestDesiredStateParity
         var excelXml = ReadZipText(tmpXlsx);
         var excelRows = ReadExcelRows(tmpXlsx);
 
-        AssertContainsLabelAndValue(html, "Desired Warnings", desiredWarnings);
-        AssertContainsLabelAndValue(html, "Desired Errors", desiredErrors);
-        AssertContainsLabelAndValue(html, "Best-Practice Warnings", bestWarnings);
-        AssertContainsLabelAndValue(html, "Best-Practice Errors", bestErrors);
+        AssertStat(html, "Desired Warnings", desiredWarnings);
+        AssertStat(html, "Desired Errors", desiredErrors);
+        AssertStat(html, "Best-Practice Warnings", bestWarnings);
+        AssertStat(html, "Best-Practice Errors", bestErrors);
+        Assert.Contains("Test DesiredState Warning #1", html, StringComparison.Ordinal);
+        Assert.Contains("Test SPF Error #1", html, StringComparison.Ordinal);
 
         AssertContainsLabelAndValue(md, "Desired State Warnings", desiredWarnings);
         AssertContainsLabelAndValue(md, "Desired State Errors", desiredErrors);
@@ -123,6 +125,13 @@ public class TestDesiredStateParity
             sb.Append(' ').Append(text);
         }
         return sb.ToString();
+    }
+
+    // The HTML report shows counts as stat cards: the number, then its label.
+    private static void AssertStat(string html, string label, int value)
+    {
+        var pattern = ">" + Regex.Escape(value.ToString()) + "</b><span>" + Regex.Escape(label) + "</span>";
+        Assert.Matches(new Regex(pattern, RegexOptions.IgnoreCase), html);
     }
 
     private static void AssertContainsLabelAndValue(string text, string label, int value)

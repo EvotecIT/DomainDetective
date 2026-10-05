@@ -410,11 +410,13 @@ emphasizes an at-a-glance overview sheet.</maml:para>
           <maml:name>HtmlProfile</maml:name>
           <maml:description>
             <maml:para>Choose the HTML presentation profile.</maml:para>
-            <maml:para>Document provides a narrative, document-style layout; Dashboard focuses on&#xD;
-high-level, concise summaries suitable for quick review or portals.</maml:para>
+            <maml:para>Assessment (default) is a scored assessment report: a summary with what to fix first, coverage across&#xD;
+domains, and every check with findings, evidence and guidance. It works offline and follows the viewer's&#xD;
+light or dark theme. Document and Dashboard keep the previous long-form and compact layouts.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Assessment</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">Document</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">Dashboard</command:parameterValue>
           </command:parameterValueGroup>
@@ -861,11 +863,13 @@ emphasizes an at-a-glance overview sheet.</maml:para>
           <maml:name>HtmlProfile</maml:name>
           <maml:description>
             <maml:para>Choose the HTML presentation profile.</maml:para>
-            <maml:para>Document provides a narrative, document-style layout; Dashboard focuses on&#xD;
-high-level, concise summaries suitable for quick review or portals.</maml:para>
+            <maml:para>Assessment (default) is a scored assessment report: a summary with what to fix first, coverage across&#xD;
+domains, and every check with findings, evidence and guidance. It works offline and follows the viewer's&#xD;
+light or dark theme. Document and Dashboard keep the previous long-form and compact layouts.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
           <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Assessment</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">Document</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">Dashboard</command:parameterValue>
           </command:parameterValueGroup>
@@ -1312,12 +1316,14 @@ emphasizes an at-a-glance overview sheet.</maml:para>
         <maml:name>HtmlProfile</maml:name>
         <maml:description>
           <maml:para>Choose the HTML presentation profile.</maml:para>
-          <maml:para>Document provides a narrative, document-style layout; Dashboard focuses on&#xD;
-high-level, concise summaries suitable for quick review or portals.</maml:para>
+          <maml:para>Assessment (default) is a scored assessment report: a summary with what to fix first, coverage across&#xD;
+domains, and every check with findings, evidence and guidance. It works offline and follows the viewer's&#xD;
+light or dark theme. Document and Dashboard keep the previous long-form and compact layouts.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
         <command:parameterValueGroup>
-          <command:parameterValue required="false" variableLength="false">Document</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">Assessment</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Document</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">Dashboard</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>

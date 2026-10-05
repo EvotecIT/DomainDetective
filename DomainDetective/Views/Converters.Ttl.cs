@@ -17,6 +17,7 @@ public static partial class Converters
             Area = AreaForKind(HealthCheckType.TTL),
             Subject = analysis.Subject,
             DnssecSigned = analysis.DnsSecSigned,
+            TtlsFromAuthoritativeServers = analysis.TtlsFromAuthoritativeServers,
             ATtls = analysis.ATtls,
             AaaaTtls = analysis.AaaaTtls,
             MxTtls = analysis.MxTtls,
@@ -51,6 +52,8 @@ public class TtlInfo
     public string? Subject { get; set; }
     /// <summary>Gets or sets the dnssec signed value.</summary>
     public bool DnssecSigned { get; set; }
+    /// <summary>Whether the TTLs are the configured values from the zone's authoritative name servers.</summary>
+    public bool TtlsFromAuthoritativeServers { get; set; }
     /// <summary>Gets or sets the a ttls value.</summary>
     public IReadOnlyList<int> ATtls { get; set; } = null!;
     /// <summary>Gets or sets the aaaa ttls value.</summary>

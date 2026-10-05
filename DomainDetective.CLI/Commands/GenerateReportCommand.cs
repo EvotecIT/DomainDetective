@@ -36,15 +36,15 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandOption("-o|--output <PATH>")]
         public string? OutputPath { get; set; }
         
-        [Description("Report template (default, executive, technical, compliance)")]
+        [Description("Kept for compatibility: every HTML report uses the assessment layout (document and executive were retired).")]
         [CommandOption("-t|--template <TEMPLATE>")]
         [DefaultValue("default")]
         public string Template { get; set; } = "default";
         
-        [Description("Report theme (light, dark, professional)")]
+        [Description("Report theme (system, light, dark). The assessment report follows the viewer's system theme by default.")]
         [CommandOption("--theme <THEME>")]
-        [DefaultValue("light")]
-        public string Theme { get; set; } = "light";
+        [DefaultValue("system")]
+        public string Theme { get; set; } = "system";
         
         [Description("Open report in browser after generation")]
         [CommandOption("--open")]
@@ -199,26 +199,13 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                         }
                         else
                         {
-                            var profile = (settings.Template ?? "default").Equals("executive", StringComparison.OrdinalIgnoreCase)
-                                ? HtmlProfile.Dashboard
-                                : HtmlProfile.Document;
-                            var themeMode = (settings.Theme ?? "light").Equals("dark", StringComparison.OrdinalIgnoreCase)
-                                ? ThemeMode.Dark
-                                : ThemeMode.Light;
-
-                            HtmlCompositionReport.Generate(
+                            AssessmentHtmlReport.Generate(
                                 outputPath,
                                 items,
-                                ReportScope.Normal,
-                                openInBrowser: settings.OpenInBrowser,
-                                narrativePlacement: NarrativePlacement.Auto,
-                                titleOverride: $"Security Report — {settings.Domain}",
-                                authorOverride: "DomainDetective CLI",
-                                descriptionOverride: "Domain security posture overview",
-	                                profile: profile,
-	                                themeMode: themeMode);
-	                        }
-
+                                new DomainAssessmentOptions { Title = $"Security Report — {settings.Domain}" },
+                                new AssessmentHtmlOptions { Theme = ResolveTheme(settings.Theme, ThemeMode.System) },
+                                settings.OpenInBrowser);
+                        }
 	                        if (conversionErrors.Count > 0)
 	                        {
 	                            AnsiConsole.MarkupLine("[yellow]Some report sections could not be converted and were skipped:[/]");
@@ -304,6 +291,13 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                 : result.ErrorMessage);
         }
     }
+
+    internal static ThemeMode ResolveTheme(string? theme, ThemeMode fallback) => (theme ?? string.Empty).Trim().ToLowerInvariant() switch {
+        "dark" => ThemeMode.Dark,
+        "light" => ThemeMode.Light,
+        "system" or "auto" => ThemeMode.System,
+        _ => fallback
+    };
 
     private static void TryOpenWithShell(string path)
     {

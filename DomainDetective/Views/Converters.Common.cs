@@ -29,6 +29,10 @@ public static partial class Converters
             case HealthCheckType.DNSPROPAGATION:
             case HealthCheckType.DNSAMPLIFICATION:
             case HealthCheckType.DNSOVERTLS:
+            case HealthCheckType.DELEGATION:
+            case HealthCheckType.DANGLINGCNAME:
+            case HealthCheckType.OPENRESOLVER:
+            case HealthCheckType.FLATTENINGSERVICE:
                 return AnalysisArea.DNS;
 
             // Mail group
@@ -64,6 +68,8 @@ public static partial class Converters
             case HealthCheckType.AGENTREADINESS:
             case HealthCheckType.SITEMAP:
             case HealthCheckType.CTTIMELINE:
+            case HealthCheckType.ROBOTS:
+            case HealthCheckType.HPKP:
                 return AnalysisArea.Web;
 
             case HealthCheckType.IDENTITYPROVIDER:
@@ -83,6 +89,9 @@ public static partial class Converters
             case HealthCheckType.PORTAVAILABILITY:
             case HealthCheckType.DNSTUNNELING:
             case HealthCheckType.CONTACT:
+            case HealthCheckType.TYPOSQUATTING:
+            case HealthCheckType.SNMP:
+            case HealthCheckType.NTP:
                 return AnalysisArea.Security;
 
             default:

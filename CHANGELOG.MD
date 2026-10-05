@@ -1,5 +1,17 @@
 ## Unreleased
 
+### Assessment report
+- Added `DomainAssessmentReport`, a format-independent model of a run: per domain, every check with outcome, score, findings, evidence, recommendations and narrative guidance, plus area scores and a grade
+- Added `AssessmentHtmlReport`, a single offline HTML report on the HtmlForgeX assessment shell with a summary, "fix first" list, coverage matrix across domains and a section per domain; it is the default for the CLI `report` command and `Export-DDSecurityReport` (`-HtmlProfile Document`/`Dashboard` keep the previous layouts)
+- `Export-DDSecurityReport -ExportFormat Json` now writes the assessment model
+- Added `Converters.ConvertChecks(healthCheck)` and `DomainHealthCheck.LastVerifiedChecks` so every renderer converts exactly the checks that ran; the CLI, `Test-DDDomainHealth` and the HTML report generator share it
+- Removed the unused `BasicDomainReport`, `SimpleDomainReport`, `SpfHtmlReport`, `DomainSecurityReport` and HTML section writers
+- Updated to HtmlForgeX 1.1.0
+
+### Fixes
+- Assessments no longer leak between checks that run in parallel: each `AssessmentCollector` now records only events from its own execution flow (previously, for example, HTTP header warnings appeared under MX)
+- Wildcard DNS results now name the analyzed domain, so they appear in reports
+
 ### DNS reliability and shared ownership
 - Centralized provider selection, concurrency, retries, response filtering, local DNSSEC validation, AXFR, and diagnostic wire queries on DnsClientX 2.0
 - Removed DomainDetective's duplicate multi-resolver, DNSSEC cryptography, and production UDP/TCP DNS implementations

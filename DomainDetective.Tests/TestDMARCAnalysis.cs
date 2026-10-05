@@ -160,6 +160,8 @@ public class TestDMARCAnalysis {
             Assert.Equal("example.com._report._dmarc.external.com", queryName);
             Assert.True(analysis.ExternalReportAuthorization.ContainsKey("external.com"));
             Assert.False(analysis.ExternalReportAuthorization["external.com"]);
+            // Reports to an unauthorised destination are lost, so that address is warned about.
+            Assert.Contains(analysis.Assessments, a => a.Code == "DMARC.Report.ExternalUnauthorized" && a.Severity == AssessmentSeverity.Warning);
         }
 
         [Fact]
@@ -181,6 +183,9 @@ public class TestDMARCAnalysis {
             await analysis.AnalyzeDmarcRecords(answers, new InternalLogger(), "example.com", list.GetRegistrableDomain);
 
             Assert.True(analysis.ExternalReportAuthorization["external.com"]);
+            // An authorised destination is legitimate: no warning, only an informational note.
+            Assert.DoesNotContain(analysis.Assessments, a => a.Code is "DMARC.Report.ExternalUnauthorized" or "DMARC.Alignment.Mismatch");
+            Assert.Contains(analysis.Assessments, a => a.Code == "DMARC.Report.ExternalAuthorized" && a.Severity == AssessmentSeverity.Info);
         }
 
         [Fact]

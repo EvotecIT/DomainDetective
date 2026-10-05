@@ -41,12 +41,21 @@ public partial class DmarcAnalysis {
                     string destinationOrg = await Resolve(destination).ConfigureAwait(false);
                     if (authorDomain == policyDomain && getOrgDomainAsync != null) OrganizationalDomain = policyOrg;
                     if (!string.IsNullOrWhiteSpace(policyOrg) && policyOrg.Equals(destinationOrg, StringComparison.OrdinalIgnoreCase)) continue;
-                    logger?.WriteWarningCode(DmarcCodes.AlignmentMismatch, "Report address {0} is not aligned with {1}.", string.Join(", ", report.Value), policyDomain);
                 }
                 string name = $"{policyDomain}._report._dmarc.{destination}";
                 var answers = await QueryDns(name, DnsRecordType.TXT, token).ConfigureAwait(false);
-                ExternalReportAuthorization[destination] = answers.Any(answer => answer.Type == DnsRecordType.TXT
+                bool authorized = answers.Any(answer => answer.Type == DnsRecordType.TXT
                     && IsDmarcReportAuthorizationRecord(answer.TxtConcatenatedData));
+                ExternalReportAuthorization[destination] = authorized;
+                // An external destination is legitimate when it publishes the reporting authorisation record (RFC 7489
+                // section 7.1); only destinations without it lose the reports and deserve a warning.
+                foreach (string address in report.Value) {
+                    if (authorized) {
+                        logger?.WriteInformationCode(DmarcCodes.ExternalReportAuthorized, "Report address {0} is outside {1} and {2} authorizes receiving its reports.", address, policyDomain, destination);
+                    } else {
+                        logger?.WriteWarningCode(DmarcCodes.ExternalReportUnauthorized, "Report address {0} is outside {1} and {2} does not publish the record authorizing its reports, so receivers will not send them.", address, policyDomain, destination);
+                    }
+                }
             } catch (OperationCanceledException) when (token.IsCancellationRequested) {
                 throw;
             } catch (Exception ex) when (ex is DnsQueryFailureException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException || ex is TaskCanceledException) {
