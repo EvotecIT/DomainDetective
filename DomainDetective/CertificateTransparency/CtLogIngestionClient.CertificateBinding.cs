@@ -57,8 +57,8 @@ public sealed partial class CtLogIngestionClient {
                     issuer = await FetchBytesAsync(issuerUrl, timeout, cancellationToken).ConfigureAwait(false);
                 }
                 if (!CtMerkleTree.Equal(CtMerkleTree.Hash(issuer), fingerprint)) throw new InvalidOperationException("Static CT issuer does not match its fingerprint.");
-                // Batch-local and bounded: retain common chains without accumulating an operator's whole issuer catalog.
-                if (issuerCache != null && issuerCache.Count < 64) issuerCache[issuerUrl] = issuer;
+                // Retain at most 4 MiB of issuer bytes per batch. Larger issuers still undergo normal validation.
+                if (issuerCache != null && issuerCache.Count < 64 && issuer.Length <= 64 * 1024) issuerCache[issuerUrl] = issuer;
                 fetched.Add(issuer);
             }
             issuers = fetched;

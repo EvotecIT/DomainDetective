@@ -15,12 +15,14 @@ using Org.BouncyCastle.X509;
 namespace DomainDetective.Tests;
 
 public sealed class TestCtPrecertificateBinding {
-    [Fact]
-    public async Task StaticDedicatedPrecertificatesReuseValidatedIssuersWithinOneBatch() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StaticDedicatedPrecertificatesReuseValidatedIssuersWithinOneBatch(bool oversizedIssuer) {
         AsymmetricCipherKeyPair rootKey = Key(), signerKey = Key(), leafKey = Key();
         var rootName = new X509Name("CN=Fixture Root");
         var signerName = new X509Name("CN=Fixture Precertificate Signer");
-        X509Certificate root = Certificate(rootName, rootName, rootKey, rootKey, ca: true);
+        X509Certificate root = Certificate(rootName, rootName, rootKey, rootKey, ca: true, paddingBytes: oversizedIssuer ? 65536 : 0);
         X509Certificate signer = Certificate(signerName, rootName, signerKey, rootKey, ca: true, ctSigner: true);
         X509Certificate final = Certificate(new X509Name("CN=login.example.test"), rootName, leafKey, rootKey);
         X509Certificate pre = Certificate(new X509Name("CN=login.example.test"), signerName,
@@ -51,12 +53,13 @@ public sealed class TestCtPrecertificateBinding {
         CtLogIngestionBatch batch = await client.ReadBatchAsync(request);
         Assert.Equal(32, batch.Entries.Count);
         Assert.All(batch.Entries, value => Assert.Contains("login.example.test", value.Certificate.DnsNames));
-        Assert.Equal(2, issuerRequests);
+        int expectedRequests = oversizedIssuer ? 33 : 2;
+        Assert.Equal(expectedRequests, issuerRequests);
 
         // A new batch fetches and validates anew; reuse never accepts a mismatched issuer fingerprint.
         corruptIssuer = true;
         await Assert.ThrowsAsync<CtEntryDecodingException>(() => client.ReadBatchAsync(request));
-        Assert.Equal(3, issuerRequests);
+        Assert.Equal(expectedRequests + 1, issuerRequests);
     }
 
     [Theory]
@@ -191,7 +194,7 @@ public sealed class TestCtPrecertificateBinding {
     }
 
     private static X509Certificate Certificate(X509Name subject, X509Name issuer, AsymmetricCipherKeyPair key,
-        AsymmetricCipherKeyPair signingKey, bool ca = false, bool ctSigner = false, bool poison = false, byte leafAuthority = 1) {
+        AsymmetricCipherKeyPair signingKey, bool ca = false, bool ctSigner = false, bool poison = false, byte leafAuthority = 1, int paddingBytes = 0) {
         var generator = new X509V3CertificateGenerator();
         generator.SetSerialNumber(BigInteger.One);
         generator.SetIssuerDN(issuer);
@@ -206,6 +209,7 @@ public sealed class TestCtPrecertificateBinding {
         if (ctSigner) generator.AddExtension(X509Extensions.ExtendedKeyUsage, true,
             new DerSequence(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.4")));
         if (poison) generator.AddExtension(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.3"), true, DerNull.Instance);
+        if (paddingBytes > 0) generator.AddExtension(new DerObjectIdentifier("1.2.3.4.5"), false, new DerOctetString(new byte[paddingBytes]));
         return generator.Generate(new Asn1SignatureFactory("SHA256withECDSA", signingKey.Private));
     }
 }
