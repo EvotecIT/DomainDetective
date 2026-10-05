@@ -110,11 +110,12 @@ public class TestNativeCtLogIngestionProgress {
         leaf.Add((byte)(der.Length >> 16)); leaf.Add((byte)(der.Length >> 8)); leaf.Add((byte)der.Length);
         leaf.AddRange(der); leaf.AddRange(new byte[2]);
         string entries = "{\"entries\":[{\"leaf_input\":\"" + Convert.ToBase64String(leaf.ToArray()) + "\"}]}";
+        long cappedIndex = treeSize - 1;
         var starts = new List<long>();
         var source = new NativeCtLogSubdomainDiscovery {
             QueryOverride = (url, _) => {
                 if (url.Contains("get-sth")) return Task.FromResult("{\"tree_size\":" + treeSize + "}");
-                long start = ReadStart(url); starts.Add(start); return Task.FromResult(start == 99 || treeSize == 1 ? entries : Entries(1));
+                long start = ReadStart(url); starts.Add(start); return Task.FromResult(start == cappedIndex ? entries : Entries(1));
             }
         };
         var options = scope.Options(); options.MaxSubdomains = 1; options.InitialBackfillEntriesPerLog = 1;
@@ -123,7 +124,7 @@ public class TestNativeCtLogIngestionProgress {
             Assert.True(capped.ResultsCapped);
             Assert.Contains(capped.Warnings, warning => warning.Contains("Increase MaxSubdomains"));
             Assert.Empty(capped.SubdomainsByDomain["example.test"]);
-            Assert.Equal(treeSize == 1 ? (long?)null : treeSize - 2, Assert.Single(capped.LogStatuses).LastProcessedIndex);
+            Assert.Null(Assert.Single(capped.LogStatuses).LastProcessedIndex);
             Assert.Equal(0, capped.CertificateObservationCount);
         } else {
             var capped = await source.DiscoverAsync(options, new InternalLogger(), default);
@@ -132,12 +133,12 @@ public class TestNativeCtLogIngestionProgress {
             Assert.Empty(capped.Subdomains);
             Assert.Empty(capped.IssuerCounts);
             Assert.Null(capped.FirstSeenUtc);
-            Assert.Equal(treeSize == 1 ? (long?)null : treeSize - 2, Assert.Single(capped.LogStatuses).LastProcessedIndex);
+            Assert.Null(Assert.Single(capped.LogStatuses).LastProcessedIndex);
             Assert.Equal(0, capped.CertificateObservationCount);
         }
         options.MaxSubdomains = 10;
         long withheldIndex = treeSize - 1;
-        if (treeSize > 1) treeSize++;
+        treeSize++;
         if (shared) {
             var result = await source.DiscoverForDomainsAsync(new[] { "example.test" }, options, new InternalLogger(), default);
             Assert.Contains("second.example.test", result.SubdomainsByDomain["example.test"].Keys);
@@ -149,6 +150,25 @@ public class TestNativeCtLogIngestionProgress {
         }
         Assert.Equal(withheldIndex, starts[0]);
         Assert.Equal(withheldIndex, starts[1]);
+    }
+
+    [Theory]
+    [InlineData(false, 1)] [InlineData(true, 1)]
+    [InlineData(false, 100)] [InlineData(true, 100)]
+    public async Task EmptyInitialBatchRetainsItsWindowAsTreeGrows(bool shared, long treeSize) {
+        using var scope = new CursorScope();
+        var starts = new List<long>();
+        bool empty = true;
+        var source = new NativeCtLogSubdomainDiscovery { QueryOverride = (url, _) => {
+            if (url.Contains("get-sth")) return Task.FromResult("{\"tree_size\":" + treeSize + "}");
+            starts.Add(ReadStart(url));
+            return Task.FromResult(Entries(empty ? 0 : 1));
+        } };
+        var options = scope.Options(); options.InitialBackfillEntriesPerLog = 1;
+        Assert.Null(Assert.Single(await Run(source, options, shared)).LastProcessedIndex);
+        treeSize++; empty = false;
+        Assert.Equal(treeSize - 1, Assert.Single(await Run(source, options, shared)).LastProcessedIndex);
+        Assert.Equal(starts[0], starts[1]);
     }
 
     [Theory]

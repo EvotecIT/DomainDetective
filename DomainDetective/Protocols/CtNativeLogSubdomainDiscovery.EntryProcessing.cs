@@ -16,7 +16,7 @@ namespace DomainDetective;
 
 
 internal sealed partial class NativeCtLogSubdomainDiscovery {
-    private static long ComputeStartIndex(long treeSize, long? lastProcessedIndex, int initialBackfillEntriesPerLog) {
+    private static long ComputeStartIndex(long treeSize, long? lastProcessedIndex, int initialBackfillEntriesPerLog, long? resumeIndex = null) {
         if (treeSize <= 0) {
             return 0;
         }
@@ -28,6 +28,8 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             }
             return next;
         }
+
+        if (resumeIndex.HasValue) return Math.Max(0, resumeIndex.Value);
 
         if (initialBackfillEntriesPerLog <= 0) {
             return treeSize;
