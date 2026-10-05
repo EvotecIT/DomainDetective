@@ -129,6 +129,7 @@ public class MonitorScheduler
 
     private async Task RunDomainAsync(string domain, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         var summary = SummaryOverride != null
             ? await SummaryOverride(domain).WaitWithCancellation(ct).ConfigureAwait(false)
             : await BuildSummaryAsync(domain, ct).ConfigureAwait(false);
