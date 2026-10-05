@@ -61,7 +61,7 @@ public partial class AutodiscoverHttpAnalysis {
                 // Preserve the supported legacy response with escaped object delimiters.
                 // Strict JSON always wins; normalized URLs still require normal validation
                 // and the caller performs HTTP/XML confirmation before reporting discovery.
-                document = JsonDocument.Parse(body.Replace("\\\"", "\""));
+                document = JsonDocument.Parse(body.Replace("\\\"", "\"").Replace("\\\\", "\\"));
             }
             using var parsed = document;
             var root = parsed.RootElement;

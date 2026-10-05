@@ -18,10 +18,13 @@ public class TestAutodiscoverFeedbackBoundaries {
         Assert.All(analysis.Assessments, item => Assert.Equal(Assert.Single(analysis.Endpoints).Url, item.Target));
     }
 
-    [Fact]
-    public async Task LegacyEscapedJsonStillRequiresXmlConfirmation() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LegacyEscapedJsonStillRequiresXmlConfirmation(bool escapedHost) {
+        string url = escapedHost ? "https://" + @"\\u006dail.example.test/autodiscover/autodiscover.xml" : "https://mail.example.test/autodiscover/autodiscover.xml";
         var analysis = new AutodiscoverHttpAnalysis { HttpHandlerFactory = () => new Handler((request, _) => {
-            if (request.RequestUri!.Host == "autodiscover-s.outlook.com") return Response("{\\\"Url\\\":\\\"https://mail.example.test/autodiscover/autodiscover.xml\\\"}");
+            if (request.RequestUri!.Host == "autodiscover-s.outlook.com") return Response("{\\\"Url\\\":\\\"" + url + "\\\"}");
             if (request.RequestUri!.Host == "mail.example.test") return Response(TestAutodiscoverAttemptBoundaries.RecognizedError);
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         }) };
