@@ -123,6 +123,21 @@ public class TestCertificateRunState {
         Assert.Contains("snapshot.example", converted.CertificateSubject);
     }
 
+
+    [Fact]
+    public async Task HealthCheckDisposalReleasesItsCertificateCopiesAndPreservesSnapshots() {
+        using var supplied = MakeCertificate("health-owned.example");
+        var health = new DomainHealthCheck();
+        await health.CertificateAnalysis.AnalyzeCertificate(supplied);
+        var owned = health.CertificateAnalysis.Certificate!;
+        using var snapshot = health.FilterAnalyses(new[] { HealthCheckType.CERT });
+        health.Dispose();
+        health.Dispose();
+        Assert.ThrowsAny<CryptographicException>(() => owned.GetRawCertData());
+        Assert.NotEmpty(supplied.GetRawCertData());
+        Assert.NotEmpty(snapshot.CertificateAnalysis.Certificate!.GetRawCertData());
+    }
+
     private static X509Certificate2 MakeCertificate(string name) {
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=" + name, key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
