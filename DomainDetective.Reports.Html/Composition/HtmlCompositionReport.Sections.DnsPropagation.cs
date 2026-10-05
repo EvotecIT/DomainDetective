@@ -84,13 +84,15 @@ public static partial class HtmlCompositionReport
 
                                         col.Row(r2 =>
                                         {
-                                            r2.Column(TablerColumnNumber.Six, left =>
+                                            r2.Column(TablerColumnNumber.Twelve, left =>
                                             {
+                                                left.Span(TablerBreakpoint.Medium, 6);
                                                 RenderSummaryGrid(left, sec.Summary);
                                             });
 
-                                            r2.Column(TablerColumnNumber.Six, right =>
+                                            r2.Column(TablerColumnNumber.Twelve, right =>
                                             {
+                                                right.Span(TablerBreakpoint.Medium, 6);
                                                 RenderDnsPropagationMap(right, sec);
                                             });
                                         });

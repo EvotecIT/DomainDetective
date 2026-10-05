@@ -48,8 +48,16 @@ public static partial class HtmlCompositionReport
                     {
                         tabs.AddTab("Summary", panel =>
                         {
-                            panel.Row(rr => rr.Column(TablerColumnNumber.Six, col => RenderSummaryGrid(col, sec.Summary)));
-                            panel.Row(rr => rr.Column(TablerColumnNumber.Six, col => RenderSignalsSummary(col, sec.Highlights, sec.Positives)));
+                            panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                            {
+                                col.Span(TablerBreakpoint.Medium, 6);
+                                RenderSummaryGrid(col, sec.Summary);
+                            }));
+                            panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                            {
+                                col.Span(TablerBreakpoint.Medium, 6);
+                                RenderSignalsSummary(col, sec.Highlights, sec.Positives);
+                            }));
                         }).WithIcon(TablerIconType.Cards);
 
                         var findingsTab = tabs.AddTab("Findings", panel =>

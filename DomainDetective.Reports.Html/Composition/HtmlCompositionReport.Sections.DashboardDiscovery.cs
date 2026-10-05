@@ -388,8 +388,9 @@ public static partial class HtmlCompositionReport
         {
             c.Row(rr =>
             {
-                rr.Column(TablerColumnNumber.Four, c1 =>
+                rr.Column(TablerColumnNumber.Twelve, c1 =>
                 {
+                    c1.Span(TablerBreakpoint.Medium, 4);
                     c1.Card(card =>
                     {
                         card.Header(h => h.Title("Provider Mix"));
@@ -444,8 +445,9 @@ public static partial class HtmlCompositionReport
                     });
                 });
 
-                rr.Column(TablerColumnNumber.Four, c2 =>
+                rr.Column(TablerColumnNumber.Twelve, c2 =>
                 {
+                    c2.Span(TablerBreakpoint.Medium, 4);
                     c2.Card(card =>
                     {
                         card.Header(h => h.Title("IP Footprint"));
@@ -474,8 +476,9 @@ public static partial class HtmlCompositionReport
                     });
                 });
 
-                rr.Column(TablerColumnNumber.Four, c3 =>
+                rr.Column(TablerColumnNumber.Twelve, c3 =>
                 {
+                    c3.Span(TablerBreakpoint.Medium, 4);
                     c3.Card(card =>
                     {
                         card.Header(h => h.Title("HTTP Posture"));
@@ -512,8 +515,9 @@ public static partial class HtmlCompositionReport
         {
             c.Row(rr =>
             {
-                rr.Column(TablerColumnNumber.Four, c1 =>
+                rr.Column(TablerColumnNumber.Twelve, c1 =>
                 {
+                    c1.Span(TablerBreakpoint.Medium, 4);
                     c1.Card(card =>
                     {
                         card.Header(h => h.Title("DNS Propagation"));
@@ -567,8 +571,9 @@ public static partial class HtmlCompositionReport
                     });
                 });
 
-                rr.Column(TablerColumnNumber.Four, c2 =>
+                rr.Column(TablerColumnNumber.Twelve, c2 =>
                 {
+                    c2.Span(TablerBreakpoint.Medium, 4);
                     c2.Card(card =>
                     {
                         card.Header(h => h.Title("Propagation by Record Type"));
@@ -586,8 +591,9 @@ public static partial class HtmlCompositionReport
                     });
                 });
 
-                rr.Column(TablerColumnNumber.Four, c3 =>
+                rr.Column(TablerColumnNumber.Twelve, c3 =>
                 {
+                    c3.Span(TablerBreakpoint.Medium, 4);
                     c3.Card(card =>
                     {
                         card.Header(h => h.Title("Propagation Hotspots"));

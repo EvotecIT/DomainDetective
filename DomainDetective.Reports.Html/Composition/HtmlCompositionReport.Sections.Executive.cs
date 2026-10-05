@@ -138,7 +138,8 @@ public static partial class HtmlCompositionReport
         page.Row(row => {
             row.WithBottomSpacing(TablerSpacing.Medium);
             // Donut chart
-            row.Column(TablerColumnNumber.Four, col => {
+            row.Column(TablerColumnNumber.Twelve, col => {
+                col.Span(TablerBreakpoint.Medium, 4);
                 col.Card(card => {
                     card.Header(h => h.Title("Status Distribution").Icon(TablerIconType.ChartDonut));
                     card.Body(b => {
@@ -159,7 +160,8 @@ public static partial class HtmlCompositionReport
                 });
             });
             // Control grid
-            row.Column(TablerColumnNumber.Eight, col => {
+            row.Column(TablerColumnNumber.Twelve, col => {
+                col.Span(TablerBreakpoint.Medium, 8);
                 col.Card(card => {
                     card.Header(h => h.Title("Control Status").Subtitle("OK / Warning / Error / Unknown").Icon(TablerIconType.ShieldCheck));
                     card.Body(b => {
@@ -240,8 +242,9 @@ public static partial class HtmlCompositionReport
             {
                 page.Row(r =>
                 {
-                    r.Column(TablerColumnNumber.Six, c =>
+                    r.Column(TablerColumnNumber.Twelve, c =>
                     {
+                        c.Span(TablerBreakpoint.Medium, 6);
                         c.Card(card =>
                         {
                             card.Header(h => h.Title("Top Findings").Subtitle("Most frequent warnings/errors").Icon(TablerIconType.AlertTriangle));
@@ -251,8 +254,9 @@ public static partial class HtmlCompositionReport
                             });
                         });
                     });
-                    r.Column(TablerColumnNumber.Six, c =>
+                    r.Column(TablerColumnNumber.Twelve, c =>
                     {
+                        c.Span(TablerBreakpoint.Medium, 6);
                         c.Card(card =>
                         {
                             card.Header(h => h.Title("Control Risk Rollup").Subtitle("OK / Warning / Error / Unknown").Icon(TablerIconType.ChartBar));
