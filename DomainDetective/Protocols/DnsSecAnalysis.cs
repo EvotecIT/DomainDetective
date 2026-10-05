@@ -67,6 +67,8 @@ namespace DomainDetective {
 
         /// <summary>Gets a value indicating whether a response for the requested subject carried authenticated-data evidence.</summary>
         public bool SubjectAuthenticData { get; private set; }
+        /// <summary>Authenticated records belonging to the requested owner, with their owner identity retained.</summary>
+        internal IReadOnlyList<DnsAnswer> ValidatedSubjectRecords { get; private set; } = Array.Empty<DnsAnswer>();
 
         /// <summary>Describes the evidence used for the DNSSEC result.</summary>
         public string ValidationMethod { get; private set; } = string.Empty;
@@ -144,6 +146,13 @@ namespace DomainDetective {
                 : "DnsClientXValidationNotAvailable";
             ValidationStatus = MapValidationStatus(subjectResponse.DnsSecValidationStatus);
             ChainValid = subjectResponse.DnsSecValidationStatus == DnsSecValidationStatus.Secure;
+            if (ChainValid) ValidatedSubjectRecords = (subjectRecordType == DnsRecordType.TLSA
+                    ? DANEAnalysis.BindServiceTlsaAnswers(domainName, subjectResponse)
+                    : (subjectResponse.Answers ?? Array.Empty<DnsAnswer>())
+                        .Where(answer => answer.Type == subjectRecordType
+                            && string.Equals(answer.Name?.TrimEnd('.'), domainName.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)))
+                .Select(answer => new DnsAnswer { Name = answer.Name, Type = answer.Type, DataRaw = answer.Data ?? answer.DataRaw })
+                .ToArray();
             DsMatch = ChainValid;
 
             string validationMessage = string.IsNullOrWhiteSpace(subjectResponse.DnsSecValidationMessage)
@@ -234,6 +243,7 @@ namespace DomainDetective {
             ValidatedZone = null;
             ValidationMethod = "DnsClientXLocalValidation";
             ValidationStatus = DnssecValidationStatus.NotChecked;
+            ValidatedSubjectRecords = Array.Empty<DnsAnswer>();
             DnsKeys = Array.Empty<string>();
             Signatures = Array.Empty<string>();
             Rrsigs = Array.Empty<RrsigInfo>();

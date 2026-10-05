@@ -25,14 +25,18 @@ public static partial class Converters
             StartsCorrectly = analysis.StartsCorrectly,
             IsPolicyValid = analysis.IsPolicyValid,
             Policy = analysis.Policy,
+            EffectivePolicy = analysis.EffectivePolicyShort,
+            IsTestMode = analysis.IsTestMode,
+            DnsQueryFailed = analysis.DnsQueryFailed,
+            ReportingQueryFailed = analysis.ReportingQueryFailed,
             SubPolicy = analysis.SubPolicy,
             NonexistentPolicy = analysis.NonexistentPolicy,
             PublicSuffixPolicy = analysis.PublicSuffixPolicy,
             ReportFeedback = analysis.ReportFeedback,
             Pct = analysis.Pct,
             Percent = analysis.Percent,
-            DkimAlignment = analysis.DkimAlignment,
-            SpfAlignment = analysis.SpfAlignment,
+            DkimAlignment = analysis.DnsQueryFailed && !analysis.DmarcRecordExists ? "Unknown" : analysis.DkimAlignment,
+            SpfAlignment = analysis.DnsQueryFailed && !analysis.DmarcRecordExists ? "Unknown" : analysis.SpfAlignment,
             Rua = analysis.Rua,
             Ruf = analysis.Ruf,
             MailtoRua = analysis.MailtoRua,
@@ -59,7 +63,9 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"p={analysis.Policy ?? "?"}; rua {analysis.MailtoRua?.Count ?? 0}; align dkim={analysis.DkimAlignment ?? "?"}/spf={analysis.SpfAlignment ?? "?"}",
+            Summary = analysis.DnsQueryFailed && !analysis.DmarcRecordExists
+                ? "DMARC policy unknown because DNS discovery failed."
+                : $"p={analysis.Policy ?? "?"}; rua {(analysis.MailtoRua?.Count ?? 0) + (analysis.HttpRua?.Count ?? 0)}; align dkim={analysis.DkimAlignment ?? "?"}/spf={analysis.SpfAlignment ?? "?"}",
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
@@ -103,6 +109,18 @@ public class DmarcRecordInfo
     public bool IsPolicyValid { get; set; }
     /// <summary>Policy (p=).</summary>
     public string Policy { get; set; } = string.Empty;
+    /// <summary>Policy governing the subject after inheritance, fallback and test mode.</summary>
+    public string EffectivePolicy { get; set; } = string.Empty;
+    /// <summary>Whether the published policy enables test mode.</summary>
+    public bool IsTestMode { get; set; }
+    /// <summary>Whether policy discovery failed.</summary>
+    public bool DnsQueryFailed { get; set; }
+    /// <summary>Record presence for report tables, preserving unknown after a failed DNS lookup.</summary>
+    public string RecordPresence => DmarcRecordExists ? "Yes" : DnsQueryFailed ? "Unknown" : "No";
+    /// <summary>Version-tag validity for report tables when discovery may be incomplete.</summary>
+    public string StartsCorrectlyLabel => DnsQueryFailed && !DmarcRecordExists ? "Unknown" : StartsCorrectly ? "Yes" : "No";
+    /// <summary>Whether auxiliary reporting queries failed while preserving policy evidence.</summary>
+    public bool ReportingQueryFailed { get; set; }
     /// <summary>Subdomain policy (sp=).</summary>
     public string SubPolicy { get; set; } = string.Empty;
     /// <summary>Nonexistent domain policy (np=, DMARCbis).</summary>

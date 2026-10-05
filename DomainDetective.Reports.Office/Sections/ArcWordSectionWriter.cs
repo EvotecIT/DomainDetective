@@ -21,7 +21,7 @@ public static class ArcWordSectionWriter
         }
 
         headings.AddItem("Summary", baseLevel);
-        doc.AddParagraph("ARC headers (ARC-Seal and ARC-Authentication-Results) and chain validation status.");
+        doc.AddParagraph("ARC header structure (Seal, Message-Signature, and Authentication-Results). Structure and signature presence do not establish cryptographic validity or sealer trust.");
         var t = doc.AddTable(6, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "Headers Present";
         t.Rows[0].Cells[1].Paragraphs[0].Text = arc.ArcHeadersFound ? "Yes" : "No";
@@ -39,7 +39,7 @@ public static class ArcWordSectionWriter
         if (scope == ReportScope.Minimal) return;
 
         // Positives
-        if (scope != ReportScope.Minimal && arc.Positives != null && arc.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && arc.Positives != null && arc.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

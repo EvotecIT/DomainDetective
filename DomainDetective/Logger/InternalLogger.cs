@@ -46,6 +46,11 @@ namespace DomainDetective {
         public event EventHandler<LogEventArgs>? OnInformationMessage;
 
         /// <summary>
+        /// Delivers coded findings suppressed from public log events to assessment collectors.
+        /// </summary>
+        internal event Action<AssessmentSeverity, LogEventArgs>? OnSuppressedCodedMessage;
+
+        /// <summary>
         /// If true, will write verbose messages to console
         /// </summary>
         public bool IsVerbose { get; set; }
@@ -125,14 +130,11 @@ namespace DomainDetective {
         /// <summary>Executes the write error operation.</summary>
         public void WriteError(string message) {
             lock (_lock) {
-                // A repeat is shown once, but an analysis collecting assessments still needs it: the same message
-                // for another domain or target is another finding (the collector drops true duplicates itself).
-                bool first = _loggedMessages.Add(message);
-                if (!first && !AssessmentCollector.IsCollecting) {
+                if (!_loggedMessages.Add(message)) {
                     return;
                 }
                 OnErrorMessage?.Invoke(this, new LogEventArgs(message));
-                if (first && IsError) {
+                if (IsError) {
                     Console.WriteLine("[error] " + message);
                 }
             }
@@ -142,14 +144,11 @@ namespace DomainDetective {
         public void WriteError(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
-                // A repeat is shown once, but an analysis collecting assessments still needs it: the same message
-                // for another domain or target is another finding (the collector drops true duplicates itself).
-                bool first = _loggedMessages.Add(formatted);
-                if (!first && !AssessmentCollector.IsCollecting) {
+                if (!_loggedMessages.Add(formatted)) {
                     return;
                 }
                 OnErrorMessage?.Invoke(this, new LogEventArgs(formatted));
-                if (first && IsError) {
+                if (IsError) {
                     Console.WriteLine("[error] " + message, args);
                 }
             }
@@ -161,14 +160,13 @@ namespace DomainDetective {
         public void WriteErrorCode(string code, string message, params object?[] args) {
             lock (_lock) {
                 var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
-                // A repeat is shown once, but an analysis collecting assessments still needs it: the same message
-                // for another domain or target is another finding (the collector drops true duplicates itself).
-                bool first = _loggedMessages.Add(formatted);
-                if (!first && !AssessmentCollector.IsCollecting) {
+                var eventArgs = new LogEventArgs(formatted) { Code = code };
+                if (!_loggedMessages.Add(formatted)) {
+                    OnSuppressedCodedMessage?.Invoke(AssessmentSeverity.Error, eventArgs);
                     return;
                 }
-                OnErrorMessage?.Invoke(this, new LogEventArgs(formatted) { Code = code });
-                if (first && IsError) {
+                OnErrorMessage?.Invoke(this, eventArgs);
+                if (IsError) {
                     Console.WriteLine("[error] " + message, args);
                 }
             }
@@ -177,14 +175,11 @@ namespace DomainDetective {
         /// <summary>Executes the write warning operation.</summary>
         public void WriteWarning(string message) {
             lock (_lock) {
-                // A repeat is shown once, but an analysis collecting assessments still needs it: the same message
-                // for another domain or target is another finding (the collector drops true duplicates itself).
-                bool first = _loggedMessages.Add(message);
-                if (!first && !AssessmentCollector.IsCollecting) {
+                if (!_loggedMessages.Add(message)) {
                     return;
                 }
                 OnWarningMessage?.Invoke(this, new LogEventArgs(message));
-                if (first && IsWarning) {
+                if (IsWarning) {
                     Console.WriteLine("[warning] " + message);
                 }
             }
@@ -194,14 +189,11 @@ namespace DomainDetective {
         public void WriteWarning(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
-                // A repeat is shown once, but an analysis collecting assessments still needs it: the same message
-                // for another domain or target is another finding (the collector drops true duplicates itself).
-                bool first = _loggedMessages.Add(formatted);
-                if (!first && !AssessmentCollector.IsCollecting) {
+                if (!_loggedMessages.Add(formatted)) {
                     return;
                 }
                 OnWarningMessage?.Invoke(this, new LogEventArgs(formatted));
-                if (first && IsWarning) {
+                if (IsWarning) {
                     Console.WriteLine("[warning] " + message, args);
                 }
             }
@@ -213,14 +205,13 @@ namespace DomainDetective {
         public void WriteWarningCode(string code, string message, params object?[] args) {
             lock (_lock) {
                 var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
-                // A repeat is shown once, but an analysis collecting assessments still needs it: the same message
-                // for another domain or target is another finding (the collector drops true duplicates itself).
-                bool first = _loggedMessages.Add(formatted);
-                if (!first && !AssessmentCollector.IsCollecting) {
+                var eventArgs = new LogEventArgs(formatted) { Code = code };
+                if (!_loggedMessages.Add(formatted)) {
+                    OnSuppressedCodedMessage?.Invoke(AssessmentSeverity.Warning, eventArgs);
                     return;
                 }
-                OnWarningMessage?.Invoke(this, new LogEventArgs(formatted) { Code = code });
-                if (first && IsWarning) {
+                OnWarningMessage?.Invoke(this, eventArgs);
+                if (IsWarning) {
                     Console.WriteLine("[warning] " + message, args);
                 }
             }
@@ -271,14 +262,11 @@ namespace DomainDetective {
         public void WriteInformation(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
-                // A repeat is shown once, but an analysis collecting assessments still needs it: the same message
-                // for another domain or target is another finding (the collector drops true duplicates itself).
-                bool first = _loggedMessages.Add(formatted);
-                if (!first && !AssessmentCollector.IsCollecting) {
+                if (!_loggedMessages.Add(formatted)) {
                     return;
                 }
                 OnInformationMessage?.Invoke(this, new LogEventArgs(formatted));
-                if (first && IsInformation) {
+                if (IsInformation) {
                     Console.WriteLine("[information] " + message, args);
                 }
             }
@@ -290,14 +278,13 @@ namespace DomainDetective {
         public void WriteInformationCode(string code, string message, params object?[] args) {
             lock (_lock) {
                 var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
-                // A repeat is shown once, but an analysis collecting assessments still needs it: the same message
-                // for another domain or target is another finding (the collector drops true duplicates itself).
-                bool first = _loggedMessages.Add(formatted);
-                if (!first && !AssessmentCollector.IsCollecting) {
+                var eventArgs = new LogEventArgs(formatted) { Code = code };
+                if (!_loggedMessages.Add(formatted)) {
+                    OnSuppressedCodedMessage?.Invoke(AssessmentSeverity.Info, eventArgs);
                     return;
                 }
-                OnInformationMessage?.Invoke(this, new LogEventArgs(formatted) { Code = code });
-                if (first && IsInformation) {
+                OnInformationMessage?.Invoke(this, eventArgs);
+                if (IsInformation) {
                     Console.WriteLine("[information] " + message, args);
                 }
             }

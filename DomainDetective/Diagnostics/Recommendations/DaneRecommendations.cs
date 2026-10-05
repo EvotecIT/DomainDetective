@@ -15,6 +15,15 @@ internal sealed class DaneRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Medium,
             Verify = "dig _25._tcp.mail.example.com TLSA and validate fields."
         };
+        map[DaneCodes.QueryFailed] = new RecommendationAdvice {
+            Code = DaneCodes.QueryFailed,
+            Title = "DANE DNS query failed",
+            Why = "A failed DNS lookup cannot establish whether a service publishes TLSA records.",
+            How = "Retry the TLSA or MX lookup and check resolver availability before changing the policy.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "dane", "tlsa", "dns" },
+            Effort = RecommendationEffort.Low
+        };
         map[DaneCodes.UsageNotNumeric] = new RecommendationAdvice {
             Code = DaneCodes.UsageNotNumeric,
             Title = "TLSA usage not numeric",
@@ -111,15 +120,32 @@ internal sealed class DaneRecommendations : IRecommendationProvider {
 
         map[DaneCodes.CertificateMatches] = new RecommendationAdvice {
             Code = DaneCodes.CertificateMatches,
-            Title = "TLSA hash matches certificate",
-            Why = "Matching association data confirms the service presents the expected certificate.",
+            Title = "TLSA association matches observed certificate material",
+            Why = "Observed certificate material matches a published TLSA association.",
             How = "Synchronize TLS certificates with published TLSA records whenever rotating keys.",
             Domain = RecommendationDomain.Tls,
             Tags = new [] { "dane", "tlsa", "cert" },
-            Impact = "Reduces risk of man-in-the-middle by pinning certificates.",
+            Impact = "Identifies matching certificate material; the authentication result supplies the path and name outcome.",
             Effort = RecommendationEffort.Low,
             Verify = "Compare server certificate fingerprint with TLSA record."
         };
+        map[DaneCodes.Authenticated] = new RecommendationAdvice {
+            Code = DaneCodes.Authenticated,
+            Title = "DANE service authentication succeeded",
+            Why = "At least one DNSSEC-validated TLSA alternative satisfies its certificate-usage authentication requirements.",
+            How = "Keep the service certificate and TLSA alternatives synchronized during rotation.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new[] { "dane", "tlsa", "dnssec" },
+            Links = new[] { "https://www.rfc-editor.org/rfc/rfc7671.html" }
+        };
+        map[DaneCodes.AuthenticationFailed] = new RecommendationAdvice {
+            Code = DaneCodes.AuthenticationFailed,
+            Title = "DANE service authentication failed",
+            Why = "Every usable TLSA alternative failed the service's certificate, path, or reference-name requirements.",
+            How = "Inspect the recorded authentication explanations and correct the certificate chain, service names, or TLSA data.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new[] { "dane", "tlsa", "cert" },
+            Links = new[] { "https://www.rfc-editor.org/rfc/rfc7671.html" }
+        };
     }
 }
-

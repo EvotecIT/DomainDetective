@@ -30,7 +30,15 @@ public static class DaneNarrative
         var negatives = new List<string>();
         var remediations = new List<string>();
 
-        if (dane == null || dane.NumberOfRecords == 0)
+        if (dane?.DnsQueryFailed == true)
+        {
+            hi.Add("TLSA service discovery is incomplete because a DNS query failed.");
+        }
+        if (dane?.MxDnssecValidated == false)
+        {
+            hi.Add("MX service selection was not DNSSEC authenticated; a TLSA match for that host does not authenticate delivery to the requested domain.");
+        }
+        if ((dane == null || dane.NumberOfRecords == 0) && dane?.DnsQueryFailed != true)
         {
             hi.Add("No TLSA records published.");
         }
@@ -50,6 +58,14 @@ public static class DaneNarrative
                     DaneAssociationMatchStatus.CheckFailed => "Certificate association could not be checked.",
                     _ => "Certificate association was not checked."
                 });
+                hi.Add(r.AuthenticationStatus switch {
+                    DaneAuthenticationStatus.Authenticated => "Service authentication satisfies the TLSA requirements.",
+                    DaneAuthenticationStatus.Failed => "Service authentication failed the TLSA requirements.",
+                    DaneAuthenticationStatus.Inconclusive => "Service authentication evidence is incomplete.",
+                    _ => "Service authentication was not checked."
+                });
+                var explanation = r.AuthenticationExplanation;
+                if (explanation != null && explanation.Length > 0) det.Add(explanation);
                 det.Add($"Usage: {r.CertificateUsage}; Selector: {r.SelectorField}; Matching: {r.MatchingTypeField}; Length: {r.LengthOfCertificateAssociationData}");
             }
         }

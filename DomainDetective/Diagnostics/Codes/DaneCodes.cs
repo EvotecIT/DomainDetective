@@ -2,6 +2,8 @@ namespace DomainDetective;
 
 internal static class DaneCodes {
     public const string NoRecords = "DANE.NoRecords";
+    public const string QueryFailed = "DANE.Query.Failed";
+    public const string MxNotAuthenticated = "DANE.MX.NotAuthenticated";
     public const string UsageNotNumeric = "DANE.TLSA.Usage.NotNumeric";
     public const string UsageInvalid = "DANE.TLSA.Usage.Invalid";
     public const string SelectorNotNumeric = "DANE.TLSA.Selector.NotNumeric";
@@ -14,8 +16,9 @@ internal static class DaneCodes {
     public const string CertificateCheckFailed = "DANE.TLSA.CertificateCheckFailed";
     public const string DnssecNotValidated = "DANE.TLSA.DnssecNotValidated";
     public const string PkixNotValidated = "DANE.TLSA.PkixNotValidated";
+    public const string Authenticated = "DANE.Service.Authenticated";
+    public const string AuthenticationFailed = "DANE.Service.AuthenticationFailed";
     public const string ComboNotRecommended = "DANE.TLSA.Combo.NotRecommended";
     public const string AlignmentMissingForMx = "DANE.Alignment.MissingForMX";
     public const string AlignmentTlsWeak = "DANE.Alignment.TlsaPresentButTlsWeak";
 }
-

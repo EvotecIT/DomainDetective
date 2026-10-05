@@ -14,6 +14,7 @@ public static class CompositionBuilder
     public sealed class DomainBucket
     {
         public string Subject { get; set; } = string.Empty;
+        public AssessmentEvidenceInfo? AdditionalEvidence { get; set; }
         public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
@@ -64,6 +65,7 @@ public static class CompositionBuilder
         {
             switch (it)
             {
+                case AssessmentEvidenceInfo evidence when !string.IsNullOrWhiteSpace(evidence.Subject): Ensure(evidence.Subject); map[evidence.Subject].AdditionalEvidence = evidence; break;
                 case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject): Ensure(mx.Subject); map[mx.Subject].Mx = mx; break;
                 case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
                 case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): Ensure(dmarc.Subject); map[dmarc.Subject].Dmarc = dmarc; break;

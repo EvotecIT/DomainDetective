@@ -12,11 +12,7 @@ namespace DomainDetective {
         /// <param name="ct">Token to cancel the operation.</param>
         /// <returns>Populated <see cref="MessageHeaderAnalysis"/> instance.</returns>
         public MessageHeaderAnalysis CheckMessageHeaders(string rawHeaders, CancellationToken ct = default) {
-            ct.ThrowIfCancellationRequested();
-
-            var analysis = new MessageHeaderAnalysis();
-            analysis.Parse(rawHeaders, _logger);
-            return analysis;
+            return AnalyzeMessageHeaders(rawHeaders, cancellationToken: ct);
         }
 
         /// <summary>
@@ -27,15 +23,7 @@ namespace DomainDetective {
         /// <param name="ct">Token to cancel the operation.</param>
         /// <returns>Populated <see cref="MessageHeaderAnalysis"/> instance.</returns>
         public MessageHeaderAnalysis CheckMessageHeaders(string rawHeaders, IEnumerable<string>? expectedMxHosts, CancellationToken ct = default) {
-            ct.ThrowIfCancellationRequested();
-
-            var analysis = new MessageHeaderAnalysis();
-            analysis.Parse(rawHeaders, _logger, emitRouteDiagnostics: false);
-            analysis.CompareExpectedMx(expectedMxHosts, _logger);
-            _logger.ClearLoggedMessages();
-            using var collector = AssessmentCollector.ForAnalysis(_logger, analysis, category: "HEADERS");
-            analysis.EmitNonMxRouteDiagnostics(_logger);
-            return analysis;
+            return AnalyzeMessageHeaders(rawHeaders, expectedMxHosts: expectedMxHosts, cancellationToken: ct);
         }
 
         /// <summary>

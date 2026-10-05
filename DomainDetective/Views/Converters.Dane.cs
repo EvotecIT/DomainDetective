@@ -15,6 +15,8 @@ public static partial class Converters
         var records = analysis.AnalysisResults?.ToList() ?? new List<DANERecordAnalysis>();
         var validRecordCount = records.Count(static record => record.ValidDANERecord);
         var recommendedRecordCount = records.Count(static record => record.IsValidChoiceForSmtp || record.IsValidChoiceForHttps);
+        if (analysis.HasAuthenticationFailures) status = "Error";
+        else if (!analysis.AllServicesAuthenticated && status != "Error") status = "Warning";
         return new DaneRecordInfo
         {
             Check = HealthCheckType.DANE,
@@ -24,6 +26,9 @@ public static partial class Converters
             HasDuplicateRecords = analysis.HasDuplicateRecords,
             HasInvalidRecords = analysis.HasInvalidRecords,
             QueriedNames = analysis.QueriedNames.ToList(),
+            DnsQueryFailed = analysis.DnsQueryFailed,
+            MxDnssecValidated = analysis.MxDnssecValidated,
+            FailedDnsQueries = analysis.FailedDnsQueries.ToList(),
             QueriedPorts = analysis.QueriedPorts.ToList(),
             QueriedServiceTypes = analysis.QueriedServiceTypes.Select(static serviceType => serviceType.ToString()).ToList(),
             Records = records,
@@ -31,11 +36,14 @@ public static partial class Converters
             RecommendedRecordCount = recommendedRecordCount,
             AssociationValidationPerformed = analysis.AssociationValidationPerformed,
             AllCertificateAssociationsMatch = analysis.AllCertificateAssociationsMatch,
+            AuthenticationValidationPerformed = analysis.AuthenticationValidationPerformed,
+            AllServicesAuthenticated = analysis.AllServicesAuthenticated,
+            HasAuthenticationFailures = analysis.HasAuthenticationFailures,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{analysis.NumberOfRecords} records; invalid {(analysis.HasInvalidRecords ? "yes" : "no")}",
+            Summary = $"{analysis.NumberOfRecords} records; invalid {(analysis.HasInvalidRecords ? "yes" : "no")}{(analysis.DnsQueryFailed ? "; DNS query failed" : string.Empty)}",
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
@@ -45,6 +53,11 @@ public static partial class Converters
             Raw = analysis
         };
     }
+
+    private static AggregateCheckState DaneAuthenticationCheckState(DaneRecordInfo info) =>
+        info.HasAuthenticationFailures || info.ErrorCount > 0 ? AggregateCheckState.Fail
+        : info.WarningCount > 0 || info.ValidRecordCount == 0 || info.HasInvalidRecords || !info.AllServicesAuthenticated
+            ? AggregateCheckState.Warning : AggregateCheckState.Pass;
 }
 
 /// <summary>
@@ -66,6 +79,12 @@ public class DaneRecordInfo
     public bool HasInvalidRecords { get; set; }
     /// <summary>Gets or sets the queried names value.</summary>
     public IReadOnlyList<string> QueriedNames { get; set; } = System.Array.Empty<string>();
+    /// <summary>Whether TLSA or MX service discovery failed for at least one DNS name.</summary>
+    public bool DnsQueryFailed { get; set; }
+    /// <summary>Whether SMTP MX service selection was locally DNSSEC validated, or null when MX was not used.</summary>
+    public bool? MxDnssecValidated { get; set; }
+    /// <summary>DNS names whose service discovery queries failed.</summary>
+    public IReadOnlyList<string> FailedDnsQueries { get; set; } = System.Array.Empty<string>();
     /// <summary>Gets or sets the queried ports value.</summary>
     public IReadOnlyList<int> QueriedPorts { get; set; } = System.Array.Empty<int>();
     /// <summary>Gets or sets the queried service types value.</summary>
@@ -80,6 +99,12 @@ public class DaneRecordInfo
     public bool AssociationValidationPerformed { get; set; }
     /// <summary>True when all syntactically valid TLSA records matched live certificate evidence.</summary>
     public bool AllCertificateAssociationsMatch { get; set; }
+    /// <summary>Whether service authentication was evaluated.</summary>
+    public bool AuthenticationValidationPerformed { get; set; }
+    /// <summary>Whether every queried service has an authenticated TLSA alternative.</summary>
+    public bool AllServicesAuthenticated { get; set; }
+    /// <summary>Whether a service failed every usable TLSA alternative.</summary>
+    public bool HasAuthenticationFailures { get; set; }
     /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Gets or sets the status value.</summary>

@@ -47,9 +47,9 @@ public static class SpfWordSectionWriter
         doc.AddParagraph("Key SPF posture indicators for this domain.");
         var summaryTable = doc.AddTable(8, 2, WordTableStyle.TableGrid);
         summaryTable.Rows[0].Cells[0].AddParagraph("Record Present");
-        summaryTable.Rows[0].Cells[1].AddParagraph(spf.SpfRecordExists ? "Yes" : "No");
+        summaryTable.Rows[0].Cells[1].AddParagraph(spf.RecordPresence);
         summaryTable.Rows[1].Cells[0].AddParagraph("Starts Correctly");
-        summaryTable.Rows[1].Cells[1].AddParagraph(spf.StartsCorrectly ? "Yes" : "No");
+        summaryTable.Rows[1].Cells[1].AddParagraph(spf.StartsCorrectlyLabel);
         summaryTable.Rows[2].Cells[0].AddParagraph("DNS TTL (s)");
         summaryTable.Rows[2].Cells[1].AddParagraph(spf.DnsRecordTtl?.ToString() ?? "-");
         summaryTable.Rows[3].Cells[0].AddParagraph("CNAME Resolved");
@@ -82,7 +82,7 @@ public static class SpfWordSectionWriter
         }
 
         // Good posture (positives)
-        if (scope != ReportScope.Minimal && spf.Positives != null && spf.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && spf.Positives != null && spf.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");
@@ -281,12 +281,12 @@ public static class SpfWordSectionWriter
         // Summary from DTO
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("Key SPF posture indicators for this domain.");
-        var rows = sec.Summary.Count > 0 ? sec.Summary : new System.Collections.Generic.List<(string Key, string Value)>() { ("Status", sec.Status), ("DNS Lookups", sec.DnsLookupsCount.ToString()), ("Record Present", (original?.SpfRecordExists ?? false) ? "Yes" : "No") };
+        var rows = sec.Summary.Count > 0 ? sec.Summary : new System.Collections.Generic.List<(string Key, string Value)>() { ("Status", sec.Status), ("DNS Lookups", sec.DnsLookupsCount.ToString()), ("Record Present", original?.RecordPresence ?? "Unknown") };
         var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
         for (int i = 0; i < rows.Count; i++) { t.Rows[i].Cells[0].AddParagraph(rows[i].Key); t.Rows[i].Cells[1].AddParagraph(rows[i].Value); }
 
         // Positives
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

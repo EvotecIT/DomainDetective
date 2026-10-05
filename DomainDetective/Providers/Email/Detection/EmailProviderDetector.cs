@@ -8,6 +8,16 @@ namespace DomainDetective.Providers.Email;
 /// <summary>Provides email provider detector functionality.</summary>
 public static class EmailProviderDetector
 {
+    private static readonly Lazy<(string Name, System.Text.RegularExpressions.Regex[] Patterns)[]> ReportedHostPatterns = new(() => ProviderRegistry.All.Select(provider => (provider.DisplayName,
+        provider.MxHostPatterns.Select(pattern => new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$", System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1))).ToArray())).ToArray());
+    /// <summary>Identifies provider-name hints from a reported route host, without asserting live MX ownership.</summary>
+    /// <param name="host">Reported host name.</param>
+    public static IReadOnlyList<string> DetectReportedHost(string? host) {
+        if (string.IsNullOrWhiteSpace(host)) { return Array.Empty<string>(); }
+        var normalized = host!.Trim().TrimEnd('.');
+        return ReportedHostPatterns.Value.Where(provider => provider.Patterns.Any(pattern => pattern.IsMatch(normalized))).Select(provider => provider.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
     /// <summary>Executes the detect operation.</summary>
     public static ProviderMatch Detect(IEnumerable<string> mxHosts, IEnumerable<string>? spfTokens = null, IEnumerable<string>? dkimTargets = null)
     {

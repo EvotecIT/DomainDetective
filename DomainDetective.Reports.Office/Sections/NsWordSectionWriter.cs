@@ -43,7 +43,7 @@ public static class NsWordSectionWriter
         }
 
         // Good posture
-        if (scope != ReportScope.Minimal && ns.Positives != null && ns.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && ns.Positives != null && ns.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             var plist = doc.AddList(WordListStyle.Bulleted);
@@ -98,7 +98,7 @@ public static class NsWordSectionWriter
         if (original != null && (original.NsRecords?.Count ?? 0) > 0)
         { headings.AddItem("Name Servers", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var n in original.NsRecords!) if (!string.IsNullOrWhiteSpace(n)) list.AddItem(n); }
 
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

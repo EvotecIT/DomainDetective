@@ -81,7 +81,7 @@ public static class RegistrationWordSectionWriter
         if (scope == ReportScope.Minimal) return;
 
         // Good posture
-        if (registration.Positives != null && registration.Positives.Count > 0)
+        if (showInfoFindings && registration.Positives != null && registration.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("Positive posture signals observed in the registration snapshot:");

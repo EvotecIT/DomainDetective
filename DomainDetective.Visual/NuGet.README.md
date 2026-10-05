@@ -2,7 +2,7 @@
 
 `DomainDetective.Visual` adds optional browser capture and image fingerprinting support for visual typosquatting analysis.
 
-The package isolates the heavier Playwright and ImageSharp dependencies from the base `DomainDetective` package.
+The package isolates HtmlTinkerX browser capture and ImageSharp dependencies from the base `DomainDetective` package. HtmlTinkerX owns browser installation and session lifetime.
 
 On .NET Framework targets, the package supports image fingerprinting only. Browser capture requires .NET 8 or later.
 

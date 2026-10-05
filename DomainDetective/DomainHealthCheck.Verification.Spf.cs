@@ -24,16 +24,18 @@ namespace DomainDetective {
             SpfAnalysis.Subject = domainName;
             DnsAnswer[] spf = Array.Empty<DnsAnswer>();
             try {
-                spf = await DnsConfiguration.QueryDNS(
+                spf = await DnsConfiguration.QueryPolicyDNS(
                     domainName,
                     DnsRecordType.TXT,
-                    "SPF1",
                     includeAliasesInFilter: true,
                     cancellationToken: cancellationToken);
-            } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
-                _logger.WriteWarningCode(SpfCodes.QueryFailed, "SPF DNS query failed for {0}: {1}", domainName, ex.Message);
-                // proceed with empty results to keep tests deterministic on transient network failures
-                spf = Array.Empty<DnsAnswer>();
+                spf = spf.Where(answer => answer.Type == DnsRecordType.CNAME || answer.Type == DnsRecordType.TXT
+                    && SpfAnalysis.IsSpfPolicyRecord(answer.TxtConcatenatedData)).ToArray();
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                throw;
+            } catch (Exception ex) when (ex is DnsQueryFailureException || ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+                SpfAnalysis.RecordDnsQueryFailure(ex, _logger);
+                return;
             }
             await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
             await SpfAnalysis.GetFlattenedIpAnalysis(domainName, _logger);
@@ -44,14 +46,11 @@ namespace DomainDetective {
                 try {
                     bool dmarcStrongForSubdomains = false;
                     if (string.Equals(DmarcAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase) && DmarcAnalysis.DmarcRecordExists) {
-                        var effective = !string.IsNullOrWhiteSpace(DmarcAnalysis.SubPolicyShort)
-                            ? DmarcAnalysis.SubPolicyShort
-                            : DmarcAnalysis.PolicyShort;
-                        dmarcStrongForSubdomains = string.Equals(effective, "reject", StringComparison.OrdinalIgnoreCase);
+                        dmarcStrongForSubdomains = string.Equals(DmarcAnalysis.EffectiveSubdomainPolicyShort, "reject", StringComparison.OrdinalIgnoreCase);
                     }
 
                     var wildcard = "*." + domainName;
-                    var wildcardSpf = await DnsConfiguration.QueryDNS(
+                    var wildcardSpf = await DnsConfiguration.QueryPolicyDNS(
                         wildcard,
                         DnsRecordType.TXT,
                         "SPF1",
@@ -76,7 +75,9 @@ namespace DomainDetective {
                             Message = $"Wildcard SPF record present for subdomains ({wildcard})."
                         });
                     }
-                } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
+                } catch (Exception ex) when (ex is DnsQueryFailureException || ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
                     // keep analysis deterministic on transient network failures
                 }
             }

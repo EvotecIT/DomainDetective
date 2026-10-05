@@ -28,6 +28,9 @@
         }
 
         @switch (Definition.Slug) {
+            case "message-analyzer":
+                <DomainDetective.Toolbox.Components.Tools.EmailSecurity.MessageAnalyzerTool />
+                break;
             case "raw-dns-query":
                 <DomainDetective.Toolbox.Components.Tools.Dns.RawDnsQueryTool />
                 break;
@@ -635,7 +638,7 @@
     }
 
     private static bool UsesCustomToolLayout(ToolDefinition definition) {
-        return definition.Slug == "raw-dns-query";
+        return definition.Slug == "raw-dns-query" || definition.Slug == "message-analyzer";
     }
 
     private static bool SupportsHostedCache(ToolDefinition definition) {

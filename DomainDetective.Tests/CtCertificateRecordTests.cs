@@ -4,6 +4,31 @@ using System.Security.Cryptography.X509Certificates;
 namespace DomainDetective.Tests;
 
 public sealed class CtCertificateRecordTests {
+    [Theory]
+    [InlineData("pkcs7")]
+    [InlineData("pem")]
+    [InlineData("trailing")]
+    [InlineData("concatenated")]
+    [InlineData("ber")]
+    public void FromDer_RejectsAnythingExceptOneCompleteDerCertificate(string encoding) {
+        byte[] der = CreateCertificateDer("boundary.example.test", "www.boundary.example.test");
+        byte[] input;
+        if (encoding == "pkcs7") {
+            using X509Certificate2 certificate = Helpers.CertificateLoaderCompat.LoadCertificate(der);
+            input = new X509Certificate2Collection(certificate).Export(X509ContentType.Pkcs7)!;
+        } else if (encoding == "pem") {
+            input = System.Text.Encoding.ASCII.GetBytes("-----BEGIN CERTIFICATE-----\n" + Convert.ToBase64String(der) + "\n-----END CERTIFICATE-----");
+        } else if (encoding == "ber") {
+            int headerLength = 2 + (der[1] & 0x7f);
+            input = new byte[] { 0x30, 0x80 }.Concat(der.Skip(headerLength)).Concat(new byte[] { 0, 0 }).ToArray();
+        } else {
+            input = der.Concat(encoding == "trailing" ? new byte[] { 0 } : der).ToArray();
+        }
+
+        Assert.Throws<CryptographicException>(() => CtCertificateRecord.FromDer(
+            CtProviderProfiles.NativeCtProviderId, input, detailLevel: CtCertificateRecordDetailLevel.NamesOnly));
+    }
+
     [Fact]
     public void FromDer_NamesOnly_PopulatesDnsNames_WithoutFullMetadata() {
         byte[] certificateDer = CreateCertificateDer("names-only.example.test", "www.names-only.example.test");

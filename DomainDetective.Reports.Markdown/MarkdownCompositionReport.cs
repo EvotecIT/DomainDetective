@@ -20,7 +20,10 @@ public static partial class MarkdownCompositionReport
         string path,
         IReadOnlyList<object> items,
         ReportScope scope,
-        OrderingOptions? ordering = null)
+        OrderingOptions? ordering = null) => Generate(path, items, scope, ordering, true);
+
+    /// <summary>Generates Markdown with explicit informational finding visibility.</summary>
+    public static void Generate(string path, IReadOnlyList<object> items, ReportScope scope, OrderingOptions? ordering, bool showInfoFindings)
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
@@ -33,7 +36,7 @@ public static partial class MarkdownCompositionReport
         var rows = ExecutiveSummaryBuilder.Build(items, ordering?.DomainOrder ?? DomainOrder.Alphabetical);
         var overview = OverviewWording.ComposeFromItems(items);
         var inputSectionOrder = SectionOrdering.DetermineSectionOrderByDomain(items);
-        var md = BuildDoc(domains, title, rows, overview, ordering, inputSectionOrder);
+        var md = BuildDoc(domains, title, rows, overview, ordering, inputSectionOrder, AssessmentEvidenceInfo.Collect(items), scope, showInfoFindings);
         var text = md.ToMarkdown();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".");
         File.WriteAllText(path, text, Encoding.UTF8);
@@ -46,7 +49,10 @@ public static partial class MarkdownCompositionReport
         string htmlPath,
         IReadOnlyList<object> items,
         ReportScope scope,
-        OrderingOptions? ordering = null)
+        OrderingOptions? ordering = null) => GenerateMarkdownHtml(htmlPath, items, scope, ordering, true);
+
+    /// <summary>Generates Markdown HTML with explicit informational finding visibility.</summary>
+    public static void GenerateMarkdownHtml(string htmlPath, IReadOnlyList<object> items, ReportScope scope, OrderingOptions? ordering, bool showInfoFindings)
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
         var groups = CompositionBuilder.GroupBySubject(items);
@@ -58,7 +64,7 @@ public static partial class MarkdownCompositionReport
         var rows = ExecutiveSummaryBuilder.Build(items, ordering?.DomainOrder ?? DomainOrder.Alphabetical);
         var overview = OverviewWording.ComposeFromItems(items);
         var inputSectionOrder = SectionOrdering.DetermineSectionOrderByDomain(items);
-        var md = BuildDoc(domains, title, rows, overview, ordering, inputSectionOrder);
+        var md = BuildDoc(domains, title, rows, overview, ordering, inputSectionOrder, AssessmentEvidenceInfo.Collect(items), scope, showInfoFindings);
         var mdPath = Path.ChangeExtension(htmlPath, ".md");
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(mdPath)) ?? ".");
         File.WriteAllText(mdPath, md.ToMarkdown(), Encoding.UTF8);
@@ -79,8 +85,13 @@ public static partial class MarkdownCompositionReport
         md.SaveAsHtml(htmlPath, htmlOptions);
     }
 
-    private static MarkdownDoc BuildDoc(List<KeyValuePair<string, DomainBucket>> domains, string title, List<ExecutiveSummaryBuilder.Row> rows, string overviewLine, OrderingOptions? ordering, Dictionary<string, List<string>> inputSectionOrder)
+    private static MarkdownDoc BuildDoc(List<KeyValuePair<string, DomainBucket>> domains, string title, List<ExecutiveSummaryBuilder.Row> rows, string overviewLine, OrderingOptions? ordering, Dictionary<string, List<string>> inputSectionOrder, IReadOnlyList<AssessmentEvidenceInfo> additionalEvidence, ReportScope scope, bool showInfoFindings)
     {
+        foreach (var domain in domains) {
+            var summary = rows.FirstOrDefault(row => string.Equals(row.Domain, domain.Key, StringComparison.OrdinalIgnoreCase));
+            domain.Value.Warnings = summary?.Warnings ?? 0;
+            domain.Value.Errors = summary?.Errors ?? 0;
+        }
         var md = MarkdownDoc.Create()
             .FrontMatter(new { title = $"Security Report — {title}", date = DateTimeOffset.Now.ToString("u") })
             .H1("Executive Summary")
@@ -96,9 +107,13 @@ public static partial class MarkdownCompositionReport
             .H2("Domains");
 
         md.Table(t => t
-            .Headers("Domain","MX","SPF","DKIM","DMARC","MTA-STS","TLS-RPT","DNSSEC","RPKI","M365","M365 Workloads","Classification","Findings (W/E)")
-            .Rows(rows.Select(r => (IReadOnlyList<string>)new []{ r.Domain, r.Mx, r.Spf, r.Dkim, r.Dmarc, r.Mtasts, r.TlsRpt, r.Dnssec, r.Rpki, r.Microsoft365, r.Microsoft365Workloads, r.Classification, $"{r.Warnings} / {r.Errors}" }))
-            .AlignLeft(0).AlignCenter(1,2,3,4,5,6,7,8,9,10).AlignLeft(11).AlignRight(12));
+            .Headers("Domain", "Priority", "Warnings", "Errors")
+            .Rows(rows.Select(r => (IReadOnlyList<string>)new[] { r.Domain, r.Errors > 0 ? "Error" : r.Warnings > 0 ? "Warning" : "OK", r.Warnings.ToString(), r.Errors.ToString() }))
+            .AlignLeft(0, 1).AlignRight(2, 3));
+
+        foreach (var row in rows) {
+            md.P($"{row.Domain}: MX {row.Mx}; SPF {row.Spf}; DKIM {row.Dkim}; DMARC {row.Dmarc}; MTA-STS {row.Mtasts}; TLS-RPT {row.TlsRpt}; DNSSEC {row.Dnssec}; RPKI {row.Rpki}; Microsoft 365 {row.Microsoft365}; M365 Workloads {row.Microsoft365Workloads}.");
+        }
 
         // Provider chain + quick links (Word parity, condensed)
         md.H2("Mail Providers");
@@ -141,8 +156,23 @@ public static partial class MarkdownCompositionReport
             catch { }
         }
 
+        foreach (var evidence in additionalEvidence) {
+            md.H1("Assessment findings — " + MarkdownReportText.Escape(MessageHeaderReport.VisibleText(evidence.Subject)))
+                .P("This assessment appendix retains findings and supplied recommended actions from every completed view, including checks without a dedicated technical section.");
+            md.Table(t => t.Headers("Severity", "Category", "Target", "Finding", "Code").Rows(evidence.Assessments.Where(a => showInfoFindings || a.Severity != AssessmentSeverity.Info).Select(a => (IReadOnlyList<string>)new[] {
+                a.Severity.ToString(), MarkdownReportText.Escape(MessageHeaderReport.VisibleText(a.Category)), MarkdownReportText.Escape(MessageHeaderReport.VisibleText(a.Target)), MarkdownReportText.Escape(MessageHeaderReport.VisibleText(a.Message)), MarkdownReportText.Escape(MessageHeaderReport.VisibleText(a.Code))
+            })));
+            md.H2("Recommended actions");
+            foreach (var action in evidence.Recommendations) {
+                md.P(MarkdownReportText.Escape(MessageHeaderReport.VisibleText(action.Title)));
+                if (!string.IsNullOrWhiteSpace(action.Why)) md.P(MarkdownReportText.Escape(MessageHeaderReport.VisibleText(action.Why)));
+                if (!string.IsNullOrWhiteSpace(action.How)) md.P("Action: " + MarkdownReportText.Escape(MessageHeaderReport.VisibleText(action.How)));
+                if (!string.IsNullOrWhiteSpace(action.Verify)) md.P("Verify: " + MarkdownReportText.Escape(MessageHeaderReport.VisibleText(action.Verify)));
+            }
+        }
+
         // Per-domain content (implemented in partial file)
-        WritePerDomain(md, domains, ordering, inputSectionOrder);
+        if (scope != ReportScope.Minimal) { WritePerDomain(md, domains, ordering, inputSectionOrder, showInfoFindings); }
 
         // All References parity with Word
         try
@@ -223,14 +253,16 @@ public static partial class MarkdownCompositionReport
 
     private static string ComputeStatus(DomainBucket b)
     {
-        var err = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + (b.AgentReadiness?.ErrorCount ?? 0) + (b.Sitemap?.ErrorCount ?? 0) + (b.Microsoft365?.ErrorCount ?? 0) + (b.Typosquatting?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
-        var warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + (b.AgentReadiness?.WarningCount ?? 0) + (b.Sitemap?.WarningCount ?? 0) + (b.Microsoft365?.WarningCount ?? 0) + (b.Typosquatting?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
+        var err = b.Errors;
+        var warn = b.Warnings;
         return err > 0 ? "🔴 Error" : (warn > 0 ? "🟠 Warning" : "🟢 OK");
     }
 
     private sealed class DomainBucket
     {
         public string Subject { get; set; } = string.Empty;
+        public int Warnings { get; set; }
+        public int Errors { get; set; }
         public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }

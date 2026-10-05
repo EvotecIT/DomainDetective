@@ -40,6 +40,36 @@ namespace DomainDetective {
         /// <summary>Fully qualified TLSA owner names that were queried (e.g., _443._tcp.example.com).</summary>
         public List<string> QueriedNames { get; private set; } = new List<string>();
 
+        private readonly List<string> _selectedServiceOwners = new List<string>();
+        private readonly List<string> _secureTlsaOwners = new List<string>();
+        internal IReadOnlyList<string> SelectedServiceOwners => _selectedServiceOwners;
+        internal void SelectServiceOwner(string owner, bool secureTlsaRecords) {
+            if (!_selectedServiceOwners.Contains(owner, StringComparer.OrdinalIgnoreCase)) {
+                _selectedServiceOwners.Add(owner);
+            }
+            if (secureTlsaRecords && !_secureTlsaOwners.Contains(owner, StringComparer.OrdinalIgnoreCase)) {
+                _secureTlsaOwners.Add(owner);
+            }
+        }
+
+        /// <summary>Whether service discovery found a locally DNSSEC-validated TLSA RRset.</summary>
+        public bool HasSecureTlsaRecords => _secureTlsaOwners.Count > 0;
+
+        /// <summary>Whether MX records used for SMTP service selection were locally DNSSEC validated. Null when MX selection was not used.</summary>
+        public bool? MxDnssecValidated { get; internal set; }
+
+        private readonly List<string> _failedDnsQueries = new List<string>();
+        /// <summary>True when service discovery could not establish TLSA presence or absence for every query.</summary>
+        public bool DnsQueryFailed => _failedDnsQueries.Count > 0;
+        /// <summary>DNS names whose service discovery queries failed.</summary>
+        public IReadOnlyList<string> FailedDnsQueries => _failedDnsQueries;
+
+        internal void RecordDnsQueryFailure(string name, string detail, InternalLogger logger) {
+            if (_failedDnsQueries.Contains(name, StringComparer.OrdinalIgnoreCase)) return;
+            _failedDnsQueries.Add(name);
+            logger.WriteWarningCode(DaneCodes.QueryFailed, "DANE DNS query failed for {0}: {1}", name, detail);
+        }
+
         /// <summary>Ports that were probed for TLSA lookups.</summary>
         public List<int> QueriedPorts { get; private set; } = new List<int>();
 
@@ -60,6 +90,10 @@ namespace DomainDetective {
         /// <summary>Executes the reset operation.</summary>
         public void Reset() {
             ResetResults();
+            _failedDnsQueries.Clear();
+            _selectedServiceOwners.Clear();
+            _secureTlsaOwners.Clear();
+            MxDnssecValidated = null;
             QueriedNames = new List<string>();
             QueriedPorts = new List<int>();
             QueriedServiceTypes = new List<ServiceType>();
@@ -291,6 +325,10 @@ namespace DomainDetective {
         public DaneAssociationMatchStatus AssociationMatchStatus { get; set; }
         /// <summary>Gets a value indicating whether live certificate evidence matched the association data.</summary>
         public bool CertificateMatches => AssociationMatchStatus == DaneAssociationMatchStatus.Match;
+        /// <summary>Authentication result, separate from matching association bytes.</summary>
+        public DaneAuthenticationStatus AuthenticationStatus { get; internal set; }
+        /// <summary>Reason for the current authentication result.</summary>
+        public string? AuthenticationExplanation { get; internal set; }
         /// <summary>Gets or sets whether the usage field is valid.</summary>
         public bool ValidUsage { get; set; }
         /// <summary>Gets or sets whether the selector field is valid.</summary>

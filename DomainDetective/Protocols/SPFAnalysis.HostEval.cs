@@ -63,7 +63,7 @@ public partial class SpfAnalysis {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(name, type);
             }
-            return await DnsConfiguration.QueryDNS(
+            return await DnsConfiguration.QueryPolicyDNS(
                 name,
                 type,
                 filter: string.Empty,
@@ -72,6 +72,7 @@ public partial class SpfAnalysis {
         }
 
         async Task<(string? Record, bool Multiple, bool Failed)> GetRecordAsync(string name, bool useAnalyzedRecord) {
+            if (useAnalyzedRecord && DnsQueryFailed) return (null, false, true);
             if (useAnalyzedRecord && SpfRecordExists) {
                 return (SpfRecord, MultipleSpfRecords, false);
             }
@@ -112,9 +113,8 @@ public partial class SpfAnalysis {
                     return HostEvaluationResult.Error("none", currentDomain, chain);
                 }
 
-                var tokens = TokenizeSpfRecord(lookup.Record!).Select(token => token.Trim('"')).ToArray();
-                if (tokens.Length == 0 || !tokens[0].Equals("v=spf1", StringComparison.OrdinalIgnoreCase)) {
-                    return HostEvaluationResult.Error("none", currentDomain, chain);
+                if (!TryValidateSpfSyntax(lookup.Record!, out var tokens, out var invalidToken, out var invalidType)) {
+                    return HostEvaluationResult.Match("permerror", invalidToken ?? string.Empty, invalidType ?? "syntax", currentDomain, chain);
                 }
 
                 string? redirect = null;
@@ -131,13 +131,13 @@ public partial class SpfAnalysis {
                         redirect = rawToken.Substring("redirect=".Length);
                         continue;
                     }
-                    if (rawToken.IndexOf('=') >= 0) {
+                    if (TryGetSpfModifier(rawToken, out _, out _)) {
                         // Unknown modifiers are ignored by RFC 7208.
                         continue;
                     }
 
                     var qualifier = rawToken.Length > 0 && "+-~?".IndexOf(rawToken[0]) >= 0 ? rawToken[0] : '+';
-                    var token = rawToken.TrimStart('+', '-', '~', '?');
+                    var token = "+-~?".IndexOf(rawToken[0]) >= 0 ? rawToken.Substring(1) : rawToken;
                     var qualifiedVerdict = QualifierVerdict(qualifier);
 
                     if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase) || token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
@@ -334,7 +334,7 @@ public partial class SpfAnalysis {
         };
     }
 
-    private static bool IsSpfPolicyRecord(string value) {
+    internal static bool IsSpfPolicyRecord(string value) {
         return value.Equals("v=spf1", StringComparison.OrdinalIgnoreCase) ||
                value.StartsWith("v=spf1 ", StringComparison.OrdinalIgnoreCase);
     }
@@ -362,23 +362,25 @@ public partial class SpfAnalysis {
         ipv4Prefix = 32;
         ipv6Prefix = 128;
         var suffix = token.Substring(mechanism.Length);
+        int cidrStart = SpfCidrStart(suffix);
+        string cidr = cidrStart < 0 ? string.Empty : suffix.Substring(cidrStart);
+        if (cidrStart >= 0) suffix = suffix.Substring(0, cidrStart);
 
-        var doubleSlash = suffix.IndexOf("//", StringComparison.Ordinal);
+        var doubleSlash = cidr.IndexOf("//", StringComparison.Ordinal);
         if (doubleSlash >= 0) {
-            var ipv6Text = suffix.Substring(doubleSlash + 2);
+            var ipv6Text = cidr.Substring(doubleSlash + 2);
             if (!int.TryParse(ipv6Text, out ipv6Prefix) || ipv6Prefix < 0 || ipv6Prefix > 128) {
                 return false;
             }
-            suffix = suffix.Substring(0, doubleSlash);
+            cidr = cidr.Substring(0, doubleSlash);
         }
 
-        var singleSlash = suffix.LastIndexOf('/');
+        var singleSlash = cidr.LastIndexOf('/');
         if (singleSlash >= 0) {
-            var ipv4Text = suffix.Substring(singleSlash + 1);
+            var ipv4Text = cidr.Substring(singleSlash + 1);
             if (!int.TryParse(ipv4Text, out ipv4Prefix) || ipv4Prefix < 0 || ipv4Prefix > 32) {
                 return false;
             }
-            suffix = suffix.Substring(0, singleSlash);
         }
 
         if (suffix.Length == 0) {

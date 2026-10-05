@@ -116,7 +116,7 @@ public static class DnsOverTlsWordSectionWriter
             }
         }
 
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Positives", baseLevel);
             var list = doc.AddList(WordListStyle.Bulleted);
@@ -124,7 +124,7 @@ public static class DnsOverTlsWordSectionWriter
             {
                 list.AddItem(p);
             }
-            if (sec.Positives.Count > 25)
+            if (showInfoFindings && sec.Positives.Count > 25)
             {
                 doc.AddParagraph($"+{sec.Positives.Count - 25} more positive signal(s).").SetItalic(true);
             }

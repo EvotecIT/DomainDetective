@@ -44,7 +44,7 @@ public static class RpkiWordSectionWriter
         }
 
         // Good posture
-        if (scope != ReportScope.Minimal && rpki.Positives != null && rpki.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && rpki.Positives != null && rpki.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             var list = doc.AddList(WordListStyle.Bulleted);
@@ -110,7 +110,7 @@ public static class RpkiWordSectionWriter
             for (int i=0;i<results.Count;i++){ var rr = results[i]; rt.Rows[i+1].Cells[0].AddParagraph(rr.IpAddress ?? string.Empty); rt.Rows[i+1].Cells[1].AddParagraph(rr.Prefix ?? string.Empty); rt.Rows[i+1].Cells[2].AddParagraph(rr.Asn.ToString()); rt.Rows[i+1].Cells[3].AddParagraph(rr.Valid ? "Yes" : "No"); }
         }
 
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

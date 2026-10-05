@@ -48,7 +48,7 @@ public static class DesiredStateWordSectionWriter
 
         headings.AddItem("Desired State Conformance", baseLevel);
         doc.AddParagraph("Baseline conformance highlights deviations from the desired configuration.");
-        if (sec.DesiredPositives.Count > 0)
+        if (showInfoFindings && sec.DesiredPositives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel + 1);
             doc.AddParagraph("This domain demonstrates the following positive posture:");
@@ -100,7 +100,7 @@ public static class DesiredStateWordSectionWriter
         {
             headings.AddItem("Best-Practice Gaps", baseLevel);
             doc.AddParagraph("Best-practice gaps show recommendations outside the baseline for this mode.");
-            if (sec.BestPracticePositives.Count > 0)
+            if (showInfoFindings && sec.BestPracticePositives.Count > 0)
             {
                 headings.AddItem("Good posture", baseLevel + 1);
                 doc.AddParagraph("This domain demonstrates the following positive posture:");

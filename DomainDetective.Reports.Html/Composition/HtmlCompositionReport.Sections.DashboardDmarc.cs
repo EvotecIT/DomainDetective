@@ -22,8 +22,8 @@ public static partial class HtmlCompositionReport
                 Policy = sec.Policy,
                 adkim = sec.DkimAlignment ?? "-",
                 aspf = sec.SpfAlignment ?? "-",
-                RUA = sec.RuaCount,
-                RUF = sec.RufCount
+                RUA = kv.Value.Dmarc.RecordPresence == "Unknown" ? "Unknown" : sec.RuaCount.ToString(),
+                RUF = kv.Value.Dmarc.RecordPresence == "Unknown" ? "Unknown" : sec.RufCount.ToString()
             });
         }
         if (rows.Count == 0) return;
@@ -41,4 +41,3 @@ public static partial class HtmlCompositionReport
         }));
     }
 }
-

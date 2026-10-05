@@ -31,6 +31,24 @@ namespace DomainDetective.PowerShell {
             };
         }
 
+        private static string SpfStatus(DomainSummary summary, bool symbols) {
+            if (summary.SpfDnsQueryFailed && !summary.HasSpfRecord)
+                return symbols ? "⚠ Query failed" : "Query failed";
+            if (!summary.HasSpfRecord) return symbols ? "✗ Missing" : "Missing";
+            return summary.SpfValid ? (symbols ? "✓ Valid" : "Valid") : (symbols ? "⚠ Invalid" : "Invalid");
+        }
+
+        private static string DmarcStatus(DomainSummary summary, bool symbols) {
+            if (summary.DmarcDnsQueryFailed)
+                return summary.HasDmarcRecord
+                    ? (symbols ? "⚠ Query incomplete" : "Query incomplete")
+                    : (symbols ? "⚠ Query failed" : "Query failed");
+            if (!summary.HasDmarcRecord) return symbols ? "✗ Missing" : "Missing";
+            if (!summary.DmarcValid) return symbols ? "⚠ Invalid" : "Invalid";
+            string policy = "Valid (" + summary.DmarcPolicy + ")";
+            return symbols ? "✓ " + policy : policy;
+        }
+
         /// <summary>
         /// Runs the interactive wizard that guides the user through domain
         /// verification.
@@ -188,8 +206,8 @@ namespace DomainDetective.PowerShell {
                     
                     // Display key summary info
                     Host.UI.WriteLine("");
-                    Host.UI.WriteLine($"SPF: {(summary.HasSpfRecord ? (summary.SpfValid ? "✓ Valid" : "⚠ Invalid") : "✗ Missing")}");
-                    Host.UI.WriteLine($"DMARC: {(summary.HasDmarcRecord ? (summary.DmarcValid ? $"✓ Valid ({summary.DmarcPolicy})" : "⚠ Invalid") : "✗ Missing")}");
+                    Host.UI.WriteLine($"SPF: {SpfStatus(summary, symbols: true)}");
+                    Host.UI.WriteLine($"DMARC: {DmarcStatus(summary, symbols: true)}");
                     Host.UI.WriteLine($"DKIM: {(summary.HasDkimRecord ? (summary.DkimValid ? "✓ Valid" : "⚠ Invalid") : "✗ Missing")}");
                     Host.UI.WriteLine($"MX: {(summary.HasMxRecord ? "✓ Present" : "✗ Missing")}");
                     Host.UI.WriteLine($"DNSSEC: {(summary.DnsSecValid ? "✓ Valid" : "✗ Not enabled")}");
@@ -215,8 +233,8 @@ namespace DomainDetective.PowerShell {
                     var summary = hc.BuildSummary();
                     Host.UI.WriteLine("");
                     Host.UI.WriteLine("Quick Summary:");
-                    Host.UI.WriteLine($"  SPF: {(summary.HasSpfRecord ? (summary.SpfValid ? "Valid" : "Invalid") : "Missing")}");
-                    Host.UI.WriteLine($"  DMARC: {(summary.HasDmarcRecord ? (summary.DmarcValid ? $"Valid ({summary.DmarcPolicy})" : "Invalid") : "Missing")}");
+                    Host.UI.WriteLine($"  SPF: {SpfStatus(summary, symbols: false)}");
+                    Host.UI.WriteLine($"  DMARC: {DmarcStatus(summary, symbols: false)}");
                     Host.UI.WriteLine($"  DKIM: {(summary.HasDkimRecord ? (summary.DkimValid ? "Valid" : "Invalid") : "Missing")}");
                     Host.UI.WriteLine($"  DNSSEC: {(summary.DnsSecValid ? "Valid" : "Not enabled")}");
                     

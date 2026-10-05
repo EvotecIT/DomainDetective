@@ -243,7 +243,8 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task TotalLengthBoundary() {
-            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"cc";
+            // Three complete TXT character-strings keep the 255-byte chunk and 512-byte total boundaries independent.
+            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"cc\"";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckSPF(spfRecord);
 
@@ -253,7 +254,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task TotalLengthExceeded() {
-            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"ccc";
+            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"ccc\"";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckSPF(spfRecord);
 
@@ -361,25 +362,23 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task EscapedParenthesesHandled() {
+        public async Task LiteralParenthesesAreNotAValidRedirectDomain() {
             var spfRecord = @"v=spf1 redirect=example.com\(test\)";
             var healthCheck = new DomainHealthCheck();
 
             await healthCheck.CheckSPF(spfRecord);
 
-            Assert.True(healthCheck.SpfAnalysis.HasRedirect);
-            Assert.Equal("example.com(test)", healthCheck.SpfAnalysis.RedirectValue);
+            Assert.True(healthCheck.SpfAnalysis.PermError);
         }
 
         [Fact]
-        public async Task EscapedSpaceHandled() {
+        public async Task LiteralSpaceDoesNotBecomePartOfARedirectDomain() {
             var spfRecord = @"v=spf1 redirect=example.com\ test";
             var healthCheck = new DomainHealthCheck();
 
             await healthCheck.CheckSPF(spfRecord);
 
-            Assert.True(healthCheck.SpfAnalysis.HasRedirect);
-            Assert.Equal("example.com test", healthCheck.SpfAnalysis.RedirectValue);
+            Assert.True(healthCheck.SpfAnalysis.PermError);
         }
 
         [Fact]
@@ -524,8 +523,8 @@ namespace DomainDetective.Tests {
             healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 ip4:192.0.2.1 -all";
             healthCheck.SpfAnalysis.QueryDnsOverride = (name, type) => {
                 return (name, type) switch {
-                    ("mx.example.com", DnsRecordType.MX) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "10 mail.example.com" } }),
-                    ("mail.example.com", DnsRecordType.A) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "203.0.113.5" } }),
+                    ("mx.example.com", DnsRecordType.MX) => Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "10 mail.example.com" } }),
+                    ("mail.example.com", DnsRecordType.A) => Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "203.0.113.5" } }),
                     _ => Task.FromResult(Array.Empty<DnsAnswer>())
                 };
             };

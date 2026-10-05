@@ -180,7 +180,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
 	                    if (formatEnum == ReportFormat.Html || formatEnum == ReportFormat.Word)
 	                    {
 	                        var conversionErrors = new List<string>();
-	                        var items = BuildCompositionItems(healthCheck, settings.Domain, settings.StorePath, conversionErrors);
+	                        var items = HealthCheckReportItems.BuildItems(healthCheck, settings.Domain, settings.StorePath, settings.IncludeDnsTrace, conversionErrors);
 	
 	                        if (formatEnum == ReportFormat.Word)
 	                        {
@@ -324,76 +324,6 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         "system" or "auto" => ThemeMode.System,
         _ => fallback
     };
-
-    private static List<object> BuildCompositionItems(DomainHealthCheck healthCheck, string domain, string? storePath, List<string> conversionErrors)
-    {
-        var items = new List<object>();
-        if (conversionErrors == null)
-        {
-            throw new ArgumentNullException(nameof(conversionErrors));
-        }
-
-        // Core DNS/mail policy checks from this run
-        void TryAdd(string name, Func<object> factory)
-        {
-            try
-            {
-                items.Add(factory());
-            }
-            catch (Exception ex)
-            {
-                conversionErrors.Add($"{name}: {ex.GetType().Name}: {ex.Message}");
-            }
-        }
-
-        // Every check the run executed, through the library's shared check-to-view conversion.
-        items.AddRange(DomainDetective.Views.Converters.ConvertChecks(healthCheck, errors: conversionErrors));
-
-        // Optional time-series sections from a store (only when data exists)
-        if (!string.IsNullOrWhiteSpace(storePath))
-        {
-            try
-            {
-                var dmarcStore = new DmarcAggregateTimeSeriesStore(storePath!);
-                var snaps = dmarcStore.LoadSnapshots(domain);
-                if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
-            }
-            catch (Exception ex)
-            {
-                conversionErrors.Add($"DMARC-AGGREGATE-STORE: {ex.GetType().Name}: {ex.Message}");
-            }
-
-            try
-            {
-                var tlsStore = new TlsRptTimeSeriesStore(storePath!);
-                var snaps = tlsStore.LoadSnapshots(domain);
-                if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
-            }
-            catch (Exception ex)
-            {
-                conversionErrors.Add($"TLSRPT-STORE: {ex.GetType().Name}: {ex.Message}");
-            }
-
-            try
-            {
-                var regStore = new RegistrationTimeSeriesStore(storePath!);
-                var snaps = regStore.LoadSnapshots(domain);
-                if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
-            }
-            catch (Exception ex)
-            {
-                conversionErrors.Add($"REGISTRATION-STORE: {ex.GetType().Name}: {ex.Message}");
-            }
-        }
-
-        // Composition generators require at least one supported view object.
-        if (items.Count == 0)
-        {
-            TryAdd("MX", () => DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
-        }
-
-        return items;
-    }
 
     private static void TryOpenWithShell(string path)
     {

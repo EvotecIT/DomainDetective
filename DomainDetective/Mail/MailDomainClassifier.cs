@@ -60,7 +60,9 @@ public sealed class MailDomainClassifier {
             x.ValidPublicKey && x.ValidKeyLength && x.ValidKeyType && x.ValidFlags) == true;
         var hasMtaSts = _health.MTASTSAnalysis?.PolicyValid == true;
         var hasTlsRpt = _health.TLSRPTAnalysis?.TlsRptRecordExists == true;
-        var hasDaneSmtp = _health.DaneAnalysis?.AnalysisResults?.Any(x => x.ServiceType == ServiceType.SMTP) == true;
+        var hasDaneSmtp = _health.DaneAnalysis?.MxDnssecValidated == true &&
+            _health.DaneAnalysis.HasSecureTlsaRecords &&
+            _health.DaneAnalysis.AnalysisResults.Any(x => x.ServiceType == ServiceType.SMTP && x.ValidDANERecord);
         var hasBimi = _health.BimiAnalysis?.BimiRecordExists == true;
         var hasVmc = _health.BimiAnalysis?.ValidVmc == true && _health.BimiAnalysis?.VmcSignedByKnownRoot == true;
         var asnDistinct = _health.ApexAddressAnalysis?.AsnDistinctCount ?? 0;
@@ -72,7 +74,7 @@ public sealed class MailDomainClassifier {
             var dmarc = _health.DmarcAnalysis;
             var bimi = _health.BimiAnalysis;
             if (bimi != null && dmarc != null) {
-                var policy = dmarc.Policy?.Trim()?.ToLowerInvariant();
+                var policy = dmarc.EffectivePolicyShort;
                 var policyEnforcing = policy == "reject" || policy == "quarantine";
                 var pctFull = !dmarc.Pct.HasValue || dmarc.Pct.Value >= 100;
                 if (bimi.BimiRecordExists && bimi.StartsCorrectly) {

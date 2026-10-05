@@ -36,9 +36,9 @@ public static class DmarcWordSectionWriter
         doc.AddParagraph("DMARC record presence, policy, alignment and reporting endpoints.");
         var t = doc.AddTable(11, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "Record Present";
-        t.Rows[0].Cells[1].Paragraphs[0].Text = dmarc.DmarcRecordExists ? "Yes" : "No";
+        t.Rows[0].Cells[1].Paragraphs[0].Text = dmarc.RecordPresence;
         t.Rows[1].Cells[0].Paragraphs[0].Text = "Policy";
-        t.Rows[1].Cells[1].Paragraphs[0].Text = dmarc.Policy ?? string.Empty;
+        t.Rows[1].Cells[1].Paragraphs[0].Text = dmarc.Policy ?? (dmarc.RecordPresence == "Unknown" ? "Unknown" : string.Empty);
         t.Rows[2].Cells[0].Paragraphs[0].Text = "DNS TTL (s)";
         t.Rows[2].Cells[1].Paragraphs[0].Text = dmarc.DnsRecordTtl?.ToString() ?? "-";
         t.Rows[3].Cells[0].Paragraphs[0].Text = "CNAME Resolved";
@@ -50,9 +50,9 @@ public static class DmarcWordSectionWriter
         t.Rows[6].Cells[0].Paragraphs[0].Text = "pct";
         t.Rows[6].Cells[1].Paragraphs[0].Text = dmarc.Percent ?? string.Empty;
         t.Rows[7].Cells[0].Paragraphs[0].Text = "rua";
-        t.Rows[7].Cells[1].Paragraphs[0].Text = (dmarc.MailtoRua?.Count ?? 0).ToString();
+        t.Rows[7].Cells[1].Paragraphs[0].Text = dmarc.RecordPresence == "Unknown" ? "Unknown" : ((dmarc.MailtoRua?.Count ?? 0) + (dmarc.HttpRua?.Count ?? 0)).ToString();
         t.Rows[8].Cells[0].Paragraphs[0].Text = "ruf";
-        t.Rows[8].Cells[1].Paragraphs[0].Text = (dmarc.MailtoRuf?.Count ?? 0).ToString();
+        t.Rows[8].Cells[1].Paragraphs[0].Text = dmarc.RecordPresence == "Unknown" ? "Unknown" : ((dmarc.MailtoRuf?.Count ?? 0) + (dmarc.HttpRuf?.Count ?? 0)).ToString();
         t.Rows[9].Cells[0].Paragraphs[0].Text = "ext auth";
         t.Rows[9].Cells[1].Paragraphs[0].Text = (dmarc.ExternalReportAuthorization?.Count ?? 0).ToString();
         t.Rows[10].Cells[0].Paragraphs[0].Text = "Status";
@@ -61,7 +61,7 @@ public static class DmarcWordSectionWriter
         if (scope == ReportScope.Minimal) return;
 
         // Good posture
-        if (scope != ReportScope.Minimal && dmarc.Positives != null && dmarc.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && dmarc.Positives != null && dmarc.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");
@@ -196,7 +196,7 @@ public static class DmarcWordSectionWriter
         var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
         for (int i = 0; i < rows.Count; i++) { t.Rows[i].Cells[0].Paragraphs[0].Text = rows[i].Key; t.Rows[i].Cells[1].Paragraphs[0].Text = rows[i].Value; }
 
-        if (sec.Positives.Count > 0)
+        if (showInfoFindings && sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

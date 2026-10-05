@@ -378,7 +378,7 @@ public abstract partial class AsyncPSCmdlet : PSCmdlet, IDisposable
     /// <summary>Cancellation token triggered when PowerShell stops the cmdlet.</summary>
     protected internal CancellationToken CancelToken => _cancelSource.Token;
 
-    /// <inheritdoc />
+    /// <summary>Runs the asynchronous begin hook while pumping writes on the PowerShell pipeline thread.</summary>
     protected override void BeginProcessing()
         => RunBlockInAsync(BeginProcessingAsync);
 
@@ -386,7 +386,7 @@ public abstract partial class AsyncPSCmdlet : PSCmdlet, IDisposable
     protected virtual Task BeginProcessingAsync()
         => Task.CompletedTask;
 
-    /// <inheritdoc />
+    /// <summary>Runs the asynchronous record hook while pumping writes on the PowerShell pipeline thread.</summary>
     protected override void ProcessRecord()
         => RunBlockInAsync(ProcessRecordAsync);
 
@@ -394,7 +394,7 @@ public abstract partial class AsyncPSCmdlet : PSCmdlet, IDisposable
     protected virtual Task ProcessRecordAsync()
         => Task.CompletedTask;
 
-    /// <inheritdoc />
+    /// <summary>Runs the asynchronous end hook while pumping writes on the PowerShell pipeline thread.</summary>
     protected override void EndProcessing()
         => RunBlockInAsync(EndProcessingAsync);
 
@@ -402,7 +402,7 @@ public abstract partial class AsyncPSCmdlet : PSCmdlet, IDisposable
     protected virtual Task EndProcessingAsync()
         => Task.CompletedTask;
 
-    /// <inheritdoc />
+    /// <summary>Requests cancellation of asynchronous cmdlet work when the PowerShell pipeline stops.</summary>
     protected override void StopProcessing()
         => CancelSource();
 

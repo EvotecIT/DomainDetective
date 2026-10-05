@@ -19,7 +19,7 @@ public static class ArcNarrative
         var keywords = "ARC, email, security, DomainDetective";
         var creator = "DomainDetective";
         var intro = "Authenticated Received Chain (ARC) preserves authentication results through intermediaries.";
-        var why = "Valid ARC chains allow receivers to trust authentication results even after forwarding.";
+        var why = "Receivers can use cryptographically verified ARC history from trusted sealers when evaluating forwarded mail. Header structure alone does not establish that trust.";
 
         var highlights = new List<string>();
         var details = new List<string>();
@@ -30,7 +30,7 @@ public static class ArcNarrative
         highlights.Add(arc.ArcHeadersFound ? "ARC headers present." : "No ARC headers present.");
         if (arc.ChainState == ArcChainState.Valid)
         {
-            highlights.Add("ARC chain is valid and sequential.");
+            highlights.Add("ARC header structure is complete and sequential; cryptographic verification is separate.");
         }
         else if (arc.ChainState == ArcChainState.Invalid)
         {
@@ -43,10 +43,11 @@ public static class ArcNarrative
 
         if (arc.SealsIncludeSignatures)
         {
-            highlights.Add("ARC seals include signatures.");
+            highlights.Add("ARC seals contain signature values; presence does not establish validity.");
         }
 
         details.Add($"ARC-Seal headers: {arc.ArcSealHeaders.Count}");
+        details.Add($"ARC-Message-Signature headers: {arc.ArcMessageSignatureHeaders.Count}");
         details.Add($"ARC-Authentication-Results headers: {arc.ArcAuthenticationResultsHeaders.Count}");
 
         var refs = new List<string>

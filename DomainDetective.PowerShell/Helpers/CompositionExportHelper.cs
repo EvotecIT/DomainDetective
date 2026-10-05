@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using DomainDetective.Reports;
 using DomainDetective.Reports.Html;
 using DomainDetective.Reports.Markdown;
@@ -22,6 +23,8 @@ internal static class CompositionExportHelper
     {
         var generatedPaths = new List<string>();
         hadUnsupportedFormats = false;
+        var messages = items.OfType<MessageHeaderAnalysis>().ToArray();
+        if (messages.Length > 0 && messages.Length != items.Count) { throw new ArgumentException("Message evidence reports cannot be mixed with domain report items.", nameof(items)); }
 
         foreach (var format in formats)
         {
@@ -31,6 +34,20 @@ internal static class CompositionExportHelper
                 label,
                 format,
                 formats);
+
+            if (messages.Length > 0) {
+                switch (format) {
+                    case ReportFormat.Word: MessageHeaderOfficeReport.GenerateWord(outputPath, messages); break;
+                    case ReportFormat.Excel: MessageHeaderOfficeReport.GenerateExcel(outputPath, messages); break;
+                    case ReportFormat.Html: MessageHeaderHtmlReport.Generate(outputPath, messages); break;
+                    case ReportFormat.Markdown: MessageHeaderMarkdownReport.Generate(outputPath, messages); break;
+                    case ReportFormat.MarkdownHtml: MessageHeaderMarkdownReport.Generate(outputPath, messages, html: true); break;
+                    default: hadUnsupportedFormats = true; continue;
+                }
+                generatedPaths.Add(outputPath);
+                if (openInBrowser && format != ReportFormat.Markdown) { openReport?.Invoke(outputPath); }
+                continue;
+            }
 
             if (format == ReportFormat.Word)
             {

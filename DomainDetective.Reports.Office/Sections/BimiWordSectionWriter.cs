@@ -36,7 +36,7 @@ public static class BimiWordSectionWriter
         if (scope == ReportScope.Minimal) return;
 
         // Positives
-        if (scope != ReportScope.Minimal && bimi.Positives != null && bimi.Positives.Count > 0)
+        if (showInfoFindings && scope != ReportScope.Minimal && bimi.Positives != null && bimi.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
             doc.AddParagraph("This domain demonstrates the following positive posture:");

@@ -105,6 +105,7 @@ public static partial class Converters
             IsCnameResolved = analysis.IsCnameResolved,
             RecordLength = analysis.SpfRecord?.Length ?? 0,
             SpfRecordExists = analysis.SpfRecordExists,
+            DnsQueryFailed = analysis.DnsQueryFailed,
             StartsCorrectly = analysis.StartsCorrectly,
             MultipleSpfRecords = analysis.MultipleSpfRecords,
             DnsLookupsCount = analysis.DnsLookupsCount,
@@ -127,7 +128,9 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"policy {policy}; lookups {analysis.DnsLookupsCount}/10; size {(analysis.ExceedsTotalCharacterLimit || analysis.ExceedsCharacterLimit ? "limit" : "ok")}",
+            Summary = analysis.DnsQueryFailed && !analysis.SpfRecordExists
+                ? "SPF policy unknown because DNS discovery failed."
+                : $"policy {policy}; lookups {analysis.DnsLookupsCount}/10; size {(analysis.ExceedsTotalCharacterLimit || analysis.ExceedsCharacterLimit ? "limit" : "ok")}",
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
@@ -142,6 +145,8 @@ public static partial class Converters
             ResolvedIpv6Records = analysis.ResolvedIpv6Records ?? new List<string>(),
             ResolvedIncludeRecords = analysis.ResolvedIncludeRecords ?? new List<string>(),
             FlattenedUniqueIps = analysis.FlattenedIpAnalysis?.UniqueIps ?? new List<string>(),
+            FlatteningComplete = analysis.FlattenedIpAnalysis?.Complete ?? true,
+            FlatteningLimitations = analysis.FlattenedIpAnalysis?.Limitations ?? System.Array.Empty<string>(),
             FlattenedDuplicateIps = analysis.FlattenedIpAnalysis?.DuplicateIps ?? new List<string>(),
             EffectiveSpfSends = analysis.EffectiveSpfSends,
             PermError = analysis.PermError,
@@ -197,6 +202,16 @@ public class SpfRecordInfo
     public int RecordLength { get; set; }
     /// <summary>Gets or sets the spf record exists value.</summary>
     public bool SpfRecordExists { get; set; }
+    /// <summary>Whether SPF policy discovery failed before presence or absence was established.</summary>
+    public bool DnsQueryFailed { get; set; }
+    /// <summary>Record presence for report tables, preserving unknown after a failed DNS lookup.</summary>
+    public string RecordPresence => SpfRecordExists ? "Yes" : DnsQueryFailed ? "Unknown" : "No";
+    /// <summary>Version-tag validity for report tables when discovery may be incomplete.</summary>
+    public string StartsCorrectlyLabel => DnsQueryFailed && !SpfRecordExists ? "Unknown" : StartsCorrectly ? "Yes" : "No";
+    /// <summary>Whether the projected address set has no unresolved dependencies.</summary>
+    public bool FlatteningComplete { get; set; } = true;
+    /// <summary>Reasons why the projected address set may be incomplete.</summary>
+    public IReadOnlyList<string> FlatteningLimitations { get; set; } = System.Array.Empty<string>();
     /// <summary>Gets or sets the starts correctly value.</summary>
     public bool StartsCorrectly { get; set; }
     /// <summary>Gets or sets the multiple spf records value.</summary>

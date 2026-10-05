@@ -409,10 +409,10 @@ public partial class DomainHealthCheck {
                 }
             }
 
-            if (!spfValid) {
+            if (!spfValid && spf?.DnsQueryFailed != true) {
                 AddHint(hints, HealthCheckType.SPF);
             }
-            if (!dmarcValid) {
+            if (!dmarcValid && (dmarc?.DnsQueryFailed != true || dmarc.DmarcRecordExists)) {
                 AddHint(hints, HealthCheckType.DMARC);
             }
             if (!dkimValid) {
@@ -430,8 +430,10 @@ public partial class DomainHealthCheck {
 
             return new DomainSummary {
                 HasSpfRecord = spf?.SpfRecordExists ?? false,
+                SpfDnsQueryFailed = spf?.DnsQueryFailed ?? false,
                 SpfValid = spfValid,
                 HasDmarcRecord = dmarc?.DmarcRecordExists ?? false,
+                DmarcDnsQueryFailed = dmarc?.DnsQueryFailed ?? false,
                 DmarcPolicy = dmarc?.Policy ?? string.Empty,
                 DmarcValid = dmarcValid,
                 HasDkimRecord = dkim?.AnalysisResults.Values.Any(a => a.DkimRecordExists) ?? false,

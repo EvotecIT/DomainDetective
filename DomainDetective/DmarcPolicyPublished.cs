@@ -29,6 +29,11 @@ public sealed class DmarcPolicyPublished {
     /// <summary>Policy for non-existent subdomains (DMARC v2).</summary>
     public string? Np { get; set; }
 
+    /// <summary>Testing mode reported under RFC 9990 (y or n).</summary>
+    public string? Testing { get; set; }
+    /// <summary>Reported policy discovery method (treewalk or psl).</summary>
+    public string? DiscoveryMethod { get; set; }
+
     /// <summary>Human-readable interpretation of <see cref="Fo"/> (failure reporting policy).</summary>
     public string? RequestedReportingPolicy { get; set; }
 

@@ -80,7 +80,7 @@ public static partial class ExcelCompositionReport {
         };
     }
 
-    private static Action<SheetComposer.ColumnComposer>? BuildMxBlock(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildMxBlock(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket.Mx == null)
         {
@@ -120,7 +120,7 @@ public static partial class ExcelCompositionReport {
             }
 
             var mxPositives = mx.Positives;
-            if (mxPositives != null && mxPositives.Count > 0)
+            if (showInfoFindings && (mxPositives != null && mxPositives.Count > 0))
             {
                 column.Section("Positives").BulletedList(mxPositives.Select(p => p.Title ?? p.Code).ToArray());
             }

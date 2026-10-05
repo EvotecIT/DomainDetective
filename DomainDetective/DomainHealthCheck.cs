@@ -17,7 +17,7 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public partial class DomainHealthCheck : Settings, IDisposable {
         private PublicSuffixList _publicSuffixList;
-        private const string DefaultPublicSuffixListUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/public_suffix_list.dat";
+        private const string DefaultPublicSuffixListUrl = "https://publicsuffix.org/list/public_suffix_list.dat";
 
         /// <summary>
         /// Serialization settings used when persisting analysis data.

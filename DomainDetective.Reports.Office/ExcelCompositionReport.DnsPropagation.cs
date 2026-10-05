@@ -7,7 +7,7 @@ namespace DomainDetective.Reports.Office;
 
 public static partial class ExcelCompositionReport
 {
-    private static Action<SheetComposer.ColumnComposer>? BuildDnsPropagationBlock(DomainBucket bucket)
+    private static Action<SheetComposer.ColumnComposer>? BuildDnsPropagationBlock(DomainBucket bucket, bool showInfoFindings)
     {
         if (bucket == null || bucket.DnsPropagation == null || bucket.DnsPropagation.Count == 0)
         {
@@ -121,7 +121,7 @@ public static partial class ExcelCompositionReport
 
                 if (sec.Findings.Count > 0)
                 {
-                    var rows = sec.Findings.Select(f => new { f.Severity, f.Code, f.Target, f.Message }).ToList();
+                    var rows = sec.Findings.Where(finding => showInfoFindings || !string.Equals(finding.Severity, "Info", StringComparison.OrdinalIgnoreCase)).Select(f => new { f.Severity, f.Code, f.Target, f.Message }).ToList();
                     column.TableFrom(rows, title: $"Findings ({dp.RecordType})", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v =>
                     {
                         v.FreezeHeaderRow = true;

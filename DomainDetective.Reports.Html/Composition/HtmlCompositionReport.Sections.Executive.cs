@@ -292,7 +292,7 @@ public static partial class HtmlCompositionReport
                     {
                         c.Card(card =>
                         {
-                            card.Header(h => h.Title("Control Coverage").Subtitle("Presence across domains").Icon(TablerIconType.ChartPie));
+                            card.Header(h => h.Title("Control Coverage").Subtitle("Check results across domains").Icon(TablerIconType.ChartPie));
                             card.Body(body =>
                             {
                                 var total = rows.Count;

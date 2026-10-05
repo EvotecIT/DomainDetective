@@ -207,8 +207,8 @@ public static partial class Converters {
             item.ValidPublicKey && item.ValidKeyLength && item.ValidKeyType && item.ValidFlags);
 
         var hints = new List<string>();
-        AddHintIfNeeded(hints, !spfValid, HealthCheckType.SPF);
-        AddHintIfNeeded(hints, !dmarcValid, HealthCheckType.DMARC);
+        AddHintIfNeeded(hints, !spfValid && !spf.DnsQueryFailed, HealthCheckType.SPF);
+        AddHintIfNeeded(hints, !dmarcValid && (!dmarc.DnsQueryFailed || dmarc.DmarcRecordExists), HealthCheckType.DMARC);
         AddHintIfNeeded(hints, !dkimValid, HealthCheckType.DKIM);
         AddHintIfNeeded(hints, !mx.MxRecordExists, HealthCheckType.MX);
         AddHintIfNeeded(hints, !dnssec.ChainValid, HealthCheckType.DNSSEC);
@@ -222,8 +222,10 @@ public static partial class Converters {
 
         return new DomainSummary {
             HasSpfRecord = spf.SpfRecordExists,
+            SpfDnsQueryFailed = spf.DnsQueryFailed,
             SpfValid = spfValid,
             HasDmarcRecord = dmarc.DmarcRecordExists,
+            DmarcDnsQueryFailed = dmarc.DnsQueryFailed,
             DmarcPolicy = dmarc.Policy ?? string.Empty,
             DmarcValid = dmarcValid,
             HasDkimRecord = dkim.Any(static item => item.DkimRecordExists),
@@ -256,9 +258,9 @@ public static partial class Converters {
     private static AggregateCheckStatusInfo BuildDomainSpfStatus(SpfRecordInfo info) => new AggregateCheckStatusInfo {
         Key = "spf",
         Label = "SPF",
-        State = !info.SpfRecordExists ? AggregateCheckState.Fail : info.ErrorCount > 0 || info.PermError ? AggregateCheckState.Fail : info.WarningCount > 0 ? AggregateCheckState.Warning : AggregateCheckState.Pass,
-        Value = !info.SpfRecordExists ? "Missing" : info.AllMechanism ?? "Published",
-        Detail = info.SpfRecordExists ? $"{info.DnsLookupsCount}/10 lookups" : "No SPF policy published."
+        State = info.DnsQueryFailed ? AggregateCheckState.Warning : !info.SpfRecordExists ? AggregateCheckState.Fail : info.ErrorCount > 0 || info.PermError ? AggregateCheckState.Fail : info.WarningCount > 0 ? AggregateCheckState.Warning : AggregateCheckState.Pass,
+        Value = info.DnsQueryFailed ? "Query failed" : !info.SpfRecordExists ? "Missing" : info.AllMechanism ?? "Published",
+        Detail = info.DnsQueryFailed ? "DNS lookup failed; SPF policy presence was not established." : info.SpfRecordExists ? $"{info.DnsLookupsCount}/10 lookups" : "No SPF policy published."
     };
 
     private static AggregateCheckStatusInfo BuildDomainDkimStatus(IReadOnlyList<DkimRecordInfo> selectors) => new AggregateCheckStatusInfo {
@@ -272,9 +274,9 @@ public static partial class Converters {
     private static AggregateCheckStatusInfo BuildDomainDmarcStatus(DmarcRecordInfo info) => new AggregateCheckStatusInfo {
         Key = "dmarc",
         Label = "DMARC",
-        State = !info.DmarcRecordExists ? AggregateCheckState.Fail : info.ErrorCount > 0 || !info.IsPolicyValid ? AggregateCheckState.Fail : info.WarningCount > 0 || info.WeakPolicy ? AggregateCheckState.Warning : AggregateCheckState.Pass,
-        Value = !info.DmarcRecordExists ? "Missing" : string.IsNullOrWhiteSpace(info.Policy) ? "Published" : info.Policy.ToUpperInvariant(),
-        Detail = info.DmarcRecordExists ? $"{info.MailtoRua.Count + info.HttpRua.Count} report target(s)" : "No DMARC policy published."
+        State = info.DnsQueryFailed && !info.DmarcRecordExists ? AggregateCheckState.Warning : !info.DmarcRecordExists || info.ErrorCount > 0 || !info.IsPolicyValid ? AggregateCheckState.Fail : info.DnsQueryFailed || info.WarningCount > 0 || info.WeakPolicy ? AggregateCheckState.Warning : AggregateCheckState.Pass,
+        Value = info.DnsQueryFailed && !info.DmarcRecordExists ? "Query failed" : !info.DmarcRecordExists ? "Missing" : string.IsNullOrWhiteSpace(info.Policy) ? "Published" : info.Policy.ToUpperInvariant(),
+        Detail = info.DnsQueryFailed ? info.DmarcRecordExists ? "DMARC policy is published, but a DNS lookup needed for full evaluation failed." : "DNS lookup failed; DMARC policy presence was not established." : info.DmarcRecordExists ? $"{info.MailtoRua.Count + info.HttpRua.Count} report target(s)" : "No DMARC policy published."
     };
 
     private static AggregateCheckStatusInfo BuildDomainMxStatus(MxInfo info) => new AggregateCheckStatusInfo {
@@ -320,9 +322,9 @@ public static partial class Converters {
     private static AggregateCheckStatusInfo BuildDomainDaneStatus(DaneRecordInfo info) => new AggregateCheckStatusInfo {
         Key = "dane",
         Label = "DANE",
-        State = info.NumberOfRecords == 0 ? AggregateCheckState.Info : info.ErrorCount > 0 || info.AssociationValidationPerformed && !info.AllCertificateAssociationsMatch ? AggregateCheckState.Fail : info.WarningCount > 0 || info.ValidRecordCount == 0 || info.HasInvalidRecords || !info.AssociationValidationPerformed ? AggregateCheckState.Warning : AggregateCheckState.Pass,
-        Value = info.NumberOfRecords > 0 ? $"{info.ValidRecordCount} valid" : "Missing",
-        Detail = info.NumberOfRecords > 0 ? $"{info.RecommendedRecordCount} recommended TLSA record(s)" : "No TLSA records published."
+        State = info.HasAuthenticationFailures || info.ErrorCount > 0 ? AggregateCheckState.Fail : info.DnsQueryFailed ? AggregateCheckState.Warning : info.NumberOfRecords == 0 ? AggregateCheckState.Info : DaneAuthenticationCheckState(info),
+        Value = info.NumberOfRecords > 0 ? $"{info.ValidRecordCount} valid" : info.DnsQueryFailed ? "Query failed" : "Missing",
+        Detail = info.DnsQueryFailed ? "DNS lookup failed; TLSA coverage was not established for every service." : info.NumberOfRecords > 0 ? $"{info.RecommendedRecordCount} recommended TLSA record(s)" : "No TLSA records published."
     };
 
     private static AggregateCheckStatusInfo BuildDomainDnssecStatus(DnsSecInfo info) => new AggregateCheckStatusInfo {

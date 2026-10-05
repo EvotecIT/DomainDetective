@@ -281,15 +281,15 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
 
         map[DmarcCodes.Percent100] = new RecommendationAdvice {
             Code = DmarcCodes.Percent100,
-            Title = "DMARC applies to 100% of mail",
-            Why = "pct=100 enforces policy for every message, maximizing protection.",
-            How = "Keep pct=100 or omit the pct tag to apply the policy to all mail.",
+            Title = "Legacy DMARC percentage tag is published",
+            Why = "Legacy receivers can use pct=100 to apply the requested policy to all failing mail. RFC 9989 determines current enforcement from p, sp, np, and t.",
+            How = "Review the effective policy and test-mode setting when assessing enforcement. The pct tag is obsolete in RFC 9989.",
             Domain = RecommendationDomain.Dmarc,
             Tags = new [] { "dmarc", "policy" },
-            Impact = "All messages are subject to the configured DMARC policy.",
+            Impact = "Percentage metadata is retained for compatibility with legacy receivers.",
             Effort = RecommendationEffort.Low,
-            Links = new [] { "https://dmarc.org/resources/" },
-            Verify = "DMARC record contains pct=100 or omits pct (default 100)."
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc9989.html" },
+            Verify = "DMARC record explicitly contains pct=100; inspect the effective policy separately."
         };
 
         map[DmarcCodes.ProviderEnforcementRecommended] = new RecommendationAdvice {

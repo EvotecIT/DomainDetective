@@ -44,6 +44,13 @@ public partial class DomainHealthCheck {
                         QueryDnsResponseOverride = DnsConfiguration.QueryDnsResponseOverride
                     };
                     await dnssec.AnalyzeRecord(owner, DnsRecordType.TLSA, _logger, DnsConfiguration, cancellationToken);
+                    // A secure later query must authenticate the exact TLSA data being evaluated.
+                    // A changed RRset cannot confer DNSSEC trust on an earlier unauthenticated one.
+                    bool tlsaValidated = dnssec.ValidationStatus == DnssecValidationStatus.Secure
+                        && DaneAnalysis.AnalysisResults.Where(record => record.DomainName.Equals(owner, StringComparison.OrdinalIgnoreCase))
+                            .All(record => dnssec.ValidatedSubjectRecords.Any(value =>
+                                string.Equals(value.Name?.TrimEnd('.'), owner.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)
+                                && SameTlsaRecord(value.DataRaw, record.DANERecord)));
 
                     if (port == (int)ServiceType.SMTP) {
                         var mailTls = new MailTlsAnalysis { OutboundAddressResolver = OutboundAddressResolver };
@@ -54,7 +61,8 @@ public partial class DomainHealthCheck {
                             EndEntityCertificate = result?.Certificate,
                             CertificateChain = result != null ? result.Chain : Array.Empty<X509Certificate2>(),
                             PkixValidated = result?.CertificateValid == true && result.ChainValid,
-                            DnssecValidated = dnssec.ValidationStatus == DnssecValidationStatus.Secure
+                            HostnameMatch = result?.HostnameMatch,
+                            DnssecValidated = tlsaValidated
                         };
                         if (result?.Certificate != null) {
                             certificatesToDispose.Add(result.Certificate);
@@ -67,7 +75,8 @@ public partial class DomainHealthCheck {
                             EndEntityCertificate = tls.Certificate,
                             CertificateChain = tls.Chain,
                             PkixValidated = tls.CertificateValid && tls.ChainValid,
-                            DnssecValidated = dnssec.ValidationStatus == DnssecValidationStatus.Secure
+                            HostnameMatch = tls.HostnameMatch,
+                            DnssecValidated = tlsaValidated
                         };
                         DaneAnalysis.ValidateCertificateAssociations(new[] { evidence }, _logger);
                         evidence = null;
@@ -80,6 +89,7 @@ public partial class DomainHealthCheck {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
+                using var collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: owner);
                 _logger.WriteWarningCode(DaneCodes.CertificateCheckFailed, "Unable to collect certificate evidence for {0}: {1}", owner, ex.Message);
             } finally {
                 foreach (var certificate in certificatesToDispose.Distinct()) {
@@ -117,5 +127,10 @@ public partial class DomainHealthCheck {
         }
         host = string.Join(".", labels.Skip(2));
         return host.Length > 0;
+    }
+
+    private static bool SameTlsaRecord(string first, string second) {
+        string Normalize(string value) => string.Join(" ", value.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+        return string.Equals(Normalize(first), Normalize(second), StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -7,31 +7,22 @@ namespace DomainDetective;
 /// <summary>
 /// Bridges InternalLogger events into structured <see cref="Assessment"/> entries.
 /// </summary>
-/// <remarks>
-/// A collector only records events raised from the execution flow that created it (and flows started from there).
-/// Checks run concurrently against one logger, so without this every active collector would also record the other
-/// checks' warnings.
-/// </remarks>
 /// <para>Part of the DomainDetective project.</para>
 public sealed class AssessmentCollector : IDisposable {
+    private static readonly AsyncLocal<AssessmentCollector?> ActiveCollector = new();
+
     private readonly InternalLogger _logger;
     private readonly List<Assessment> _sink;
+    private readonly AssessmentCollector? _parentCollector;
 
     private readonly Stack<ScopeFrame> _scope = new();
 
     private readonly EventHandler<LogEventArgs> _onWarn;
     private readonly EventHandler<LogEventArgs> _onError;
     private readonly EventHandler<LogEventArgs> _onInfo;
+    private readonly Action<AssessmentSeverity, LogEventArgs> _onSuppressedCoded;
 
     private readonly object _lock = new();
-
-    // Collector chain of the current execution flow; parallel checks each see only their own chain.
-    private static readonly AsyncLocal<AssessmentCollector?> Current = new();
-    private readonly AssessmentCollector? _parent;
-    private bool _disposed;
-
-    /// <summary>True when an analysis in the current execution flow is collecting assessments.</summary>
-    internal static bool IsCollecting => Current.Value != null;
 
     private AssessmentCollector(InternalLogger logger, List<Assessment> sink, string? defaultCategory = null, string? defaultTarget = null, string? defaultSource = null) {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -41,17 +32,19 @@ public sealed class AssessmentCollector : IDisposable {
             _scope.Push(new ScopeFrame(defaultCategory, defaultTarget, defaultSource));
         }
 
-        _onWarn = (_, e) => { if (OwnsCurrentFlow()) Add(AssessmentSeverity.Warning, e.FullMessage, e.Code); };
-        _onError = (_, e) => { if (OwnsCurrentFlow()) Add(AssessmentSeverity.Error, e.FullMessage, e.Code); };
-        _onInfo  = (_, e) => { if (OwnsCurrentFlow()) Add(AssessmentSeverity.Info, e.FullMessage, e.Code); };
-
-        _parent = Current.Value;
-        Current.Value = this;
+        _onWarn = (_, e) => Capture(AssessmentSeverity.Warning, e);
+        _onError = (_, e) => Capture(AssessmentSeverity.Error, e);
+        _onInfo = (_, e) => Capture(AssessmentSeverity.Info, e);
+        _onSuppressedCoded = Capture;
 
         _logger.OnWarningMessage += _onWarn;
         _logger.OnErrorMessage += _onError;
         // Information is less frequently used but can carry useful advice
         _logger.OnInformationMessage += _onInfo;
+        _logger.OnSuppressedCodedMessage += _onSuppressedCoded;
+
+        _parentCollector = ActiveCollector.Value;
+        ActiveCollector.Value = this;
     }
 
     /// <summary>
@@ -61,10 +54,11 @@ public sealed class AssessmentCollector : IDisposable {
         => new(logger, analysis.Assessments, category, target, source);
 
     /// <summary>
-    /// Pushes a new scope changing category/target/source for subsequent events.
+    /// Pushes a new scope, inheriting category, target, and source values that are not supplied.
     /// </summary>
     public IDisposable PushScope(string? category = null, string? target = null, string? source = null) {
-        _scope.Push(new ScopeFrame(category, target, source));
+        ScopeFrame parent = _scope.Count > 0 ? _scope.Peek() : default;
+        _scope.Push(new ScopeFrame(category ?? parent.Category, target ?? parent.Target, source ?? parent.Source));
         return new Popper(this);
     }
 
@@ -114,26 +108,31 @@ public sealed class AssessmentCollector : IDisposable {
         }
     }
 
-    /// <summary>
-    /// Whether the event being raised comes from this collector's flow: this collector, or a collector nested in it,
-    /// is the current one.
-    /// </summary>
-    private bool OwnsCurrentFlow() {
-        for (AssessmentCollector? collector = Current.Value; collector != null; collector = collector._parent) {
-            if (ReferenceEquals(collector, this)) return true;
+    private void Capture(AssessmentSeverity severity, LogEventArgs eventArgs) {
+        if (IsActiveForCurrentFlow()) {
+            Add(severity, eventArgs.FullMessage, eventArgs.Code);
+        }
+    }
+
+    private bool IsActiveForCurrentFlow() {
+        for (var collector = ActiveCollector.Value; collector != null; collector = collector._parentCollector) {
+            if (ReferenceEquals(collector, this)) {
+                return true;
+            }
         }
         return false;
     }
 
     /// <summary>Executes the dispose operation.</summary>
     public void Dispose() {
-        if (_disposed) return;
-        _disposed = true;
-        if (ReferenceEquals(Current.Value, this)) Current.Value = _parent;
         _logger.OnWarningMessage -= _onWarn;
         _logger.OnErrorMessage -= _onError;
         _logger.OnInformationMessage -= _onInfo;
+        _logger.OnSuppressedCodedMessage -= _onSuppressedCoded;
         _scope.Clear();
+        if (ReferenceEquals(ActiveCollector.Value, this)) {
+            ActiveCollector.Value = _parentCollector;
+        }
     }
 
     private readonly struct ScopeFrame {

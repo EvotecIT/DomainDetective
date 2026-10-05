@@ -13,6 +13,8 @@ namespace DomainDetective {
         /// When true, DMARC policy strength evaluation checks the <c>sp</c> tag.
         /// </summary>
         public bool UseSubdomainPolicy { get; set; }
+        /// <summary>DMARC discovery defaults to RFC 9989; select LegacyPublicSuffix for RFC 7489 compatibility.</summary>
+        public DmarcDiscoveryMode DmarcDiscoveryMode { get; set; } = DmarcDiscoveryMode.DnsTreeWalk;
 
         /// <summary>Display domain names in Unicode where possible.</summary>
         public bool UnicodeOutput { get; set; }
