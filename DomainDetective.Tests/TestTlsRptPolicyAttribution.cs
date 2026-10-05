@@ -103,7 +103,9 @@ public class TestTlsRptPolicyAttribution {
         Assert.NotEmpty(snapshot.ValidationMessages);
         var host = Assert.Single(snapshot.MxHosts);
         Assert.Equal("mx.actual.example", host.MxHost);
-        Assert.Equal(3, host.FailedSessions);
+        Assert.Equal(0, host.FailedSessions);
+        Assert.False(host.FailedSessionsKnown);
+        Assert.Equal(3, host.FailureByType["certificate-expired"]);
         Assert.False(host.SuccessfulSessionsKnown);
         var info = DomainDetective.Views.Converters.Convert(new[] { snapshot });
         Assert.False(Assert.Single(info.MxHosts).SuccessfulSessionsKnown);

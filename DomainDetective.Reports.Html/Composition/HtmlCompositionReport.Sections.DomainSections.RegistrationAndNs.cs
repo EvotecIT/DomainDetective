@@ -159,7 +159,7 @@ public static partial class HtmlCompositionReport
                                                     {
                                                         x.MxHost,
                                                         Ok = x.SuccessfulSessionsKnown ? x.SuccessfulSessions.ToString() : "Not attributed",
-                                                        Fail = x.FailedSessions,
+                                                        Fail = x.FailedSessionsKnown ? x.FailedSessions.ToString() : "Not attributed",
                                                         TopFailures = string.Join(", ", (x.FailureByType ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase))
                                                             .OrderByDescending(kv => kv.Value)
                                                             .Take(3)

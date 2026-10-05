@@ -29,6 +29,8 @@ public sealed class TlsRptSnapshot
     /// <summary>True when per-MX failure rows were attributed from receiving-mx-hostname, rather than policy patterns.</summary>
     /// <remarks>Older stored snapshots lack this evidence; reimport their original reports to obtain verified attribution.</remarks>
     public bool MxFailureAttributionVerified { get; set; }
+    /// <summary>Version of receiving-host count interpretation; version 2 accounts for overlapping failure types.</summary>
+    public int ReceivingMxInterpretationVersion { get; set; }
     /// <summary>Gets or sets the observed receiving-host failure rows.</summary>
     public List<TlsRptMxSnapshot> MxHosts { get; set; } = new();
     /// <summary>Gets or sets the top failure types value.</summary>
@@ -56,6 +58,8 @@ public sealed class TlsRptMxSnapshot
     public bool SuccessfulSessionsKnown { get; set; }
     /// <summary>Gets or sets the failed sessions value.</summary>
     public int FailedSessions { get; set; }
+    /// <summary>True when distinct failed sessions can be determined despite non-exclusive result types.</summary>
+    public bool FailedSessionsKnown { get; set; }
     /// <summary>Gets or sets the failure by type value.</summary>
     public Dictionary<string, int> FailureByType { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

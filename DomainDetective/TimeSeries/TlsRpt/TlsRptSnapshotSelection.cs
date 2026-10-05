@@ -17,7 +17,7 @@ internal static class TlsRptSnapshotSelection {
                 continue;
             }
             var identity = ((snapshot.Domain ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant(), snapshot.ReportId!,
-                snapshot.RangeBeginUtc.Value, snapshot.RangeEndUtc.Value, snapshot.ReporterOrgName ?? string.Empty);
+                snapshot.RangeBeginUtc.Value, snapshot.RangeEndUtc.Value, (snapshot.ReporterOrgName ?? string.Empty).Trim().ToLowerInvariant());
             if (!current.TryGetValue(identity, out var existing) || IsNewerInterpretation(snapshot, existing)) current[identity] = snapshot;
         }
         return unidentified.Concat(current.Values).OrderBy(s => s.RangeEndUtc ?? s.IngestedAtUtc).ToList();
@@ -25,6 +25,7 @@ internal static class TlsRptSnapshotSelection {
 
     private static bool IsNewerInterpretation(TlsRptSnapshot candidate, TlsRptSnapshot existing) {
         if (candidate.MxFailureAttributionVerified != existing.MxFailureAttributionVerified) return candidate.MxFailureAttributionVerified;
+        if (candidate.ReceivingMxInterpretationVersion != existing.ReceivingMxInterpretationVersion) return candidate.ReceivingMxInterpretationVersion > existing.ReceivingMxInterpretationVersion;
         return candidate.IngestedAtUtc > existing.IngestedAtUtc;
     }
 }
