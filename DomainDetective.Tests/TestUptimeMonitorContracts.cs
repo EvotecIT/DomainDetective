@@ -32,14 +32,18 @@ public sealed class TestUptimeMonitorContracts {
         }
     }
 
-    [Fact]
-    public async Task OnAnyAloneReceivesAnUpResult() {
+    [Theory]
+    [InlineData(int.MaxValue, 0, "Up")]
+    [InlineData(int.MaxValue, 2100, "Up")]
+    [InlineData(0, 0, "Slow")]
+    public async Task OnAnyAloneReceivesConfiguredSuccessResult(int slowThreshold, int responseDelayMs, string expectedSeverity) {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
-        Task server = ServeRequestsAsync(listener, 1);
+        Task server = ServeRequestsAsync(listener, 1, responseDelayMs: responseDelayMs);
         var url = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/";
         var observed = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var monitor = new UptimeMonitor(new[] { url }, TimeSpan.FromHours(1)) {
+            SlowTtfbMsThreshold = slowThreshold,
             OnAny = (_, severity, _) => {
                 observed.TrySetResult(severity);
                 return Task.CompletedTask;
@@ -50,7 +54,7 @@ public sealed class TestUptimeMonitorContracts {
             monitor.Start();
             Task completed = await Task.WhenAny(observed.Task, Task.Delay(TimeSpan.FromSeconds(5)));
             Assert.Same(observed.Task, completed);
-            Assert.Equal("Up", await observed.Task);
+            Assert.Equal(expectedSeverity, await observed.Task);
             await server;
         } finally {
             monitor.Stop();
@@ -85,7 +89,7 @@ public sealed class TestUptimeMonitorContracts {
         }
     }
 
-    private static async Task ServeRequestsAsync(TcpListener listener, int count, int statusCode = 200) {
+    private static async Task ServeRequestsAsync(TcpListener listener, int count, int statusCode = 200, int responseDelayMs = 0) {
         string reason = statusCode == 200 ? "OK" : "Service Unavailable";
         byte[] response = Encoding.ASCII.GetBytes($"HTTP/1.1 {statusCode} {reason}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
         for (int index = 0; index < count; index++) {
@@ -94,6 +98,9 @@ public sealed class TestUptimeMonitorContracts {
             byte[] request = new byte[1024];
             int read = await stream.ReadAsync(request, 0, request.Length);
             Assert.True(read > 0);
+            if (responseDelayMs > 0) {
+                await Task.Delay(responseDelayMs);
+            }
             await stream.WriteAsync(response, 0, response.Length);
         }
     }
