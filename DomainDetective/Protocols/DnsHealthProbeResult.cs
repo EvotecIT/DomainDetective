@@ -22,6 +22,8 @@ public sealed class DnsHealthProbeResult {
     public IReadOnlyList<string> NameServers { get; internal set; } = Array.Empty<string>();
     /// <summary>Gets the requested record type.</summary>
     public DnsRecordType RecordType { get; internal set; }
+    /// <summary>True when the probe entered its transport; false when the budget prevented dispatch.</summary>
+    public bool Attempted { get; internal set; }
     /// <summary>Gets the DNS response code, or null when no response was received.</summary>
     public DnsResponseCode? ResponseCode { get; internal set; }
     /// <summary>Gets whether the response carries the authoritative-answer flag.</summary>

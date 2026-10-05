@@ -24,6 +24,8 @@ public static partial class Converters
             SoaSerialConsistency = analysis.SoaSerialConsistency,
             ApexAddressesConsistency = analysis.ApexAddressesConsistency,
             ProbeResults = analysis.ProbeResults,
+            DiscoveryResults = analysis.DiscoveryResults,
+            DiscoveryComplete = analysis.DiscoveryComplete,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warn,
@@ -64,6 +66,10 @@ public class DnsHealthInfo
     public DnsHealthConsistencyStatus ApexAddressesConsistency { get; set; }
     /// <summary>Gets or sets per-address query coverage and response diagnostics.</summary>
     public IReadOnlyList<DnsHealthProbeResult> ProbeResults { get; set; } = System.Array.Empty<DnsHealthProbeResult>();
+    /// <summary>Gets or sets discovery query evidence, including address-family failures.</summary>
+    public IReadOnlyList<DnsHealthDiscoveryResult> DiscoveryResults { get; set; } = System.Array.Empty<DnsHealthDiscoveryResult>();
+    /// <summary>Gets or sets whether nameserver and address discovery completed.</summary>
+    public bool DiscoveryComplete { get; set; }
     /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
     /// <summary>Gets or sets the status value.</summary>

@@ -49,9 +49,7 @@ public static class DnsHealthNarrative
                 DnsHealthConsistencyStatus.Inconsistent => "A/AAAA records for zone apex differ among observed servers.",
                 _ => "Insufficient authoritative evidence to confirm apex A/AAAA consistency."
             });
-            hi.Add(analysis.ServersResponsive
-                ? "All authoritative servers responded to queries."
-                : "Some authoritative servers did not respond.");
+            hi.Add(analysis.ResponsivenessSummary);
 
             if (analysis.NameServers?.Count > 0)
             {
@@ -66,7 +64,10 @@ public static class DnsHealthNarrative
                 det.Add($"Apex answers from {kv.Key}: {string.Join(", ", kv.Value)}");
             }
             foreach (var probe in analysis.ProbeResults) {
-                det.Add($"{probe.ServerAddress} {probe.RecordType}: {probe.ResponseCode?.ToString() ?? "unanswered"}; {probe.Answers.Count} records; {probe.ElapsedMilliseconds} ms{(string.IsNullOrEmpty(probe.Error) ? string.Empty : "; " + probe.Error)}");
+                det.Add($"{probe.ServerAddress} {probe.RecordType}: {probe.ResponseCode?.ToString() ?? (probe.Attempted ? "unanswered" : "not attempted")}; {probe.Answers.Count} records; {probe.ElapsedMilliseconds} ms{(string.IsNullOrEmpty(probe.Error) ? string.Empty : "; " + probe.Error)}");
+            }
+            foreach (var discovery in analysis.DiscoveryResults) {
+                det.Add($"Discovery {discovery.Name} {discovery.RecordType}: {discovery.ResponseCode?.ToString() ?? "incomplete"}{(string.IsNullOrEmpty(discovery.Error) ? string.Empty : "; " + discovery.Error)}");
             }
 
             (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());

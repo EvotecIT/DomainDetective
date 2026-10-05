@@ -5,11 +5,60 @@ using System.Threading;
 using System.Threading.Tasks;
 using DnsClientX;
 using DomainDetective.Narratives;
+using DomainDetective.DesiredState;
+using DomainDetective.Definitions;
 using Xunit;
 
 namespace DomainDetective.Tests;
 
 public class TestDnsHealthCoverage {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task AddressDiscoveryFailureCannotProduceCompleteIpv4Consistency(int failureKind) {
+        var health = new DomainHealthCheck();
+        var analysis = health.DnsHealthAnalysis;
+        analysis.DnsConfiguration = CreateAnalysis().DnsConfiguration;
+        var answers = analysis.DnsConfiguration.QueryDnsOverride!;
+        analysis.DnsConfiguration.QueryDnsOverride = null;
+        analysis.DnsConfiguration.QueryDnsResponseOverride = async (name, type, _) => {
+            if (type == DnsRecordType.AAAA) {
+                if (failureKind == 0) throw new TimeoutException("Address discovery timed out.");
+                return new DnsResponse {
+                    Status = failureKind == 1 ? DnsResponseCode.ServerFailure : DnsResponseCode.NoError,
+                    Answers = Array.Empty<DnsAnswer>()
+                };
+            }
+            return new DnsResponse { Status = DnsResponseCode.NoError, Answers = await answers(name, type) };
+        };
+        analysis.QueryResponseOverride = (_, query, _) => Task.FromResult<DnsResponse?>(Response(query.Type));
+        await analysis.Analyze("example.com", new InternalLogger());
+        Assert.Equal(6, analysis.ProbeResults.Count);
+        Assert.Equal(failureKind == 2, analysis.ServersResponsive);
+        Assert.Equal(failureKind == 2, analysis.SoaSerialConsistent);
+        Assert.Equal(failureKind == 2, analysis.ApexAddressesConsistent);
+        if (failureKind != 2) {
+            Assert.Contains(analysis.Assessments, item => item.Code == DnsHealthCodes.CoverageIncomplete);
+            Assert.DoesNotContain(DnsHealthNarrative.Build(analysis).Highlights, text => text.Contains("did not respond"));
+            var desired = DesiredStateEvaluator.Evaluate("example.com", health,
+                new DesiredStateProfile { DnsHealth = new DesiredStateDnsHealthPolicy { RequireServersResponsive = true } },
+                MailDomainClassificationCategory.SendingAndReceiving);
+            var warning = Assert.Single(desired.Assessments, item => item.Code == DesiredStateCodes.DnsHealthServersUnresponsive);
+            Assert.Contains("could not be confirmed", warning.Message);
+        }
+    }
+
+    [Fact]
+    public async Task FailedNameserverDiscoveryDoesNotClaimObservedServerNonresponse() {
+        var analysis = CreateAnalysis();
+        analysis.DnsConfiguration.QueryDnsOverride = (_, _) => throw new TimeoutException("Discovery failed.");
+        await analysis.Analyze("example.com", new InternalLogger());
+        Assert.Empty(analysis.ProbeResults);
+        Assert.Contains(analysis.Assessments, item => item.Code == DnsHealthCodes.CoverageIncomplete);
+        Assert.DoesNotContain(DnsHealthNarrative.Build(analysis).Highlights, text => text.Contains("did not respond"));
+    }
+
     [Fact]
     public async Task ProbeWorkersAreBoundedAndRetainEveryPlannedResult() {
         var analysis = CreateAnalysis();

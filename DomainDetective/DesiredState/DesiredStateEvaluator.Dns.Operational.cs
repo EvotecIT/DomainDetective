@@ -63,7 +63,7 @@ public static partial class DesiredStateEvaluator {
                 Category = "DesiredState",
                 Target = domain,
                 Code = DesiredStateCodes.DnsHealthServersUnresponsive,
-                Message = "Desired state requires all authoritative servers to respond to DNS health queries, but some did not."
+                Message = "Desired state requires confirmed authoritative server responsiveness. " + dnsHealth.ResponsivenessSummary
             });
         }
 

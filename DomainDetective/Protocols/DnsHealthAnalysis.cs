@@ -1,4 +1,5 @@
 using DnsClientX;
+using DomainDetective.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,6 +27,10 @@ public partial class DnsHealthAnalysis : IHasAssessments {
     public List<string> NameServers { get; } = new();
     /// <summary>Gets nameservers for which no address was discovered.</summary>
     public List<string> UnresolvedNameServers { get; } = new();
+    /// <summary>Gets every NS/A/AAAA discovery result, retaining errors and successful NODATA.</summary>
+    public List<DnsHealthDiscoveryResult> DiscoveryResults { get; } = new();
+    /// <summary>True when NS and both address families completed successfully for every nameserver.</summary>
+    public bool DiscoveryComplete { get; private set; }
     /// <summary>Gets the number of distinct authoritative addresses targeted.</summary>
     public int ExpectedServerCount { get; private set; }
     /// <summary>Gets every planned probe, including unanswered and budget-exhausted probes.</summary>
@@ -42,7 +47,7 @@ public partial class DnsHealthAnalysis : IHasAssessments {
     public DnsHealthConsistencyStatus ApexAddressesConsistency { get; private set; }
     /// <summary>True only when at least two endpoints agree with complete apex coverage.</summary>
     public bool ApexAddressesConsistent => ApexAddressesConsistency == DnsHealthConsistencyStatus.Consistent;
-    /// <summary>True when every discovered address replied to every probe and no nameserver remains unresolved.</summary>
+    /// <summary>True when discovery is complete and every discovered address replied to every probe.</summary>
     public bool ServersResponsive { get; private set; }
     /// <summary>Gets the per-run assessments.</summary>
     public List<Assessment> Assessments { get; } = new();
@@ -53,42 +58,36 @@ public partial class DnsHealthAnalysis : IHasAssessments {
         if (AnalysisTimeoutMilliseconds <= 0) throw new ArgumentOutOfRangeException(nameof(AnalysisTimeoutMilliseconds));
         using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSHEALTH", target: domainName);
         Subject = domainName;
-        NameServers.Clear(); UnresolvedNameServers.Clear(); ProbeResults.Clear();
+        NameServers.Clear(); UnresolvedNameServers.Clear(); ProbeResults.Clear(); DiscoveryResults.Clear();
         SoaSerialByServer.Clear(); ApexAddressesByServer.Clear(); Assessments.Clear();
-        ExpectedServerCount = 0; ServersResponsive = false;
+        ExpectedServerCount = 0; ServersResponsive = false; DiscoveryComplete = false;
         SoaSerialConsistency = ApexAddressesConsistency = DnsHealthConsistencyStatus.InsufficientEvidence;
         int concurrency = Math.Max(1, QueryConcurrency);
         int queryTimeout = QueryTimeoutMilliseconds;
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         budget.CancelAfter(AnalysisTimeoutMilliseconds);
 
-        DnsAnswer[] nameservers;
-        try {
-            nameservers = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS,
-                cancellationToken: budget.Token).ConfigureAwait(false);
-        } catch (Exception) when (!cancellationToken.IsCancellationRequested) {
+        var nameservers = await DiscoverAsync(domainName, DnsRecordType.NS, budget.Token, cancellationToken).ConfigureAwait(false);
+        DiscoveryResults.Add(nameservers);
+        if (!nameservers.Succeeded) {
             logger.WriteWarningCode(DnsHealthCodes.CoverageIncomplete, "Nameserver discovery did not complete; DNS health evidence is incomplete");
             return;
         }
         cancellationToken.ThrowIfCancellationRequested();
-        string[] hosts = nameservers.Where(answer => answer.Type == DnsRecordType.NS)
+        string[] hosts = nameservers.Answers.Where(answer => answer.Type == DnsRecordType.NS)
             .Select(answer => answer.Data.TrimEnd('.')).Where(host => !string.IsNullOrWhiteSpace(host))
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         NameServers.AddRange(hosts);
         var discovery = hosts.SelectMany(host => new[] { (host, DnsRecordType.A), (host, DnsRecordType.AAAA) }).ToArray();
-        IPAddress[][] addresses = await RunWorkers(discovery.Length, concurrency, async index => {
-            cancellationToken.ThrowIfCancellationRequested();
-            try {
-                budget.Token.ThrowIfCancellationRequested();
-                var answers = await DnsConfiguration.QueryDNS(discovery[index].host, discovery[index].Item2,
-                    cancellationToken: budget.Token).ConfigureAwait(false);
-                return answers.Select(answer => IPAddress.TryParse(answer.Data, out var ip) ? ip : null)
-                    .Where(ip => ip != null).Select(ip => ip!).Distinct().ToArray();
-            } catch (Exception) when (!cancellationToken.IsCancellationRequested) { return Array.Empty<IPAddress>(); }
-        }).ConfigureAwait(false);
+        var addressResults = await BoundedAsyncWork.MapAsync(discovery.Length, concurrency, index =>
+            DiscoverAsync(discovery[index].host, discovery[index].Item2, budget.Token, cancellationToken)).ConfigureAwait(false);
+        DiscoveryResults.AddRange(addressResults);
+        DiscoveryComplete = hosts.Length > 0 && addressResults.All(result => result.Succeeded);
         var servers = new Dictionary<IPAddress, List<string>>();
         for (int i = 0; i < hosts.Length; i++) {
-            IPAddress[] found = addresses[i * 2].Concat(addresses[i * 2 + 1]).Distinct().ToArray();
+            IPAddress[] found = addressResults[i * 2].Answers.Concat(addressResults[i * 2 + 1].Answers)
+                .Select(answer => IPAddress.TryParse(answer.Data, out var ip) ? ip : null)
+                .Where(ip => ip != null).Select(ip => ip!).Distinct().ToArray();
             if (found.Length == 0) UnresolvedNameServers.Add(hosts[i]);
             foreach (var ip in found) {
                 if (!servers.TryGetValue(ip, out var owners)) servers[ip] = owners = new List<string>();
@@ -98,7 +97,7 @@ public partial class DnsHealthAnalysis : IHasAssessments {
         ExpectedServerCount = servers.Count;
         var probes = servers.SelectMany(server => new[] { DnsRecordType.SOA, DnsRecordType.A, DnsRecordType.AAAA }
             .Select(type => (server.Key, server.Value, type))).ToArray();
-        ProbeResults.AddRange(await RunWorkers(probes.Length, concurrency, index =>
+        ProbeResults.AddRange(await BoundedAsyncWork.MapAsync(probes.Length, concurrency, index =>
             ProbeAsync(probes[index].Key, probes[index].Value, domainName, probes[index].type,
                 queryTimeout, budget.Token, cancellationToken)).ConfigureAwait(false));
         cancellationToken.ThrowIfCancellationRequested();
@@ -131,11 +130,11 @@ public partial class DnsHealthAnalysis : IHasAssessments {
         if (ApexAddressesConsistency == DnsHealthConsistencyStatus.Inconsistent) {
             logger.WriteWarningCode(DnsHealthCodes.ApexInconsistent, "A/AAAA answers for zone apex differ across observed authoritative servers");
         }
-        ServersResponsive = ExpectedServerCount > 0 && UnresolvedNameServers.Count == 0
+        ServersResponsive = ExpectedServerCount > 0 && DiscoveryComplete && UnresolvedNameServers.Count == 0
             && ProbeResults.All(probe => probe.HasResponse);
         if (ServersResponsive) logger.WriteInformationCode(DnsHealthCodes.ServersResponsive, "All authoritative name servers responded to queries");
         if (!ServersResponsive || !SoaSerialConsistent || !ApexAddressesConsistent) {
-            if (UnresolvedNameServers.Count > 0 || ProbeResults.Any(probe => !probe.HasResponse)
+            if (!DiscoveryComplete || UnresolvedNameServers.Count > 0 || ProbeResults.Any(probe => !probe.HasResponse)
                 || SoaSerialConsistency == DnsHealthConsistencyStatus.InsufficientEvidence
                 || ApexAddressesConsistency == DnsHealthConsistencyStatus.InsufficientEvidence) {
                 logger.WriteWarningCode(DnsHealthCodes.CoverageIncomplete, "DNS health coverage is incomplete; consistency cannot be confirmed for every authoritative server");
@@ -149,6 +148,11 @@ public partial class DnsHealthAnalysis : IHasAssessments {
 
     private DnsHealthConsistencyStatus Compare(int observed, int distinct) => distinct > 1
         ? DnsHealthConsistencyStatus.Inconsistent
-        : observed >= 2 && observed == ExpectedServerCount && UnresolvedNameServers.Count == 0
+        : observed >= 2 && observed == ExpectedServerCount && DiscoveryComplete && UnresolvedNameServers.Count == 0
             ? DnsHealthConsistencyStatus.Consistent : DnsHealthConsistencyStatus.InsufficientEvidence;
+
+    internal string ResponsivenessSummary => ServersResponsive ? "All authoritative servers responded to queries."
+        : ProbeResults.Any(probe => probe.Attempted && !probe.HasResponse)
+            ? "Some attempted authoritative queries did not return a response."
+            : "Authoritative server responsiveness could not be confirmed because coverage is incomplete.";
 }
