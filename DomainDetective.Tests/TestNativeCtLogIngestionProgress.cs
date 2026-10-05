@@ -94,9 +94,11 @@ public class TestNativeCtLogIngestionProgress {
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CappedCertificateIsAtomicAndRemainsEligibleOnRestart(bool shared) {
+    [InlineData(false, 1)]
+    [InlineData(true, 1)]
+    [InlineData(false, 100)]
+    [InlineData(true, 100)]
+    public async Task CappedCertificateIsAtomicAndRemainsEligibleOnRestart(bool shared, long treeSize) {
         using var scope = new CursorScope();
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=first.example.test", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -111,17 +113,17 @@ public class TestNativeCtLogIngestionProgress {
         var starts = new List<long>();
         var source = new NativeCtLogSubdomainDiscovery {
             QueryOverride = (url, _) => {
-                if (url.Contains("get-sth")) return Task.FromResult("{\"tree_size\":1}");
-                starts.Add(ReadStart(url)); return Task.FromResult(entries);
+                if (url.Contains("get-sth")) return Task.FromResult("{\"tree_size\":" + treeSize + "}");
+                long start = ReadStart(url); starts.Add(start); return Task.FromResult(start == 99 || treeSize == 1 ? entries : Entries(1));
             }
         };
-        var options = scope.Options(); options.MaxSubdomains = 1;
+        var options = scope.Options(); options.MaxSubdomains = 1; options.InitialBackfillEntriesPerLog = 1;
         if (shared) {
             var capped = await source.DiscoverForDomainsAsync(new[] { "example.test" }, options, new InternalLogger(), default);
             Assert.True(capped.ResultsCapped);
             Assert.Contains(capped.Warnings, warning => warning.Contains("Increase MaxSubdomains"));
             Assert.Empty(capped.SubdomainsByDomain["example.test"]);
-            Assert.Null(Assert.Single(capped.LogStatuses).LastProcessedIndex);
+            Assert.Equal(treeSize == 1 ? (long?)null : treeSize - 2, Assert.Single(capped.LogStatuses).LastProcessedIndex);
             Assert.Equal(0, capped.CertificateObservationCount);
         } else {
             var capped = await source.DiscoverAsync(options, new InternalLogger(), default);
@@ -130,20 +132,23 @@ public class TestNativeCtLogIngestionProgress {
             Assert.Empty(capped.Subdomains);
             Assert.Empty(capped.IssuerCounts);
             Assert.Null(capped.FirstSeenUtc);
-            Assert.Null(Assert.Single(capped.LogStatuses).LastProcessedIndex);
+            Assert.Equal(treeSize == 1 ? (long?)null : treeSize - 2, Assert.Single(capped.LogStatuses).LastProcessedIndex);
             Assert.Equal(0, capped.CertificateObservationCount);
         }
         options.MaxSubdomains = 10;
+        long withheldIndex = treeSize - 1;
+        if (treeSize > 1) treeSize++;
         if (shared) {
             var result = await source.DiscoverForDomainsAsync(new[] { "example.test" }, options, new InternalLogger(), default);
             Assert.Contains("second.example.test", result.SubdomainsByDomain["example.test"].Keys);
-            Assert.Equal(0, Assert.Single(result.LogStatuses).LastProcessedIndex);
+            Assert.Equal(treeSize - 1, Assert.Single(result.LogStatuses).LastProcessedIndex);
         } else {
             var result = await source.DiscoverAsync(options, new InternalLogger(), default);
             Assert.Contains("second.example.test", result.Subdomains.Keys);
-            Assert.Equal(0, Assert.Single(result.LogStatuses).LastProcessedIndex);
+            Assert.Equal(treeSize - 1, Assert.Single(result.LogStatuses).LastProcessedIndex);
         }
-        Assert.Equal(new long[] { 0, 0 }, starts);
+        Assert.Equal(withheldIndex, starts[0]);
+        Assert.Equal(withheldIndex, starts[1]);
     }
 
     [Theory]

@@ -64,6 +64,9 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
                 var sth = await GetSignedTreeHeadAsync(logUrl, options, cancellationToken).ConfigureAwait(false);
                 status.TreeSize = sth.TreeSize;
                 var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(key), options.InitialBackfillEntriesPerLog);
+                // Persist the initial backfill floor without acknowledging the first selected entry.
+                // Otherwise a growing tree moves the window after a capped or empty first batch.
+                if (start > 0 && !cursor.GetLastProcessedIndex(key).HasValue) cursor.SetLastProcessedIndex(key, start - 1);
                 status.StartIndex = start;
                 status.EstimatedLagBefore = start >= sth.TreeSize ? 0 : (sth.TreeSize - start);
                 if (start >= sth.TreeSize) {
@@ -329,6 +332,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             status.TreeSize = sth.TreeSize;
 
             var start = ComputeStartIndex(sth.TreeSize, cursor.GetLastProcessedIndex(workItem.CursorKey), options.InitialBackfillEntriesPerLog);
+            if (start > 0 && !cursor.GetLastProcessedIndex(workItem.CursorKey).HasValue) cursor.SetLastProcessedIndex(workItem.CursorKey, start - 1);
             status.StartIndex = start;
             status.EstimatedLagBefore = start >= sth.TreeSize ? 0 : (sth.TreeSize - start);
             if (start >= sth.TreeSize) {
