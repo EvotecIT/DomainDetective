@@ -208,7 +208,7 @@ internal sealed partial class NativeCtLogSubdomainDiscovery {
             return false;
         }
 
-        return IsNameResolutionFailure(errorMessage) || IsPermanentHttpFailureMessage(errorMessage);
+        return IsNameResolutionFailure(errorMessage) || IsPermanentHttpFailureMessage(errorMessage!);
     }
 
     private static bool IsPermanentHttpFailureMessage(string message) {
