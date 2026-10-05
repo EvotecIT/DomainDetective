@@ -143,7 +143,7 @@ public partial class TestRevocationEvidence {
     }
 
     private static X509Certificate Certificate(string name, BigInteger serial, AsymmetricCipherKeyPair keys,
-        X509Certificate? issuer, AsymmetricCipherKeyPair? issuerKeys, bool ca = false, bool ocspPurpose = false, bool noCheck = false, bool unknownCritical = false, string? ocspUrl = null, string? crlUrl = null, int? keyUsage = null, bool criticalNoCheck = false, bool limitedCrlReasons = false, bool namedCrlIssuer = false) {
+        X509Certificate? issuer, AsymmetricCipherKeyPair? issuerKeys, bool ca = false, bool ocspPurpose = false, bool noCheck = false, bool unknownCritical = false, string? ocspUrl = null, string? crlUrl = null, int? keyUsage = null, bool criticalNoCheck = false, bool limitedCrlReasons = false, bool namedCrlIssuer = false, DistributionPoint[]? additionalCrlPoints = null, bool additionalCrlPointsFirst = false) {
         var generator = new X509V3CertificateGenerator();
         var subject = new X509Name(name);
         generator.SetSerialNumber(serial); generator.SetIssuerDN(issuer?.SubjectDN ?? subject); generator.SetSubjectDN(subject);
@@ -152,8 +152,12 @@ public partial class TestRevocationEvidence {
         generator.AddExtension(X509Extensions.KeyUsage, true, new KeyUsage(keyUsage ?? (ca ? KeyUsage.KeyCertSign | KeyUsage.CrlSign : KeyUsage.DigitalSignature)));
         if (ocspUrl != null) generator.AddExtension(X509Extensions.AuthorityInfoAccess, false,
             new AuthorityInformationAccess(new AccessDescription(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.5.5.7.48.1"), new GeneralName(GeneralName.UniformResourceIdentifier, ocspUrl))));
-        if (crlUrl != null) generator.AddExtension(X509Extensions.CrlDistributionPoints, false,
-            new CrlDistPoint(new[] { new DistributionPoint(new DistributionPointName(new GeneralNames(new GeneralName(GeneralName.UniformResourceIdentifier, crlUrl))), limitedCrlReasons ? new ReasonFlags(ReasonFlags.KeyCompromise) : null, namedCrlIssuer ? new GeneralNames(new GeneralName(issuer!.SubjectDN)) : null) }));
+        if (crlUrl != null) {
+            var primary = new[] { new DistributionPoint(new DistributionPointName(new GeneralNames(new GeneralName(GeneralName.UniformResourceIdentifier, crlUrl))), limitedCrlReasons ? new ReasonFlags(ReasonFlags.KeyCompromise) : null, namedCrlIssuer ? new GeneralNames(new GeneralName(issuer!.SubjectDN)) : null) };
+            var additional = additionalCrlPoints ?? Array.Empty<DistributionPoint>();
+            generator.AddExtension(X509Extensions.CrlDistributionPoints, false,
+                new CrlDistPoint((additionalCrlPointsFirst ? additional.Concat(primary) : primary.Concat(additional)).ToArray()));
+        }
         if (ocspPurpose) generator.AddExtension(X509Extensions.ExtendedKeyUsage, false, new ExtendedKeyUsage(KeyPurposeID.id_kp_OCSPSigning));
         if (noCheck) generator.AddExtension(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.5.5.7.48.1.5"), criticalNoCheck, Org.BouncyCastle.Asn1.DerNull.Instance);
         if (unknownCritical) generator.AddExtension(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.2.3.4.5"), true, Org.BouncyCastle.Asn1.DerNull.Instance);

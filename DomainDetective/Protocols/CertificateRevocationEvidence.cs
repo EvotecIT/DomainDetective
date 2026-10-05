@@ -36,15 +36,19 @@ internal static class CertificateRevocationEvidence {
         }
     }
 
-    internal static bool? CrlStatus(byte[] bytes, X509Certificate leaf, X509Certificate issuer, DateTime nowUtc) {
+    internal static bool? CrlStatus(byte[] bytes, X509Certificate leaf, X509Certificate issuer, DateTime nowUtc, string? distributionPointUrl = null) {
         try {
             if (!IsIssuer(leaf, issuer)) return null;
             var distributionPoints = leaf.GetExtensionValue(X509Extensions.CrlDistributionPoints);
             if (distributionPoints != null) {
                 var points = CrlDistPoint.GetInstance(Asn1Object.FromByteArray(distributionPoints.GetOctets())).GetDistributionPoints();
-                // This API has no selected distribution-point context. A reason-limited or
-                // separately named CRL issuer cannot establish complete issuer evidence.
-                if (points.Any(point => point.Reasons != null || point.CrlIssuer != null)) return null;
+                // A complete direct point covers all reasons independently of other points.
+                // Without the selected point, restricted/indirect evidence remains ambiguous.
+                if (distributionPointUrl == null) {
+                    if (points.Any(point => point.Reasons != null || point.CrlIssuer != null)) return null;
+                } else if (!CompleteCrlUrls(leaf).Contains(distributionPointUrl, StringComparer.Ordinal)) {
+                    return null;
+                }
             }
             _ = Asn1Object.FromByteArray(bytes);
             var crl = new X509CrlParser().ReadCrl(bytes);
@@ -64,6 +68,19 @@ internal static class CertificateRevocationEvidence {
         } catch (Exception) {
             return null;
         }
+    }
+
+    /// <summary>Finds URI points whose complete direct issuer CRLs this evaluator supports.</summary>
+    internal static string[] CompleteCrlUrls(X509Certificate leaf) {
+        var extension = leaf.GetExtensionValue(X509Extensions.CrlDistributionPoints);
+        if (extension == null) return Array.Empty<string>();
+        var points = CrlDistPoint.GetInstance(Asn1Object.FromByteArray(extension.GetOctets())).GetDistributionPoints();
+        return points.Where(point => point.Reasons == null && point.CrlIssuer == null
+                && point.DistributionPointName?.Type == DistributionPointName.FullName)
+            .SelectMany(point => GeneralNames.GetInstance(point.DistributionPointName.Name).GetNames())
+            .Where(name => name.TagNo == GeneralName.UniformResourceIdentifier)
+            .Select(name => Org.BouncyCastle.Asn1.DerIA5String.GetInstance(name.Name).GetString())
+            .Distinct(StringComparer.Ordinal).ToArray();
     }
 
     private static bool IsIssuer(X509Certificate leaf, X509Certificate issuer) {

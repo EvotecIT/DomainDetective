@@ -84,14 +84,16 @@ namespace DomainDetective {
                     }
                 }
 
-                if (CrlUrls.Count > 0) {
+                var completeCrlUrls = CertificateRevocationEvidence.CompleteCrlUrls(bcCert);
+                if (completeCrlUrls.Length > 0) {
+                    var selectedCrlUrl = completeCrlUrls[0];
                     var client = SharedHttpClient.Instance;
-                    using var request = new HttpRequestMessage(HttpMethod.Get, CrlUrls[0]);
+                    using var request = new HttpRequestMessage(HttpMethod.Get, selectedCrlUrl);
                     using var resp = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
                     if (resp.IsSuccessStatusCode) {
                         var bytes = await BoundedHttpContentReader.ReadAsync(resp.Content, 16 * 1024 * 1024, deadline.Token).ConfigureAwait(false);
                         var issuer = FindRevocationIssuer(bcCert);
-                        if (issuer != null) CrlRevoked = CertificateRevocationEvidence.CrlStatus(bytes, bcCert, issuer, DateTime.UtcNow);
+                        if (issuer != null) CrlRevoked = CertificateRevocationEvidence.CrlStatus(bytes, bcCert, issuer, DateTime.UtcNow, selectedCrlUrl);
                     }
                 }
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
