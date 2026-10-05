@@ -71,7 +71,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
 
         foreach (var assetCandidate in assetCandidates)
         {
-            var artifact = await DownloadAssetAsync(assetCandidate, options, cancellationToken).ConfigureAwait(false);
+            var artifact = await DownloadAssetAsync(assetCandidate, new Uri(url), options, cancellationToken).ConfigureAwait(false);
             if (artifact != null)
             {
                 artifacts.Add(artifact);
@@ -274,6 +274,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
 
     private static async Task<TyposquattingVisualArtifact?> DownloadAssetAsync(
         TyposquattingVisualAssetCandidate asset,
+        Uri customizationOrigin,
         TyposquattingVisualSimilarityOptions options,
         CancellationToken cancellationToken)
     {
@@ -295,7 +296,8 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
 
         using var handler = new HttpClientHandler
         {
-            AllowAutoRedirect = true
+            AllowAutoRedirect = false,
+            UseCookies = false
         };
 
         if (options.HttpRequestOptions.DisableTlsValidation)
@@ -314,18 +316,10 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
             Timeout = TimeSpan.FromSeconds(30)
         };
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, asset.Url);
-        foreach (var header in options.HttpRequestOptions.Headers)
-        {
-            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(options.HttpRequestOptions.Cookie))
-        {
-            request.Headers.TryAddWithoutValidation("Cookie", options.HttpRequestOptions.Cookie);
-        }
-
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        using var response = await HttpRequestBoundary.SendAsync(client, new Uri(asset.Url), customizationOrigin,
+            HttpMethod.Get, options.HttpRequestOptions, 10, deadline.Token).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             return null;
@@ -337,7 +331,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
             return null;
         }
 
-        var imageBytes = await ReadContentBytesAsync(response.Content, options.MaxAssetBytes, cancellationToken).ConfigureAwait(false);
+        var imageBytes = await ReadContentBytesAsync(response.Content, options.MaxAssetBytes, deadline.Token).ConfigureAwait(false);
         if (imageBytes == null || imageBytes.Length == 0)
         {
             return null;

@@ -4,39 +4,6 @@ using System.Net.Http;
 
 namespace DomainDetective {
     public partial class HttpAnalysis {
-        private void ApplyRequestHeaders(HttpRequestMessage request, HttpRequestOptions requestOptions) {
-            if (request == null) {
-                throw new ArgumentNullException(nameof(request));
-            }
-            if (requestOptions == null) {
-                throw new ArgumentNullException(nameof(requestOptions));
-            }
-
-            try {
-                if (!string.IsNullOrWhiteSpace(requestOptions.Cookie)) {
-                    request.Headers.TryAddWithoutValidation("Cookie", requestOptions.Cookie);
-                    if (!RequestHeaderNames.Contains("Cookie")) {
-                        RequestHeaderNames.Add("Cookie");
-                    }
-                }
-
-                if (requestOptions.Headers != null && requestOptions.Headers.Count > 0) {
-                    foreach (var kv in requestOptions.Headers) {
-                        if (string.IsNullOrWhiteSpace(kv.Key)) {
-                            continue;
-                        }
-
-                        request.Headers.TryAddWithoutValidation(kv.Key, kv.Value ?? string.Empty);
-                        if (!RequestHeaderNames.Contains(kv.Key)) {
-                            RequestHeaderNames.Add(kv.Key);
-                        }
-                    }
-                }
-            } catch {
-                // Best-effort; invalid header names/values should not fail analysis.
-            }
-        }
-
         private static void CaptureNamedHeaders(HttpResponseMessage response, IEnumerable<string> names, Dictionary<string, string> target) {
             if (response == null || names == null || target == null) {
                 return;

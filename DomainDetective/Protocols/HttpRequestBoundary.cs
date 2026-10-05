@@ -1,0 +1,88 @@
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace DomainDetective;
+
+/// <summary>Owns visible redirects and the origin boundary for explicit HTTP customization.</summary>
+internal static class HttpRequestBoundary {
+    internal static bool IsSameOrigin(Uri left, Uri right) =>
+        left.Scheme.Equals(right.Scheme, StringComparison.OrdinalIgnoreCase)
+        && left.IdnHost.Equals(right.IdnHost, StringComparison.OrdinalIgnoreCase)
+        && left.Port == right.Port;
+
+    internal static void DisableAutoRedirect(HttpMessageHandler handler) {
+        // Reflection also covers platform-specific handlers without adding a runtime dependency.
+        var property = handler.GetType().GetProperty("AllowAutoRedirect");
+        if (property != null && property.CanWrite && property.PropertyType == typeof(bool)) {
+            property.SetValue(handler, false, null);
+        }
+        if (handler is DelegatingHandler wrapper && wrapper.InnerHandler != null) {
+            DisableAutoRedirect(wrapper.InnerHandler);
+        }
+    }
+
+    internal static async Task<HttpResponseMessage> SendAsync(
+        HttpClient client, Uri initialUri, Uri customizationOrigin, HttpMethod method,
+        HttpRequestOptions options, int maxRedirects, CancellationToken cancellationToken,
+        Version? requestVersion = null, List<string>? visitedUrls = null, List<string>? headerNames = null) {
+        var currentUri = initialUri;
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        for (var redirects = 0; ; redirects++) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!currentUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                && !currentUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) {
+                throw new HttpRequestException("Only HTTP and HTTPS URLs are supported.");
+            }
+            if (!visited.Add(currentUri.AbsoluteUri)) {
+                throw new InvalidOperationException("Redirect loop detected.");
+            }
+            visitedUrls?.Add(currentUri.AbsoluteUri);
+            using var request = new HttpRequestMessage(method, currentUri);
+            if (requestVersion != null) {
+                request.Version = requestVersion;
+#if NET8_0_OR_GREATER
+                request.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+#endif
+            }
+            if (IsSameOrigin(customizationOrigin, currentUri)) {
+                if (!string.IsNullOrWhiteSpace(options.Cookie)) AddHeader(request, "Cookie", options.Cookie, headerNames);
+                foreach (var header in options.Headers) {
+                    AddHeader(request, header.Key, header.Value, headerNames);
+                }
+            }
+            var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            if ((int)response.StatusCode < 300 || (int)response.StatusCode >= 400 || response.Headers.Location == null) {
+                return response; // Caller owns the final response, including its unread body.
+            }
+            try {
+                if (redirects >= maxRedirects) {
+                    throw new InvalidOperationException($"Maximum number of redirects ({maxRedirects}) exceeded.");
+                }
+                var next = response.Headers.Location.IsAbsoluteUri
+                    ? response.Headers.Location : new Uri(currentUri, response.Headers.Location);
+                if (currentUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                    && next.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)) {
+                    throw new HttpRequestException("HTTPS to HTTP redirects are not allowed.");
+                }
+                currentUri = next;
+            } finally {
+                response.Dispose();
+            }
+        }
+    }
+
+    private static void AddHeader(HttpRequestMessage request, string name, string? value, List<string>? names) {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        try {
+            if (request.Headers.TryAddWithoutValidation(name, value ?? string.Empty) && names != null
+                && !names.Exists(existing => existing.Equals(name, StringComparison.OrdinalIgnoreCase))) {
+                names.Add(name);
+            }
+        } catch (ArgumentException) { /* Invalid customization remains best-effort. */ }
+        catch (FormatException) { }
+        catch (InvalidOperationException) { }
+    }
+}

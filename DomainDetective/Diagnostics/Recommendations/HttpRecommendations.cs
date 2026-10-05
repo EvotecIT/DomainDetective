@@ -58,13 +58,13 @@ internal sealed class HttpRecommendations : IRecommendationProvider {
 
         map[HttpCodes.MixedContent] = new RecommendationAdvice {
             Code = HttpCodes.MixedContent,
-            Title = "Mixed content on HTTPS page",
-            Why = "Loading http:// resources on an HTTPS page breaks integrity and can leak or alter content.",
-            How = "Serve all subresources over HTTPS. Replace hard-coded http:// URLs with protocol-relative or https:// equivalents.",
+            Title = "HTTP reference in HTTPS text",
+            Why = "Captured text contains http://. Prose, links and XML namespaces can trigger this hint without insecure resource loading.",
+            How = "Check actual browser requests. If insecure subresources load, serve those resources over HTTPS.",
             Links = new [] { "https://developer.mozilla.org/docs/Web/Security/Mixed_content" },
             Domain = RecommendationDomain.Http,
             Tags = new [] { "mixed-content" },
-            Impact = "Compromised confidentiality/integrity for active or passive content.",
+            Impact = "Requires browser confirmation; the textual hint does not lower the HTTP grade.",
             Effort = RecommendationEffort.Medium,
             Verify = "Run a crawl or browser devtools audit; ensure no http:// subresources."
         };

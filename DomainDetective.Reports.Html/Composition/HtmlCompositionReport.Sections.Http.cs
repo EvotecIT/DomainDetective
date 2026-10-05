@@ -149,9 +149,10 @@ public static partial class HtmlCompositionReport
                                                 if (raw != null)
                                                 {
                                                     kv.Add(("Response Time", raw.ResponseTime.ToString()));
-                                                    kv.Add(("Body Length (bytes)", raw.BodyLength?.ToString() ?? "-"));
+                                                    kv.Add(("Captured Body (bytes)", raw.BodyLength?.ToString() ?? "-"));
+                                                    kv.Add(("Body Capture", raw.BodyLength == null ? "Not requested" : raw.BodyTruncated ? "Truncated" : "Complete"));
                                                     kv.Add(("Body SHA-256", raw.BodySha256 ?? "-"));
-                                                    kv.Add(("Mixed Content", raw.MixedContentDetected ? "Yes" : "No"));
+                                                    kv.Add(("HTTP Text Hint", raw.MixedContentDetected ? "Yes" : "No"));
                                                     kv.Add(("Insecure Forms", raw.InsecureFormsCount > 0 ? raw.InsecureFormsCount.ToString() : "0"));
                                                 }
 
