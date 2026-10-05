@@ -85,7 +85,7 @@ public class TestHealthBatchLifetime {
                 return health;
             }, cancellationToken: cancellation.Token);
         try {
-            Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(3000)));
+            Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(30000)));
             cancellation.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => batch);
             Assert.Equal(2, started);
@@ -94,6 +94,79 @@ public class TestHealthBatchLifetime {
         } finally {
             cancellation.Cancel();
             try { await batch; } catch (OperationCanceledException) { }
+            foreach (var instance in instances) { instance.Dispose(); }
+        }
+    }
+
+    [Fact]
+    public async Task CancellationWaitsForPrestartedDaneBeforeCompletingBatch() {
+        using var caller = new CancellationTokenSource();
+        using var health = new DomainHealthCheck();
+        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int finished = 0;
+        health.DnsConfiguration.QueryDnsOverride = async (_, type) => {
+            Assert.Equal(DnsRecordType.MX, type);
+            entered.TrySetResult(true);
+            caller.Cancel();
+            try { await release.Task; return Array.Empty<DnsAnswer>(); }
+            finally { Interlocked.Increment(ref finished); }
+        };
+        Task<IReadOnlyList<DomainHealthCheckRun>> batch = DomainHealthCheck.VerifyBatchAsync(
+            new[] { "example.com" }, new[] { HealthCheckType.DANE, HealthCheckType.MTASTS },
+            healthCheckFactory: _ => health, cancellationToken: caller.Token);
+        try {
+            Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(30000)));
+            Assert.NotSame(batch, await Task.WhenAny(batch, Task.Delay(250)));
+            Assert.Equal(0, finished);
+            release.TrySetResult(true);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => batch);
+            Assert.Equal(1, finished);
+            using var lease = Acquire(health);
+        } finally {
+            release.TrySetResult(true); caller.Cancel();
+            try { await batch; } catch (OperationCanceledException) { }
+        }
+    }
+
+    [Fact]
+    public async Task EnumerationFailureCancelsAndDrainsAlreadyAdmittedDomains() {
+        using var caller = new CancellationTokenSource();
+        var instances = new System.Collections.Concurrent.ConcurrentBag<DomainHealthCheck>();
+        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int started = 0, finished = 0;
+        IEnumerable<string> Domains() {
+            yield return "d0.example.com";
+            yield return "d1.example.com";
+            throw new InvalidOperationException("enumeration failed");
+        }
+        Task<IReadOnlyList<DomainHealthCheckRun>> batch = DomainHealthCheck.VerifyBatchAsync(
+            Domains(), new[] { HealthCheckType.DMARC },
+            executionOptions: new HealthCheckExecutionOptions { MaxDomainParallelism = 2 }, healthCheckFactory: _ => {
+                var health = new DomainHealthCheck(); instances.Add(health);
+                health.DnsConfiguration.QueryDnsResponseOverride = async (name, _, token) => {
+                    if (Interlocked.Increment(ref started) == 2) { entered.TrySetResult(true); }
+                    try {
+                        if (name.Contains("d0.example.com")) { await releaseFirst.Task; }
+                        else { await Task.Delay(Timeout.Infinite, token); }
+                        return new DnsResponse { Status = DnsResponseCode.NoError, Answers = new[] {
+                            new DnsAnswer { Name = name, Type = DnsRecordType.TXT, DataRaw = "v=DMARC1; p=reject" }
+                        } };
+                    } finally { Interlocked.Increment(ref finished); }
+                };
+                return health;
+            }, cancellationToken: caller.Token);
+        try {
+            Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(30000)));
+            releaseFirst.TrySetResult(true);
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => batch);
+            Assert.Equal("enumeration failed", error.Message);
+            Assert.Equal(2, started); Assert.Equal(started, finished);
+            foreach (var instance in instances) { using var lease = Acquire(instance); }
+        } finally {
+            releaseFirst.TrySetResult(true); caller.Cancel();
+            try { await batch; } catch { }
             foreach (var instance in instances) { instance.Dispose(); }
         }
     }

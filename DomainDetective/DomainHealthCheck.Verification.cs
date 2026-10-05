@@ -220,6 +220,7 @@ public partial class DomainHealthCheck {
                     [HealthCheckType.MICROSOFT365] = () => VerifyMicrosoft365TenantAsync(domainName, cancellationToken)
 		            };
 
+            Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
                 var daneTask = new Lazy<Task>(() => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken));
                 actions[HealthCheckType.DANE] = () => daneTask.Value;
@@ -230,7 +231,7 @@ public partial class DomainHealthCheck {
                     };
                 }
                 if (exec.EnableParallelism && (healthCheckTypes.Contains(HealthCheckType.SMTPTLS) || healthCheckTypes.Contains(HealthCheckType.MTASTS))) {
-                    _ = daneTask.Value;
+                    prestartedDaneTask = daneTask.Value;
                 }
             }
 
@@ -272,25 +273,41 @@ public partial class DomainHealthCheck {
                 ReportProgress(healthCheckType.ToString(), done);
             }
 
-            if (!exec.EnableParallelism || totalChecks <= 1) {
-                _logger.WriteVerbose("Parallel execution disabled; running checks sequentially.");
-                foreach (var healthCheckType in healthCheckTypes) {
-                    ReportProgress(healthCheckType.ToString(), processedChecks);
-                    await RunCheckAsync(healthCheckType);
-                    processedChecks++;
-                    _logger.WriteInformation("{0} check completed", healthCheckType);
-                    ReportProgress(healthCheckType.ToString(), processedChecks);
+            Exception? executionFailure = null;
+            try {
+                if (!exec.EnableParallelism || totalChecks <= 1) {
+                    _logger.WriteVerbose("Parallel execution disabled; running checks sequentially.");
+                    foreach (var healthCheckType in healthCheckTypes) {
+                        ReportProgress(healthCheckType.ToString(), processedChecks);
+                        await RunCheckAsync(healthCheckType);
+                        processedChecks++;
+                        _logger.WriteInformation("{0} check completed", healthCheckType);
+                        ReportProgress(healthCheckType.ToString(), processedChecks);
+                    }
+                } else {
+                    var maxParallelism = exec.GetEffectiveMaxParallelism();
+                    _logger.WriteVerbose("Parallel execution enabled: max {0} concurrent checks.", maxParallelism);
+                    ReportProgress("Starting", 0);
+                    using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
+                    var tasks = new List<Task>(healthCheckTypes.Length);
+                    foreach (var healthCheckType in healthCheckTypes) {
+                        tasks.Add(RunCheckWithGateAsync(healthCheckType, gate));
+                    }
+                    await Task.WhenAll(tasks);
                 }
-            } else {
-                var maxParallelism = exec.GetEffectiveMaxParallelism();
-                _logger.WriteVerbose("Parallel execution enabled: max {0} concurrent checks.", maxParallelism);
-                ReportProgress("Starting", 0);
-                using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
-                var tasks = new List<Task>(healthCheckTypes.Length);
-                foreach (var healthCheckType in healthCheckTypes) {
-                    tasks.Add(RunCheckWithGateAsync(healthCheckType, gate));
+            } catch (Exception exception) {
+                executionFailure = exception;
+                throw;
+            } finally {
+                if (prestartedDaneTask != null) {
+                    try {
+                        // Cancellation may prevent the gated DANE action from being admitted.
+                        // Every task already started still belongs to this verification lifetime.
+                        await prestartedDaneTask.ConfigureAwait(false);
+                    } catch when (executionFailure != null) {
+                        // Observe the prestarted task without replacing the original failure.
+                    }
                 }
-                await Task.WhenAll(tasks);
             }
 
             // Compute provider inference once core mail checks ran (best-effort; safe if some were skipped)
