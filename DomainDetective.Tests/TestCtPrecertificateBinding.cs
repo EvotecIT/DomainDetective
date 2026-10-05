@@ -15,6 +15,50 @@ using Org.BouncyCastle.X509;
 namespace DomainDetective.Tests;
 
 public sealed class TestCtPrecertificateBinding {
+    [Fact]
+    public async Task StaticDedicatedPrecertificatesReuseValidatedIssuersWithinOneBatch() {
+        AsymmetricCipherKeyPair rootKey = Key(), signerKey = Key(), leafKey = Key();
+        var rootName = new X509Name("CN=Fixture Root");
+        var signerName = new X509Name("CN=Fixture Precertificate Signer");
+        X509Certificate root = Certificate(rootName, rootName, rootKey, rootKey, ca: true);
+        X509Certificate signer = Certificate(signerName, rootName, signerKey, rootKey, ca: true, ctSigner: true);
+        X509Certificate final = Certificate(new X509Name("CN=login.example.test"), rootName, leafKey, rootKey);
+        X509Certificate pre = Certificate(new X509Name("CN=login.example.test"), signerName,
+            leafKey, signerKey, poison: true, leafAuthority: 2);
+        byte[] rootBytes = root.GetEncoded(), signerBytes = signer.GetEncoded();
+        byte[] fingerprints = Hash(signerBytes).Concat(Hash(rootBytes)).ToArray();
+        byte[] leaf = new byte[] { 0, 0, 0, 0, 0, 0, 0, 1, 0, 1 }
+            .Concat(Hash(root.CertificateStructure.TbsCertificate.SubjectPublicKeyInfo.GetDerEncoded()))
+            .Concat(Vector(final.CertificateStructure.TbsCertificate.GetDerEncoded())).Concat(new byte[] { 0, 0 }).ToArray();
+        byte[] entry = leaf.Concat(Vector(pre.GetEncoded())).Concat(new byte[] { 0, 64 }).Concat(fingerprints).ToArray();
+        byte[] tile = Enumerable.Range(0, 32).SelectMany(_ => entry).ToArray();
+        int issuerRequests = 0;
+        bool corruptIssuer = false;
+        var client = new CtLogIngestionClient {
+            SendOverride = (message, _) => {
+                bool issuer = message.RequestUri!.AbsolutePath.Contains("/issuer/");
+                if (issuer) issuerRequests++;
+                byte[] content = issuer
+                    ? (corruptIssuer || !message.RequestUri.AbsolutePath.EndsWith(Hex(Hash(signerBytes))) ? rootBytes : signerBytes)
+                    : tile;
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(content) });
+            }
+        };
+        var request = new CtLogIngestionBatchRequest {
+            LogUrl = "https://ct.example.test/binding/", MonitoringUrl = "https://ct.example.test/binding/", ApiKind = CtLogApiKind.StaticCt,
+            StartIndex = 0, BatchSize = 32, KnownTreeSize = 32, RequireCompleteDecoding = true
+        };
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(request);
+        Assert.Equal(32, batch.Entries.Count);
+        Assert.All(batch.Entries, value => Assert.Contains("login.example.test", value.Certificate.DnsNames));
+        Assert.Equal(2, issuerRequests);
+
+        // A new batch fetches and validates anew; reuse never accepts a mismatched issuer fingerprint.
+        corruptIssuer = true;
+        await Assert.ThrowsAsync<CtEntryDecodingException>(() => client.ReadBatchAsync(request));
+        Assert.Equal(3, issuerRequests);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

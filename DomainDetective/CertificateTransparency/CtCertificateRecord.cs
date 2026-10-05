@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using DomainDetective.Helpers;
+using X509Name = Org.BouncyCastle.Asn1.X509.X509Name;
 
 namespace DomainDetective;
 
@@ -135,7 +136,7 @@ public sealed class CtCertificateRecord
 
         // Keep the normalized record immutable even if the caller later mutates their input buffer.
         byte[] rawData = certificateDer.ToArray();
-        CtCertificateDer.Parse(rawData);
+        var parsedCertificate = CtCertificateDer.Parse(rawData);
         using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(rawData);
         if (!CtMerkleTree.Equal(rawData, certificate.RawData))
         {
@@ -157,7 +158,7 @@ public sealed class CtCertificateRecord
                 EntryTimestampUtc = entryTimestampUtc,
                 Sha256Fingerprint = ToHex(namesOnlySha256Bytes),
                 TbsSha256 = NormalizeHex(tbsSha256),
-                DnsNames = ExtractDnsNames(certificate),
+                DnsNames = ExtractDnsNames(certificate, parsedCertificate.SubjectDN),
                 CertificateDer = rawData,
                 IsPrecertificate = isPrecertificate
             };
@@ -185,7 +186,7 @@ public sealed class CtCertificateRecord
             SerialNumber = certificate.SerialNumber,
             NotBeforeUtc = new DateTimeOffset(certificate.NotBefore.ToUniversalTime()),
             NotAfterUtc = new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
-            DnsNames = ExtractDnsNames(certificate),
+            DnsNames = ExtractDnsNames(certificate, parsedCertificate.SubjectDN),
             IsSelfSigned = IsSelfSignedCertificate(certificate),
             WeakKey = IsWeakPublicKey(certificate),
             Sha1Signature = IsSha1Signature(signatureOid),
@@ -225,11 +226,14 @@ public sealed class CtCertificateRecord
             CtCertificateRecordDetailLevel.Full);
     }
 
-    private static IReadOnlyList<string> ExtractDnsNames(X509Certificate2 certificate)
+    private static IReadOnlyList<string> ExtractDnsNames(X509Certificate2 certificate, X509Name subject)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        AddDnsNameIfCandidate(names, SafeGetNameInfo(certificate, X509NameType.DnsName));
-        AddDnsNameIfCandidate(names, TryExtractCommonName(certificate.Subject));
+        // Read attribute identities from ASN.1; formatted DNs may contain quoted commas and "CN=" text.
+        foreach (string commonName in subject.GetValueList(X509Name.CN))
+        {
+            AddDnsNameIfCandidate(names, commonName);
+        }
 
         try
         {
@@ -269,132 +273,6 @@ public sealed class CtCertificateRecord
         return names
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-    }
-
-    private static string? SafeGetNameInfo(X509Certificate2 certificate, X509NameType type)
-    {
-        try
-        {
-            return certificate.GetNameInfo(type, false);
-        }
-        catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
-        {
-            return null;
-        }
-    }
-
-    private static string? TryExtractCommonName(string? subject)
-    {
-        if (string.IsNullOrWhiteSpace(subject))
-        {
-            return null;
-        }
-
-        foreach (string trimmed in SplitDistinguishedNameParts(subject!)
-            .Select(part => part.Trim())
-            .Where(part => part.StartsWith("CN=", StringComparison.OrdinalIgnoreCase)))
-        {
-            string value = UnescapeDistinguishedNameValue(trimmed.Substring(3).Trim());
-            return value.Length == 0 ? null : value;
-        }
-
-        return null;
-    }
-
-    private static IEnumerable<string> SplitDistinguishedNameParts(string subject)
-    {
-        var builder = new StringBuilder();
-        bool escaped = false;
-        foreach (char character in subject)
-        {
-            if (escaped)
-            {
-                builder.Append('\\');
-                builder.Append(character);
-                escaped = false;
-                continue;
-            }
-
-            if (character == '\\')
-            {
-                escaped = true;
-                continue;
-            }
-
-            if (character == ',')
-            {
-                yield return builder.ToString();
-                builder.Clear();
-                continue;
-            }
-
-            builder.Append(character);
-        }
-
-        if (escaped)
-        {
-            builder.Append('\\');
-        }
-
-        yield return builder.ToString();
-    }
-
-    private static string UnescapeDistinguishedNameValue(string value)
-    {
-        var builder = new StringBuilder(value.Length);
-        for (int index = 0; index < value.Length; index++)
-        {
-            char character = value[index];
-            if (character != '\\')
-            {
-                builder.Append(character);
-                continue;
-            }
-
-            if (TryReadHexEscapedBytes(value, ref index, out string decodedValue))
-            {
-                builder.Append(decodedValue);
-                continue;
-            }
-
-            if (index + 1 < value.Length)
-            {
-                builder.Append(value[++index]);
-            }
-            else
-            {
-                builder.Append('\\');
-            }
-        }
-
-        return builder.ToString().Trim();
-    }
-
-    private static bool TryReadHexEscapedBytes(string value, ref int index, out string decodedValue)
-    {
-        decodedValue = string.Empty;
-        if (index + 2 >= value.Length ||
-            !Uri.IsHexDigit(value[index + 1]) ||
-            !Uri.IsHexDigit(value[index + 2]))
-        {
-            return false;
-        }
-
-        var bytes = new List<byte>();
-        int currentIndex = index;
-        while (currentIndex + 2 < value.Length &&
-               value[currentIndex] == '\\' &&
-               Uri.IsHexDigit(value[currentIndex + 1]) &&
-               Uri.IsHexDigit(value[currentIndex + 2]))
-        {
-            string hex = value.Substring(currentIndex + 1, 2);
-            bytes.Add(Convert.ToByte(hex, 16));
-            currentIndex += 3;
-        }
-
-        decodedValue = Encoding.UTF8.GetString(bytes.ToArray());
-        index = currentIndex - 1;
-        return true;
     }
 
     private static void AddDnsNameIfCandidate(HashSet<string> names, string? name)
