@@ -7,7 +7,6 @@ namespace DomainDetective.Views;
 public static partial class Converters {
     /// <summary>Executes the convert operation.</summary>
     public static DnsOverTlsSummary Convert(DnsOverTlsAnalysis analysis) {
-        var total = analysis.ServerResults?.Count ?? 0;
         var endpoints = analysis.ServerResults?.Select(kv => new DnsOverTlsEndpointInfo {
             Key = kv.Key,
             NameServerHost = kv.Value.NameServerHost,
@@ -27,9 +26,10 @@ public static partial class Converters {
             ElapsedMilliseconds = kv.Value.ElapsedMilliseconds,
         }).ToList() ?? new List<DnsOverTlsEndpointInfo>();
 
+        var total = endpoints.Count(e => e.Attempted);
         var supported = endpoints.Count(e => e.Supported);
-        var mismatch = endpoints.Count(e => e.Supported && e.HostnameMatch == false);
-        var invalidCert = endpoints.Count(e => e.Supported && e.CertificateValid == false);
+        var mismatch = endpoints.Count(e => (e.TlsHandshakeSucceeded || e.Supported) && e.HostnameMatch == false);
+        var invalidCert = endpoints.Count(e => (e.TlsHandshakeSucceeded || e.Supported) && e.CertificateValid == false);
 
         var assessments = analysis.Assessments ?? new List<Assessment>();
         var recs = RecommendationEngine.FromProblems(assessments);
@@ -41,6 +41,8 @@ public static partial class Converters {
             Area = AreaForKind(HealthCheckType.DNSOVERTLS),
             Subject = analysis.Subject,
             TotalChecked = total,
+            PlannedEndpointCount = endpoints.Count,
+            DiscoveredEndpointCount = analysis.DiscoveredEndpointCount,
             SupportedCount = supported,
             HostnameMismatchCount = mismatch,
             InvalidCertificateCount = invalidCert,
@@ -51,7 +53,7 @@ public static partial class Converters {
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = string.Format(CultureInfo.InvariantCulture, "endpoints {0}; supported {1}; mismatch {2}; invalid-cert {3}", total, supported, mismatch, invalidCert),
+            Summary = string.Format(CultureInfo.InvariantCulture, "attempted {0} of {1} planned ({2} discovered); supported {3}; mismatch {4}; invalid-cert {5}", total, endpoints.Count, analysis.DiscoveredEndpointCount, supported, mismatch, invalidCert),
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
@@ -70,6 +72,10 @@ public sealed class DnsOverTlsSummary {
     public string? Subject { get; set; }
     /// <summary>Gets or sets the total checked value.</summary>
     public int TotalChecked { get; set; }
+    /// <summary>Gets or sets planned endpoint slots, including probes skipped by the budget.</summary>
+    public int PlannedEndpointCount { get; set; }
+    /// <summary>Gets or sets endpoints discovered before the scan cap.</summary>
+    public int DiscoveredEndpointCount { get; set; }
     /// <summary>Gets or sets the supported count value.</summary>
     public int SupportedCount { get; set; }
     /// <summary>Gets or sets the hostname mismatch count value.</summary>

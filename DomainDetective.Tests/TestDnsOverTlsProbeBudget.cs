@@ -9,6 +9,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using DnsClientX;
+using DomainDetective.Definitions;
+using DomainDetective.DesiredState;
+using DomainDetective.Views;
 using Xunit;
 
 namespace DomainDetective.Tests;
@@ -66,6 +69,8 @@ public class TestDnsOverTlsProbeBudget {
             Assert.Single(analysis.ServerResults.Values, result => result.Attempted);
             Assert.All(analysis.ServerResults.Values, result => Assert.Equal(DnsOverTlsProbeOutcome.BudgetExhausted, result.Outcome));
             Assert.False(analysis.CoverageComplete);
+            var summary = Converters.Convert(analysis);
+            Assert.Equal(1, summary.TotalChecked);
         }
         Assert.Equal(0, active);
     }
@@ -136,6 +141,7 @@ public class TestDnsOverTlsProbeBudget {
             Assert.Equal(validDnsResponse, result.DnsExchangeVerified);
             Assert.False(result.CertificateValid); // Protocol support is separate from certificate trust.
             Assert.Contains(analysis.Assessments, item => item.Code == DnsOverTlsCodes.CertificateInvalid);
+            Assert.Equal(1, Converters.Convert(analysis).InvalidCertificateCount);
             if (!validDnsResponse) Assert.Equal("DNS exchange", result.FailureStage);
             await peer;
         } finally { fixture.Cancel(); listener.Stop(); try { await peer; } catch (OperationCanceledException) { } }
@@ -161,6 +167,40 @@ public class TestDnsOverTlsProbeBudget {
         Assert.Equal(cap ? 3 : 1, analysis.DiscoveredEndpointCount);
         if (!cap) Assert.Contains("ns.example.test AAAA", analysis.DiscoveryErrors.Keys);
         Assert.Contains(analysis.Assessments, item => item.Code == DnsOverTlsCodes.CoverageIncomplete);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExplicitSupportPolicyCannotConformWithEmptyDiscovery(bool all) {
+        var health = new DomainHealthCheck();
+        health.DnsOverTlsAnalysis.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
+        await health.DnsOverTlsAnalysis.Analyze("example.test", new InternalLogger());
+        var policy = new DesiredStateProfile { DnsOverTls = new DesiredStateDnsOverTlsPolicy {
+            RequireAnySupported = !all, RequireAllSupported = all
+        }};
+        var result = DesiredStateEvaluator.Evaluate("example.test", health, policy, MailDomainClassificationCategory.SendingAndReceiving);
+        Assert.False(result.Conforms);
+    }
+
+    [Fact]
+    public async Task RequireAllSupportCannotConformWhenScanCapOmittedAnEndpoint() {
+        var health = new DomainHealthCheck();
+        var analysis = CreateAnalysis(2); analysis.MaxServersToProbe = 1;
+        analysis.ProbeOverride = (_, _, _, _, _) => Task.FromResult(new DnsOverTlsEndpointResult { Supported = true });
+        // The public analysis object is shared by Verify and desired-state evaluation.
+        health.DnsOverTlsAnalysis.QueryDnsOverride = (_, type) => Task.FromResult(type switch {
+            DnsRecordType.NS => new[] { new DnsAnswer { Type = type, DataRaw = "ns.example.test" } },
+            DnsRecordType.A => new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" }, new DnsAnswer { Type = type, DataRaw = "192.0.2.2" } },
+            _ => Array.Empty<DnsAnswer>()
+        });
+        health.DnsOverTlsAnalysis.MaxServersToProbe = 1;
+        health.DnsOverTlsAnalysis.ProbeOverride = analysis.ProbeOverride;
+        await health.DnsOverTlsAnalysis.Analyze("example.test", new InternalLogger());
+        var result = DesiredStateEvaluator.Evaluate("example.test", health,
+            new DesiredStateProfile { DnsOverTls = new DesiredStateDnsOverTlsPolicy { RequireAllSupported = true } },
+            MailDomainClassificationCategory.SendingAndReceiving);
+        Assert.False(result.Conforms);
     }
 
     private static async Task ReadFully(System.IO.Stream stream, byte[] buffer, CancellationToken token) {
