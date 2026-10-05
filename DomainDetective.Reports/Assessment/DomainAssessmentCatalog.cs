@@ -266,6 +266,25 @@ public static class DomainAssessmentCatalog {
         return (int)Math.Round(total / weight, MidpointRounding.AwayFromZero);
     }
 
+    /// <summary>
+    /// Fixed security priority of a check when deciding what to fix first: 0 for exposure that can be abused today
+    /// (served certificates, mail spoofing, open services, listings, broken DNSSEC, takeover-prone records), 1 for
+    /// missing protection (transport encryption, DKIM, MTA-STS, web security headers, CAA), 2 for hygiene. A check's
+    /// score only breaks ties within a priority, so a missing DMARC policy outranks a perfect-score cosmetic error.
+    /// </summary>
+    public static int SecurityPriority(HealthCheckType? check) => check switch {
+        HealthCheckType.CERT or HealthCheckType.DMARC or HealthCheckType.SPF or HealthCheckType.OPENRELAY or
+            HealthCheckType.OPENRESOLVER or HealthCheckType.ZONETRANSFER or HealthCheckType.DANGLINGCNAME or
+            HealthCheckType.DNSBL or HealthCheckType.DNSSEC or HealthCheckType.THREATINTEL or HealthCheckType.THREATFEED or
+            HealthCheckType.DIRECTORYEXPOSURE or HealthCheckType.SNMP or HealthCheckType.PORTSCAN or
+            HealthCheckType.DNSAMPLIFICATION or HealthCheckType.SMTPAUTH => 0,
+        HealthCheckType.DKIM or HealthCheckType.MTASTS or HealthCheckType.TLSRPT or HealthCheckType.STARTTLS or
+            HealthCheckType.SMTPTLS or HealthCheckType.IMAPTLS or HealthCheckType.POP3TLS or HealthCheckType.HTTP or
+            HealthCheckType.DANE or HealthCheckType.CAA or HealthCheckType.MX or HealthCheckType.NS or
+            HealthCheckType.DELEGATION or HealthCheckType.RPKI or HealthCheckType.TYPOSQUATTING or HealthCheckType.WEBSITE => 1,
+        _ => 2
+    };
+
     /// <summary>Short title and expanded name of a check.</summary>
     public static (string Title, string? LongTitle) TitleFor(HealthCheckType check)
         => Titles.TryGetValue(check, out var title) ? title : (check.ToString(), null);

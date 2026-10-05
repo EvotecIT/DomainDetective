@@ -126,7 +126,8 @@ namespace DomainDetective.PowerShell {
         /// <para>
         /// <c>Assessment</c> (default) is a scored assessment report: a summary with what to fix first, coverage across
         /// domains, and every check with findings, evidence and guidance. It works offline and follows the viewer's
-        /// light or dark theme. <c>Document</c> and <c>Dashboard</c> keep the previous long-form and compact layouts.
+        /// light or dark theme. <c>Document</c> and <c>Dashboard</c> were retired; they remain accepted so existing
+        /// scripts keep working, and render the assessment report.
         /// </para>
         [Parameter(Mandatory = false)]
         [ValidateSet("Assessment","Document","Dashboard")]

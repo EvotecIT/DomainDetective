@@ -17,7 +17,10 @@ internal sealed class SpfAreaModule : IAssessmentAreaModule {
         SpfRecordInfo? spf = check.Sources.OfType<SpfRecordInfo>().FirstOrDefault();
         if (spf == null) return false;
         if (!spf.SpfRecordExists) {
-            check.Metrics.Add(Metric("Record", "Missing", MetricState.Error, "anyone can send as this domain"));
+            // A failed lookup says nothing about the record; calling it missing would raise a false alarm.
+            check.Metrics.Add(spf.DnsQueryFailed
+                ? Metric("Record", "Unknown", MetricState.Warning, "the DNS lookup failed")
+                : Metric("Record", "Missing", MetricState.Error, "anyone can send as this domain"));
             return true;
         }
 
@@ -81,7 +84,9 @@ internal sealed class DmarcAreaModule : IAssessmentAreaModule {
         DmarcRecordInfo? dmarc = check.Sources.OfType<DmarcRecordInfo>().FirstOrDefault();
         if (dmarc == null) return false;
         if (!dmarc.DmarcRecordExists) {
-            check.Metrics.Add(Metric("Record", "Missing", MetricState.Error, "spoofed mail is not rejected"));
+            check.Metrics.Add(dmarc.DnsQueryFailed
+                ? Metric("Record", "Unknown", MetricState.Warning, "the DNS lookup failed")
+                : Metric("Record", "Missing", MetricState.Error, "spoofed mail is not rejected"));
             return true;
         }
 

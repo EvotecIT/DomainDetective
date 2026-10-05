@@ -165,16 +165,18 @@ public static partial class AssessmentHtmlReport {
             posture.Tile(checks.Count.ToString(CultureInfo.InvariantCulture), "checks run");
         });
 
-        // The same order as the verdict's "Fix first": errors before warnings, then what costs the score most.
+        // The same order as the verdict's "Fix first": security exposure first, then errors before warnings, then what
+        // costs the score most.
         var attention = report.Domains
             .SelectMany(static d => d.Checks.Select(c => (Domain: d, Check: c)))
             .Where(static x => x.Check.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
-            .OrderByDescending(static x => x.Check.Outcome)
+            .OrderBy(static x => DomainAssessmentCatalog.SecurityPriority(x.Check.Check))
+            .ThenByDescending(static x => x.Check.Outcome)
             .ThenByDescending(static x => (100 - x.Check.Score) * Math.Max(1, x.Check.Weight))
             .ToList();
 
         section.ReportPanel(panel => {
-            panel.Title("Do these first").Subtitle("Errors before warnings, then the checks that cost the score most.").Settings(s => s.Flush());
+            panel.Title("Do these first").Subtitle("What can be abused today first (certificates, spoofing, open services), then missing protection, then hygiene.").Settings(s => s.Flush());
             if (attention.Count == 0) {
                 panel.AssessmentStats(stats => stats.Stat("0", "Nothing needs attention", Severity.Good));
                 return;

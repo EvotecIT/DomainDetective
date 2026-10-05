@@ -17,6 +17,40 @@ namespace DomainDetective.Tests.Reports {
         }
 
         [Fact]
+        public void MonitoringClassesKeepProbesOptInAndMessageChecksOut() {
+            Assert.Equal(CheckMonitoring.Intrusive, HealthCheckMonitoring.For(HealthCheckType.PORTSCAN));
+            Assert.Equal(CheckMonitoring.Intrusive, HealthCheckMonitoring.For(HealthCheckType.OPENRELAY));
+            Assert.Equal(CheckMonitoring.NotPerDomain, HealthCheckMonitoring.For(HealthCheckType.MESSAGEHEADER));
+            Assert.Equal(CheckMonitoring.Slow, HealthCheckMonitoring.For(HealthCheckType.TYPOSQUATTING));
+            Assert.Equal(CheckMonitoring.Routine, HealthCheckMonitoring.For(HealthCheckType.DMARC));
+            // Every check that cannot run from a domain alone is kept out of monitoring.
+            foreach (HealthCheckType check in (HealthCheckType[])Enum.GetValues(typeof(HealthCheckType))) {
+                if (!DomainHealthCheck.SupportsDomainVerification(check)) {
+                    Assert.Equal(CheckMonitoring.NotPerDomain, HealthCheckMonitoring.For(check));
+                }
+            }
+        }
+
+        [Fact]
+        public void RescoreRecomputesScoreGradeAndAreasFromCombinedChecks() {
+            var domain = new DomainAssessment {
+                Domain = "example.org",
+                Checks = {
+                    new CheckAssessment { Key = "spf", Title = "SPF", Check = HealthCheckType.SPF, Area = AnalysisArea.Mail, Outcome = CheckOutcome.Pass, Score = 100, Scored = true, Weight = 2 },
+                    new CheckAssessment { Key = "caa", Title = "CAA", Check = HealthCheckType.CAA, Area = AnalysisArea.DNS, Outcome = CheckOutcome.Warning, Score = 70, Scored = true, Weight = 1 }
+                }
+            };
+
+            DomainAssessmentBuilder.Rescore(domain);
+
+            Assert.Equal(90, domain.Score);
+            Assert.Equal("A", domain.Grade);
+            Assert.Equal(1, domain.WarningChecks);
+            Assert.Equal(new[] { AnalysisArea.Mail, AnalysisArea.DNS }, domain.Areas.Select(static a => a.Area));
+            Assert.Equal(70, domain.Areas.Single(static a => a.Area == AnalysisArea.DNS).Score);
+        }
+
+        [Fact]
         public void ChapterKeysAreUniqueAndEveryAreaHasOne() {
             List<string> keys = DomainAssessmentCatalog.Chapters.Select(static c => c.Key).ToList();
             Assert.Equal(keys.Count, keys.Distinct(StringComparer.Ordinal).Count());

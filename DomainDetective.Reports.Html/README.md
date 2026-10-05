@@ -40,8 +40,8 @@ whether informational findings are shown.
 
 ## Composition layouts
 
-`HtmlCompositionReport.Generate(..., profile: HtmlProfile.Assessment)` renders the same assessment report. The
-`Document` and `Dashboard` profiles keep the previous long-form and compact layouts.
+`HtmlCompositionReport.Generate(...)` renders the same assessment report for every profile. The earlier `Document`
+and `Dashboard` layouts were retired; the enum values remain (obsolete) so existing callers keep compiling.
 
 ## Dependencies
 

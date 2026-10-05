@@ -203,7 +203,7 @@ public static class ExecutiveSummaryBuilder
         }
     }
 
-    private static string FormatMicrosoft365WorkloadEvidenceSource(DomainDetective.Microsoft365ServiceEvidenceSourceKind source)
+    internal static string FormatMicrosoft365WorkloadEvidenceSource(DomainDetective.Microsoft365ServiceEvidenceSourceKind source)
     {
         switch (source)
         {

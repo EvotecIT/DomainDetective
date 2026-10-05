@@ -126,37 +126,25 @@ Describe 'Report ordering and composition (Pester)' {
         ([regex]::Matches($xmlText, 'b.example').Count) | Should -BeGreaterThan 1
     }
 
-    It 'respects domain and section order in HTML composition' {
+    It 'respects domain order in HTML composition' {
         $reportPath = Join-Path $TestDrive 'ordering-html.html'
         $items = @()
         $items += New-TestViews -Domain 'b.example'
         $items += New-TestViews -Domain 'a.example'
 
-        # Custom section order is a feature of the document layout.
-        $items | Export-DDSecurityReport -ExportFormat Html -HtmlProfile Document -ExportPath $reportPath -DomainOrder Input -SectionOrderMode Custom -SectionOrder DMARC,SPF -OpenReport:$false | Out-Null
+        # The assessment report keeps the input order of domains; sections follow the area and chapter order.
+        $items | Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -DomainOrder Input -OpenReport:$false | Out-Null
 
         Test-Path -Path $reportPath | Should -BeTrue
 
         $html = Get-Content -Path $reportPath -Raw -Encoding UTF8
-        # In HTML output, '&' is encoded as '&amp;'
-        $idxDomainB = $html.IndexOf('Mail &amp; DNS - b.example')
-        $idxDomainA = $html.IndexOf('Mail &amp; DNS - a.example')
+        $idxDomainB = $html.IndexOf('b.example')
+        $idxDomainA = $html.IndexOf('a.example')
         $idxDomainB | Should -BeGreaterThan -1
         $idxDomainA | Should -BeGreaterThan -1
         $idxDomainB | Should -BeLessThan $idxDomainA
-
-        $idxDmarcB = $html.IndexOf('DMARC (Domain-based Message Authentication', $idxDomainB)
-        $idxSpfB = $html.IndexOf('SPF (Sender Policy Framework', $idxDomainB)
-        $idxDmarcB | Should -BeGreaterThan $idxDomainB
-        $idxSpfB | Should -BeGreaterThan $idxDomainB
-        $idxDmarcB | Should -BeLessThan $idxSpfB
-        $idxDmarcB | Should -BeLessThan $idxDomainA
-
-        $idxSummary = $html.IndexOf('Overall Grade')
-        $idxSummary | Should -BeGreaterThan -1
-        $idxSummary | Should -BeLessThan $idxDomainB
+        $html | Should -Match 'Do these first'
     }
-
     It 'flattens piped arrays for HTML composition' {
         $reportPath = Join-Path $TestDrive 'flattening.html'
         $domain = 'example.com'

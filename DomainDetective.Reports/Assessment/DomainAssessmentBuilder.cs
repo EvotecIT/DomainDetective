@@ -132,13 +132,20 @@ public static class DomainAssessmentBuilder {
     private static readonly Dictionary<string, (string Key, string Title, AnalysisArea Area)> DescriptiveViews = new(StringComparer.Ordinal) {
         ["DmarcAggregateTimeSeriesInfo"] = ("dmarc-reports", "DMARC aggregate reports", AnalysisArea.Mail),
         ["TlsRptReportsTimeSeriesInfo"] = ("tlsrpt-reports", "TLS-RPT reports", AnalysisArea.Mail),
-        ["RegistrationDriftInfo"] = ("registration-drift", "Registration changes", AnalysisArea.Security)
+        ["RegistrationDriftInfo"] = ("registration-drift", "Registration changes", AnalysisArea.Security),
+        ["DesiredStateInfo"] = (DesiredStateAreaModule.Key, "Desired state", AnalysisArea.General)
+    };
+
+    // View types whose name does not spell their check.
+    private static readonly Dictionary<string, HealthCheckType> AliasedViews = new(StringComparer.Ordinal) {
+        ["Microsoft365TenantInfo"] = HealthCheckType.MICROSOFT365
     };
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, HealthCheckType?> InferredChecks = new();
 
     /// <summary>Check named by a view type: <c>SpfRecordInfo</c> is SPF, <c>MxInfo</c> is MX, <c>WildcardDnsInfo</c> is WILDCARDDNS.</summary>
     private static HealthCheckType? InferCheck(Type type) => InferredChecks.GetOrAdd(type, static t => {
+        if (AliasedViews.TryGetValue(t.Name, out HealthCheckType aliased)) return aliased;
         string key = KeyFromType(t);
         foreach (string candidate in new[] { key, Strip(key, "record"), Strip(key, "status"), Strip(Strip(key, "record"), "status") }) {
             if (Enum.TryParse(candidate, ignoreCase: true, out HealthCheckType check) && Enum.IsDefined(typeof(HealthCheckType), check)) return check;
@@ -191,7 +198,7 @@ public static class DomainAssessmentBuilder {
 
         // A curated module replaces the generic property listing with the numbers and evidence that matter for the
         // check; checks without one (or with views the module does not know) keep the generic reading.
-        IAssessmentAreaModule? module = AssessmentAreaModules.For(check.Check);
+        IAssessmentAreaModule? module = AssessmentAreaModules.For(check);
         if (module != null && module.Describe(check, maxRows)) {
             perSourceFacts.Clear();
         } else {
@@ -237,6 +244,17 @@ public static class DomainAssessmentBuilder {
             : check.Scored ? CheckOutcome.Pass
             : CheckOutcome.Info;
         check.Score = DomainAssessmentCatalog.ScoreFor(check.ErrorCount, check.WarningCount);
+    }
+
+    /// <summary>
+    /// Orders a domain's checks and recomputes its score, grade, counts and area scores from them. Used when checks of
+    /// different runs are combined, for example a monitoring run that refreshed some checks and kept the last results
+    /// of the others.
+    /// </summary>
+    /// <param name="domain">Domain whose <see cref="DomainAssessment.Checks"/> are complete.</param>
+    public static void Rescore(DomainAssessment domain) {
+        if (domain == null) throw new ArgumentNullException(nameof(domain));
+        Score(domain);
     }
 
     private static void Score(DomainAssessment domain) {

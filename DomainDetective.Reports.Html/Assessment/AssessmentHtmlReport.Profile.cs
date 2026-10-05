@@ -224,6 +224,7 @@ public static partial class AssessmentHtmlReport {
         string? policy = dmarc == null ? null : Metric(dmarc, "Policy");
         if (string.Equals(policy, "reject", StringComparison.OrdinalIgnoreCase)) strengths.Add("spoofed mail is rejected (DMARC reject)");
         else if (string.Equals(policy, "quarantine", StringComparison.OrdinalIgnoreCase)) strengths.Add("spoofed mail is quarantined (DMARC quarantine)");
+        else if (dmarc != null && string.Equals(Metric(dmarc, "Record"), "Unknown", StringComparison.OrdinalIgnoreCase)) strengths.Add("the DMARC policy could not be read (DNS lookup failed)");
         else if (dmarc != null) strengths.Add("DMARC does not stop spoofed mail yet");
         if (spf != null && (Metric(spf, "Ends with") ?? string.Empty).StartsWith("-all", StringComparison.Ordinal)) strengths.Add("SPF hard-fails unknown senders");
         if (domain.Checks.FirstOrDefault(c => c.Key == "dnssec") is { Outcome: CheckOutcome.Pass }) strengths.Add("DNSSEC is valid");
@@ -231,12 +232,14 @@ public static partial class AssessmentHtmlReport {
     }
 
     /// <summary>
-    /// Checks that need attention, in the order to fix them: errors before warnings, then by what costs the score most
-    /// (points lost times the check's weight).
+    /// Checks that need attention, in the order to fix them: security exposure first (see
+    /// <see cref="DomainAssessmentCatalog.SecurityPriority"/>), then errors before warnings, then by what costs the score
+    /// most (points lost times the check's weight).
     /// </summary>
     private static IEnumerable<CheckAssessment> FixOrder(IEnumerable<CheckAssessment> checks) => checks
         .Where(static c => c.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
-        .OrderByDescending(static c => c.Outcome)
+        .OrderBy(static c => DomainAssessmentCatalog.SecurityPriority(c.Check))
+        .ThenByDescending(static c => c.Outcome)
         .ThenByDescending(static c => (100 - c.Score) * Math.Max(1, c.Weight));
 
     private static void ProtocolChip(AssessmentChipList chips, CheckAssessment cert, string factLabel, string text, bool legacy, string? link) {

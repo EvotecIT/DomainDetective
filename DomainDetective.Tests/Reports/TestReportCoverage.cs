@@ -24,7 +24,7 @@ public class TestReportCoverage {
             };
             var result = await CompositionExportService.ExportAsync(new CompositionExportRequest {
                 Items = new object[] { view }, Formats = new[] { ReportFormat.Html },
-                ExportPath = path, ShowInfoFindings = showInfo, AutoCollectTtl = false, HtmlProfile = "Document"
+                ExportPath = path, ShowInfoFindings = showInfo, AutoCollectTtl = false
             });
             Assert.True(Assert.Single(result.Reports).Success, result.Reports[0].ErrorMessage);
             var html = File.ReadAllText(path);
@@ -49,13 +49,11 @@ public class TestReportCoverage {
                     new SpfRecordInfo { Subject = "example.org", Assessments = findings },
                     new AssessmentEvidenceInfo("example.org", findings)
                 },
-                Formats = new[] { ReportFormat.Html }, ExportPath = path, ShowInfoFindings = showInfo, AutoCollectTtl = false, HtmlProfile = "Document"
+                Formats = new[] { ReportFormat.Html }, ExportPath = path, ShowInfoFindings = showInfo, AutoCollectTtl = false
             });
             Assert.True(Assert.Single(result.Reports).Success, result.Reports[0].ErrorMessage);
             var html = File.ReadAllText(path);
             Assert.Contains("warning-evidence-marker", html);
-            Assert.Contains("Overall Grade", html);
-            Assert.True(html.IndexOf("Assessment evidence", StringComparison.Ordinal) > html.IndexOf("Overall Grade", StringComparison.Ordinal));
             if (showInfo) { Assert.Contains("info-evidence-marker", html); }
             else { Assert.DoesNotContain("info-evidence-marker", html); }
         } finally { File.Delete(path); }

@@ -174,6 +174,32 @@ namespace DomainDetective.Tests.Reports {
         }
 
         [Fact]
+        public void Html_FixFirstPutsSecurityExposureAboveCosmeticErrors() {
+            var report = new DomainAssessmentReport {
+                Domains = {
+                    new DomainAssessment {
+                        Domain = "example.org",
+                        Score = 60,
+                        Grade = "C",
+                        Checks = {
+                            // Old order: the error with the bigger score cost (BIMI) came first.
+                            new CheckAssessment { Key = "bimi", Title = "BIMI", Check = HealthCheckType.BIMI, Area = AnalysisArea.Mail, Outcome = CheckOutcome.Error, Score = 0, Scored = true, Weight = 3 },
+                            new CheckAssessment { Key = "dmarc", Title = "DMARC", Check = HealthCheckType.DMARC, Area = AnalysisArea.Mail, Outcome = CheckOutcome.Warning, Score = 70, Scored = true, Weight = 1 }
+                        }
+                    }
+                }
+            };
+
+            string html = AssessmentHtmlReport.Render(report);
+            string fixFirst = html.Substring(html.IndexOf("Do these first", StringComparison.Ordinal));
+
+            Assert.True(fixFirst.IndexOf("DMARC", StringComparison.Ordinal) < fixFirst.IndexOf("BIMI", StringComparison.Ordinal));
+            Assert.Equal(0, DomainAssessmentCatalog.SecurityPriority(HealthCheckType.DMARC));
+            Assert.Equal(1, DomainAssessmentCatalog.SecurityPriority(HealthCheckType.MTASTS));
+            Assert.Equal(2, DomainAssessmentCatalog.SecurityPriority(HealthCheckType.BIMI));
+        }
+
+        [Fact]
         public void Build_InfersCheckAndAreaForHandBuiltViews() {
             // As built in PowerShell: only the subject and status are set, so Check is left at its default (DMARC).
             var views = new List<object> {

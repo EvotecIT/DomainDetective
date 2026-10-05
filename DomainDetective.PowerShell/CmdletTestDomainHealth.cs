@@ -135,7 +135,7 @@ namespace DomainDetective.PowerShell {
                             .ToArray();
 
                         // Mail classification is computed on demand; every other check converts through the
-                        // library's shared check-to-view conversion. Input order is kept for the legacy layouts.
+                        // library's shared check-to-view conversion, in the order the checks were selected.
                         var conversionErrors = new System.Collections.Generic.List<string>();
                         foreach (var kind in selection) {
                             if (kind == DomainDetective.HealthCheckType.MAILCLASSIFICATION) {

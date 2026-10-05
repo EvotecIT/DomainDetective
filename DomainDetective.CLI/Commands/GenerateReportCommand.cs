@@ -36,7 +36,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandOption("-o|--output <PATH>")]
         public string? OutputPath { get; set; }
         
-        [Description("HTML layout: default (assessment report), document (legacy document), executive (legacy dashboard)")]
+        [Description("Kept for compatibility: every HTML report uses the assessment layout (document and executive were retired).")]
         [CommandOption("-t|--template <TEMPLATE>")]
         [DefaultValue("default")]
         public string Template { get; set; } = "default";
@@ -197,7 +197,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                                 TryOpenWithShell(outputPath);
                             }
                         }
-                        else if (UsesAssessmentLayout(settings.Template))
+                        else
                         {
                             AssessmentHtmlReport.Generate(
                                 outputPath,
@@ -206,27 +206,6 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                                 new AssessmentHtmlOptions { Theme = ResolveTheme(settings.Theme, ThemeMode.System) },
                                 settings.OpenInBrowser);
                         }
-                        else
-                        {
-                            var profile = (settings.Template ?? "default").Equals("executive", StringComparison.OrdinalIgnoreCase)
-                                ? HtmlProfile.Dashboard
-                                : HtmlProfile.Document;
-                            var themeMode = ResolveTheme(settings.Theme, ThemeMode.Light);
-                            if (themeMode == ThemeMode.System) themeMode = ThemeMode.Light;
-
-                            HtmlCompositionReport.Generate(
-                                outputPath,
-                                items,
-                                ReportScope.Normal,
-                                openInBrowser: settings.OpenInBrowser,
-                                narrativePlacement: NarrativePlacement.Auto,
-                                titleOverride: $"Security Report — {settings.Domain}",
-                                authorOverride: "DomainDetective CLI",
-                                descriptionOverride: "Domain security posture overview",
-	                                profile: profile,
-	                                themeMode: themeMode);
-	                        }
-
 	                        if (conversionErrors.Count > 0)
 	                        {
 	                            AnsiConsole.MarkupLine("[yellow]Some report sections could not be converted and were skipped:[/]");
@@ -312,11 +291,6 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                 : result.ErrorMessage);
         }
     }
-
-    /// <summary>The assessment report is the default HTML layout; "document" and "executive" keep the legacy layouts.</summary>
-    internal static bool UsesAssessmentLayout(string? template)
-        => !string.Equals(template, "document", StringComparison.OrdinalIgnoreCase) &&
-           !string.Equals(template, "executive", StringComparison.OrdinalIgnoreCase);
 
     internal static ThemeMode ResolveTheme(string? theme, ThemeMode fallback) => (theme ?? string.Empty).Trim().ToLowerInvariant() switch {
         "dark" => ThemeMode.Dark,

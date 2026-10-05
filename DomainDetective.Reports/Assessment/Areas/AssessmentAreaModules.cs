@@ -32,11 +32,19 @@ internal static class AssessmentAreaModules {
         new MailTlsAreaModule(),
         new MtaStsAreaModule(),
         new TlsRptAreaModule(),
-        new BimiAreaModule());
+        new BimiAreaModule(),
+        new Microsoft365AreaModule());
+
+    // Views that name no check are filed under a key of their own.
+    private static readonly Dictionary<string, IAssessmentAreaModule> KeyedModules = new(StringComparer.Ordinal) {
+        [DesiredStateAreaModule.Key] = new DesiredStateAreaModule()
+    };
 
     /// <summary>Module for a check, or null when the check uses the generic reading.</summary>
-    internal static IAssessmentAreaModule? For(HealthCheckType? check)
-        => check.HasValue && Modules.TryGetValue(check.Value, out IAssessmentAreaModule? module) ? module : null;
+    internal static IAssessmentAreaModule? For(CheckAssessment check) {
+        if (check.Check.HasValue) return Modules.TryGetValue(check.Check.Value, out IAssessmentAreaModule? module) ? module : null;
+        return KeyedModules.TryGetValue(check.Key, out IAssessmentAreaModule? keyed) ? keyed : null;
+    }
 
     private static Dictionary<HealthCheckType, IAssessmentAreaModule> Build(params IAssessmentAreaModule[] modules) {
         var map = new Dictionary<HealthCheckType, IAssessmentAreaModule>();
