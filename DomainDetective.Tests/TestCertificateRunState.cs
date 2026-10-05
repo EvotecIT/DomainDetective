@@ -30,6 +30,10 @@ public class TestCertificateRunState {
         Assert.Null(DomainDetective.Views.Converters.Convert(analysis).CertificateSubject);
         Assert.ThrowsAny<CryptographicException>(() => previousOwned.GetRawCertData());
         Assert.NotEmpty(certificate.GetRawCertData());
+        var inventory = CertificateMonitor.ToInventoryEntry(new CertificateMonitor.Entry { Host = "127.0.0.1", Analysis = analysis });
+        Assert.False(inventory.IsReachable);
+        Assert.NotNull(inventory.FailureReason);
+        Assert.NotEqual(CertificateFailureKind.None, inventory.FailureKind);
     }
 
     [Fact]
@@ -78,9 +82,46 @@ public class TestCertificateRunState {
         Assert.ThrowsAny<CryptographicException>(() => ownedChain.GetRawCertData());
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task FilteredCertificateOwnershipIsIndependent(int operation) {
+        using var supplied = MakeCertificate("original.example");
+        using var replacement = MakeCertificate("replacement.example");
+        var health = new DomainHealthCheck();
+        await health.CertificateAnalysis.AnalyzeCertificate(supplied);
+        var filtered = health.FilterAnalyses(new[] { HealthCheckType.CERT });
+        try {
+            if (operation == 0) {
+                filtered.CertificateAnalysis.Dispose();
+                Assert.Contains("original.example", DomainDetective.Views.Converters.Convert(health.CertificateAnalysis).CertificateSubject);
+            } else if (operation == 1) {
+                health.CertificateAnalysis.Dispose();
+                Assert.Contains("original.example", DomainDetective.Views.Converters.Convert(filtered.CertificateAnalysis).CertificateSubject);
+            } else {
+                await filtered.CertificateAnalysis.AnalyzeCertificate(replacement);
+                Assert.Contains("original.example", DomainDetective.Views.Converters.Convert(health.CertificateAnalysis).CertificateSubject);
+            }
+        } finally { health.CertificateAnalysis.Dispose(); filtered.CertificateAnalysis.Dispose(); }
+    }
+
+    [Fact]
+    public async Task ConvertedMetadataSurvivesAnalysisDisposal() {
+        using var supplied = MakeCertificate("snapshot.example");
+        var analysis = new CertificateAnalysis();
+        await analysis.AnalyzeCertificate(supplied);
+        var converted = DomainDetective.Views.Converters.Convert(analysis);
+        analysis.Dispose();
+        Assert.Contains("snapshot.example", converted.SubjectAlternativeNames);
+        Assert.Contains("local-inspection", converted.ChainSourceHistory);
+        Assert.Contains("snapshot.example", converted.CertificateSubject);
+    }
+
     private static X509Certificate2 MakeCertificate(string name) {
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=" + name, key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var names = new SubjectAlternativeNameBuilder(); names.AddDnsName(name); request.CertificateExtensions.Add(names.Build());
         return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
     }
 }

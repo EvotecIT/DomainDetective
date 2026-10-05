@@ -453,7 +453,6 @@ namespace DomainDetective {
             }
 
             return certificate != null ||
-                   !string.IsNullOrWhiteSpace(analysis.Subject) ||
                    analysis.Chain.Count > 0;
         }
 

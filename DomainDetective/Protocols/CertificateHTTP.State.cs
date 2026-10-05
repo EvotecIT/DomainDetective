@@ -6,7 +6,7 @@ using System.Security.Cryptography.X509Certificates;
 namespace DomainDetective;
 
 public partial class CertificateAnalysis {
-    private readonly List<X509Certificate2> _ownedCertificates = new();
+    private List<X509Certificate2> _ownedCertificates = new();
     private bool _disposed;
 
     private X509Certificate2 OwnCertificate(X509Certificate2 certificate) {

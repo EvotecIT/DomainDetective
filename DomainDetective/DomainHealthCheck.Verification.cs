@@ -653,7 +653,8 @@ public partial class DomainHealthCheck {
         private static readonly Func<object, object> _cloneObject = CreateCloneDelegate();
 
         private static T CloneAnalysis<T>(T analysis) where T : class {
-            return analysis == null ? null! : (T)_cloneObject(analysis);
+            return analysis == null ? null! : analysis is CertificateAnalysis certificate
+                ? (T)(object)certificate.CloneForSnapshot() : (T)_cloneObject(analysis);
         }
 
         private static Func<object, object> CreateCloneDelegate() {

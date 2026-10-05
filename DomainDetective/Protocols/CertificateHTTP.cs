@@ -71,15 +71,15 @@ namespace DomainDetective {
         public X509Certificate2? Certificate { get; set; }
 
         /// <summary>Gets the certificate chain.</summary>
-        public List<X509Certificate2> Chain { get; } = new();
+        public List<X509Certificate2> Chain { get; private set; } = new();
         /// <summary>Most recent source used to populate <see cref="Chain"/>.</summary>
         public string ChainSource { get; private set; } = string.Empty;
         /// <summary>Ordered unique list of chain acquisition sources observed during analysis.</summary>
-        public List<string> ChainSourceHistory { get; } = new();
+        public List<string> ChainSourceHistory { get; private set; } = new();
         /// <summary>Gets OCSP endpoints from the certificate.</summary>
-        public List<string> OcspUrls { get; } = new();
+        public List<string> OcspUrls { get; private set; } = new();
         /// <summary>Gets CRL endpoints from the certificate.</summary>
-        public List<string> CrlUrls { get; } = new();
+        public List<string> CrlUrls { get; private set; } = new();
         /// <summary>Gets a value indicating whether the certificate is revoked according to OCSP.</summary>
         public bool? OcspRevoked { get; private set; }
         /// <summary>Gets a value indicating whether the certificate is revoked according to CRL.</summary>
@@ -97,11 +97,11 @@ namespace DomainDetective {
         internal Func<AddressFamily, TcpClient> TcpClientFactory { get; set; } = family =>
             family == AddressFamily.Unspecified ? new TcpClient() : new TcpClient(family);
         /// <summary>Gets redirect target hosts observed during the most recent HTTP analysis.</summary>
-        public List<string> RedirectTargets { get; } = new();
+        public List<string> RedirectTargets { get; private set; } = new();
         /// <summary>Gets DNS names listed in the certificate subject alternative name extension.</summary>
-        public List<string> SubjectAlternativeNames { get; } = new();
+        public List<string> SubjectAlternativeNames { get; private set; } = new();
         /// <summary>Gets wildcard entries with matching subdomains.</summary>
-        public Dictionary<string, List<string>> WildcardSubdomains { get; } = new();
+        public Dictionary<string, List<string>> WildcardSubdomains { get; private set; } = new();
         /// <summary>Gets a value indicating whether the certificate contains wildcard names.</summary>
         public bool IsWildcardCertificate { get; private set; }
         /// <summary>Gets a value indicating the certificate secures multiple unrelated hosts.</summary>
@@ -137,9 +137,9 @@ namespace DomainDetective {
         /// <summary>Indicates if the certificate allows secure email usage.</summary>
         public bool AllowsSecureEmail { get; private set; }
         /// <summary>List of EKU OIDs on the certificate.</summary>
-        public List<string> ExtendedKeyUsageOids { get; } = new();
+        public List<string> ExtendedKeyUsageOids { get; private set; } = new();
         /// <summary>List of EKU friendly names for the certificate.</summary>
-        public List<string> ExtendedKeyUsageFriendlyNames { get; } = new();
+        public List<string> ExtendedKeyUsageFriendlyNames { get; private set; } = new();
         /// <summary>Normalized EKU authentication profile for filtering/reporting.</summary>
         public string AuthenticationProfile { get; private set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
         /// <summary>Gets the negotiated TLS protocol when <see cref="CaptureTlsDetails"/> is true.</summary>
@@ -200,17 +200,17 @@ namespace DomainDetective {
         /// <summary>Template-format errors captured during the latest CT lookup.</summary>
         public IReadOnlyList<string> CtTemplateFormatErrors => _ctTemplateFormatErrors;
 
-        private readonly List<JsonElement> _ctLogEntries = new();
+        private List<JsonElement> _ctLogEntries = new();
         private volatile string[] _ctDiscoverySources = Array.Empty<string>();
         private volatile string[] _ctTemplateFormatErrors = Array.Empty<string>();
-        private readonly CtLogAggregator _ctLogAggregator = new();
+        private CtLogAggregator _ctLogAggregator = new();
         private const string ChainSourceTlsHandshake = "tls-handshake";
         private const string ChainSourceSslStreamBuild = "sslstream-build";
         private const string ChainSourceLocalBuildOnline = "local-build-online";
         private const string ChainSourceLocalBuildNoCheck = "local-build-no-check";
 
         /// <summary>Structured assessments captured during certificate checks.</summary>
-        public List<Assessment> Assessments { get; } = new();
+        public List<Assessment> Assessments { get; private set; } = new();
 
         /// <summary>Coarse web TLS grade.</summary>
         public GradeLevel GradeLevel { get; private set; } = GradeLevel.Unknown;
@@ -268,7 +268,6 @@ namespace DomainDetective {
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
             Url = url;
-            Subject = url;
             bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             if (ShouldUseTlsHandshakeOnlyProbe()) {
