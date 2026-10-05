@@ -28,8 +28,8 @@ public sealed class AssessmentHtmlOptions {
     /// <summary>Include informational findings next to warnings and errors. Defaults to false.</summary>
     public bool ShowInfoFindings { get; set; }
 
-    /// <summary>Number of items in the summary's "Fix first" list before it expands. Defaults to 8.</summary>
-    public int FixFirstCount { get; set; } = 8;
+    /// <summary>Number of items in the summary's "Do these first" list before it expands. Defaults to 3.</summary>
+    public int FixFirstCount { get; set; } = 3;
 }
 
 /// <summary>
@@ -148,7 +148,9 @@ public static partial class AssessmentHtmlReport {
         int info = checks.Count(static c => c.Outcome == CheckOutcome.Info);
 
         section.AssessmentPosture(posture => {
-            posture.Score(report.Score ?? 0, "Overall / 100", report.Score.HasValue ? "Grade " + report.Grade : "Nothing scored");
+            posture.Headline(ReportVerdict(report, errors, warnings), ReportVerdictDetail(report, checks));
+            posture.Score(report.Score ?? 0, "of 100", report.Score.HasValue ? null : "Nothing scored");
+            if (report.Score.HasValue) posture.Grade(report.Grade);
             posture.ScoreNote(ScoreNote(report.Score, errors, warnings));
             foreach (AnalysisArea area in DomainAssessmentCatalog.AreaOrder) {
                 int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
@@ -161,21 +163,18 @@ public static partial class AssessmentHtmlReport {
             posture.Severity(Severity.Informational, info, "Informational");
             posture.Tile(report.Domains.Count.ToString(CultureInfo.InvariantCulture), report.Domains.Count == 1 ? "domain" : "domains");
             posture.Tile(checks.Count.ToString(CultureInfo.InvariantCulture), "checks run");
-            posture.Tile(report.Grade, "overall grade", GradeSeverity(report.Score));
         });
 
-        RenderControls(section, report, ids);
-
+        // The same order as the verdict's "Fix first": errors before warnings, then what costs the score most.
         var attention = report.Domains
             .SelectMany(static d => d.Checks.Select(c => (Domain: d, Check: c)))
             .Where(static x => x.Check.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
             .OrderByDescending(static x => x.Check.Outcome)
-            .ThenByDescending(static x => x.Check.Weight)
-            .ThenByDescending(static x => x.Check.ErrorCount + x.Check.WarningCount)
+            .ThenByDescending(static x => (100 - x.Check.Score) * Math.Max(1, x.Check.Weight))
             .ToList();
 
         section.ReportPanel(panel => {
-            panel.Title("Fix first").Subtitle("Checks with errors first, then warnings; mail authentication weighs most.").Settings(s => s.Flush());
+            panel.Title("Do these first").Subtitle("Errors before warnings, then the checks that cost the score most.").Settings(s => s.Flush());
             if (attention.Count == 0) {
                 panel.AssessmentStats(stats => stats.Stat("0", "Nothing needs attention", Severity.Good));
                 return;
@@ -197,8 +196,93 @@ public static partial class AssessmentHtmlReport {
             });
         });
 
+        RenderAreas(section, report, ids);
+        RenderControls(section, report, ids);
         if (report.Domains.Count > 1) RenderCoverage(section, report, ids);
     }
+
+    /// <summary>
+    /// One card per area: its score, how many checks pass, and in one line what needs attention. For one domain a card
+    /// opens the domain's checks; for several it averages the domain scores.
+    /// </summary>
+    private static void RenderAreas(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
+        var areas = DomainAssessmentCatalog.AreaOrder
+            .Select(area => (Area: area, Checks: report.Domains.SelectMany(d => d.Checks.Where(c => c.Area == area)).ToList()))
+            .Where(static a => a.Checks.Count > 0)
+            .ToList();
+        if (areas.Count == 0) return;
+        section.ReportPanel(panel => panel
+            .Title("Area by area")
+            .Subtitle(report.Domains.Count == 1 ? "Open an area for its checks." : "Scores are the average across domains.")
+            .Settings(s => s.Flush())
+            .AssessmentScopes(list => {
+                list.Settings(s => s.Layout(AssessmentScopeLayout.Cards));
+                foreach (var (area, areaChecks) in areas) {
+                    int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
+                    int? score = scores.Length == 0 ? null : (int)Math.Round(scores.Average());
+                    int errors = areaChecks.Count(static c => c.Outcome == CheckOutcome.Error);
+                    int warnings = areaChecks.Count(static c => c.Outcome == CheckOutcome.Warning);
+                    int passed = areaChecks.Count(static c => c.Outcome is CheckOutcome.Pass or CheckOutcome.Info);
+                    Severity tone = errors > 0 ? Severity.High : warnings > 0 ? Severity.Elevated : score.HasValue ? Severity.Good : Severity.Informational;
+                    list.Scope(AreaLabel(area), tone, item => {
+                        item.Status(errors > 0 ? "Errors" : warnings > 0 ? "Needs attention" : "Passing");
+                        item.Metric("Score", score?.ToString(CultureInfo.InvariantCulture) ?? "-", GradeSeverity(score));
+                        item.Metric("Checks", areaChecks.Count.ToString(CultureInfo.InvariantCulture));
+                        item.Progress(passed, errors + warnings);
+                        item.Note(AreaLine(report, areaChecks));
+                        if (report.Domains.Count == 1) item.Link("Open checks", ids.Domain(report.Domains[0]));
+                    });
+                }
+            }));
+    }
+
+    /// <summary>What needs attention in an area, in one line.</summary>
+    private static string AreaLine(DomainAssessmentReport report, List<CheckAssessment> checks) {
+        var titles = FixOrder(checks).Select(static c => c.Title).Distinct(StringComparer.Ordinal).ToList();
+        if (titles.Count == 0) return checks.All(static c => !c.Scored) ? "Informational checks only." : $"All {Plural(checks.Count, "check")} pass.";
+        string list = titles.Count <= 3 ? string.Join(", ", titles) : string.Join(", ", titles.Take(3)) + $" and {Plural(titles.Count - 3, "more")}";
+        return report.Domains.Count == 1 ? "Needs attention: " + list + "." : "Needs attention on some domains: " + list + ".";
+    }
+
+    /// <summary>The verdict across the top of the summary: what the run found, in one or two sentences.</summary>
+    private static string ReportVerdict(DomainAssessmentReport report, int errors, int warnings) {
+        int open = errors + warnings;
+        string need = open == 1 ? "needs" : "need";
+        string attention = open == 0
+            ? "Every check passed."
+            : errors == 0
+                ? $"{Plural(open, "check")} {need} attention; none has errors."
+                : open == 1
+                    ? "1 check has errors."
+                    : $"{Plural(open, "check")} {need} attention, {errors.ToString(CultureInfo.InvariantCulture)} of them with errors.";
+        if (report.Domains.Count == 1) {
+            string? strengths = DomainStrengths(report.Domains[0]);
+            return strengths == null ? attention : strengths + " " + attention;
+        }
+        int withErrors = report.Domains.Count(static d => d.ErrorChecks > 0);
+        int warningsOnly = report.Domains.Count(static d => d.ErrorChecks == 0 && d.WarningChecks > 0);
+        int clean = report.Domains.Count - withErrors - warningsOnly;
+        var parts = new List<string>();
+        if (withErrors > 0) parts.Add($"{withErrors.ToString(CultureInfo.InvariantCulture)} with errors");
+        if (warningsOnly > 0) parts.Add($"{warningsOnly.ToString(CultureInfo.InvariantCulture)} with warnings only");
+        if (clean > 0) parts.Add($"{clean.ToString(CultureInfo.InvariantCulture)} passing every check");
+        return $"Of {Plural(report.Domains.Count, "domain")}, " + JoinList(parts) + ".";
+    }
+
+    private static string ReportVerdictDetail(DomainAssessmentReport report, List<CheckAssessment> checks) {
+        int areas = checks.Select(static c => c.Area).Distinct().Count();
+        int passed = checks.Count(static c => c.Outcome == CheckOutcome.Pass);
+        int info = checks.Count(static c => c.Outcome == CheckOutcome.Info);
+        string what = $"{Plural(checks.Count, "check")} in {Plural(areas, "area")}: {passed.ToString(CultureInfo.InvariantCulture)} passed";
+        if (info > 0) what += $", {info.ToString(CultureInfo.InvariantCulture)} informational";
+        return what + (report.Domains.Count > 1 ? ". The overall grade averages the domain scores." : ".");
+    }
+
+    private static string JoinList(List<string> parts) => parts.Count switch {
+        0 => string.Empty,
+        1 => parts[0],
+        _ => string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[parts.Count - 1]
+    };
 
     // The controls a reader looks for first, with the number that says most about each.
     private static readonly (string Key, string Headline)[] Controls = {

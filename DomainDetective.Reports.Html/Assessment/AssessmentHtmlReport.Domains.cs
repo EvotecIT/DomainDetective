@@ -32,22 +32,42 @@ public static partial class AssessmentHtmlReport {
 
         RenderDomainProfile(section, domain, ids, generatedAt);
 
+        // Checks grouped by chapter (Sender authentication, Transport security, ...) in the catalog's order, each with
+        // its score and how many checks need attention.
+        var chapters = domain.Checks
+            .GroupBy(static c => DomainAssessmentCatalog.ChapterFor(c.Check, c.Area))
+            .OrderBy(static g => ChapterIndex(g.Key))
+            .ToList();
         section.AssessmentChecks(list => {
-            foreach (var area in domain.Checks.GroupBy(static c => c.Area)) {
-                int areaAttention = area.Count(static c => c.Outcome is CheckOutcome.Error or CheckOutcome.Warning);
-                list.Group(AreaKey(area.Key), AreaLabel(area.Key), areaAttention > 0 ? $"{Plural(areaAttention, "check")} need attention" : null);
+            // The list adds how many checks need attention to each chapter's line itself.
+            foreach (var chapter in chapters) {
+                int? score = DomainAssessmentCatalog.CombinedScore(chapter);
+                string detail = AreaLabel(chapter.Key.Area)
+                    + (score.HasValue ? " · score " + score.Value.ToString(CultureInfo.InvariantCulture) : string.Empty);
+                list.Group(ChapterKey(chapter.Key), chapter.Key.Title, detail);
             }
-            foreach (CheckAssessment check in domain.Checks) {
-                list.Check(ids.Check(domain, check), check.Title, row => RenderCheck(row, domain, check, options));
+            foreach (var chapter in chapters) {
+                foreach (CheckAssessment check in chapter) {
+                    list.Check(ids.Check(domain, check), check.Title, row => RenderCheck(row, domain, check, options, ChapterKey(chapter.Key)));
+                }
             }
         });
     }
 
-    private static void RenderCheck(AssessmentCheck row, DomainAssessment domain, CheckAssessment check, AssessmentHtmlOptions options) {
+    private static string ChapterKey(AssessmentChapter chapter) => "chapter-" + chapter.Key;
+
+    private static int ChapterIndex(AssessmentChapter chapter) {
+        for (int i = 0; i < DomainAssessmentCatalog.Chapters.Count; i++) {
+            if (ReferenceEquals(DomainAssessmentCatalog.Chapters[i], chapter)) return i;
+        }
+        return int.MaxValue;
+    }
+
+    private static void RenderCheck(AssessmentCheck row, DomainAssessment domain, CheckAssessment check, AssessmentHtmlOptions options, string group) {
         int failed = check.ErrorCount + check.WarningCount;
         row.Category(AreaLabel(check.Area))
             .Status(OutcomeSeverity(check.Outcome), OutcomeLabel(check.Outcome))
-            .InGroup(AreaKey(check.Area))
+            .InGroup(group)
             .ScopeLabel(domain.Domain)
             .SearchTerms(string.Join(" ", new[] { check.Key, check.LongTitle, domain.Domain }.Where(static s => !string.IsNullOrEmpty(s))));
         if (!string.IsNullOrWhiteSpace(check.LongTitle)) row.Subtitle(check.LongTitle!);

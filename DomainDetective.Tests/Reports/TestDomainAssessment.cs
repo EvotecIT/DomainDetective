@@ -157,6 +157,23 @@ namespace DomainDetective.Tests.Reports {
         }
 
         [Fact]
+        public void Html_SummaryLeadsWithAVerdictTheFixesAndTheAreas() {
+            DomainAssessmentReport report = DomainAssessmentBuilder.Build(SampleViews().Where(static v => v is not MxInfo { Subject: "b.example" }).ToList());
+
+            string html = AssessmentHtmlReport.Render(report);
+
+            // The verdict sits above the score, which shows the grade letter.
+            Assert.Contains("hfx-as-posture-verdict", html);
+            Assert.Contains("of them with errors.", html);
+            Assert.Contains("hfx-as-ring is-grade", html);
+            Assert.Contains("Do these first", html);
+            // One card per area, each saying in one line what needs attention.
+            Assert.Contains("Area by area", html);
+            Assert.Contains("Needs attention: DMARC", html);
+            Assert.True(html.IndexOf("Do these first", StringComparison.Ordinal) < html.IndexOf("Area by area", StringComparison.Ordinal));
+        }
+
+        [Fact]
         public void Build_InfersCheckAndAreaForHandBuiltViews() {
             // As built in PowerShell: only the subject and status are set, so Check is left at its default (DMARC).
             var views = new List<object> {

@@ -147,8 +147,6 @@ public static partial class AssessmentHtmlReport {
         _ => area.ToString()
     };
 
-    private static string AreaKey(AnalysisArea area) => "area-" + area.ToString().ToLowerInvariant();
-
     private static int AreaIndex(AnalysisArea area) {
         for (int i = 0; i < DomainAssessmentCatalog.AreaOrder.Count; i++) {
             if (DomainAssessmentCatalog.AreaOrder[i] == area) return i;

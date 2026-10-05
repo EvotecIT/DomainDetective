@@ -206,6 +206,18 @@ public static partial class AssessmentHtmlReport {
     /// One sentence on what holds and what to fix first, for the top of a domain page.
     /// </summary>
     private static string DomainVerdict(DomainAssessment domain) {
+        string? strengths = DomainStrengths(domain);
+        string[] fixes = FixOrder(domain.Checks)
+            .Take(3)
+            .Select(c => c.Title + (TopFinding(c) is { } finding ? " (" + Shorten(finding.TrimEnd('.'), 48) + ")" : string.Empty))
+            .ToArray();
+        string first = strengths == null ? string.Empty : strengths + " ";
+        string second = fixes.Length == 0 ? "Every check passed." : "Fix first: " + string.Join("; ", fixes) + ".";
+        return first + second;
+    }
+
+    /// <summary>What the domain's mail and DNS controls achieve, as one sentence, or null when nothing is known.</summary>
+    private static string? DomainStrengths(DomainAssessment domain) {
         var strengths = new List<string>();
         CheckAssessment? dmarc = domain.Checks.FirstOrDefault(c => c.Key == "dmarc");
         CheckAssessment? spf = domain.Checks.FirstOrDefault(c => c.Key == "spf");
@@ -215,19 +227,17 @@ public static partial class AssessmentHtmlReport {
         else if (dmarc != null) strengths.Add("DMARC does not stop spoofed mail yet");
         if (spf != null && (Metric(spf, "Ends with") ?? string.Empty).StartsWith("-all", StringComparison.Ordinal)) strengths.Add("SPF hard-fails unknown senders");
         if (domain.Checks.FirstOrDefault(c => c.Key == "dnssec") is { Outcome: CheckOutcome.Pass }) strengths.Add("DNSSEC is valid");
-
-        // What costs the score most: points lost times the check's weight, errors before warnings.
-        string[] fixes = domain.Checks
-            .Where(static c => c.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
-            .OrderByDescending(static c => c.Outcome)
-            .ThenByDescending(static c => (100 - c.Score) * Math.Max(1, c.Weight))
-            .Take(3)
-            .Select(c => c.Title + (TopFinding(c) is { } finding ? " (" + Shorten(finding.TrimEnd('.'), 48) + ")" : string.Empty))
-            .ToArray();
-        string first = strengths.Count == 0 ? string.Empty : Capitalize(string.Join(", ", strengths)) + ". ";
-        string second = fixes.Length == 0 ? "Every check passed." : "Fix first: " + string.Join("; ", fixes) + ".";
-        return first + second;
+        return strengths.Count == 0 ? null : Capitalize(string.Join(", ", strengths)) + ".";
     }
+
+    /// <summary>
+    /// Checks that need attention, in the order to fix them: errors before warnings, then by what costs the score most
+    /// (points lost times the check's weight).
+    /// </summary>
+    private static IEnumerable<CheckAssessment> FixOrder(IEnumerable<CheckAssessment> checks) => checks
+        .Where(static c => c.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
+        .OrderByDescending(static c => c.Outcome)
+        .ThenByDescending(static c => (100 - c.Score) * Math.Max(1, c.Weight));
 
     private static void ProtocolChip(AssessmentChipList chips, CheckAssessment cert, string factLabel, string text, bool legacy, string? link) {
         string? value = Fact(cert, factLabel);
