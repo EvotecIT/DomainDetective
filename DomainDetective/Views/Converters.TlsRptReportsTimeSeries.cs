@@ -75,6 +75,16 @@ public static partial class Converters
             });
         }
 
+        if (list.Any(s => !s.MxFailureAttributionVerified && s.MxHosts?.Count > 0)) {
+            assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Code = "TLSRPT.Reports.LegacyMxAttribution", Category = "TLS-RPT", Target = subject,
+                Message = "Older snapshots have unverified MX attribution. Their MX rows are omitted; reimport the original reports for receiving-host evidence."
+            });
+        }
+        foreach (string message in list.SelectMany(s => s.ValidationMessages ?? new List<string>()).Distinct()) {
+            assessments.Add(new Assessment { Severity = AssessmentSeverity.Warning, Code = "TLSRPT.Reports.Validation", Category = "TLS-RPT", Target = subject, Message = message });
+        }
+
         Summarize(assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.FromProblems(assessments);
         var positives = RecommendationEngine.FromPositives(assessments);
@@ -161,15 +171,17 @@ public static partial class Converters
 
         foreach (var s in snaps ?? new List<TlsRptSnapshot>())
         {
+            if (!s.MxFailureAttributionVerified) continue;
             foreach (var mx in s.MxHosts ?? new List<TlsRptMxSnapshot>())
             {
                 if (mx == null || string.IsNullOrWhiteSpace(mx.MxHost)) continue;
                 if (!map.TryGetValue(mx.MxHost, out var row))
                 {
-                    row = new TlsRptMxHostStat { MxHost = mx.MxHost };
+                    row = new TlsRptMxHostStat { MxHost = mx.MxHost, SuccessfulSessionsKnown = mx.SuccessfulSessionsKnown };
                     map[mx.MxHost] = row;
                 }
 
+                row.SuccessfulSessionsKnown &= mx.SuccessfulSessionsKnown;
                 row.SuccessfulSessions += mx.SuccessfulSessions;
                 row.FailedSessions += mx.FailedSessions;
                 foreach (var kv in mx.FailureByType ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase))
@@ -258,8 +270,10 @@ public sealed class TlsRptMxHostStat
 {
     /// <summary>Gets or sets the mx host value.</summary>
     public string MxHost { get; set; } = string.Empty;
-    /// <summary>Gets or sets the successful sessions value.</summary>
+    /// <summary>Legacy per-host success count; consult SuccessfulSessionsKnown before displaying it.</summary>
     public int SuccessfulSessions { get; set; }
+    /// <summary>Whether successes are independently attributed to this host. TLS-RPT failure rows do not provide that evidence.</summary>
+    public bool SuccessfulSessionsKnown { get; set; }
     /// <summary>Gets or sets the failed sessions value.</summary>
     public int FailedSessions { get; set; }
     /// <summary>Gets or sets the failure by type value.</summary>

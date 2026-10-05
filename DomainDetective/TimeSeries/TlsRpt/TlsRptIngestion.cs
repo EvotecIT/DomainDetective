@@ -37,7 +37,6 @@ public static class TlsRptIngestion
             try
             {
                 var report = TlsRptReportParser.Parse(file);
-                EnsureReportMatchesDomain(report, domain);
                 var snapshot = TlsRptSnapshotBuilder.Build(report, domain, source: "File", sourceId: file);
                 if (deduplicate)
                 {
@@ -82,7 +81,6 @@ public static class TlsRptIngestion
         Task<TlsRptSnapshot?> Parse(Stream stream, string fileName, CancellationToken ct)
         {
             var report = TlsRptReportParser.Parse(stream, fileName, options.MaxAttachmentBytes);
-            EnsureReportMatchesDomain(report, domain);
             var snapshot = TlsRptSnapshotBuilder.Build(report, domain, source: "IMAP", sourceId: fileName);
             if (deduplicate)
             {
@@ -113,39 +111,4 @@ public static class TlsRptIngestion
         return result;
     }
 
-    private static void EnsureReportMatchesDomain(TlsRptReport report, string expectedDomain)
-    {
-        if (report == null) throw new ArgumentNullException(nameof(report));
-
-        var expected = NormalizeDomain(expectedDomain);
-        if (string.IsNullOrWhiteSpace(expected))
-        {
-            return;
-        }
-
-        var policyDomains = (report.Policies ?? new List<TlsRptPolicyResult>())
-            .Select(p => p?.Policy?.PolicyDomain)
-            .Where(pd => !string.IsNullOrWhiteSpace(pd))
-            .Select(pd => NormalizeDomain(pd!))
-            .Where(pd => !string.IsNullOrWhiteSpace(pd))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        // Some report generators omit policy-domain; accept but can't validate.
-        if (policyDomains.Count == 0)
-        {
-            return;
-        }
-
-        if (!policyDomains.Contains(expected, StringComparer.OrdinalIgnoreCase))
-        {
-            throw new FormatException($"TLS-RPT report policy-domain mismatch: expected '{expected}', found '{string.Join(", ", policyDomains)}'.");
-        }
-    }
-
-    private static string NormalizeDomain(string value)
-    {
-        return (value ?? string.Empty).Trim().TrimEnd('.');
-    }
 }
-

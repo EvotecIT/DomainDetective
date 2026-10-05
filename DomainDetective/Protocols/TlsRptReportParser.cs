@@ -94,7 +94,7 @@ public static class TlsRptReportParser
                 Policy = new TlsRptPolicy
                 {
                     PolicyType = pol.GetProperty("policy-type").GetString() ?? string.Empty,
-                    MxHost = pol.GetProperty("mx-host").GetString() ?? string.Empty,
+                    MxHostPatterns = ReadMxPatterns(pol),
                     PolicyDomain = pol.TryGetProperty("policy-domain", out var pd) ? pd.GetString() : null,
                     PolicyStrings = ReadStringArray(pol, "policy-string")
                 },
@@ -176,8 +176,7 @@ public static class TlsRptReportParser
         foreach (var policy in policies.EnumerateArray())
         {
             if (!policy.TryGetProperty("policy", out var pol)
-                || !pol.TryGetProperty("policy-type", out _)
-                || !pol.TryGetProperty("mx-host", out _))
+                || !pol.TryGetProperty("policy-type", out _))
             {
                 throw new FormatException("Invalid policy entry.");
             }
@@ -204,6 +203,22 @@ public static class TlsRptReportParser
         }
 
         return dto;
+    }
+
+    private static List<string> ReadMxPatterns(JsonElement policy) {
+        if (!policy.TryGetProperty("mx-host", out var patterns)) return new List<string>();
+        if (patterns.ValueKind == JsonValueKind.String) {
+            string? pattern = patterns.GetString();
+            return string.IsNullOrWhiteSpace(pattern) ? new List<string>() : new List<string> { pattern! };
+        }
+        if (patterns.ValueKind != JsonValueKind.Array) throw new FormatException("mx-host must be an array of patterns or a legacy string.");
+        var result = new List<string>();
+        foreach (var item in patterns.EnumerateArray()) {
+            if (item.ValueKind != JsonValueKind.String) throw new FormatException("mx-host patterns must be strings.");
+            string? pattern = item.GetString();
+            if (!string.IsNullOrWhiteSpace(pattern)) result.Add(pattern!);
+        }
+        return result;
     }
 
     private static List<string> ReadStringArray(JsonElement obj, string propertyName)
@@ -259,8 +274,13 @@ public sealed class TlsRptPolicy
 {
     /// <summary>Gets or sets the policy type value.</summary>
     public string PolicyType { get; set; } = string.Empty;
-    /// <summary>Gets or sets the mx host value.</summary>
-    public string MxHost { get; set; } = string.Empty;
+    /// <summary>Gets or replaces the first policy MX pattern for legacy scalar consumers. This is not an observed receiving host.</summary>
+    public string MxHost {
+        get => MxHostPatterns?.FirstOrDefault() ?? string.Empty;
+        set => MxHostPatterns = string.IsNullOrWhiteSpace(value) ? new List<string>() : new List<string> { value };
+    }
+    /// <summary>Gets or sets all MX patterns in the policy. TLS-RPT policy totals cover the policy once, regardless of pattern count.</summary>
+    public List<string> MxHostPatterns { get; set; } = new();
     /// <summary>Gets or sets the policy domain value.</summary>
     public string? PolicyDomain { get; set; }
     /// <summary>Gets or sets the policy strings value.</summary>

@@ -158,7 +158,7 @@ public static partial class HtmlCompositionReport
                                                     .Select(x => new
                                                     {
                                                         x.MxHost,
-                                                        Ok = x.SuccessfulSessions,
+                                                        Ok = x.SuccessfulSessionsKnown ? x.SuccessfulSessions.ToString() : "Not attributed",
                                                         Fail = x.FailedSessions,
                                                         TopFailures = string.Join(", ", (x.FailureByType ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase))
                                                             .OrderByDescending(kv => kv.Value)

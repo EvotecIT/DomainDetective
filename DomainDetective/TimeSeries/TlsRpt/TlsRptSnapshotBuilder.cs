@@ -4,108 +4,61 @@ using System.Linq;
 
 namespace DomainDetective.TimeSeries.TlsRpt;
 
-internal static class TlsRptSnapshotBuilder
-{
-    internal static TlsRptSnapshot Build(TlsRptReport report, string domain, string source, string? sourceId)
-    {
+internal static class TlsRptSnapshotBuilder {
+    internal static TlsRptSnapshot Build(TlsRptReport report, string domain, string source, string? sourceId) {
         if (report == null) throw new ArgumentNullException(nameof(report));
-
-        var resolvedDomain = DetermineDomain(report, domain);
-        if (string.IsNullOrWhiteSpace(resolvedDomain))
-        {
-            throw new ArgumentException("Domain is required (unable to infer from report).", nameof(domain));
+        var allPolicies = report.Policies ?? new List<TlsRptPolicyResult>();
+        var domains = allPolicies.Select(p => NormalizeDomain(p.Policy?.PolicyDomain)).Where(d => d.Length > 0).Distinct().ToList();
+        string resolvedDomain = NormalizeDomain(domain);
+        if (resolvedDomain.Length == 0) {
+            if (domains.Count != 1) throw new ArgumentException("A domain is required for reports with no policy-domain or multiple domains.", nameof(domain));
+            resolvedDomain = domains[0];
         }
+        if (domains.Count > 0 && !domains.Contains(resolvedDomain))
+            throw new FormatException($"TLS-RPT report policy-domain mismatch: expected '{resolvedDomain}', found '{string.Join(", ", domains)}'.");
 
-        var snapshot = new TlsRptSnapshot
-        {
-            Domain = resolvedDomain,
-            ReportId = report.ReportId,
-            RangeBeginUtc = report.RangeBeginUtc,
-            RangeEndUtc = report.RangeEndUtc,
-            ReporterOrgName = string.IsNullOrWhiteSpace(report.OrganizationName) ? null : report.OrganizationName,
-            ContactInfo = string.IsNullOrWhiteSpace(report.ContactInfo) ? null : report.ContactInfo,
-            Source = source,
-            SourceId = sourceId
+        var selected = domains.Count == 0 ? allPolicies : allPolicies.Where(p => NormalizeDomain(p.Policy?.PolicyDomain) == resolvedDomain).ToList();
+        var snapshot = new TlsRptSnapshot {
+            Domain = resolvedDomain, ReportId = report.ReportId, RangeBeginUtc = report.RangeBeginUtc,
+            RangeEndUtc = report.RangeEndUtc, ReporterOrgName = report.OrganizationName, ContactInfo = report.ContactInfo,
+            Source = source, SourceId = sourceId, MxFailureAttributionVerified = true
         };
+        if (domains.Count == 0) snapshot.ValidationMessages.Add("Policy domains are missing; the caller supplied the unverified domain scope.");
+        else if (selected.Count != allPolicies.Count) snapshot.ValidationMessages.Add("Policies for other or missing domains were excluded from this snapshot.");
 
-        var mxMap = new Dictionary<string, TlsRptMxSnapshot>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var p in report.Policies ?? new List<TlsRptPolicyResult>())
-        {
-            var mxHost = p.Policy?.MxHost ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(mxHost))
-            {
-                mxHost = "(unknown)";
-            }
-
-            if (!mxMap.TryGetValue(mxHost, out var mx))
-            {
-                mx = new TlsRptMxSnapshot { MxHost = mxHost };
-                mxMap[mxHost] = mx;
-            }
-
-            int ok = p.Summary?.SuccessfulSessionCount ?? 0;
-            int fail = p.Summary?.FailedSessionCount ?? 0;
-
-            snapshot.TotalSuccessfulSessions += ok;
-            snapshot.TotalFailedSessions += fail;
-            mx.SuccessfulSessions += ok;
-            mx.FailedSessions += fail;
-
+        var hosts = new Dictionary<string, TlsRptMxSnapshot>(StringComparer.OrdinalIgnoreCase);
+        foreach (var policy in selected) {
+            int successful = policy.Summary?.SuccessfulSessionCount ?? 0;
+            int failed = policy.Summary?.FailedSessionCount ?? 0;
+            if (successful < 0 || failed < 0) throw new FormatException("TLS-RPT session counts must be nonnegative.");
+            snapshot.TotalSuccessfulSessions = checked(snapshot.TotalSuccessfulSessions + successful);
+            snapshot.TotalFailedSessions = checked(snapshot.TotalFailedSessions + failed);
             int detailsTotal = 0;
-            if (p.FailureDetails != null && p.FailureDetails.Count > 0)
-            {
-                foreach (var fd in p.FailureDetails)
-                {
-                    var kind = string.IsNullOrWhiteSpace(fd.ResultType) ? "unknown" : fd.ResultType;
-                    var cnt = Math.Max(0, fd.FailedSessionCount);
-                    if (cnt == 0) continue;
-
-                    detailsTotal += cnt;
-                    snapshot.FailureTypeCounts[kind] = (snapshot.FailureTypeCounts.TryGetValue(kind, out var prev) ? prev : 0) + cnt;
-                    mx.FailureByType[kind] = (mx.FailureByType.TryGetValue(kind, out var prevMx) ? prevMx : 0) + cnt;
-                }
+            foreach (var detail in policy.FailureDetails) {
+                if (detail.FailedSessionCount < 0) throw new FormatException("TLS-RPT failure counts must be nonnegative.");
+                int count = detail.FailedSessionCount;
+                if (count == 0) continue;
+                detailsTotal = checked(detailsTotal + count);
+                string kind = string.IsNullOrWhiteSpace(detail.ResultType) ? "unknown" : detail.ResultType;
+                string host = string.IsNullOrWhiteSpace(detail.ReceivingMxHostname) ? "(unknown)" : NormalizeDomain(detail.ReceivingMxHostname);
+                // A policy wildcard is never delivery evidence, even if repeated in a malformed failure detail.
+                if (host.IndexOf('*') >= 0) { host = "(unknown)"; snapshot.ValidationMessages.Add("A receiving MX wildcard was retained as an unattributed failure."); }
+                AddFailure(snapshot, hosts, host, kind, count);
             }
-
-            var delta = fail - detailsTotal;
-            if (delta > 0)
-            {
-                snapshot.FailureTypeCounts["unknown"] = (snapshot.FailureTypeCounts.TryGetValue("unknown", out var prev) ? prev : 0) + delta;
-                mx.FailureByType["unknown"] = (mx.FailureByType.TryGetValue("unknown", out var prevMx) ? prevMx : 0) + delta;
-            }
+            if (detailsTotal < failed) AddFailure(snapshot, hosts, "(unknown)", "unknown", failed - detailsTotal);
+            if (detailsTotal > failed) snapshot.ValidationMessages.Add("Failure details exceed the policy total; detail rows retain reported counts and domain totals retain the summary.");
         }
-
-        snapshot.MxHosts = mxMap.Values
-            .OrderByDescending(x => x.FailedSessions)
-            .ThenBy(x => x.MxHost, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        snapshot.TopFailureTypes = snapshot.FailureTypeCounts
-            .Select(kv => new CountedValue { Key = kv.Key, Count = kv.Value })
-            .OrderByDescending(x => x.Count)
-            .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-            .Take(10)
-            .ToList();
-
+        snapshot.MxHosts = hosts.Values.OrderByDescending(mx => mx.FailedSessions).ThenBy(mx => mx.MxHost, StringComparer.OrdinalIgnoreCase).ToList();
+        snapshot.TopFailureTypes = snapshot.FailureTypeCounts.Select(kv => new CountedValue { Key = kv.Key, Count = kv.Value })
+            .OrderByDescending(x => x.Count).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Take(10).ToList();
         return snapshot;
     }
 
-    private static string DetermineDomain(TlsRptReport report, string domain)
-    {
-        if (!string.IsNullOrWhiteSpace(domain))
-        {
-            return domain.Trim();
-        }
-
-        foreach (var p in report.Policies ?? new List<TlsRptPolicyResult>())
-        {
-            var pd = p.Policy?.PolicyDomain;
-            if (!string.IsNullOrWhiteSpace(pd))
-            {
-                return pd!.Trim();
-            }
-        }
-
-        return string.Empty;
+    private static void AddFailure(TlsRptSnapshot snapshot, Dictionary<string, TlsRptMxSnapshot> hosts, string host, string kind, int count) {
+        if (!hosts.TryGetValue(host, out var row)) hosts[host] = row = new TlsRptMxSnapshot { MxHost = host };
+        row.FailedSessions = checked(row.FailedSessions + count);
+        row.FailureByType[kind] = checked((row.FailureByType.TryGetValue(kind, out int previous) ? previous : 0) + count);
+        snapshot.FailureTypeCounts[kind] = checked((snapshot.FailureTypeCounts.TryGetValue(kind, out int total) ? total : 0) + count);
     }
+    private static string NormalizeDomain(string? domain) => (domain ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
 }
