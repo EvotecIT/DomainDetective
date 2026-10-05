@@ -262,12 +262,7 @@ public static class DomainAssessmentBuilder {
             .ToList();
     }
 
-    private static int? WeightedScore(IEnumerable<CheckAssessment> checks) {
-        var scored = checks.Where(static c => c.Scored).ToList();
-        int weight = scored.Sum(static c => c.Weight);
-        if (weight == 0) return null;
-        return (int)Math.Round(scored.Sum(static c => (double)c.Score * c.Weight) / weight, MidpointRounding.AwayFromZero);
-    }
+    private static int? WeightedScore(IEnumerable<CheckAssessment> checks) => DomainAssessmentCatalog.CombinedScore(checks);
 
     private static int AreaIndex(AnalysisArea area) {
         int index = -1;
