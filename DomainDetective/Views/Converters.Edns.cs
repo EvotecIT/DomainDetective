@@ -9,11 +9,14 @@ public static partial class Converters
     public static EdnsSupportSummary Convert(EdnsSupportAnalysis analysis)
     {
         var total = analysis.ServerSupport?.Count ?? 0;
-        var supported = analysis.ServerSupport?.Values.Count(v => v.Supported) ?? 0;
-        var notSupported = total - supported;
+        var failed = analysis.ServerSupport?.Values.Count(v => !v.QuerySucceeded) ?? 0;
+        var supported = analysis.ServerSupport?.Values.Count(v => v.QuerySucceeded && v.Supported) ?? 0;
+        var notSupported = total - supported - failed;
         var entries = analysis.ServerSupport?.Select(kv => new EdnsServerInfo
         {
             Key = kv.Key,
+            QuerySucceeded = kv.Value.QuerySucceeded,
+            Error = kv.Value.Error,
             Supported = kv.Value.Supported,
             UdpPayloadSize = kv.Value.UdpPayloadSize,
             DoBit = kv.Value.DoBit,
@@ -35,12 +38,13 @@ public static partial class Converters
             TotalChecked = total,
             SupportedCount = supported,
             NotSupportedCount = notSupported,
+            FailedCount = failed,
             Servers = entries,
             Assessments = assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{supported}/{total} EDNS; >1232: {largeUdp}; TCP fb: {truncated}; no-edns: {notSupported}",
+            Summary = $"{supported}/{total} EDNS; >1232: {largeUdp}; TCP fb: {truncated}; no-edns: {notSupported}; failed: {failed}",
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
@@ -64,6 +68,8 @@ public class EdnsSupportSummary
     public int SupportedCount { get; set; }
     /// <summary>Gets or sets the not supported count value.</summary>
     public int NotSupportedCount { get; set; }
+    /// <summary>Number of server queries that failed without establishing EDNS capability.</summary>
+    public int FailedCount { get; set; }
     /// <summary>Gets or sets the servers value.</summary>
     public IReadOnlyList<EdnsServerInfo> Servers { get; set; } = null!;
     /// <summary>Gets or sets the assessments value.</summary>
@@ -89,6 +95,10 @@ public class EdnsSupportSummary
 /// <summary>Provides edns server info functionality.</summary>
 public class EdnsServerInfo
 {
+    /// <summary>Whether the capability query completed.</summary>
+    public bool QuerySucceeded { get; set; } = true;
+    /// <summary>Failure details for an incomplete capability query.</summary>
+    public string? Error { get; set; }
     /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = null!;
     /// <summary>Gets or sets the supported value.</summary>

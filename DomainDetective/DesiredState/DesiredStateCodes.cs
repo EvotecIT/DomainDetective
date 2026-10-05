@@ -235,6 +235,7 @@ internal static class DesiredStateCodes {
     public const string RpkiInvalid = "DesiredState.RPKI.Validity.Invalid";
 
     public const string EdnsNoResults = "DesiredState.EDNSSUPPORT.Results.None";
+    public const string EdnsQueryFailed = "DesiredState.EDNSSUPPORT.QueryFailed";
     public const string EdnsNotSupported = "DesiredState.EDNSSUPPORT.NotSupported";
     public const string EdnsUdpPayloadTooLarge = "DesiredState.EDNSSUPPORT.UdpPayload.TooLarge";
     public const string EdnsVersionNotAllowed = "DesiredState.EDNSSUPPORT.Version.NotAllowed";

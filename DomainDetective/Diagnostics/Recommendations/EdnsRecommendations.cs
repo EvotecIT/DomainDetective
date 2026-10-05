@@ -4,6 +4,15 @@ namespace DomainDetective.Recommendations;
 
 internal sealed class EdnsRecommendations : IRecommendationProvider {
     public void Register(IDictionary<string, RecommendationAdvice> map) {
+        map[EdnsCodes.QueryFailed] = new RecommendationAdvice {
+            Code = EdnsCodes.QueryFailed,
+            Title = "Retry the authoritative EDNS query",
+            Why = "A failed query cannot establish whether the server supports EDNS.",
+            How = "Check authoritative DNS reachability over UDP and TCP, then retry the capability check.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "edns", "connectivity" }
+        };
+
         map[EdnsCodes.NotSupported] = new RecommendationAdvice {
             Code = EdnsCodes.NotSupported,
             Title = "Enable EDNS support on authoritative servers",
