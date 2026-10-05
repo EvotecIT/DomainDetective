@@ -63,12 +63,12 @@ public partial class AutodiscoverHttpAnalysis : IHasAssessments {
             cancellationToken.ThrowIfCancellationRequested();
             if (budget.IsCancellationRequested) break;
             bool json = attempt.Method == AutodiscoverMethod.OutlookV2Json;
-            var result = await CheckEndpointAsync(attempt.Url, attempt.Method, attempt.Post, json, domain, logger, budget.Token, cancellationToken).ConfigureAwait(false);
+            var result = await CheckEndpointAsync(attempt.Url, attempt.Method, attempt.Post, json, domain, logger, collector, budget.Token, cancellationToken).ConfigureAwait(false);
             _endpoints.Add(result);
             if (result.DiscoverySucceeded) break;
             if (json && result.JsonValid && !budget.IsCancellationRequested) {
                 var follow = await CheckEndpointAsync(result.JsonEndpointUrl!, AutodiscoverMethod.OutlookV2JsonPost,
-                    true, false, domain, logger, budget.Token, cancellationToken).ConfigureAwait(false);
+                    true, false, domain, logger, collector, budget.Token, cancellationToken).ConfigureAwait(false);
                 _endpoints.Add(follow);
                 if (follow.DiscoverySucceeded) break;
             }

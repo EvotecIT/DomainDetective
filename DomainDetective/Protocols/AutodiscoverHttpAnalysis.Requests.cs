@@ -12,11 +12,11 @@ namespace DomainDetective;
 
 public partial class AutodiscoverHttpAnalysis {
     private async Task<AutodiscoverEndpointResult> CheckEndpointAsync(string url, AutodiscoverMethod method, bool tryPost,
-        bool json, string domain, InternalLogger logger, CancellationToken budget, CancellationToken caller) {
+        bool json, string domain, InternalLogger logger, AssessmentCollector collector, CancellationToken budget, CancellationToken caller) {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(budget);
         deadline.CancelAfter(Timeout);
         using var client = CreateClient();
-        using var target = AssessmentCollector.ForAnalysis(logger, this, category: "AUTODISC", target: url);
+        using var target = collector.PushTarget(url);
         var watch = Stopwatch.StartNew();
         var redirects = new List<string>();
         var requests = new List<AutodiscoverRequestAttempt>();
@@ -49,8 +49,13 @@ public partial class AutodiscoverHttpAnalysis {
                     string email = string.IsNullOrWhiteSpace(EmailForPost) ? $"autodiscover@{domain}" : EmailForPost!;
                     received = await ReadRequestAsync(client, current, HttpMethod.Post, BuildAutodiscoverRequestXml(email), false,
                         requests, deadline.Token, caller).ConfigureAwait(false);
-                    status = received.Status; contentType = received.ContentType; snippet = Snippet(received.Body);
-                    html = received.Body.TrimStart().StartsWith("<html", StringComparison.OrdinalIgnoreCase);
+                    status = received.Status;
+                    if (!string.IsNullOrWhiteSpace(received.Body)) {
+                        contentType = received.ContentType;
+                        snippet = Snippet(received.Body);
+                        html = received.Body.TrimStart().StartsWith("<html", StringComparison.OrdinalIgnoreCase)
+                            || contentType?.IndexOf("html", StringComparison.OrdinalIgnoreCase) >= 0;
+                    }
                     xml = status >= 200 && status < 300 ? ParseXml(received.Body) : default;
                 }
                 break;
@@ -127,7 +132,7 @@ public partial class AutodiscoverHttpAnalysis {
         }
         Encoding encoding = Encoding.UTF8;
         try { if (!string.IsNullOrEmpty(content.Headers.ContentType?.CharSet)) encoding = Encoding.GetEncoding(content.Headers.ContentType!.CharSet!.Trim('"')); }
-        catch (ArgumentException) { }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { }
         output.Position = 0;
         using var reader = new StreamReader(output, encoding, detectEncodingFromByteOrderMarks: true);
         return reader.ReadToEnd();

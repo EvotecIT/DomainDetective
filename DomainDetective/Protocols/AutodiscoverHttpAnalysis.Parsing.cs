@@ -54,8 +54,17 @@ public partial class AutodiscoverHttpAnalysis {
 
     private static string? ParseJsonEndpoint(string body) {
         try {
-            using var document = JsonDocument.Parse(body);
-            var root = document.RootElement;
+            JsonDocument document;
+            try {
+                document = JsonDocument.Parse(body);
+            } catch (JsonException) when (body.Contains("\\\"")) {
+                // Preserve the supported legacy response with escaped object delimiters.
+                // Strict JSON always wins; normalized URLs still require normal validation
+                // and the caller performs HTTP/XML confirmation before reporting discovery.
+                document = JsonDocument.Parse(body.Replace("\\\"", "\""));
+            }
+            using var parsed = document;
+            var root = parsed.RootElement;
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("Url", out var property)
                 && property.ValueKind == JsonValueKind.String && TryHttpUrl(property.GetString(), out var uri)) return uri!.AbsoluteUri;
             if (root.ValueKind == JsonValueKind.Array) {
