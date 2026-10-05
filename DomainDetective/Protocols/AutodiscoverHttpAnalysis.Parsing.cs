@@ -42,7 +42,7 @@ public partial class AutodiscoverHttpAnalysis {
         if (string.IsNullOrWhiteSpace(value)) return false;
         try {
             var address = new MailAddress(value);
-            return address.Address.Equals(value.Trim(), StringComparison.OrdinalIgnoreCase);
+            return address.Address.Equals(value!.Trim(), StringComparison.OrdinalIgnoreCase);
         } catch (FormatException) { return false; }
     }
 
