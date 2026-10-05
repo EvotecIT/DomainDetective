@@ -1,6 +1,7 @@
 namespace DomainDetective;
 
 internal static class AutodiscoverCodes {
+    public const string BudgetExhausted = "AUTODISC.Budget.Exhausted";
     public const string CheckFailed = "AUTODISC.Check.Failed";
     public const string MissingSrv = "AUTODISC.SRV.Missing";
     public const string BadSrvTarget = "AUTODISC.SRV.BadTarget";

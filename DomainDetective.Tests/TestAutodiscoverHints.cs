@@ -27,7 +27,7 @@ public class TestAutodiscoverHints {
 
         // CNAME target succeeds
         mock.When("https://autodiscover.outlook.com/autodiscover/autodiscover.xml")
-            .Respond("application/xml", "<Autodiscover></Autodiscover>");
+            .Respond("application/xml", TestAutodiscoverAttemptBoundaries.RecognizedError);
 
         var analysis = new AutodiscoverHttpAnalysis {
             HttpHandlerFactory = () => mock,
@@ -60,7 +60,7 @@ public class TestAutodiscoverHints {
 
         // SRV target: GET returns XML directly on a distinct host to avoid clashes with earlier rules
         mock.When(HttpMethod.Get, "https://autodiscover-srv.example.net:443/autodiscover/autodiscover.xml")
-            .Respond("application/xml", "<Autodiscover></Autodiscover>");
+            .Respond("application/xml", TestAutodiscoverAttemptBoundaries.RecognizedError);
 
         var analysis = new AutodiscoverHttpAnalysis {
             HttpHandlerFactory = () => mock,

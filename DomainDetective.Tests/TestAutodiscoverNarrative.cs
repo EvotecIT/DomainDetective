@@ -28,7 +28,7 @@ public class TestAutodiscoverNarrative {
 
         var mock = new MockHttpMessageHandler();
         mock.When("https://autodiscover.example.com/autodiscover/autodiscover.xml")
-            .Respond("application/xml", "<Autodiscover></Autodiscover>");
+            .Respond("application/xml", TestAutodiscoverAttemptBoundaries.RecognizedError);
         var http = new AutodiscoverHttpAnalysis { HttpHandlerFactory = () => mock };
         await http.Analyze("example.com", new InternalLogger());
         analysis.SetHttpEndpoints(http.Endpoints);
