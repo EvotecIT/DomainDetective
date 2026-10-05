@@ -43,6 +43,11 @@ namespace DomainDetective.PowerShell {
         [ValidateNotNullOrEmpty]
         public string Path { get; set; } = string.Empty;
 
+        /// <para>Maximum expanded report size in MiB. The default is 50; 0 means unlimited.</para>
+        [Parameter]
+        [ValidateRange(0, int.MaxValue)]
+        public int MaxUncompressedMb { get; set; } = 50;
+
         /// <summary>Summarization mode: Domain (default), Ip, or HeaderFrom.</summary>
         [Parameter(Mandatory = false)]
         public DmarcAggregateSummarizeBy SummarizeBy { get; set; } = DmarcAggregateSummarizeBy.Domain;
@@ -66,7 +71,7 @@ namespace DomainDetective.PowerShell {
             IReadOnlyList<object> exportItems;
             foreach (var f in files) {
                 try {
-                    var report = DmarcReportParser.Parse(f);
+                    var report = DmarcReportParser.Parse(f, null, (long)MaxUncompressedMb * 1024L * 1024L);
                     if (Deduplicate.IsPresent) {
                         var key = $"{report.ReportId}|{report.RangeBeginUtc?.UtcDateTime:o}|{report.RangeEndUtc?.UtcDateTime:o}";
                         if (!string.IsNullOrWhiteSpace(report.ReportId) && !seen.Add(key)) {
