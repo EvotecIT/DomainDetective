@@ -142,5 +142,58 @@ public class TestMonitorCancellation {
         Assert.True(stopped, "Wildcard DNS must receive the health-check caller token.");
         Assert.IsAssignableFrom<OperationCanceledException>(error);
         Assert.False(health.WildcardDnsAnalysis.CatchAll);
+    }    [Fact]
+    public async Task ConfiguredDnsProviderCannotHoldWildcardCancellationOpen() {
+        var entered = Signal();
+        var release = new TaskCompletionSource<DnsAnswer[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => { entered.TrySetResult(true); return release.Task; };
+        using var cancellation = new CancellationTokenSource();
+        Task run = health.Verify("example.test", new[] { HealthCheckType.WILDCARDDNS }, cancellationToken: cancellation.Token);
+        await entered.Task;
+        cancellation.Cancel();
+        bool canceled = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(5))) == run;
+        release.TrySetResult(Array.Empty<DnsAnswer>());
+        var error = await Record.ExceptionAsync(() => run);
+        Assert.True(canceled, "The shared configured DNS provider must have a cancellable wait.");
+        Assert.IsAssignableFrom<OperationCanceledException>(error);
     }
+
+    [Fact]
+    public async Task CancellationFromFinalProgressCannotPublishACertificateBatch() {
+        using var cancellation = new CancellationTokenSource();
+        var logger = new InternalLogger();
+        logger.OnProgressMessage += (_, _) => cancellation.Cancel();
+        using var monitor = new CertificateMonitor { AnalysisOverride = (_, _, _, _) => Task.FromResult(new CertificateAnalysis { IsValid = true }) };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => monitor.Analyze(new[] { "https://example.test" }, logger: logger, cancellationToken: cancellation.Token));
+        Assert.Empty(monitor.Results);
+    }
+
+    [Theory]
+    [InlineData("summary")]
+    [InlineData("expiry")]
+    public async Task CancellationFromNotificationStopsStatePublicationAndFollowingStages(string stage) {
+        using var cancellation = new CancellationTokenSource();
+        int certificateCalls = 0, bgpCalls = 0;
+        bool changed = false;
+        var scheduler = new MonitorScheduler {
+            SummaryOverride = _ => Task.FromResult(new DomainSummary { HasMxRecord = !changed }),
+            CertificateOverride = _ => { certificateCalls++; return Task.FromResult(new CertificateMonitor.Entry { Expired = stage == "expiry", ExpiryDate = DateTime.UtcNow.AddDays(100), Analysis = new CertificateAnalysis() }); },
+            BgpOverride = (_, _) => { bgpCalls++; return Task.FromResult(new Dictionary<string, int>()); }
+        };
+        scheduler.Domains.Add("example.test");
+        if (stage == "summary") { await scheduler.RunAsync(); changed = true; }
+        int previousCertificates = certificateCalls, previousBgp = bgpCalls;
+        scheduler.Notifier = new CancellingNotifier(() => cancellation.Cancel());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => scheduler.RunAsync(cancellation.Token));
+        Assert.Equal(previousCertificates + (stage == "expiry" ? 1 : 0), certificateCalls);
+        Assert.Equal(previousBgp, bgpCalls);
+    }
+
+    private sealed class CancellingNotifier : INotificationSender {
+        private readonly Action _cancel;
+        internal CancellingNotifier(Action cancel) => _cancel = cancel;
+        public Task SendAsync(string message, CancellationToken ct = default) { _cancel(); return Task.CompletedTask; }
+    }
+
 }

@@ -141,8 +141,10 @@ public class MonitorScheduler
                 await SendNotificationAsync($"Changes detected for {domain}", ct).ConfigureAwait(false);
             }
         }
+        ct.ThrowIfCancellationRequested();
         _previous[domain] = summary;
 
+        ct.ThrowIfCancellationRequested();
         var cert = CertificateOverride != null
             ? await CertificateOverride(domain).WaitWithCancellation(ct).ConfigureAwait(false)
             : await CheckCertificateAsync(domain, ct).ConfigureAwait(false);
@@ -157,9 +159,11 @@ public class MonitorScheduler
             await SendNotificationAsync($"Certificate for {domain} expires on {cert.ExpiryDate:yyyy-MM-dd}", ct).ConfigureAwait(false);
         }
 
+        ct.ThrowIfCancellationRequested();
         var prefixes = BgpOverride != null
             ? await BgpOverride(domain, ct).ConfigureAwait(false)
             : await BgpPrefixMonitor.QueryPrefixesAsync(domain, ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
         if (_bgpPrevious.TryGetValue(domain, out var prevPrefixes))
         {
             foreach (var kv in prefixes)
@@ -194,6 +198,7 @@ public class MonitorScheduler
         {
             ct.ThrowIfCancellationRequested();
             await notifier.SendAsync(message, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
         }
         finally
         {

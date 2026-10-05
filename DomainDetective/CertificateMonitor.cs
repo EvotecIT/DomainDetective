@@ -172,6 +172,7 @@ namespace DomainDetective {
                     cancellationToken.ThrowIfCancellationRequested();
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
                 foreach (var entry in entries) {
                     if (entry != null) {
                         Results.Add(entry);
