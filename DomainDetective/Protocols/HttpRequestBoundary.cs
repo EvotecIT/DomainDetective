@@ -25,10 +25,30 @@ internal static class HttpRequestBoundary {
         }
     }
 
+    internal static CookieContainer? PrepareHandler(HttpMessageHandler handler) {
+        DisableAutoRedirect(handler);
+        if (handler is DelegatingHandler wrapper && wrapper.InnerHandler != null) {
+            return PrepareHandler(wrapper.InnerHandler);
+        }
+        // Framework HttpClientHandler replaces an explicit Cookie header when its cookie
+        // container is enabled. Own cookie handling at the visible redirect boundary so
+        // raw customization stays origin-scoped while server cookies retain normal rules.
+        var useCookies = handler.GetType().GetProperty("UseCookies");
+        var cookieContainer = handler.GetType().GetProperty("CookieContainer");
+        if (useCookies?.CanWrite == true && useCookies.PropertyType == typeof(bool)
+            && useCookies.GetValue(handler, null) is true
+            && cookieContainer?.GetValue(handler, null) is CookieContainer cookies) {
+            useCookies.SetValue(handler, false, null);
+            return cookies;
+        }
+        return null;
+    }
+
     internal static async Task<HttpResponseMessage> SendAsync(
         HttpClient client, Uri initialUri, Uri customizationOrigin, HttpMethod method,
         HttpRequestOptions options, int maxRedirects, CancellationToken cancellationToken,
-        Version? requestVersion = null, List<string>? visitedUrls = null, List<string>? headerNames = null) {
+        Version? requestVersion = null, List<string>? visitedUrls = null, List<string>? headerNames = null,
+        CookieContainer? cookies = null) {
         var currentUri = initialUri;
         var visited = new HashSet<string>(StringComparer.Ordinal);
         for (var redirects = 0; ; redirects++) {
@@ -54,7 +74,9 @@ internal static class HttpRequestBoundary {
                     AddHeader(request, header.Key, header.Value, headerNames);
                 }
             }
+            AddServerCookies(request, currentUri, cookies);
             var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            StoreServerCookies(response, currentUri, cookies);
             if ((int)response.StatusCode < 300 || (int)response.StatusCode >= 400 || response.Headers.Location == null) {
                 response.RequestMessage ??= request;
                 return response; // Caller owns the final response, including its unread body.
@@ -74,6 +96,24 @@ internal static class HttpRequestBoundary {
             } finally {
                 response.Dispose();
             }
+        }
+    }
+
+    private static void AddServerCookies(HttpRequestMessage request, Uri uri, CookieContainer? cookies) {
+        if (cookies == null) return;
+        string serverCookies = cookies.GetCookieHeader(uri);
+        if (string.IsNullOrEmpty(serverCookies)) return;
+        string value = request.Headers.TryGetValues("Cookie", out var explicitValues)
+            ? string.Join("; ", explicitValues) + "; " + serverCookies : serverCookies;
+        request.Headers.Remove("Cookie");
+        request.Headers.TryAddWithoutValidation("Cookie", value);
+    }
+
+    private static void StoreServerCookies(HttpResponseMessage response, Uri uri, CookieContainer? cookies) {
+        if (cookies == null || !response.Headers.TryGetValues("Set-Cookie", out var values)) return;
+        foreach (string value in values) {
+            try { cookies.SetCookies(uri, value); }
+            catch (CookieException) { /* Malformed server cookies do not invalidate the HTTP response. */ }
         }
     }
 

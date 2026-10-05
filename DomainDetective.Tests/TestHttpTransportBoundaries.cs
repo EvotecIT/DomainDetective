@@ -69,8 +69,10 @@ public class TestHttpTransportBoundaries {
         }
     }
 
-    [Fact]
-    public async Task SameOriginServerCookieProgressionIsPreserved() {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ServerCookieProgressionRespectsHandlerOptOut(bool useCookies) {
         Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
         using var server = StartListener(out var url);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -86,10 +88,13 @@ public class TestHttpTransportBoundaries {
             return cookie;
         });
         try {
-            var analysis = new HttpAnalysis { RequestVersion = HttpVersion.Version11 };
+            var analysis = new HttpAnalysis {
+                RequestVersion = HttpVersion.Version11,
+                HttpHandlerFactory = () => new HttpClientHandler { UseCookies = useCookies, UseProxy = false }
+            };
             await analysis.AnalyzeUrl(url, false, new InternalLogger(), cancellationToken: cancellation.Token);
             Assert.True(analysis.IsReachable);
-            Assert.Equal("server", await peer);
+            Assert.Equal(useCookies ? "server" : null, await peer);
         } finally {
             cancellation.Cancel(); server.Stop(); await IgnoreStoppedAsync(peer);
         }

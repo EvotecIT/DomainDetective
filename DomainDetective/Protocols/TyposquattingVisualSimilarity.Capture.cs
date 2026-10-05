@@ -318,7 +318,8 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
         using var response = await HttpRequestBoundary.SendAsync(client, new Uri(asset.Url), customizationOrigin,
-            HttpMethod.Get, options.HttpRequestOptions, 10, deadline.Token).ConfigureAwait(false);
+            HttpMethod.Get, options.HttpRequestOptions, 10, deadline.Token,
+            cookies: HttpRequestBoundary.PrepareHandler(handler)).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             return null;

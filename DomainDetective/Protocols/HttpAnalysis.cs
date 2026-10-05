@@ -275,7 +275,7 @@ namespace DomainDetective {
 	            requestOptions ??= new HttpRequestOptions();
             var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = false } : null;
                 using var handler = HttpHandlerFactory?.Invoke() ?? configurableHandler!;
-                HttpRequestBoundary.DisableAutoRedirect(handler);
+                var cookies = HttpRequestBoundary.PrepareHandler(handler);
 	            ProxyUsed = null;
 	            TlsValidationDisabled = requestOptions.DisableTlsValidation;
 	            if (!string.IsNullOrWhiteSpace(requestOptions.ProxyUrl)) {
@@ -312,7 +312,7 @@ namespace DomainDetective {
                 RequestMethodUsed = httpMethod == HttpMethod.Head ? HttpRequestMethod.Head
                     : (httpMethod == HttpMethod.Get ? HttpRequestMethod.Get : requestOptions.Method);
                 using var response = await HttpRequestBoundary.SendAsync(client, initialUri, initialUri, httpMethod,
-                    requestOptions, MaxRedirects, requestToken, RequestVersion, VisitedUrls, RequestHeaderNames).ConfigureAwait(false);
+                    requestOptions, MaxRedirects, requestToken, RequestVersion, VisitedUrls, RequestHeaderNames, cookies).ConfigureAwait(false);
                 var currentUri = new Uri(VisitedUrls[VisitedUrls.Count - 1]);
                 var effectiveScheme = currentUri.Scheme;
                 HstsPreloaded = IsHstsPreloadedHost(currentUri.Host);

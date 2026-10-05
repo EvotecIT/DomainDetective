@@ -6,6 +6,36 @@ using Xunit;
 namespace DomainDetective.Tests;
 
 public class TestHttpRequestBoundaries {
+    [Fact]
+    public async Task ServerCookiesKeepDomainPathAndSecureRulesWithoutStoringExplicitCredentials() {
+        var jar = new CookieContainer();
+        var seen = new List<string>();
+        using var client = new HttpClient(new HttpStubMessageHandler((request, _) => {
+            seen.Add(request.Headers.TryGetValues("Cookie", out var values) ? string.Join("; ", values) : "");
+            var response = new HttpResponseMessage(seen.Count < 3 ? HttpStatusCode.Found : HttpStatusCode.OK);
+            if (seen.Count == 1) {
+                response.Headers.TryAddWithoutValidation("Set-Cookie", new[] {
+                    "issued=server; Path=/private; Secure", "invalid=server; Domain=other.test"
+                });
+                response.Headers.Location = new Uri("https://other.test/private/foreign");
+            } else if (seen.Count == 2) {
+                response.Headers.Location = new Uri("https://origin.test/private/final");
+            }
+            return response;
+        }));
+        var origin = new Uri("https://origin.test/private/start");
+        using var final = await HttpRequestBoundary.SendAsync(client, origin, origin, HttpMethod.Get,
+            new HttpRequestOptions { Cookie = "explicit=secret" }, 3, CancellationToken.None, cookies: jar);
+        Assert.Equal("explicit=secret", seen[0]);
+        Assert.Empty(seen[1]);
+        Assert.Contains("explicit=secret", seen[2]);
+        Assert.Contains("issued=server", seen[2]);
+        Assert.Equal("issued=server", jar.GetCookieHeader(origin));
+        Assert.Empty(jar.GetCookieHeader(new Uri("https://origin.test/outside")));
+        Assert.Empty(jar.GetCookieHeader(new Uri("http://origin.test/private/start")));
+        Assert.Empty(jar.GetCookieHeader(new Uri("https://other.test/private/start")));
+    }
+
     [Theory]
     [InlineData("/final", true)]
     [InlineData("https://ORIGIN.test:443/final", true)]
