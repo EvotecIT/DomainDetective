@@ -107,12 +107,13 @@ public sealed class CtCertificateRecord
     /// Creates a CT certificate record from DER-encoded certificate bytes.
     /// </summary>
     /// <param name="providerId">Provider that supplied the certificate.</param>
-    /// <param name="certificateDer">DER-encoded certificate bytes.</param>
+    /// <param name="certificateDer">One complete DER-encoded X.509 certificate, without containers or trailing data.</param>
     /// <param name="providerCertificateId">Optional provider-specific certificate identifier.</param>
     /// <param name="entryTimestampUtc">Optional CT entry timestamp.</param>
     /// <param name="tbsSha256">Optional provider-supplied TBS certificate SHA-256 value.</param>
     /// <param name="isPrecertificate">True when the provider reports a precertificate.</param>
     /// <param name="detailLevel">How much certificate metadata to decode.</param>
+    /// <exception cref="CryptographicException">The bytes are not one DER certificate or do not match the loaded certificate.</exception>
     public static CtCertificateRecord FromDer(
         string providerId,
         byte[] certificateDer,
@@ -134,7 +135,12 @@ public sealed class CtCertificateRecord
 
         // Keep the normalized record immutable even if the caller later mutates their input buffer.
         byte[] rawData = certificateDer.ToArray();
+        CtCertificateDer.Parse(rawData);
         using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(rawData);
+        if (!CtMerkleTree.Equal(rawData, certificate.RawData))
+        {
+            throw new CryptographicException("The loaded CT certificate does not match the supplied DER bytes.");
+        }
         if (detailLevel == CtCertificateRecordDetailLevel.NamesOnly)
         {
             byte[] namesOnlySha256Bytes;

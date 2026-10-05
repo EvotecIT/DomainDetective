@@ -34,8 +34,7 @@ public sealed partial class CtLogIngestionClient {
             if (!CtMerkleTree.Equal(certificateDer, signedCertificate)) throw new InvalidOperationException("CT X509 certificate does not match its signed leaf.");
             return;
         }
-        var parser = new X509CertificateParser();
-        X509Certificate certificate = parser.ReadCertificate(certificateDer);
+        X509Certificate certificate = CtCertificateDer.Parse(certificateDer);
         if (CtMerkleTree.Equal(NormalizePrecertificateTbs(certificate, null), signedCertificate)) return;
 
         // RFC6962 also permits a dedicated precertificate signer. Only this uncommon path needs issuer certificates.
@@ -56,8 +55,8 @@ public sealed partial class CtLogIngestionClient {
             issuers = fetched;
         }
         if (issuers.Count < 2) throw new InvalidOperationException("CT precertificate signer chain is incomplete.");
-        X509Certificate signer = parser.ReadCertificate(issuers[0]);
-        X509Certificate issuerCertificate = parser.ReadCertificate(issuers[1]);
+        X509Certificate signer = CtCertificateDer.Parse(issuers[0]);
+        X509Certificate issuerCertificate = CtCertificateDer.Parse(issuers[1]);
         if (signer.GetBasicConstraints() < 0 || signer.GetExtendedKeyUsage()?.Contains(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.4")) != true ||
             !certificate.IssuerDN.Equivalent(signer.SubjectDN) || !signer.IssuerDN.Equivalent(issuerCertificate.SubjectDN) ||
             !CtMerkleTree.Equal(CtMerkleTree.Hash(issuerCertificate.CertificateStructure.TbsCertificate.SubjectPublicKeyInfo.GetDerEncoded()), issuerKeyHash!))
