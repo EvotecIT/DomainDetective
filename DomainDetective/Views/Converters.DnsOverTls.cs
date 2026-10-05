@@ -19,6 +19,12 @@ public static partial class Converters {
             HostnameMatch = kv.Value.HostnameMatch,
             CertificateValid = kv.Value.CertificateValid,
             Error = kv.Value.Error,
+            Outcome = kv.Value.Outcome,
+            FailureStage = kv.Value.FailureStage,
+            Attempted = kv.Value.Attempted,
+            TlsHandshakeSucceeded = kv.Value.TlsHandshakeSucceeded,
+            DnsExchangeVerified = kv.Value.DnsExchangeVerified,
+            ElapsedMilliseconds = kv.Value.ElapsedMilliseconds,
         }).ToList() ?? new List<DnsOverTlsEndpointInfo>();
 
         var supported = endpoints.Count(e => e.Supported);
@@ -27,7 +33,7 @@ public static partial class Converters {
 
         var assessments = analysis.Assessments ?? new List<Assessment>();
         var recs = RecommendationEngine.FromProblems(assessments);
-        var positives = RecommendationEngine.FromPositives(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments.Where(item => item.Code != DnsOverTlsCodes.NotSupported));
         Summarize(assessments, out var warnCount, out var errCount, out var status);
 
         return new DnsOverTlsSummary {
@@ -38,6 +44,8 @@ public static partial class Converters {
             SupportedCount = supported,
             HostnameMismatchCount = mismatch,
             InvalidCertificateCount = invalidCert,
+            CoverageComplete = analysis.CoverageComplete,
+            DiscoveryErrors = analysis.DiscoveryErrors,
             Endpoints = endpoints,
             Assessments = assessments,
             Status = status,
@@ -68,6 +76,10 @@ public sealed class DnsOverTlsSummary {
     public int HostnameMismatchCount { get; set; }
     /// <summary>Gets or sets the invalid certificate count value.</summary>
     public int InvalidCertificateCount { get; set; }
+    /// <summary>Gets or sets whether all discovered endpoints supplied conclusive observations.</summary>
+    public bool CoverageComplete { get; set; }
+    /// <summary>Gets or sets nameserver/address discovery failures.</summary>
+    public IReadOnlyDictionary<string, string> DiscoveryErrors { get; set; } = new Dictionary<string, string>();
     /// <summary>Gets or sets the endpoints value.</summary>
     public IReadOnlyList<DnsOverTlsEndpointInfo> Endpoints { get; set; } = null!;
     /// <summary>Gets or sets the assessments value.</summary>
@@ -112,5 +124,16 @@ public sealed class DnsOverTlsEndpointInfo {
     public bool? CertificateValid { get; set; }
     /// <summary>Gets or sets the error value.</summary>
     public string? Error { get; set; }
+    /// <summary>Gets or sets the structured outcome.</summary>
+    public DnsOverTlsProbeOutcome Outcome { get; set; }
+    /// <summary>Gets or sets the failure stage.</summary>
+    public string? FailureStage { get; set; }
+    /// <summary>Gets or sets whether the probe entered its transport.</summary>
+    public bool Attempted { get; set; }
+    /// <summary>Gets or sets whether TLS negotiation completed.</summary>
+    public bool TlsHandshakeSucceeded { get; set; }
+    /// <summary>Gets or sets whether a correlated DNS exchange completed.</summary>
+    public bool DnsExchangeVerified { get; set; }
+    /// <summary>Gets or sets elapsed time including cleanup.</summary>
+    public long ElapsedMilliseconds { get; set; }
 }
-

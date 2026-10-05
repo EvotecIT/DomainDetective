@@ -298,7 +298,7 @@ public static partial class DesiredStateEvaluator {
                 Category = "DesiredState",
                 Target = domain,
                 Code = DesiredStateCodes.DnsOverTlsAnySupportedRequired,
-                Message = "Desired state requires at least one authoritative server to support DNS over TLS, but none were supported."
+                Message = "Desired state requires at least one authoritative server to support DNS over TLS, but support was not established."
             });
         }
 
@@ -313,7 +313,7 @@ public static partial class DesiredStateEvaluator {
                     Category = "DesiredState",
                     Target = domain,
                     Code = DesiredStateCodes.DnsOverTlsAllSupportedRequired,
-                    Message = $"Desired state requires DNS over TLS on all probed servers, but '{key}' was not supported."
+                    Message = $"Desired state requires DNS over TLS on all probed servers, but support was not established for '{key}' ({res.Outcome})."
                 });
                 continue;
             }
