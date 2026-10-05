@@ -10,7 +10,7 @@ public static partial class Converters
     /// <summary>Executes the convert operation.</summary>
     public static TlsRptReportsTimeSeriesInfo Convert(IReadOnlyList<TlsRptSnapshot> snapshots, string? subjectOverride = null)
     {
-        var list = (snapshots ?? Array.Empty<TlsRptSnapshot>()).Where(s => s != null).ToList();
+        var list = TlsRptSnapshotSelection.SelectCurrent(snapshots ?? Array.Empty<TlsRptSnapshot>()).ToList();
         var subject = !string.IsNullOrWhiteSpace(subjectOverride)
             ? subjectOverride!
             : (list.FirstOrDefault()?.Domain ?? string.Empty);

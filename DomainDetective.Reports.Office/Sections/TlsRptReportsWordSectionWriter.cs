@@ -146,7 +146,7 @@ public static class TlsRptReportsWordSectionWriter
                         .Take(3)
                         .Select(kv => $"{kv.Key}={kv.Value}");
                     mt.Rows[i + 1].Cells[0].AddParagraph(r.MxHost ?? string.Empty);
-                    mt.Rows[i + 1].Cells[1].AddParagraph(r.SuccessfulSessions.ToString());
+                    mt.Rows[i + 1].Cells[1].AddParagraph(r.SuccessfulSessionsKnown ? r.SuccessfulSessions.ToString() : "Not attributed");
                     mt.Rows[i + 1].Cells[2].AddParagraph(r.FailedSessions.ToString());
                     mt.Rows[i + 1].Cells[3].AddParagraph(string.Join(", ", topTypes));
                 }

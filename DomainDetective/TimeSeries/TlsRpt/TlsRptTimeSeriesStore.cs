@@ -104,7 +104,7 @@ public sealed class TlsRptTimeSeriesStore
             }
         }
 
-        return list;
+        return TlsRptSnapshotSelection.SelectCurrent(list);
     }
 
     private static string BuildFileName(TlsRptSnapshot snapshot)
@@ -113,6 +113,8 @@ public sealed class TlsRptTimeSeriesStore
         var datePart = end.UtcDateTime.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
 
         var key = $"{snapshot.Domain}|{snapshot.ReportId}|{snapshot.RangeBeginUtc:O}|{snapshot.RangeEndUtc:O}|{snapshot.ReporterOrgName}|{snapshot.TotalSuccessfulSessions}|{snapshot.TotalFailedSessions}";
+        // Preserve legacy files. Corrected receiving-host evidence gets an immutable version.
+        if (snapshot.MxFailureAttributionVerified) key += "|receiving-mx-v1";
         var hash = ComputeStableHashHex(key).Substring(0, 12);
         return $"{datePart}_{hash}.json";
     }
