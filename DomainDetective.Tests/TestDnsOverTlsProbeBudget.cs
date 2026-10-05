@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DnsClientX;
 using DomainDetective.Definitions;
+using DomainDetective.Helpers;
 using DomainDetective.DesiredState;
 using DomainDetective.Views;
 using Xunit;
@@ -112,7 +113,9 @@ public class TestDnsOverTlsProbeBudget {
     public async Task TlsAloneDoesNotEstablishDnsOverTlsSupport(bool validDnsResponse) {
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest("CN=ns.example.test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        using var created = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        // Schannel on .NET Framework requires an imported PKCS#12 private-key association.
+        using var certificate = CertificateLoaderCompat.LoadPkcs12(created.Export(X509ContentType.Pfx));
         var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         using var fixture = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         Task peer = Task.Run(async () => {
