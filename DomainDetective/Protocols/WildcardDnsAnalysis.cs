@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective;
@@ -36,18 +37,19 @@ public class WildcardDnsAnalysis : IHasAssessments
     public DnsConfiguration DnsConfiguration { get; set; } = new();
 
     /// <summary>
-    /// Optional DNS query delegate for testing purposes.
+    /// Optional DNS query provider. Cancellation ends this analysis's wait; the provider owns any continuing work.
     /// </summary>
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
+    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (QueryDnsOverride != null)
         {
-            return await QueryDnsOverride(name, type);
+            return await QueryDnsOverride(name, type).WaitWithCancellation(cancellationToken);
         }
 
-        return await DnsConfiguration.QueryDNS(name, type);
+        return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -56,8 +58,16 @@ public class WildcardDnsAnalysis : IHasAssessments
     /// <param name="domainName">Domain to analyze.</param>
     /// <param name="logger">Optional logger used for diagnostics.</param>
     /// <param name="sampleCount">Number of random names to test.</param>
-    public async Task Analyze(string domainName, InternalLogger logger, int sampleCount = 3)
+    public Task Analyze(string domainName, InternalLogger logger, int sampleCount = 3) => Analyze(domainName, logger, sampleCount, CancellationToken.None);
+
+    /// <summary>Detects wildcard DNS while honoring caller cancellation through discovery and samples.</summary>
+    /// <param name="domainName">Domain to analyze.</param>
+    /// <param name="logger">Diagnostic logger.</param>
+    /// <param name="sampleCount">Number of random names at each tested depth.</param>
+    /// <param name="cancellationToken">Token that cancels discovery and sample queries.</param>
+    public async Task Analyze(string domainName, InternalLogger logger, int sampleCount, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "WILDCARD", target: domainName);
         TestedNames.Clear();
         ResolvedNames.Clear();
@@ -66,11 +76,11 @@ public class WildcardDnsAnalysis : IHasAssessments
         SoaExists = false;
         NsExists = false;
 
-        var soa = await QueryDns(domainName, DnsRecordType.SOA);
+        var soa = await QueryDns(domainName, DnsRecordType.SOA, cancellationToken);
         SoaExists = soa.Length > 0;
         if (!SoaExists)
         {
-            var ns = await QueryDns(domainName, DnsRecordType.NS);
+            var ns = await QueryDns(domainName, DnsRecordType.NS, cancellationToken);
             NsExists = ns.Length > 0;
         }
 
@@ -90,10 +100,10 @@ public class WildcardDnsAnalysis : IHasAssessments
                 var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 for (int attempt = 0; attempt < RetryCount; attempt++)
                 {
-                    var records = await QueryDns(name, DnsRecordType.A);
+                    var records = await QueryDns(name, DnsRecordType.A, cancellationToken);
                     if (records.Length == 0)
                     {
-                        records = await QueryDns(name, DnsRecordType.AAAA);
+                        records = await QueryDns(name, DnsRecordType.AAAA, cancellationToken);
                     }
 
                     foreach (var rec in records)
@@ -134,6 +144,7 @@ public class WildcardDnsAnalysis : IHasAssessments
             }
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         int required = (int)Math.Ceiling(TestedNames.Count * ConsistencyThreshold);
         CatchAll = ResolvedNames.Count >= required && addressCount.Values.Any(c => c >= required);
         logger?.WriteVerbose("Wildcard DNS for {0}: {1}", domainName, CatchAll);

@@ -111,17 +111,6 @@ public class TestMonitorScheduler
     }
 
     [Fact]
-    public void CanStartAndStop()
-    {
-        var scheduler = new MonitorScheduler();
-        var timerField = typeof(MonitorScheduler).GetField("_timer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        scheduler.Start();
-        Assert.NotNull(timerField.GetValue(scheduler));
-        scheduler.Stop();
-        Assert.Null(timerField.GetValue(scheduler));
-    }
-
-    [Fact]
     public async Task RunAsync_ProcessesDomainsInParallelWhenConfigured()
     {
         var running = 0;

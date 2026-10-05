@@ -11,7 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Network;
 using DomainDetective.Helpers;
-using PeriodicTimer = System.Threading.PeriodicTimer;
+using DomainDetective.Monitoring;
 
 namespace DomainDetective {
     /// <summary>
@@ -55,14 +55,9 @@ namespace DomainDetective {
             public CertificateAnalysis Analysis { get; init; } = null!;
         }
 
-        private PeriodicTimer? _timer;
-        private CancellationTokenSource? _cts;
-        private Task? _loopTask;
+        private readonly PeriodicAnalysisLoop _periodic = new();
         /// <summary>Optional override for certificate analysis (primarily for testing).</summary>
         internal Func<string, int, InternalLogger, CancellationToken, Task<CertificateAnalysis>>? AnalysisOverride { get; set; }
-        private IReadOnlyList<string> _monitorHosts = Array.Empty<string>();
-        private int _monitorPort;
-        private InternalLogger? _monitorLogger;
 
         /// <summary>Directory used to cache certificate data.</summary>
         public string CacheDirectory { get; set; } =
@@ -107,7 +102,7 @@ namespace DomainDetective {
         }
 
         /// <summary>Indicates whether monitoring is active.</summary>
-        public bool IsRunning => _timer != null;
+        public bool IsRunning => _periodic.IsRunning;
 
         /// <summary>Threshold in days for considering a certificate expiring soon.</summary>
         public int ExpiryWarningDays { get; set; } = 30;
@@ -123,44 +118,16 @@ namespace DomainDetective {
         /// <param name="port">Port used for HTTPS.</param>
         /// <param name="logger">Optional logger instance.</param>
         public void Start(IEnumerable<string> hosts, TimeSpan interval, int port = 443, InternalLogger? logger = null) {
-            Stop();
-            CleanExpiredCacheEntries();
-            _monitorHosts = hosts.ToList();
-            _monitorPort = port;
-            _monitorLogger = logger;
-            _cts = new CancellationTokenSource();
-            _timer = new PeriodicTimer(interval);
-            _loopTask = Task.Run(async () => {
-                await Analyze(_monitorHosts, _monitorPort, _monitorLogger ?? new InternalLogger()).ConfigureAwait(false);
-                while (_timer != null && await _timer.WaitForNextTickAsync(_cts.Token).ConfigureAwait(false)) {
-                    await Analyze(_monitorHosts, _monitorPort, _monitorLogger ?? new InternalLogger()).ConfigureAwait(false);
-                }
-            });
+            var monitorHosts = hosts.ToList();
+            var monitorLogger = logger ?? new InternalLogger();
+            _periodic.Start(interval, ct => Analyze(monitorHosts, port, monitorLogger, ct), CleanExpiredCacheEntries);
         }
 
-        /// <summary>Stops periodic monitoring.</summary>
-        public void Stop() {
-            StopAsync().GetAwaiter().GetResult();
-        }
+        /// <summary>Cancels and drains periodic monitoring. Call outside callbacks of this run.</summary>
+        public void Stop() => StopAsync().GetAwaiter().GetResult();
 
-        /// <summary>Stops periodic monitoring asynchronously.</summary>
-        public async Task StopAsync() {
-            _cts?.Cancel();
-            if (_loopTask != null) {
-                try {
-                    await _loopTask.ConfigureAwait(false);
-                } catch (TaskCanceledException) {
-                    // ignore cancellation
-                } catch (OperationCanceledException) {
-                    // ignore cancellation
-                }
-            }
-            _timer?.Dispose();
-            _timer = null;
-            _cts?.Dispose();
-            _cts = null;
-            _loopTask = null;
-        }
+        /// <summary>Cancels and drains periodic monitoring, including the active certificate analysis.</summary>
+        public Task StopAsync() => _periodic.StopAsync();
 
         /// <summary>Checks certificates for the provided hosts.</summary>
         /// <param name="hosts">Hostnames or URLs to verify.</param>
@@ -237,6 +204,7 @@ namespace DomainDetective {
                             await analysis.AnalyzeUrl(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
                         }
 
+                        cancellationToken.ThrowIfCancellationRequested();
                         DateTimeOffset observedAtUtc = DateTimeOffset.UtcNow;
                         entries[index] = new Entry {
                             Host = host,
@@ -265,6 +233,7 @@ namespace DomainDetective {
                 }
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (PersistInventorySnapshots) {
                 SaveInventorySnapshot(port, logger);
             }
