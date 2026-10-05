@@ -189,8 +189,8 @@ namespace DomainDetective.Tests.Reports {
             DomainAssessmentReport report = DomainAssessmentBuilder.Build(SampleViews(), new DomainAssessmentOptions { Title = "Test" });
             string html = AssessmentHtmlReport.Render(report);
 
-            Assert.Contains("id=\"hfx-asr-panel-summary\"", html, StringComparison.Ordinal);
-            Assert.Contains("id=\"hfx-asr-panel-domain-example-org\"", html, StringComparison.Ordinal);
+            Assert.Contains("id=\"hfx-shell-panel-summary\"", html, StringComparison.Ordinal);
+            Assert.Contains("id=\"hfx-shell-panel-domain-example-org\"", html, StringComparison.Ordinal);
             Assert.Contains("id=\"domain-example-org-dmarc\"", html, StringComparison.Ordinal);
             Assert.Contains("data-dd-domain=\"example.org\"", html, StringComparison.Ordinal);
             Assert.Contains("No DMARC record published.", html, StringComparison.Ordinal);
@@ -206,7 +206,7 @@ namespace DomainDetective.Tests.Reports {
             try {
                 HtmlCompositionReport.Generate(path, SampleViews(), ReportScope.Normal, titleOverride: "Profile test", profile: HtmlProfile.Assessment);
                 string html = System.IO.File.ReadAllText(path);
-                Assert.Contains("hfx-asr-panel-summary", html, StringComparison.Ordinal);
+                Assert.Contains("hfx-shell-panel-summary", html, StringComparison.Ordinal);
                 Assert.Contains("Profile test", html, StringComparison.Ordinal);
             } finally {
                 if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
@@ -234,7 +234,7 @@ namespace DomainDetective.Tests.Reports {
 
                 ReportResult html = result.Reports.Single(static r => r.Format == ReportFormat.Html);
                 Assert.True(html.Success, html.ErrorMessage);
-                Assert.Contains("hfx-asr-panel-summary", System.IO.File.ReadAllText(html.FilePath), StringComparison.Ordinal);
+                Assert.Contains("hfx-shell-panel-summary", System.IO.File.ReadAllText(html.FilePath), StringComparison.Ordinal);
             } finally {
                 if (System.IO.Directory.Exists(directory)) System.IO.Directory.Delete(directory, recursive: true);
             }
@@ -251,7 +251,7 @@ namespace DomainDetective.Tests.Reports {
 
             Assert.Contains("data-dd-domain=\"xn--bcher-kva.de\"", html, StringComparison.Ordinal);
             // example.com + MX and the domain example.com.mx would both be "domain-example-com-mx" without de-duplication.
-            Assert.Contains("id=\"hfx-asr-panel-domain-example-com-mx\"", html, StringComparison.Ordinal);
+            Assert.Contains("id=\"hfx-shell-panel-domain-example-com-mx\"", html, StringComparison.Ordinal);
             Assert.Contains("id=\"domain-example-com-mx-2\"", html, StringComparison.Ordinal);
         }
 

@@ -28,7 +28,7 @@ public static partial class AssessmentHtmlReport {
         CheckAssessment? spf = Check("spf"), dkim = Check("dkim"), dmarc = Check("dmarc"), bimi = Check("bimi");
         CheckAssessment? mx = Check("mx"), mtasts = Check("mtasts"), tlsrpt = Check("tlsrpt"), dane = Check("dane");
         if (spf != null || dkim != null || dmarc != null) {
-            section.AssessmentPanel(panel => {
+            section.ReportPanel(panel => {
                 panel.Title("Can anyone send as " + domain.Domain + "?").TitleIcon(TablerIconType.MailShare)
                     .Subtitle("How a receiving server decides, left to right. Open a step for its check.");
                 panel.AssessmentFlow(flow => {
@@ -106,9 +106,9 @@ public static partial class AssessmentHtmlReport {
         bool dns = dnssec != null || ns != null || caa != null;
         bool web = cert != null || http != null;
         if (dns || web) {
-            section.AssessmentSplit(split => {
-                split.Ratio(AssessmentSplitRatio.Equal);
-                if (dns) split.Main(main => main.AssessmentPanel(panel => {
+            section.ReportSplit(split => {
+                split.Ratio(ReportSplitRatio.Equal);
+                if (dns) split.Main(main => main.ReportPanel(panel => {
                     panel.Title("DNS foundation").TitleIcon(TablerIconType.Sitemap);
                     if (dnssec != null) {
                         string status = Fact(dnssec, "Validation status") ?? OutcomeLabel(dnssec.Outcome);
@@ -149,7 +149,7 @@ public static partial class AssessmentHtmlReport {
                         panel.AssessmentChips(chips => chips.Label("Record lifetimes").Chip(ttlNote, OutcomeSeverity(ttl.Outcome), Link(ttl)));
                     }
                 }));
-                if (web) split.Aside(aside => aside.AssessmentPanel(panel => {
+                if (web) split.Aside(aside => aside.ReportPanel(panel => {
                     panel.Title("Web front door").TitleIcon(TablerIconType.World);
                     if (cert != null && ParseUtc(Fact(cert, "Valid from")) is { } from && ParseUtc(Fact(cert, "Valid to")) is { } to) {
                         panel.AssessmentLifetime("Certificate lifetime", from, to, generatedAt, lifetime => lifetime
@@ -191,7 +191,7 @@ public static partial class AssessmentHtmlReport {
         CheckAssessment? dnsbl = Check("dnsbl");
         if (dnsbl != null) {
             string listed = Fact(dnsbl, "Hosts listed") ?? "0";
-            section.AssessmentPanel(panel => panel
+            section.ReportPanel(panel => panel
                 .Title("Reputation").TitleIcon(TablerIconType.ShieldCheck)
                 .Subtitle("The domain and every address behind its mail servers, checked against blocklists.")
                 .Settings(s => s.Flush())

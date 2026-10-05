@@ -21,7 +21,7 @@ public static partial class AssessmentHtmlReport {
         if (recommendations.Count > 0) remediations.Clear();
         if (string.IsNullOrWhiteSpace(why) && remediations.Count == 0 && recommendations.Count == 0 && check.References.Count == 0) return;
 
-        row.AssessmentPanel(panel => {
+        row.ReportPanel(panel => {
             panel.Title(needsFix ? "How to fix" : "Guidance").TitleIcon(TablerIconType.Bulb).Settings(s => s.Muted());
             if (!string.IsNullOrWhiteSpace(why)) panel.Text(why!);
             if (needsFix && remediations.Count > 0) panel.Add(BulletList(remediations));
@@ -32,7 +32,7 @@ public static partial class AssessmentHtmlReport {
 
     private static void RenderEvidence(AssessmentCheck row, CheckAssessment check) {
         if (check.Facts.Count == 0 && check.Evidence.Count == 0 && check.Highlights.Count == 0) return;
-        row.AssessmentPanel(panel => {
+        row.ReportPanel(panel => {
             panel.Title("Evidence").TitleIcon(TablerIconType.FileSearch);
             if (check.Highlights.Count > 0) panel.Add(BulletList(check.Highlights));
             if (check.Facts.Count > 0) {

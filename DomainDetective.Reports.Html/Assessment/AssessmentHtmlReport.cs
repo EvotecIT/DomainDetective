@@ -174,7 +174,7 @@ public static partial class AssessmentHtmlReport {
             .ThenByDescending(static x => x.Check.ErrorCount + x.Check.WarningCount)
             .ToList();
 
-        section.AssessmentPanel(panel => {
+        section.ReportPanel(panel => {
             panel.Title("Fix first").Subtitle("Checks with errors first, then warnings; mail authentication weighs most.").Settings(s => s.Flush());
             if (attention.Count == 0) {
                 panel.AssessmentStats(stats => stats.Stat("0", "Nothing needs attention", Severity.Good));
@@ -213,7 +213,7 @@ public static partial class AssessmentHtmlReport {
     private static void RenderControls(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
         var present = Controls.Where(c => report.Domains.Any(d => d.Checks.Any(check => check.Key == c.Key))).ToList();
         if (present.Count == 0) return;
-        section.AssessmentPanel(panel => panel
+        section.ReportPanel(panel => panel
             .Title("Controls")
             .Subtitle(report.Domains.Count == 1 ? "The number that matters most for each control. Open one for the detail." : "Domains where each control passes.")
             .Settings(s => s.Flush())
@@ -242,7 +242,7 @@ public static partial class AssessmentHtmlReport {
             .Select(static g => g.First())
             .OrderBy(static c => AreaIndex(c.Area))
             .ToList();
-        section.AssessmentPanel(panel => panel
+        section.ReportPanel(panel => panel
             .Title("Coverage")
             .Subtitle("Every check across every domain with its key number. Open a cell for the result; previous and next move along the row.")
             .Settings(s => s.Flush())
@@ -272,7 +272,7 @@ public static partial class AssessmentHtmlReport {
     }
 
     private static void RenderAbout(AssessmentReportSection section, DomainAssessmentReport report) {
-        section.AssessmentPanel(panel => panel
+        section.ReportPanel(panel => panel
             .Title("How this report is scored")
             .AssessmentFacts(facts => facts
                 .Fact("Check score", "100 when a check passes; 15 points off per warning (not below 50); with errors, 40 for the first, 10 less for each further error and 5 less per warning (not below 0).")
@@ -281,7 +281,7 @@ public static partial class AssessmentHtmlReport {
                 .Fact("Grade", "A from 90, B from 80, C from 70, D from 60, otherwise F.")
                 .Fact("Generated", FormatTime(report.GeneratedAtUtc))));
         if (report.UnassignedInputs.Count > 0) {
-            section.AssessmentPanel(panel => panel
+            section.ReportPanel(panel => panel
                 .Title("Inputs without a domain")
                 .Subtitle("Results that did not name a domain and are not shown elsewhere.")
                 .Settings(s => s.Muted())

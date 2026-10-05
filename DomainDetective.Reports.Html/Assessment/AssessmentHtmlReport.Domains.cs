@@ -19,7 +19,7 @@ public static partial class AssessmentHtmlReport {
         // Stable marker for scripts and tests that locate a domain in the report.
         section.Add(new HtmlTag("span").Attribute("data-dd-domain", domain.Domain).Attribute("hidden", "hidden"));
 
-        section.AssessmentScopeHeader(header => {
+        section.ReportScopeHeader(header => {
             header.Eyebrow("Domain")
                 .Title(domain.Domain)
                 .Description(DomainVerdict(domain) + " " + DomainSummary(domain));

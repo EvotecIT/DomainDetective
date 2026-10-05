@@ -74,7 +74,7 @@ public static partial class AssessmentHtmlReport {
                 explorer.AddView("All checks", v => v.OrderBy("domain"))
                     .AddView("By check", v => v.OrderBy("check").OrderBy("domain"))
                     .QuickFilters("outcome", "area", "check", "domain")
-                    .Settings(s => s.RowTarget("target").Drawer(true, "check", "domain").Exports(DataExplorerExports.Csv | DataExplorerExports.Excel));
+                    .Settings(s => s.RowTarget("target").Drawer(true, "check", "domain").Exports(DataExplorerExports.Csv));
             }));
             views.View("explore-findings", "Findings", view => view.DataExplorer(findingData, explorer => {
                 explorer.Key(FindingsExplorer).Title("Findings")
@@ -82,7 +82,7 @@ public static partial class AssessmentHtmlReport {
                     .AddView("Errors and warnings", v => v.Where("severity", ReportFilterOperator.In, "Error", "Warning").Default())
                     .AddView("All findings")
                     .QuickFilters("severity", "check", "domain")
-                    .Settings(s => s.RowTarget("target").Drawer(true, "check", "domain").Exports(DataExplorerExports.Csv | DataExplorerExports.Excel));
+                    .Settings(s => s.RowTarget("target").Drawer(true, "check", "domain").Exports(DataExplorerExports.Csv));
             }));
         });
     }
