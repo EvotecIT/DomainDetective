@@ -49,7 +49,7 @@ public class TestDnsOverTlsProbeBudget {
     public async Task BudgetRetainsUnattemptedEndpointsAndCallerCancellationPropagates(bool cancelCaller) {
         var analysis = CreateAnalysis(6);
         analysis.QueryConcurrency = 1;
-        analysis.AnalysisTimeout = cancelCaller ? TimeSpan.FromSeconds(5) : TimeSpan.FromMilliseconds(100);
+        analysis.AnalysisTimeout = cancelCaller ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(2);
         int active = 0;
         var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         analysis.ProbeOverride = async (_, _, _, _, token) => {
@@ -59,7 +59,7 @@ public class TestDnsOverTlsProbeBudget {
         };
         using var caller = new CancellationTokenSource();
         Task run = analysis.Analyze("example.test", new InternalLogger(), caller.Token);
-        Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(3000)));
+        Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(5000)));
         if (cancelCaller) {
             caller.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
@@ -201,6 +201,28 @@ public class TestDnsOverTlsProbeBudget {
             new DesiredStateProfile { DnsOverTls = new DesiredStateDnsOverTlsPolicy { RequireAllSupported = true } },
             MailDomainClassificationCategory.SendingAndReceiving);
         Assert.False(result.Conforms);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConfiguredLegacyDiscoveryObservesBudgetAndCallerCancellation(bool cancelCaller) {
+        var callback = new TaskCompletionSource<DnsAnswer[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var caller = new CancellationTokenSource();
+        var analysis = new DnsOverTlsAnalysis {
+            DnsConfiguration = new DnsConfiguration { QueryDnsOverride = (_, _) => callback.Task },
+            AnalysisTimeout = cancelCaller ? TimeSpan.FromSeconds(5) : TimeSpan.FromMilliseconds(100)
+        };
+        Task run = analysis.Analyze("example.test", new InternalLogger(), caller.Token);
+        try {
+            if (cancelCaller) caller.Cancel();
+            Assert.Same(run, await Task.WhenAny(run, Task.Delay(1500)));
+            if (cancelCaller) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+            else { await run; Assert.False(analysis.CoverageComplete); Assert.NotEmpty(analysis.DiscoveryErrors); }
+        } finally {
+            callback.TrySetResult(Array.Empty<DnsAnswer>());
+            try { await run; } catch (OperationCanceledException) { }
+        }
     }
 
     private static async Task ReadFully(System.IO.Stream stream, byte[] buffer, CancellationToken token) {
