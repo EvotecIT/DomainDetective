@@ -184,7 +184,7 @@ namespace DomainDetective {
                 return response ?? CreateErrorResponse(name, recordType, "The DNS response override returned null.");
             }
             if (QueryDnsOverride != null) {
-                DnsAnswer[] answers = await QueryDnsOverride(name, recordType).ConfigureAwait(false) ?? Array.Empty<DnsAnswer>();
+                DnsAnswer[] answers = await QueryDnsOverride(name, recordType).WaitWithCancellation(cancellationToken).ConfigureAwait(false) ?? Array.Empty<DnsAnswer>();
                 cancellationToken.ThrowIfCancellationRequested();
                 return new DnsResponse {
                     Status = DnsResponseCode.NoError,
