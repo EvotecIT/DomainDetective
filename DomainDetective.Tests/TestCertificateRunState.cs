@@ -14,14 +14,19 @@ public class TestCertificateRunState {
     [Fact]
     public async Task FailedReuseCannotExportThePreviousCertificate() {
         using var certificate = MakeCertificate("old.example");
-        var analysis = new CertificateAnalysis { CaptureExtendedMetadata = false, PreferTlsHandshakeOnlyProbe = true, Timeout = TimeSpan.FromSeconds(2) };
+        var health = new DomainHealthCheck();
+        var analysis = health.CertificateAnalysis;
+        analysis.CaptureExtendedMetadata = false;
+        analysis.PreferTlsHandshakeOnlyProbe = true;
+        analysis.Timeout = TimeSpan.FromSeconds(2);
         await analysis.AnalyzeCertificate(certificate);
         var previousOwned = analysis.Certificate!;
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
-        await analysis.AnalyzeUrl("https://127.0.0.1", port, new InternalLogger());
+        await health.VerifyWebsiteCertificate("127.0.0.1", port);
+        Assert.Equal(analysis.Url, DomainDetective.Views.Converters.Convert(analysis).Subject);
         Assert.False(analysis.IsReachable);
         Assert.Null(analysis.Certificate);
         Assert.Empty(analysis.Chain);

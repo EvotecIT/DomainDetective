@@ -268,6 +268,7 @@ namespace DomainDetective {
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
             Url = url;
+            Subject = url;
             bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             if (ShouldUseTlsHandshakeOnlyProbe()) {

@@ -129,10 +129,13 @@ namespace DomainDetective.Tests {
             await server.InitializeAsync();
 
             try {
-                var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
+                var health = new DomainHealthCheck();
+                using var analysis = health.CertificateAnalysis;
+                analysis.CtLogQueryOverride = _ => Task.FromResult("[]");
 
-                await analysis.AnalyzeUrl("https://localhost", server.Port, new InternalLogger());
+                await health.VerifyWebsiteCertificate("localhost", server.Port);
 
+                Assert.Equal(analysis.Url, DomainDetective.Views.Converters.Convert(analysis).Subject);
                 Assert.True(analysis.IsReachable);
                 Assert.Equal(IPAddress.Loopback, analysis.RemoteAddress);
                 Assert.NotNull(analysis.Certificate);
