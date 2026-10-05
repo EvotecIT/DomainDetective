@@ -22,7 +22,7 @@ public static class TlsRptReportParser
     /// <summary>Parses a TLS-RPT JSON report from a stream.</summary>
     public static TlsRptReport Parse(Stream stream, string? name = null)
     {
-        return Parse(stream, name, maxUncompressedBytes: 0);
+        return Parse(stream, name, maxUncompressedBytes: TimeSeries.ReportReadLimits.DefaultUncompressedBytes);
     }
 
     /// <summary>Parses a TLS-RPT JSON report from a stream with size limits.</summary>

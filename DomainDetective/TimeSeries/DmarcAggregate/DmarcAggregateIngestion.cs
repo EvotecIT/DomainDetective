@@ -25,7 +25,12 @@ public static class DmarcAggregateIngestion
 
     /// <summary>Executes the ingest from path operation.</summary>
     public static DmarcAggregateIngestResult IngestFromPath(string path, DmarcAggregateTimeSeriesStore store, bool deduplicate = true)
+        => IngestFromPath(path, store, deduplicate, ReportReadLimits.DefaultUncompressedBytes);
+
+    /// <summary>Imports files with a per-report decompressed byte limit; 0 explicitly allows unlimited content.</summary>
+    public static DmarcAggregateIngestResult IngestFromPath(string path, DmarcAggregateTimeSeriesStore store, bool deduplicate, long maxUncompressedBytes)
     {
+        if (maxUncompressedBytes < 0) throw new ArgumentOutOfRangeException(nameof(maxUncompressedBytes));
         if (store == null) throw new ArgumentNullException(nameof(store));
 
         var result = new DmarcAggregateIngestResult();
@@ -36,7 +41,8 @@ public static class DmarcAggregateIngestion
         {
             try
             {
-                var report = DmarcReportParser.Parse(file);
+                using var stream = File.OpenRead(file);
+                var report = DmarcReportParser.Parse(stream, file, validationMessages: null, maxUncompressedBytes);
                 if (deduplicate)
                 {
                     var key = $"{report.ReportId}|{report.RangeBeginUtc?.UtcDateTime:o}|{report.RangeEndUtc?.UtcDateTime:o}|{report.ReporterOrgName}|{report.PolicyPublished?.Domain}";
@@ -80,7 +86,8 @@ public static class DmarcAggregateIngestion
 
         Task<DmarcAggregateSnapshot?> Parse(Stream stream, string fileName, CancellationToken ct)
         {
-            var report = DmarcReportParser.Parse(stream, fileName, validationMessages: null, maxUncompressedBytes: options.MaxAttachmentBytes);
+            ct.ThrowIfCancellationRequested();
+            var report = DmarcReportParser.Parse(stream, fileName, validationMessages: null, maxUncompressedBytes: options.MaxUncompressedBytes);
             if (deduplicate)
             {
                 var key = $"{report.ReportId}|{report.RangeBeginUtc?.UtcDateTime:o}|{report.RangeEndUtc?.UtcDateTime:o}|{report.ReporterOrgName}|{report.PolicyPublished?.Domain}";
@@ -90,6 +97,7 @@ public static class DmarcAggregateIngestion
                 }
             }
 
+            ct.ThrowIfCancellationRequested();
             var snapshot = DmarcAggregateSnapshotBuilder.Build(report, source: "IMAP", sourceId: fileName);
             var outPath = store.SaveSnapshot(snapshot);
             lock (savedLock)

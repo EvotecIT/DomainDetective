@@ -59,7 +59,7 @@ public static class DmarcReportParser {
     /// <param name="validationMessages">Optional list collecting schema validation errors.</param>
     /// <returns>The parsed aggregate report.</returns>
     public static DmarcAggregateReport Parse(Stream stream, string? name = null, IList<string>? validationMessages = null) {
-        return Parse(stream, name, validationMessages, maxUncompressedBytes: 0);
+        return Parse(stream, name, validationMessages, maxUncompressedBytes: TimeSeries.ReportReadLimits.DefaultUncompressedBytes);
     }
 
     /// <summary>Parses a DMARC feedback report from a stream with size limits.</summary>

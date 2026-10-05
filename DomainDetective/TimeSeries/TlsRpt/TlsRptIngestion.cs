@@ -25,7 +25,12 @@ public static class TlsRptIngestion
 
     /// <summary>Executes the ingest from path operation.</summary>
     public static TlsRptIngestResult IngestFromPath(string domain, string path, TlsRptTimeSeriesStore store, bool deduplicate = true)
+        => IngestFromPath(domain, path, store, deduplicate, ReportReadLimits.DefaultUncompressedBytes);
+
+    /// <summary>Imports files with a per-report decompressed byte limit; 0 explicitly allows unlimited content.</summary>
+    public static TlsRptIngestResult IngestFromPath(string domain, string path, TlsRptTimeSeriesStore store, bool deduplicate, long maxUncompressedBytes)
     {
+        if (maxUncompressedBytes < 0) throw new ArgumentOutOfRangeException(nameof(maxUncompressedBytes));
         if (store == null) throw new ArgumentNullException(nameof(store));
 
         var result = new TlsRptIngestResult();
@@ -36,7 +41,8 @@ public static class TlsRptIngestion
         {
             try
             {
-                var report = TlsRptReportParser.Parse(file);
+                using var stream = File.OpenRead(file);
+                var report = TlsRptReportParser.Parse(stream, file, maxUncompressedBytes);
                 var snapshot = TlsRptSnapshotBuilder.Build(report, domain, source: "File", sourceId: file);
                 if (deduplicate)
                 {
@@ -80,7 +86,9 @@ public static class TlsRptIngestion
 
         Task<TlsRptSnapshot?> Parse(Stream stream, string fileName, CancellationToken ct)
         {
-            var report = TlsRptReportParser.Parse(stream, fileName, options.MaxAttachmentBytes);
+            ct.ThrowIfCancellationRequested();
+            var report = TlsRptReportParser.Parse(stream, fileName, options.MaxUncompressedBytes);
+            ct.ThrowIfCancellationRequested();
             var snapshot = TlsRptSnapshotBuilder.Build(report, domain, source: "IMAP", sourceId: fileName);
             if (deduplicate)
             {
