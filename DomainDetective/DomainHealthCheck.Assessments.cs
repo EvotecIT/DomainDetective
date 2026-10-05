@@ -7,6 +7,7 @@ public partial class DomainHealthCheck
 {
     private static readonly Func<DomainHealthCheck, IHasAssessments?>[] _assessmentProviderGetters =
     {
+        static h => h,
         static h => h.DmarcAnalysis,
         static h => h.SpfAnalysis,
         static h => h.DKIMAnalysis,

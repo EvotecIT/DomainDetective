@@ -50,18 +50,23 @@ public static class EdnsNarrative
         }
 
         var total = analysis.ServerSupport.Count;
-        var supported = analysis.ServerSupport.Values.Count(v => v.Supported);
-        hi.Add($"{supported}/{total} servers support EDNS.");
+        var completed = analysis.ServerSupport.Values.Count(v => v.QuerySucceeded);
+        var supported = analysis.ServerSupport.Values.Count(v => v.QuerySucceeded && v.Supported);
+        hi.Add($"{supported}/{completed} responding servers support EDNS.");
+        if (completed < total)
+        {
+            hi.Add($"{total - completed} server queries failed; EDNS support is unknown for these endpoints.");
+        }
 
         if (supported > 0)
         {
-            var minSize = analysis.ServerSupport.Values.Where(v => v.Supported).Min(v => v.UdpPayloadSize);
+            var minSize = analysis.ServerSupport.Values.Where(v => v.QuerySucceeded && v.Supported).Min(v => v.UdpPayloadSize);
             hi.Add($"Smallest advertised UDP size: {minSize} bytes.");
 
-            var versions = analysis.ServerSupport.Values.Where(v => v.Supported).Select(v => v.Version).Distinct().ToList();
+            var versions = analysis.ServerSupport.Values.Where(v => v.QuerySucceeded && v.Supported).Select(v => v.Version).Distinct().ToList();
             if (versions.Count == 1 && versions[0] == 0)
             {
-                hi.Add("All servers respond with EDNS version 0.");
+                hi.Add("All EDNS responses use version 0.");
             }
             else
             {
@@ -72,6 +77,11 @@ public static class EdnsNarrative
         foreach (var kv in analysis.ServerSupport)
         {
             var info = kv.Value;
+            if (!info.QuerySucceeded)
+            {
+                det.Add($"{kv.Key}: EDNS query failed; support is unknown. {info.Error}");
+                continue;
+            }
             if (info.Supported)
             {
                 var line = $"{kv.Key}: UDP {info.UdpPayloadSize}, ver {info.Version}";
@@ -118,4 +128,3 @@ public static class EdnsNarrative
         "https://www.rfc-editor.org/rfc/rfc6891"
     };
 }
-

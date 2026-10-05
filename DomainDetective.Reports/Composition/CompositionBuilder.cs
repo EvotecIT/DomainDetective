@@ -60,12 +60,20 @@ public static class CompositionBuilder
     {
         var map = new Dictionary<string, DomainBucket>(StringComparer.OrdinalIgnoreCase);
         void Ensure(string subject) { if (!map.ContainsKey(subject)) map[subject] = new DomainBucket { Subject = subject }; }
+        void AddEvidence(AssessmentEvidenceInfo evidence) {
+            Ensure(evidence.Subject);
+            var bucket = map[evidence.Subject];
+            bucket.AdditionalEvidence = bucket.AdditionalEvidence == null ? evidence
+                : AssessmentEvidenceInfo.Collect(new object[] { bucket.AdditionalEvidence, evidence }).Single();
+        }
 
         foreach (var it in items ?? Array.Empty<object>())
         {
             switch (it)
             {
-                case AssessmentEvidenceInfo evidence when !string.IsNullOrWhiteSpace(evidence.Subject): Ensure(evidence.Subject); map[evidence.Subject].AdditionalEvidence = evidence; break;
+                case AssessmentEvidenceInfo evidence when !string.IsNullOrWhiteSpace(evidence.Subject): AddEvidence(evidence); break;
+                case DomainDetective.Views.CheckFailureInfo failure when !string.IsNullOrWhiteSpace(failure.Subject):
+                    AddEvidence(new AssessmentEvidenceInfo(failure.Subject!, failure.Assessments)); break;
                 case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject): Ensure(mx.Subject); map[mx.Subject].Mx = mx; break;
                 case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
                 case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): Ensure(dmarc.Subject); map[dmarc.Subject].Dmarc = dmarc; break;

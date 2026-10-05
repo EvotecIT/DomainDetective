@@ -16,13 +16,19 @@ public static partial class Converters {
     /// </summary>
     /// <param name="health">Health check that ran.</param>
     /// <param name="checks">Checks to convert. Defaults to the checks the last <c>Verify</c> call ran.</param>
-    /// <param name="errors">Optional collection that receives conversion failures; failing checks are skipped.</param>
+    /// <param name="errors">Optional collection that receives execution and conversion failures. Execution failures retain assessment evidence instead of unfinished analysis results.</param>
     /// <returns>View objects in check order.</returns>
     public static IReadOnlyList<object> ConvertChecks(DomainHealthCheck health, IEnumerable<HealthCheckType>? checks = null, ICollection<string>? errors = null) {
         if (health == null) throw new ArgumentNullException(nameof(health));
         var items = new List<object>();
         var converted = new HashSet<object>(ReferenceEqualityComparer.Instance);
         foreach (HealthCheckType check in (checks ?? health.LastVerifiedChecks).Distinct()) {
+            Assessment? failure = health.GetCheckFailure(check);
+            if (failure != null) {
+                errors?.Add(failure.Message);
+                items.Add(new CheckFailureInfo(check, failure));
+                continue;
+            }
             try {
                 foreach (object view in ConvertCheck(health, check, converted)) items.Add(view);
             } catch (Exception ex) when (ex is not OutOfMemoryException) {

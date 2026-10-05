@@ -228,6 +228,13 @@ public partial class DomainHealthCheck {
                     [HealthCheckType.MICROSOFT365] = () => VerifyMicrosoft365TenantAsync(domainName, cancellationToken)
 		            };
 
+            // Unsupported selections are caller input errors, not failures of an executing check.
+            foreach (var healthCheckType in healthCheckTypes) {
+                if (!actions.ContainsKey(healthCheckType)) {
+                    throw new NotSupportedException($"Health check type not implemented: {(int)healthCheckType}");
+                }
+            }
+
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
                 var daneTask = new Lazy<Task>(() => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken));
                 actions[HealthCheckType.DANE] = () => daneTask.Value;
@@ -258,13 +265,21 @@ public partial class DomainHealthCheck {
                 cancellationToken.ThrowIfCancellationRequested();
                 var sw = Stopwatch.StartNew();
                 _logger.WriteVerbose("Starting {0} check.", healthCheckType);
-                if (actions.TryGetValue(healthCheckType, out var action)) {
-                    await action();
-                } else {
-                    _logger.WriteError("Unknown health check type: {0}", healthCheckType);
-                    throw new NotSupportedException($"Health check type not implemented: {(int)healthCheckType}");
+                try {
+                    if (actions.TryGetValue(healthCheckType, out var action)) {
+                        await action();
+                    } else {
+                        throw new NotSupportedException($"Health check type not implemented: {(int)healthCheckType}");
+                    }
+                    cancellationToken.ThrowIfCancellationRequested();
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
+                } catch (Exception ex) when (ex is not OutOfMemoryException) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    RecordCheckFailure(healthCheckType, domainName, ex);
+                } finally {
+                    sw.Stop();
                 }
-                sw.Stop();
                 _logger.WriteVerbose("{0} check completed in {1} ms.", healthCheckType, sw.ElapsedMilliseconds);
             }
 

@@ -17,7 +17,7 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
-            await EdnsSupportAnalysis.Analyze(domainName, _logger);
+            await EdnsSupportAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
     }
 }
