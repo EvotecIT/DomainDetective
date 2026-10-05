@@ -24,9 +24,15 @@ public class TestCertificateInventoryCapture {
         ftpListener.Start();
         int mailPort = ((IPEndPoint)mailListener.LocalEndpoint).Port;
         int ftpPort = ((IPEndPoint)ftpListener.LocalEndpoint).Port;
-        Task<long> mailServer = Task.Run(async () => {
+        var mailStarted = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var logger = new InternalLogger();
+        logger.OnVerboseMessage += (_, args) => {
+            if (args.Message?.StartsWith("Probing mail endpoint", StringComparison.Ordinal) == true) {
+                mailStarted.TrySetResult(Stopwatch.GetTimestamp());
+            }
+        };
+        Task mailServer = Task.Run(async () => {
             using TcpClient client = await mailListener.AcceptTcpClientAsync();
-            return Stopwatch.GetTimestamp();
         });
         Task<long> ftpServer = Task.Run(async () => {
             using TcpClient client = await ftpListener.AcceptTcpClientAsync();
@@ -49,7 +55,7 @@ public class TestCertificateInventoryCapture {
 
             CertificateInventoryCaptureResult result = await new CertificateInventoryCapture().CaptureAsync(
                 Array.Empty<string>(),
-                options);
+                options, logger);
 
             Assert.Equal(1, result.ProbedMailCount);
             Assert.Equal(1, result.ProbedFtpTlsCount);
@@ -59,10 +65,11 @@ public class TestCertificateInventoryCapture {
             Assert.Single(
                 result.Snapshot.Entries,
                 entry => string.Equals(entry.Scheme, "ftps-explicit", StringComparison.OrdinalIgnoreCase));
-            long mailProbeAcceptedAt = await mailServer;
+            // Measure dispatch at the synchronous probe log, rather than when a delayed accept continuation runs.
+            long mailProbeStartedAt = await mailStarted.Task;
             long ftpProbeAcceptedAt = await ftpServer;
             TimeSpan phaseBoundaryGap = TimeSpan.FromSeconds(
-                (ftpProbeAcceptedAt - mailProbeAcceptedAt) / (double)Stopwatch.Frequency);
+                (ftpProbeAcceptedAt - mailProbeStartedAt) / (double)Stopwatch.Frequency);
             Assert.True(
                 phaseBoundaryGap >= TimeSpan.FromMilliseconds(350),
                 $"Expected the global probe-start interval across protocol phases; observed {phaseBoundaryGap}.");
