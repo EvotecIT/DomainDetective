@@ -555,7 +555,7 @@ namespace DomainDetective.Tests {
             var certPath = Path.Combine("Data", "wildcard.pem");
             var cert = CertificateLoaderCompat.LoadCertificateFromFile(certPath);
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[{\"id\":1}]") };
-            await analysis.AnalyzeCertificate(cert);
+            await analysis.AnalyzeCertificateWithEnrichment(cert);
             Assert.True(analysis.PresentInCtLogs);
         }
 

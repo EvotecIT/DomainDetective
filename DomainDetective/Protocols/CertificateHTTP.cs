@@ -29,13 +29,19 @@ namespace DomainDetective {
     /// Validation includes hostname matching and chain verification using the
     /// system trust store.
     /// </remarks>
-    public partial class CertificateAnalysis : IHasAssessments {
+    public partial class CertificateAnalysis : IHasAssessments, IDisposable {
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Gets or sets the URL that was checked.</summary>
         public string Url { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the certificate chain is valid.</summary>
         public bool IsValid { get; set; }
+        /// <summary>Gets whether the most recent operation evaluated system chain trust.</summary>
+        public bool ChainValidationPerformed { get; set; }
+        /// <summary>Gets whether the most recent operation evaluated a requested hostname.</summary>
+        public bool HostnameValidationPerformed { get; set; }
+        /// <summary>Gets whether the current evidence came from a supplied certificate without contacting an endpoint.</summary>
+        public bool ProvidedCertificateInspection { get; private set; }
         /// <summary>Gets or sets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; set; }
         /// <summary>Gets the best-effort failure reason when the endpoint probe does not complete successfully.</summary>
@@ -60,7 +66,8 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating HTTP/3 support.</summary>
         public bool Http3Supported { get; private set; }
 
-        /// <summary>Gets the leaf certificate.</summary>
+        /// <summary>Gets or sets the leaf certificate.</summary>
+        /// <remarks>Library-created certificates remain valid until the next analysis or disposal. Certificates supplied through this setter remain owned by the caller.</remarks>
         public X509Certificate2? Certificate { get; set; }
 
         /// <summary>Gets the certificate chain.</summary>
@@ -256,15 +263,12 @@ namespace DomainDetective {
         /// <param name="logger">Logger instance for diagnostics.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         public async Task AnalyzeUrl(string url, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            ResetObservedState();
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
             Url = url;
-            IsSelfSigned = false;
-            FailureReason = null;
-            FailureKind = CertificateFailureKind.None;
-            RemoteAddress = null;
-            RedirectTargets.Clear();
-            ResetChainSourceTracking();
+            Subject = url;
             bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             if (ShouldUseTlsHandshakeOnlyProbe()) {
@@ -273,6 +277,8 @@ namespace DomainDetective {
                     if (Certificate != null) {
                         await FinalizeCapturedCertificateAsync(url, port, logger, cancellationToken).ConfigureAwait(false);
                     }
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
                 } catch (Exception ex) {
                     ex = NormalizeProbeException(ex, cancellationToken);
                     IsReachable = false;
@@ -302,7 +308,7 @@ namespace DomainDetective {
                         leaf = loadedLeaf;
                     }
                     try {
-                        Certificate = CertificateLoaderCompat.Clone(leaf);
+                        Certificate = OwnCertificate(CertificateLoaderCompat.Clone(leaf));
                     } finally {
                         loadedLeaf?.Dispose();
                     }
@@ -310,12 +316,14 @@ namespace DomainDetective {
                     Chain.Clear();
                     if (chain != null) {
                         foreach (var element in chain.ChainElements) {
-                            Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
+                            Chain.Add(OwnCertificate(CertificateLoaderCompat.Clone(element.Certificate)));
                         }
                     }
                     RecordChainSource(ChainSourceTlsHandshake);
                     IsSelfSigned = IsSelfSignedCertificate(Certificate);
                     IsValid = policyErrors == SslPolicyErrors.None;
+                    ChainValidationPerformed = true;
+                    HostnameValidationPerformed = true;
                     HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     capturedHandshakeCertificate = true;
                 }
@@ -416,20 +424,24 @@ namespace DomainDetective {
                                     .ConfigureAwait(false);
                                 using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
                                     HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                                    HostnameValidationPerformed = ChainValidationPerformed = true;
+                                    IsValid = errors == SslPolicyErrors.None;
                                     return errors == SslPolicyErrors.None;
                                 });
                                 await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
-                                    Certificate = CertificateLoaderCompat.Clone(cert);
-                                    var xchain = new X509Chain();
+                                    Certificate = OwnCertificate(CertificateLoaderCompat.Clone(cert));
+                                    using var xchain = new X509Chain();
                                     xchain.Build(cert);
                                     Chain.Clear();
                                     foreach (var element in xchain.ChainElements) {
-                                        Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
+                                        Chain.Add(OwnCertificate(CertificateLoaderCompat.Clone(element.Certificate)));
                                     }
                                     RecordChainSource(ChainSourceSslStreamBuild);
                                     IsSelfSigned = IsSelfSignedCertificate(Certificate);
                                 }
+                            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                                throw;
                             } catch (Exception ex) {
                                 ex = NormalizeProbeException(ex, cancellationToken, timeoutCts);
                                 logger.WriteErrorCode(CertificateHttpCodes.FetchFailed, "Error retrieving certificate for {0}: {1}", url, ex.ToString());
@@ -440,6 +452,8 @@ namespace DomainDetective {
                         if (Certificate != null) {
                             await FinalizeCapturedCertificateAsync(url, port, logger, cancellationToken).ConfigureAwait(false);
                         }
+                    } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                        throw;
                     } catch (Exception ex) {
                         ex = NormalizeProbeException(ex, cancellationToken);
                         IsReachable = false;
@@ -469,6 +483,8 @@ namespace DomainDetective {
                 {
                     HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     IsValid = errors == SslPolicyErrors.None;
+                    ChainValidationPerformed = true;
+                    HostnameValidationPerformed = true;
                     return true;
                 });
             await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation)
@@ -481,14 +497,14 @@ namespace DomainDetective {
                 return;
             }
 
-            Certificate = CertificateLoaderCompat.LoadCertificate(ssl.RemoteCertificate.Export(X509ContentType.Cert));
+            Certificate = OwnCertificate(CertificateLoaderCompat.LoadCertificate(ssl.RemoteCertificate.Export(X509ContentType.Cert)));
             using var chain = new X509Chain();
             chain.ChainPolicy.RevocationMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
             chain.Build(Certificate);
             Chain.Clear();
             foreach (X509ChainElement element in chain.ChainElements)
             {
-                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
+                Chain.Add(OwnCertificate(CertificateLoaderCompat.Clone(element.Certificate)));
             }
 
             RecordChainSource(ChainSourceSslStreamBuild);

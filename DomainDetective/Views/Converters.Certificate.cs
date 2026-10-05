@@ -20,6 +20,9 @@ public static partial class Converters {
             FailureReason = analysis.FailureReason,
             FailureKind = analysis.FailureKind.ToString(),
             IsValid = analysis.IsValid,
+            ChainValidationPerformed = analysis.ChainValidationPerformed,
+            HostnameValidationPerformed = analysis.HostnameValidationPerformed,
+            ProvidedCertificateInspection = analysis.ProvidedCertificateInspection,
             HostnameMatch = analysis.HostnameMatch,
             DaysToExpire = analysis.DaysToExpire,
             DaysValid = analysis.DaysValid,
@@ -72,7 +75,7 @@ public static partial class Converters {
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{(analysis.IsValid ? "valid" : "invalid")}; host {(analysis.HostnameMatch ? "match" : "mismatch")}; expires {analysis.DaysToExpire}d; grade {analysis.GradeLevel.ToLetter()}; {analysis.KeyAlgorithm} {analysis.KeySize}b",
+            Summary = $"{(analysis.ChainValidationPerformed ? analysis.IsValid ? "valid" : "invalid" : "chain not assessed")}; host {(analysis.HostnameValidationPerformed ? analysis.HostnameMatch ? "match" : "mismatch" : "not assessed")}; expires {analysis.DaysToExpire}d; grade {analysis.GradeLevel.ToLetter()}; {analysis.KeyAlgorithm} {analysis.KeySize}b",
             Narrative = narrative,
             Highlights = narrative.Highlights,
             Details = narrative.Details,
@@ -105,6 +108,12 @@ public class CertificateInfo {
     public string FailureKind { get; set; } = string.Empty;
     /// <summary>Gets or sets the is valid value.</summary>
     public bool IsValid { get; set; }
+    /// <summary>Gets whether system chain trust was evaluated.</summary>
+    public bool ChainValidationPerformed { get; set; }
+    /// <summary>Gets whether a hostname was evaluated.</summary>
+    public bool HostnameValidationPerformed { get; set; }
+    /// <summary>Gets whether this is a supplied certificate inspection.</summary>
+    public bool ProvidedCertificateInspection { get; set; }
     /// <summary>Gets or sets the hostname match value.</summary>
     public bool HostnameMatch { get; set; }
     /// <summary>Gets or sets the days to expire value.</summary>
