@@ -16,15 +16,15 @@ public sealed class DesiredStateDnsOverTlsPolicy {
     [JsonPropertyName("requireAnySupported")]
     public bool? RequireAnySupported { get; set; }
 
-    /// <summary>When true, requires all probed authoritative servers to support DNS over TLS.</summary>
+    /// <summary>When true, requires complete authoritative endpoint coverage with every endpoint supporting DNS over TLS.</summary>
     [JsonPropertyName("requireAllSupported")]
     public bool? RequireAllSupported { get; set; }
 
-    /// <summary>When true, requires supported servers to present a valid certificate chain.</summary>
+    /// <summary>When true, requires each observed TLS handshake to present a valid certificate chain, including handshakes whose DNS exchange failed.</summary>
     [JsonPropertyName("requireCertificateValid")]
     public bool? RequireCertificateValid { get; set; }
 
-    /// <summary>When true, requires supported servers to present a certificate matching the name server hostname.</summary>
+    /// <summary>When true, requires each observed TLS handshake to present a certificate matching the name server hostname.</summary>
     [JsonPropertyName("requireHostnameMatch")]
     public bool? RequireHostnameMatch { get; set; }
 
