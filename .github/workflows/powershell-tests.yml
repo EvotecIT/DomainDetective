@@ -137,7 +137,6 @@ jobs:
               run: |
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-                Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: powershell
 
 
@@ -208,7 +207,6 @@ jobs:
               run: |
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-                Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
                 Install-Module -Name PSPublishModule -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: pwsh
 
@@ -289,7 +287,6 @@ jobs:
               run: |
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-                Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: pwsh
 
 
@@ -365,7 +362,6 @@ jobs:
               run: |
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-                Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: pwsh
 
 
