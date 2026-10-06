@@ -256,63 +256,6 @@ namespace DomainDetective {
         /// <summary>Number of hosts where the chain status couldn't be determined.</summary>
         public int UnknownChainCount => Results.Count(e => e.Analysis.Certificate == null);
 
-        /// <summary>Loads persisted inventory snapshots from disk.</summary>
-        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
-        /// <param name="untilUtc">Optional upper bound for snapshot capture time.</param>
-        /// <param name="maxSnapshots">Optional maximum number of snapshots to return (latest N).</param>
-        /// <param name="latestOnly">When true, returns only the latest available snapshot after filtering.</param>
-        public IReadOnlyList<CertificateInventorySnapshot> LoadInventorySnapshots(
-            DateTimeOffset? sinceUtc = null,
-            DateTimeOffset? untilUtc = null,
-            int maxSnapshots = 0,
-            bool latestOnly = false) {
-            if (sinceUtc.HasValue && untilUtc.HasValue && sinceUtc.Value > untilUtc.Value) {
-                return Array.Empty<CertificateInventorySnapshot>();
-            }
-            if (!Directory.Exists(InventoryDirectory)) {
-                return Array.Empty<CertificateInventorySnapshot>();
-            }
-
-            var files = Directory.GetFiles(InventoryDirectory, "*.json", SearchOption.TopDirectoryOnly);
-
-            var snapshots = new List<CertificateInventorySnapshot>();
-            foreach (var file in files) {
-                try {
-                    var json = File.ReadAllText(file, Encoding.UTF8);
-                    var snapshot = JsonSerializer.Deserialize<CertificateInventorySnapshot>(json, JsonOptions.Default);
-                    if (snapshot == null) {
-                        continue;
-                    }
-                    if (sinceUtc.HasValue && snapshot.CapturedAtUtc < sinceUtc.Value) {
-                        continue;
-                    }
-                    if (untilUtc.HasValue && snapshot.CapturedAtUtc > untilUtc.Value) {
-                        continue;
-                    }
-                    snapshots.Add(snapshot);
-                } catch {
-                    // ignore invalid inventory files
-                }
-            }
-
-            var ordered = snapshots
-                .OrderBy(snapshot => snapshot.CapturedAtUtc)
-                .ToList();
-            if (ordered.Count == 0) {
-                return ordered;
-            }
-
-            if (latestOnly) {
-                return new[] { ordered[ordered.Count - 1] };
-            }
-
-            if (maxSnapshots > 0 && ordered.Count > maxSnapshots) {
-                ordered = ordered.Skip(ordered.Count - maxSnapshots).ToList();
-            }
-
-            return ordered;
-        }
-
         private void SaveInventorySnapshot(int port, InternalLogger? logger) {
             var snapshot = new CertificateInventorySnapshot {
                 CapturedAtUtc = DateTimeOffset.UtcNow,
