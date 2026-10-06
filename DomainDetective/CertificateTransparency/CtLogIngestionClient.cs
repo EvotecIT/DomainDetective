@@ -252,6 +252,10 @@ public sealed partial class CtLogIngestionClient {
         }
 
         string json = await FetchJsonAsync(CombineLogUrl(logUrl, $"ct/v1/get-entries?start={start}&end={end}"), timeout, cancellationToken).ConfigureAwait(false);
+        return ParseEntryPayloads(json, start, end, cancellationToken);
+    }
+
+    internal static IReadOnlyList<RawCtEntryPayload> ParseEntryPayloads(string json, long start, long end, CancellationToken cancellationToken) {
         cancellationToken.ThrowIfCancellationRequested();
         using var document = JsonDocument.Parse(json);
         if (document.RootElement.ValueKind != JsonValueKind.Object ||
@@ -317,7 +321,7 @@ public sealed partial class CtLogIngestionClient {
             signedTreeHead.ObservedAtUtc.Add(cacheDuration));
     }
 
-    private async Task<string> FetchJsonAsync(string url, TimeSpan timeout, CancellationToken cancellationToken) {
+    internal async Task<string> FetchJsonAsync(string url, TimeSpan timeout, CancellationToken cancellationToken) {
         return await FetchTextAsync(url, timeout, cancellationToken).ConfigureAwait(false);
     }
 
