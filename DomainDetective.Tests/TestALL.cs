@@ -1,34 +1,39 @@
 using DnsClientX;
-using System.Net;
-using Xunit.Sdk;
+using System.Collections.Generic;
 
 namespace DomainDetective.Tests {
     public class TestAll {
         [Fact]
         public async Task TestAllHealthChecks() {
-            try {
-                await Dns.GetHostEntryAsync("example.com");
-            } catch {
-                return;
-            }
-
-            var healthCheck = new DomainHealthCheck(DnsEndpoint.CloudflareWireFormat) {
-                Verbose = false
+            var records = new Dictionary<(string, DnsRecordType), DnsAnswer[]> {
+                [("_dmarc.example.com", DnsRecordType.TXT)] = new[] { Answer(DnsRecordType.TXT,
+                    "v=DMARC1; p=reject; pct=100; adkim=s; aspf=s; rua=mailto:first@example.com,mailto:second@example.com,mailto:third@example.com") },
+                [("example.com", DnsRecordType.TXT)] = new[] { Answer(DnsRecordType.TXT, "v=spf1 -all") },
+                [("selector1._domainkey.example.com", DnsRecordType.TXT)] = new[] { Answer(DnsRecordType.TXT, "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;") },
+                [("selector2._domainkey.example.com", DnsRecordType.TXT)] = new[] { Answer(DnsRecordType.TXT, "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;") },
+                [("example.com", DnsRecordType.CAA)] = new[] {
+                    Answer(DnsRecordType.CAA, "0 issue \"letsencrypt.org\""), Answer(DnsRecordType.CAA, "0 issuewild \"letsencrypt.org\""),
+                    Answer(DnsRecordType.CAA, "0 issue \"sectigo.com\""), Answer(DnsRecordType.CAA, "0 issuewild \"sectigo.com\""),
+                    Answer(DnsRecordType.CAA, "0 issue \"digicert.com\""), Answer(DnsRecordType.CAA, "0 issuewild \"digicert.com\""),
+                    Answer(DnsRecordType.CAA, "0 issue \"pki.goog\""), Answer(DnsRecordType.CAA, "0 issuewild \"pki.goog\""),
+                    Answer(DnsRecordType.CAA, "0 issue \"globalsign.com\""), Answer(DnsRecordType.CAA, "0 issuewild \"globalsign.com\"")
+                }
             };
+            var healthCheck = new DomainHealthCheck { Verbose = false };
+            healthCheck.DnsConfiguration.QueryDnsOverride = (name, type) => Task.FromResult(
+                records.TryGetValue((name, type), out var answers) ? answers : Array.Empty<DnsAnswer>());
+
             await healthCheck.Verify(
-                "evotec.pl",
+                "example.com",
                 [HealthCheckType.DMARC, HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.CAA],
                 ["selector1", "selector2"]);
-            if (healthCheck.DmarcAnalysis.PolicyShort == null) {
-                return;
-            }
 
             Assert.Equal(100, healthCheck.DmarcAnalysis.Pct);
             Assert.Equal("reject", healthCheck.DmarcAnalysis.PolicyShort);
             Assert.Equal(3, healthCheck.DmarcAnalysis.MailtoRua.Count);
-            Assert.Equal("1012c7e7df7b474cb85c1c8d00cc1c1a@dmarc-reports.cloudflare.net", healthCheck.DmarcAnalysis.MailtoRua[0]);
-            Assert.Equal("7kkoc19n@ag.eu.dmarcian.com", healthCheck.DmarcAnalysis.MailtoRua[1]);
-            Assert.Equal("dmarc@evotec.pl", healthCheck.DmarcAnalysis.MailtoRua[2]);
+            Assert.Equal("first@example.com", healthCheck.DmarcAnalysis.MailtoRua[0]);
+            Assert.Equal("second@example.com", healthCheck.DmarcAnalysis.MailtoRua[1]);
+            Assert.Equal("third@example.com", healthCheck.DmarcAnalysis.MailtoRua[2]);
             Assert.Equal("s", healthCheck.DmarcAnalysis.DkimAShort);
             Assert.Equal("s", healthCheck.DmarcAnalysis.SpfAShort);
 
@@ -69,5 +74,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
             Assert.False(healthCheck.CAAAnalysis.HasDuplicateIssuers);
         }
+
+        private static DnsAnswer Answer(DnsRecordType type, string value) => new() { Type = type, DataRaw = value };
     }
 }
