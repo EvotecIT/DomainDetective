@@ -287,10 +287,6 @@ public static partial class DesiredStateEvaluator {
             return;
         }
 
-        if (servers.Count == 0) {
-            return;
-        }
-
         var anySupported = servers.Values.Any(r => r != null && r.Supported);
         if (desired.RequireAnySupported == true && !anySupported) {
             sink.Assessments.Add(new Assessment {
@@ -298,7 +294,15 @@ public static partial class DesiredStateEvaluator {
                 Category = "DesiredState",
                 Target = domain,
                 Code = DesiredStateCodes.DnsOverTlsAnySupportedRequired,
-                Message = "Desired state requires at least one authoritative server to support DNS over TLS, but none were supported."
+                Message = "Desired state requires at least one authoritative server to support DNS over TLS, but support was not established."
+            });
+        }
+
+        if (desired.RequireAllSupported == true && !analysis.CoverageComplete) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error, Category = "DesiredState", Target = domain,
+                Code = DesiredStateCodes.DnsOverTlsAllSupportedRequired,
+                Message = "Desired state requires DNS over TLS on all authoritative endpoints, but complete discovery and probe evidence was not established."
             });
         }
 
@@ -313,12 +317,11 @@ public static partial class DesiredStateEvaluator {
                     Category = "DesiredState",
                     Target = domain,
                     Code = DesiredStateCodes.DnsOverTlsAllSupportedRequired,
-                    Message = $"Desired state requires DNS over TLS on all probed servers, but '{key}' was not supported."
+                    Message = $"Desired state requires DNS over TLS on all probed servers, but support was not established for '{key}' ({res.Outcome})."
                 });
-                continue;
             }
 
-            if (!res.Supported) continue;
+            if (!res.Supported && !res.TlsHandshakeSucceeded) continue;
 
             if (desired.RequireCertificateValid == true && res.CertificateValid == false) {
                 sink.Assessments.Add(new Assessment {
