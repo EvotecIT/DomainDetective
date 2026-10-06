@@ -12,6 +12,7 @@ public class TestCertificateHttpNarrative {
             Url = "https://example.com",
             IsReachable = true,
             IsValid = true,
+            ChainValidationPerformed = true,
             DaysToExpire = 30
         };
         analysis.Assessments.Add(new Assessment {
@@ -50,6 +51,7 @@ public class TestCertificateHttpNarrative {
             Url = "https://expired.example",
             IsReachable = true,
             IsValid = false,
+            ChainValidationPerformed = true,
             DaysToExpire = -1
         };
 
@@ -67,6 +69,7 @@ public class TestCertificateHttpNarrative {
             Url = "https://nocert.example",
             IsReachable = true,
             IsValid = true,
+            ChainValidationPerformed = true,
             Certificate = null!
         };
 

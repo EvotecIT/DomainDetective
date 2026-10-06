@@ -682,6 +682,21 @@ Certificate analysis includes:
 - optional TLS negotiation details when capture is enabled
 - optional revocation skipping via `SkipRevocation`
 
+Inspecting a supplied certificate with `AnalyzeCertificate` is offline. It reads certificate metadata and expiration without building a system chain or contacting AIA, revocation or CT endpoints. Chain trust and hostname matching remain unassessed; `ChainValidationPerformed` and `HostnameValidationPerformed` identify those boundaries.
+
+```csharp
+using var analysis = new CertificateAnalysis();
+await analysis.AnalyzeCertificate(certificate);
+```
+
+Use `AnalyzeCertificateWithEnrichment` to permit network-backed chain building and configured revocation/CT enrichment. System chain building may retrieve missing issuers through AIA. Existing capture and revocation settings control enrichment.
+
+```csharp
+await analysis.AnalyzeCertificateWithEnrichment(certificate);
+```
+
+The caller retains ownership of the supplied certificate. The analysis owns its copies and releases them when reused or disposed; copied inventory/report views retain independent certificate state.
+
 Combined website checks return a single summary object:
 
 ```powershell

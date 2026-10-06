@@ -22,7 +22,7 @@ public class TestCtLogIntegration
     {
         var cert = CertificateLoaderCompat.LoadCertificateFromFile("Data/wildcard.pem");
         var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[{\"id\":5}]") };
-        await analysis.AnalyzeCertificate(cert);
+        await analysis.AnalyzeCertificateWithEnrichment(cert);
         Assert.True(analysis.PresentInCtLogs);
         Assert.Single(analysis.CtLogEntries);
         Assert.Contains("override", analysis.CtDiscoverySources);
@@ -49,7 +49,7 @@ public class TestCtLogIntegration
         analysis.CtLogs.MinimumRequestSpacing = System.TimeSpan.Zero;
         analysis.CtLogs.RetryDelay = System.TimeSpan.Zero;
 
-        await analysis.AnalyzeCertificate(cert);
+        await analysis.AnalyzeCertificateWithEnrichment(cert);
 
         Assert.True(analysis.PresentInCtLogs);
         Assert.Single(analysis.CtLogEntries);
@@ -79,7 +79,7 @@ public class TestCtLogIntegration
             analysis.CtLogs.MinimumRequestSpacing = System.TimeSpan.Zero;
             analysis.CtLogs.RetryDelay = System.TimeSpan.Zero;
 
-            await analysis.AnalyzeCertificate(cert);
+            await analysis.AnalyzeCertificateWithEnrichment(cert);
 
             Assert.False(analysis.PresentInCtLogs);
             Assert.Contains("shodan", analysis.CtDiscoverySources);
@@ -117,7 +117,7 @@ public class TestCtLogIntegration
             analysis.CtLogs.MinimumRequestSpacing = System.TimeSpan.Zero;
             analysis.CtLogs.RetryDelay = System.TimeSpan.Zero;
 
-            await analysis.AnalyzeCertificate(cert);
+            await analysis.AnalyzeCertificateWithEnrichment(cert);
 
             Assert.True(analysis.PresentInCtLogs);
             Assert.Contains("censys", analysis.CtDiscoverySources);
@@ -158,7 +158,7 @@ public class TestCtLogIntegration
         analysis.CtLogs.RetryDelay = System.TimeSpan.Zero;
         analysis.CtLogs.MaxAttemptsPerRequest = 1;
 
-        await analysis.AnalyzeCertificate(cert);
+        await analysis.AnalyzeCertificateWithEnrichment(cert);
 
         Assert.True(analysis.PresentInCtLogs);
         Assert.Single(analysis.CtLogEntries);
@@ -182,7 +182,7 @@ public class TestCtLogIntegration
         };
         analysis.CtLogApiTemplates.Clear();
 
-        await analysis.AnalyzeCertificate(cert);
+        await analysis.AnalyzeCertificateWithEnrichment(cert);
 
         Assert.False(analysis.PresentInCtLogs);
         Assert.Empty(analysis.CtDiscoverySources);
