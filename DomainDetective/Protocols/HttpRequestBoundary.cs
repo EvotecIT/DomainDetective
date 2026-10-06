@@ -109,6 +109,7 @@ internal static class HttpRequestBoundary {
         request.Headers.TryAddWithoutValidation("Cookie", value);
     }
 
+    // Modern Set-Cookie is the supported server-cookie contract; RFC2965 Set-Cookie2 is not imported.
     private static void StoreServerCookies(HttpResponseMessage response, Uri uri, CookieContainer? cookies) {
         if (cookies == null || !response.Headers.TryGetValues("Set-Cookie", out var values)) return;
         foreach (string value in values) {

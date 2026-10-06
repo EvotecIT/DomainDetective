@@ -17,6 +17,7 @@ public class TestHttpRequestBoundaries {
                 response.Headers.TryAddWithoutValidation("Set-Cookie", new[] {
                     "issued=server; Path=/private; Secure", "invalid=server; Domain=other.test"
                 });
+                response.Headers.TryAddWithoutValidation("Set-Cookie2", "obsolete=ignored; Version=1; Path=/private");
                 response.Headers.Location = new Uri("https://other.test/private/foreign");
             } else if (seen.Count == 2) {
                 response.Headers.Location = new Uri("https://origin.test/private/final");
@@ -30,6 +31,7 @@ public class TestHttpRequestBoundaries {
         Assert.Empty(seen[1]);
         Assert.Contains("explicit=secret", seen[2]);
         Assert.Contains("issued=server", seen[2]);
+        Assert.DoesNotContain("obsolete=", seen[2]);
         Assert.Equal("issued=server", jar.GetCookieHeader(origin));
         Assert.Empty(jar.GetCookieHeader(new Uri("https://origin.test/outside")));
         Assert.Empty(jar.GetCookieHeader(new Uri("http://origin.test/private/start")));
