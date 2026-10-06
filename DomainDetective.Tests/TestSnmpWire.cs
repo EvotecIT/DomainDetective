@@ -85,7 +85,8 @@ public class TestSnmpWire {
     public async Task NoiseAloneDoesNotReportExposedSnmp() {
         using var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
         int port = ((IPEndPoint)server.Client.LocalEndPoint!).Port;
-        var receive = server.ReceiveAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var receive = server.ReceiveAsync().WaitWithCancellation(stop.Token);
         var analysis = new SnmpAnalysis { Timeout = TimeSpan.FromMilliseconds(500) };
         var probe = analysis.AnalyzeServer("127.0.0.1", port, new InternalLogger());
         var request = await receive;
@@ -96,11 +97,37 @@ public class TestSnmpWire {
     }
 
     [Fact]
+    public async Task ContinuousNoiseCannotExtendProbeDeadline() {
+        using var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        int port = ((IPEndPoint)server.Client.LocalEndPoint!).Port;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var responder = Flood();
+        var probe = SnmpAnalysis.ProbeAsync("127.0.0.1", port, TimeSpan.FromMilliseconds(200), null, stop.Token);
+        try {
+            Assert.Same(probe, await Task.WhenAny(probe, Task.Delay(TimeSpan.FromSeconds(2), stop.Token)));
+            Assert.False(await probe);
+        } finally {
+            stop.Cancel();
+            server.Close();
+            await responder;
+        }
+
+        async Task Flood() {
+            try {
+                var request = await server.ReceiveAsync().WaitWithCancellation(stop.Token);
+                while (!stop.IsCancellationRequested) {
+                    await server.SendAsync(new byte[] { 1 }, 1, request.RemoteEndPoint).WaitWithCancellation(stop.Token);
+                }
+            } catch (Exception) when (stop.IsCancellationRequested) { }
+        }
+    }
+
+    [Fact]
     public async Task CallerCancellationIsNotReportedAsSecuredSnmp() {
         using var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
         int port = ((IPEndPoint)server.Client.LocalEndPoint!).Port;
         using var stop = new CancellationTokenSource();
-        var request = server.ReceiveAsync();
+        var request = server.ReceiveAsync().WaitWithCancellation(stop.Token);
         var analysis = new SnmpAnalysis();
         var probe = analysis.AnalyzeServer("127.0.0.1", port, new InternalLogger(), stop.Token);
         await request;

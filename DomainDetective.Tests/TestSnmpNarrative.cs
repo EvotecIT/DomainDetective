@@ -15,7 +15,7 @@ public class TestSnmpNarrative
         var narrative = SnmpNarrative.Build(analysis);
         Assert.Contains("did not respond", narrative.Highlights.First());
         Assert.Contains(SnmpCodes.Disabled, analysis.Recommendations.Select(r => r.Code));
-        Assert.Contains("SNMP disabled or secured", narrative.Positives);
+        Assert.Contains("No matching SNMP response observed", narrative.Positives);
     }
 }
 

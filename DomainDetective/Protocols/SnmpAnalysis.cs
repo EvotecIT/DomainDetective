@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace DomainDetective;
 
 /// <summary>
-/// Performs a basic SNMP check against a server.
+/// Tests for a correlated SNMPv1 response using the public community.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public class SnmpAnalysis : IHasAssessments
@@ -17,7 +17,7 @@ public class SnmpAnalysis : IHasAssessments
     /// <summary>Target under analysis.</summary>
     public string? Subject { get; set; }
 
-    /// <summary>SNMP query results keyed by host and port.</summary>
+    /// <summary>SNMP query results keyed by host and port. False means no matching response was observed; it does not prove the service is disabled or secured.</summary>
     public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
     /// <summary>Maximum wait time for each query.</summary>
@@ -44,7 +44,7 @@ public class SnmpAnalysis : IHasAssessments
         }
         else
         {
-            logger.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
+            logger.WriteInformationCode(SnmpCodes.Disabled, "No matching SNMP response observed on {0}:{1}", host, port);
         }
     }
 
@@ -66,7 +66,7 @@ public class SnmpAnalysis : IHasAssessments
                 }
                 else
                 {
-                    logger.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
+                    logger.WriteInformationCode(SnmpCodes.Disabled, "No matching SNMP response observed on {0}:{1}", host, port);
                 }
             }
         }
@@ -102,8 +102,9 @@ public class SnmpAnalysis : IHasAssessments
             var request = SnmpMessage.CreateRequest(requestId);
             await udp.SendAsync(request, request.Length).WaitWithCancellation(cts.Token).ConfigureAwait(false);
             while (true) {
+                cts.Token.ThrowIfCancellationRequested();
                 var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token).ConfigureAwait(false);
-                token.ThrowIfCancellationRequested();
+                cts.Token.ThrowIfCancellationRequested();
                 responded |= result.Buffer.Length > 0;
                 if (SnmpMessage.IsResponse(result.Buffer, requestId)) return (true, true);
             }
