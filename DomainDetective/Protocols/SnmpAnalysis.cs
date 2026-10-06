@@ -72,36 +72,50 @@ public class SnmpAnalysis : IHasAssessments
         }
     }
 
-    internal static readonly byte[] Probe = new byte[]
-    {
-        0x30,0x26,0x02,0x01,0x00,0x04,0x06,0x70,0x75,0x62,0x6c,0x69,0x63,0xa0,0x19,0x02,0x04,0x00,0x00,0x00,0x01,0x02,0x01,0x00,0x02,0x01,0x00,0x30,0x0b,0x30,0x09,0x06,0x05,0x2b,0x06,0x01,0x02,0x01,0x05,0x00
-    };
-
     internal static async Task<bool> ProbeAsync(string host, int port, TimeSpan timeout, InternalLogger? logger, CancellationToken token)
     {
+        return (await ProbeResponseAsync(host, port, timeout, logger, token).ConfigureAwait(false)).IsSnmp;
+    }
+
+    internal static async Task<(bool Responded, bool IsSnmp)> ProbeResponseAsync(string host, int port, TimeSpan timeout, InternalLogger? logger, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        bool responded = false;
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        cts.CancelAfter(timeout);
         try
         {
             IPAddress address;
             if (IPAddress.TryParse(host, out var parsedAddress) && parsedAddress != null) {
                 address = parsedAddress;
             } else {
-                address = (await Dns.GetHostAddressesAsync(host).ConfigureAwait(false)).First();
+                address = (await Dns.GetHostAddressesAsync(host).WaitWithCancellation(cts.Token).ConfigureAwait(false)).First();
             }
 
             using var udp = new UdpClient(address.AddressFamily);
-            udp.Client.SendTimeout = (int)timeout.TotalMilliseconds;      
-            udp.Client.ReceiveTimeout = (int)timeout.TotalMilliseconds;   
-            udp.Connect(address, port);
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            cts.CancelAfter(timeout);
-            await udp.SendAsync(Probe, Probe.Length).WaitWithCancellation(cts.Token).ConfigureAwait(false);
-            var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token).ConfigureAwait(false);
-            return result.Buffer.Length > 0;
+            udp.Connect(address, port); // Only datagrams from this endpoint can satisfy the probe.
+            var random = new byte[4];
+            using (var generator = System.Security.Cryptography.RandomNumberGenerator.Create()) {
+                generator.GetBytes(random);
+            }
+            int requestId = BitConverter.ToInt32(random, 0) & int.MaxValue;
+            var request = SnmpMessage.CreateRequest(requestId);
+            await udp.SendAsync(request, request.Length).WaitWithCancellation(cts.Token).ConfigureAwait(false);
+            while (true) {
+                var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                responded |= result.Buffer.Length > 0;
+                if (SnmpMessage.IsResponse(result.Buffer, requestId)) return (true, true);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) {
+            throw;
         }
         catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
         {
+            token.ThrowIfCancellationRequested();
             logger?.WriteVerbose("SNMP query failed for {0}:{1} - {2}", host, port, ex.Message);
-            return false;
+            return (responded, false);
         }
     }
 
