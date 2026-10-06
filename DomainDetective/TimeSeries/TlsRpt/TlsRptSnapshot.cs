@@ -26,7 +26,12 @@ public sealed class TlsRptSnapshot
 
     /// <summary>Gets or sets the failure type counts value.</summary>
     public Dictionary<string, int> FailureTypeCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    /// <summary>Gets or sets the mx hosts value.</summary>
+    /// <summary>True when per-MX failure rows were attributed from receiving-mx-hostname, rather than policy patterns.</summary>
+    /// <remarks>Older stored snapshots lack this evidence; reimport their original reports to obtain verified attribution.</remarks>
+    public bool MxFailureAttributionVerified { get; set; }
+    /// <summary>Version of receiving-host count interpretation; version 2 accounts for overlapping failure types and applied policies.</summary>
+    public int ReceivingMxInterpretationVersion { get; set; }
+    /// <summary>Gets or sets the observed receiving-host failure rows.</summary>
     public List<TlsRptMxSnapshot> MxHosts { get; set; } = new();
     /// <summary>Gets or sets the top failure types value.</summary>
     public List<CountedValue> TopFailureTypes { get; set; } = new();
@@ -47,10 +52,14 @@ public sealed class TlsRptMxSnapshot
 {
     /// <summary>Gets or sets the mx host value.</summary>
     public string MxHost { get; set; } = string.Empty;
-    /// <summary>Gets or sets the successful sessions value.</summary>
+    /// <summary>Legacy per-host success count. RFC8460 does not attribute successful sessions to receiving hosts.</summary>
     public int SuccessfulSessions { get; set; }
+    /// <summary>Whether the per-host success count is independently known. Parsed TLS-RPT reports leave it false.</summary>
+    public bool SuccessfulSessionsKnown { get; set; }
     /// <summary>Gets or sets the failed sessions value.</summary>
     public int FailedSessions { get; set; }
+    /// <summary>True when distinct failed sessions can be determined despite non-exclusive result types.</summary>
+    public bool FailedSessionsKnown { get; set; }
     /// <summary>Gets or sets the failure by type value.</summary>
     public Dictionary<string, int> FailureByType { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

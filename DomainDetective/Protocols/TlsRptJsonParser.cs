@@ -18,6 +18,8 @@ namespace DomainDetective {
                 var entry = new TlsRptSummary
                 {
                     MxHost = p.Policy.MxHost,
+                    MxHostPatterns = new List<string>(p.Policy.MxHostPatterns),
+                    PolicyDomain = p.Policy.PolicyDomain,
                     SuccessfulSessions = p.Summary.SuccessfulSessionCount,
                     FailedSessions = p.Summary.FailedSessionCount,
                     FailureByType = new System.Collections.Generic.Dictionary<string,int>(System.StringComparer.OrdinalIgnoreCase)
@@ -36,42 +38,18 @@ namespace DomainDetective {
             return list;
         }
 
-        private static void ValidateSchema(JsonElement root) {
-            if (!root.TryGetProperty("organization-name", out _)) {
-                throw new FormatException("Missing organization-name field.");
-            }
-            if (!root.TryGetProperty("date-range", out var range)
-                || !range.TryGetProperty("start-datetime", out _)
-                || !range.TryGetProperty("end-datetime", out _)) {
-                throw new FormatException("Missing date-range fields.");
-            }
-            if (!root.TryGetProperty("report-id", out _)) {
-                throw new FormatException("Missing report-id field.");
-            }
-            if (!root.TryGetProperty("policies", out var policies) || policies.ValueKind != JsonValueKind.Array) {
-                throw new FormatException("Missing policies array.");
-            }
 
-            foreach (var policy in policies.EnumerateArray()) {
-                if (!policy.TryGetProperty("policy", out var pol)
-                    || !pol.TryGetProperty("policy-type", out _)
-                    || !pol.TryGetProperty("mx-host", out _)) {
-                    throw new FormatException("Invalid policy entry.");
-                }
-                if (!policy.TryGetProperty("summary", out var summary)
-                    || !summary.TryGetProperty("total-successful-session-count", out _)
-                    || !summary.TryGetProperty("total-failure-session-count", out _)) {
-                    throw new FormatException("Invalid summary entry.");
-                }
-            }
-        }
     }
 
     /// <summary>Summarized statistics for a TLSRPT policy.</summary>
     /// <para>Part of the DomainDetective project.</para>
     public sealed class TlsRptSummary {
-        /// <summary>Hostname of the receiving MX.</summary>
+        /// <summary>First policy MX pattern for legacy scalar consumers; not an observed receiving host.</summary>
         public string MxHost { get; set; } = null!;
+        /// <summary>All policy MX patterns. Session counts cover the policy once.</summary>
+        public List<string> MxHostPatterns { get; set; } = new();
+        /// <summary>Domain covered by this policy summary.</summary>
+        public string? PolicyDomain { get; set; }
         /// <summary>Count of successful TLS sessions.</summary>
         public int SuccessfulSessions { get; set; }
         /// <summary>Count of failed TLS sessions.</summary>

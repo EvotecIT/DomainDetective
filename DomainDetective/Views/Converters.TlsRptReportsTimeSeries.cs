@@ -10,7 +10,7 @@ public static partial class Converters
     /// <summary>Executes the convert operation.</summary>
     public static TlsRptReportsTimeSeriesInfo Convert(IReadOnlyList<TlsRptSnapshot> snapshots, string? subjectOverride = null)
     {
-        var list = (snapshots ?? Array.Empty<TlsRptSnapshot>()).Where(s => s != null).ToList();
+        var list = TlsRptSnapshotSelection.SelectCurrent(snapshots ?? Array.Empty<TlsRptSnapshot>()).ToList();
         var subject = !string.IsNullOrWhiteSpace(subjectOverride)
             ? subjectOverride!
             : (list.FirstOrDefault()?.Domain ?? string.Empty);
@@ -73,6 +73,16 @@ public static partial class Converters
                 Target = subject,
                 Message = "TLS-RPT reports show 0 failed sessions for observed deliveries."
             });
+        }
+
+        if (list.Any(s => !s.MxFailureAttributionVerified && s.MxHosts?.Count > 0)) {
+            assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Code = "TLSRPT.Reports.LegacyMxAttribution", Category = "TLS-RPT", Target = subject,
+                Message = "Older snapshots have unverified MX attribution. Their MX rows are omitted; reimport the original reports for receiving-host evidence."
+            });
+        }
+        foreach (string message in list.SelectMany(s => s.ValidationMessages ?? new List<string>()).Distinct()) {
+            assessments.Add(new Assessment { Severity = AssessmentSeverity.Warning, Code = "TLSRPT.Reports.Validation", Category = "TLS-RPT", Target = subject, Message = message });
         }
 
         Summarize(assessments, out var warnCount, out var errCount, out var status);
@@ -161,15 +171,18 @@ public static partial class Converters
 
         foreach (var s in snaps ?? new List<TlsRptSnapshot>())
         {
+            if (!s.MxFailureAttributionVerified) continue;
             foreach (var mx in s.MxHosts ?? new List<TlsRptMxSnapshot>())
             {
                 if (mx == null || string.IsNullOrWhiteSpace(mx.MxHost)) continue;
                 if (!map.TryGetValue(mx.MxHost, out var row))
                 {
-                    row = new TlsRptMxHostStat { MxHost = mx.MxHost };
+                    row = new TlsRptMxHostStat { MxHost = mx.MxHost, SuccessfulSessionsKnown = mx.SuccessfulSessionsKnown, FailedSessionsKnown = mx.FailedSessionsKnown };
                     map[mx.MxHost] = row;
                 }
 
+                row.SuccessfulSessionsKnown &= mx.SuccessfulSessionsKnown;
+                row.FailedSessionsKnown &= mx.FailedSessionsKnown;
                 row.SuccessfulSessions += mx.SuccessfulSessions;
                 row.FailedSessions += mx.FailedSessions;
                 foreach (var kv in mx.FailureByType ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase))
@@ -258,10 +271,14 @@ public sealed class TlsRptMxHostStat
 {
     /// <summary>Gets or sets the mx host value.</summary>
     public string MxHost { get; set; } = string.Empty;
-    /// <summary>Gets or sets the successful sessions value.</summary>
+    /// <summary>Legacy per-host success count; consult SuccessfulSessionsKnown before displaying it.</summary>
     public int SuccessfulSessions { get; set; }
+    /// <summary>Whether successes are independently attributed to this host. TLS-RPT failure rows do not provide that evidence.</summary>
+    public bool SuccessfulSessionsKnown { get; set; }
     /// <summary>Gets or sets the failed sessions value.</summary>
     public int FailedSessions { get; set; }
+    /// <summary>True when the distinct receiving-host failure count is known.</summary>
+    public bool FailedSessionsKnown { get; set; }
     /// <summary>Gets or sets the failure by type value.</summary>
     public Dictionary<string, int> FailureByType { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

@@ -45,7 +45,7 @@ public sealed class TlsRptTimeSeriesStore
         var dir = GetDomainDirectory(snapshot.Domain);
         Directory.CreateDirectory(dir);
 
-        var file = Path.Combine(dir, BuildFileName(snapshot));
+        var file = Path.Combine(dir, GetSnapshotFileName(snapshot));
         if (File.Exists(file))
         {
             return file;
@@ -104,15 +104,28 @@ public sealed class TlsRptTimeSeriesStore
             }
         }
 
-        return list;
+        return TlsRptSnapshotSelection.SelectCurrent(list);
     }
 
-    private static string BuildFileName(TlsRptSnapshot snapshot)
+    internal static string GetSnapshotFileName(TlsRptSnapshot snapshot)
     {
         var end = snapshot.RangeEndUtc ?? snapshot.IngestedAtUtc;
         var datePart = end.UtcDateTime.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
 
-        var key = $"{snapshot.Domain}|{snapshot.ReportId}|{snapshot.RangeBeginUtc:O}|{snapshot.RangeEndUtc:O}|{snapshot.ReporterOrgName}|{snapshot.TotalSuccessfulSessions}|{snapshot.TotalFailedSessions}";
+        var key = $"{(snapshot.Domain ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant()}|{snapshot.ReportId}|{snapshot.RangeBeginUtc?.UtcDateTime:O}|{snapshot.RangeEndUtc?.UtcDateTime:O}|{(snapshot.ReporterOrgName ?? string.Empty).Trim().ToLowerInvariant()}|{snapshot.TotalSuccessfulSessions}|{snapshot.TotalFailedSessions}";
+        // Preserve legacy files. Corrected receiving-host evidence gets an immutable version.
+        if (snapshot.MxFailureAttributionVerified) {
+            // Canonical evidence, excluding ingestion timestamps, keeps identical imports idempotent
+            // while retaining every corrected interpretation as an immutable file.
+            key += "|receiving-mx|" + JsonSerializer.Serialize(new {
+                snapshot.ReceivingMxInterpretationVersion,
+                Failures = snapshot.FailureTypeCounts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Select(x => new { Key = x.Key.ToLowerInvariant(), x.Value }),
+                Hosts = snapshot.MxHosts.OrderBy(x => x.MxHost, StringComparer.OrdinalIgnoreCase).Select(x => new {
+                    Host = x.MxHost.ToLowerInvariant(), x.SuccessfulSessions, x.SuccessfulSessionsKnown, x.FailedSessions, x.FailedSessionsKnown,
+                    Types = x.FailureByType.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).Select(k => new { Key = k.Key.ToLowerInvariant(), k.Value })
+                })
+            });
+        }
         var hash = ComputeStableHashHex(key).Substring(0, 12);
         return $"{datePart}_{hash}.json";
     }
