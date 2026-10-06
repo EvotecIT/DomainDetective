@@ -19,7 +19,7 @@ internal sealed class ImportDmarcForensicCommand : Command<ImportDmarcForensicSe
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<T>(T, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<T>(T, JsonSerializerOptions)")]
     /// <inheritdoc/>
-    protected override int Execute(CommandContext context, ImportDmarcForensicSettings settings, CancellationToken cancellationToken) {
+    public override int Execute(CommandContext context, ImportDmarcForensicSettings settings, CancellationToken cancellationToken) {
         CommandUtilities.ImportDmarcForensic(settings.File, settings.Json);
         return 0;
     }
