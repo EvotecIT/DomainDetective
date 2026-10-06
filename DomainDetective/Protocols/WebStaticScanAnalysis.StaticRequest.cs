@@ -44,6 +44,10 @@ public partial class WebStaticScanAnalysis
         public MediaSupertype ContentSupertype { get; set; }
         /// <summary>Content-Length value in bytes when present.</summary>
         public long? ContentLength { get; set; }
+        /// <summary>Bytes captured from the main document, independent of its declared size.</summary>
+        public int? CapturedBodyLength { get; set; }
+        /// <summary>True when the captured main document is a prefix.</summary>
+        public bool BodyTruncated { get; set; }
         /// <summary>Final URL after redirects (if any).</summary>
         public string? FinalUrl { get; set; }
         /// <summary>Normalized resource category used for bucketing (document/script/stylesheet/image/font/json/other).</summary>

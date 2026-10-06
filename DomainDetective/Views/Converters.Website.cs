@@ -42,7 +42,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"Cert {certGrade}; Http {httpGrade}; HSTS {(hsts ? "yes" : "no")}; Mixed {(mixed ? "yes" : "no")} ",
+            Summary = $"Cert {certGrade}; Http {httpGrade}; HSTS {(hsts ? "yes" : "no")}; HTTP-text hint {(mixed ? "yes" : "no")} ",
             Recommendations = recs,
             Positives = positives,
             References = references
@@ -69,7 +69,7 @@ public class WebsiteInfo
     public GradeLevel HttpGrade { get; set; }
     /// <summary>Gets or sets the hsts present value.</summary>
     public bool HstsPresent { get; set; }
-    /// <summary>Gets or sets the mixed content detected value.</summary>
+    /// <summary>Gets or sets the coarse HTTP-text hint; it does not establish browser mixed content.</summary>
     public bool MixedContentDetected { get; set; }
     /// <summary>Gets or sets the assessments value.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;

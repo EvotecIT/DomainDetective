@@ -58,6 +58,16 @@ public static class HttpNarrative
                 det.Add($"Missing headers: {string.Join(", ", analysis.MissingSecurityHeaders)}");
             }
 
+            if (analysis.BodyTruncated)
+            {
+                det.Add($"Body capture is limited to {analysis.BodyLength} bytes. The body is incomplete and its full-content hash is unavailable.");
+            }
+
+            if (analysis.MixedContentDetected)
+            {
+                det.Add("Captured HTTPS text contains http://. This is a textual hint; confirm actual insecure resource loading in a browser.");
+            }
+
             foreach (var url in analysis.VisitedUrls)
             {
                 det.Add($"Visited {url}");

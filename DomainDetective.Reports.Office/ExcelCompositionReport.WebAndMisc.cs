@@ -108,9 +108,10 @@ public static partial class ExcelCompositionReport {
                 ("Caching Headers", http.CachingHeaders?.Count ?? 0),
                 ("Deprecated Present", http.DeprecatedHeadersPresent?.Count ?? 0),
                 ("Deprecated Missing", http.MissingDeprecatedHeaders?.Count ?? 0),
-                ("Mixed Content", http.MixedContentDetected ? "Yes" : "No"),
+                ("HTTP Text Hint", http.MixedContentDetected ? "Yes" : "No"),
                 ("Response Time", http.ResponseTime.ToString()),
-                ("Body Length (bytes)", http.BodyLength?.ToString() ?? "-"),
+                ("Captured Body (bytes)", http.BodyLength?.ToString() ?? "-"),
+                ("Body Capture", http.BodyLength == null ? "Not requested" : http.BodyTruncated ? "Truncated" : "Complete"),
                 ("Body SHA-256", string.IsNullOrWhiteSpace(http.BodySha256) ? "-" : http.BodySha256)
             });
 
@@ -580,5 +581,4 @@ public static partial class ExcelCompositionReport {
         };
     }
 }
-
 

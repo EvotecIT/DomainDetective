@@ -5,9 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
-using System.Security.Cryptography;
 using System.IO.Compression;
 using System.Globalization;
 using System.Threading;
@@ -80,11 +78,11 @@ namespace DomainDetective {
         public string? SpeculationRulesRaw { get; private set; }
         /// <summary>Gets the response body when <c>captureBody</c> is enabled.</summary>
         public string? Body { get; private set; }
-        /// <summary>Gets the decompressed body length in bytes when <c>captureBody</c> is enabled.</summary>
+        /// <summary>Gets the captured body length in bytes; a truncated body is a prefix of the response.</summary>
         public int? BodyLength { get; private set; }
-        /// <summary>Gets the SHA-256 hash of the decompressed body when <c>captureBody</c> is enabled.</summary>
+        /// <summary>Gets the SHA-256 of a complete captured body; null when capture is disabled or truncated.</summary>
         public string? BodySha256 { get; private set; }
-        /// <summary>Gets a value indicating whether HTTPS content references insecure HTTP resources.</summary>
+        /// <summary>Gets a coarse hint that captured HTTPS text contains http://. This does not establish browser mixed content and does not affect the security grade.</summary>
         public bool MixedContentDetected { get; private set; }
         /// <summary>Gets the number of forms with insecure http:// action URLs on an HTTPS page.</summary>
         public int InsecureFormsCount { get; private set; }
@@ -270,15 +268,14 @@ namespace DomainDetective {
 	        /// <param name="cancellationToken">Token to cancel the operation.</param>
 	        /// <param name="requestOptions">Optional request customization options.</param>
 	        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default, HttpRequestOptions? requestOptions = null) {
-	            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
+	            ResetResults();
+                cancellationToken.ThrowIfCancellationRequested();
+                if (MaxBodyBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaxBodyBytes));
+                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
 	            requestOptions ??= new HttpRequestOptions();
-    #if NET8_0_OR_GREATER
-                var manualRedirect = HttpHandlerFactory != null || RequestVersion >= HttpVersion.Version30;
-                var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects } : null;
-	#else
-	            var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = false, MaxAutomaticRedirections = MaxRedirects } : null;
-	#endif
+            var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = false } : null;
                 using var handler = HttpHandlerFactory?.Invoke() ?? configurableHandler!;
+                var cookies = HttpRequestBoundary.PrepareHandler(handler);
 	            ProxyUsed = null;
 	            TlsValidationDisabled = requestOptions.DisableTlsValidation;
 	            if (!string.IsNullOrWhiteSpace(requestOptions.ProxyUrl)) {
@@ -304,130 +301,21 @@ namespace DomainDetective {
 	#endif
 	            }
 	            using var client = new HttpClient(handler) { Timeout = Timeout };
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(Timeout);
+                var requestToken = deadline.Token;
             var sw = Stopwatch.StartNew();
-            FailureReason = null;
-            ProtocolVersion = null;
-	            Body = null; BodyLength = null; BodySha256 = null; NelRaw = null; ReportToRaw = null; SpeculationRulesRaw = null;
-	            ServerHeader = null;
-	            VisitedUrls.Clear();
-	            RequestHeaderNames.Clear();
-	            InformationDisclosureHeaders.Clear();
-	            CachingHeaders.Clear();
-	            DeprecatedHeadersPresent.Clear();
-	            MissingDeprecatedHeaders.Clear();
-	            MixedContentDetected = false;
-	            InsecureFormsCount = 0;
-	            InsecureFormActions.Clear();
-            XssProtectionPresent = false;
-            ExpectCtPresent = false;
-            ExpectCtMaxAge = null;
-            ExpectCtReportUri = null;
-#pragma warning disable CS0618
-            PublicKeyPinsPresent = false;
-#pragma warning restore CS0618
-            CspUnsafeDirectives = false;
-            HstsMaxAge = null;
-            HstsIncludesSubDomains = false;
-            HstsTooShort = false;
-            HstsPreloaded = false;
-            HstsPreloadDirectivePresent = false;
-            HstsPreloadEligible = false;
-            UnknownHstsDirectives = new List<string>();
-            PermissionsPolicyPresent = false;
-            PermissionsPolicy.Clear();
-            QuicVersion = null;
-            ReferrerPolicy = null;
-            XFrameOptions = null;
-            CrossOriginOpenerPolicy = null;
-            CrossOriginEmbedderPolicy = null;
-	            CrossOriginResourcePolicy = null;
-	            XPermittedCrossDomainPolicies = null;
-	            OriginAgentClusterPresent = false;
-	            OriginAgentClusterEnabled = false;
-	            CspFrameAncestorsPresent = false;
-	            SecurityHeaders.Clear();
-	            MissingSecurityHeaders.Clear();
 	            try {
-	                string effectiveScheme;
-    #if NET8_0_OR_GREATER
-	                var currentUri = new Uri(url);
-	                HttpResponseMessage? response = null;
-	                var redirects = 0;
-	                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-	                var httpMethod = requestOptions.ToHttpMethod();
-	                if (captureBody && httpMethod == HttpMethod.Head) {
-	                    httpMethod = HttpMethod.Get;
-	                }
-	                RequestMethodUsed = httpMethod == HttpMethod.Head
-	                    ? HttpRequestMethod.Head
-	                    : (httpMethod == HttpMethod.Get ? HttpRequestMethod.Get : requestOptions.Method);
-	                while (true) {
-	                    if (!visited.Add(currentUri.AbsoluteUri)) {
-	                        throw new InvalidOperationException("Redirect loop detected.");
-	                    }
-	                    VisitedUrls.Add(currentUri.AbsoluteUri);
-	                    using var request = new HttpRequestMessage(httpMethod, currentUri) {
-	                        Version = RequestVersion,
-	                        VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-	                    };
-	                    ApplyRequestHeaders(request, requestOptions);
-	                    response?.Dispose();
-	                    response = await client.SendAsync(request, cancellationToken);
-                    if (manualRedirect && (int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
-                        redirects++;
-                        if (redirects > MaxRedirects) {
-                            throw new InvalidOperationException($"Maximum number of redirects ({MaxRedirects}) exceeded.");
-                        }
-                        currentUri = response.Headers.Location.IsAbsoluteUri ? response.Headers.Location : new Uri(currentUri, response.Headers.Location);
-                        continue;
-                    }
-                    currentUri = response.RequestMessage?.RequestUri ?? currentUri;
-                    break;
-                }
-	                if (!visited.Contains(currentUri.AbsoluteUri)) {
-	                    VisitedUrls.Add(currentUri.AbsoluteUri);
-	                }
-	                HstsPreloaded = IsHstsPreloadedHost(currentUri.Host);
-	                effectiveScheme = currentUri.Scheme;
-	#else
-	                var currentUri = new Uri(url);
-	                HttpResponseMessage? response = null;
-	                var redirects = 0;
-	                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-	                var httpMethod = requestOptions.ToHttpMethod();
-	                if (captureBody && httpMethod == HttpMethod.Head) {
-	                    httpMethod = HttpMethod.Get;
-	                }
-	                RequestMethodUsed = httpMethod == HttpMethod.Head
-	                    ? HttpRequestMethod.Head
-	                    : (httpMethod == HttpMethod.Get ? HttpRequestMethod.Get : requestOptions.Method);
-	                while (true) {
-	                    if (!visited.Add(currentUri.AbsoluteUri)) {
-	                        throw new InvalidOperationException("Redirect loop detected.");
-	                    }
-	                    VisitedUrls.Add(currentUri.AbsoluteUri);
-	                    response?.Dispose();
-	                    using (var request = new HttpRequestMessage(httpMethod, currentUri)) {
-	                        ApplyRequestHeaders(request, requestOptions);
-	                        response = await client.SendAsync(request, cancellationToken);
-	                    }
-	                    if ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
-	                        redirects++;
-	                        if (redirects > MaxRedirects) {
-	                            throw new InvalidOperationException($"Maximum number of redirects ({MaxRedirects}) exceeded.");
-	                        }
-                        currentUri = response.Headers.Location.IsAbsoluteUri ? response.Headers.Location : new Uri(currentUri, response.Headers.Location);
-                        continue;
-                    }
-                    currentUri = response.RequestMessage?.RequestUri ?? currentUri;
-                    break;
-                }
-	                if (!visited.Contains(currentUri.AbsoluteUri)) {
-	                    VisitedUrls.Add(currentUri.AbsoluteUri);
-	                }
-	                HstsPreloaded = IsHstsPreloadedHost(currentUri.Host);
-	                effectiveScheme = currentUri.Scheme;
-	#endif
+                var initialUri = new Uri(url);
+                var httpMethod = requestOptions.ToHttpMethod();
+                if (captureBody && httpMethod == HttpMethod.Head) httpMethod = HttpMethod.Get;
+                RequestMethodUsed = httpMethod == HttpMethod.Head ? HttpRequestMethod.Head
+                    : (httpMethod == HttpMethod.Get ? HttpRequestMethod.Get : requestOptions.Method);
+                using var response = await HttpRequestBoundary.SendAsync(client, initialUri, initialUri, httpMethod,
+                    requestOptions, MaxRedirects, requestToken, RequestVersion, VisitedUrls, RequestHeaderNames, cookies).ConfigureAwait(false);
+                var currentUri = new Uri(VisitedUrls[VisitedUrls.Count - 1]);
+                var effectiveScheme = currentUri.Scheme;
+                HstsPreloaded = IsHstsPreloadedHost(currentUri.Host);
 	                if (response == null) {
 	                    throw new InvalidOperationException("HTTP request did not produce a response.");
 	                }
@@ -439,6 +327,9 @@ namespace DomainDetective {
                     }
                 }
                 sw.Stop();
+                var finalMethod = response.RequestMessage?.Method ?? httpMethod;
+                RequestMethodUsed = (HttpRequestMethod)Enum.Parse(typeof(HttpRequestMethod), finalMethod.Method, true);
+                DeclaredContentLength = response.Content.Headers.ContentLength;
                 StatusCode = (int)response.StatusCode;
                 ResponseTime = sw.Elapsed;
                 IsReachable = response.IsSuccessStatusCode;
@@ -628,9 +519,6 @@ namespace DomainDetective {
                 if (CspUnsafeDirectives) {
                     logger?.WriteWarningCode(HttpCodes.CspUnsafe, "Content-Security-Policy contains unsafe directives");
                 }
-                if (MixedContentDetected) {
-                    logger?.WriteWarningCode(HttpCodes.MixedContent, "HTTPS page references insecure http:// resources");
-                }
                 if (XssProtectionPresent) {
                     logger?.WriteWarningCode(HttpCodes.XssProtectionDeprecated, "X-XSS-Protection header is obsolete in modern browsers");
                 }
@@ -700,32 +588,8 @@ namespace DomainDetective {
                     }
                 } catch { }
                 if (captureBody) {
-                    try {
-                        var bytes = await response.Content.ReadAsByteArrayAsync();
-                        BodyLength = bytes?.Length;
-                        if (bytes != null) {
-#if NET8_0_OR_GREATER
-                            var hash = SHA256.HashData(bytes);
-#else
-                            byte[] hash;
-                            using (var sha = SHA256.Create()) { hash = sha.ComputeHash(bytes); }
-#endif
-                            BodySha256 = BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
-                        }
-                        string? charset = response.Content?.Headers?.ContentType?.CharSet;
-                        Encoding enc;
-                        try { enc = !string.IsNullOrWhiteSpace(charset) ? Encoding.GetEncoding(charset!) : Encoding.UTF8; } catch { enc = Encoding.UTF8; }
-                        if (bytes != null) {
-                            Body = enc.GetString(bytes);
-                        } else if (response.Content != null) {
-                            Body = await response.Content.ReadAsStringAsync();
-                        } else {
-                            Body = string.Empty;
-                        }
-                    } catch {
-                        Body = response.Content != null ? await response.Content.ReadAsStringAsync() : string.Empty;
-                    }
-                    var scheme = response.RequestMessage?.RequestUri?.Scheme;
+                    await CaptureBodyAsync(response.Content, requestToken).ConfigureAwait(false);
+                    var scheme = effectiveScheme;
                     var bodyText = Body ?? string.Empty;
                     if (string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
                         bodyText.IndexOf("http://", StringComparison.OrdinalIgnoreCase) >= 0) {
@@ -758,7 +622,6 @@ namespace DomainDetective {
                         } catch { /* do not fail analysis on HTML parse issues */ }
                     }
                 }
-                response.Dispose();
             } catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException se &&
                 (se.SocketErrorCode == System.Net.Sockets.SocketError.HostNotFound ||
                  se.SocketErrorCode == System.Net.Sockets.SocketError.NoData)) {
@@ -771,7 +634,9 @@ namespace DomainDetective {
                 IsReachable = false;
                 FailureReason = $"HTTP request failed: {ex.Message}";
                 logger?.WriteErrorCode(HttpCodes.RequestFailed, "HTTP request failed for {0}: {1}", url, ex.Message);
-            } catch (TaskCanceledException ex) {
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                throw;
+            } catch (OperationCanceledException ex) {
                 sw.Stop();
                 IsReachable = false;
                 FailureReason = $"Timeout: {ex.Message}";

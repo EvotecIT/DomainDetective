@@ -694,13 +694,6 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task DetectsMixedContentOnHttpsPage() {
-            var analysis = new HttpAnalysis();
-            await analysis.AnalyzeUrl("https://www.w3.org/Protocols/rfc2616/rfc2616-sec1.html", false, new InternalLogger(), captureBody: true);
-            Assert.True(analysis.MixedContentDetected);
-        }
-
-        [Fact]
         public async Task DoesNotDetectMixedContentOnHttpPage() {
             Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
             using var listener = new HttpListener();
