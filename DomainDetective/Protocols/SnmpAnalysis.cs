@@ -14,8 +14,17 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class SnmpAnalysis : IHasAssessments
 {
-    /// <summary>Target under analysis.</summary>
-    public string? Subject { get; set; }
+    private string? _subject;
+    private bool _subjectIsExplicit;
+
+    /// <summary>Target under analysis. A caller-specified label is preserved; automatic labels follow the current run.</summary>
+    public string? Subject {
+        get => _subject;
+        set {
+            _subject = value;
+            _subjectIsExplicit = value != null;
+        }
+    }
 
     /// <summary>SNMP query results keyed by host and port. False means no matching response was observed; it does not prove the service is disabled or secured.</summary>
     public Dictionary<string, bool> ServerResults { get; private set; } = new();
@@ -33,9 +42,8 @@ public class SnmpAnalysis : IHasAssessments
     /// <summary>Tests a single server for SNMP responses.</summary>
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
+        PrepareRun($"{host}:{port}");
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SNMP", target: $"{host}:{port}");
-        Subject ??= $"{host}:{port}";
-        ServerResults.Clear();
         var result = await CheckSnmpAsync(host, port, logger, cancellationToken);
         ServerResults[$"{host}:{port}"] = result;
         if (result)
@@ -51,7 +59,7 @@ public class SnmpAnalysis : IHasAssessments
     /// <summary>Tests multiple servers for SNMP responses.</summary>
     public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default)
     {
-        ServerResults.Clear();
+        PrepareRun(null);
         foreach (var host in hosts)
         {
             foreach (var port in ports)
@@ -69,6 +77,14 @@ public class SnmpAnalysis : IHasAssessments
                     logger.WriteInformationCode(SnmpCodes.Disabled, "No matching SNMP response observed on {0}:{1}", host, port);
                 }
             }
+        }
+    }
+
+    private void PrepareRun(string? automaticSubject) {
+        ServerResults.Clear();
+        Assessments.Clear();
+        if (!_subjectIsExplicit) {
+            _subject = automaticSubject;
         }
     }
 
