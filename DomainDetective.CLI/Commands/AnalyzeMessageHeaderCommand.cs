@@ -61,7 +61,7 @@ internal sealed class AnalyzeMessageHeaderCommand : Command<AnalyzeMessageHeader
     [RequiresDynamicCode("Message analysis JSON serialization may require dynamic code.")]
     [RequiresUnreferencedCode("Message analysis JSON serialization requires retained properties.")]
     /// <inheritdoc/>
-    protected override int Execute(CommandContext context, AnalyzeMessageHeaderSettings settings, CancellationToken cancellationToken) {
+    public override int Execute(CommandContext context, AnalyzeMessageHeaderSettings settings, CancellationToken cancellationToken) {
         var options = new MessageVerificationOptions {
             HeaderOptions = new MessageHeaderAnalysisOptions { TrustedAuthServIds = settings.TrustedAuthServIds ?? Array.Empty<string>() },
             AllowDnsLookups = settings.AllowDns

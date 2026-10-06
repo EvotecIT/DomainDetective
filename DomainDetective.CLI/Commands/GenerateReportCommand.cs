@@ -94,7 +94,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         public int? MultiResolverMaxParallelism { get; set; }
     }
     
-    protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken) {
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken) {
         try {
             var formatEnum = ResolveReportFormat(settings.Format);
 

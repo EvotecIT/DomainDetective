@@ -18,7 +18,7 @@ internal sealed class TestRdapSettings : CommandSettings {
 /// </summary>
 internal sealed class TestRdapCommand : AsyncCommand<TestRdapSettings> {
     /// <inheritdoc/>
-    protected override async Task<int> ExecuteAsync(CommandContext context, TestRdapSettings settings, CancellationToken cancellationToken) {
+    public override async Task<int> ExecuteAsync(CommandContext context, TestRdapSettings settings, CancellationToken cancellationToken) {
         var client = new RdapClient();
         var result = await client.QueryDomainAsync(settings.Domain, cancellationToken);
         if (result != null) {

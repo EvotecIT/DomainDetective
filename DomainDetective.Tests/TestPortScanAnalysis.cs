@@ -223,6 +223,7 @@ namespace DomainDetective.Tests {
                 var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", PortScanProfile.NTP, new InternalLogger());
                 Assert.True(analysis.Results[port].UdpOpen);
+                Assert.NotEqual("SNMP", analysis.Results[port].Banner);
             } finally {
                 await task;
                 PortScanProfileDefinition.OverrideProfilePorts(PortScanProfile.NTP, new[] { 123 });
@@ -242,6 +243,7 @@ namespace DomainDetective.Tests {
                 var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", PortScanProfile.RADIUS, new InternalLogger());
                 Assert.True(analysis.Results[port].UdpOpen);
+                Assert.NotEqual("SNMP", analysis.Results[port].Banner);
             } finally {
                 await task;
                 PortScanProfileDefinition.OverrideProfilePorts(PortScanProfile.RADIUS, new[] { 1812, 1813 });
@@ -293,9 +295,7 @@ namespace DomainDetective.Tests {
                 try {
                     while (true) {
                         var request = await udp.ReceiveAsync().WaitWithCancellation(cancellation.Token);
-                        Assert.Equal(SnmpAnalysis.Probe, request.Buffer);
-                        byte[] response = (byte[])request.Buffer.Clone();
-                        response[13] = 0xa2; // GetResponse-PDU, retaining the request ID and community.
+                        byte[] response = TestSnmpWire.CreateResponse(request.Buffer);
                         await udp.SendAsync(response, response.Length, request.RemoteEndPoint);
                     }
                 } catch (Exception) when (cancellation.IsCancellationRequested) { }

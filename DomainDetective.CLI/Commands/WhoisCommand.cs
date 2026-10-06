@@ -27,7 +27,7 @@ internal sealed class WhoisSettings : CommandSettings {
 /// </summary>
 internal sealed class WhoisCommand : AsyncCommand<WhoisSettings> {
     /// <inheritdoc/>
-    protected override async Task<int> ExecuteAsync(CommandContext context, WhoisSettings settings, CancellationToken cancellationToken) {
+    public override async Task<int> ExecuteAsync(CommandContext context, WhoisSettings settings, CancellationToken cancellationToken) {
         var analysis = new WhoisAnalysis { SnapshotDirectory = settings.SnapshotPath?.FullName };
         var domain = CliHelpers.ToAscii(settings.Domain);
         await analysis.QueryWhoisServer(domain, cancellationToken);
