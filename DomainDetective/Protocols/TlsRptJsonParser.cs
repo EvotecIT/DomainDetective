@@ -11,8 +11,16 @@ namespace DomainDetective {
         /// <param name="path">Path to the JSON file.</param>
         /// <returns>Enumerable of summary results.</returns>
         public static IEnumerable<TlsRptSummary> ParseReport(string path) {
+            return ParseReport(path, TimeSeries.ReportReadLimits.DefaultUncompressedBytes);
+        }
+
+        /// <summary>Reads report summaries with an explicit expansion limit.</summary>
+        /// <param name="path">Path to a .json, .gz, or .zip report.</param>
+        /// <param name="maxUncompressedBytes">Maximum expanded bytes; 0 means unlimited.</param>
+        /// <returns>Policy summaries from the report.</returns>
+        public static IEnumerable<TlsRptSummary> ParseReport(string path, long maxUncompressedBytes) {
             var list = new List<TlsRptSummary>();
-            var report = TlsRptReportParser.Parse(path);
+            var report = TlsRptReportParser.Parse(path, maxUncompressedBytes);
             foreach (var p in report.Policies)
             {
                 var entry = new TlsRptSummary

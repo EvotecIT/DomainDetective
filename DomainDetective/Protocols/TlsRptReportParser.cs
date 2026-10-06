@@ -14,15 +14,23 @@ public static class TlsRptReportParser
     /// <summary>Parses a TLS-RPT JSON report from a file path.</summary>
     public static TlsRptReport Parse(string path)
     {
+        return Parse(path, TimeSeries.ReportReadLimits.DefaultUncompressedBytes);
+    }
+
+    /// <summary>Parses a report file with an explicit expansion limit.</summary>
+    /// <param name="path">Path to a .json, .gz, or .zip report.</param>
+    /// <param name="maxUncompressedBytes">Maximum expanded bytes; 0 means unlimited.</param>
+    public static TlsRptReport Parse(string path, long maxUncompressedBytes)
+    {
         if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Path is required.", nameof(path));
         using var file = File.OpenRead(path);
-        return Parse(file, path);
+        return Parse(file, path, maxUncompressedBytes);
     }
 
     /// <summary>Parses a TLS-RPT JSON report from a stream.</summary>
     public static TlsRptReport Parse(Stream stream, string? name = null)
     {
-        return Parse(stream, name, maxUncompressedBytes: 0);
+        return Parse(stream, name, maxUncompressedBytes: TimeSeries.ReportReadLimits.DefaultUncompressedBytes);
     }
 
     /// <summary>Parses a TLS-RPT JSON report from a stream with size limits.</summary>
@@ -312,4 +320,3 @@ public sealed class TlsRptFailureDetail
     /// <summary>Gets or sets the additional information value.</summary>
     public string? AdditionalInformation { get; set; }
 }
-

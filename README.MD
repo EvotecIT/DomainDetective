@@ -541,6 +541,15 @@ dotnet run --project DomainDetective.CLI -- ImportRegistrationSnapshot example.c
 dotnet run --project DomainDetective.CLI -- GenerateReport example.com --format html --store-path ./Store
 ```
 
+DMARC and TLS-RPT imports limit each expanded report to 50 MiB by default. IMAP snapshot imports also limit decoded attachments to 50 MiB and downloaded messages to 100 MiB. Set `--max-uncompressed-mb`, `--max-attachment-mb` or `--max-message-mb` for the corresponding boundary; `0` explicitly permits an unlimited size.
+
+PowerShell summary and snapshot commands expose `MaxUncompressedMb`. IMAP snapshot commands also expose `MaxAttachmentMb` and `MaxMessageMb`. For a trusted larger report:
+
+```powershell
+Import-DDDmarcReport -Path ./report.xml.gz -MaxUncompressedMb 100
+Import-DDEmailTlsRpt -Path ./report.json.gz -MaxUncompressedMb 100
+```
+
 ## Reports and Artifacts
 
 ### Output Formats
