@@ -172,11 +172,11 @@ jobs:
 
       - name: Run tests (DomainDetective.Tests) (net472)
         if: matrix.framework == 'net472'
-        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --filter "FullyQualifiedName!~DomainDetective.Tests.TestDnssecRecordValidation"
+        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --blame-hang-timeout 5m --blame-hang-dump-type none --filter "FullyQualifiedName!~DomainDetective.Tests.TestDnssecRecordValidation"
 
       - name: Run tests (DomainDetective.Tests) (modern .NET)
         if: matrix.framework != 'net472'
-        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
+        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --blame-hang-timeout 5m --blame-hang-dump-type none --collect:"XPlat Code Coverage"
 
       - name: Run tests (DomainDetective.CLI.Tests)
         if: matrix.run_cli_tests == true
@@ -225,7 +225,9 @@ jobs:
         if: always()
         with:
           name: test-results-${{ matrix.os }}-${{ matrix.framework }}
-          path: '**/*.trx'
+          path: |
+            **/*.trx
+            **/Sequence_*.xml
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v7
