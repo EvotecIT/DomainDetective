@@ -111,17 +111,6 @@ public class TestMonitorScheduler
     }
 
     [Fact]
-    public void CanStartAndStop()
-    {
-        var scheduler = new MonitorScheduler();
-        var timerField = typeof(MonitorScheduler).GetField("_timer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        scheduler.Start();
-        Assert.NotNull(timerField.GetValue(scheduler));
-        scheduler.Stop();
-        Assert.Null(timerField.GetValue(scheduler));
-    }
-
-    [Fact]
     public async Task RunAsync_ProcessesDomainsInParallelWhenConfigured()
     {
         var running = 0;
@@ -172,12 +161,13 @@ public class TestMonitorScheduler
     }
 
     [Fact]
-    public async Task RunAsyncCancellationWaitsForInFlightDomains()
+    public async Task RunAsyncCancellationStopsWaitingForCallerOwnedCallbacks()
     {
         var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var completed = 0;
+        var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var summaryCalls = 0;
+        var certificateCalls = 0;
         using var cts = new CancellationTokenSource();
 
         var scheduler = new MonitorScheduler
@@ -189,32 +179,38 @@ public class TestMonitorScheduler
                 {
                     started.TrySetResult(true);
                     await release.Task;
-                    Volatile.Write(ref completed, 1);
+                    completed.TrySetResult(true);
                 }
                 return new DomainSummary { HasMxRecord = true, ExpiryDate = "2025" };
             },
-            CertificateOverride = _ => Task.FromResult(new CertificateMonitor.Entry
+            CertificateOverride = _ =>
             {
-                Host = "example.com",
-                Expired = false,
-                ExpiryDate = System.DateTime.UtcNow.AddDays(100),
-                Analysis = new CertificateAnalysis()
-            }),
+                Interlocked.Increment(ref certificateCalls);
+                return Task.FromResult(new CertificateMonitor.Entry
+                {
+                    Host = "example.com",
+                    Expired = false,
+                    ExpiryDate = System.DateTime.UtcNow.AddDays(100),
+                    Analysis = new CertificateAnalysis()
+                });
+            },
             BgpOverride = (_, _) => Task.FromResult(new System.Collections.Generic.Dictionary<string, int>())
         };
         scheduler.Domains.AddRange(new[] { "a.example.com", "b.example.com" });
 
         var runTask = scheduler.RunAsync(cts.Token);
-        await started.Task;
-        cts.Cancel();
-        release.TrySetResult(true);
-
-        var exception = await Record.ExceptionAsync(() => runTask);
-        if (exception != null)
-        {
-            Assert.IsAssignableFrom<OperationCanceledException>(exception);
+        try {
+            await started.Task;
+            cts.Cancel();
+            Assert.Same(runTask, await Task.WhenAny(runTask, Task.Delay(TimeSpan.FromSeconds(5))));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
+            Assert.False(completed.Task.IsCompleted);
+            Assert.Equal(0, Volatile.Read(ref certificateCalls));
+            Assert.Equal(1, Volatile.Read(ref summaryCalls));
+        } finally {
+            release.TrySetResult(true);
+            await completed.Task;
         }
-        Assert.Equal(1, Volatile.Read(ref completed));
-        Assert.True(summaryCalls >= 1);
+        Assert.Equal(0, Volatile.Read(ref certificateCalls));
     }
 }

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using PeriodicTimer = System.Threading.PeriodicTimer;
+using DnsClientX;
 
 namespace DomainDetective.Monitoring;
 
@@ -28,9 +28,9 @@ public class MonitorScheduler
 
     /// <summary>Notification sender.</summary>
     public INotificationSender? Notifier { get; set; }
-    /// <summary>Override summary generation for testing.</summary>
+    /// <summary>Optional summary provider. The scheduler cancels its wait; the provider owns any work continuing after cancellation.</summary>
     public Func<string, Task<DomainSummary>>? SummaryOverride { private get; set; }
-    /// <summary>Override certificate check for testing.</summary>
+    /// <summary>Optional certificate provider. The scheduler cancels its wait; the provider owns any work continuing after cancellation.</summary>
     public Func<string, Task<CertificateMonitor.Entry>>? CertificateOverride { private get; set; }
     /// <summary>Override BGP prefix query for testing.</summary>
     public Func<string, CancellationToken, Task<Dictionary<string, int>>>? BgpOverride { private get; set; }
@@ -39,57 +39,19 @@ public class MonitorScheduler
     private readonly ConcurrentDictionary<string, Dictionary<string, int>> _bgpPrevious = new();
     private readonly SemaphoreSlim _runLock = new(1, 1);
     private readonly SemaphoreSlim _notifyLock = new(1, 1);
-    private PeriodicTimer? _timer;
-    private CancellationTokenSource? _cts;
-    private Task? _loopTask;
+    private readonly PeriodicAnalysisLoop _periodic = new();
 
     /// <summary>Starts the scheduler.</summary>
     public void Start()
     {
-        Stop();
-        _cts = new CancellationTokenSource();
-        _timer = new PeriodicTimer(Interval);
-        _loopTask = Task.Run(async () =>
-        {
-            await RunAsync().ConfigureAwait(false);
-            while (_timer != null && await _timer.WaitForNextTickAsync(_cts.Token).ConfigureAwait(false))
-            {
-                await RunAsync().ConfigureAwait(false);
-            }
-        });
+        _periodic.Start(Interval, ct => RunAsync(ct));
     }
 
-    /// <summary>Stops the scheduler.</summary>
-    public void Stop()
-    {
-        StopAsync().GetAwaiter().GetResult();
-    }
+    /// <summary>Cancels and drains the scheduler. Call outside callbacks of this run.</summary>
+    public void Stop() => StopAsync().GetAwaiter().GetResult();
 
-    /// <summary>Stops the scheduler asynchronously.</summary>
-    public async Task StopAsync()
-    {
-        _cts?.Cancel();
-        if (_loopTask != null)
-        {
-            try
-            {
-                await _loopTask.ConfigureAwait(false);
-            }
-            catch (TaskCanceledException)
-            {
-                // ignore cancellation
-            }
-            catch (OperationCanceledException)
-            {
-                // ignore cancellation
-            }
-        }
-        _timer?.Dispose();
-        _timer = null;
-        _cts?.Dispose();
-        _cts = null;
-        _loopTask = null;
-    }
+    /// <summary>Cancels and drains the scheduler's active analyses.</summary>
+    public Task StopAsync() => _periodic.StopAsync();
 
     /// <summary>Runs all analyses once.</summary>
     public async Task RunAsync(CancellationToken ct = default)
@@ -167,10 +129,12 @@ public class MonitorScheduler
 
     private async Task RunDomainAsync(string domain, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         var summary = SummaryOverride != null
-            ? await SummaryOverride(domain).ConfigureAwait(false)
+            ? await SummaryOverride(domain).WaitWithCancellation(ct).ConfigureAwait(false)
             : await BuildSummaryAsync(domain, ct).ConfigureAwait(false);
 
+        ct.ThrowIfCancellationRequested();
         if (_previous.TryGetValue(domain, out var prev))
         {
             if (!AreSummariesEqual(prev, summary))
@@ -178,12 +142,15 @@ public class MonitorScheduler
                 await SendNotificationAsync($"Changes detected for {domain}", ct).ConfigureAwait(false);
             }
         }
+        ct.ThrowIfCancellationRequested();
         _previous[domain] = summary;
 
+        ct.ThrowIfCancellationRequested();
         var cert = CertificateOverride != null
-            ? await CertificateOverride(domain).ConfigureAwait(false)
+            ? await CertificateOverride(domain).WaitWithCancellation(ct).ConfigureAwait(false)
             : await CheckCertificateAsync(domain, ct).ConfigureAwait(false);
 
+        ct.ThrowIfCancellationRequested();
         if (cert.Expired)
         {
             await SendNotificationAsync($"Certificate expired for {domain}", ct).ConfigureAwait(false);
@@ -193,9 +160,11 @@ public class MonitorScheduler
             await SendNotificationAsync($"Certificate for {domain} expires on {cert.ExpiryDate:yyyy-MM-dd}", ct).ConfigureAwait(false);
         }
 
+        ct.ThrowIfCancellationRequested();
         var prefixes = BgpOverride != null
             ? await BgpOverride(domain, ct).ConfigureAwait(false)
             : await BgpPrefixMonitor.QueryPrefixesAsync(domain, ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
         if (_bgpPrevious.TryGetValue(domain, out var prevPrefixes))
         {
             foreach (var kv in prefixes)
@@ -213,6 +182,7 @@ public class MonitorScheduler
                 }
             }
         }
+        ct.ThrowIfCancellationRequested();
         _bgpPrevious[domain] = prefixes;
     }
 
@@ -227,7 +197,9 @@ public class MonitorScheduler
         await _notifyLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            ct.ThrowIfCancellationRequested();
             await notifier.SendAsync(message, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
         }
         finally
         {

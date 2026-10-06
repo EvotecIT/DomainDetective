@@ -201,7 +201,7 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.WHOIS] = () => CheckWHOIS(domainName, cancellationToken),
                 [HealthCheckType.DNSTUNNELING] = () => CheckDnsTunnelingAsync(domainName, cancellationToken),
                 [HealthCheckType.TYPOSQUATTING] = () => VerifyTyposquatting(domainName, cancellationToken),
-                [HealthCheckType.WILDCARDDNS] = () => VerifyWildcardDns(domainName),
+                [HealthCheckType.WILDCARDDNS] = () => VerifyWildcardDns(domainName, 3, cancellationToken),
                 [HealthCheckType.EDNSSUPPORT] = () => VerifyEdnsSupport(domainName, cancellationToken),
                 [HealthCheckType.DNSHEALTH] = () => VerifyDnsHealth(domainName, cancellationToken),
                 [HealthCheckType.DNSAMPLIFICATION] = () => VerifyDnsAmplification(domainName, cancellationToken),
