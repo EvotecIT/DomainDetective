@@ -946,3 +946,18 @@ try {
     }
 }
 ```
+
+For large inputs, `ProcessBatchAsync` passes each completed result to an asynchronous callback and releases library-created health checks when that callback completes. It retains no complete result list. The callback occupies a domain slot until it finishes, so slow output processing also bounds admission. Callbacks may run concurrently; use `MaxDomainParallelism = 1` when the destination needs sequential access. Results are processed as checks complete, rather than in input order.
+
+```csharp
+await DomainHealthCheck.ProcessBatchAsync(domains,
+    (run, token) => {
+        Console.WriteLine($"{run.DomainName}: {run.Error?.Message ?? "completed"}");
+        return Task.CompletedTask;
+    },
+    new[] { HealthCheckType.DMARC, HealthCheckType.SPF },
+    executionOptions: new HealthCheckExecutionOptions { MaxDomainParallelism = 4 },
+    cancellationToken: cancellationToken);
+```
+
+Copy observations needed later while the callback is active. Factory-supplied health checks remain caller owned in this route too. A callback failure stops new admission, cancels and drains active checks, and propagates to the caller.

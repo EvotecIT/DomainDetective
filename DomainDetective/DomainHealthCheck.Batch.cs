@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using PortScanProfile = DomainDetective.PortScanProfileDefinition.PortScanProfile;
@@ -76,82 +75,21 @@ public partial class DomainHealthCheck {
         HealthCheckExecutionOptions? executionOptions = null,
         Func<string, DomainHealthCheck>? healthCheckFactory = null,
         CancellationToken cancellationToken = default) {
-        if (domainNames == null) {
-            return Array.Empty<DomainHealthCheckRun>();
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        var options = executionOptions ?? new HealthCheckExecutionOptions();
-        int maxParallel = options.EnableParallelism ? options.GetEffectiveDomainParallelism() : 1;
-        bool ownsHealthChecks = healthCheckFactory == null;
-        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var gate = new object();
+        var resultsGate = new object();
         var results = new List<DomainHealthCheckRun?>();
-        ExceptionDispatchInfo? failure = null;
-        IEnumerator<string>? input = null;
-
-        async Task<DomainHealthCheckRun> RunAsync(string domain) {
-            DomainHealthCheck? health = null;
-            try {
-                stop.Token.ThrowIfCancellationRequested();
-                health = healthCheckFactory != null ? healthCheckFactory(domain) : new DomainHealthCheck();
-                if (health == null) {
-                    throw new InvalidOperationException("Health check factory returned null.");
-                }
-                await health.Verify(domain, healthCheckTypes, dkimSelectors, daneServiceType,
-                    danePorts, portScanProfiles, stop.Token, options).ConfigureAwait(false);
-                return new DomainHealthCheckRun(domain, health, null, ownsHealthChecks);
-            } catch (OperationCanceledException) when (stop.IsCancellationRequested) {
-                if (ownsHealthChecks) { health?.Dispose(); }
-                throw;
-            } catch (Exception ex) {
-                return new DomainHealthCheckRun(domain, health, ex, ownsHealthChecks);
-            }
-        }
-
-        async Task WorkerAsync() {
-            try {
-                while (true) {
-                    string domain;
-                    int index;
-                    lock (gate) {
-                        do {
-                            stop.Token.ThrowIfCancellationRequested();
-                            if (!input!.MoveNext()) { return; }
-                            domain = input.Current;
-                        } while (string.IsNullOrWhiteSpace(domain));
-                        index = results.Count;
-                        results.Add(null);
-                    }
-                    DomainHealthCheckRun result = await RunAsync(domain).ConfigureAwait(false);
-                    lock (gate) { results[index] = result; }
-                }
-            } catch (Exception ex) {
-                lock (gate) { failure ??= ExceptionDispatchInfo.Capture(ex); }
-                stop.Cancel();
-            }
-        }
-
         try {
-            input = domainNames.GetEnumerator();
-            var workers = new Task[Math.Max(1, maxParallel)];
-            for (int worker = 0; worker < workers.Length; worker++) {
-                workers[worker] = Task.Run(WorkerAsync);
-            }
-            await Task.WhenAll(workers).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            failure?.Throw();
-            // Enumerator disposal is part of completing the batch; a failure here also
-            // releases owned results instead of losing their resources behind an exception.
-            IEnumerator<string> completedInput = input;
-            input = null;
-            completedInput.Dispose();
+            await RunBatchCoreAsync(domainNames, healthCheckTypes, dkimSelectors, daneServiceType,
+                danePorts, portScanProfiles, executionOptions, healthCheckFactory, cancellationToken,
+                retainResults: true,
+                onAdmitted: _ => { lock (resultsGate) { results.Add(null); } },
+                onResult: (index, result, _) => {
+                    lock (resultsGate) { results[index] = result; }
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
             return results.ConvertAll(result => result!).ToArray();
         } catch {
             foreach (DomainHealthCheckRun? result in results) { result?.Dispose(); }
             throw;
-        } finally {
-            input?.Dispose();
         }
     }
 }
