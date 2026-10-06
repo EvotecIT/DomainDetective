@@ -105,12 +105,15 @@ public class TestHealthBatchLifetime {
         var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         int finished = 0;
-        health.DnsConfiguration.QueryDnsOverride = async (_, type) => {
+        health.DnsConfiguration.QueryDnsResponseOverride = async (_, type, token) => {
             Assert.Equal(DnsRecordType.MX, type);
+            Assert.True(token.CanBeCanceled);
             entered.TrySetResult(true);
             caller.Cancel();
-            try { await release.Task; return Array.Empty<DnsAnswer>(); }
-            finally { Interlocked.Increment(ref finished); }
+            try {
+                await release.Task;
+                return new DnsResponse { Status = DnsResponseCode.NoError, Answers = Array.Empty<DnsAnswer>() };
+            } finally { Interlocked.Increment(ref finished); }
         };
         Task<IReadOnlyList<DomainHealthCheckRun>> batch = DomainHealthCheck.VerifyBatchAsync(
             new[] { "example.com" }, new[] { HealthCheckType.DANE, HealthCheckType.MTASTS },
