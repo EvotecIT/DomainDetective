@@ -95,33 +95,33 @@ internal sealed class AutodiscoverRecommendations : IRecommendationProvider {
         map[AutodiscoverCodes.EndpointDiscovered] = new RecommendationAdvice {
             Code = AutodiscoverCodes.EndpointDiscovered,
             Title = "Autodiscover endpoint discovered",
-            Why = "A responsive Autodiscover service allows clients to configure automatically.",
+            Why = "An anonymous request reached a recognized Autodiscover service response, including service errors or redirects.",
             How = "Maintain DNS hints and HTTPS availability so clients continue to reach the service.",
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "autodiscover", "http" },
-            Impact = "Improves user experience through automatic setup.",
+            Impact = "Service reachability is observed; authenticated mailbox configuration remains unverified.",
             Effort = RecommendationEffort.Low,
             Verify = "Repeat Autodiscover check and confirm an endpoint responds successfully."
         };
         map[AutodiscoverCodes.XmlValid] = new RecommendationAdvice {
             Code = AutodiscoverCodes.XmlValid,
-            Title = "Autodiscover XML response valid",
-            Why = "Valid XML ensures clients obtain configuration without errors.",
+            Title = "Autodiscover service response recognized",
+            Why = "The XML contains a recognized settings, redirect or error response. Anonymous service recognition does not prove authenticated mailbox settings.",
             How = "Keep the Autodiscover implementation and TLS configuration up to date.",
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "autodiscover", "xml" },
-            Impact = "Clients can securely retrieve settings.",
+            Impact = "Confirms the service response format; mailbox authentication and usable client settings require separate validation.",
             Effort = RecommendationEffort.Low,
-            Verify = "GET/POST Autodiscover endpoint returns XML root <Autodiscover> with expected namespace."
+            Verify = "Confirm a recognized settings, redirect or error response, then validate mailbox configuration with an authenticated client."
         };
         map[AutodiscoverCodes.JsonValid] = new RecommendationAdvice {
             Code = AutodiscoverCodes.JsonValid,
-            Title = "Autodiscover JSON discovery succeeded",
-            Why = "Outlook v2 JSON provided a valid Autodiscover endpoint.",
+            Title = "Autodiscover JSON candidate found",
+            Why = "Outlook v2 JSON supplied a candidate URL; the subsequent HTTP/XML request must confirm the service.",
             How = "Ensure the Microsoft discovery service remains reachable over HTTPS.",
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "autodiscover", "json" },
-            Impact = "Outlook clients have a fallback path for automatic configuration.",
+            Impact = "A candidate fallback was observed; service availability and authenticated client configuration remain unverified.",
             Effort = RecommendationEffort.Low,
             Verify = "https://autodiscover-s.outlook.com/autodiscover/autodiscover.json/v1.0/<domain>?Protocol=AutodiscoverV1 returns endpoint URL."
         };

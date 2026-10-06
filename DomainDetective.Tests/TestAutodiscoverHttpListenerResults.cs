@@ -17,7 +17,7 @@ public class TestAutodiscoverHttpListenerResults {
             HttpHandlerFactory = () => new HttpStubMessageHandler((request, cancellationToken) => {
                 if (string.Equals(request.RequestUri?.AbsoluteUri, startUrl, StringComparison.OrdinalIgnoreCase)) {
                     var response = new HttpResponseMessage(HttpStatusCode.OK) {
-                        Content = new StringContent("<Autodiscover></Autodiscover>")
+                        Content = new StringContent(TestAutodiscoverAttemptBoundaries.RecognizedError)
                     };
                     return response;
                 }
@@ -53,7 +53,7 @@ public class TestAutodiscoverHttpListenerResults {
 
                 if (string.Equals(request.RequestUri?.AbsoluteUri, redirectUrl, StringComparison.OrdinalIgnoreCase)) {
                     var response = new HttpResponseMessage(HttpStatusCode.OK) {
-                        Content = new StringContent("<Autodiscover></Autodiscover>")
+                        Content = new StringContent(TestAutodiscoverAttemptBoundaries.RecognizedError)
                     };
                     return response;
                 }

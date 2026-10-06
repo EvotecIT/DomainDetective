@@ -54,7 +54,7 @@ public static class AutodiscoverNarrative
 
         // HTTP highlights
         var endpoints = analysis.Endpoints ?? Array.Empty<AutodiscoverEndpointResult>();
-        var success = endpoints.FirstOrDefault(e => e.XmlValid || e.JsonValid);
+        var success = endpoints.FirstOrDefault(e => e.DiscoverySucceeded);
         if (success != null)
         {
             hi.Add(success.XmlValid
@@ -63,7 +63,7 @@ public static class AutodiscoverNarrative
         }
         else
         {
-            hi.Add("No Autodiscover endpoint produced valid XML or JSON.");
+            hi.Add("No Autodiscover endpoint produced a recognized service response.");
         }
 
         // Endpoint details
