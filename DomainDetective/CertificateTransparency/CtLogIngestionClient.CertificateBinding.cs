@@ -12,10 +12,16 @@ namespace DomainDetective;
 
 public sealed partial class CtLogIngestionClient {
     // Precertificate DER lives in unauthenticated extra data. Its certificate fields must match the signed TBS.
-    private async Task VerifyCertificateBindingAsync(RawCtEntryPayload payload, byte[] certificateDer, string? monitoringUrl,
+    private Task VerifyCertificateBindingAsync(RawCtEntryPayload payload, byte[] certificateDer, string? monitoringUrl,
+        byte[]? staticIssuerFingerprints, TimeSpan timeout, CancellationToken cancellationToken,
+        Dictionary<string, byte[]>? issuerCache = null) =>
+        VerifyCertificateBindingAsync(DecodeRequiredBase64(payload.LeafInputBase64, "entry leaf"), payload.ExtraDataBase64,
+            certificateDer, monitoringUrl, staticIssuerFingerprints, timeout, cancellationToken, issuerCache);
+
+    // Static tiles already contain the leaf bytes; Base64 is needed only for RFC payloads and failure diagnostics.
+    private async Task VerifyCertificateBindingAsync(byte[] leaf, string extraDataBase64, byte[] certificateDer, string? monitoringUrl,
         byte[]? staticIssuerFingerprints, TimeSpan timeout, CancellationToken cancellationToken,
         Dictionary<string, byte[]>? issuerCache = null) {
-        byte[] leaf = DecodeRequiredBase64(payload.LeafInputBase64, "entry leaf");
         if (leaf.Length < 12 || leaf[0] != 0 || leaf[1] != 0) throw new InvalidOperationException("CT leaf has an unsupported version or type.");
         int offset = 2;
         if (!TryReadUInt64BigEndian(leaf, ref offset, out ulong timestamp) || timestamp > long.MaxValue ||
@@ -40,7 +46,7 @@ public sealed partial class CtLogIngestionClient {
 
         // RFC6962 also permits a dedicated precertificate signer. Only this uncommon path needs issuer certificates.
         IReadOnlyList<byte[]> issuers;
-        if (monitoringUrl == null) issuers = ParsePrecertificateIssuers(DecodeRequiredBase64(payload.ExtraDataBase64, "precertificate extra data"));
+        if (monitoringUrl == null) issuers = ParsePrecertificateIssuers(DecodeRequiredBase64(extraDataBase64, "precertificate extra data"));
         else {
             if (staticIssuerFingerprints == null || staticIssuerFingerprints.Length < 64)
                 throw new InvalidOperationException("Static CT precertificate signer chain is incomplete.");
