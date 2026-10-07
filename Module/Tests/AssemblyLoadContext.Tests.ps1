@@ -1,6 +1,6 @@
 Describe 'Packaged AssemblyLoadContext isolation' {
     It 'loads binary cmdlets and core types from the module ALC' {
-        $packagedModuleRoot = Join-Path $PSScriptRoot '..\Artefacts\Unpacked\Modules'
+        $packagedModuleRoot = Join-Path $PSScriptRoot '..\..\Artifacts\Unpacked\Modules'
         $packagedModule = Join-Path $packagedModuleRoot 'DomainDetective'
         $packagedLoader = Join-Path $packagedModule 'Lib\Core\DomainDetective.ModuleLoadContext.dll'
         if ($PSVersionTable.PSEdition -ne 'Core') {
@@ -9,7 +9,7 @@ Describe 'Packaged AssemblyLoadContext isolation' {
         }
 
         if (-not (Test-Path -LiteralPath $packagedLoader)) {
-            Set-ItResult -Skipped -Because 'packaged ALC artifact is not present; run Module\Build\Build-Module.ps1 -ConfigurationGateMode Build before this regression'
+            Set-ItResult -Skipped -Because 'packaged ALC artifact is not present; run Module\Build\Build-Module.ps1 -RunMode Build before this regression'
             return
         }
 
@@ -75,11 +75,11 @@ if (`$null -eq `$coreAssembly) {
 
         $result.CommandName | Should -Be 'Test-DDEmailSpfRecord'
         $result.CommandAssembly | Should -Be 'DomainDetective.PowerShell'
-        ($result.CommandAssemblyPath -replace '\\', '/') | Should -BeLike '*/Artefacts/Unpacked/Modules/DomainDetective/Lib/Core/DomainDetective.PowerShell.dll'
+        ($result.CommandAssemblyPath -replace '\\', '/') | Should -BeLike '*/Artifacts/Unpacked/Modules/DomainDetective/Lib/Core/DomainDetective.PowerShell.dll'
         $result.CommandALC | Should -Be 'DomainDetective'
         $result.CommandALCIsDefault | Should -BeFalse
         $result.CoreAssembly | Should -Be 'DomainDetective'
-        ($result.CoreAssemblyPath -replace '\\', '/') | Should -BeLike '*/Artefacts/Unpacked/Modules/DomainDetective/Lib/Core/DomainDetective.dll'
+        ($result.CoreAssemblyPath -replace '\\', '/') | Should -BeLike '*/Artifacts/Unpacked/Modules/DomainDetective/Lib/Core/DomainDetective.dll'
         $result.HealthCheckType | Should -Be 'DomainDetective.DomainHealthCheck'
         $result.HealthCheckALC | Should -Be 'DomainDetective'
         $result.HealthCheckALCIsDefault | Should -BeFalse
@@ -97,7 +97,7 @@ if (`$null -eq `$coreAssembly) {
     }
 
     It 'generates OfficeIMO reports through the packaged module ALC' {
-        $packagedModuleRoot = Join-Path $PSScriptRoot '..\Artefacts\Unpacked\Modules'
+        $packagedModuleRoot = Join-Path $PSScriptRoot '..\..\Artifacts\Unpacked\Modules'
         $packagedModule = Join-Path $packagedModuleRoot 'DomainDetective'
         $packagedLoader = Join-Path $packagedModule 'Lib\Core\DomainDetective.ModuleLoadContext.dll'
         if ($PSVersionTable.PSEdition -ne 'Core') {
@@ -106,7 +106,7 @@ if (`$null -eq `$coreAssembly) {
         }
 
         if (-not (Test-Path -LiteralPath $packagedLoader)) {
-            Set-ItResult -Skipped -Because 'packaged ALC artifact is not present; run Module\Build\Build-Module.ps1 -ConfigurationGateMode Build before this regression'
+            Set-ItResult -Skipped -Because 'packaged ALC artifact is not present; run Module\Build\Build-Module.ps1 -RunMode Build before this regression'
             return
         }
 
@@ -120,6 +120,7 @@ if (`$null -eq `$coreAssembly) {
 `$env:PSModulePath = `$moduleRoot + [IO.Path]::PathSeparator + `$env:PSModulePath
 
 Import-Module DomainDetective -Force
+Set-DDExportOptions -OpenInBrowser:`$false
 
 `$command = Get-Command Export-DDSecurityReport -Module DomainDetective -ErrorAction Stop
 `$commandAssembly = `$command.ImplementingType.Assembly
@@ -176,11 +177,11 @@ if (`$null -eq `$coreAssembly) {
             return
         }
 
-        $packagedModuleRoot = Join-Path $PSScriptRoot '..\Artefacts\Unpacked\Modules'
+        $packagedModuleRoot = Join-Path $PSScriptRoot '..\..\Artifacts\Unpacked\Modules'
         $packagedModule = Join-Path $packagedModuleRoot 'DomainDetective'
         $packagedBinary = Join-Path $packagedModule 'Lib\Default\DomainDetective.PowerShell.dll'
         if (-not (Test-Path -LiteralPath $packagedBinary)) {
-            Set-ItResult -Skipped -Because 'packaged Windows PowerShell artifact is not present; run Module\Build\Build-Module.ps1 -ConfigurationGateMode Build before this regression'
+            Set-ItResult -Skipped -Because 'packaged Windows PowerShell artifact is not present; run Module\Build\Build-Module.ps1 -RunMode Build before this regression'
             return
         }
 
@@ -194,6 +195,7 @@ if (`$null -eq `$coreAssembly) {
 `$env:PSModulePath = `$moduleRoot + [IO.Path]::PathSeparator + `$env:PSModulePath
 
 Import-Module DomainDetective -Force
+Set-DDExportOptions -OpenInBrowser:`$false
 
 `$command = Get-Command Export-DDSecurityReport -Module DomainDetective -ErrorAction Stop
 `$coreAssembly = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { `$_.GetName().Name -eq 'DomainDetective' } | Select-Object -First 1

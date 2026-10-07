@@ -25,9 +25,9 @@ if (-not $ConfigPath) {
 }
 
 try {
-    Import-Module PSPublishModule -Force -ErrorAction Stop
+    Import-Module PSPublishModule -MinimumVersion '3.0.158' -Force -ErrorAction Stop
 } catch {
-    throw "PSPublishModule is required for Build-Project.ps1. Install it with 'Install-Module PSPublishModule -Scope CurrentUser' and retry. $($_.Exception.Message)"
+    throw "PSPublishModule 3.0.158 or later is required for Build-Project.ps1. Install it with 'Install-Module PSPublishModule -MinimumVersion 3.0.158 -Scope CurrentUser -Force' and retry. $($_.Exception.Message)"
 }
 
 $invokeParams = @{

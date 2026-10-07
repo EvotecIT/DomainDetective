@@ -25,7 +25,9 @@ if (-not $ConfigPath) {
     $ConfigPath = Join-Path $scriptRoot 'cli.build.json'
 }
 
-. (Join-Path $scriptRoot 'BuildHelpers.ps1')
+. (Join-Path $scriptRoot 'Private/Get-BuildConfigValue.ps1')
+. (Join-Path $scriptRoot 'Private/ConvertTo-BuildArray.ps1')
+. (Join-Path $scriptRoot 'Private/Resolve-BuildSolutionPath.ps1')
 
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
     throw "Build configuration file not found: $ConfigPath"
@@ -40,6 +42,10 @@ if (-not $cliProject) {
 }
 
 $cliProjectPath = Join-Path $rootPath ([string] $cliProject)
+$cliFramework = [string] (Get-BuildConfigValue -Config $config -Name 'CliFramework')
+if ([string]::IsNullOrWhiteSpace($cliFramework)) {
+    throw 'CliFramework is required in the CLI build configuration.'
+}
 $effectiveConfiguration = if ($PSBoundParameters.ContainsKey('Configuration') -and $Configuration) { $Configuration } else { [string] (Get-BuildConfigValue -Config $config -Name 'Configuration') }
 $effectiveArtifactsPath = if ($PSBoundParameters.ContainsKey('ArtifactsPath') -and $ArtifactsPath) { $ArtifactsPath } else { [string] (Get-BuildConfigValue -Config $config -Name 'StagingPath') }
 $defaultVersion = Get-BuildConfigValue -Config $config -Name 'DefaultVersion'
@@ -49,7 +55,7 @@ $effectiveVersion = if ($PSBoundParameters.ContainsKey('Version') -and $Version)
 $cliRootPath = Join-Path $rootPath (Join-Path $effectiveArtifactsPath 'CLI')
 $createCliZip = Get-BuildConfigValue -Config $config -Name 'CreateCliZip'
 $cliExecutableBaseName = Get-BuildConfigValue -Config $config -Name 'CliExecutableBaseName'
-$cliRuntimes = ConvertTo-BuildArray -Value (Get-BuildConfigValue -Config $config -Name 'CliRuntimes')
+$cliRuntimes = @(ConvertTo-BuildArray -Value (Get-BuildConfigValue -Config $config -Name 'CliRuntimes'))
 $cliAliasMap = Get-BuildConfigValue -Config $config -Name 'CliAliasMap'
 $createZip = if ($SkipZip) { $false } elseif ($null -ne $createCliZip) { [bool] $createCliZip } else { $true }
 $executableBaseName = if ($cliExecutableBaseName) { [string] $cliExecutableBaseName } else { [System.IO.Path]::GetFileNameWithoutExtension($cliProjectPath) }
@@ -78,6 +84,7 @@ if ($Plan) {
         RootPath = $rootPath
         SolutionPath = $solutionPath
         CliProject = $cliProjectPath
+        Framework = $cliFramework
         Configuration = $effectiveConfiguration
         OutputPath = $cliRootPath
         Version = $effectiveVersion
@@ -135,6 +142,8 @@ try {
         $publishArguments = [System.Collections.Generic.List[string]]::new()
         $publishArguments.Add('publish')
         $publishArguments.Add($cliProjectPath)
+        $publishArguments.Add('--framework')
+        $publishArguments.Add($cliFramework)
         $publishArguments.Add('--configuration')
         $publishArguments.Add($effectiveConfiguration)
         $publishArguments.Add('--runtime')

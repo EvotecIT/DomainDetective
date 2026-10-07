@@ -778,66 +778,55 @@ pwsh ./Module/DomainDetective.Tests.ps1
 
 ## Packaging and Publish
 
-`Build/project.build.json` follows the shared PSPublishModule project-build schema and is the source of truth for NuGet package selection, version tracks, signing, and publish/release defaults. `Build/cli.build.json` keeps the CLI runtime matrix used by the local CLI publish wrapper.
-
-The PSPublishModule wrapper requires PSPublishModule to be available in the running PowerShell session:
+`Module/Build/Build-Module.ps1` builds and publishes the NuGet packages and PowerShell module together. It requires PSPublishModule 3.0.158 or later:
 
 ```powershell
-Install-Module PSPublishModule -Scope CurrentUser
+Install-Module PSPublishModule -MinimumVersion 3.0.158 -Scope CurrentUser -Force
 ```
 
-NuGet packages:
+Build the packages, module, and release staging files without publishing:
 
 ```powershell
-pwsh ./Build/Build-NuGet.ps1 -Version 0.2.0
+pwsh ./Module/Build/Build-Module.ps1 -RunMode Build -SignModule:$false
 ```
 
-CLI publish artifacts:
+Refresh only the source module manifest:
 
 ```powershell
-pwsh ./Build/Publish-CLI.ps1 -Version 0.2.0
+pwsh ./Module/Build/Build-Module.ps1 -RunMode Manifest
 ```
 
-Run the schema-driven NuGet/release pipeline through the PSPublishModule wrapper:
+Publish a coordinated release:
+
+```powershell
+pwsh ./Module/Build/Build-Module.ps1 -RunMode Publish -SignModule:$true
+```
+
+`Build/project.build.json` selects the eight NuGet packages and resolves one three-part version in the `1.0.x` series. The build aligns their versions and internal package references, then synchronizes the PowerShell module, its binary project, and the CLI project to that version. The library packages move from the `0.2.x` series to the module's `1.0.x` series.
+
+Publish mode sends the packages to NuGet, the module to PowerShell Gallery, and their artifacts to one GitHub release tagged `DomainDetective-v<version>`. GitHub generates release notes from repository history. Publication runs in that order; if a service fails, earlier uploads may already have completed.
+
+The coordinated wrapper accepts `-NuGetApiKeyPath`, `-PowerShellGalleryApiKeyPath`, and `-GitHubApiKeyPath`. Credentials are read when publishing is enabled. `-SignModule` controls module signing; NuGet signing uses the project configuration. Signed publication requires the configured certificates.
+
+For package-only planning and builds, use the shared project-build wrapper. Its standalone publishing options resolve credentials from `NUGET_API_KEY` and `GITHUB_TOKEN`:
 
 ```powershell
 pwsh ./Build/Build-Project.ps1 -Plan
 pwsh ./Build/Build-Project.ps1 -Build
 ```
 
-The wrapper is intentionally small and delegates to PSPublishModule:
+`Build/cli.build.json` keeps the separate CLI runtime matrix and selects the .NET 8 target for runtime artifacts. After resolving the release version, publish CLI runtime artifacts with the same exact version:
 
 ```powershell
-Invoke-ProjectBuild -ConfigPath .\Build\project.build.json -Plan
-Invoke-ProjectBuild -ConfigPath .\Build\project.build.json -Build
+pwsh ./Build/Publish-CLI.ps1 -Version 1.0.0
 ```
 
-NuGet and GitHub publish credentials are resolved from `NUGET_API_KEY` and `GITHUB_TOKEN` when publishing is enabled.
+Outputs are staged under `Artifacts`:
 
-Preview the plan without executing:
-
-```powershell
-pwsh ./Build/Build-Project.ps1 -Plan
-```
-
-Write the resolved plan to a file:
-
-```powershell
-pwsh ./Build/Build-Project.ps1 -Plan -PlanPath .\Artifacts\ProjectBuild\custom-build-plan.json
-```
-
-Enable publish actions explicitly when needed:
-
-```powershell
-pwsh ./Build/Build-Project.ps1 -Build -PublishNuget
-pwsh ./Build/Build-Project.ps1 -PublishGitHub
-```
-
-Outputs are staged under `Artifacts/ProjectBuild`:
-
-- `Artifacts/ProjectBuild/NuGet` for `.nupkg` files
 - `Artifacts/ProjectBuild/packages` for PSPublishModule project-build packages
 - `Artifacts/ProjectBuild/releases` for PSPublishModule release archives
+- `Artifacts/Unpacked` and `Artifacts/Packed` for module artifacts
+- `Artifacts/UploadReady` for coordinated packages, the module archive, checksums, and release metadata
 - `Artifacts/ProjectBuild/CLI/<runtime>` for published CLI folders
 - `Artifacts/ProjectBuild/CLI/*.zip` for runtime archives when zipping is enabled
 - `Artifacts/ProjectBuild/build.plan.json` for the default resolved build plan

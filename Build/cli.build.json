@@ -5,6 +5,7 @@
   "StagingPath": "Artifacts/ProjectBuild",
   "DefaultVersion": null,
   "CliProject": "DomainDetective.CLI/DomainDetective.CLI.csproj",
+  "CliFramework": "net8.0",
   "CliExecutableBaseName": "DomainDetective.CLI",
   "CliRuntimes": [
     "win-x64",

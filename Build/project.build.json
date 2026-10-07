@@ -3,14 +3,14 @@
   "RootPath": "..",
   "ExpectedVersion": null,
   "ExpectedVersionMap": {
-    "DomainDetective": "0.2.X",
-    "DomainDetective.CtSql": "0.2.X",
-    "DomainDetective.Pgp": "0.2.X",
-    "DomainDetective.Reports": "0.2.X",
-    "DomainDetective.Reports.Html": "0.2.X",
-    "DomainDetective.Reports.Markdown": "0.2.X",
-    "DomainDetective.Reports.Office": "0.2.X",
-    "DomainDetective.Visual": "0.2.X"
+    "DomainDetective": "1.0.X",
+    "DomainDetective.CtSql": "1.0.X",
+    "DomainDetective.Pgp": "1.0.X",
+    "DomainDetective.Reports": "1.0.X",
+    "DomainDetective.Reports.Html": "1.0.X",
+    "DomainDetective.Reports.Markdown": "1.0.X",
+    "DomainDetective.Reports.Office": "1.0.X",
+    "DomainDetective.Visual": "1.0.X"
   },
   "ExpectedVersionMapAsInclude": true,
   "ExpectedVersionMapUseWildcards": false,
@@ -53,10 +53,31 @@
   "GitHubUsername": "EvotecIT",
   "GitHubRepositoryName": "DomainDetective",
   "GitHubIsPreRelease": false,
-  "GitHubIncludeProjectNameInTag": true,
+  "GitHubIncludeProjectNameInTag": false,
   "GitHubGenerateReleaseNotes": true,
   "GitHubReleaseMode": "Single",
   "GitHubPrimaryProject": "DomainDetective",
-  "GitHubTagTemplate": "{Repo}-v{UtcTimestamp}",
-  "GitHubReleaseName": "{Repo} {UtcDateTime}"
+  "GitHubTagTemplate": "{Repo}-v{PrimaryVersion}",
+  "GitHubReleaseName": "{Repo} {PrimaryVersion}",
+  "AlignPackageVersions": true,
+  "VersionBindings": [
+    {
+      "Project": "DomainDetective",
+      "Path": "DomainDetective.PowerShell/DomainDetective.PowerShell.csproj",
+      "Pattern": "(?m)^[ \\t]*<VersionPrefix>[^<]+</VersionPrefix>",
+      "Replacement": "        <VersionPrefix>{Version}</VersionPrefix>"
+    },
+    {
+      "Project": "DomainDetective",
+      "Path": "DomainDetective.CLI/DomainDetective.CLI.csproj",
+      "Pattern": "(?m)^[ \\t]*<VersionPrefix>[^<]+</VersionPrefix>",
+      "Replacement": "    <VersionPrefix>{Version}</VersionPrefix>"
+    },
+    {
+      "Project": "DomainDetective",
+      "Path": "Module/DomainDetective.psd1",
+      "Pattern": "(?m)^[ \\t]*ModuleVersion[ \\t]*=[ \\t]*'[^']+'",
+      "Replacement": "    ModuleVersion        = '{Version}'"
+    }
+  ]
 }

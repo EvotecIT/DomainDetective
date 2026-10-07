@@ -39,13 +39,13 @@ jobs:
 
             - name: Setup PowerShell modules
               run: |
-                Install-Module PSPublishModule -Force -Scope CurrentUser -AllowClobber
+                Install-Module PSPublishModule -MinimumVersion 3.0.158 -Force -Scope CurrentUser -AllowClobber
               shell: pwsh
 
 
             - name: Refresh module manifest
               run: |
-                .\Module\Build\Build-Module.ps1 -ConfigurationGateMode Manifest
+                .\Module\Build\Build-Module.ps1 -RunMode Manifest
               shell: pwsh
 
             - name: Commit refreshed PSD1
@@ -78,7 +78,7 @@ jobs:
                       git config user.name "github-actions[bot]"
                       git config user.email "github-actions[bot]@users.noreply.github.com"
 
-                      .\Module\Build\Build-Module.ps1 -ConfigurationGateMode Manifest
+                      .\Module\Build\Build-Module.ps1 -RunMode Manifest
 
                       git add Module/DomainDetective.psd1
                       git diff --cached --quiet -- Module/DomainDetective.psd1
@@ -207,7 +207,7 @@ jobs:
               run: |
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-                Install-Module -Name PSPublishModule -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+                Install-Module -Name PSPublishModule -MinimumVersion 3.0.158 -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: pwsh
 
 
@@ -250,7 +250,7 @@ jobs:
                 }
 
             - name: Build packaged module for ALC tests
-              run: .\Module\Build\Build-Module.ps1
+              run: .\Module\Build\Build-Module.ps1 -RunMode Build -SignModule:$false
               shell: pwsh
 
             - name: Run PowerShell tests

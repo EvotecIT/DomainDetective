@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Packaging and releases
+- Build and publish the eight NuGet packages and PowerShell module with one three-part version in the `1.0.x` series
+- Synchronize internal package references, module and CLI versions, and GitHub tags through the shared release pipeline
+- Attach package and module artifacts to one GitHub release with generated release notes
+
 ### DNS reliability and shared ownership
 - Centralized provider selection, concurrency, retries, response filtering, local DNSSEC validation, AXFR, and diagnostic wire queries on DnsClientX 2.0
 - Removed DomainDetective's duplicate multi-resolver, DNSSEC cryptography, and production UDP/TCP DNS implementations
