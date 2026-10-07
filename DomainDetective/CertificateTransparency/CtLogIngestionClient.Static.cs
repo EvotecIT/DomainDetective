@@ -82,7 +82,7 @@ public sealed partial class CtLogIngestionClient {
                 StaticCtTileEntry tileEntry = tile.Entries[tileOffset];
                 if (request.RequireIntegrityVerification || request.RequireCompleteDecoding) {
                     try {
-                        await VerifyCertificateBindingAsync(new RawCtEntryPayload(Convert.ToBase64String(tileEntry.LeafInput), Convert.ToBase64String(tileEntry.ExtraData)),
+                        await VerifyCertificateBindingAsync(tileEntry.LeafInput, string.Empty,
                             tileEntry.CertificateDer, monitoringUrl, tileEntry.IssuerFingerprints, timeout, cancellationToken, issuerCache).ConfigureAwait(false);
                     } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
                         throw new CtEntryDecodingException(submissionUrl, entryIndex,

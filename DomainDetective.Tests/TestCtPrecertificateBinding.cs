@@ -140,9 +140,11 @@ public sealed class TestCtPrecertificateBinding {
     private static string Hex(byte[] data) => BitConverter.ToString(data).Replace("-", "").ToLowerInvariant();
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CompleteDecoding_BindsPrecertificateNamesToLoggedTbs(bool dedicatedSigner) {
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task CompleteDecoding_BindsPrecertificateNamesToLoggedTbs(bool dedicatedSigner, bool isStatic) {
         AsymmetricCipherKeyPair rootKey = Key(), signerKey = Key(), leafKey = Key();
         var rootName = new X509Name("CN=Fixture Root");
         var signerName = new X509Name("CN=Fixture Precertificate Signer");
@@ -157,21 +159,37 @@ public sealed class TestCtPrecertificateBinding {
             issuerHash = hash.ComputeHash(root.CertificateStructure.TbsCertificate.SubjectPublicKeyInfo.GetDerEncoded());
         byte[] leaf = new byte[] {0,0, 0,0,0,0,0,0,0,1, 0,1}.Concat(issuerHash).Concat(Vector(tbs)).Concat(new byte[] {0,0}).ToArray();
         byte[] chain = dedicatedSigner ? Vector(signer.GetEncoded()).Concat(Vector(root.GetEncoded())).ToArray() : Vector(root.GetEncoded());
-        byte[] extra = Vector(pre.GetEncoded()).Concat(Vector(chain)).ToArray();
-        var client = Client(leaf, extra);
-        CtLogIngestionBatch batch = await client.ReadBatchAsync(Request());
+        byte[] fingerprints = dedicatedSigner ? Hash(signer.GetEncoded()).Concat(Hash(root.GetEncoded())).ToArray() : Array.Empty<byte>();
+        byte[] StaticEntry(byte[] der) => leaf.Skip(2).Concat(Vector(der))
+            .Concat(new byte[] { (byte)(fingerprints.Length >> 8), (byte)fingerprints.Length }).Concat(fingerprints).ToArray();
+        CtLogIngestionClient SelectedClient(byte[] der) => isStatic ? new CtLogIngestionClient {
+            SendOverride = (message, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {
+                Content = new ByteArrayContent(message.RequestUri!.AbsolutePath.Contains("/issuer/")
+                    ? (message.RequestUri.AbsolutePath.EndsWith(Hex(Hash(signer.GetEncoded()))) ? signer.GetEncoded() : root.GetEncoded())
+                    : StaticEntry(der))
+            })
+        } : Client(leaf, Vector(der).Concat(Vector(chain)).ToArray());
+        CtLogIngestionBatchRequest request = isStatic ? new CtLogIngestionBatchRequest {
+            LogUrl = "https://ct.example.test/binding/", MonitoringUrl = "https://ct.example.test/binding/", ApiKind = CtLogApiKind.StaticCt,
+            StartIndex = 0, BatchSize = 1, KnownTreeSize = 1, RequireCompleteDecoding = true
+        } : Request();
+        CtLogIngestionBatch batch = await SelectedClient(pre.GetEncoded()).ReadBatchAsync(request);
         CtLogIngestionEntry entry = Assert.Single(batch.Entries);
         Assert.Equal(CtLogEntryType.Precertificate, entry.EntryType);
         Assert.Contains("login.example.test", entry.Certificate.DnsNames);
+        Assert.Equal(pre.GetEncoded(), entry.Certificate.CertificateDer);
         Assert.Empty(batch.Diagnostics);
 
         // The extra data is outside the Merkle leaf. Altering it must not introduce unrelated names.
         X509Certificate altered = Certificate(new X509Name("CN=unrelated.example.test"), dedicatedSigner ? signerName : rootName,
             leafKey, dedicatedSigner ? signerKey : rootKey, poison: true, leafAuthority: dedicatedSigner ? (byte)2 : (byte)1);
         byte[] alteredExtra = Vector(altered.GetEncoded()).Concat(Vector(chain)).ToArray();
-        CtEntryDecodingException error = await Assert.ThrowsAsync<CtEntryDecodingException>(() => Client(leaf, alteredExtra).ReadBatchAsync(Request()));
+        byte[] alteredDer = altered.GetEncoded();
+        CtEntryDecodingException error = await Assert.ThrowsAsync<CtEntryDecodingException>(() => SelectedClient(alteredDer).ReadBatchAsync(request));
         Assert.Equal(0, error.EntryIndex);
-        Assert.Equal(Convert.ToBase64String(alteredExtra), error.Payload.ExtraDataBase64);
+        Assert.Equal(Convert.ToBase64String(leaf), error.Payload.LeafInputBase64);
+        Assert.Equal(Convert.ToBase64String(isStatic ? Vector(alteredDer).Concat(new byte[3]).ToArray() : alteredExtra), error.Payload.ExtraDataBase64);
+        Assert.Equal(isStatic ? Convert.ToBase64String(StaticEntry(alteredDer)) : null, error.StaticTileEntryBase64);
     }
 
     private static CtLogIngestionBatchRequest Request() => new() {
