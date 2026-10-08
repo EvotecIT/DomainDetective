@@ -157,7 +157,9 @@ public sealed class TestCtPrecertificateBinding {
         byte[] issuerHash;
         using (var hash = System.Security.Cryptography.SHA256.Create())
             issuerHash = hash.ComputeHash(root.CertificateStructure.TbsCertificate.SubjectPublicKeyInfo.GetDerEncoded());
-        byte[] leaf = new byte[] {0,0, 0,0,0,0,0,0,0,1, 0,1}.Concat(issuerHash).Concat(Vector(tbs)).Concat(new byte[] {0,0}).ToArray();
+        // Opaque extensions remain in the signed leaf and recovery evidence; entry 1
+        // also checks that recovery encodes the slice rather than the containing tile.
+        byte[] leaf = new byte[] {0,0, 0,0,0,0,0,0,0,1, 0,1}.Concat(issuerHash).Concat(Vector(tbs)).Concat(new byte[] {0,3,0xA1,0xB2,0xC3}).ToArray();
         byte[] chain = dedicatedSigner ? Vector(signer.GetEncoded()).Concat(Vector(root.GetEncoded())).ToArray() : Vector(root.GetEncoded());
         byte[] fingerprints = dedicatedSigner ? Hash(signer.GetEncoded()).Concat(Hash(root.GetEncoded())).ToArray() : Array.Empty<byte>();
         byte[] StaticEntry(byte[] der) => leaf.Skip(2).Concat(Vector(der))
@@ -166,12 +168,12 @@ public sealed class TestCtPrecertificateBinding {
             SendOverride = (message, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {
                 Content = new ByteArrayContent(message.RequestUri!.AbsolutePath.Contains("/issuer/")
                     ? (message.RequestUri.AbsolutePath.EndsWith(Hex(Hash(signer.GetEncoded()))) ? signer.GetEncoded() : root.GetEncoded())
-                    : StaticEntry(der))
+                    : StaticEntry(der).Concat(StaticEntry(der)).ToArray())
             })
         } : Client(leaf, Vector(der).Concat(Vector(chain)).ToArray());
         CtLogIngestionBatchRequest request = isStatic ? new CtLogIngestionBatchRequest {
             LogUrl = "https://ct.example.test/binding/", MonitoringUrl = "https://ct.example.test/binding/", ApiKind = CtLogApiKind.StaticCt,
-            StartIndex = 0, BatchSize = 1, KnownTreeSize = 1, RequireCompleteDecoding = true
+            StartIndex = 1, BatchSize = 1, KnownTreeSize = 2, RequireCompleteDecoding = true
         } : Request();
         CtLogIngestionBatch batch = await SelectedClient(pre.GetEncoded()).ReadBatchAsync(request);
         CtLogIngestionEntry entry = Assert.Single(batch.Entries);
@@ -186,7 +188,7 @@ public sealed class TestCtPrecertificateBinding {
         byte[] alteredExtra = Vector(altered.GetEncoded()).Concat(Vector(chain)).ToArray();
         byte[] alteredDer = altered.GetEncoded();
         CtEntryDecodingException error = await Assert.ThrowsAsync<CtEntryDecodingException>(() => SelectedClient(alteredDer).ReadBatchAsync(request));
-        Assert.Equal(0, error.EntryIndex);
+        Assert.Equal(isStatic ? 1 : 0, error.EntryIndex);
         Assert.Equal(Convert.ToBase64String(leaf), error.Payload.LeafInputBase64);
         Assert.Equal(Convert.ToBase64String(isStatic ? Vector(alteredDer).Concat(new byte[3]).ToArray() : alteredExtra), error.Payload.ExtraDataBase64);
         Assert.Equal(isStatic ? Convert.ToBase64String(StaticEntry(alteredDer)) : null, error.StaticTileEntryBase64);
