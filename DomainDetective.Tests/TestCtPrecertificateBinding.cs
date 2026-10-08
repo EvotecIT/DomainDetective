@@ -164,11 +164,16 @@ public sealed class TestCtPrecertificateBinding {
         byte[] fingerprints = dedicatedSigner ? Hash(signer.GetEncoded()).Concat(Hash(root.GetEncoded())).ToArray() : Array.Empty<byte>();
         byte[] StaticEntry(byte[] der) => leaf.Skip(2).Concat(Vector(der))
             .Concat(new byte[] { (byte)(fingerprints.Length >> 8), (byte)fingerprints.Length }).Concat(fingerprints).ToArray();
+        byte[] StaticTile(byte[] der) {
+            byte[] precedingEntry = StaticEntry(der);
+            precedingEntry[7] = 2;
+            return precedingEntry.Concat(StaticEntry(der)).ToArray();
+        }
         CtLogIngestionClient SelectedClient(byte[] der) => isStatic ? new CtLogIngestionClient {
             SendOverride = (message, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {
                 Content = new ByteArrayContent(message.RequestUri!.AbsolutePath.Contains("/issuer/")
                     ? (message.RequestUri.AbsolutePath.EndsWith(Hex(Hash(signer.GetEncoded()))) ? signer.GetEncoded() : root.GetEncoded())
-                    : StaticEntry(der).Concat(StaticEntry(der)).ToArray())
+                    : StaticTile(der))
             })
         } : Client(leaf, Vector(der).Concat(Vector(chain)).ToArray());
         CtLogIngestionBatchRequest request = isStatic ? new CtLogIngestionBatchRequest {

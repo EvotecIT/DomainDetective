@@ -17,7 +17,9 @@ public sealed class TestCtStaticTileDiagnostics {
             .Concat(new byte[] { 0, 3, 0xA1, 0xB2, 0xC3 }).ToArray();
         byte[] entry = leaf.Skip(2).Concat(precertificate ? Vector(der) : Array.Empty<byte>())
             .Concat(new byte[] { 0, 32 }).Concat(new byte[32]).ToArray();
-        byte[] tile = entry.Concat(entry).ToArray();
+        byte[] precedingEntry = (byte[])entry.Clone();
+        precedingEntry[7] = 2; // Distinct timestamp exposes encoding the wrong segment offset.
+        byte[] tile = precedingEntry.Concat(entry).ToArray();
         var client = new CtLogIngestionClient {
             SendOverride = (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
                 Content = new ByteArrayContent(tile)
