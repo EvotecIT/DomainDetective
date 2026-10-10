@@ -86,8 +86,8 @@ public sealed partial class CtLogIngestionClient {
                             tileEntry.CertificateDer, monitoringUrl, tileEntry.IssuerFingerprints, timeout, cancellationToken, issuerCache).ConfigureAwait(false);
                     } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
                         throw new CtEntryDecodingException(submissionUrl, entryIndex,
-                            new RawCtEntryPayload(Convert.ToBase64String(tileEntry.LeafInput), Convert.ToBase64String(tileEntry.ExtraData)), ex.Message, ex) {
-                            StaticTileEntryBase64 = Convert.ToBase64String(tileEntry.RawData)
+                            tileEntry.CreateFailurePayload(), ex.Message, ex) {
+                            StaticTileEntryBase64 = tileEntry.RawDataBase64
                         };
                     }
                 }
@@ -108,8 +108,8 @@ public sealed partial class CtLogIngestionClient {
                     });
                 } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
                     if (request.RequireCompleteDecoding) throw new CtEntryDecodingException(submissionUrl, entryIndex,
-                        new RawCtEntryPayload(Convert.ToBase64String(tileEntry.LeafInput), Convert.ToBase64String(tileEntry.ExtraData)), ex.Message, ex) {
-                        StaticTileEntryBase64 = Convert.ToBase64String(tileEntry.RawData)
+                        tileEntry.CreateFailurePayload(), ex.Message, ex) {
+                        StaticTileEntryBase64 = tileEntry.RawDataBase64
                     };
                     diagnostics.Add($"Entry {entryIndex}: certificate decode failed: {ex.Message}");
                 }
@@ -315,9 +315,24 @@ public sealed partial class CtLogIngestionClient {
         CtLogEntryType EntryType,
         byte[] CertificateDer,
         byte[] LeafInput,
-        byte[] ExtraData,
         byte[] IssuerFingerprints,
-        byte[] RawData);
+        ArraySegment<byte> RawData) {
+        // Materialize recovery evidence only when a caller needs to quarantine a failed entry.
+        internal string RawDataBase64 => Convert.ToBase64String(RawData.Array!, RawData.Offset, RawData.Count);
+
+        internal RawCtEntryPayload CreateFailurePayload() {
+            byte[] extraData = Array.Empty<byte>();
+            if (EntryType == CtLogEntryType.Precertificate) {
+                extraData = new byte[CertificateDer.Length + 6];
+                extraData[0] = (byte)(CertificateDer.Length >> 16);
+                extraData[1] = (byte)(CertificateDer.Length >> 8);
+                extraData[2] = (byte)CertificateDer.Length;
+                Buffer.BlockCopy(CertificateDer, 0, extraData, 3, CertificateDer.Length);
+            }
+
+            return new RawCtEntryPayload(Convert.ToBase64String(LeafInput), Convert.ToBase64String(extraData));
+        }
+    }
 
     private sealed record StaticCtDataTile(
         long TileIndex,

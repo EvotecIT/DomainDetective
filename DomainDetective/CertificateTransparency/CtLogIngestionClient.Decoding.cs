@@ -137,7 +137,7 @@ public sealed partial class CtLogIngestionClient {
             }
 
             offset += 32;
-            if (!TryReadVector24(data, ref offset, out _)) {
+            if (!TrySkipVector24(data, ref offset)) {
                 offset = startOffset;
                 return false;
             }
@@ -146,7 +146,7 @@ public sealed partial class CtLogIngestionClient {
             return false;
         }
 
-        if (!TryReadVector16(data, ref offset, out _)) {
+        if (!TrySkipVector16(data, ref offset)) {
             offset = startOffset;
             return false;
         }
@@ -172,17 +172,10 @@ public sealed partial class CtLogIngestionClient {
             return false;
         }
 
-        byte[] extraData = Array.Empty<byte>();
-        if (entryType == CtLogEntryType.Precertificate) {
-            extraData = new byte[certificateDer.Length + 6];
-            extraData[0] = (byte)(certificateDer.Length >> 16);
-            extraData[1] = (byte)(certificateDer.Length >> 8);
-            extraData[2] = (byte)certificateDer.Length;
-            Buffer.BlockCopy(certificateDer, 0, extraData, 3, certificateDer.Length);
-        }
-        byte[] rawData = new byte[offset - startOffset];
-        Buffer.BlockCopy(data, startOffset, rawData, 0, rawData.Length);
-        entry = new StaticCtTileEntry(timestampUtc, entryType, certificateDer, leafInput, extraData, certificateChain, rawData);
+        // The fetched tile stays owned by this batch. Retain its slice for failure diagnostics
+        // rather than copying every successful entry or constructing unused recovery payloads.
+        var rawData = new ArraySegment<byte>(data, startOffset, offset - startOffset);
+        entry = new StaticCtTileEntry(timestampUtc, entryType, certificateDer, leafInput, certificateChain, rawData);
         return true;
     }
 
@@ -260,6 +253,24 @@ public sealed partial class CtLogIngestionClient {
 
         bytes = new byte[length];
         Buffer.BlockCopy(data, offset, bytes, 0, length);
+        offset += length;
+        return true;
+    }
+
+    private static bool TrySkipVector24(byte[] data, ref int offset) {
+        if (!TryReadUInt24(data, ref offset, out int length) || length > data.Length - offset) {
+            return false;
+        }
+
+        offset += length;
+        return true;
+    }
+
+    private static bool TrySkipVector16(byte[] data, ref int offset) {
+        if (!TryReadUInt16BigEndian(data, ref offset, out int length) || length > data.Length - offset) {
+            return false;
+        }
+
         offset += length;
         return true;
     }
