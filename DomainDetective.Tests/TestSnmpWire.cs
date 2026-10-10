@@ -117,6 +117,7 @@ public class TestSnmpWire {
                 var request = await server.ReceiveAsync().WaitWithCancellation(stop.Token);
                 while (!stop.IsCancellationRequested) {
                     await server.SendAsync(new byte[] { 1 }, 1, request.RemoteEndPoint).WaitWithCancellation(stop.Token);
+                    await Task.Delay(TimeSpan.FromMilliseconds(10), stop.Token);
                 }
             } catch (Exception) when (stop.IsCancellationRequested) { }
         }
