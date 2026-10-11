@@ -140,9 +140,10 @@ public sealed partial class CtLogIngestionClient {
                 continue;
             }
 
+            Org.BouncyCastle.X509.X509Certificate? verifiedCertificate = null;
             if (request.RequireIntegrityVerification || request.RequireCompleteDecoding) {
                 try {
-                    await VerifyCertificateBindingAsync(payloads[i], certificateDer!, null, null, timeout, cancellationToken).ConfigureAwait(false);
+                    verifiedCertificate = await VerifyCertificateBindingAsync(payloads[i], certificateDer!, null, null, timeout, cancellationToken).ConfigureAwait(false);
                 } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
                     throw new CtEntryDecodingException(logUrl, entryIndex, payloads[i], ex.Message, ex);
                 }
@@ -154,9 +155,10 @@ public sealed partial class CtLogIngestionClient {
                     TreeSize = treeSize,
                     EntryTimestampUtc = timestampUtc,
                     EntryType = entryType,
-                    Certificate = CtCertificateRecord.FromDer(
+                    Certificate = CtCertificateRecord.FromVerifiedDer(
                         CtProviderProfiles.NativeCtProviderId,
                         certificateDer!,
+                        verifiedCertificate,
                         providerCertificateId: $"{logUrl}#{entryIndex}",
                         entryTimestampUtc: timestampUtc,
                         isPrecertificate: entryType == CtLogEntryType.Precertificate,

@@ -123,6 +123,22 @@ public sealed class CtCertificateRecord
         string? tbsSha256 = null,
         bool? isPrecertificate = null,
         CtCertificateRecordDetailLevel detailLevel = CtCertificateRecordDetailLevel.Full)
+        => FromVerifiedDer(providerId, certificateDer, null, providerCertificateId, entryTimestampUtc,
+            tbsSha256, isPrecertificate, detailLevel);
+
+    /// <summary>
+    /// Reuses the strict DER parse produced by precertificate binding, while checking its byte identity
+    /// against the record's owned copy. X509 and unverified entries retain the normal parsing path.
+    /// </summary>
+    internal static CtCertificateRecord FromVerifiedDer(
+        string providerId,
+        byte[] certificateDer,
+        Org.BouncyCastle.X509.X509Certificate? verifiedCertificate,
+        string? providerCertificateId = null,
+        DateTimeOffset? entryTimestampUtc = null,
+        string? tbsSha256 = null,
+        bool? isPrecertificate = null,
+        CtCertificateRecordDetailLevel detailLevel = CtCertificateRecordDetailLevel.Full)
     {
         if (certificateDer == null)
         {
@@ -136,7 +152,11 @@ public sealed class CtCertificateRecord
 
         // Keep the normalized record immutable even if the caller later mutates their input buffer.
         byte[] rawData = certificateDer.ToArray();
-        var parsedCertificate = CtCertificateDer.Parse(rawData);
+        var parsedCertificate = verifiedCertificate ?? CtCertificateDer.Parse(rawData);
+        if (verifiedCertificate != null)
+        {
+            CtCertificateDer.ValidateEncoding(rawData, verifiedCertificate);
+        }
         using X509Certificate2 certificate = CertificateLoaderCompat.LoadCertificate(rawData);
         if (!CtMerkleTree.Equal(rawData, certificate.RawData))
         {

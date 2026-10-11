@@ -18,10 +18,14 @@ internal static class CtCertificateDer {
             throw new CryptographicException("CT certificate bytes must contain exactly one DER-encoded X.509 certificate.", ex);
         }
 
+        ValidateEncoding(der, certificate);
+        return certificate;
+    }
+
+    /// <summary>Checks that a previously parsed certificate still represents exactly the supplied DER.</summary>
+    internal static void ValidateEncoding(byte[] der, X509Certificate certificate) {
         if (!CtMerkleTree.Equal(der, certificate.GetEncoded())) {
             throw new CryptographicException("CT certificate bytes must use DER encoding without trailing data.");
         }
-
-        return certificate;
     }
 }
