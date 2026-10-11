@@ -12,14 +12,14 @@ namespace DomainDetective;
 
 public sealed partial class CtLogIngestionClient {
     // Precertificate DER lives in unauthenticated extra data. Its certificate fields must match the signed TBS.
-    private Task VerifyCertificateBindingAsync(RawCtEntryPayload payload, byte[] certificateDer, string? monitoringUrl,
+    private Task<X509Certificate?> VerifyCertificateBindingAsync(RawCtEntryPayload payload, byte[] certificateDer, string? monitoringUrl,
         byte[]? staticIssuerFingerprints, TimeSpan timeout, CancellationToken cancellationToken,
         Dictionary<string, byte[]>? issuerCache = null) =>
         VerifyCertificateBindingAsync(DecodeRequiredBase64(payload.LeafInputBase64, "entry leaf"), payload.ExtraDataBase64,
             certificateDer, monitoringUrl, staticIssuerFingerprints, timeout, cancellationToken, issuerCache);
 
     // Static tiles already contain the leaf bytes; Base64 is needed only for RFC payloads and failure diagnostics.
-    private async Task VerifyCertificateBindingAsync(byte[] leaf, string extraDataBase64, byte[] certificateDer, string? monitoringUrl,
+    private async Task<X509Certificate?> VerifyCertificateBindingAsync(byte[] leaf, string extraDataBase64, byte[] certificateDer, string? monitoringUrl,
         byte[]? staticIssuerFingerprints, TimeSpan timeout, CancellationToken cancellationToken,
         Dictionary<string, byte[]>? issuerCache = null) {
         if (leaf.Length < 12 || leaf[0] != 0 || leaf[1] != 0) throw new InvalidOperationException("CT leaf has an unsupported version or type.");
@@ -39,10 +39,10 @@ public sealed partial class CtLogIngestionClient {
             throw new InvalidOperationException("CT signed entry or extension vector is malformed.");
         if (type == X509EntryType) {
             if (!CtMerkleTree.Equal(certificateDer, signedCertificate)) throw new InvalidOperationException("CT X509 certificate does not match its signed leaf.");
-            return;
+            return null;
         }
         X509Certificate certificate = CtCertificateDer.Parse(certificateDer);
-        if (CtMerkleTree.Equal(NormalizePrecertificateTbs(certificate, null), signedCertificate)) return;
+        if (CtMerkleTree.Equal(NormalizePrecertificateTbs(certificate, null), signedCertificate)) return certificate;
 
         // RFC6962 also permits a dedicated precertificate signer. Only this uncommon path needs issuer certificates.
         IReadOnlyList<byte[]> issuers;
@@ -80,6 +80,7 @@ public sealed partial class CtLogIngestionClient {
         certificate.Verify(signer.GetPublicKey());
         if (!CtMerkleTree.Equal(NormalizePrecertificateTbs(certificate, signer), signedCertificate))
             throw new InvalidOperationException("CT precertificate extra data does not match its signed TBSCertificate.");
+        return certificate;
     }
 
     private static byte[] NormalizePrecertificateTbs(X509Certificate certificate, X509Certificate? signer) {
