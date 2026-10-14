@@ -4,9 +4,6 @@ using System.Collections.Generic;
 namespace DomainDetective;
 
 public partial class DomainHealthCheck : IHasAssessments {
-    /// <summary>Checks selected by the most recent verification run, in input order.</summary>
-    public IReadOnlyList<HealthCheckType> LastVerifiedChecks { get; private set; } = Array.Empty<HealthCheckType>();
-
     private readonly Dictionary<HealthCheckType, Assessment> _checkFailures = new();
 
     /// <summary>Execution failures from the last verification run. Analysis findings are available through <see cref="GetAllAssessments"/>.</summary>

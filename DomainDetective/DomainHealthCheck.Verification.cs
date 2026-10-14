@@ -102,6 +102,12 @@ public partial class DomainHealthCheck {
         }
 
         /// <summary>
+        /// Checks the last <c>Verify</c>
+        /// call ran, in order. Report renderers use it to show only checks that actually ran.
+        /// </summary>
+        public IReadOnlyList<HealthCheckType> LastVerifiedChecks { get; private set; } = Array.Empty<HealthCheckType>();
+
+        /// <summary>
         /// Runs the requested health checks against a domain.
         /// </summary>
         /// <param name="domainName">Domain to validate.</param>
