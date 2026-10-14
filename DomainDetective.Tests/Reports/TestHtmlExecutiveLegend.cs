@@ -43,8 +43,11 @@ namespace DomainDetective.Tests.Reports
                 var html = File.ReadAllText(tmp);
 
                 Assert.Contains(domain, html, StringComparison.OrdinalIgnoreCase);
-                Assert.Contains("<!-- DD:DOMAIN Mail & DNS -->", html, StringComparison.Ordinal);
-                Assert.Contains("data-dd-domain=\"xn--bcher-kva.de\"", html, StringComparison.Ordinal);
+                // "--" inside an HTML comment is invalid; a punycode domain must never be written into one.
+                foreach (System.Text.RegularExpressions.Match comment in System.Text.RegularExpressions.Regex.Matches(html, "<!--(.*?)-->", System.Text.RegularExpressions.RegexOptions.Singleline))
+                {
+                    Assert.DoesNotContain("--", comment.Groups[1].Value, StringComparison.Ordinal);
+                }
             }
             finally
             {

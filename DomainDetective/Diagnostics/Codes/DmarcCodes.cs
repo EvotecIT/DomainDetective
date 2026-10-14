@@ -2,6 +2,10 @@ namespace DomainDetective;
 
 internal static class DmarcCodes {
     public const string AlignmentMismatch = "DMARC.Alignment.Mismatch";
+    /// <summary>A report address outside the domain whose owner does not authorise receiving its reports.</summary>
+    public const string ExternalReportUnauthorized = "DMARC.Report.ExternalUnauthorized";
+    /// <summary>A report address outside the domain whose owner authorises receiving its reports.</summary>
+    public const string ExternalReportAuthorized = "DMARC.Report.ExternalAuthorized";
     public const string AlignmentInvalid = "DMARC.Alignment.Invalid";
     public const string TagDeprecated = "DMARC.Tag.Deprecated";
     public const string UriInvalid = "DMARC.URI.Invalid";

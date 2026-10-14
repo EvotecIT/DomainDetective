@@ -1,152 +1,70 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using DomainDetective;
 using DomainDetective.Reports;
 using DomainDetective.Reports.Html;
+using DomainDetective.Views;
 
 namespace DomainDetective.Example;
 
 /// <summary>
-/// Example demonstrating how to generate HTML reports for domain security analysis
+/// Example demonstrating how to generate the HTML assessment report and its JSON model.
 /// </summary>
 internal class ReportingHtmlExample {
     public static async Task Run() {
-        Console.WriteLine("\n=== HTML Report Generation Demo ===");
-        Console.WriteLine("================================\n");
+        Console.WriteLine("\n=== HTML Assessment Report Demo ===");
+        Console.WriteLine("===================================\n");
 
-        // Create output directory for reports
         var reportsDir = "Reports";
         Directory.CreateDirectory(reportsDir);
 
-        // Test domain
         var domain = "github.com";
-
         Console.WriteLine($"Analyzing domain: {domain}");
 
-        // Run analysis
         var healthCheck = new DomainHealthCheck();
         await healthCheck.Verify(domain);
 
-        Console.WriteLine("\nGenerating reports...");
+        // Every check the run executed becomes a view; the assessment scores and groups them per domain.
+        var items = Converters.ConvertChecks(healthCheck);
+        DomainAssessmentReport assessment = DomainAssessmentBuilder.Build(items, new DomainAssessmentOptions { Title = $"Security Report — {domain}" });
+        Console.WriteLine($"Score {assessment.Score} (grade {assessment.Grade}) across {assessment.Domains.Sum(static d => d.Checks.Count)} checks.");
 
-        // Generate Basic Report
-        Console.WriteLine("1. Generating Basic Domain Report...");
-        var basicReport = new BasicDomainReport(healthCheck, domain);
-        var basicPath = Path.Combine(reportsDir, "BasicDomainReport.html");
-        basicReport.GenerateReport(basicPath, openInBrowser: false);
-        Console.WriteLine($"   ✓ {basicPath} created");
+        var htmlPath = Path.Combine(reportsDir, "DomainAssessment.html");
+        AssessmentHtmlReport.Generate(htmlPath, assessment, new AssessmentHtmlOptions(), openInBrowser: true);
+        Console.WriteLine($"   ✓ {htmlPath} created and opened in browser");
 
-        // Generate Simple Report
-        Console.WriteLine("2. Generating Simple Domain Report...");
-        var simpleReport = new SimpleDomainReport(healthCheck, domain);
-        var simplePath = Path.Combine(reportsDir, "SimpleDomainReport.html");
-        simpleReport.GenerateReport(simplePath, openInBrowser: false);
-        Console.WriteLine($"   ✓ {simplePath} created");
+        var jsonPath = Path.Combine(reportsDir, "DomainAssessment.json");
+        File.WriteAllText(jsonPath, DomainAssessmentJson.Serialize(assessment));
+        Console.WriteLine($"   ✓ {jsonPath} created");
 
-        // Generate Advanced Report
-        Console.WriteLine("3. Generating Advanced Security Report...");
-        var advancedReport = new DomainSecurityReport(healthCheck, domain);
-        var advancedPath = Path.Combine(reportsDir, "DomainSecurityReport.html");
-        advancedReport.GenerateReport(advancedPath, openInBrowser: true);
-        Console.WriteLine($"   ✓ {advancedPath} created and opened in browser");
-
-        Console.WriteLine("\nDemo completed successfully!");
-        Console.WriteLine($"Reports have been generated in the '{reportsDir}' directory.");
-
-        // Show additional demos
-        await DemoWithOptions();
         await DemoBatchReporting();
-        DemoScoringSystem();
-    }
-
-    private static async Task DemoWithOptions() {
-        Console.WriteLine("\n=== Advanced Report Generation ===");
-
-        // This demonstrates the planned API
-        var healthCheck = new DomainHealthCheck();
-        await healthCheck.Verify("example.com");
-
-        // Create report options
-        var options = new ReportOptions {
-            Title = "Executive Security Report",
-            OutputPath = "executive_report.html",
-            TemplateName = "Executive",
-            Theme = ReportTheme.Professional,
-            IncludeTechnicalDetails = false,
-            IncludeRecommendations = true,
-            CustomProperties = new() {
-                ["ShowTrends"] = true,
-                ["ComparisonDomains"] = new[] { "competitor1.com", "competitor2.com" }
-            }
-        };
-
-        // Future: Use report generator factory
-        // var generator = ReportGeneratorFactory.Create(ReportFormat.Html);
-        // var result = await generator.GenerateAsync(healthCheck, options);
-
-        Console.WriteLine("Advanced report features:");
-        Console.WriteLine("- Custom templates (Executive, Technical, Compliance)");
-        Console.WriteLine("- Theme selection (Light, Dark, Professional)");
-        Console.WriteLine("- Configurable sections");
-        Console.WriteLine("- Export to multiple formats");
     }
 
     public static async Task DemoBatchReporting() {
-        Console.WriteLine("\n=== Batch Report Generation ===");
+        Console.WriteLine("\n=== Multi-domain Assessment ===");
 
         var domains = new[] { "example.com", "google.com", "microsoft.com" };
         var reportsDir = "Reports/Batch";
         Directory.CreateDirectory(reportsDir);
 
+        // One report for all domains: a summary, a coverage matrix across domains, and a section per domain.
+        var items = new System.Collections.Generic.List<object>();
         foreach (var domain in domains) {
             try {
-                Console.WriteLine($"\nProcessing {domain}...");
+                Console.WriteLine($"Processing {domain}...");
                 var healthCheck = new DomainHealthCheck();
                 await healthCheck.Verify(domain);
-
-                // Generate all three report types for each domain
-                var basicReport = new BasicDomainReport(healthCheck, domain);
-                basicReport.GenerateReport(Path.Combine(reportsDir, $"{domain}_basic.html"), openInBrowser: false);
-
-                var simpleReport = new SimpleDomainReport(healthCheck, domain);
-                simpleReport.GenerateReport(Path.Combine(reportsDir, $"{domain}_simple.html"), openInBrowser: false);
-
-                var advancedReport = new DomainSecurityReport(healthCheck, domain);
-                advancedReport.GenerateReport(Path.Combine(reportsDir, $"{domain}_advanced.html"), openInBrowser: false);
-
-                Console.WriteLine($"✓ Generated all reports for {domain}");
+                items.AddRange(Converters.ConvertChecks(healthCheck));
             }
             catch (Exception ex) {
-                Console.WriteLine($"✗ Failed to generate reports for {domain}: {ex.Message}");
+                Console.WriteLine($"✗ Failed to analyze {domain}: {ex.Message}");
             }
         }
 
-        Console.WriteLine($"\nBatch reports saved to '{reportsDir}' directory.");
-    }
-
-    public static void DemoScoringSystem() {
-        Console.WriteLine("\n=== Scoring System Demo ===");
-
-        // Show how the scoring works
-        Console.WriteLine("Security Score Calculation:");
-        Console.WriteLine("- SPF: 10 points");
-        Console.WriteLine("- DMARC: 15 points");
-        Console.WriteLine("- DKIM: 10 points");
-        Console.WriteLine("- DNSSEC: 10 points");
-        Console.WriteLine("- TLS/SSL: 15 points");
-        Console.WriteLine("- MTA-STS: 10 points");
-        Console.WriteLine("- DANE: 5 points");
-        Console.WriteLine("- BIMI: 5 points");
-        Console.WriteLine("- CAA: 5 points");
-        Console.WriteLine("- Security Headers: 10 points");
-        Console.WriteLine("- Other: 5 points");
-        Console.WriteLine("\nTotal: 100 points");
-
-        Console.WriteLine("\nRisk Levels:");
-        Console.WriteLine("- 80-100: Low Risk (Green)");
-        Console.WriteLine("- 60-79: Medium Risk (Yellow)");
-        Console.WriteLine("- 40-59: High Risk (Orange)");
-        Console.WriteLine("- 0-39: Critical Risk (Red)");
+        var path = Path.Combine(reportsDir, "Assessment.html");
+        AssessmentHtmlReport.Generate(path, items, new DomainAssessmentOptions { Title = "Domain assessment" });
+        Console.WriteLine($"\nBatch report saved to '{path}'.");
     }
 }

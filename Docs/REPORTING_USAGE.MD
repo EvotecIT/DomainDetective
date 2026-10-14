@@ -5,12 +5,16 @@
 ### C# Library Usage
 
 ```csharp
-// Basic usage
+// Basic usage: the assessment report for every check the run executed
 var healthCheck = new DomainHealthCheck();
 await healthCheck.Verify("example.com");
 
-var report = new DomainSecurityReport(healthCheck, "example.com");
-report.GenerateReport("report.html", openInBrowser: true);
+var items = DomainDetective.Views.Converters.ConvertChecks(healthCheck);
+AssessmentHtmlReport.Generate("report.html", items, openInBrowser: true);
+
+// The same model as JSON
+var assessment = DomainAssessmentBuilder.Build(items);
+File.WriteAllText("report.json", DomainAssessmentJson.Serialize(assessment));
 ```
 
 ### CLI Usage
@@ -19,7 +23,7 @@ report.GenerateReport("report.html", openInBrowser: true);
 # Generate HTML report
 ddcli report example.com
 
-# Generate with specific format and template
+# Generate with specific format; --template document|executive selects the previous layouts
 ddcli report example.com --format html --template executive --output executive_report.html
 
 # Generate without opening browser
@@ -208,8 +212,7 @@ foreach (var domain in domains) {
     var hc = new DomainHealthCheck();
     await hc.Verify(domain);
     
-    var report = new DomainSecurityReport(hc, domain);
-    report.GenerateReport($"reports/{domain}.html", false);
+    AssessmentHtmlReport.Generate($"reports/{domain}.html", Converters.ConvertChecks(hc));
     
     reports.Add(new ReportResult { 
         Success = true, 

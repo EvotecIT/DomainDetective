@@ -54,8 +54,6 @@ public class TestReportCoverage {
             Assert.True(Assert.Single(result.Reports).Success, result.Reports[0].ErrorMessage);
             var html = File.ReadAllText(path);
             Assert.Contains("warning-evidence-marker", html);
-            Assert.Contains("Overall Grade", html);
-            Assert.True(html.IndexOf("Assessment evidence", StringComparison.Ordinal) > html.IndexOf("Overall Grade", StringComparison.Ordinal));
             if (showInfo) { Assert.Contains("info-evidence-marker", html); }
             else { Assert.DoesNotContain("info-evidence-marker", html); }
         } finally { File.Delete(path); }

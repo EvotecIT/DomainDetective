@@ -27,15 +27,23 @@ namespace DomainDetective {
         /// <summary>Optional DNS query override.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
+        /// <summary>
+        /// Optional override for the authoritative answers the TTL comparisons use. Return null when no authoritative
+        /// server answered. Without it, TTLs come from the zone's own name servers (or from
+        /// <see cref="QueryDnsOverride"/> answers, which carry fixed TTLs).
+        /// </summary>
+        public Func<string, DnsRecordType, Task<DnsAnswer[]?>>? AuthoritativeQueryOverride { private get; set; }
+
         /// <summary>MX records discovered during analysis.</summary>
         public List<string> MxRecords { get; private set; } = new List<string>();
 
         /// <summary>
-        /// TTL values (seconds) for each MX record answer as returned by DNS.
+        /// TTL values (seconds) for each MX record answer: the configured TTLs from the domain's authoritative name
+        /// servers when <see cref="TtlsFromAuthoritativeServers"/> is true, otherwise the resolver's answer.
         /// </summary>
         /// <remarks>
-        /// MX commonly returns multiple answers; this analysis exposes both the raw TTL set and aggregate
-        /// min/avg/max values to support operational TTL policy checks without additional DNS queries.
+        /// A caching resolver reports the time an answer has left in its cache, which counts down between runs, so
+        /// TTL comparisons and TTL findings use authoritative answers only.
         /// </remarks>
         public IReadOnlyList<int> MxRecordTtls { get; private set; } = Array.Empty<int>();
         /// <summary>Minimum TTL (seconds) across MX answers (ignores 0).</summary>
@@ -73,6 +81,12 @@ namespace DomainDetective {
 
         /// <summary>True when at least one MX host has an AAAA record.</summary>
         public bool Ipv6Supported { get; private set; }
+
+        /// <summary>
+        /// True when the MX TTLs come from the domain's authoritative name servers. When false, no authoritative
+        /// server answered: TTL values are the resolver's and the TTL uniformity findings are not raised.
+        /// </summary>
+        public bool TtlsFromAuthoritativeServers { get; private set; }
 
         // Integrity checks
         /// <summary>Gets or sets the mx ttl uniform value.</summary>
@@ -120,6 +134,7 @@ namespace DomainDetective {
             HasNullMx = false;
             PointsToLocalhost = false;
             Ipv6Supported = false;
+            TtlsFromAuthoritativeServers = false;
             MxTtlUniform = true;
             MxRrsetConsistentAcrossNs = true;
             TargetAddressConsistentAcrossNs = true;
@@ -132,32 +147,7 @@ namespace DomainDetective {
             var mxRecordList = dnsResults.ToList();
             MxRecordExists = mxRecordList.Any();
 
-            var ttlArray = mxRecordList.Select(r => r.TTL).ToArray();
-            MxRecordTtls = ttlArray;
-            int? minTtl = null;
-            int? maxTtl = null;
-            long sumTtl = 0;
-            int positiveCount = 0;
-            foreach (var ttl in ttlArray) {
-                if (ttl <= 0) {
-                    continue;
-                }
-
-                positiveCount++;
-                sumTtl += ttl;
-                if (!minTtl.HasValue || ttl < minTtl.Value) {
-                    minTtl = ttl;
-                }
-                if (!maxTtl.HasValue || ttl > maxTtl.Value) {
-                    maxTtl = ttl;
-                }
-            }
-
-            if (positiveCount > 0) {
-                MinMxTtl = minTtl;
-                MaxMxTtl = maxTtl;
-                AvgMxTtl = (double)sumTtl / positiveCount;
-            }
+            SetMxTtls(mxRecordList);
 
             var parsed = new List<(int Preference, string Host)>();
             foreach (var record in mxRecordList) {
@@ -272,20 +262,26 @@ namespace DomainDetective {
                     logger.WriteWarningCode(MxCodes.LocalhostTarget, "MX hostname points to localhost");
             }
 
-            // TTL uniformity across MX RRset
-            if (mxRecordList.Count > 1) {
-                var ttls = mxRecordList.Select(r => r.TTL).Distinct().ToList();
-                if (ttls.Count > 1) {
+            // TTLs are compared on authoritative answers only: a caching resolver reports the time left in its cache,
+            // so the same zone would look uniform on one run and not on the next.
+            DnsAnswer[]? authoritativeMx = await AuthoritativeMxAsync(mxRecordList);
+            if (authoritativeMx is { Length: > 0 }) {
+                TtlsFromAuthoritativeServers = true;
+                SetMxTtls(authoritativeMx);
+                if (authoritativeMx.Length > 1 && authoritativeMx.Select(r => r.TTL).Distinct().Count() > 1) {
                     MxTtlUniform = false;
                     using (_collector.PushTarget(Subject ?? string.Empty))
                         logger.WriteWarningCode(MxCodes.TtlNonUniform, "MX RRset TTLs differ across records");
                 }
             }
 
-            // TTL uniformity across A/AAAA per MX host
             foreach (var (_, host) in evaluationList) {
-                var a = await QueryDns(host, DnsRecordType.A);
-                var aaaa = await QueryDns(host, DnsRecordType.AAAA);
+                var a = await QueryAuthoritativeAsync(host, DnsRecordType.A);
+                var aaaa = await QueryAuthoritativeAsync(host, DnsRecordType.AAAA);
+                if (a == null && aaaa == null) {
+                    logger.WriteVerbose("Skipping A/AAAA TTL comparison for {0}: no authoritative answer.", host);
+                    continue;
+                }
                 var addrTtls = (a ?? Array.Empty<DnsAnswer>()).Concat(aaaa ?? Array.Empty<DnsAnswer>())
                     .Select(x => x.TTL).Distinct().ToList();
                 if (addrTtls.Count > 1) {
@@ -302,6 +298,66 @@ namespace DomainDetective {
             } catch (Exception ex) {
                 logger.WriteDebug("MX cross-NS consistency check skipped: {0}", ex.Message);
             }
+        }
+
+        private void SetMxTtls(IEnumerable<DnsAnswer> answers) {
+            int[] ttls = answers.Select(r => r.TTL).ToArray();
+            MxRecordTtls = ttls;
+            int[] positive = ttls.Where(static ttl => ttl > 0).ToArray();
+            MinMxTtl = positive.Length > 0 ? positive.Min() : null;
+            MaxMxTtl = positive.Length > 0 ? positive.Max() : null;
+            AvgMxTtl = positive.Length > 0 ? positive.Average() : null;
+        }
+
+        private bool UsesFixedAnswers => QueryDnsOverride != null || DnsConfiguration.QueryDnsOverride != null;
+
+        // The MX RRset as the zone publishes it. Fixed answers (tests, replays) already carry configured TTLs.
+        private async Task<DnsAnswer[]?> AuthoritativeMxAsync(IReadOnlyList<DnsAnswer> resolverAnswers) {
+            if (AuthoritativeQueryOverride == null && UsesFixedAnswers) return resolverAnswers.ToArray();
+            if (string.IsNullOrWhiteSpace(Subject)) return null;
+            return await QueryAuthoritativeAsync(Subject!, DnsRecordType.MX);
+        }
+
+        private readonly Dictionary<string, string?> _authoritativeServerByZone = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Answers of the given type from a name server authoritative for <paramref name="name"/>, or null when none
+        /// answered authoritatively.
+        /// </summary>
+        private async Task<DnsAnswer[]?> QueryAuthoritativeAsync(string name, DnsRecordType type) {
+            if (AuthoritativeQueryOverride != null) return await AuthoritativeQueryOverride(name, type);
+            if (UsesFixedAnswers) return await QueryDns(name, type);
+            try {
+                string? server = await FindAuthoritativeServerAsync(name);
+                if (server == null) return null;
+                DnsResponse? response = await QueryViaServer(server, name, type);
+                if (response == null || !response.IsAuthoritativeAnswer) return null;
+                return (response.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == type).ToArray();
+            } catch (Exception) {
+                return null;
+            }
+        }
+
+        // The zone of a name is the closest enclosing name with an NS set; one of its servers' addresses is used.
+        private async Task<string?> FindAuthoritativeServerAsync(string name) {
+            string candidate = NormalizeHost(name);
+            while (candidate.IndexOf('.') > 0) {
+                if (_authoritativeServerByZone.TryGetValue(candidate, out string? cached)) return cached;
+                DnsAnswer[] nsAnswers = await QueryDns(candidate, DnsRecordType.NS) ?? Array.Empty<DnsAnswer>();
+                string[] servers = nsAnswers.Where(a => a.Type == DnsRecordType.NS).Select(a => NormalizeHost(a.Data)).Where(h => h.Length > 0).OrderBy(h => h, StringComparer.Ordinal).ToArray();
+                if (servers.Length > 0) {
+                    string? address = null;
+                    foreach (string server in servers) {
+                        DnsAnswer[] a = await QueryDns(server, DnsRecordType.A) ?? Array.Empty<DnsAnswer>();
+                        address = a.Where(x => x.Type == DnsRecordType.A).Select(x => x.Data).FirstOrDefault();
+                        if (address != null) break;
+                    }
+                    _authoritativeServerByZone[candidate] = address;
+                    return address;
+                }
+                candidate = candidate.Substring(candidate.IndexOf('.') + 1);
+            }
+            return null;
         }
 
         /// <summary>

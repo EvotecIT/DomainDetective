@@ -13,7 +13,7 @@ namespace DomainDetective.Tests.Reports;
 public class TestHtmlDashboardDiscoverySmoke
 {
     [Fact]
-    public void Html_Dashboard_Renders_Discovery_And_Rollups()
+    public void Html_Renders_Discovery_Checks_With_Evidence()
     {
         var items = new List<object>();
         var domain = "example.org";
@@ -133,26 +133,14 @@ public class TestHtmlDashboardDiscoverySmoke
         });
 
         var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".html");
-        HtmlCompositionReport.Generate(tmp, items, ReportScope.Minimal, profile: HtmlProfile.Dashboard);
+        HtmlCompositionReport.Generate(tmp, items, ReportScope.Minimal);
         var html = File.ReadAllText(tmp);
 
-        Assert.Contains("Discovery", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Inventory", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Dashboard", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Provider Mix", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("IP Footprint", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("HTTP Posture", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Microsoft 365 Footprint", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("M365 Workload Evidence", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("M365 Domain Evidence", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("M365 Domains", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("M365 Accepted Domains", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("DKIM-derived", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Mail/Protocol", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Subdomain", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Tenant-boosted workloads", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("DNS Propagation", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Propagation by Record Type", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Propagation Hotspots", html, StringComparison.OrdinalIgnoreCase);
-    }
+        // Every discovery input appears as a check in the assessment report, with its evidence.
+        foreach (string section in new[] { "DNS propagation", "Subdomains", "DNS inventory", "Microsoft 365", "HTTP", "IP enrichment" })
+        {
+            Assert.Contains(section, html, StringComparison.OrdinalIgnoreCase);
+        }
+        Assert.Contains("Poland", html, StringComparison.Ordinal);
+        Assert.Contains("Timeout", html, StringComparison.Ordinal);    }
 }

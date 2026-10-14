@@ -5,7 +5,7 @@ using DomainDetective.Reports;
 namespace DomainDetective.Reports.Html;
 
 /// <summary>
-/// IReportGenerator adapter for HTML output using DomainSecurityReport.
+/// IReportGenerator adapter for HTML output: the assessment report for the checks the health check ran.
 /// </summary>
 public sealed class HtmlReportGenerator : IReportGenerator
 {
@@ -31,9 +31,18 @@ public sealed class HtmlReportGenerator : IReportGenerator
             bool.TryParse(openObj?.ToString(), out open);
         }
 
-        var report = new DomainSecurityReport(healthCheck, subject);
-        report.GenerateReport(path, open);
-        return Task.FromResult(new ReportResult { Success = true, FilePath = path, Format = ReportFormat.Html });
+        var errors = new System.Collections.Generic.List<string>();
+        bool verified = healthCheck.LastVerifiedChecks.Count > 0;
+        // After individual Verify* calls there is no run record: convert every check and keep those that name a domain.
+        var checks = verified ? healthCheck.LastVerifiedChecks : (System.Collections.Generic.IEnumerable<HealthCheckType>)System.Enum.GetValues(typeof(HealthCheckType));
+        var items = DomainDetective.Views.Converters.ConvertChecks(healthCheck, checks, verified ? errors : null);
+        AssessmentHtmlReport.Generate(path, items, new DomainAssessmentOptions { Title = $"Security Report — {subject}", IgnoreInputsWithoutDomain = !verified }, null, open);
+        return Task.FromResult(new ReportResult {
+            Success = true,
+            FilePath = path,
+            Format = ReportFormat.Html,
+            ErrorMessage = errors.Count == 0 ? null : "Some checks could not be converted: " + string.Join("; ", errors)
+        });
     }
 }
 

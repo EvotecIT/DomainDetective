@@ -126,36 +126,25 @@ Describe 'Report ordering and composition (Pester)' {
         ([regex]::Matches($xmlText, 'b.example').Count) | Should -BeGreaterThan 1
     }
 
-    It 'respects domain and section order in HTML composition' {
+    It 'respects domain order in HTML composition' {
         $reportPath = Join-Path $TestDrive 'ordering-html.html'
         $items = @()
         $items += New-TestViews -Domain 'b.example'
         $items += New-TestViews -Domain 'a.example'
 
-        $items | Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -DomainOrder Input -SectionOrderMode Custom -SectionOrder DMARC,SPF -OpenReport:$false | Out-Null
+        # The assessment report keeps the input order of domains; sections follow the area and chapter order.
+        $items | Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -DomainOrder Input -OpenReport:$false | Out-Null
 
         Test-Path -Path $reportPath | Should -BeTrue
 
         $html = Get-Content -Path $reportPath -Raw -Encoding UTF8
-        # In HTML output, '&' is encoded as '&amp;'
-        $idxDomainB = $html.IndexOf('Mail &amp; DNS - b.example')
-        $idxDomainA = $html.IndexOf('Mail &amp; DNS - a.example')
+        $idxDomainB = $html.IndexOf('b.example')
+        $idxDomainA = $html.IndexOf('a.example')
         $idxDomainB | Should -BeGreaterThan -1
         $idxDomainA | Should -BeGreaterThan -1
         $idxDomainB | Should -BeLessThan $idxDomainA
-
-        $idxDmarcB = $html.IndexOf('DMARC (Domain-based Message Authentication', $idxDomainB)
-        $idxSpfB = $html.IndexOf('SPF (Sender Policy Framework', $idxDomainB)
-        $idxDmarcB | Should -BeGreaterThan $idxDomainB
-        $idxSpfB | Should -BeGreaterThan $idxDomainB
-        $idxDmarcB | Should -BeLessThan $idxSpfB
-        $idxDmarcB | Should -BeLessThan $idxDomainA
-
-        $idxSummary = $html.IndexOf('Overall Grade')
-        $idxSummary | Should -BeGreaterThan -1
-        $idxSummary | Should -BeLessThan $idxDomainB
+        $html | Should -Match 'Do these first'
     }
-
     It 'flattens piped arrays for HTML composition' {
         $reportPath = Join-Path $TestDrive 'flattening.html'
         $domain = 'example.com'
@@ -181,9 +170,25 @@ Describe 'Report ordering and composition (Pester)' {
 
         Test-Path -Path $reportPath | Should -BeTrue
         $html = Get-Content -Path $reportPath -Raw -Encoding UTF8
-        # In HTML output, '&' is encoded as '&amp;'
-        $html | Should -Match 'Mail &amp; DNS - example.com'
-        $html | Should -Match 'MX \(Mail Exchanger\)'
-        $html | Should -Match 'SPF \(Sender Policy Framework\)'
+        # The default assessment layout gives every check of every domain a stable id.
+        $html | Should -Match 'data-dd-domain="example.com"'
+        $html | Should -Match 'id="domain-example-com-mx"'
+        $html | Should -Match 'id="domain-example-com-spf"'
+        $html | Should -Match 'id="domain-example-com-dmarc"'
+    }
+
+    It 'keeps input domain order in the assessment layout' {
+        $reportPath = Join-Path $TestDrive 'ordering-assessment.html'
+        $items = @()
+        $items += New-TestViews -Domain 'b.example'
+        $items += New-TestViews -Domain 'a.example'
+
+        $items | Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -DomainOrder Input -OpenReport:$false | Out-Null
+
+        $html = Get-Content -Path $reportPath -Raw -Encoding UTF8
+        $idxDomainB = $html.IndexOf('id="hfx-asr-panel-domain-b-example"')
+        $idxDomainA = $html.IndexOf('id="hfx-asr-panel-domain-a-example"')
+        $idxDomainB | Should -BeGreaterThan -1
+        $idxDomainA | Should -BeGreaterThan $idxDomainB
     }
 }
