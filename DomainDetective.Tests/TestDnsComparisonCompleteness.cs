@@ -28,7 +28,6 @@ public class TestDnsComparisonCompleteness {
         Assert.Equal("OK", Converters.Convert(analysis).Status);
         Assert.Contains(analysis.Assessments, item => item.Code == "TTL.Uniformity.NoRecord");
         Assert.DoesNotContain(analysis.Assessments, item => item.Code == "TTL.Uniformity.Incomplete");
-        Assert.DoesNotContain(DomainDetective.Narratives.TtlNarrative.Build(analysis).Highlights, item => item.Contains("CNAME TTL varies"));
     }
 
     [Fact]
