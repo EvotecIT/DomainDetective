@@ -11,7 +11,9 @@ public class TestMailTlsBudgets {
     [InlineData(true)]
     public void LegacyTlsPolicyRequiresCompletedSupportProbes(bool completed) {
         using var health = new DomainHealthCheck();
-        health.IMAPTLSAnalysis.ServerResults["mail.example.test:143"] = new MailTlsAnalysis.TlsResult { ProtocolSupportComplete = completed };
+        health.IMAPTLSAnalysis.ServerResults["mail.example.test:143"] = new MailTlsAnalysis.TlsResult {
+            ProtocolSupportComplete = completed, CertificateValid = true, HostnameMatch = true, GradeLevel = GradeLevel.B
+        };
         var result = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health,
             new DomainDetective.DesiredState.DesiredStateProfile {
                 ImapTls = new DomainDetective.DesiredState.DesiredStateMailTlsPolicy { DisallowLegacyProtocols = true }
