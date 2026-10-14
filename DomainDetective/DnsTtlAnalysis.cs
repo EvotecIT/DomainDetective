@@ -153,6 +153,7 @@ namespace DomainDetective {
         public async Task Analyze(string domainName, InternalLogger logger) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNS", target: domainName);
             Subject = domainName;
+            UniformityIncomplete = false;
             _warnings.Clear();
             ATtls = Array.Empty<int>();
             AaaaTtls = Array.Empty<int>();

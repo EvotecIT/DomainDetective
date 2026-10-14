@@ -84,13 +84,15 @@ public static class TtlNarrative
         hi.Add($"MX TTL (min/max): {MinMax(analysis.MxTtls)}.");
         hi.Add($"NS TTL (min/max): {MinMax(analysis.NsTtls)}.");
 
-        hi.Add(analysis.AUniformAcrossServers ? "A TTL uniform across name servers." : "A TTL varies across name servers.");
-        hi.Add(analysis.AaaaUniformAcrossServers ? "AAAA TTL uniform across name servers." : "AAAA TTL varies across name servers.");
-        hi.Add(analysis.NsUniformAcrossServers ? "NS TTL uniform across name servers." : "NS TTL varies across name servers.");
-
-        if (!analysis.CnameUniformAcrossServers)
-        {
-            hi.Add("CNAME TTL varies across name servers.");
+        if (analysis.UniformityIncomplete) {
+            hi.Add("Authoritative TTL uniformity could not be fully verified; some TTL evidence is missing.");
+        } else {
+            hi.Add(analysis.AUniformAcrossServers ? "A TTL uniform across name servers." : "A TTL varies across name servers.");
+            hi.Add(analysis.AaaaUniformAcrossServers ? "AAAA TTL uniform across name servers." : "AAAA TTL varies across name servers.");
+            hi.Add(analysis.NsUniformAcrossServers ? "NS TTL uniform across name servers." : "NS TTL varies across name servers.");
+            if (!analysis.CnameUniformAcrossServers) {
+                hi.Add("CNAME TTL varies across name servers.");
+            }
         }
 
         try
