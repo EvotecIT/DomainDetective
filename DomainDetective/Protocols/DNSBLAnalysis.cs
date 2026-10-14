@@ -269,7 +269,7 @@ namespace DomainDetective {
             // Add a summary info assessment for visibility
             using (var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL", target: domainName) : null)
             {
-                var providers = GetDNSBL()?.Count ?? 0;
+                var providers = AllResults.Where(record => record.QuerySucceeded).Select(record => record.BlackList).Distinct(StringComparer.OrdinalIgnoreCase).Count();
                 _collector?.AddInfo($"Checked {providers} providers across {RecordChecked} hosts; listed {Blacklisted}/{RecordChecked}.", DnsblCodes.Summary);
             }
         }
@@ -340,7 +340,7 @@ namespace DomainDetective {
             // Add a summary info assessment for visibility
             using (var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL") : null)
             {
-                var providers = GetDNSBL()?.Count ?? 0;
+                var providers = AllResults.Where(record => record.QuerySucceeded).Select(record => record.BlackList).Distinct(StringComparer.OrdinalIgnoreCase).Count();
                 _collector?.AddInfo($"Checked {providers} providers across {RecordChecked} hosts; listed {Blacklisted}/{RecordChecked}.", DnsblCodes.Summary);
             }
         }
@@ -370,7 +370,8 @@ namespace DomainDetective {
                 }
             }
 
-            if (!queryResult.IsBlacklisted && queryResult.NotChecked == 0 && queryResult.Total > 0) {
+            if (!queryResult.IsBlacklisted && queryResult.NotChecked == 0 && queryResult.Total > 0 &&
+                DiscoverySucceeded && !AllResults.Any(record => !record.QuerySucceeded)) {
                 using var _collector = Logger != null ? AssessmentCollector.ForAnalysis(Logger, this, category: "DNSBL", target: ipAddressOrHostname) : null;
                 _collector?.AddInfo("Not listed on any DNSBL", DnsblCodes.NotListed);
             }

@@ -80,9 +80,7 @@ public static partial class Converters
             .Select(group =>
             {
                 var first = group.First();
-                var providersChecked = results != null && results.TryGetValue(group.Key, out var summary)
-                    ? summary.Total - summary.NotChecked
-                    : group.Where(static item => item.QuerySucceeded).Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count();
+                var providersChecked = group.Where(static item => item.QuerySucceeded).Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count();
                 var listedProviders = group
                     .Where(static item => item.IsBlackListed)
                     .Select(static item => item.BlackList)
