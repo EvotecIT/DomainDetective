@@ -18,7 +18,7 @@ namespace DomainDetective;
 /// Provides TLS analysis for various mail protocols.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class MailTlsAnalysis : IHasAssessments {
+public partial class MailTlsAnalysis : IHasAssessments {
     /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
     /// <summary>Supported mail protocols.</summary>
@@ -235,7 +235,7 @@ public class MailTlsAnalysis : IHasAssessments {
             timeoutCts.CancelAfter(Timeout);
             result.Connection.Capture(client);
             using NetworkStream network = client.GetStream();
-            bool directTls = (protocol == MailProtocol.Imap && port == 993) || (protocol == MailProtocol.Pop3 && port == 995);
+            bool directTls = UsesDirectTls(protocol, port);
             if (directTls) {
                 using var ssl = new SslStream(network, false, (sender, certificate, chain, errors) => {
                     result.CertificateValid = errors == SslPolicyErrors.None;
@@ -335,7 +335,7 @@ public class MailTlsAnalysis : IHasAssessments {
                     logger.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
                 } finally {
                     // Probe protocol support (best-effort)
-                    await ProbeProtocolSupport(endpoint, result, timeoutCts.Token).ConfigureAwait(false);
+                    await ProbeProtocolSupport(protocol, endpoint, result, timeoutCts.Token).ConfigureAwait(false);
                     if (result.SupportsTls10 || result.SupportsTls11) {   
                         logger.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                             result.SupportsTls10 ? "1.0" : string.Empty,
@@ -356,104 +356,9 @@ public class MailTlsAnalysis : IHasAssessments {
                 return result;
             }
 
-            using var reader = new StreamReader(network);
-            using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
-            await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-            timeoutCts.Token.ThrowIfCancellationRequested();
-            var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            switch (protocol) {
-                case MailProtocol.Smtp:
-                    await writer.WriteLineAsync("EHLO example.com");
-                    string? line;
-                    while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
-                        timeoutCts.Token.ThrowIfCancellationRequested();
-                        logger.WriteVerbose($"EHLO response: {line}");
-                        if (line.StartsWith("250")) {
-                            string capLine = line.Substring(4).Trim();
-                            foreach (var part in capLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) {
-                                capabilities.Add(part);
-                            }
-                            if (!line.StartsWith("250-")) {
-                                break;
-                            }
-                        } else if (line.StartsWith("4") || line.StartsWith("5")) {
-                            break;
-                        }
-                    }
-                    result.StartTlsAdvertised = capabilities.Contains("STARTTLS");
-                    break;
-                case MailProtocol.Imap:
-                    await writer.WriteLineAsync("A1 CAPABILITY");
-                    while (true) {
-                        var resp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                        timeoutCts.Token.ThrowIfCancellationRequested();
-                    if (resp == null) {
-                        break;
-                    }
-                    logger.WriteVerbose($"CAPABILITY response: {resp}");
-                    if (resp.StartsWith("*")) {
-                        var capLine = resp.Substring(1).Trim();
-                        if (capLine.StartsWith("CAPABILITY", StringComparison.OrdinalIgnoreCase)) {
-                            var caps = capLine.Substring(10).Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                            foreach (var cap in caps) {
-                                    capabilities.Add(cap);
-                                }
-                            }
-                        } else if (resp.StartsWith("A1", StringComparison.OrdinalIgnoreCase)) {
-                            break;
-                        }
-                    }
-                    result.StartTlsAdvertised = capabilities.Contains("STARTTLS");
-                    break;
-                case MailProtocol.Pop3:
-                    await writer.WriteLineAsync("CAPA");
-                    string? popLine;
-                    while ((popLine = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
-                        timeoutCts.Token.ThrowIfCancellationRequested();
-                        logger.WriteVerbose($"CAPA response: {popLine}");
-                        if (popLine == ".") {
-                            break;
-                        }
-                        capabilities.Add(popLine.Trim());
-                    }
-                    result.StartTlsAdvertised = capabilities.Contains("STLS");
-                    if (!result.StartTlsAdvertised) {
-                        await writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
-                        await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
-                        await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                        return result;
-                    }
-                    break;
-            }
-
-            if (!result.StartTlsAdvertised) {
-                await writer.WriteLineAsync(GetQuitCommand(protocol)).WaitWithCancellation(timeoutCts.Token);
-                await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
-                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                return result;
-            }
-
-            var startTlsCommand = protocol switch {
-                MailProtocol.Smtp => "STARTTLS",
-                MailProtocol.Imap => "A2 STARTTLS",
-                MailProtocol.Pop3 => "STLS",
-                _ => "STARTTLS"
-            };
-            await writer.WriteLineAsync(startTlsCommand).WaitWithCancellation(timeoutCts.Token);
-            var startTlsResp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-            bool proceed = protocol switch {
-                MailProtocol.Smtp => startTlsResp != null && startTlsResp.StartsWith("220"),
-                MailProtocol.Imap => startTlsResp != null &&
-                    startTlsResp.StartsWith("A2", StringComparison.OrdinalIgnoreCase) &&
-                    startTlsResp.IndexOf("OK", StringComparison.OrdinalIgnoreCase) >= 0,
-                MailProtocol.Pop3 => startTlsResp != null && startTlsResp.StartsWith("+OK"),
-                _ => false
-            };
-            if (!proceed) {
-                logger?.WriteVerbose($"{host}:{port} STARTTLS rejected: {startTlsResp}");
-                return result;
-            }
-
+            var preparation = await NegotiateStartTlsAsync(protocol, network, logger, timeoutCts.Token).ConfigureAwait(false);
+            result.StartTlsAdvertised = preparation.Advertised;
+            if (!preparation.Ready) { return result; }
             using var sslStream = new SslStream(network, false, (sender, certificate, chain, errors) => {
                 result.CertificateValid = errors == SslPolicyErrors.None;
                 result.HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
@@ -548,7 +453,7 @@ public class MailTlsAnalysis : IHasAssessments {
                 logger?.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
             } finally {
                 // Probe protocol support (best-effort)
-                await ProbeProtocolSupport(endpoint, result, timeoutCts.Token).ConfigureAwait(false);
+                await ProbeProtocolSupport(protocol, endpoint, result, timeoutCts.Token).ConfigureAwait(false);
                 if (result.SupportsTls10 || result.SupportsTls11) {       
                     logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                         result.SupportsTls10 ? "1.0" : string.Empty,
@@ -589,7 +494,7 @@ public class MailTlsAnalysis : IHasAssessments {
         result.FailureKind = CertificateFailureClassifier.Classify(exception);
     }
 
-    private async Task ProbeProtocolSupport(MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
+    private async Task ProbeProtocolSupport(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
         result.SupportsTls12 |= result.Protocol == SslProtocols.Tls12;
 #pragma warning disable SYSLIB0039
         result.SupportsTls11 |= result.Protocol == SslProtocols.Tls11;
@@ -599,7 +504,12 @@ public class MailTlsAnalysis : IHasAssessments {
             token.ThrowIfCancellationRequested();
             try {
                 using var client = await ConnectAsync(endpoint, token).ConfigureAwait(false);
-                using var ssl = new SslStream(client.GetStream(), false, static (_, _, _, _) => true);
+                using var transport = client.GetStream();
+                if (!UsesDirectTls(protocol, endpoint.Port)) {
+                    var preparation = await NegotiateStartTlsAsync(protocol, transport, null, token).ConfigureAwait(false);
+                    if (!preparation.Ready) { return false; }
+                }
+                using var ssl = new SslStream(transport, false, static (_, _, _, _) => true);
                 await ssl.AuthenticateAsClientAsync(endpoint.HostName, null, proto, false).WaitWithCancellation(token);
                 return ssl.SslProtocol == proto;
             } catch (Exception) when (!token.IsCancellationRequested) { return false; }

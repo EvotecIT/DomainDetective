@@ -7,6 +7,60 @@ namespace DomainDetective.Tests;
 
 public class TestMailTlsBudgets {
     [Theory]
+    [InlineData(MailProtocol.Smtp)]
+    [InlineData(MailProtocol.Imap)]
+    [InlineData(MailProtocol.Pop3)]
+    public async Task AuxiliaryVersionProbesPerformTheMailStartTlsExchange(MailProtocol protocol) {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        int prepared = 0;
+        var server = Task.Run(async () => {
+            for (int i = 0; i < 3; i++) {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new StreamReader(stream);
+                using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                await writer.WriteLineAsync(protocol == MailProtocol.Smtp ? "220 mail.example.test" : protocol == MailProtocol.Imap ? "* OK ready" : "+OK ready");
+                string? command = await reader.ReadLineAsync().WaitWithCancellation(guard.Token);
+                if (protocol == MailProtocol.Smtp) {
+                    Assert.StartsWith("EHLO ", command);
+                    await writer.WriteLineAsync("250 STARTTLS");
+                } else if (protocol == MailProtocol.Imap) {
+                    Assert.Equal("A1 CAPABILITY", command);
+                    await writer.WriteLineAsync("* CAPABILITY STARTTLS\r\nA1 OK");
+                } else {
+                    Assert.Equal("CAPA", command);
+                    await writer.WriteLineAsync("+OK\r\nSTLS\r\n.");
+                }
+                Assert.Equal(protocol == MailProtocol.Imap ? "A2 STARTTLS" : protocol == MailProtocol.Pop3 ? "STLS" : "STARTTLS",
+                    await reader.ReadLineAsync().WaitWithCancellation(guard.Token));
+                await writer.WriteLineAsync(protocol == MailProtocol.Smtp ? "220 Begin TLS" : protocol == MailProtocol.Imap ? "A2 OK" : "+OK");
+                Interlocked.Increment(ref prepared);
+                // A local runtime may reject a disabled TLS version before sending ClientHello.
+                // Either outcome is after the required mail exchange; no certificate/key is needed here.
+                await stream.ReadAsync(new byte[1], 0, 1, guard.Token);
+            }
+        });
+        try {
+            var analysis = new MailTlsAnalysis();
+            var result = new MailTlsAnalysis.TlsResult { Protocol = System.Security.Authentication.SslProtocols.Tls12 };
+            var probe = typeof(MailTlsAnalysis).GetMethod("ProbeProtocolSupport", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            await (Task)probe.Invoke(analysis, new object[] { protocol,
+                new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, result, guard.Token })!;
+            Assert.Equal(3, Volatile.Read(ref prepared));
+            Assert.True(result.ProtocolSupportComplete);
+            Assert.True(result.SupportsTls12);
+        } finally {
+            guard.Cancel();
+            listener.Stop();
+            try { await server; } catch (OperationCanceledException) when (guard.IsCancellationRequested) { }
+            catch (SocketException) when (guard.IsCancellationRequested) { }
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void LegacyTlsPolicyRequiresCompletedSupportProbes(bool completed) {
@@ -31,7 +85,7 @@ public class TestMailTlsBudgets {
         using var deadline = new CancellationTokenSource();
         using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var probe = typeof(MailTlsAnalysis).GetMethod("ProbeProtocolSupport", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-        var run = (Task)probe.Invoke(analysis, new object[] { new MailTransportEndpoint("mail.example.test", 25), result, deadline.Token })!;
+        var run = (Task)probe.Invoke(analysis, new object[] { MailProtocol.Smtp, new MailTransportEndpoint("mail.example.test", 25), result, deadline.Token })!;
         try {
             await started.Task.WaitWithCancellation(guard.Token);
             deadline.Cancel();
