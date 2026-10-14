@@ -19,7 +19,7 @@ public partial class DnsSecAnalysis {
         deadline.CancelAfter(configuration.DnsSecQueryTimeout);
         try {
             if (configuration.QueryDnsResponseOverride != null) {
-                return await configuration.QueryDnsResponseOverride(name, type, deadline.Token).WaitWithCancellation(deadline.Token).ConfigureAwait(false);
+                return await configuration.QueryDnsResponseOverride(name, type, deadline.Token).ConfigureAwait(false);
             }
 
             if (configuration.QueryDnsOverride != null) {
@@ -30,7 +30,7 @@ public partial class DnsSecAnalysis {
                 ? configuration.DnsEndpoints.Distinct().ToArray()
                 : new[] { configuration.DnsEndpoint };
             using DnsMultiResolver resolver = CreateResolver(endpoints, configuration, validateDnsSec: true);
-            return await resolver.QueryAsync(name, type, deadline.Token).WaitWithCancellation(deadline.Token).ConfigureAwait(false);
+            return await resolver.QueryAsync(name, type, deadline.Token).ConfigureAwait(false);
         } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
             return new DnsResponse {
                 Status = DnsResponseCode.ServerFailure,
