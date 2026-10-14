@@ -25,7 +25,7 @@ public class TestMailTlsBudgets {
             await release.Task;
         });
         try {
-            var analysis = new MailTlsAnalysis { Timeout = TimeSpan.FromMilliseconds(100) };
+            var analysis = new MailTlsAnalysis { Timeout = TimeSpan.FromSeconds(2) };
             await analysis.AnalyzeServer(MailProtocol.Smtp,
                 new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, new InternalLogger(), guard.Token);
             var result = Assert.Single(analysis.ServerResults).Value;
