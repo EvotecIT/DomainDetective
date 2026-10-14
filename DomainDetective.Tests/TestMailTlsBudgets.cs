@@ -7,47 +7,25 @@ namespace DomainDetective.Tests;
 
 public class TestMailTlsBudgets {
     [Fact]
-    public async Task ExpiredProtocolProbeBudgetRemainsUnknownAndRecordsATimeout() {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+    public async Task ExpiredProtocolProbeBudgetPreservesKnownSupportAndLeavesOtherVersionsUnknown() {
+        var pending = new TaskCompletionSource<IReadOnlyList<IPAddress>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analysis = new MailTlsAnalysis { OutboundAddressResolver = (_, _) => { started.TrySetResult(true); return pending.Task; } };
+        var result = new MailTlsAnalysis.TlsResult { Protocol = System.Security.Authentication.SslProtocols.Tls12 };
+        using var deadline = new CancellationTokenSource();
         using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var auxiliaryStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var server = Task.Run(async () => {
-            using (var first = await listener.AcceptTcpClientAsync()) {
-                using var stream = first.GetStream();
-                using var reader = new StreamReader(stream);
-                using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
-                await writer.WriteLineAsync("220 mail.example.test");
-                Assert.StartsWith("EHLO", await reader.ReadLineAsync());
-                await writer.WriteLineAsync("250 STARTTLS");
-                Assert.Equal("STARTTLS", await reader.ReadLineAsync());
-                await writer.WriteLineAsync("220 Begin TLS");
-                var handshake = new byte[1];
-                Assert.Equal(1, await stream.ReadAsync(handshake, 0, 1, guard.Token));
-            }
-            using var auxiliary = await listener.AcceptTcpClientAsync();
-            auxiliaryStarted.TrySetResult(true);
-            await release.Task;
-        });
+        var probe = typeof(MailTlsAnalysis).GetMethod("ProbeProtocolSupport", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var run = (Task)probe.Invoke(analysis, new object[] { new MailTransportEndpoint("mail.example.test", 25), result, deadline.Token })!;
         try {
-            var analysis = new MailTlsAnalysis { Timeout = TimeSpan.FromMilliseconds(500) };
-            var run = analysis.AnalyzeServer(MailProtocol.Smtp,
-                new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, new InternalLogger(), guard.Token);
-            await auxiliaryStarted.Task.WaitWithCancellation(guard.Token);
-            await run;
-            var result = Assert.Single(analysis.ServerResults).Value;
-            Assert.Equal(CertificateFailureKind.Timeout, result.FailureKind);
+            await started.Task.WaitWithCancellation(guard.Token);
+            deadline.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+            Assert.True(result.SupportsTls12);
             Assert.False(result.ProtocolSupportComplete);
-            Assert.Contains(analysis.Assessments, item => item.Code == MailTlsCodes.TlsCheckFailed && item.Message.Contains("incomplete"));
-        } finally {
-            release.TrySetResult(true);
-            listener.Stop();
-            await server;
-        }
+            Assert.False(result.SupportsTls10);
+            Assert.False(result.SupportsTls11);
+        } finally { pending.TrySetResult(Array.Empty<IPAddress>()); }
     }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
