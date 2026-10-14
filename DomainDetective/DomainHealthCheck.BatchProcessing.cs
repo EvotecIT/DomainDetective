@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -67,7 +68,14 @@ public partial class DomainHealthCheck {
                 if (health == null) { throw new InvalidOperationException("Health check factory returned null."); }
                 await health.Verify(domain, healthCheckTypes, dkimSelectors, daneServiceType,
                     danePorts, portScanProfiles, stop.Token, options).ConfigureAwait(false);
-                return new DomainHealthCheckRun(domain, health, null, ownsHealthChecks);
+                Exception? checkError = null;
+                lock (health._executionLock) {
+                    if (health._checkFailures.Count > 0) {
+                        checkError = new AggregateException("One or more domain checks failed.",
+                            health._checkFailures.Values.Select(failure => new InvalidOperationException(failure.Message)));
+                    }
+                }
+                return new DomainHealthCheckRun(domain, health, checkError, ownsHealthChecks);
             } catch (OperationCanceledException) when (stop.IsCancellationRequested) {
                 if (ownsHealthChecks) { health?.Dispose(); }
                 throw;

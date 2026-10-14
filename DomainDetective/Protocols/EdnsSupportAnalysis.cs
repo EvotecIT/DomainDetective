@@ -163,7 +163,8 @@ public class EdnsSupportAnalysis : IHasAssessments
         cancellationToken.ThrowIfCancellationRequested();
         Subject = domainName;
         Assessments.Clear();
-        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "EDNS", target: domainName) : null;
+        logger ??= new InternalLogger();
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "EDNS", target: domainName);
         ServerSupport.Clear();
         var ns = await QueryDns(domainName, DnsRecordType.NS, cancellationToken);
         using var discoveryGate = new SemaphoreSlim(4);
@@ -178,7 +179,7 @@ public class EdnsSupportAnalysis : IHasAssessments
                 var aaaa = aaaaTask.Status == TaskStatus.RanToCompletion ? aaaaTask.Result : Array.Empty<DnsAnswer>();
                 return (Host: host, Addresses: a.Concat(aaaa).Select(answer => answer.Data ?? answer.DataRaw)
                     .Where(address => !string.IsNullOrWhiteSpace(address)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                    Failed: aTask.Status != TaskStatus.RanToCompletion || aaaaTask.Status != TaskStatus.RanToCompletion);
+                    Error: string.Join("; ", new[] { DiscoveryError("A", aTask), DiscoveryError("AAAA", aaaaTask) }.Where(error => error != null)));
             } finally { discoveryGate.Release(); }
         })).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
@@ -199,11 +200,11 @@ public class EdnsSupportAnalysis : IHasAssessments
             } finally { gate.Release(); }
         })).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        foreach (var discovery in discoveries.Where(item => item.Failed)) {
+        foreach (var discovery in discoveries.Where(item => !string.IsNullOrEmpty(item.Error))) {
             ServerSupport[$"{discovery.Host} (address discovery)"] = new EdnsSupportInfo {
-                QuerySucceeded = false, Error = "Name-server address discovery was incomplete."
+                QuerySucceeded = false, Error = discovery.Error
             };
-            logger?.WriteErrorCode(EdnsCodes.QueryFailed, "EDNS address discovery was incomplete for {0}.", discovery.Host);
+            logger.WriteErrorCode(EdnsCodes.QueryFailed, "EDNS address discovery was incomplete for {0}: {1}", discovery.Host, discovery.Error);
         }
         foreach (var result in results) {
             var host = result.Host;
@@ -249,6 +250,12 @@ public class EdnsSupportAnalysis : IHasAssessments
                 }
             }
         }
+    }
+
+    private static string? DiscoveryError(string type, Task<DnsAnswer[]> query) {
+        if (query.Status == TaskStatus.RanToCompletion) { return null; }
+        var error = query.Exception?.GetBaseException();
+        return error != null ? $"{type}: {error.GetType().Name}: {error.Message}" : $"{type}: OperationCanceledException: Address discovery timed out.";
     }
 
     /// <summary>Gets the assessments value.</summary>

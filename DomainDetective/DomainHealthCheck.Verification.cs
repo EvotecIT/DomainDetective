@@ -132,19 +132,8 @@ public partial class DomainHealthCheck {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
-            ResetExecutionState();
-            LastVerifiedChecks = Array.Empty<HealthCheckType>();
-            VerificationDomain = null;
-            IsPublicSuffix = false;
             domainName = ValidateHostName(domainName);
-            VerificationDomain = domainName;
-            UpdateIsPublicSuffix(domainName);
             var exec = executionOptions ?? ExecutionOptions;
-            if (exec.ResetLogDedupOnRun) {
-                _logger.ClearLoggedMessages();
-            }
-            ApplyExecutionOptions(exec);
-            _logger.WriteVerbose("Running health checks for {0}", domainName);
             if (healthCheckTypes == null) {
                 healthCheckTypes = DefaultChecks.ToArray();
             } else if (healthCheckTypes.Length == 0 && useDefaultChecksWhenEmpty) {
@@ -153,7 +142,6 @@ public partial class DomainHealthCheck {
 
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();
             ValidateDomainVerificationTypes(healthCheckTypes);
-            LastVerifiedChecks = healthCheckTypes;
 
             var totalChecks = healthCheckTypes.Length;
             var processedChecks = 0;
@@ -237,9 +225,28 @@ public partial class DomainHealthCheck {
                 }
             }
 
+            ResetExecutionState();
+            LastVerifiedChecks = Array.Empty<HealthCheckType>();
+            VerificationDomain = domainName;
+            UpdateIsPublicSuffix(domainName);
+            if (exec.ResetLogDedupOnRun) { _logger.ClearLoggedMessages(); }
+            ApplyExecutionOptions(exec);
+            _logger.WriteVerbose("Running health checks for {0}", domainName);
+            var admitted = new HashSet<HealthCheckType>();
+            void MarkAdmitted(HealthCheckType check) {
+                lock (_executionLock) {
+                    admitted.Add(check);
+                    LastVerifiedChecks = healthCheckTypes.Where(admitted.Contains).ToArray();
+                }
+            }
+
             Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
-                var daneTask = new Lazy<Task>(() => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken));
+                var daneTask = new Lazy<Task>(() => {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    MarkAdmitted(HealthCheckType.DANE);
+                    return EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken);
+                });
                 actions[HealthCheckType.DANE] = () => daneTask.Value;
                 if (!exec.EnableParallelism && actions.TryGetValue(HealthCheckType.SMTPTLS, out var smtpAction)) {
                     actions[HealthCheckType.SMTPTLS] = async () => {
@@ -268,6 +275,7 @@ public partial class DomainHealthCheck {
 
             async Task RunCheckAsync(HealthCheckType healthCheckType) {
                 cancellationToken.ThrowIfCancellationRequested();
+                MarkAdmitted(healthCheckType);
                 var sw = Stopwatch.StartNew();
                 _logger.WriteVerbose("Starting {0} check.", healthCheckType);
                 try {
