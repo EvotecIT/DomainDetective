@@ -148,14 +148,6 @@ namespace DomainDetective {
             BeginQueryRun(default, clearCoverage: true);
         }
 
-        private async Task<IEnumerable<DnsResponse>> QueryFullDns(string[] names, DnsRecordType type) {
-            if (QueryDnsFullOverride != null) {
-                return await QueryDnsFullOverride(names, type);
-            }
-
-            return await DnsConfiguration.QueryFullDNS(names, type);
-        }
-
         internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger, bool clearExisting = true, DomainIpScanMode scanMode = DomainIpScanMode.MxThenApexFallback, System.Threading.CancellationToken cancellationToken = default, bool continueRun = false) {
             if (clearExisting) {
                 Reset();
