@@ -134,8 +134,10 @@ public partial class DomainHealthCheck {
             }
             ResetExecutionState();
             LastVerifiedChecks = Array.Empty<HealthCheckType>();
+            VerificationDomain = null;
             IsPublicSuffix = false;
             domainName = ValidateHostName(domainName);
+            VerificationDomain = domainName;
             UpdateIsPublicSuffix(domainName);
             var exec = executionOptions ?? ExecutionOptions;
             if (exec.ResetLogDedupOnRun) {
@@ -686,6 +688,7 @@ public partial class DomainHealthCheck {
             filtered.DnsPropagationSet = active.Contains(HealthCheckType.DNSPROPAGATION) ? CloneAnalysis(DnsPropagationSet) : null!;
 
             filtered.LastVerifiedChecks = LastVerifiedChecks.Where(active.Contains).ToArray();
+            filtered.VerificationDomain = VerificationDomain;
             lock (_executionLock) {
                 foreach (var failure in _checkFailures) {
                     if (active.Contains(failure.Key)) {

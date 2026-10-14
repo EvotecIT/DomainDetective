@@ -4,6 +4,7 @@ using System.Collections.Generic;
 namespace DomainDetective;
 
 public partial class DomainHealthCheck : IHasAssessments {
+    internal string? VerificationDomain { get; private set; }
     private readonly Dictionary<HealthCheckType, Assessment> _checkFailures = new();
 
     /// <summary>Execution failures from the last verification run. Analysis findings are available through <see cref="GetAllAssessments"/>.</summary>

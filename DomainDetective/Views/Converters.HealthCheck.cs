@@ -35,7 +35,7 @@ public static partial class Converters {
                 Exception cause = ex is TargetInvocationException { InnerException: { } inner } ? inner : ex;
                 var conversionFailure = new Assessment {
                     Severity = AssessmentSeverity.Error, Category = check.ToString(), Code = "Verification.Conversion.Failed",
-                    Source = nameof(ConvertChecks),
+                    Source = nameof(ConvertChecks), Target = health.VerificationDomain,
                     Message = $"{check}: {cause.GetType().Name}: {cause.Message}"
                 };
                 errors?.Add(conversionFailure.Message);
