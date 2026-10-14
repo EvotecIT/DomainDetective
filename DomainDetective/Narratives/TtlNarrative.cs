@@ -87,12 +87,15 @@ public static class TtlNarrative
         if (analysis.UniformityIncomplete) {
             hi.Add("Authoritative TTL uniformity could not be fully verified; some TTL evidence is missing.");
         } else {
-            hi.Add(analysis.AUniformAcrossServers ? "A TTL uniform across name servers." : "A TTL varies across name servers.");
-            hi.Add(analysis.AaaaUniformAcrossServers ? "AAAA TTL uniform across name servers." : "AAAA TTL varies across name servers.");
-            hi.Add(analysis.NsUniformAcrossServers ? "NS TTL uniform across name servers." : "NS TTL varies across name servers.");
-            if (!analysis.CnameUniformAcrossServers) {
-                hi.Add("CNAME TTL varies across name servers.");
+            void AddUniformity(string label, Dictionary<string, int?> values, bool uniform) {
+                if (values.Count == 0) { hi.Add($"{label} TTL uniformity was not evaluated."); }
+                else if (values.Values.Any(value => !value.HasValue)) { hi.Add($"Some authoritative replies contain no {label} TTL to compare."); }
+                else { hi.Add(uniform ? $"{label} TTL uniform across name servers." : $"{label} TTL varies across name servers."); }
             }
+            AddUniformity("A", analysis.ServerTtlA, analysis.AUniformAcrossServers);
+            AddUniformity("AAAA", analysis.ServerTtlAaaa, analysis.AaaaUniformAcrossServers);
+            AddUniformity("NS", analysis.ServerTtlNs, analysis.NsUniformAcrossServers);
+            AddUniformity("CNAME", analysis.ServerTtlCname, analysis.CnameUniformAcrossServers);
         }
 
         try

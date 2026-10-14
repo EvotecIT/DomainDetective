@@ -132,7 +132,7 @@ namespace DomainDetective {
             MxRrsetConsistentAcrossNs = true;
             MxRrsetComparisonIncomplete = true;
             TargetAddressConsistentAcrossNs = true;
-            TargetAddressComparisonIncomplete = false;
+            TargetAddressComparisonIncomplete = true;
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");

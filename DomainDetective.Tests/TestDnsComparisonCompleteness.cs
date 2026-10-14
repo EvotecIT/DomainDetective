@@ -11,6 +11,43 @@ namespace DomainDetective.Tests;
 
 public class TestDnsComparisonCompleteness {
     [Fact]
+    public void SuccessfulAbsenceOfOptionalTtlRecordsIsNotIncompleteCoverage() {
+        var analysis = new DnsTtlAnalysis();
+        foreach (string server in new[] { "192.0.2.1", "192.0.2.2" }) {
+            analysis.ServerTtlA[server] = 300;
+            analysis.ServerTtlNs[server] = 300;
+            analysis.ServerTtlAaaa[server] = null;
+            analysis.ServerTtlCname[server] = null;
+            analysis.ServerTtlTxtMtasts[server] = null;
+            analysis.ServerTtlTxtTlsRpt[server] = null;
+        }
+        var logger = new InternalLogger();
+        using var collector = AssessmentCollector.ForAnalysis(logger, analysis, category: "TTL");
+        analysis.EvaluateUniformity(Array.Empty<string>(), logger);
+        Assert.False(analysis.UniformityIncomplete);
+        Assert.Equal("OK", Converters.Convert(analysis).Status);
+        Assert.Contains(analysis.Assessments, item => item.Code == "TTL.Uniformity.NoRecord");
+        Assert.DoesNotContain(analysis.Assessments, item => item.Code == "TTL.Uniformity.Incomplete");
+        Assert.DoesNotContain(DomainDetective.Narratives.TtlNarrative.Build(analysis).Highlights, item => item.Contains("CNAME TTL varies"));
+    }
+
+    [Fact]
+    public async Task MissingNameServerDiscoveryCannotSatisfyAnAddressOnlyPolicy() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => Task.FromResult(new DnsResponse {
+            Status = type == DnsRecordType.NS ? DnsResponseCode.ServerFailure : DnsResponseCode.NoError,
+            Answers = type == DnsRecordType.A ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>()
+        });
+        health.MXAnalysis.Subject = "example.test";
+        await health.MXAnalysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "0 mail.example.test" } }, new InternalLogger());
+        var result = DesiredStateEvaluator.Evaluate("example.test", health, new DesiredStateProfile {
+            Mx = new DesiredStateMxPolicy { RequireTargetAddressConsistentAcrossNs = true }
+        });
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, item => item.Code == "DesiredState.MX.TargetAddress.QueryFailed");
+    }
+
+    [Fact]
     public async Task MissingMxReplyCannotSatisfyAnRrsetOnlyPolicy() {
         using var health = new DomainHealthCheck();
         health.MXAnalysis.QueryDnsOverride = (_, type) => Task.FromResult(type == DnsRecordType.A
