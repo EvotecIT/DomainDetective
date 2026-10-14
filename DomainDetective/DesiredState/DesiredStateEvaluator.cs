@@ -55,45 +55,55 @@ public static partial class DesiredStateEvaluator {
             }
         }
 
-        EvaluateDmarc(domain, health.DmarcAnalysis, profile.Dmarc, result);
-        EvaluateSpf(domain, health.SpfAnalysis, profile.Spf, result);
-        EvaluateDkim(domain, health.DKIMAnalysis, profile.Dkim, result);
-        EvaluateMtasts(domain, health.MTASTSAnalysis, profile.Mtasts, result);
-        EvaluateTlsRpt(domain, health.TLSRPTAnalysis, profile.TlsRpt, result);
-        EvaluateBimi(domain, health.BimiAnalysis, profile.Bimi, result);
-        EvaluateMx(domain, health.MXAnalysis, profile.Mx, result);
-        EvaluateStartTls(domain, health.StartTlsAnalysis, profile.StartTls, result);
-        EvaluateSmtpTls(domain, health.SmtpTlsAnalysis, profile.SmtpTls, result);
-        EvaluateImapTls(domain, health.ImapTlsAnalysis, profile.ImapTls, result);
-        EvaluatePop3Tls(domain, health.Pop3TlsAnalysis, profile.Pop3Tls, result);
-        EvaluateSmtpBanner(domain, health.SmtpBannerAnalysis, profile.SmtpBanner, result);
-        EvaluateSmtpAuth(domain, health.SmtpAuthAnalysis, profile.SmtpAuth, result);
-        EvaluateOpenRelay(domain, health.OpenRelayAnalysis, profile.OpenRelay, result);
-        EvaluateMailLatency(domain, health.MailLatencyAnalysis, profile.MailLatency, result);
-        EvaluateOpenResolver(domain, health.OpenResolverAnalysis, profile.OpenResolver, result);
-        EvaluateReverseDns(domain, health.ReverseDnsAnalysis, profile.ReverseDns, result);
-        EvaluateFcrDns(domain, health.FcrDnsAnalysis, profile.FcrDns, result);
-        EvaluateNs(domain, health.NSAnalysis, profile.Ns, result);
-        EvaluateDanglingCname(domain, health.DanglingCnameAnalysis, profile.DanglingCname, result);
-        EvaluateCaa(domain, health.CAAAnalysis, profile.Caa, result);
-        EvaluateDnssec(domain, health.DnsSecAnalysis, profile.DnsSec, result);
-        EvaluateSoa(domain, health.SOAAnalysis, profile.Soa, result);
-        EvaluateDane(domain, health.DaneAnalysis, profile.Dane, result);
-        EvaluateDnsbl(domain, health.DNSBLAnalysis, profile.Dnsbl, result);
-        EvaluateDnsHealth(domain, health.DnsHealthAnalysis, profile.DnsHealth, result);
-        EvaluateApexAddress(domain, health.ApexAddressAnalysis, profile.ApexAddress, result);
-        EvaluateRpki(domain, health.RpkiAnalysis, profile.Rpki, result);
-        EvaluateEdnsSupport(domain, health.EdnsSupportAnalysis, profile.EdnsSupport, result);
-        EvaluateDnsOverTls(domain, health.DnsOverTlsAnalysis, profile.DnsOverTls, result);
-        EvaluateFlatteningService(domain, health.FlatteningServiceAnalysis, profile.FlatteningService, result);
-        EvaluateDelegation(domain, health.NSAnalysis, profile.Delegation, result);
-        EvaluateZoneTransfer(domain, health.ZoneTransferAnalysis, profile.ZoneTransfer, result);
-        EvaluateWildcardDns(domain, health.WildcardDnsAnalysis, profile.WildcardDns, result);
-        EvaluateTtl(domain, health.DnsTtlAnalysis, profile.Ttl, result);
-        EvaluateAutodiscover(domain, health.AutodiscoverAnalysis, profile.Autodiscover, result);
-        EvaluateSecurityTxt(domain, health.SecurityTXTAnalysis, profile.SecurityTxt, result);
-        EvaluateRobots(domain, health.RobotsTxtAnalysis, profile.Robots, result);
-        EvaluateAgentReadiness(domain, health.AgentReadinessAnalysis, profile.AgentReadiness, result);
+        bool CanEvaluate(HealthCheckType check) {
+            var failure = health.GetCheckFailure(check);
+            if (failure == null) { return true; }
+            result.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.Check.QueryFailed", Message = $"Desired state for {check} could not be verified: {failure.Message}"
+            });
+            return false;
+        }
+
+        if (profile.Dmarc == null || profile.Dmarc.Enabled == false || CanEvaluate(HealthCheckType.DMARC)) { EvaluateDmarc(domain, health.DmarcAnalysis, profile.Dmarc, result); }
+        if (profile.Spf == null || profile.Spf.Enabled == false || CanEvaluate(HealthCheckType.SPF)) { EvaluateSpf(domain, health.SpfAnalysis, profile.Spf, result); }
+        if (profile.Dkim == null || profile.Dkim.Enabled == false || CanEvaluate(HealthCheckType.DKIM)) { EvaluateDkim(domain, health.DKIMAnalysis, profile.Dkim, result); }
+        if (profile.Mtasts == null || profile.Mtasts.Enabled == false || CanEvaluate(HealthCheckType.MTASTS)) { EvaluateMtasts(domain, health.MTASTSAnalysis, profile.Mtasts, result); }
+        if (profile.TlsRpt == null || profile.TlsRpt.Enabled == false || CanEvaluate(HealthCheckType.TLSRPT)) { EvaluateTlsRpt(domain, health.TLSRPTAnalysis, profile.TlsRpt, result); }
+        if (profile.Bimi == null || profile.Bimi.Enabled == false || CanEvaluate(HealthCheckType.BIMI)) { EvaluateBimi(domain, health.BimiAnalysis, profile.Bimi, result); }
+        if (profile.Mx == null || profile.Mx.Enabled == false || CanEvaluate(HealthCheckType.MX)) { EvaluateMx(domain, health.MXAnalysis, profile.Mx, result); }
+        if (profile.StartTls == null || profile.StartTls.Enabled == false || CanEvaluate(HealthCheckType.STARTTLS)) { EvaluateStartTls(domain, health.StartTlsAnalysis, profile.StartTls, result); }
+        if (profile.SmtpTls == null || profile.SmtpTls.Enabled == false || CanEvaluate(HealthCheckType.SMTPTLS)) { EvaluateSmtpTls(domain, health.SmtpTlsAnalysis, profile.SmtpTls, result); }
+        if (profile.ImapTls == null || profile.ImapTls.Enabled == false || CanEvaluate(HealthCheckType.IMAPTLS)) { EvaluateImapTls(domain, health.ImapTlsAnalysis, profile.ImapTls, result); }
+        if (profile.Pop3Tls == null || profile.Pop3Tls.Enabled == false || CanEvaluate(HealthCheckType.POP3TLS)) { EvaluatePop3Tls(domain, health.Pop3TlsAnalysis, profile.Pop3Tls, result); }
+        if (profile.SmtpBanner == null || profile.SmtpBanner.Enabled == false || CanEvaluate(HealthCheckType.SMTPBANNER)) { EvaluateSmtpBanner(domain, health.SmtpBannerAnalysis, profile.SmtpBanner, result); }
+        if (profile.SmtpAuth == null || profile.SmtpAuth.Enabled == false || CanEvaluate(HealthCheckType.SMTPAUTH)) { EvaluateSmtpAuth(domain, health.SmtpAuthAnalysis, profile.SmtpAuth, result); }
+        if (profile.OpenRelay == null || profile.OpenRelay.Enabled == false || CanEvaluate(HealthCheckType.OPENRELAY)) { EvaluateOpenRelay(domain, health.OpenRelayAnalysis, profile.OpenRelay, result); }
+        if (profile.MailLatency == null || profile.MailLatency.Enabled == false || CanEvaluate(HealthCheckType.MAILLATENCY)) { EvaluateMailLatency(domain, health.MailLatencyAnalysis, profile.MailLatency, result); }
+        if (profile.OpenResolver == null || profile.OpenResolver.Enabled == false || CanEvaluate(HealthCheckType.OPENRESOLVER)) { EvaluateOpenResolver(domain, health.OpenResolverAnalysis, profile.OpenResolver, result); }
+        if (profile.ReverseDns == null || profile.ReverseDns.Enabled == false || CanEvaluate(HealthCheckType.REVERSEDNS)) { EvaluateReverseDns(domain, health.ReverseDnsAnalysis, profile.ReverseDns, result); }
+        if (profile.FcrDns == null || profile.FcrDns.Enabled == false || CanEvaluate(HealthCheckType.FCRDNS)) { EvaluateFcrDns(domain, health.FcrDnsAnalysis, profile.FcrDns, result); }
+        if (profile.Ns == null || profile.Ns.Enabled == false || CanEvaluate(HealthCheckType.NS)) { EvaluateNs(domain, health.NSAnalysis, profile.Ns, result); }
+        if (profile.DanglingCname == null || profile.DanglingCname.Enabled == false || CanEvaluate(HealthCheckType.DANGLINGCNAME)) { EvaluateDanglingCname(domain, health.DanglingCnameAnalysis, profile.DanglingCname, result); }
+        if (profile.Caa == null || profile.Caa.Enabled == false || CanEvaluate(HealthCheckType.CAA)) { EvaluateCaa(domain, health.CAAAnalysis, profile.Caa, result); }
+        if (profile.DnsSec == null || profile.DnsSec.Enabled == false || CanEvaluate(HealthCheckType.DNSSEC)) { EvaluateDnssec(domain, health.DnsSecAnalysis, profile.DnsSec, result); }
+        if (profile.Soa == null || profile.Soa.Enabled == false || CanEvaluate(HealthCheckType.SOA)) { EvaluateSoa(domain, health.SOAAnalysis, profile.Soa, result); }
+        if (profile.Dane == null || profile.Dane.Enabled == false || CanEvaluate(HealthCheckType.DANE)) { EvaluateDane(domain, health.DaneAnalysis, profile.Dane, result); }
+        if (profile.Dnsbl == null || profile.Dnsbl.Enabled == false || CanEvaluate(HealthCheckType.DNSBL)) { EvaluateDnsbl(domain, health.DNSBLAnalysis, profile.Dnsbl, result); }
+        if (profile.DnsHealth == null || profile.DnsHealth.Enabled == false || CanEvaluate(HealthCheckType.DNSHEALTH)) { EvaluateDnsHealth(domain, health.DnsHealthAnalysis, profile.DnsHealth, result); }
+        if (profile.ApexAddress == null || profile.ApexAddress.Enabled == false || CanEvaluate(HealthCheckType.APEXADDRESS)) { EvaluateApexAddress(domain, health.ApexAddressAnalysis, profile.ApexAddress, result); }
+        if (profile.Rpki == null || profile.Rpki.Enabled == false || CanEvaluate(HealthCheckType.RPKI)) { EvaluateRpki(domain, health.RpkiAnalysis, profile.Rpki, result); }
+        if (profile.EdnsSupport == null || profile.EdnsSupport.Enabled == false || CanEvaluate(HealthCheckType.EDNSSUPPORT)) { EvaluateEdnsSupport(domain, health.EdnsSupportAnalysis, profile.EdnsSupport, result); }
+        if (profile.DnsOverTls == null || profile.DnsOverTls.Enabled == false || CanEvaluate(HealthCheckType.DNSOVERTLS)) { EvaluateDnsOverTls(domain, health.DnsOverTlsAnalysis, profile.DnsOverTls, result); }
+        if (profile.FlatteningService == null || profile.FlatteningService.Enabled == false || CanEvaluate(HealthCheckType.FLATTENINGSERVICE)) { EvaluateFlatteningService(domain, health.FlatteningServiceAnalysis, profile.FlatteningService, result); }
+        if (profile.Delegation == null || profile.Delegation.Enabled == false || CanEvaluate(HealthCheckType.DELEGATION)) { EvaluateDelegation(domain, health.NSAnalysis, profile.Delegation, result); }
+        if (profile.ZoneTransfer == null || profile.ZoneTransfer.Enabled == false || CanEvaluate(HealthCheckType.ZONETRANSFER)) { EvaluateZoneTransfer(domain, health.ZoneTransferAnalysis, profile.ZoneTransfer, result); }
+        if (profile.WildcardDns == null || profile.WildcardDns.Enabled == false || CanEvaluate(HealthCheckType.WILDCARDDNS)) { EvaluateWildcardDns(domain, health.WildcardDnsAnalysis, profile.WildcardDns, result); }
+        if (profile.Ttl == null || profile.Ttl.Enabled == false || CanEvaluate(HealthCheckType.TTL)) { EvaluateTtl(domain, health.DnsTtlAnalysis, profile.Ttl, result); }
+        if (profile.Autodiscover == null || profile.Autodiscover.Enabled == false || CanEvaluate(HealthCheckType.AUTODISCOVER)) { EvaluateAutodiscover(domain, health.AutodiscoverAnalysis, profile.Autodiscover, result); }
+        if (profile.SecurityTxt == null || profile.SecurityTxt.Enabled == false || CanEvaluate(HealthCheckType.SECURITYTXT)) { EvaluateSecurityTxt(domain, health.SecurityTXTAnalysis, profile.SecurityTxt, result); }
+        if (profile.Robots == null || profile.Robots.Enabled == false || CanEvaluate(HealthCheckType.ROBOTS)) { EvaluateRobots(domain, health.RobotsTxtAnalysis, profile.Robots, result); }
+        if (profile.AgentReadiness == null || profile.AgentReadiness.Enabled == false || CanEvaluate(HealthCheckType.AGENTREADINESS)) { EvaluateAgentReadiness(domain, health.AgentReadinessAnalysis, profile.AgentReadiness, result); }
 
         // Apply policy so users can suppress/override DesiredState.* codes as well.
         try {

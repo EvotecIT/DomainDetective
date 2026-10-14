@@ -127,6 +127,7 @@ public partial class DomainHealthCheck {
                 throw new ArgumentNullException(nameof(domainName));
             }
             ResetExecutionState();
+            LastVerifiedChecks = Array.Empty<HealthCheckType>();
             IsPublicSuffix = false;
             domainName = ValidateHostName(domainName);
             UpdateIsPublicSuffix(domainName);
@@ -144,6 +145,7 @@ public partial class DomainHealthCheck {
 
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();
             ValidateDomainVerificationTypes(healthCheckTypes);
+            LastVerifiedChecks = healthCheckTypes;
 
             var totalChecks = healthCheckTypes.Length;
             var processedChecks = 0;
@@ -220,13 +222,22 @@ public partial class DomainHealthCheck {
                     [HealthCheckType.MICROSOFT365] = () => VerifyMicrosoft365TenantAsync(domainName, cancellationToken)
 		            };
 
+            // Unsupported selections are caller input errors, not failures of an executing check.
+            foreach (var healthCheckType in healthCheckTypes) {
+                if (!actions.ContainsKey(healthCheckType)) {
+                    throw new NotSupportedException($"Health check type not implemented: {(int)healthCheckType}");
+                }
+            }
+
             Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
                 var daneTask = new Lazy<Task>(() => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken));
                 actions[HealthCheckType.DANE] = () => daneTask.Value;
                 if (!exec.EnableParallelism && actions.TryGetValue(HealthCheckType.SMTPTLS, out var smtpAction)) {
                     actions[HealthCheckType.SMTPTLS] = async () => {
-                        await daneTask.Value;
+                        try { await daneTask.Value; }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                        catch (Exception ex) when (ex is not OutOfMemoryException) { /* The DANE check records its own failure. */ }
                         await smtpAction();
                     };
                 }
@@ -251,13 +262,21 @@ public partial class DomainHealthCheck {
                 cancellationToken.ThrowIfCancellationRequested();
                 var sw = Stopwatch.StartNew();
                 _logger.WriteVerbose("Starting {0} check.", healthCheckType);
-                if (actions.TryGetValue(healthCheckType, out var action)) {
-                    await action();
-                } else {
-                    _logger.WriteError("Unknown health check type: {0}", healthCheckType);
-                    throw new NotSupportedException($"Health check type not implemented: {(int)healthCheckType}");
+                try {
+                    if (actions.TryGetValue(healthCheckType, out var action)) {
+                        await action();
+                    } else {
+                        throw new NotSupportedException($"Health check type not implemented: {(int)healthCheckType}");
+                    }
+                    cancellationToken.ThrowIfCancellationRequested();
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
+                } catch (Exception ex) when (ex is not OutOfMemoryException) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    RecordCheckFailure(healthCheckType, domainName, ex);
+                } finally {
+                    sw.Stop();
                 }
-                sw.Stop();
                 _logger.WriteVerbose("{0} check completed in {1} ms.", healthCheckType, sw.ElapsedMilliseconds);
             }
 
@@ -304,8 +323,9 @@ public partial class DomainHealthCheck {
                         // Cancellation may prevent the gated DANE action from being admitted.
                         // Every task already started still belongs to this verification lifetime.
                         await prestartedDaneTask.ConfigureAwait(false);
-                    } catch when (executionFailure != null) {
-                        // Observe the prestarted task without replacing the original failure.
+                    } catch {
+                        // Observe the prestarted task without replacing the original failure. Without one, the DANE
+                        // check ran and its failure is already recorded as that check's result.
                     }
                 }
             }
@@ -659,6 +679,21 @@ public partial class DomainHealthCheck {
             filtered.CtTimelineAnalysis = active.Contains(HealthCheckType.CTTIMELINE) ? CloneAnalysis(CtTimelineAnalysis) : null!;
             filtered.DnsPropagationSet = active.Contains(HealthCheckType.DNSPROPAGATION) ? CloneAnalysis(DnsPropagationSet) : null!;
 
+            filtered.LastVerifiedChecks = LastVerifiedChecks.Where(active.Contains).ToArray();
+            lock (_executionLock) {
+                foreach (var failure in _checkFailures) {
+                    if (active.Contains(failure.Key)) {
+                        var copy = new Assessment {
+                            Severity = failure.Value.Severity, Code = failure.Value.Code, Category = failure.Value.Category,
+                            Source = failure.Value.Source, Target = failure.Value.Target, Message = failure.Value.Message,
+                            Timestamp = failure.Value.Timestamp,
+                            Metadata = new Dictionary<string, string>(failure.Value.Metadata ?? new Dictionary<string, string>())
+                        };
+                        filtered._checkFailures[failure.Key] = copy;
+                        filtered.Assessments.Add(copy);
+                    }
+                }
+            }
             return filtered;
         }
 

@@ -21,6 +21,8 @@ public partial class DomainHealthCheck {
 
     private void ResetExecutionState() {
         lock (_executionLock) {
+            _checkFailures.Clear();
+            Assessments.Clear();
             _spfTask = null;
             _mxRecordsTask = null;
             _mxHostsTask = null;
