@@ -14,7 +14,7 @@ public partial class MailTlsAnalysis {
 
     /// <summary>Performs the mail exchange required before a TLS handshake without closing the transport.</summary>
     private static async Task<(bool Advertised, bool Ready)> NegotiateStartTlsAsync(MailProtocol protocol,
-        NetworkStream network, InternalLogger? logger, CancellationToken token) {
+        NetworkStream network, InternalLogger? logger, CancellationToken token, TlsResult? result = null) {
         using var reader = new StreamReader(network, Encoding.UTF8, false, 1024, leaveOpen: true);
         using var writer = new StreamWriter(network, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true, NewLine = "\r\n" };
         async Task<string?> ReadAsync() {
@@ -28,7 +28,7 @@ public partial class MailTlsAnalysis {
         var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         switch (protocol) {
             case MailProtocol.Smtp:
-                await WriteAsync("EHLO example.test").ConfigureAwait(false);
+                await WriteAsync("EHLO example.com").ConfigureAwait(false);
                 string? line;
                 while ((line = await ReadAsync().ConfigureAwait(false)) != null) {
                     logger?.WriteVerbose("EHLO response: {0}", line);
@@ -61,6 +61,7 @@ public partial class MailTlsAnalysis {
         }
 
         bool advertised = capabilities.Contains(protocol == MailProtocol.Pop3 ? "STLS" : "STARTTLS");
+        if (result != null) { result.StartTlsAdvertised = advertised; }
         if (!advertised) {
             await WriteAsync(GetQuitCommand(protocol)).ConfigureAwait(false);
             await ReadAsync().ConfigureAwait(false);

@@ -6,11 +6,46 @@ using MailProtocol = DomainDetective.MailTlsAnalysis.MailProtocol;
 namespace DomainDetective.Tests;
 
 public class TestMailTlsBudgets {
+    [Fact]
+    public async Task UpgradeTimeoutPreservesTheObservedStartTlsAdvertisement() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var server = Task.Run(async () => {
+            using var client = await listener.AcceptTcpClientAsync();
+            using var stream = client.GetStream();
+            using var reader = new StreamReader(stream);
+            using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+            await writer.WriteLineAsync("220 mail.example.test");
+            Assert.Equal("EHLO example.com", await reader.ReadLineAsync().WaitWithCancellation(guard.Token));
+            await writer.WriteLineAsync("250 STARTTLS");
+            Assert.Equal("STARTTLS", await reader.ReadLineAsync().WaitWithCancellation(guard.Token));
+            await release.Task;
+        });
+        try {
+            var analysis = new MailTlsAnalysis { Timeout = TimeSpan.FromMilliseconds(100) };
+            await analysis.AnalyzeServer(MailProtocol.Smtp,
+                new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, new InternalLogger(), guard.Token);
+            var result = Assert.Single(analysis.ServerResults).Value;
+            Assert.True(result.StartTlsAdvertised);
+            Assert.Equal(CertificateFailureKind.Timeout, result.FailureKind);
+        } finally {
+            release.TrySetResult(true);
+            listener.Stop();
+            await server;
+        }
+    }
+
     [Theory]
-    [InlineData(MailProtocol.Smtp)]
-    [InlineData(MailProtocol.Imap)]
-    [InlineData(MailProtocol.Pop3)]
-    public async Task AuxiliaryVersionProbesPerformTheMailStartTlsExchange(MailProtocol protocol) {
+    [InlineData(MailProtocol.Smtp, false)]
+    [InlineData(MailProtocol.Imap, false)]
+    [InlineData(MailProtocol.Pop3, false)]
+    [InlineData(MailProtocol.Smtp, true)]
+    [InlineData(MailProtocol.Imap, true)]
+    [InlineData(MailProtocol.Pop3, true)]
+    public async Task AuxiliaryVersionProbesPerformTheMailStartTlsExchange(MailProtocol protocol, bool rejectUpgrade) {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -36,11 +71,13 @@ public class TestMailTlsBudgets {
                 }
                 Assert.Equal(protocol == MailProtocol.Imap ? "A2 STARTTLS" : protocol == MailProtocol.Pop3 ? "STLS" : "STARTTLS",
                     await reader.ReadLineAsync().WaitWithCancellation(guard.Token));
-                await writer.WriteLineAsync(protocol == MailProtocol.Smtp ? "220 Begin TLS" : protocol == MailProtocol.Imap ? "A2 OK" : "+OK");
+                await writer.WriteLineAsync(rejectUpgrade
+                    ? protocol == MailProtocol.Smtp ? "454 Try later" : protocol == MailProtocol.Imap ? "A2 NO Try later" : "-ERR Try later"
+                    : protocol == MailProtocol.Smtp ? "220 Begin TLS" : protocol == MailProtocol.Imap ? "A2 OK" : "+OK");
                 Interlocked.Increment(ref prepared);
                 // A local runtime may reject a disabled TLS version before sending ClientHello.
                 // Either outcome is after the required mail exchange; no certificate/key is needed here.
-                await stream.ReadAsync(new byte[1], 0, 1, guard.Token);
+                if (!rejectUpgrade) { await stream.ReadAsync(new byte[1], 0, 1, guard.Token); }
             }
         });
         try {
@@ -50,7 +87,7 @@ public class TestMailTlsBudgets {
             await (Task)probe.Invoke(analysis, new object[] { protocol,
                 new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, result, guard.Token })!;
             Assert.Equal(3, Volatile.Read(ref prepared));
-            Assert.True(result.ProtocolSupportComplete);
+            if (rejectUpgrade) { Assert.False(result.ProtocolSupportComplete); }
             Assert.True(result.SupportsTls12);
         } finally {
             guard.Cancel();

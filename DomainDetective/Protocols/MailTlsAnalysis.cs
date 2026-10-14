@@ -356,7 +356,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 return result;
             }
 
-            var preparation = await NegotiateStartTlsAsync(protocol, network, logger, timeoutCts.Token).ConfigureAwait(false);
+            var preparation = await NegotiateStartTlsAsync(protocol, network, logger, timeoutCts.Token, result).ConfigureAwait(false);
             result.StartTlsAdvertised = preparation.Advertised;
             if (!preparation.Ready) { return result; }
             using var sslStream = new SslStream(network, false, (sender, certificate, chain, errors) => {
@@ -495,6 +495,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
     }
 
     private async Task ProbeProtocolSupport(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
+        bool complete = true;
         result.SupportsTls12 |= result.Protocol == SslProtocols.Tls12;
 #pragma warning disable SYSLIB0039
         result.SupportsTls11 |= result.Protocol == SslProtocols.Tls11;
@@ -507,12 +508,13 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 using var transport = client.GetStream();
                 if (!UsesDirectTls(protocol, endpoint.Port)) {
                     var preparation = await NegotiateStartTlsAsync(protocol, transport, null, token).ConfigureAwait(false);
-                    if (!preparation.Ready) { return false; }
+                    if (!preparation.Ready) { complete = false; return false; }
                 }
                 using var ssl = new SslStream(transport, false, static (_, _, _, _) => true);
                 await ssl.AuthenticateAsClientAsync(endpoint.HostName, null, proto, false).WaitWithCancellation(token);
                 return ssl.SslProtocol == proto;
-            } catch (Exception) when (!token.IsCancellationRequested) { return false; }
+            } catch (AuthenticationException) when (!token.IsCancellationRequested) { return false; }
+            catch (Exception ex) when (!token.IsCancellationRequested && ex is not OutOfMemoryException) { complete = false; return false; }
         }
         var tls13 = result.SupportsTls13 || await TryHandshake((SslProtocols)12288);
         var tls12 = result.Protocol == SslProtocols.Tls12 || await TryHandshake(SslProtocols.Tls12);
@@ -526,7 +528,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
         result.SupportsTls12 = tls12;
         result.SupportsTls11 = tls11;
         result.SupportsTls10 = tls10;
-        result.ProtocolSupportComplete = true;
+        result.ProtocolSupportComplete = complete;
     }
 
     internal async Task<TcpClient> ConnectAsync(string host, int port, CancellationToken cancellationToken) {
