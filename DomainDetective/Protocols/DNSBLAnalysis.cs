@@ -176,16 +176,12 @@ namespace DomainDetective {
                 var pairs = items?.ToList() ?? new List<(string ip, string host)>();
                 if (pairs.Count == 0) return;
                 Logger?.WriteVerbose($"Checking {pairs.Count} {sourceLabel} input(s) against {DNSBLLists.Count} blacklists (parallel)…");
-                var tasks = new List<Task<(string key, List<DNSBLRecord> records)>>();
-                foreach (var (ip, host) in pairs) {
-                    var key = ip; var h = host; var src = source;
-                    tasks.Add(Task.Run(async () => {
+                var results = await Helpers.BoundedAsync.RunAsync(pairs, async pair => {
+                    var key = pair.ip; var h = pair.host;
                         var list = new List<DNSBLRecord>();
-                        await foreach (var rec in QueryDNSBL(DNSBLLists, key, run, src, sourceHost: h)) list.Add(rec);
+                        await foreach (var rec in QueryDNSBL(DNSBLLists, key, run, source, sourceHost: h)) list.Add(rec);
                         return (key, list);
-                    }));
-                }
-                var results = await Task.WhenAll(tasks);
+                }, 16, run.CallerToken);
                 foreach (var (key, records) in results) {
                     ConvertToResults(key, records);
                     anyIpChecked = true;
@@ -325,10 +321,7 @@ namespace DomainDetective {
 
             Logger?.WriteVerbose($"Checking {items.Count} input(s) against {DNSBLLists.Count} blacklists (parallel)…");
 
-            var tasks = new List<Task<(string key, List<DNSBLRecord> records)>>();
-            foreach (var item in items) {
-                var name = item; // capture
-                tasks.Add(Task.Run(async () => {
+            var results = await Helpers.BoundedAsync.RunAsync(items, async name => {
                     var list = new List<DNSBLRecord>();
                     var isIpInner = System.Net.IPAddress.TryParse(name, out _);
                     DnsblIpSource? srcInner = isIpInner ? DnsblIpSource.UserProvided : DnsblIpSource.Domain;
@@ -337,10 +330,7 @@ namespace DomainDetective {
                         list.Add(record);
                     }
                     return (name, list);
-                }));
-            }
-
-            var results = await Task.WhenAll(tasks);
+            }, 16, run.CallerToken);
             foreach (var (key, records) in results) {
                 ConvertToResults(key, records);
             }

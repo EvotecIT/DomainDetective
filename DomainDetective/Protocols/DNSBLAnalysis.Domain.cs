@@ -64,19 +64,13 @@ namespace DomainDetective {
 
             Logger?.WriteVerbose($"Checking {items.Count} domain(s) against {DomainDNSBLLists.Count} domain blocklists (parallel)…");
 
-            var tasks = new List<Task<(string key, List<DNSBLRecord> records)>>();
-            foreach (var domain in items) {
-                var d = domain; // capture
-                tasks.Add(Task.Run(async () => {
+            var results = await Helpers.BoundedAsync.RunAsync(items, async d => {
                     var list = new List<DNSBLRecord>();
                     await foreach (var record in QueryDNSBL(DomainDNSBLLists, d, run, DnsblIpSource.Domain, sourceHost: d)) {
                         list.Add(record);
                     }
                     return (d, list);
-                }));
-            }
-
-            var results = await Task.WhenAll(tasks);
+            }, 16, run.CallerToken);
             foreach (var (key, records) in results) {
                 ConvertToResults(key, records);
             }

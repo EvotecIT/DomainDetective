@@ -39,7 +39,7 @@ public static partial class Converters
             Area = AreaForKind(HealthCheckType.DNSBL),
             // Subject is domain-scoped when analysis was invoked with a domain; null for multi-input/IP-only runs
             Subject = analysis.Subject,
-            ProvidersChecked = analysis.GetDNSBL().Count,
+            ProvidersChecked = allResults.Where(record => record.QuerySucceeded).Select(record => record.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
             HostsChecked = analysis.RecordChecked,
             HostsListed = analysis.Blacklisted,
             ListedRecords = listedRecords,
@@ -50,7 +50,7 @@ public static partial class Converters
             ProvidersWithListings = listedProviders,
             ProviderSummaries = providerSummaries,
             Assessments = analysis.Assessments,
-            Status = (!analysis.DiscoverySucceeded || (analysis.Results?.Values.Any(result => result.NotChecked > 0) ?? false)) && errCount == 0 ? "Incomplete" : status,
+            Status = (!analysis.DiscoverySucceeded || allResults.Any(record => !record.QuerySucceeded)) && errCount == 0 ? "Incomplete" : status,
             WarningCount = warnCount,
             ErrorCount = errCount,
             Summary = $"listed hosts {analysis.Blacklisted}/{analysis.RecordChecked}; provider queries not checked {allResults.Count(record => !record.QuerySucceeded)}",
@@ -166,9 +166,9 @@ public static partial class Converters
             {
                 Key = group.Key,
                 Label = GetPathwayLabel(group.First()),
-                TargetsChecked = group.Select(GetTargetKey).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
+                TargetsChecked = group.Where(static item => item.QuerySucceeded).Select(GetTargetKey).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
                 ListedTargets = group.Where(static item => item.IsBlackListed).Select(GetTargetKey).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
-                ProvidersChecked = group.Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
+                ProvidersChecked = group.Where(static item => item.QuerySucceeded).Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
                 ProvidersWithListings = group.Where(static item => item.IsBlackListed).Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
                 QueryKinds = group.Select(static item => FormatQueryKind(item.QueryKind)).Distinct(System.StringComparer.OrdinalIgnoreCase).OrderBy(static item => item, System.StringComparer.OrdinalIgnoreCase).ToArray()
             })

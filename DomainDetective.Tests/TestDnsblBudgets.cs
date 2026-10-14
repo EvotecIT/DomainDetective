@@ -5,6 +5,41 @@ namespace DomainDetective.Tests;
 
 public class TestDnsblBudgets {
     [Fact]
+    public async Task Ipv6ListingSurvivesTheOtherFamilyUsingTheWholeDeadline() {
+        var analysis = new DNSBLAnalysis { ProviderTimeout = TimeSpan.FromMilliseconds(50) };
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        var pending = new TaskCompletionSource<IEnumerable<DnsResponse>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        analysis.QueryDnsFullOverride = (names, type) => type == DnsRecordType.A ? pending.Task : Task.FromResult<IEnumerable<DnsResponse>>(
+            new[] { new DnsResponse { Answers = new[] { new DnsAnswer { Name = names[0], Type = type, DataRaw = "127.0.0.2" } } } });
+        try {
+            await analysis.AnalyzeDNSBLRecordsMany(new[] { "2001:db8::1" }, new InternalLogger());
+            Assert.Equal(1, analysis.Results["2001:db8::1"].Listed);
+            Assert.Equal(1, analysis.Results["2001:db8::1"].NotChecked);
+        } finally { pending.TrySetResult(Array.Empty<DnsResponse>()); }
+    }
+
+    [Fact]
+    public async Task RetainedFailedRecordsKeepCoverageIncompleteAfterACleanRepeat() {
+        var analysis = new DNSBLAnalysis();
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        bool fails = true;
+        analysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
+            new DnsResponse { Status = fails ? DnsResponseCode.ServerFailure : DnsResponseCode.NXDomain } });
+        await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger());
+        var failed = Converters.Convert(analysis);
+        Assert.Equal(0, failed.ProvidersChecked);
+        Assert.Equal(0, Assert.Single(failed.Pathways).ProvidersChecked);
+        fails = false;
+        await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger(), false);
+        var repeated = Converters.Convert(analysis);
+        Assert.Equal("Incomplete", repeated.Status);
+        Assert.Equal(1, repeated.ProvidersChecked);
+        Assert.Contains(analysis.AllResults, record => !record.QuerySucceeded);
+    }
+
+    [Fact]
     public async Task OverlappingAppendRunCannotReplaceTheFirstCallersCancellation() {
         var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource<IEnumerable<DnsResponse>>(TaskCreationOptions.RunContinuationsAsynchronously);
