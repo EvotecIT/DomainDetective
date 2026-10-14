@@ -14,6 +14,46 @@ namespace DomainDetective.Tests;
 
 public class TestCheckFailureIsolation {
     [Fact]
+    public void SharedNameServerAnalysisPreservesEachSelectedCheckIdentity() {
+        using var health = Create();
+        var delegation = Assert.IsType<NsInfo>(Assert.Single(Converters.ConvertChecks(health, new[] { HealthCheckType.DELEGATION })));
+        Assert.Equal(HealthCheckType.DELEGATION, delegation.Check);
+        var views = Converters.ConvertChecks(health, new[] { HealthCheckType.NS, HealthCheckType.DELEGATION }).Cast<NsInfo>().ToArray();
+        Assert.Equal(new[] { HealthCheckType.NS, HealthCheckType.DELEGATION }, views.Select(view => view.Check));
+        Assert.NotSame(views[0], views[1]);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CanceledProbeDoesNotPublishEarlierAddressDiscoveryFailures(bool withLogger) {
+        using var canceled = new CancellationTokenSource();
+        var analysis = new EdnsSupportAnalysis {
+            QueryDnsOverride = (_, type) => type switch {
+                DnsRecordType.NS => Task.FromResult(new[] { new DnsAnswer { Type = type, DataRaw = "ns.example.test" } }),
+                DnsRecordType.A => Task.FromResult(new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } }),
+                _ => throw new TimeoutException("AAAA discovery failed.")
+            },
+            QueryServerOverride = _ => { canceled.Cancel(); return Task.FromResult(new EdnsSupportInfo { Supported = true }); }
+        };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.Analyze("example.test", withLogger ? new InternalLogger() : null, canceled.Token));
+        Assert.Empty(analysis.ServerSupport);
+        Assert.Empty(analysis.Assessments);
+    }
+
+    [Fact]
+    public async Task DiscoveryUsesTheConfiguredBudgetWithoutRequiringALogger() {
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analysis = new EdnsSupportAnalysis { DiscoveryTimeout = TimeSpan.FromMilliseconds(20),
+            QueryDnsOverride = async (_, _) => { started.TrySetResult(true); await Task.Delay(100); return Array.Empty<DnsAnswer>(); } };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.Analyze("example.test", null));
+        Assert.True(started.Task.IsCompleted);
+        analysis.DiscoveryTimeout = TimeSpan.FromSeconds(1);
+        await analysis.Analyze("example.test", null);
+        Assert.Empty(analysis.ServerSupport);
+    }
+
+    [Fact]
     public async Task EdnsBatchesAllNameServersUnderOneConcurrencyCap() {
         int active = 0, peak = 0;
         var admitted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);

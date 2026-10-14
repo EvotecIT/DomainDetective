@@ -55,6 +55,9 @@ public class EdnsSupportAnalysis : IHasAssessments
     /// <summary>Configuration for DNS queries.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
 
+    /// <summary>Budget for one name-server or address discovery query. Increase it when the configured resolver fallback needs more time.</summary>
+    public TimeSpan DiscoveryTimeout { get; set; } = TimeSpan.FromSeconds(2);
+
     /// <summary>Allows overriding DNS queries for testing.</summary>
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
@@ -70,7 +73,7 @@ public class EdnsSupportAnalysis : IHasAssessments
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(2));
+        deadline.CancelAfter(DiscoveryTimeout);
         var answers = QueryDnsOverride != null
             ? await QueryDnsOverride(name, type).WaitWithCancellation(deadline.Token).ConfigureAwait(false)
             : await DnsConfiguration.QueryDNS(name, type, cancellationToken: deadline.Token).ConfigureAwait(false);
@@ -149,18 +152,18 @@ public class EdnsSupportAnalysis : IHasAssessments
     /// </summary>
     /// <param name="domainName">Domain name.</param>
     /// <param name="logger">Optional logger.</param>
-    public Task Analyze(string domainName, InternalLogger logger) => Analyze(domainName, logger, CancellationToken.None);
+    public Task Analyze(string domainName, InternalLogger? logger) => Analyze(domainName, logger, CancellationToken.None);
 
     /// <summary>Queries authoritative servers, retaining failures per server and honoring caller cancellation.</summary>
     /// <param name="domainName">Domain name.</param>
     /// <param name="logger">Optional logger.</param>
     /// <param name="cancellationToken">Token to cancel discovery and capability queries.</param>
-    public async Task Analyze(string domainName, InternalLogger logger, CancellationToken cancellationToken)
+    public async Task Analyze(string domainName, InternalLogger? logger, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Subject = domainName;
         Assessments.Clear();
-        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "EDNS", target: domainName);
+        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "EDNS", target: domainName) : null;
         ServerSupport.Clear();
         var ns = await QueryDns(domainName, DnsRecordType.NS, cancellationToken);
         using var discoveryGate = new SemaphoreSlim(4);
@@ -179,12 +182,6 @@ public class EdnsSupportAnalysis : IHasAssessments
             } finally { discoveryGate.Release(); }
         })).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        foreach (var discovery in discoveries.Where(item => item.Failed)) {
-            ServerSupport[$"{discovery.Host} (address discovery)"] = new EdnsSupportInfo {
-                QuerySucceeded = false, Error = "Name-server address discovery was incomplete."
-            };
-            logger.WriteErrorCode(EdnsCodes.QueryFailed, "EDNS address discovery was incomplete for {0}.", discovery.Host);
-        }
         var targets = discoveries.SelectMany(item => item.Addresses.Select(address => (item.Host, Address: address))).ToArray();
         using var gate = new SemaphoreSlim(8);
         var results = await Task.WhenAll(targets.Select(async target => {
@@ -202,6 +199,12 @@ public class EdnsSupportAnalysis : IHasAssessments
             } finally { gate.Release(); }
         })).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
+        foreach (var discovery in discoveries.Where(item => item.Failed)) {
+            ServerSupport[$"{discovery.Host} (address discovery)"] = new EdnsSupportInfo {
+                QuerySucceeded = false, Error = "Name-server address discovery was incomplete."
+            };
+            logger?.WriteErrorCode(EdnsCodes.QueryFailed, "EDNS address discovery was incomplete for {0}.", discovery.Host);
+        }
         foreach (var result in results) {
             var host = result.Host;
             var serverAddress = result.Address;
