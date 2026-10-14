@@ -29,6 +29,18 @@ internal sealed class NativeCtCursorState {
         }
     }
 
+    public long? GetResumeIndex(string key) {
+        lock (_sync) return _entries.TryGetValue(key, out var entry) ? entry.ResumeIndex : null;
+    }
+
+    public void EstablishResumeIndex(string key, long index) {
+        if (string.IsNullOrWhiteSpace(key) || index < 0) return;
+        lock (_sync) {
+            var entry = GetOrCreateEntry(key);
+            if (!entry.LastProcessedIndex.HasValue && !entry.ResumeIndex.HasValue) entry.ResumeIndex = index;
+        }
+    }
+
     public void SetLastProcessedIndex(string key, long value) {
         if (string.IsNullOrWhiteSpace(key)) {
             return;
@@ -39,6 +51,7 @@ internal sealed class NativeCtCursorState {
         lock (_sync) {
             var entry = GetOrCreateEntry(key);
             entry.LastProcessedIndex = value;
+            entry.ResumeIndex = null;
         }
     }
 
@@ -213,6 +226,7 @@ internal sealed class NativeCtCursorState {
                 if (item.LastProcessedIndex.HasValue && item.LastProcessedIndex.Value >= 0) {
                     entry.LastProcessedIndex = item.LastProcessedIndex.Value;
                 }
+                if (!entry.LastProcessedIndex.HasValue && item.ResumeIndex.HasValue && item.ResumeIndex.Value >= 0) entry.ResumeIndex = item.ResumeIndex;
                 entry.ConsecutiveFailureCount = item.ConsecutiveFailureCount < 0 ? 0 : item.ConsecutiveFailureCount;
                 entry.CircuitOpenUntilUtc = item.CircuitOpenUntilUtc;
                 entry.LastAttemptUtc = item.LastAttemptUtc;
@@ -249,6 +263,7 @@ internal sealed class NativeCtCursorState {
                         .Select(kvp => new NativeCtCursorStateEntry {
                             Key = kvp.Key,
                             LastProcessedIndex = kvp.Value.LastProcessedIndex,
+                            ResumeIndex = kvp.Value.ResumeIndex,
                             ConsecutiveFailureCount = kvp.Value.ConsecutiveFailureCount,
                             CircuitOpenUntilUtc = kvp.Value.CircuitOpenUntilUtc,
                             LastAttemptUtc = kvp.Value.LastAttemptUtc,
@@ -302,6 +317,7 @@ internal sealed class NativeCtCursorState {
 
     private sealed class NativeCtCursorEntryState {
         public long? LastProcessedIndex { get; set; }
+        public long? ResumeIndex { get; set; }
         public int ConsecutiveFailureCount { get; set; }
         public DateTimeOffset? CircuitOpenUntilUtc { get; set; }
         public DateTimeOffset? LastAttemptUtc { get; set; }
@@ -312,6 +328,7 @@ internal sealed class NativeCtCursorState {
     private sealed class NativeCtCursorStateEntry {
         public string Key { get; set; } = string.Empty;
         public long? LastProcessedIndex { get; set; }
+        public long? ResumeIndex { get; set; }
         public int ConsecutiveFailureCount { get; set; }
         public DateTimeOffset? CircuitOpenUntilUtc { get; set; }
         public DateTimeOffset? LastAttemptUtc { get; set; }

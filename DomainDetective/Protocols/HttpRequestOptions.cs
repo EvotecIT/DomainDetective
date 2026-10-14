@@ -43,10 +43,10 @@ public sealed class HttpRequestOptions
     /// <summary>Optional proxy URL (e.g. http://127.0.0.1:8080).</summary>
     public string? ProxyUrl { get; set; }
 
-    /// <summary>Optional Cookie header value to send.</summary>
+    /// <summary>Optional Cookie header value, sent only to the original request origin.</summary>
     public string? Cookie { get; set; }
 
-    /// <summary>Additional request headers to send.</summary>
+    /// <summary>Additional request headers, sent only to the original request origin (scheme, host and effective port).</summary>
     public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly HttpMethod PatchMethod = new HttpMethod("PATCH");

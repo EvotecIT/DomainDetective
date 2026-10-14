@@ -96,6 +96,18 @@ internal sealed class ImportDmarcAggregateSnapshotSettings : CommandSettings {
     [DefaultValue(50)]
     public int MaxAttachmentMb { get; set; } = 50;
 
+    /// <summary>Maximum raw IMAP message size in MB before MIME parsing (0 for unlimited).</summary>
+    [Description("Maximum raw IMAP message size in MB before MIME parsing (0 for unlimited).")]
+    [CommandOption("--max-message-mb <MB>")]
+    [DefaultValue(100)]
+    public int MaxMessageMb { get; set; } = 100;
+
+    /// <summary>Maximum expanded report size in MB for file and IMAP imports (0 for unlimited).</summary>
+    [Description("Maximum expanded report size in MB for file and IMAP imports (0 for unlimited).")]
+    [CommandOption("--max-uncompressed-mb <MB>")]
+    [DefaultValue(50)]
+    public int MaxUncompressedMb { get; set; } = 50;
+
     /// <summary>Include seen messages (default scans only unseen).</summary>
     [Description("Include seen messages (default scans only unseen).")]
     [CommandOption("--include-seen")]
@@ -108,7 +120,7 @@ internal sealed class ImportDmarcAggregateSnapshotSettings : CommandSettings {
 internal sealed class ImportDmarcAggregateSnapshotCommand : AsyncCommand<ImportDmarcAggregateSnapshotSettings> {
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    protected override async Task<int> ExecuteAsync(CommandContext context, ImportDmarcAggregateSnapshotSettings settings, CancellationToken cancellationToken) {
+    public override async Task<int> ExecuteAsync(CommandContext context, ImportDmarcAggregateSnapshotSettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }
@@ -122,6 +134,11 @@ internal sealed class ImportDmarcAggregateSnapshotCommand : AsyncCommand<ImportD
         bool hasImap = !string.IsNullOrWhiteSpace(settings.ImapHost);
         if (hasPath == hasImap) {
             AnsiConsole.MarkupLine("[red]Specify either a [path] argument OR --imap-host (IMAP mode).[/]");
+            return 1;
+        }
+
+        if (settings.MaxAttachmentMb < 0 || settings.MaxMessageMb < 0 || settings.MaxUncompressedMb < 0 || settings.MaxMessages < 0) {
+            AnsiConsole.MarkupLine("[red]Import size and message limits must be nonnegative; 0 explicitly allows unlimited content.[/]");
             return 1;
         }
 
@@ -148,6 +165,8 @@ internal sealed class ImportDmarcAggregateSnapshotCommand : AsyncCommand<ImportD
                 Password = password,
                 Mailbox = string.IsNullOrWhiteSpace(settings.Mailbox) ? "INBOX" : settings.Mailbox.Trim(),
                 MaxMessages = settings.MaxMessages,
+                MaxMessageBytes = (long)settings.MaxMessageMb * 1024L * 1024L,
+                MaxUncompressedBytes = (long)settings.MaxUncompressedMb * 1024L * 1024L,
                 OnlyUnseen = !settings.IncludeSeen,
                 RequireAttachments = true,
                 MaxAttachmentBytes = settings.MaxAttachmentMb <= 0
@@ -170,7 +189,7 @@ internal sealed class ImportDmarcAggregateSnapshotCommand : AsyncCommand<ImportD
             }
         } else {
             try {
-                result = DmarcAggregateIngestion.IngestFromPath(settings.Path!, store, deduplicate);
+                result = DmarcAggregateIngestion.IngestFromPath(settings.Path!, store, deduplicate, (long)settings.MaxUncompressedMb * 1024L * 1024L);
             }
             catch (Exception ex) {
                 AnsiConsole.MarkupLine($"[red]Path ingestion failed:[/] {Markup.Escape(ex.Message)}");

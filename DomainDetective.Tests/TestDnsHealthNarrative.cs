@@ -36,15 +36,21 @@ public class TestDnsHealthNarrative
                     };
                 }
             },
-            QueryResponseOverride = (ip, query, token) => Task.FromResult<DnsResponse?>(null)
+            QueryResponseOverride = (ip, query, token) => Task.FromResult<DnsResponse?>(new DnsResponse {
+                Status = DnsResponseCode.NoError,
+                IsAuthoritativeAnswer = true,
+                Answers = query.Type == DnsRecordType.SOA
+                    ? new[] { new DnsAnswer { Name = "example.com", Type = query.Type, DataRaw = "ns1.example.com hostmaster.example.com 12345 7200 900 1209600 3600" } }
+                    : Array.Empty<DnsAnswer>()
+            })
         };
         await analysis.Analyze("example.com", new InternalLogger());
         var sections = DnsHealthNarrative.Build(analysis);
         Assert.Contains(sections.Highlights, h => h.IndexOf("SOA serial numbers match", StringComparison.OrdinalIgnoreCase) >= 0);
         Assert.Contains(
             sections.Highlights,
-            h => h.IndexOf("did not respond", StringComparison.OrdinalIgnoreCase) >= 0);
+            h => h.IndexOf("All authoritative servers responded", StringComparison.OrdinalIgnoreCase) >= 0);
         Assert.Contains(sections.Positives, p => p.IndexOf("SOA serial numbers", StringComparison.OrdinalIgnoreCase) >= 0);
-        Assert.DoesNotContain(sections.Positives, p => p.IndexOf("name servers responded", StringComparison.OrdinalIgnoreCase) >= 0);
+        Assert.Contains(sections.Positives, p => p.IndexOf("name servers responded", StringComparison.OrdinalIgnoreCase) >= 0);
     }
 }

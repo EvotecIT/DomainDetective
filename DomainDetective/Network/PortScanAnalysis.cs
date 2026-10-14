@@ -246,10 +246,11 @@ public class PortScanAnalysis : IHasAssessments
         }
         sw.Stop();
 
-        if (await SnmpAnalysis.ProbeAsync(address.ToString(), port, Timeout, logger, token).ConfigureAwait(false))
+        var snmp = await SnmpAnalysis.ProbeResponseAsync(address.ToString(), port, Timeout, logger, token).ConfigureAwait(false);
+        if (snmp.Responded)
         {
             udpOpen = true;
-            banner = "SNMP";
+            if (snmp.IsSnmp) banner = "SNMP";
         }
         else
         {
@@ -271,11 +272,13 @@ public class PortScanAnalysis : IHasAssessments
                     }
                     catch
                     {
+                        token.ThrowIfCancellationRequested();
                         // ignore UDP receive failures
                     }
                 }
                 catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
                 {
+                    token.ThrowIfCancellationRequested();
                     logger?.WriteVerbose("UDP {0}:{1} closed - {2}", address, port, ex.Message);
                     error = ex.Message;
                 }

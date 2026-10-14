@@ -28,6 +28,8 @@ public static partial class Converters
                 FailureReason = analysis.FailureReason,
 	            StatusCode = analysis.StatusCode,
 	            BodyLength = analysis.BodyLength,
+                BodyTruncated = analysis.BodyTruncated,
+                DeclaredContentLength = analysis.DeclaredContentLength,
 	            BodySha256 = analysis.BodySha256,
 	            ResponseTime = analysis.ResponseTime,
                 ProtocolVersion = analysis.ProtocolVersion?.ToString(),
@@ -90,7 +92,6 @@ public static partial class Converters
     {
         if (analysis == null) return GradeLevel.Unknown;
         if (!analysis.IsReachable) return GradeLevel.F;
-        if (analysis.MixedContentDetected) return GradeLevel.F;
 
         // Score based on presence of core headers
         var present = 0;
@@ -139,6 +140,10 @@ public class HttpInfo
     public int? StatusCode { get; set; }
     /// <summary>Gets or sets the body length value.</summary>
     public int? BodyLength { get; set; }
+    /// <summary>True when body evidence is only a prefix, with no complete-body hash.</summary>
+    public bool BodyTruncated { get; set; }
+    /// <summary>Content-Length declared by the final response, independent of captured bytes.</summary>
+    public long? DeclaredContentLength { get; set; }
     /// <summary>Gets or sets the body sha256 value.</summary>
     public string? BodySha256 { get; set; }
     /// <summary>Gets or sets the response time value.</summary>
@@ -181,7 +186,7 @@ public class HttpInfo
     public bool Http2Supported { get; set; }
     /// <summary>Gets or sets the http3 supported value.</summary>
     public bool Http3Supported { get; set; }
-    /// <summary>Gets or sets the mixed content detected value.</summary>
+    /// <summary>Gets or sets the coarse HTTP-text hint; it does not establish browser mixed content.</summary>
     public bool MixedContentDetected { get; set; }
     /// <summary>Gets or sets the insecure forms count value.</summary>
     public int InsecureFormsCount { get; set; }

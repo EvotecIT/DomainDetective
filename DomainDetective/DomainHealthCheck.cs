@@ -550,9 +550,10 @@ namespace DomainDetective {
             TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
         }
 
-        /// <summary>Releases the reusable DNS resolver owned by this health-check instance.</summary>
+        /// <summary>Releases the DNS resolver and certificate copies owned by this health-check instance.</summary>
         public void Dispose() {
             DnsConfiguration.Dispose();
+            CertificateAnalysis?.Dispose();
         }
 
     }}

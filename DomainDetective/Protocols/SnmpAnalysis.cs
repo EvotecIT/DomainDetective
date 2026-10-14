@@ -9,15 +9,24 @@ using System.Threading.Tasks;
 namespace DomainDetective;
 
 /// <summary>
-/// Performs a basic SNMP check against a server.
+/// Tests for a correlated SNMPv1 response using the public community.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public class SnmpAnalysis : IHasAssessments
 {
-    /// <summary>Target under analysis.</summary>
-    public string? Subject { get; set; }
+    private string? _subject;
+    private bool _subjectIsExplicit;
 
-    /// <summary>SNMP query results keyed by host and port.</summary>
+    /// <summary>Target under analysis. A caller-specified label is preserved; automatic labels follow the current run.</summary>
+    public string? Subject {
+        get => _subject;
+        set {
+            _subject = value;
+            _subjectIsExplicit = value != null;
+        }
+    }
+
+    /// <summary>SNMP query results keyed by host and port. False means no matching response was observed; it does not prove the service is disabled or secured.</summary>
     public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
     /// <summary>Maximum wait time for each query.</summary>
@@ -33,9 +42,8 @@ public class SnmpAnalysis : IHasAssessments
     /// <summary>Tests a single server for SNMP responses.</summary>
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
+        PrepareRun($"{host}:{port}");
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SNMP", target: $"{host}:{port}");
-        Subject ??= $"{host}:{port}";
-        ServerResults.Clear();
         var result = await CheckSnmpAsync(host, port, logger, cancellationToken);
         ServerResults[$"{host}:{port}"] = result;
         if (result)
@@ -44,14 +52,14 @@ public class SnmpAnalysis : IHasAssessments
         }
         else
         {
-            logger.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
+            logger.WriteInformationCode(SnmpCodes.Disabled, "No matching SNMP response observed on {0}:{1}", host, port);
         }
     }
 
     /// <summary>Tests multiple servers for SNMP responses.</summary>
     public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default)
     {
-        ServerResults.Clear();
+        PrepareRun(null);
         foreach (var host in hosts)
         {
             foreach (var port in ports)
@@ -66,42 +74,65 @@ public class SnmpAnalysis : IHasAssessments
                 }
                 else
                 {
-                    logger.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
+                    logger.WriteInformationCode(SnmpCodes.Disabled, "No matching SNMP response observed on {0}:{1}", host, port);
                 }
             }
         }
     }
 
-    internal static readonly byte[] Probe = new byte[]
-    {
-        0x30,0x26,0x02,0x01,0x00,0x04,0x06,0x70,0x75,0x62,0x6c,0x69,0x63,0xa0,0x19,0x02,0x04,0x00,0x00,0x00,0x01,0x02,0x01,0x00,0x02,0x01,0x00,0x30,0x0b,0x30,0x09,0x06,0x05,0x2b,0x06,0x01,0x02,0x01,0x05,0x00
-    };
+    private void PrepareRun(string? automaticSubject) {
+        ServerResults.Clear();
+        Assessments.Clear();
+        if (!_subjectIsExplicit) {
+            _subject = automaticSubject;
+        }
+    }
 
     internal static async Task<bool> ProbeAsync(string host, int port, TimeSpan timeout, InternalLogger? logger, CancellationToken token)
     {
+        return (await ProbeResponseAsync(host, port, timeout, logger, token).ConfigureAwait(false)).IsSnmp;
+    }
+
+    internal static async Task<(bool Responded, bool IsSnmp)> ProbeResponseAsync(string host, int port, TimeSpan timeout, InternalLogger? logger, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        bool responded = false;
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        cts.CancelAfter(timeout);
         try
         {
             IPAddress address;
             if (IPAddress.TryParse(host, out var parsedAddress) && parsedAddress != null) {
                 address = parsedAddress;
             } else {
-                address = (await Dns.GetHostAddressesAsync(host).ConfigureAwait(false)).First();
+                address = (await Dns.GetHostAddressesAsync(host).WaitWithCancellation(cts.Token).ConfigureAwait(false)).First();
             }
 
             using var udp = new UdpClient(address.AddressFamily);
-            udp.Client.SendTimeout = (int)timeout.TotalMilliseconds;      
-            udp.Client.ReceiveTimeout = (int)timeout.TotalMilliseconds;   
-            udp.Connect(address, port);
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            cts.CancelAfter(timeout);
-            await udp.SendAsync(Probe, Probe.Length).WaitWithCancellation(cts.Token).ConfigureAwait(false);
-            var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token).ConfigureAwait(false);
-            return result.Buffer.Length > 0;
+            udp.Connect(address, port); // Only datagrams from this endpoint can satisfy the probe.
+            var random = new byte[4];
+            using (var generator = System.Security.Cryptography.RandomNumberGenerator.Create()) {
+                generator.GetBytes(random);
+            }
+            int requestId = BitConverter.ToInt32(random, 0) & int.MaxValue;
+            var request = SnmpMessage.CreateRequest(requestId);
+            await udp.SendAsync(request, request.Length).WaitWithCancellation(cts.Token).ConfigureAwait(false);
+            while (true) {
+                cts.Token.ThrowIfCancellationRequested();
+                var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token).ConfigureAwait(false);
+                cts.Token.ThrowIfCancellationRequested();
+                responded |= result.Buffer.Length > 0;
+                if (SnmpMessage.IsResponse(result.Buffer, requestId)) return (true, true);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) {
+            throw;
         }
         catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
         {
+            token.ThrowIfCancellationRequested();
             logger?.WriteVerbose("SNMP query failed for {0}:{1} - {2}", host, port, ex.Message);
-            return false;
+            return (responded, false);
         }
     }
 

@@ -178,29 +178,8 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
 
     private static HttpMessageHandler CreateHttpHandler(WebAvailabilityOptions options) {
         var handler = options.HttpHandlerFactory?.Invoke() ?? new HttpClientHandler();
-        DisableAutoRedirect(handler);
+        HttpRequestBoundary.DisableAutoRedirect(handler);
         return handler;
-    }
-
-    private static void DisableAutoRedirect(HttpMessageHandler handler) {
-        if (handler == null) {
-            throw new ArgumentNullException(nameof(handler));
-        }
-
-        var type = handler.GetType();
-        var allowAutoRedirect = type.GetProperty("AllowAutoRedirect");
-        if (allowAutoRedirect != null && allowAutoRedirect.CanWrite && allowAutoRedirect.PropertyType == typeof(bool)) {
-            allowAutoRedirect.SetValue(handler, false, null);
-        }
-
-        var maxAutomaticRedirections = type.GetProperty("MaxAutomaticRedirections");
-        if (maxAutomaticRedirections != null && maxAutomaticRedirections.CanWrite && maxAutomaticRedirections.PropertyType == typeof(int)) {
-            maxAutomaticRedirections.SetValue(handler, 1, null);
-        }
-
-        if (handler is DelegatingHandler delegatingHandler && delegatingHandler.InnerHandler != null) {
-            DisableAutoRedirect(delegatingHandler.InnerHandler);
-        }
     }
 
     private static void ApplyRequestHeaders(HttpRequestMessage request, WebAvailabilityOptions options, Uri initialUri, Uri currentUri) {
@@ -218,7 +197,7 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
     }
 
     private static bool IsSameOrigin(Uri left, Uri right) {
-        return HasSameSchemeAndHost(left, right) && left.Port == right.Port;
+        return HttpRequestBoundary.IsSameOrigin(left, right);
     }
 
     private static bool IsSameHostHttpToHttpsUpgrade(Uri initialUri, Uri currentUri) {
@@ -229,11 +208,6 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
             && IsDefaultHttpsPort(currentUri);
     }
 
-    private static bool HasSameSchemeAndHost(Uri left, Uri right) {
-        return left.Scheme.Equals(right.Scheme, StringComparison.OrdinalIgnoreCase)
-            && left.Host.Equals(right.Host, StringComparison.OrdinalIgnoreCase);
-    }
-
     private static bool IsDefaultHttpPort(Uri uri) {
         return uri.IsDefaultPort || uri.Port == 80;
     }
@@ -242,17 +216,8 @@ public sealed class WebAvailabilityAnalysis : IHasAssessments {
         return uri.IsDefaultPort || uri.Port == 443;
     }
 
-    private static HttpMethod GetRedirectMethod(HttpMethod method, HttpStatusCode statusCode) {
-        if (statusCode == HttpStatusCode.SeeOther && method != HttpMethod.Head) {
-            return HttpMethod.Get;
-        }
-
-        if ((statusCode == HttpStatusCode.MovedPermanently || statusCode == HttpStatusCode.Found) && method == HttpMethod.Post) {
-            return HttpMethod.Get;
-        }
-
-        return method;
-    }
+    private static HttpMethod GetRedirectMethod(HttpMethod method, HttpStatusCode statusCode) =>
+        HttpRequestBoundary.GetRedirectMethod(method, statusCode);
 
     private async Task<WebAvailabilityOriginTlsResult> ProbeOriginTlsAsync(
         WebOriginTlsEndpoint endpoint,

@@ -15,7 +15,7 @@ public class TestAutodiscoverHttpPost {
             .Respond(HttpStatusCode.MethodNotAllowed);
         // POST returns XML
         mock.When(HttpMethod.Post, "https://autodiscover.example.com/autodiscover/autodiscover.xml")
-            .Respond("application/xml", "<Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/requestschema/2006\"></Autodiscover>");
+            .Respond("application/xml", TestAutodiscoverAttemptBoundaries.RecognizedError);
 
         var analysis = new AutodiscoverHttpAnalysis { HttpHandlerFactory = () => mock };
         await analysis.Analyze("example.com", new InternalLogger());

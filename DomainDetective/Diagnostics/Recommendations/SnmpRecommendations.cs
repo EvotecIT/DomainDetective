@@ -17,12 +17,12 @@ internal sealed class SnmpRecommendations : IRecommendationProvider {
         };
         map[SnmpCodes.Disabled] = new RecommendationAdvice {
             Code = SnmpCodes.Disabled,
-            Title = "SNMP disabled or secured",
-            Why = "No response to public probes indicates reduced attack surface.",
-            How = "No action required; continue monitoring to ensure access remains restricted.",
+            Title = "No matching SNMP response observed",
+            Why = "No response to public probes can result from disabled SNMP, access controls, packet loss or an unreachable target; it does not prove the service is secured.",
+            How = "Verify SNMP configuration and network reachability before concluding that access is restricted.",
             Domain = RecommendationDomain.Infrastructure,
             Tags = new[] { "snmp", "network" },
-            Impact = "Limits information disclosure and reflection abuse.",
+            Impact = "Exposure remains unconfirmed from this probe alone.",
             Effort = RecommendationEffort.Low,
             Verify = "Probes using default community strings receive no response."
         };

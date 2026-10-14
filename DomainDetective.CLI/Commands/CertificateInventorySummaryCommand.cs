@@ -67,7 +67,7 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
 
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-    protected override Task<int> ExecuteAsync(CommandContext context, CertificateInventorySummarySettings settings, CancellationToken cancellationToken) {
+    public override Task<int> ExecuteAsync(CommandContext context, CertificateInventorySummarySettings settings, CancellationToken cancellationToken) {
         if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         }

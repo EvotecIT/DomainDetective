@@ -27,7 +27,7 @@ internal sealed class TestNtpServerSettings : CommandSettings {
 /// </summary>
 internal sealed class TestNtpServerCommand : AsyncCommand<TestNtpServerSettings> {
     /// <inheritdoc/>
-    protected override async Task<int> ExecuteAsync(CommandContext context, TestNtpServerSettings settings, CancellationToken cancellationToken) {
+    public override async Task<int> ExecuteAsync(CommandContext context, TestNtpServerSettings settings, CancellationToken cancellationToken) {
         var hc = new DomainHealthCheck();
         string host = !string.IsNullOrWhiteSpace(settings.Server)
             ? settings.Server!

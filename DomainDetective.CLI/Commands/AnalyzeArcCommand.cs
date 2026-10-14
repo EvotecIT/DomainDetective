@@ -27,7 +27,7 @@ internal sealed class AnalyzeArcCommand : Command<AnalyzeArcSettings> {
     [RequiresDynamicCode("Calls DomainDetective.CLI.CommandUtilities.AnalyzeARC(FileInfo, String, Boolean)")]
     [RequiresUnreferencedCode("Calls DomainDetective.CLI.CommandUtilities.AnalyzeARC(FileInfo, String, Boolean)")]
     /// <inheritdoc/>
-    protected override int Execute(CommandContext context, AnalyzeArcSettings settings, CancellationToken cancellationToken) {
+    public override int Execute(CommandContext context, AnalyzeArcSettings settings, CancellationToken cancellationToken) {
         CommandUtilities.AnalyzeARC(settings.File, settings.Header, settings.Json);
         return 0;
     }

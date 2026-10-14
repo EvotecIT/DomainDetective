@@ -61,11 +61,23 @@ public sealed class CmdletImportDmarcAggregateSnapshot : PSCmdlet
 
     /// <summary>Maximum number of messages to scan (default 500).</summary>
     [Parameter(Mandatory = false, ParameterSetName = "Imap")]
+    [ValidateRange(0, int.MaxValue)]
     public int MaxMessages { get; set; } = 500;
 
     /// <summary>Maximum attachment size to decode in MB (0 for unlimited).</summary>
     [Parameter(Mandatory = false, ParameterSetName = "Imap")]
+    [ValidateRange(0, int.MaxValue)]
     public int MaxAttachmentMb { get; set; } = 50;
+
+    /// <summary>Maximum raw IMAP message size in MB before MIME parsing (0 for unlimited).</summary>
+    [Parameter(Mandatory = false, ParameterSetName = "Imap")]
+    [ValidateRange(0, int.MaxValue)]
+    public int MaxMessageMb { get; set; } = 100;
+
+    /// <summary>Maximum expanded report size in MB for file and IMAP imports (0 for unlimited).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int MaxUncompressedMb { get; set; } = 50;
 
     /// <summary>Only consider unseen messages (default true).</summary>        
     [Parameter(Mandatory = false, ParameterSetName = "Imap")]
@@ -97,6 +109,8 @@ public sealed class CmdletImportDmarcAggregateSnapshot : PSCmdlet
                 Password = Credential.GetNetworkCredential().Password ?? string.Empty,
                 Mailbox = Mailbox ?? "INBOX",
                 MaxMessages = MaxMessages,
+                MaxMessageBytes = (long)MaxMessageMb * 1024L * 1024L,
+                MaxUncompressedBytes = (long)MaxUncompressedMb * 1024L * 1024L,
                 OnlyUnseen = OnlyUnseen,
                 RequireAttachments = true,
                 MaxAttachmentBytes = MaxAttachmentMb <= 0
@@ -115,7 +129,7 @@ public sealed class CmdletImportDmarcAggregateSnapshot : PSCmdlet
         }
         else
         {
-            result = DmarcAggregateIngestion.IngestFromPath(Path, store, deduplicate);
+            result = DmarcAggregateIngestion.IngestFromPath(Path, store, deduplicate, (long)MaxUncompressedMb * 1024L * 1024L);
         }
 
         foreach (var e in result.Errors)

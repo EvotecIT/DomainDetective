@@ -88,12 +88,15 @@ internal sealed class DomainAssessmentViewReader {
     /// </summary>
     public void ReadDetails(object view, string? prefix, List<CheckFact> facts, List<CheckEvidence> evidence, int maxRows, int depth = 0) {
         foreach (PropertyInfo property in _other) {
+            if (IsKnownFlag(property, _other)) continue;
+            Presentation.TryGetValue(Type.Name + "." + property.Name, out (string? Label, string? RequiresValue) shown);
+            if (shown.RequiresValue != null && _other.FirstOrDefault(p => p.Name == shown.RequiresValue) is { } required && Get(required, view) == null) continue;
             object? value = Get(property, view);
             if (value == null) continue;
-            string label = Humanize(prefix == null ? property.Name : prefix + property.Name);
+            string label = shown.Label ?? Humanize(prefix == null ? property.Name : prefix + property.Name);
             Type type = value.GetType();
             if (IsScalar(type)) {
-                string text = Format(value);
+                string text = Unattributed(property, _other, view) ? NotAttributed : Format(value);
                 if (text.Length == 0) continue;
                 if (IsRecordText(property.Name, text)) {
                     evidence.Add(new CheckEvidence { Title = label, Kind = CheckEvidenceKind.Code, Text = text });
@@ -147,16 +150,16 @@ internal sealed class DomainAssessmentViewReader {
         }
 
         Type elementType = items[0].GetType();
-        PropertyInfo[] columns = elementType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+        PropertyInfo[] all = elementType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(static p => p.CanRead && p.GetIndexParameters().Length == 0 && (IsScalar(p.PropertyType) || IsScalarSequence(p.PropertyType)))
-            .Take(16)
             .ToArray();
+        PropertyInfo[] columns = all.Where(p => !IsKnownFlag(p, all)).Take(16).ToArray();
         if (columns.Length == 0) return;
         var table = new CheckEvidence { Title = label, Kind = CheckEvidenceKind.Table };
         table.Columns.AddRange(columns.Select(static c => Humanize(c.Name)));
         foreach (object item in items) {
             table.Rows.Add(columns.Select(column => item.GetType() == elementType || column.DeclaringType!.IsInstanceOfType(item)
-                ? FormatCell(Get(column, item))
+                ? Unattributed(column, all, item) ? NotAttributed : FormatCell(Get(column, item))
                 : string.Empty).ToList());
         }
         table.Omitted = Math.Max(0, total - items.Count);
@@ -185,6 +188,27 @@ internal sealed class DomainAssessmentViewReader {
             return null;
         }
     }
+
+    private const string NotAttributed = "Not attributed";
+
+    // Members whose name does not carry their meaning: a clearer label, or shown only when another member has a value.
+    private static readonly Dictionary<string, (string? Label, string? RequiresValue)> Presentation = new(StringComparer.Ordinal) {
+        // A pattern in the response text, not a check of what the page loads.
+        ["HttpInfo.MixedContentDetected"] = ("HTTP text hint", null),
+        // The bytes captured, which can be fewer than the body; whether it was cut short only means something once captured.
+        ["HttpInfo.BodyLength"] = ("Captured body (bytes)", null),
+        ["HttpInfo.BodyTruncated"] = ("Body truncated", "BodyLength")
+    };
+
+    // A boolean "<Name>Known" says whether <Name> was observed; it is read with <Name>, not shown on its own.
+    private static bool IsKnownFlag(PropertyInfo property, IReadOnlyList<PropertyInfo> siblings)
+        => property.PropertyType == typeof(bool) && property.Name.Length > 5 && property.Name.EndsWith("Known", StringComparison.Ordinal)
+           && siblings.Any(p => p.Name == property.Name.Substring(0, property.Name.Length - 5));
+
+    // A value whose "<Name>Known" flag is false was not observed: "Not attributed" rather than a zero that reads as a fact.
+    private static bool Unattributed(PropertyInfo property, IReadOnlyList<PropertyInfo> siblings, object target)
+        => siblings.FirstOrDefault(p => p.Name == property.Name + "Known" && p.PropertyType == typeof(bool)) is { } known
+           && Get(known, target) is false;
 
     private static bool IsRecordText(string name, string text)
         => text.Length > 120 || name.EndsWith("Record", StringComparison.Ordinal) && text.IndexOf(' ') >= 0 && text.Length > 12;

@@ -29,13 +29,19 @@ namespace DomainDetective {
     /// Validation includes hostname matching and chain verification using the
     /// system trust store.
     /// </remarks>
-    public partial class CertificateAnalysis : IHasAssessments {
+    public partial class CertificateAnalysis : IHasAssessments, IDisposable {
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Gets or sets the URL that was checked.</summary>
         public string Url { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the certificate chain is valid.</summary>
         public bool IsValid { get; set; }
+        /// <summary>Gets whether the most recent operation evaluated system chain trust.</summary>
+        public bool ChainValidationPerformed { get; set; }
+        /// <summary>Gets whether the most recent operation evaluated a requested hostname.</summary>
+        public bool HostnameValidationPerformed { get; set; }
+        /// <summary>Gets whether the current evidence came from a supplied certificate without contacting an endpoint.</summary>
+        public bool ProvidedCertificateInspection { get; private set; }
         /// <summary>Gets or sets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; set; }
         /// <summary>Gets the best-effort failure reason when the endpoint probe does not complete successfully.</summary>
@@ -60,19 +66,20 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating HTTP/3 support.</summary>
         public bool Http3Supported { get; private set; }
 
-        /// <summary>Gets the leaf certificate.</summary>
+        /// <summary>Gets or sets the leaf certificate.</summary>
+        /// <remarks>Library-created certificates remain valid until the next analysis or disposal. Certificates supplied through this setter remain owned by the caller.</remarks>
         public X509Certificate2? Certificate { get; set; }
 
         /// <summary>Gets the certificate chain.</summary>
-        public List<X509Certificate2> Chain { get; } = new();
+        public List<X509Certificate2> Chain { get; private set; } = new();
         /// <summary>Most recent source used to populate <see cref="Chain"/>.</summary>
         public string ChainSource { get; private set; } = string.Empty;
         /// <summary>Ordered unique list of chain acquisition sources observed during analysis.</summary>
-        public List<string> ChainSourceHistory { get; } = new();
+        public List<string> ChainSourceHistory { get; private set; } = new();
         /// <summary>Gets OCSP endpoints from the certificate.</summary>
-        public List<string> OcspUrls { get; } = new();
+        public List<string> OcspUrls { get; private set; } = new();
         /// <summary>Gets CRL endpoints from the certificate.</summary>
-        public List<string> CrlUrls { get; } = new();
+        public List<string> CrlUrls { get; private set; } = new();
         /// <summary>Gets a value indicating whether the certificate is revoked according to OCSP.</summary>
         public bool? OcspRevoked { get; private set; }
         /// <summary>Gets a value indicating whether the certificate is revoked according to CRL.</summary>
@@ -90,11 +97,11 @@ namespace DomainDetective {
         internal Func<AddressFamily, TcpClient> TcpClientFactory { get; set; } = family =>
             family == AddressFamily.Unspecified ? new TcpClient() : new TcpClient(family);
         /// <summary>Gets redirect target hosts observed during the most recent HTTP analysis.</summary>
-        public List<string> RedirectTargets { get; } = new();
+        public List<string> RedirectTargets { get; private set; } = new();
         /// <summary>Gets DNS names listed in the certificate subject alternative name extension.</summary>
-        public List<string> SubjectAlternativeNames { get; } = new();
+        public List<string> SubjectAlternativeNames { get; private set; } = new();
         /// <summary>Gets wildcard entries with matching subdomains.</summary>
-        public Dictionary<string, List<string>> WildcardSubdomains { get; } = new();
+        public Dictionary<string, List<string>> WildcardSubdomains { get; private set; } = new();
         /// <summary>Gets a value indicating whether the certificate contains wildcard names.</summary>
         public bool IsWildcardCertificate { get; private set; }
         /// <summary>Gets a value indicating the certificate secures multiple unrelated hosts.</summary>
@@ -130,9 +137,9 @@ namespace DomainDetective {
         /// <summary>Indicates if the certificate allows secure email usage.</summary>
         public bool AllowsSecureEmail { get; private set; }
         /// <summary>List of EKU OIDs on the certificate.</summary>
-        public List<string> ExtendedKeyUsageOids { get; } = new();
+        public List<string> ExtendedKeyUsageOids { get; private set; } = new();
         /// <summary>List of EKU friendly names for the certificate.</summary>
-        public List<string> ExtendedKeyUsageFriendlyNames { get; } = new();
+        public List<string> ExtendedKeyUsageFriendlyNames { get; private set; } = new();
         /// <summary>Normalized EKU authentication profile for filtering/reporting.</summary>
         public string AuthenticationProfile { get; private set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
         /// <summary>Gets the negotiated TLS protocol when <see cref="CaptureTlsDetails"/> is true.</summary>
@@ -193,17 +200,17 @@ namespace DomainDetective {
         /// <summary>Template-format errors captured during the latest CT lookup.</summary>
         public IReadOnlyList<string> CtTemplateFormatErrors => _ctTemplateFormatErrors;
 
-        private readonly List<JsonElement> _ctLogEntries = new();
+        private List<JsonElement> _ctLogEntries = new();
         private volatile string[] _ctDiscoverySources = Array.Empty<string>();
         private volatile string[] _ctTemplateFormatErrors = Array.Empty<string>();
-        private readonly CtLogAggregator _ctLogAggregator = new();
+        private CtLogAggregator _ctLogAggregator = new();
         private const string ChainSourceTlsHandshake = "tls-handshake";
         private const string ChainSourceSslStreamBuild = "sslstream-build";
         private const string ChainSourceLocalBuildOnline = "local-build-online";
         private const string ChainSourceLocalBuildNoCheck = "local-build-no-check";
 
         /// <summary>Structured assessments captured during certificate checks.</summary>
-        public List<Assessment> Assessments { get; } = new();
+        public List<Assessment> Assessments { get; private set; } = new();
 
         /// <summary>Coarse web TLS grade.</summary>
         public GradeLevel GradeLevel { get; private set; } = GradeLevel.Unknown;
@@ -256,15 +263,12 @@ namespace DomainDetective {
         /// <param name="logger">Logger instance for diagnostics.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         public async Task AnalyzeUrl(string url, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            ResetObservedState();
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
             Url = url;
-            IsSelfSigned = false;
-            FailureReason = null;
-            FailureKind = CertificateFailureKind.None;
-            RemoteAddress = null;
-            RedirectTargets.Clear();
-            ResetChainSourceTracking();
+            Subject = url;
             bool capturedHandshakeCertificate = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             if (ShouldUseTlsHandshakeOnlyProbe()) {
@@ -273,6 +277,8 @@ namespace DomainDetective {
                     if (Certificate != null) {
                         await FinalizeCapturedCertificateAsync(url, port, logger, cancellationToken).ConfigureAwait(false);
                     }
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
                 } catch (Exception ex) {
                     ex = NormalizeProbeException(ex, cancellationToken);
                     IsReachable = false;
@@ -302,7 +308,7 @@ namespace DomainDetective {
                         leaf = loadedLeaf;
                     }
                     try {
-                        Certificate = CertificateLoaderCompat.Clone(leaf);
+                        Certificate = OwnCertificate(CertificateLoaderCompat.Clone(leaf));
                     } finally {
                         loadedLeaf?.Dispose();
                     }
@@ -310,12 +316,14 @@ namespace DomainDetective {
                     Chain.Clear();
                     if (chain != null) {
                         foreach (var element in chain.ChainElements) {
-                            Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
+                            Chain.Add(OwnCertificate(CertificateLoaderCompat.Clone(element.Certificate)));
                         }
                     }
                     RecordChainSource(ChainSourceTlsHandshake);
                     IsSelfSigned = IsSelfSignedCertificate(Certificate);
                     IsValid = policyErrors == SslPolicyErrors.None;
+                    ChainValidationPerformed = true;
+                    HostnameValidationPerformed = true;
                     HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     capturedHandshakeCertificate = true;
                 }
@@ -416,20 +424,24 @@ namespace DomainDetective {
                                     .ConfigureAwait(false);
                                 using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
                                     HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                                    HostnameValidationPerformed = ChainValidationPerformed = true;
+                                    IsValid = errors == SslPolicyErrors.None;
                                     return errors == SslPolicyErrors.None;
                                 });
                                 await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
-                                    Certificate = CertificateLoaderCompat.Clone(cert);
-                                    var xchain = new X509Chain();
+                                    Certificate = OwnCertificate(CertificateLoaderCompat.Clone(cert));
+                                    using var xchain = new X509Chain();
                                     xchain.Build(cert);
                                     Chain.Clear();
                                     foreach (var element in xchain.ChainElements) {
-                                        Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
+                                        Chain.Add(OwnCertificate(CertificateLoaderCompat.Clone(element.Certificate)));
                                     }
                                     RecordChainSource(ChainSourceSslStreamBuild);
                                     IsSelfSigned = IsSelfSignedCertificate(Certificate);
                                 }
+                            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                                throw;
                             } catch (Exception ex) {
                                 ex = NormalizeProbeException(ex, cancellationToken, timeoutCts);
                                 logger.WriteErrorCode(CertificateHttpCodes.FetchFailed, "Error retrieving certificate for {0}: {1}", url, ex.ToString());
@@ -440,6 +452,8 @@ namespace DomainDetective {
                         if (Certificate != null) {
                             await FinalizeCapturedCertificateAsync(url, port, logger, cancellationToken).ConfigureAwait(false);
                         }
+                    } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                        throw;
                     } catch (Exception ex) {
                         ex = NormalizeProbeException(ex, cancellationToken);
                         IsReachable = false;
@@ -469,6 +483,8 @@ namespace DomainDetective {
                 {
                     HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     IsValid = errors == SslPolicyErrors.None;
+                    ChainValidationPerformed = true;
+                    HostnameValidationPerformed = true;
                     return true;
                 });
             await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation)
@@ -481,14 +497,14 @@ namespace DomainDetective {
                 return;
             }
 
-            Certificate = CertificateLoaderCompat.LoadCertificate(ssl.RemoteCertificate.Export(X509ContentType.Cert));
+            Certificate = OwnCertificate(CertificateLoaderCompat.LoadCertificate(ssl.RemoteCertificate.Export(X509ContentType.Cert)));
             using var chain = new X509Chain();
             chain.ChainPolicy.RevocationMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
             chain.Build(Certificate);
             Chain.Clear();
             foreach (X509ChainElement element in chain.ChainElements)
             {
-                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
+                Chain.Add(OwnCertificate(CertificateLoaderCompat.Clone(element.Certificate)));
             }
 
             RecordChainSource(ChainSourceSslStreamBuild);
@@ -853,160 +869,6 @@ namespace DomainDetective {
             return exception.ToString();
         }
 
-        private async Task QueryRevocationEndpoints(CancellationToken cancellationToken) {
-            if (SkipRevocation) {
-                return;
-            }
-            OcspUrls.Clear();
-            CrlUrls.Clear();
-            OcspRevoked = null;
-            CrlRevoked = null;
-            try {
-                var certificate = Certificate;
-                if (certificate == null) {
-                    return;
-                }
-                var parser = new X509CertificateParser();
-                var bcCert = parser.ReadCertificate(certificate.RawData);
-
-                var aiaExt = bcCert.GetExtensionValue(X509Extensions.AuthorityInfoAccess);
-                if (aiaExt != null) {
-                    var seq = (Asn1Sequence)Asn1Object.FromByteArray(aiaExt.GetOctets());
-                    foreach (var obj in seq) {
-                        var ad = AccessDescription.GetInstance(obj);
-                        if (ad.AccessMethod.Equals(new DerObjectIdentifier("1.3.6.1.5.5.7.48.1"))) {
-                            var name = GeneralName.GetInstance(ad.AccessLocation.ToAsn1Object());
-                            if (name.TagNo == GeneralName.UniformResourceIdentifier) {
-                                var uri = DerIA5String.GetInstance(name.Name).GetString();
-                                OcspUrls.Add(uri);
-                            }
-                        }
-                    }
-                }
-
-                var crlExt = bcCert.GetExtensionValue(X509Extensions.CrlDistributionPoints);
-                if (crlExt != null) {
-                    var cdp = CrlDistPoint.GetInstance(Asn1Object.FromByteArray(crlExt.GetOctets()));
-                    foreach (var dp in cdp.GetDistributionPoints()) {
-                        var names = dp.DistributionPointName?.Name as GeneralNames;
-                        if (names == null) {
-                            continue;
-                        }
-                        foreach (var gn in names.GetNames()) {
-                            if (gn.TagNo == GeneralName.UniformResourceIdentifier) {
-                                var uri = DerIA5String.GetInstance(gn.Name).GetString();
-                                CrlUrls.Add(uri);
-                            }
-                        }
-                    }
-                }
-
-                if (OcspUrls.Count > 0 && Chain.Count > 1) {
-                    var issuer = parser.ReadCertificate(Chain[1].RawData);
-#pragma warning disable CS0618
-                    var id = new CertificateID(CertificateID.HashSha1, issuer, bcCert.SerialNumber);
-#pragma warning restore CS0618
-                    var gen = new OcspReqGenerator();
-                    gen.AddRequest(id);
-                    var req = gen.Generate();
-                    var client = SharedHttpClient.Instance;
-                    using var content = new ByteArrayContent(req.GetEncoded());
-                    content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ocsp-request");
-                    using var resp = await client.PostAsync(OcspUrls[0], content, cancellationToken);
-                    if (resp.IsSuccessStatusCode) {
-                        var bytes = await resp.Content.ReadAsByteArrayAsync();
-                        OcspRevoked = ParseOcspResponse(bytes);
-                    }
-                }
-
-                if (CrlUrls.Count > 0) {
-                    var client = SharedHttpClient.Instance;
-                    using var resp = await client.GetAsync(CrlUrls[0], cancellationToken);
-                    if (resp.IsSuccessStatusCode) {
-                        var bytes = await resp.Content.ReadAsByteArrayAsync();
-                        var crl = new X509CrlParser().ReadCrl(bytes);
-                        CrlRevoked = crl.IsRevoked(bcCert);
-                    }
-                }
-            } catch {
-                // ignore revocation failures
-            }
-        }
-
-        /// <summary>Parses an OCSP response and returns the revocation status.</summary>
-        /// <param name="response">OCSP response bytes.</param>
-        /// <returns><c>true</c> if revoked, <c>false</c> if valid, <c>null</c> if inconclusive.</returns>
-        internal static bool? ParseOcspResponse(byte[] response) {
-            var ocspResp = new OcspResp(response);
-            if (ocspResp.Status != OcspRespStatus.Successful) {
-                return null;
-            }
-
-            var basic = (BasicOcspResp)ocspResp.GetResponseObject();
-            if (basic.Responses.Length == 0) {
-                return null;
-            }
-
-            var status = basic.Responses[0].GetCertStatus();
-            return status switch {
-                RevokedStatus => true,
-                UnknownStatus => null,
-                _ => false
-            };
-        }
-
-        private async Task QueryCtLogs(CancellationToken cancellationToken)
-        {
-            PresentInCtLogs = false;
-            _ctLogEntries.Clear();
-            _ctDiscoverySources = Array.Empty<string>();
-            _ctTemplateFormatErrors = Array.Empty<string>();
-            if (Certificate == null)
-            {
-                return;
-            }
-            byte[] hashBytes;
-#if NET8_0_OR_GREATER
-            hashBytes = Certificate.GetCertHash(HashAlgorithmName.SHA256);
-#else
-            using (var sha = SHA256.Create()) {
-                hashBytes = sha.ComputeHash(Certificate.RawData);
-            }
-#endif
-            var fingerprint = BitConverter.ToString(hashBytes).Replace("-", string.Empty).ToLowerInvariant();
-
-            _ctLogAggregator.QueryOverride = CtLogQueryOverride;
-            _ctLogAggregator.EnableCensysSource = EnableCensysCtSource;
-            _ctLogAggregator.EnableShodanSource = EnableShodanCtSource;
-            _ctLogAggregator.CensysApiId = FirstNonEmpty(CensysApiId, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_CENSYS_API_ID"));
-            _ctLogAggregator.CensysApiSecret = FirstNonEmpty(CensysApiSecret, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_CENSYS_API_SECRET"));
-            _ctLogAggregator.ShodanApiKey = FirstNonEmpty(ShodanApiKey, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_SHODAN_API_KEY"));
-
-            var entries = await _ctLogAggregator.QueryAsync(fingerprint, cancellationToken).ConfigureAwait(false);
-            _ctLogEntries.AddRange(entries);
-            _ctDiscoverySources = _ctLogAggregator.LastQueriedSources
-                .Where(source => !string.IsNullOrWhiteSpace(source))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            _ctTemplateFormatErrors = _ctLogAggregator.LastTemplateFormatErrors
-                .Where(error => !string.IsNullOrWhiteSpace(error))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            PresentInCtLogs = _ctLogEntries.Count > 0;
-        }
-
-        private static string? FirstNonEmpty(string? explicitValue, string? fallbackValue) {
-            if (!string.IsNullOrWhiteSpace(explicitValue)) {
-                return explicitValue;
-            }
-
-            if (!string.IsNullOrWhiteSpace(fallbackValue)) {
-                return fallbackValue;
-            }
-
-            return null;
-        }
-
         /// <summary>
         /// Standalone version to check the website certificate.
         /// </summary>
@@ -1034,84 +896,6 @@ namespace DomainDetective {
         public static async Task<IReadOnlyList<CertificateAnalysis>> CheckWebsiteCertificates(IEnumerable<string> urls, int port = 443, CancellationToken cancellationToken = default) {
             var tasks = urls.Select(u => CheckWebsiteCertificate(u, port, cancellationToken));
             return await Task.WhenAll(tasks).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Analyzes a provided certificate without performing any network operations.
-        /// </summary>
-        /// <param name="certificate">Certificate instance to inspect.</param>
-        /// <param name="cancellationToken">Token used to cancel the operation.</param>
-        public async Task AnalyzeCertificate(X509Certificate2 certificate, CancellationToken cancellationToken = default) {
-            Certificate = CertificateLoaderCompat.Clone(certificate);
-            IsSelfSigned = false;
-            ResetChainSourceTracking();
-            var chain = new X509Chain();
-            chain.ChainPolicy.RevocationMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
-            IsValid = chain.Build(certificate);
-            Chain.Clear();
-            foreach (var element in chain.ChainElements) {
-                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
-            }
-            RecordChainSource(SkipRevocation ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
-            IsSelfSigned = IsSelfSignedCertificate(Certificate);
-            PopulateKeyInfo();
-            DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
-            DaysValid = (int)(certificate.NotAfter - certificate.NotBefore).TotalDays;
-            IsExpired = certificate.NotAfter < DateTime.Now;
-            if (CaptureExtendedMetadata && !SkipRevocation) {
-                await QueryRevocationEndpoints(cancellationToken);
-            }
-            PopulateSubjectAlternativeNames();
-            if (CaptureExtendedMetadata || CaptureCtMetadata) {
-                await QueryCtLogs(cancellationToken);
-            }
-        }
-
-        private void EnsureChainBuilt(X509Certificate2 certificate) {
-            if (Chain.Count > 1) {
-                return;
-            }
-
-            if (TryBuildChain(certificate, SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online)) {
-                return;
-            }
-
-            if (!SkipRevocation) {
-                TryBuildChain(certificate, X509RevocationMode.NoCheck);
-            }
-        }
-
-        private bool TryBuildChain(X509Certificate2 certificate, X509RevocationMode revocationMode) {
-            using var chain = new X509Chain();
-            chain.ChainPolicy.RevocationMode = revocationMode;
-            chain.ChainPolicy.UrlRetrievalTimeout = Timeout;
-            chain.Build(certificate);
-            if (chain.ChainElements.Count <= Chain.Count) {
-                return false;
-            }
-
-            Chain.Clear();
-            foreach (var element in chain.ChainElements) {
-                Chain.Add(CertificateLoaderCompat.Clone(element.Certificate));
-            }
-            RecordChainSource(revocationMode == X509RevocationMode.NoCheck ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
-            return true;
-        }
-
-        private void ResetChainSourceTracking() {
-            ChainSource = string.Empty;
-            ChainSourceHistory.Clear();
-        }
-
-        private void RecordChainSource(string source) {
-            if (string.IsNullOrWhiteSpace(source)) {
-                return;
-            }
-
-            ChainSource = source;
-            if (!ChainSourceHistory.Contains(source, StringComparer.OrdinalIgnoreCase)) {
-                ChainSourceHistory.Add(source);
-            }
         }
 
         private void PopulateSubjectAlternativeNames() {

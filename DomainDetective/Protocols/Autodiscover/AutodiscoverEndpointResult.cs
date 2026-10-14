@@ -16,6 +16,20 @@ public class AutodiscoverEndpointResult {
     public IReadOnlyList<string>? RedirectChain { get; init; }
     /// <summary>Gets a value indicating whether the XML response was valid.</summary>
     public bool XmlValid { get; init; }
+    /// <summary>Gets whether a supported Autodiscover settings, redirect or error structure was recognized.</summary>
+    public bool ServiceResponseRecognized { get; init; }
+    /// <summary>Gets the recognized response kind; an error response does not prove mailbox authentication.</summary>
+    public string? ServiceResponseType { get; init; }
+    /// <summary>Gets whether this response confirms an Autodiscover service rather than merely well-formed XML or a JSON candidate URL.</summary>
+    public bool DiscoverySucceeded => StatusCode >= 200 && StatusCode < 300 && XmlValid && XmlNamespaceValid && ServiceResponseRecognized;
+    /// <summary>Gets a retained request or body failure.</summary>
+    public string? Error { get; init; }
+    /// <summary>Gets whether the overall flow deadline ended this endpoint.</summary>
+    public bool BudgetExhausted { get; init; }
+    /// <summary>Gets endpoint duration, including GET, redirects, POST and response bodies.</summary>
+    public long ElapsedMilliseconds { get; init; }
+    /// <summary>Gets individual requests and their observed failure phases.</summary>
+    public IReadOnlyList<AutodiscoverRequestAttempt> Requests { get; init; } = System.Array.Empty<AutodiscoverRequestAttempt>();
     /// <summary>Gets the final URL after following redirects, if any.</summary>
     public string? FinalUrl { get; init; }
     /// <summary>Gets the host of the final URL.</summary>
@@ -34,4 +48,20 @@ public class AutodiscoverEndpointResult {
     public bool JsonValid { get; init; }
     /// <summary>Gets the endpoint URL discovered via JSON, if any.</summary>
     public string? JsonEndpointUrl { get; init; }
+}
+
+/// <summary>Observed timing and response evidence for one anonymous Autodiscover HTTP request.</summary>
+public sealed class AutodiscoverRequestAttempt {
+    /// <summary>Gets the attempted URL.</summary>
+    public string Url { get; init; } = string.Empty;
+    /// <summary>Gets the HTTP method.</summary>
+    public string Method { get; init; } = string.Empty;
+    /// <summary>Gets the response status when headers arrived.</summary>
+    public int? StatusCode { get; init; }
+    /// <summary>Gets duration through body acquisition or failure.</summary>
+    public long ElapsedMilliseconds { get; init; }
+    /// <summary>Gets request or body when a failure occurred; connection-only timing is not inferred.</summary>
+    public string? FailureStage { get; init; }
+    /// <summary>Gets the failure detail.</summary>
+    public string? Error { get; init; }
 }

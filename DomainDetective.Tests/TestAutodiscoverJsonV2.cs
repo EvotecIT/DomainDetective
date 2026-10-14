@@ -26,7 +26,7 @@ public class TestAutodiscoverJsonV2 {
         mock.When(HttpMethod.Get, "https://autodiscover-s.outlook.com/autodiscover/autodiscover.xml")
             .Respond(HttpStatusCode.MethodNotAllowed);
         mock.When(HttpMethod.Post, "https://autodiscover-s.outlook.com/autodiscover/autodiscover.xml")
-            .Respond("application/xml", "<Autodiscover></Autodiscover>");
+            .Respond("application/xml", TestAutodiscoverAttemptBoundaries.RecognizedError);
 
         var analysis = new AutodiscoverHttpAnalysis { HttpHandlerFactory = () => mock };
         await analysis.Analyze("example.org", new InternalLogger());

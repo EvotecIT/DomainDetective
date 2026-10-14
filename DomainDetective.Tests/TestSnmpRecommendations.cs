@@ -19,9 +19,9 @@ public class TestSnmpRecommendations {
         Assert.Contains("Disable SNMP", responds.How);
 
         var disabled = map[SnmpCodes.Disabled];
-        Assert.Equal("SNMP disabled or secured", disabled.Title);
+        Assert.Equal("No matching SNMP response observed", disabled.Title);
         Assert.Contains("No response to public probes", disabled.Why);
-        Assert.Contains("No action required", disabled.How);
+        Assert.Contains("Verify SNMP configuration", disabled.How);
     }
 }
 

@@ -115,7 +115,7 @@ public class TestMTASTSAnalysis {
             try {
                 var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
                 var analysis = new MTASTSAnalysis {
-                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt",
+                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt?fixture=" + Guid.NewGuid().ToString("N"),
                     QueryDnsOverride = (_, _) => Task.FromResult(answers),
                     DnsConfiguration = new DnsConfiguration()
                 };
@@ -158,7 +158,7 @@ public class TestMTASTSAnalysis {
 
             try {
                 var analysis = new MTASTSAnalysis {
-                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt",
+                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt?fixture=" + Guid.NewGuid().ToString("N"),
                     QueryDnsOverride = (_, _) => Task.FromResult(answers),
                     DnsConfiguration = new DnsConfiguration()
                 };
@@ -482,7 +482,7 @@ public class TestMTASTSAnalysis {
             try {
                 var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
                 var analysis = new MTASTSAnalysis {
-                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt",
+                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt?fixture=" + Guid.NewGuid().ToString("N"),
                     QueryDnsOverride = (_, _) => Task.FromResult(answers),
                     DnsConfiguration = new DnsConfiguration()
                 };

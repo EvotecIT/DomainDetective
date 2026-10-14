@@ -13,7 +13,7 @@ public static partial class Converters
         var positives = RecommendationEngine.FromPositives(assessments);
         var endpoints = analysis.Endpoints ?? new List<AutodiscoverEndpointResult>();
         var attempts = endpoints.Count;
-        var valid = System.Linq.Enumerable.FirstOrDefault(endpoints, e => e.XmlValid || e.JsonValid);
+        var valid = System.Linq.Enumerable.FirstOrDefault(endpoints, e => e.DiscoverySucceeded);
         var first = System.Linq.Enumerable.FirstOrDefault(endpoints);
         var bestUrl = valid?.FinalUrl ?? valid?.Url ?? first?.FinalUrl ?? first?.Url;
         var bestStatus = valid?.StatusCode ?? first?.StatusCode;
@@ -47,7 +47,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"SRV {(analysis.SrvRecordExists?"yes":"no")}; CNAME {(analysis.AutodiscoverCnameExists?"yes":"no")}; HTTP {(successCount>0?"ok":"fail")}",
+            Summary = $"SRV {(analysis.SrvRecordExists?"yes":"no")}; CNAME {(analysis.AutodiscoverCnameExists?"yes":"no")}; HTTP {(valid != null?"ok":"fail")}",
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
@@ -85,9 +85,9 @@ public class AutodiscoverInfo
     public IReadOnlyList<AutodiscoverEndpointResult> Endpoints { get; set; } = System.Array.Empty<AutodiscoverEndpointResult>();
     /// <summary>Total HTTP endpoints attempted.</summary>
     public int AttemptedEndpoints { get; set; }
-    /// <summary>True if any endpoint produced valid XML.</summary>
+    /// <summary>True if an endpoint returned a recognized Autodiscover service response.</summary>
     public bool XmlValidFound { get; set; }
-    /// <summary>URL considered most promising (valid XML/JSON or first attempt).</summary>
+    /// <summary>URL of the confirmed service response, or the first attempt when discovery failed.</summary>
     public string BestEndpointUrl { get; set; } = string.Empty;
     /// <summary>Status code for the best endpoint (if any).</summary>
     public int? BestEndpointStatus { get; set; }

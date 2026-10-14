@@ -2,15 +2,21 @@
 
 ### Assessment report
 - Added `DomainAssessmentReport`, a format-independent model of a run: per domain, every check with outcome, score, findings, evidence, recommendations and narrative guidance, plus area scores and a grade
-- Added `AssessmentHtmlReport`, a single offline HTML report on the HtmlForgeX assessment shell with a summary, "fix first" list, coverage matrix across domains and a section per domain; it is the default for the CLI `report` command and `Export-DDSecurityReport` (`-HtmlProfile Document`/`Dashboard` keep the previous layouts)
+- Added `AssessmentHtmlReport`, a single offline HTML report on the HtmlForgeX report shell with a summary, "fix first" list ordered by security exposure, coverage matrix across domains and a section per domain; it is the only HTML layout of the CLI `report` command and `Export-DDSecurityReport` (the Document and Dashboard layouts are removed; `-HtmlProfile` values stay accepted and are obsolete)
+- Curated sections for Microsoft 365 and Desired state; a failed SPF or DMARC lookup reads as Unknown instead of Missing record
 - `Export-DDSecurityReport -ExportFormat Json` now writes the assessment model
 - Added `Converters.ConvertChecks(healthCheck)` and `DomainHealthCheck.LastVerifiedChecks` so every renderer converts exactly the checks that ran; the CLI, `Test-DDDomainHealth` and the HTML report generator share it
+- Added `HealthCheckMonitoring` (routine, slow, intrusive or not per domain) and `DomainAssessmentBuilder.Rescore` for monitoring tools
 - Removed the unused `BasicDomainReport`, `SimpleDomainReport`, `SpfHtmlReport`, `DomainSecurityReport` and HTML section writers
-- Updated to HtmlForgeX 1.1.0
 
 ### Fixes
 - Assessments no longer leak between checks that run in parallel: each `AssessmentCollector` now records only events from its own execution flow (previously, for example, HTTP header warnings appeared under MX)
 - Wildcard DNS results now name the analyzed domain, so they appear in reports
+
+### Packaging and releases
+- Build and publish the eight NuGet packages and PowerShell module with one three-part version in the `1.0.x` series
+- Synchronize internal package references, module and CLI versions, and GitHub tags through the shared release pipeline
+- Attach package and module artifacts to one GitHub release with generated release notes
 
 ### DNS reliability and shared ownership
 - Centralized provider selection, concurrency, retries, response filtering, local DNSSEC validation, AXFR, and diagnostic wire queries on DnsClientX 2.0

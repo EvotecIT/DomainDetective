@@ -9,7 +9,6 @@ if ($PrimaryModule.Count -ne 1) {
 $PSDInformation = Import-PowerShellDataFile -Path $PrimaryModule.FullName
 $RequiredModules = @(
     'Pester'
-    'PSWriteColor'
     'DomainDetective'
     if ($PSDInformation.RequiredModules) {
         $PSDInformation.RequiredModules
@@ -33,18 +32,18 @@ foreach ($Module in $RequiredModules) {
     }
 }
 
-Write-Color 'ModuleName: ', $ModuleName, ' Version: ', $PSDInformation.ModuleVersion -Color Yellow, Green, Yellow, Green -LinesBefore 2
-Write-Color 'PowerShell Version: ', $PSVersionTable.PSVersion -Color Yellow, Green
-Write-Color 'PowerShell Edition: ', $PSVersionTable.PSEdition -Color Yellow, Green
-Write-Color 'Required modules: ' -Color Yellow
+Write-Host "ModuleName: $ModuleName Version: $($PSDInformation.ModuleVersion)" -ForegroundColor Yellow
+Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)" -ForegroundColor Yellow
+Write-Host "PowerShell Edition: $($PSVersionTable.PSEdition)" -ForegroundColor Yellow
+Write-Host 'Required modules: ' -ForegroundColor Yellow
 foreach ($Module in $PSDInformation.RequiredModules) {
     if ($Module -is [System.Collections.IDictionary]) {
-        Write-Color '   [>] ', $Module.ModuleName, ' Version: ', $Module.ModuleVersion -Color Yellow, Green, Yellow, Green
+        Write-Host "   [>] $($Module.ModuleName) Version: $($Module.ModuleVersion)" -ForegroundColor Green
     } else {
-        Write-Color '   [>] ', $Module -Color Yellow, Green
+        Write-Host "   [>] $Module" -ForegroundColor Green
     }
 }
-Write-Color
+Write-Host
 
 try {
     Import-Module $PSScriptRoot\*.psd1 -Force -ErrorAction Stop

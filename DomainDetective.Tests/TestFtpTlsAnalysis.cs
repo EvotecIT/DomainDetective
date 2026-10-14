@@ -14,6 +14,7 @@ using Xunit;
 
 namespace DomainDetective.Tests;
 
+[Collection("FtpTlsProtocol")]
 public class TestFtpTlsAnalysis {
     [Fact]
     public void ResultDisposalReleasesOwnedCertificateEvidence() {
@@ -56,6 +57,7 @@ public class TestFtpTlsAnalysis {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var releasePeer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Task server = Task.Run(async () => {
             using TcpClient client = await listener.AcceptTcpClientAsync();
             using NetworkStream network = client.GetStream();
@@ -66,6 +68,7 @@ public class TestFtpTlsAnalysis {
             await writer.WriteLineAsync("234 AUTH TLS accepted");
             using var ssl = new SslStream(network, false);
             await ssl.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
+            await releasePeer.Task;
         });
 
         try {
@@ -97,6 +100,7 @@ public class TestFtpTlsAnalysis {
             Assert.Contains("localhost", entry.SubjectAlternativeNames, StringComparer.OrdinalIgnoreCase);
             Assert.False(entry.ChainComplete);
         } finally {
+            releasePeer.TrySetResult(true);
             listener.Stop();
             await server;
         }
@@ -108,6 +112,7 @@ public class TestFtpTlsAnalysis {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var releasePeer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Task server = Task.Run(async () => {
             using TcpClient client = await listener.AcceptTcpClientAsync();
             using NetworkStream network = client.GetStream();
@@ -118,6 +123,7 @@ public class TestFtpTlsAnalysis {
             await writer.WriteLineAsync("234 AUTH TLS accepted");
             using var ssl = new SslStream(network, false);
             await ssl.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
+            await releasePeer.Task;
         });
 
         try {
@@ -153,6 +159,7 @@ public class TestFtpTlsAnalysis {
             Assert.Contains(result.TargetDecisionDiagnostics, diagnostic =>
                 diagnostic.Service == "HTTPS" && diagnostic.Reason == "max-targets");
         } finally {
+            releasePeer.TrySetResult(true);
             listener.Stop();
             await server;
         }
@@ -165,6 +172,7 @@ public class TestFtpTlsAnalysis {
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
         string? receivedCommand = null;
+        var releasePeer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Task server = Task.Run(async () => {
             using TcpClient client = await listener.AcceptTcpClientAsync();
             using NetworkStream network = client.GetStream();
@@ -176,6 +184,7 @@ public class TestFtpTlsAnalysis {
             await writer.WriteLineAsync("234 AUTH TLS accepted");
             using var ssl = new SslStream(network, false);
             await ssl.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
+            await releasePeer.Task;
         });
 
         try {
@@ -187,7 +196,7 @@ public class TestFtpTlsAnalysis {
             DateTimeOffset completedAtUtc = DateTimeOffset.UtcNow;
 
             Assert.Equal("AUTH TLS", receivedCommand);
-            Assert.True(result.TlsNegotiated);
+            Assert.True(result.TlsNegotiated, $"{result.FailureKind}: {result.FailureReason}");
             Assert.Equal(FtpTlsMode.Explicit, result.Mode);
             Assert.NotNull(result.Certificate);
             Assert.Contains("localhost", result.CertificateDnsNames, StringComparer.OrdinalIgnoreCase);
@@ -201,6 +210,7 @@ public class TestFtpTlsAnalysis {
             Assert.Equal("220 Ready", result.Greeting[result.Greeting.Count - 1]);
             Assert.Equal("234 AUTH TLS accepted", result.AuthTlsResponse[result.AuthTlsResponse.Count - 1]);
         } finally {
+            releasePeer.TrySetResult(true);
             listener.Stop();
             await server;
         }
@@ -212,6 +222,7 @@ public class TestFtpTlsAnalysis {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var releasePeer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Task server = Task.Run(async () => {
             using TcpClient client = await listener.AcceptTcpClientAsync();
             using NetworkStream network = client.GetStream();
@@ -222,6 +233,7 @@ public class TestFtpTlsAnalysis {
             await writer.WriteLineAsync("234 AUTH TLS accepted");
             using var ssl = new SslStream(network, false);
             await ssl.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
+            await releasePeer.Task;
         });
 
         try {
@@ -232,11 +244,12 @@ public class TestFtpTlsAnalysis {
                 },
                 new InternalLogger());
 
-            Assert.True(result.TlsNegotiated);
+            Assert.True(result.TlsNegotiated, $"{result.FailureKind}: {result.FailureReason}");
             Assert.Equal(IPAddress.Loopback.ToString(), result.Connection.ConnectAddress);
             Assert.Equal(IPAddress.Loopback.ToString(), result.Connection.RemoteAddress);
             Assert.Equal("IPv4", result.Connection.RemoteAddressFamily);
         } finally {
+            releasePeer.TrySetResult(true);
             listener.Stop();
             await server;
         }
@@ -308,10 +321,12 @@ public class TestFtpTlsAnalysis {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var releasePeer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Task server = Task.Run(async () => {
             using TcpClient client = await listener.AcceptTcpClientAsync();
             using var ssl = new SslStream(client.GetStream(), false);
             await ssl.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
+            await releasePeer.Task;
         });
 
         try {
@@ -320,12 +335,13 @@ public class TestFtpTlsAnalysis {
                 new FtpTlsEndpoint("localhost", port, FtpTlsMode.Implicit) { ConnectAddress = IPAddress.Loopback },
                 new InternalLogger());
 
-            Assert.True(result.TlsNegotiated);
+            Assert.True(result.TlsNegotiated, $"{result.FailureKind}: {result.FailureReason}");
             Assert.Equal(FtpTlsMode.Implicit, result.Mode);
             Assert.Empty(result.Greeting);
             Assert.Empty(result.AuthTlsResponse);
             Assert.NotNull(result.Certificate);
         } finally {
+            releasePeer.TrySetResult(true);
             listener.Stop();
             await server;
         }
@@ -373,3 +389,7 @@ public class TestFtpTlsAnalysis {
         return CertificateLoaderCompat.LoadPkcs12(certificate.Export(X509ContentType.Pfx));
     }
 }
+
+/// <summary>Runs short-deadline protocol fixtures without unrelated parallel crypto/network load.</summary>
+[CollectionDefinition("FtpTlsProtocol", DisableParallelization = true)]
+public sealed class FtpTlsProtocolCollection { }

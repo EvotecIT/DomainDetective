@@ -14,7 +14,7 @@ public class TestDnsOverTlsAnalysis
     {
         var analysis = CreateAnalysis(supportDot: false);
         await analysis.Analyze("example.com", new InternalLogger(), CancellationToken.None);
-        Assert.Contains(analysis.Assessments, a => a.Code == DnsOverTlsCodes.NotSupported && a.Severity == AssessmentSeverity.Warning);
+        Assert.Contains(analysis.Assessments, a => a.Code == DnsOverTlsCodes.NotSupported && a.Severity == AssessmentSeverity.Info);
     }
 
     [Fact]
@@ -66,6 +66,7 @@ public class TestDnsOverTlsAnalysis
                     ServerIp = ip.ToString(),
                     Port = 853,
                     Supported = ok,
+                    Outcome = ok ? DnsOverTlsProbeOutcome.Supported : DnsOverTlsProbeOutcome.ConnectionRefused,
                     Protocol = ok ? "Tls13" : null,
                     CipherSuite = ok ? "TLS_AES_128_GCM_SHA256" : null,
                     HostnameMatch = ok,
