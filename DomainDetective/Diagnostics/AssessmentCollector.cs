@@ -22,11 +22,12 @@ public sealed class AssessmentCollector : IDisposable {
     private readonly EventHandler<LogEventArgs> _onInfo;
     private readonly Action<AssessmentSeverity, LogEventArgs> _onSuppressedCoded;
 
-    private readonly object _lock = new();
+    private readonly object _lock;
 
     private AssessmentCollector(InternalLogger logger, List<Assessment> sink, string? defaultCategory = null, string? defaultTarget = null, string? defaultSource = null) {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sink = sink ?? throw new ArgumentNullException(nameof(sink));
+        _lock = sink;
 
         if (!string.IsNullOrWhiteSpace(defaultCategory) || !string.IsNullOrWhiteSpace(defaultTarget) || !string.IsNullOrWhiteSpace(defaultSource)) {
             _scope.Push(new ScopeFrame(defaultCategory, defaultTarget, defaultSource));

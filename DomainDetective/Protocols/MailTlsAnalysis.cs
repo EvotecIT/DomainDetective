@@ -115,6 +115,10 @@ public class MailTlsAnalysis : IHasAssessments {
     public Dictionary<string, TlsResult> ServerResults { get; } = new();
     /// <summary>Timeout for connections.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <summary>Maximum time to establish a TCP connection, including address resolution.</summary>
+    public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(5);
+    /// <summary>Maximum number of mail endpoints probed concurrently.</summary>
+    public int MaxConcurrency { get; set; } = 4;
     /// <summary>Address family used by hostname-based probes.</summary>
     public MailTransportAddressFamily AddressFamily { get; set; } = MailTransportAddressFamily.Any;
     /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
@@ -142,12 +146,8 @@ public class MailTlsAnalysis : IHasAssessments {
 
     /// <summary>Analyzes multiple hosts.</summary>
     public async Task AnalyzeServers(MailProtocol protocol, IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
-        ServerResults.Clear();
-        foreach (var host in hosts) {
-            cancellationToken.ThrowIfCancellationRequested();
-            var endpoint = new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily };
-            ServerResults[endpoint.Key] = await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
-        }
+        await AnalyzeServers(protocol, hosts.Select(host => new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily })
+            .GroupBy(endpoint => endpoint.Key, StringComparer.OrdinalIgnoreCase).Select(group => group.First()), logger, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Analyzes multiple explicitly targeted mail endpoints.</summary>
@@ -168,9 +168,17 @@ public class MailTlsAnalysis : IHasAssessments {
                 nameof(endpoints));
         }
         ServerResults.Clear();
-        foreach (var endpoint in targets) {
-            cancellationToken.ThrowIfCancellationRequested();
-            ServerResults[endpoint.Key] = await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
+        using var gate = new SemaphoreSlim(Math.Max(1, MaxConcurrency));
+        var results = await Task.WhenAll(targets.Select(async endpoint => {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try {
+                return await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
+            } finally {
+                gate.Release();
+            }
+        })).ConfigureAwait(false);
+        for (int i = 0; i < targets.Length; i++) {
+            ServerResults[targets[i].Key] = results[i];
         }
     }
 
@@ -197,9 +205,12 @@ public class MailTlsAnalysis : IHasAssessments {
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: category, target: $"{host}:{port}");
         var result = new TlsResult { Connection = MailTransportConnectionEvidence.FromTarget(endpoint) };
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(Timeout);
+        timeoutCts.CancelAfter(ConnectTimeout < Timeout ? ConnectTimeout : Timeout);
+        bool connected = false;
         try {
             using var client = await ConnectAsync(endpoint, timeoutCts.Token).ConfigureAwait(false);
+            connected = true;
+            timeoutCts.CancelAfter(Timeout);
             result.Connection.Capture(client);
             using NetworkStream network = client.GetStream();
             bool directTls = (protocol == MailProtocol.Imap && port == 993) || (protocol == MailProtocol.Pop3 && port == 995);
@@ -305,7 +316,7 @@ public class MailTlsAnalysis : IHasAssessments {
                     result.SupportsTls13 = (int)result.Protocol == 12288;
                     result.Tls13Used = result.SupportsTls13;
                     // Probe protocol support (best-effort)
-                    await ProbeProtocolSupport(endpoint, result, cancellationToken).ConfigureAwait(false);
+                    await ProbeProtocolSupport(endpoint, result, timeoutCts.Token).ConfigureAwait(false);
                     if (result.SupportsTls10 || result.SupportsTls11) {   
                         logger.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                             result.SupportsTls10 ? "1.0" : string.Empty,
@@ -319,9 +330,10 @@ public class MailTlsAnalysis : IHasAssessments {
                         logger.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                     }
                     if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
-                        await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, cancellationToken).ConfigureAwait(false);
+                        await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                     }
                 }
+                cancellationToken.ThrowIfCancellationRequested();
                 return result;
             }
 
@@ -520,7 +532,7 @@ public class MailTlsAnalysis : IHasAssessments {
                 result.SupportsTls13 = (int)result.Protocol == 12288;
                 result.Tls13Used = result.SupportsTls13;
                 // Probe protocol support (best-effort)
-                await ProbeProtocolSupport(endpoint, result, cancellationToken).ConfigureAwait(false);
+                await ProbeProtocolSupport(endpoint, result, timeoutCts.Token).ConfigureAwait(false);
                 if (result.SupportsTls10 || result.SupportsTls11) {       
                     logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                         result.SupportsTls10 ? "1.0" : string.Empty,
@@ -532,14 +544,20 @@ public class MailTlsAnalysis : IHasAssessments {
                     logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                 }
                 if (OutboundAddressResolver == null) {
-                    await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, cancellationToken).ConfigureAwait(false);
+                    await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                 }
             }
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        } catch (Exception ex) when (!connected && (ex is SocketException || ex is OperationCanceledException || ex is TimeoutException)) {
+            SetFailure(result, ex);
+            logger?.WriteInformationCode(MailTlsCodes.ServiceNotOffered, "Mail service not offered at {0}:{1} from this probe: {2}", host, port, ex.Message);
         } catch (Exception ex) {
             SetFailure(result, ex);
             logger?.WriteErrorCode(MailTlsCodes.TlsCheckFailed, "TLS check failed for {0}:{1} - {2}", host, port, ex.Message);
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         return result;
     }
 
@@ -575,11 +593,15 @@ public class MailTlsAnalysis : IHasAssessments {
         return await ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
     }
 
-    internal Task<TcpClient> ConnectAsync(MailTransportEndpoint endpoint, CancellationToken cancellationToken) =>
-        MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, cancellationToken);
+    internal async Task<TcpClient> ConnectAsync(MailTransportEndpoint endpoint, CancellationToken cancellationToken) {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(ConnectTimeout);
+        return await MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, deadline.Token).ConfigureAwait(false);
+    }
 
     private static async Task ProbeOcspStaplingWithOpenSsl(MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token) {
         try {
+            token.ThrowIfCancellationRequested();
             var host = endpoint.HostName;
             var port = endpoint.Port;
             var connectHost = endpoint.ConnectAddress?.ToString() ?? host;
@@ -604,17 +626,21 @@ public class MailTlsAnalysis : IHasAssessments {
             if (proc == null) return;
             var readOut = proc.StandardOutput.ReadToEndAsync();
             var readErr = proc.StandardError.ReadToEndAsync();
-            var delayTask = Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
 #if NET8_0_OR_GREATER
             var waitTask = proc.WaitForExitAsync(cts.Token);
 #else
-            var waitTask = Task.Run(() => { while (!proc.HasExited) { if (cts.Token.IsCancellationRequested) break; Thread.Sleep(25); } }, cts.Token);
+            var waitTask = Task.Run(() => { while (!proc.HasExited) { cts.Token.ThrowIfCancellationRequested(); Thread.Sleep(25); } }, cts.Token);
 #endif
-            await Task.WhenAny(delayTask, waitTask);
+            try {
+                await waitTask.WaitWithCancellation(cts.Token).ConfigureAwait(false);
+            } catch (OperationCanceledException) {
+                try { if (!proc.HasExited) { proc.Kill(); } } catch { }
+                return;
+            }
             string output = string.Empty;
-            try { output = await readOut; } catch { }
+            try { output = await readOut.WaitWithCancellation(cts.Token); } catch { }
             string error = string.Empty;
-            try { error = await readErr; } catch { }
+            try { error = await readErr.WaitWithCancellation(cts.Token); } catch { }
             var text = (output ?? string.Empty) + "\n" + (error ?? string.Empty);
             if (string.IsNullOrWhiteSpace(text)) return;
             bool present = text.IndexOf("OCSP Response Status:", StringComparison.OrdinalIgnoreCase) >= 0 ||
