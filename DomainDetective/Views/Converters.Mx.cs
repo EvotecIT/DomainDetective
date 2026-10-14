@@ -115,6 +115,7 @@ public static partial class Converters
             Ipv6Supported = analysis.Ipv6Supported,
             MxTtlUniform = analysis.MxTtlUniform,
             MxRrsetConsistentAcrossNs = analysis.MxRrsetConsistentAcrossNs,
+            MxRrsetComparisonIncomplete = analysis.MxRrsetComparisonIncomplete,
             TargetAddressConsistentAcrossNs = analysis.TargetAddressConsistentAcrossNs,
             TargetAddressComparisonIncomplete = analysis.TargetAddressComparisonIncomplete,
             Assessments = analysis is IHasAssessments h ? h.Assessments : new List<Assessment>(),
@@ -249,6 +250,8 @@ public class MxInfo
     public bool MxTtlUniform { get; set; }
     /// <summary>True when MX RRsets are consistent across authoritative NS.</summary>
     public bool MxRrsetConsistentAcrossNs { get; set; }
+    /// <summary>Whether authoritative MX RRset consistency lacks complete reply evidence.</summary>
+    public bool MxRrsetComparisonIncomplete { get; set; }
     /// <summary>True when target A/AAAA answers are consistent across authoritative NS.</summary>
     public bool TargetAddressConsistentAcrossNs { get; set; }
     /// <summary>Whether failed authoritative probes left the MX address comparison incomplete.</summary>

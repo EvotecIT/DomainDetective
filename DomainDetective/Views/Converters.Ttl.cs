@@ -28,7 +28,7 @@ public static partial class Converters
             TlsRptTxtTtls = analysis.TlsRptTxtTtls,
             DkimTxtTtls = analysis.DkimTxtTtls,
             Assessments = analysis.Assessments,
-            Status = status,
+            Status = analysis.UniformityIncomplete && errCount == 0 ? "Incomplete" : status,
             WarningCount = warnCount,
             ErrorCount = errCount,
             Summary = $"SOA {analysis.SoaTtl}s; A min/max {(analysis.ATtls?.Count>0?System.Math.Min(int.MaxValue, analysis.ATtls.Min()).ToString():"-")}/{(analysis.ATtls?.Count>0?analysis.ATtls.Max().ToString():"-")}",

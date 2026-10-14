@@ -6,9 +6,19 @@ using System.Linq;
 namespace DomainDetective;
 
 public partial class MXAnalysis {
+    internal void RecordRrsetCompleteness(int intendedServers, int respondingServers, string domain, InternalLogger logger) {
+        MxRrsetComparisonIncomplete = intendedServers == 0 || respondingServers < intendedServers;
+        if (MxRrsetComparisonIncomplete) {
+            using (AssessmentCollector.ForAnalysis(logger, this, category: "MX", target: domain)) {
+                logger.WriteInformationCode("MX.Rrset.ComparisonIncomplete", "Authoritative MX RRset comparison was incomplete.");
+            }
+        }
+    }
+
     internal void RecordTargetAddressEvidence(string host, IEnumerable<(DnsResponse? A, DnsResponse? Aaaa)> responses, InternalLogger logger) {
         var rows = responses.ToArray();
-        TargetAddressComparisonIncomplete |= rows.Any(row => row.A == null || row.Aaaa == null);
+        bool incomplete = rows.Length == 0 || rows.Any(row => row.A == null || row.Aaaa == null);
+        TargetAddressComparisonIncomplete |= incomplete;
         bool consistent = true;
         foreach (var type in new[] { DnsRecordType.A, DnsRecordType.AAAA }) {
             HashSet<string>? first = null;
@@ -26,7 +36,7 @@ public partial class MXAnalysis {
             TargetAddressConsistentAcrossNs = false;
             logger.WriteWarningCode(MxCodes.TargetAddressInconsistentAcrossNs, "A/AAAA differs across name servers");
         }
-        if (TargetAddressComparisonIncomplete) {
+        if (incomplete) {
             logger.WriteInformationCode("MX.TargetAddress.ComparisonIncomplete", "Authoritative MX address comparison was incomplete for {0}.", host);
         }
     }

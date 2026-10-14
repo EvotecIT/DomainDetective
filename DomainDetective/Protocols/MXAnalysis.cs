@@ -86,6 +86,8 @@ namespace DomainDetective {
         public bool TargetAddressConsistentAcrossNs { get; private set; } = true;
         /// <summary>Whether unavailable authoritative responses prevented complete MX address comparison.</summary>
         public bool TargetAddressComparisonIncomplete { get; private set; }
+        /// <summary>Whether authoritative MX RRset replies were missing from the comparison.</summary>
+        public bool MxRrsetComparisonIncomplete { get; private set; } = true;
 
         /// <summary>Relevant standards for MX analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
@@ -128,6 +130,7 @@ namespace DomainDetective {
             Ipv6Supported = false;
             MxTtlUniform = true;
             MxRrsetConsistentAcrossNs = true;
+            MxRrsetComparisonIncomplete = true;
             TargetAddressConsistentAcrossNs = true;
             TargetAddressComparisonIncomplete = false;
 
@@ -208,9 +211,7 @@ namespace DomainDetective {
 
             CnameQueryFailed = false;
             var hostsMissingAddress = new List<string>();
-            var hostResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(evaluationList, async item => {
-                var aTask = QueryDns(item.Host, DnsRecordType.A);
-                var aaaaTask = QueryDns(item.Host, DnsRecordType.AAAA);
+            var cnameResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(evaluationList, async item => {
                 using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                 DnsAnswer[] cnames;
                 bool cnameSucceeded = true;
@@ -228,10 +229,16 @@ namespace DomainDetective {
                     cnames = Array.Empty<DnsAnswer>();
                     cnameSucceeded = false;
                 }
+                return (item.Host, Cnames: cnames, CnameSucceeded: cnameSucceeded);
+            });
+            // Complete bounded alias checks before adding competing address work to the resolver queue.
+            var hostResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(cnameResults, async item => {
+                var aTask = QueryDns(item.Host, DnsRecordType.A);
+                var aaaaTask = QueryDns(item.Host, DnsRecordType.AAAA);
                 await Task.WhenAll(aTask, aaaaTask);
                 var ns = aTask.Result.Length == 0 && aaaaTask.Result.Length == 0
                     ? await QueryDns(item.Host, DnsRecordType.NS) : Array.Empty<DnsAnswer>();
-                return (item.Host, Cnames: cnames, CnameSucceeded: cnameSucceeded, A: aTask.Result, Aaaa: aaaaTask.Result, Ns: ns);
+                return (item.Host, item.Cnames, item.CnameSucceeded, A: aTask.Result, Aaaa: aaaaTask.Result, Ns: ns);
             });
             foreach (var item in hostResults) {
                 var host = item.Host;
@@ -396,6 +403,7 @@ namespace DomainDetective {
                 mxByServer[ip] = set;
             }
             DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps, mxByServer.Keys, logger);
+            RecordRrsetCompleteness(nsIps.Count, mxByServer.Count, domain, logger);
             if (mxByServer.Count > 1) {
                 var first = mxByServer.First().Value;
                 foreach (var kv in mxByServer.Skip(1)) {

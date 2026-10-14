@@ -51,6 +51,8 @@ namespace DomainDetective {
         public List<Assessment> Assessments { get; } = new();
         /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+        /// <summary>Whether the authoritative TTL comparison lacks a value for any intended server or record set.</summary>
+        public bool UniformityIncomplete { get; private set; }
 
         /// <summary>Provides DNS query implementation details.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -236,6 +238,7 @@ namespace DomainDetective {
 	        /// </summary>
 	        public async Task AnalyzeUniformityAcrossServers(string domainName, InternalLogger logger, System.Threading.CancellationToken ct = default) {
             using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "TTL", target: domainName);
+            UniformityIncomplete = false;
 	            ServerTtlA = new(); ServerTtlAaaa = new(); ServerTtlNs = new(); ServerTtlCname = new();
 	            ServerTtlTxtSpf = new(); ServerTtlTxtDmarc = new(); ServerTtlTxtMtasts = new(); ServerTtlTxtTlsRpt = new(); ServerTtlTxtPerName = new();
 	            AUniformAcrossServers = AaaaUniformAcrossServers = NsUniformAcrossServers = CnameUniformAcrossServers = true;
@@ -263,6 +266,9 @@ namespace DomainDetective {
                 }
             }
             if (nsIps.Count == 0) {
+                UniformityIncomplete = true;
+                AUniformAcrossServers = AaaaUniformAcrossServers = NsUniformAcrossServers = CnameUniformAcrossServers = false;
+                logger?.WriteInformationCode("TTL.Uniformity.Incomplete", "TTL uniformity could not be verified; no authoritative addresses were discovered.");
                 return;
             }
 
@@ -345,68 +351,37 @@ namespace DomainDetective {
                 }
             }
 
-            static bool IsUniform(Dictionary<string, int?> map) {
-                var vals = map.Values.Where(v => v.HasValue).Select(v => v!.Value).Distinct().ToArray();
-                return vals.Length <= 1;
-            }
+            static bool IsUniform(Dictionary<string, int?> map) =>
+                map.Count > 0 && map.Values.All(value => value.HasValue) && map.Values.Distinct().Count() <= 1;
             AUniformAcrossServers = IsUniform(ServerTtlA);
             AaaaUniformAcrossServers = IsUniform(ServerTtlAaaa);
             NsUniformAcrossServers = IsUniform(ServerTtlNs);
             CnameUniformAcrossServers = IsUniform(ServerTtlCname);
 
-            if (!AUniformAcrossServers) {
-                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_A, "A TTL differs across authoritative name servers");
-            } else {
-                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_A, "A TTL consistent across authoritative name servers.");
-            }
-            if (!AaaaUniformAcrossServers) {
-                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_AAAA, "AAAA TTL differs across authoritative name servers");
-            } else {
-                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_AAAA, "AAAA TTL consistent across authoritative name servers.");
-            }
-            if (!NsUniformAcrossServers) {
-                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_NS, "NS TTL differs across authoritative name servers");
-            } else {
-                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_NS, "NS TTL consistent across authoritative name servers.");
-            }
-            if (!CnameUniformAcrossServers) {
-                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_CNAME, "CNAME TTL differs across authoritative name servers");
-            } else {
-                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_CNAME, "CNAME TTL consistent across authoritative name servers.");
-            }
-
-            // TXT apex (SPF)
-            var txtSpfUniform = IsUniform(ServerTtlTxtSpf);
-            if (!txtSpfUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_SPF, "SPF TXT TTL differs across authoritative name servers");
-            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_SPF, "SPF TXT TTL consistent across authoritative name servers.");
-
-	            // TXT _dmarc
-	            var txtDmarcUniform = IsUniform(ServerTtlTxtDmarc);
-	            if (!txtDmarcUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_DMARC, "DMARC TXT TTL differs across authoritative name servers");
-	            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_DMARC, "DMARC TXT TTL consistent across authoritative name servers.");
-
-	            // TXT _mta-sts
-	            var txtMtastsUniform = IsUniform(ServerTtlTxtMtasts);
-	            if (!txtMtastsUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_MTASTS, "MTA-STS TXT TTL differs across authoritative name servers");
-	            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_MTASTS, "MTA-STS TXT TTL consistent across authoritative name servers.");
-
-	            // TXT _smtp._tls (TLS-RPT)
-	            var txtTlsRptUniform = IsUniform(ServerTtlTxtTlsRpt);
-	            if (!txtTlsRptUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_TLSRPT, "TLS-RPT TXT TTL differs across authoritative name servers");
-	            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_TLSRPT, "TLS-RPT TXT TTL consistent across authoritative name servers.");
-
-	            // DKIM selectors per name
-	            if (ServerTtlTxtPerName.Count > 0)
-	            {
-	                foreach (var kv in ServerTtlTxtPerName)
-	                {
-                    var uniform = IsUniform(kv.Value);
-                    if (!uniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_DKIM, $"DKIM TXT TTL differs across authoritative servers for {kv.Key}");
-                    else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_DKIM, $"DKIM TXT TTL consistent across authoritative servers for {kv.Key}");
+            void ReportUniformity(string label, Dictionary<string, int?> map, string uniformCode, string differentCode) {
+                var observed = map.Values.Where(value => value.HasValue).Distinct().ToArray();
+                if (observed.Length > 1) {
+                    logger?.WriteWarningCode(differentCode, "{0} TTL differs across authoritative name servers.", label);
+                }
+                if (map.Count == 0 || map.Values.Any(value => !value.HasValue)) {
+                    UniformityIncomplete = true;
+                    logger?.WriteInformationCode("TTL.Uniformity.Incomplete", "{0} TTL uniformity could not be fully verified; authoritative TTL evidence is missing.", label);
+                } else if (observed.Length <= 1) {
+                    logger?.WriteInformationCode(uniformCode, "{0} TTL consistent across authoritative name servers.", label);
                 }
             }
+            ReportUniformity("A", ServerTtlA, TtlCodes.UniformAcrossNS_A, TtlCodes.NonUniformAcrossNS_A);
+            ReportUniformity("AAAA", ServerTtlAaaa, TtlCodes.UniformAcrossNS_AAAA, TtlCodes.NonUniformAcrossNS_AAAA);
+            ReportUniformity("NS", ServerTtlNs, TtlCodes.UniformAcrossNS_NS, TtlCodes.NonUniformAcrossNS_NS);
+            ReportUniformity("CNAME", ServerTtlCname, TtlCodes.UniformAcrossNS_CNAME, TtlCodes.NonUniformAcrossNS_CNAME);
+            ReportUniformity("SPF TXT", ServerTtlTxtSpf, TtlCodes.UniformAcrossNS_TXT_SPF, TtlCodes.NonUniformAcrossNS_TXT_SPF);
+            ReportUniformity("DMARC TXT", ServerTtlTxtDmarc, TtlCodes.UniformAcrossNS_TXT_DMARC, TtlCodes.NonUniformAcrossNS_TXT_DMARC);
+            ReportUniformity("MTA-STS TXT", ServerTtlTxtMtasts, TtlCodes.UniformAcrossNS_TXT_MTASTS, TtlCodes.NonUniformAcrossNS_TXT_MTASTS);
+            ReportUniformity("TLS-RPT TXT", ServerTtlTxtTlsRpt, TtlCodes.UniformAcrossNS_TXT_TLSRPT, TtlCodes.NonUniformAcrossNS_TXT_TLSRPT);
+            foreach (var item in ServerTtlTxtPerName) {
+                ReportUniformity($"DKIM TXT ({item.Key})", item.Value, TtlCodes.UniformAcrossNS_TXT_DKIM, TtlCodes.NonUniformAcrossNS_TXT_DKIM);
+            }
         }
-
         private void Evaluate(string recordType, IEnumerable<int> ttls, int min, int max, bool dnssecSigned, InternalLogger logger) {
             var list = ttls?.ToArray() ?? Array.Empty<int>();
             var allGood = true;

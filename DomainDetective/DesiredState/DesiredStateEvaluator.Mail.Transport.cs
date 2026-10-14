@@ -561,6 +561,13 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
+        if (desired.RequireRrsetConsistentAcrossNs == true && mx.MxRrsetComparisonIncomplete) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.MX.Rrset.QueryFailed",
+                Message = "Authoritative MX RRset consistency could not be fully verified."
+            });
+        }
         if (desired.RequireRrsetConsistentAcrossNs == true && !mx.MxRrsetConsistentAcrossNs) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
