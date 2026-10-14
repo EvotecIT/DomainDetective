@@ -19,7 +19,7 @@ namespace DomainDetective {
     /// 5.	The MX record should not point to a domain that doesn't have an A or AAAA record.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class MXAnalysis : IHasAssessments {
+    public partial class MXAnalysis : IHasAssessments {
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>DNS configuration used for lookups.</summary>
