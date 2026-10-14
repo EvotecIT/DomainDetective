@@ -74,9 +74,16 @@ public class EdnsSupportAnalysis : IHasAssessments
         cancellationToken.ThrowIfCancellationRequested();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(DiscoveryTimeout);
-        var answers = QueryDnsOverride != null
-            ? await QueryDnsOverride(name, type).WaitWithCancellation(deadline.Token).ConfigureAwait(false)
-            : await DnsConfiguration.QueryDNS(name, type, cancellationToken: deadline.Token).ConfigureAwait(false);
+        DnsAnswer[] answers;
+        if (QueryDnsOverride != null) {
+            answers = await QueryDnsOverride(name, type).WaitWithCancellation(deadline.Token).ConfigureAwait(false);
+        } else {
+            var response = await DnsConfiguration.QueryDNSResponse(name, type, cancellationToken: deadline.Token).ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(response.Error) || response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
+                throw new InvalidOperationException($"{type} discovery failed: {response.Status}: {response.Error}");
+            }
+            answers = response.Answers ?? Array.Empty<DnsAnswer>();
+        }
         cancellationToken.ThrowIfCancellationRequested();
         return answers;
     }

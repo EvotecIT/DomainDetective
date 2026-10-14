@@ -10,6 +10,27 @@ namespace DomainDetective.Tests;
 
 public class TestVerificationRunState {
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task EdnsDiscoveryRetainsResolverFailureEnvelopes(bool nameServersFail) {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => Task.FromResult(new DnsResponse {
+            Status = type == (nameServersFail ? DnsRecordType.NS : DnsRecordType.AAAA) ? DnsResponseCode.ServerFailure : DnsResponseCode.NoError,
+            Answers = type == DnsRecordType.NS ? new[] { new DnsAnswer { Type = type, DataRaw = "ns.example.test" } } : Array.Empty<DnsAnswer>()
+        });
+        await health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT });
+        var view = Assert.Single(Converters.ConvertChecks(health));
+        if (nameServersFail) {
+            Assert.Contains("ServerFailure", Assert.Single(Assert.IsType<CheckFailureInfo>(view).Assessments).Message);
+        } else {
+            var summary = Assert.IsType<EdnsSupportSummary>(view);
+            Assert.Equal(1, summary.FailedCount);
+            Assert.Contains("ServerFailure", Assert.Single(summary.Servers).Error);
+            Assert.Equal("Error", summary.Status);
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task RejectedInputPreservesTheLastCompletedFailure(bool invalidSelection) {
