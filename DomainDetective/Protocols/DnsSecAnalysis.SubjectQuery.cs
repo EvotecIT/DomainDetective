@@ -14,12 +14,15 @@ public partial class DnsSecAnalysis {
     /// </summary>
     internal static async Task<DnsResponse> QueryValidatedSubjectResponseAsync(
         string name, DnsRecordType type, DnsConfiguration configuration, CancellationToken cancellationToken) {
+        cancellationToken.ThrowIfCancellationRequested();
         if (configuration.DnsSecQueryTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(configuration.DnsSecQueryTimeout)); }
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(configuration.DnsSecQueryTimeout);
         try {
             if (configuration.QueryDnsResponseOverride != null) {
-                return await configuration.QueryDnsResponseOverride(name, type, deadline.Token).ConfigureAwait(false);
+                var overridden = await configuration.QueryDnsResponseOverride(name, type, deadline.Token).ConfigureAwait(false);
+                deadline.Token.ThrowIfCancellationRequested();
+                return overridden;
             }
 
             if (configuration.QueryDnsOverride != null) {
@@ -30,7 +33,9 @@ public partial class DnsSecAnalysis {
                 ? configuration.DnsEndpoints.Distinct().ToArray()
                 : new[] { configuration.DnsEndpoint };
             using DnsMultiResolver resolver = CreateResolver(endpoints, configuration, validateDnsSec: true);
-            return await resolver.QueryAsync(name, type, deadline.Token).ConfigureAwait(false);
+            var response = await resolver.QueryAsync(name, type, deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
+            return response;
         } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
             return new DnsResponse {
                 Status = DnsResponseCode.ServerFailure,

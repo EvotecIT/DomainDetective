@@ -84,6 +84,8 @@ namespace DomainDetective {
         public bool MxRrsetConsistentAcrossNs { get; private set; } = true;
         /// <summary>Gets or sets the target address consistent across ns value.</summary>
         public bool TargetAddressConsistentAcrossNs { get; private set; } = true;
+        /// <summary>Whether unavailable authoritative responses prevented complete MX address comparison.</summary>
+        public bool TargetAddressComparisonIncomplete { get; private set; }
 
         /// <summary>Relevant standards for MX analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
@@ -127,6 +129,7 @@ namespace DomainDetective {
             MxTtlUniform = true;
             MxRrsetConsistentAcrossNs = true;
             TargetAddressConsistentAcrossNs = true;
+            TargetAddressComparisonIncomplete = false;
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");
@@ -211,8 +214,17 @@ namespace DomainDetective {
                 using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                 DnsAnswer[] cnames;
                 bool cnameSucceeded = true;
-                try { cnames = await QueryDns(item.Host, DnsRecordType.CNAME, deadline.Token); }
-                catch (OperationCanceledException) when (deadline.IsCancellationRequested) {
+                try {
+                    if (QueryDnsOverride != null) {
+                        cnames = await QueryDns(item.Host, DnsRecordType.CNAME, deadline.Token);
+                    } else {
+                        var response = await DnsConfiguration.QueryDNSResponse(item.Host, DnsRecordType.CNAME, cancellationToken: deadline.Token);
+                        cnameSucceeded = string.IsNullOrEmpty(response.Error) &&
+                            (response.Status == DnsResponseCode.NoError || response.Status == DnsResponseCode.NXDomain);
+                        cnames = cnameSucceeded ? response.Answers ?? Array.Empty<DnsAnswer>() : Array.Empty<DnsAnswer>();
+                    }
+                    deadline.Token.ThrowIfCancellationRequested();
+                } catch (Exception ex) when (ex is OperationCanceledException && deadline.IsCancellationRequested || ex is TimeoutException || ex is System.Net.Sockets.SocketException) {
                     cnames = Array.Empty<DnsAnswer>();
                     cnameSucceeded = false;
                 }
@@ -397,35 +409,15 @@ namespace DomainDetective {
             }
 
             // Query each NS for A/AAAA of each MX host
+            TargetAddressComparisonIncomplete = mxByServer.Count < nsIps.Count;
             foreach (var host in mxHosts.Select(NormalizeHost).Distinct(StringComparer.OrdinalIgnoreCase)) {
-                var addrByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
                 var addressResponses = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(mxByServer.Keys, async ip => {
                     var aTask = QueryViaServer(ip, host, DnsRecordType.A);
                     var aaaaTask = QueryViaServer(ip, host, DnsRecordType.AAAA);
                     await Task.WhenAll(aTask, aaaaTask);
                     return (Ip: ip, A: aTask.Result, Aaaa: aaaaTask.Result);
                 });
-                foreach (var item in addressResponses) {
-                    if (item.A == null || item.Aaaa == null) { continue; }
-                    var ip = item.Ip;
-                    var aset = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    var aResp = item.A;
-                    var aaaaResp = item.Aaaa;
-                    foreach (var ans in aResp?.Answers ?? Array.Empty<DnsAnswer>()) aset.Add(ans.Data);
-                    foreach (var ans in aaaaResp?.Answers ?? Array.Empty<DnsAnswer>()) aset.Add(ans.Data);
-                    addrByServer[ip] = aset;
-                }
-                if (addrByServer.Count > 1) {
-                    var firstAddr = addrByServer.First().Value;
-                    foreach (var kv in addrByServer.Skip(1)) {
-                        if (!firstAddr.SetEquals(kv.Value)) {
-                            TargetAddressConsistentAcrossNs = false;
-                            using (AssessmentCollector.ForAnalysis(logger, this, category: "MX", target: host))
-                                logger.WriteWarningCode(MxCodes.TargetAddressInconsistentAcrossNs, "A/AAAA differs across name servers");
-                            break;
-                        }
-                    }
-                }
+                RecordTargetAddressEvidence(host, addressResponses.Select(item => (item.A, item.Aaaa)), logger);
             }
         }
 

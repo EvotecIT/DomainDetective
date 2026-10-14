@@ -36,7 +36,7 @@ namespace DomainDetective {
         /// leave this disabled; an owning host may enable reuse and dispose the configuration with its lifetime.
         /// </summary>
         public bool ReuseResolverClients { get; set; }
-        /// <summary>Maximum wall-clock time for one locally validated DNSSEC RRset query, including retries and validation.</summary>
+        /// <summary>Cancellation budget for one locally validated DNSSEC RRset query, including retries and validation. Admitted work is observed before returning.</summary>
         public TimeSpan DnsSecQueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
         /// <summary>Optional answer-only override used by tests and specialized consumers.</summary>
@@ -44,6 +44,7 @@ namespace DomainDetective {
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { get; set; }
 
         /// <summary>Optional full-response override used by tests and specialized consumers.</summary>
+        /// <remarks>The callback must honor the supplied cancellation token to meet query deadlines. Its admitted work remains owned until it completes.</remarks>
         public Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? QueryDnsResponseOverride { get; set; }
 
         /// <summary>Gets or sets the primary predefined DNS provider.</summary>

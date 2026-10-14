@@ -116,6 +116,7 @@ public static partial class Converters
             MxTtlUniform = analysis.MxTtlUniform,
             MxRrsetConsistentAcrossNs = analysis.MxRrsetConsistentAcrossNs,
             TargetAddressConsistentAcrossNs = analysis.TargetAddressConsistentAcrossNs,
+            TargetAddressComparisonIncomplete = analysis.TargetAddressComparisonIncomplete,
             Assessments = analysis is IHasAssessments h ? h.Assessments : new List<Assessment>(),
             Status = status,
             WarningCount = warnCount,
@@ -250,6 +251,8 @@ public class MxInfo
     public bool MxRrsetConsistentAcrossNs { get; set; }
     /// <summary>True when target A/AAAA answers are consistent across authoritative NS.</summary>
     public bool TargetAddressConsistentAcrossNs { get; set; }
+    /// <summary>Whether failed authoritative probes left the MX address comparison incomplete.</summary>
+    public bool TargetAddressComparisonIncomplete { get; set; }
     /// <summary>Assessment list.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>

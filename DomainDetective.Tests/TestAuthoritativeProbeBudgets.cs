@@ -5,6 +5,90 @@ using System.Net;
 namespace DomainDetective.Tests;
 
 public class TestAuthoritativeProbeBudgets {
+    [Theory]
+    [InlineData(DnsResponseCode.ServerFailure)]
+    [InlineData(DnsResponseCode.Refused)]
+    public async Task FailedMxAliasResponseCannotEstablishAnAliasFreeTarget(DnsResponseCode failure) {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => Task.FromResult(new DnsResponse {
+            Status = type == DnsRecordType.CNAME ? failure : DnsResponseCode.NoError,
+            Answers = type == DnsRecordType.A ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>()
+        });
+        var analysis = health.MXAnalysis;
+        analysis.Subject = "example.test";
+        await analysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "0 mail.example.test" } }, new InternalLogger());
+        Assert.True(analysis.CnameQueryFailed);
+        Assert.False(analysis.ValidMxConfiguration);
+        Assert.False(analysis.PointsToNonExistentDomain);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void PartialAuthoritativeResponsesRetainSuccessfulFamilyEvidence(bool failA, bool different) {
+        DnsResponse Reply(DnsRecordType type, string value) => new() {
+            Answers = new[] { new DnsAnswer { Type = type, DataRaw = value } }
+        };
+        using var health = new DomainHealthCheck();
+        var analysis = health.MXAnalysis;
+        var type = failA ? DnsRecordType.AAAA : DnsRecordType.A;
+        var first = Reply(type, failA ? "2001:db8::1" : "192.0.2.1");
+        var second = different ? Reply(type, failA ? "2001:db8::2" : "192.0.2.2") : first;
+        var empty = new DnsResponse();
+        analysis.RecordTargetAddressEvidence("mail.example.test", failA
+            ? new (DnsResponse? A, DnsResponse? Aaaa)[] { (null, first), (empty, second) }
+            : new (DnsResponse? A, DnsResponse? Aaaa)[] { (first, null), (second, empty) }, new InternalLogger());
+        Assert.Equal(!different, analysis.TargetAddressConsistentAcrossNs);
+        Assert.True(analysis.TargetAddressComparisonIncomplete);
+        Assert.True(DomainDetective.Views.Converters.Convert(analysis).TargetAddressComparisonIncomplete);
+        Assert.Equal(different, analysis.Assessments.Any(item => item.Code == MxCodes.TargetAddressInconsistentAcrossNs));
+        var desired = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health,
+            new DomainDetective.DesiredState.DesiredStateProfile {
+                Mx = new DomainDetective.DesiredState.DesiredStateMxPolicy { RequireTargetAddressConsistentAcrossNs = true }
+            });
+        Assert.False(desired.Conforms);
+        Assert.Contains(desired.Assessments, item => item.Code == "DesiredState.MX.TargetAddress.QueryFailed");
+    }
+
+    [Fact]
+    public async Task UniformityPhaseRetainsItsDiagnosticsAfterTheInitialAnalysis() {
+        using var health = new DomainHealthCheck();
+        var analysis = health.DnsTtlAnalysis;
+        var logger = new InternalLogger();
+        analysis.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
+        await analysis.Analyze("example.test", logger);
+        analysis.QueryDnsOverride = (_, _) => {
+            AuthoritativeDnsProbes.ReportIpv6Reachability(new[] { "192.0.2.1", "2001:db8::1" }, new[] { "192.0.2.1" }, logger);
+            return Task.FromResult(Array.Empty<DnsAnswer>());
+        };
+        await analysis.AnalyzeUniformityAcrossServers("example.test", logger);
+        Assert.Contains(analysis.Assessments, item => item.Code == "DNS.Authoritative.IPv6.NoUsableResponse");
+        Assert.Contains(health.GetAllAssessments(), item => item.Code == "DNS.Authoritative.IPv6.NoUsableResponse");
+    }
+
+    [Fact]
+    public async Task LateOverrideIsObservedButItsAnswerCannotOutliveTheValidationBudget() {
+        var expired = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var configuration = new DnsConfiguration { DnsSecQueryTimeout = TimeSpan.FromMilliseconds(20),
+            QueryDnsResponseOverride = async (_, _, token) => {
+                using var registration = token.Register(() => expired.TrySetResult(true));
+                await release.Task;
+                return new DnsResponse { Answers = new[] { new DnsAnswer { Type = DnsRecordType.TLSA, DataRaw = "late answer" } } };
+            } };
+        var run = DnsSecAnalysis.QueryValidatedSubjectResponseAsync("_443._tcp.example.test", DnsRecordType.TLSA, configuration, default);
+        try {
+            await expired.Task.WaitWithCancellation(guard.Token);
+            Assert.False(run.IsCompleted);
+        } finally { release.TrySetResult(true); }
+        var response = await run;
+        Assert.Equal(DnsResponseCode.ServerFailure, response.Status);
+        Assert.Empty(response.Answers);
+    }
+
     [Fact]
     public async Task SlowMxAliasLookupRetainsAddressEvidenceAndReportsUnknownAliasStatus() {
         using var health = new DomainHealthCheck();

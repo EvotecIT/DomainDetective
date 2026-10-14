@@ -235,6 +235,7 @@ namespace DomainDetective {
 	        /// Compares TTLs across authoritative name servers for core RRsets (A, AAAA, NS, CNAME).
 	        /// </summary>
 	        public async Task AnalyzeUniformityAcrossServers(string domainName, InternalLogger logger, System.Threading.CancellationToken ct = default) {
+            using var collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "TTL", target: domainName) : null;
 	            ServerTtlA = new(); ServerTtlAaaa = new(); ServerTtlNs = new(); ServerTtlCname = new();
 	            ServerTtlTxtSpf = new(); ServerTtlTxtDmarc = new(); ServerTtlTxtMtasts = new(); ServerTtlTxtTlsRpt = new(); ServerTtlTxtPerName = new();
 	            AUniformAcrossServers = AaaaUniformAcrossServers = NsUniformAcrossServers = CnameUniformAcrossServers = true;

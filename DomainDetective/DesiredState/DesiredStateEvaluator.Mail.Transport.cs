@@ -571,6 +571,13 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
+        if (desired.RequireTargetAddressConsistentAcrossNs == true && mx.TargetAddressComparisonIncomplete) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.MX.TargetAddress.QueryFailed",
+                Message = "Authoritative MX target address consistency could not be fully verified."
+            });
+        }
         if (desired.RequireTargetAddressConsistentAcrossNs == true && !mx.TargetAddressConsistentAcrossNs) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
