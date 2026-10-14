@@ -147,6 +147,7 @@ public class MailTlsAnalysis : IHasAssessments {
     /// <summary>Analyzes multiple hosts.</summary>
     public async Task AnalyzeServers(MailProtocol protocol, IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
         if (hosts == null) { throw new ArgumentNullException(nameof(hosts)); }
+        cancellationToken.ThrowIfCancellationRequested();
         var endpoints = new List<MailTransportEndpoint>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var host in hosts) {
@@ -163,6 +164,7 @@ public class MailTlsAnalysis : IHasAssessments {
         if (endpoints == null) {
             throw new ArgumentNullException(nameof(endpoints));
         }
+        cancellationToken.ThrowIfCancellationRequested();
         var materialized = new List<MailTransportEndpoint>();
         foreach (var endpoint in endpoints) {
             cancellationToken.ThrowIfCancellationRequested();

@@ -67,6 +67,9 @@ public class STARTTLSAnalysis : IHasAssessments {
         /// Tests multiple servers for STARTTLS support.
         /// </summary>
         public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
+            if (hosts == null) { throw new ArgumentNullException(nameof(hosts)); }
+            if (ports == null) { throw new ArgumentNullException(nameof(ports)); }
+            cancellationToken.ThrowIfCancellationRequested();
             ServerResults.Clear();
             DowngradeDetected.Clear();
             ServerDetails.Clear();
