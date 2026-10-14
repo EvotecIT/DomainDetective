@@ -9,34 +9,11 @@ using System.Threading.Tasks;
 
 namespace DomainDetective;
 
-/// <summary>Represents dns over tls endpoint result data.</summary>
-public sealed record DnsOverTlsEndpointResult
-{
-    /// <summary>Gets or sets the name server host value.</summary>
-    public string NameServerHost { get; init; } = string.Empty;
-    /// <summary>Gets or sets the server ip value.</summary>
-    public string ServerIp { get; init; } = string.Empty;
-    /// <summary>Gets or sets the port value.</summary>
-    public int Port { get; init; }
-    /// <summary>Gets or sets the supported value.</summary>
-    public bool Supported { get; init; }
-    /// <summary>Gets or sets the protocol value.</summary>
-    public string? Protocol { get; init; }
-    /// <summary>Gets or sets the cipher suite value.</summary>
-    public string? CipherSuite { get; init; }
-    /// <summary>Gets or sets the hostname match value.</summary>
-    public bool? HostnameMatch { get; init; }
-    /// <summary>Gets or sets the certificate valid value.</summary>
-    public bool? CertificateValid { get; init; }
-    /// <summary>Gets or sets the error value.</summary>
-    public string? Error { get; init; }
-}
-
 /// <summary>
 /// Detects DNS over TLS (DoT, RFC 7858) support on a domain's authoritative name servers.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public sealed class DnsOverTlsAnalysis : IHasAssessments
+public sealed partial class DnsOverTlsAnalysis : IHasAssessments
 {
     /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
@@ -67,173 +44,78 @@ public sealed class DnsOverTlsAnalysis : IHasAssessments
     /// <summary>Represents the recommendations value.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
-    /// <summary>Executes the analyze operation.</summary>
-    public async Task Analyze(string domainName, InternalLogger logger, CancellationToken cancellationToken = default)
-    {
+    /// <summary>Maximum concurrent discovery or endpoint probes.</summary>
+    public int QueryConcurrency { get; set; } = 6;
+    /// <summary>Total discovery and probing deadline; unfinished endpoints retain budget evidence.</summary>
+    public TimeSpan AnalysisTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    /// <summary>Gets address-discovery failures, keyed by nameserver and record type.</summary>
+    public Dictionary<string, string> DiscoveryErrors { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Gets whether discovery and all planned probes completed without a scan-cap omission.</summary>
+    public bool CoverageComplete { get; private set; }
+    /// <summary>Gets the number of endpoints discovered before the scan cap.</summary>
+    public int DiscoveredEndpointCount { get; private set; }
+
+    /// <summary>Runs bounded DoT probes without treating timeout or optional service absence as a domain defect.</summary>
+    public async Task Analyze(string domainName, InternalLogger logger, CancellationToken cancellationToken = default) {
+        if (Timeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(Timeout));
+        if (AnalysisTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(AnalysisTimeout));
+        if (MaxServersToProbe <= 0) throw new ArgumentOutOfRangeException(nameof(MaxServersToProbe));
         using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSOVERTLS", target: domainName);
         Subject = domainName;
-        Assessments.Clear();
-        ServerResults.Clear();
-
-        var nsAnswers = await QueryDns(domainName, DnsRecordType.NS, cancellationToken).ConfigureAwait(false);
-        var nsHosts = nsAnswers
-            .Select(a => (a.Data ?? a.DataRaw ?? string.Empty).Trim('.'))
-            .Where(h => !string.IsNullOrWhiteSpace(h))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (nsHosts.Length == 0)
-        {
-            logger.WriteInformationCode(DnsOverTlsCodes.NameServersMissing, "No authoritative name servers found for {0}", domainName);
+        Assessments.Clear(); ServerResults.Clear(); DiscoveryErrors.Clear();
+        CoverageComplete = false; DiscoveredEndpointCount = 0;
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(AnalysisTimeout);
+        var nsResult = await DiscoverAsync(domainName, DnsRecordType.NS, budget.Token, cancellationToken).ConfigureAwait(false);
+        if (nsResult.Error != null) DiscoveryErrors[domainName + " NS"] = nsResult.Error;
+        string[] hosts = nsResult.Answers.Select(answer => answer.Data.TrimEnd('.'))
+            .Where(host => !string.IsNullOrWhiteSpace(host)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (hosts.Length == 0) {
+            if (DiscoveryErrors.Count > 0) logger.WriteWarningCode(DnsOverTlsCodes.CoverageIncomplete, "DoT nameserver discovery did not complete.");
+            else logger.WriteInformationCode(DnsOverTlsCodes.NameServersMissing, "No authoritative name servers found for {0}", domainName);
             return;
         }
-
+        var queries = hosts.SelectMany(host => new[] { (host, DnsRecordType.A), (host, DnsRecordType.AAAA) }).ToArray();
+        var addresses = await BoundedAsyncWork.MapAsync(queries.Length, QueryConcurrency, index =>
+            DiscoverAsync(queries[index].host, queries[index].Item2, budget.Token, cancellationToken)).ConfigureAwait(false);
+        for (int i = 0; i < queries.Length; i++) {
+            if (addresses[i].Error != null) DiscoveryErrors[$"{queries[i].host} {queries[i].Item2}"] = addresses[i].Error!;
+        }
         var endpoints = new List<(string host, IPAddress ip)>();
-        foreach (var host in nsHosts)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var aTask = QueryDns(host, DnsRecordType.A, cancellationToken);
-            var aaaaTask = QueryDns(host, DnsRecordType.AAAA, cancellationToken);
-            await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
-
-            foreach (var ans in aTask.Result)
-            {
-                if (IPAddress.TryParse(ans.Data ?? ans.DataRaw, out var ip))
-                {
-                    endpoints.Add((host, ip));
-                }
-            }
-            foreach (var ans in aaaaTask.Result)
-            {
-                if (IPAddress.TryParse(ans.Data ?? ans.DataRaw, out var ip))
-                {
-                    endpoints.Add((host, ip));
-                }
-            }
+        for (int i = 0; i < hosts.Length; i++) {
+            var found = addresses[i * 2].Answers.Concat(addresses[i * 2 + 1].Answers)
+                .Select(answer => IPAddress.TryParse(answer.Data, out var ip) ? ip : null)
+                .Where(ip => ip != null).Select(ip => ip!).Distinct().ToArray();
+            if (found.Length == 0) DiscoveryErrors[hosts[i]] = "No nameserver address was established.";
+            endpoints.AddRange(found.Select(ip => (hosts[i], ip)));
         }
-
-        endpoints = endpoints
-            .GroupBy(e => $"{e.host}|{e.ip}", StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .Take(MaxServersToProbe)
-            .ToList();
-
-        if (endpoints.Count == 0)
-        {
-            logger.WriteWarningCode(DnsOverTlsCodes.NameServerAddressesMissing, "Name servers discovered for {0}, but none resolved to A/AAAA addresses", domainName);
+        DiscoveredEndpointCount = endpoints.Count;
+        var planned = endpoints.Take(MaxServersToProbe).ToArray();
+        if (planned.Length == 0) {
+            logger.WriteWarningCode(DnsOverTlsCodes.CoverageIncomplete, "No authoritative endpoint was available for DoT probing.");
             return;
         }
-
-        int supported = 0;
-        foreach (var (host, ip) in endpoints)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var key = $"{host} ({ip})";
-            using var _scope = collector.PushTarget(key);
-            DnsOverTlsEndpointResult result;
-            try
-            {
-                result = await ProbeDotAsync(host, ip, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                logger.WriteWarningCode(DnsOverTlsCodes.ProbeFailed, "DNS over TLS probe timed out after {0}", Timeout);
-                result = new DnsOverTlsEndpointResult
-                {
-                    NameServerHost = host,
-                    ServerIp = ip.ToString(),
-                    Port = Port,
-                    Supported = false,
-                    Error = $"Timeout after {Timeout}"
-                };
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
-            {
-                logger.WriteWarningCode(DnsOverTlsCodes.ProbeFailed, "DNS over TLS probe failed: {0}", ex.Message);
-                result = new DnsOverTlsEndpointResult
-                {
-                    NameServerHost = host,
-                    ServerIp = ip.ToString(),
-                    Port = Port,
-                    Supported = false,
-                    Error = ex.Message
-                };
-            }
-
+        var results = await BoundedAsyncWork.MapAsync(planned.Length, QueryConcurrency, index =>
+            RunProbeAsync(planned[index].host, planned[index].ip, domainName, budget.Token, cancellationToken)).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        foreach (var result in results) {
+            string key = $"{result.NameServerHost} ({result.ServerIp})";
             ServerResults[key] = result;
-            if (result.Supported)
-            {
-                supported++;
-                logger.WriteInformationCode(DnsOverTlsCodes.Supported, "DNS over TLS supported on {0} ({1}:{2})", host, ip, Port);
-
-                if (result.HostnameMatch == false)
-                {
-                    logger.WriteWarningCode(DnsOverTlsCodes.CertificateMismatch, "DNS over TLS certificate hostname mismatch on {0} ({1}:{2})", host, ip, Port);
-                }
-                if (result.CertificateValid == false)
-                {
-                    logger.WriteWarningCode(DnsOverTlsCodes.CertificateInvalid, "DNS over TLS certificate validation failed on {0} ({1}:{2})", host, ip, Port);
-                }
+            using var scope = collector.PushTarget(key);
+            if (result.Supported) {
+                logger.WriteInformationCode(DnsOverTlsCodes.Supported, "DNS over TLS supported on {0}", key);
+            } else if (result.Outcome == DnsOverTlsProbeOutcome.ConnectionRefused) {
+                logger.WriteInformationCode(DnsOverTlsCodes.NotSupported, "TCP/{0} connection was refused from this observation point", Port);
+            } else {
+                logger.WriteWarningCode(DnsOverTlsCodes.ProbeFailed, "DoT evidence is incomplete ({0}): {1}", result.FailureStage ?? "probe", result.Error ?? "Unknown result");
+            }
+            if (result.TlsHandshakeSucceeded || result.Supported) {
+                if (result.HostnameMatch == false) logger.WriteWarningCode(DnsOverTlsCodes.CertificateMismatch, "DNS over TLS certificate hostname mismatch on {0}", key);
+                if (result.CertificateValid == false) logger.WriteWarningCode(DnsOverTlsCodes.CertificateInvalid, "DNS over TLS certificate validation failed on {0}", key);
             }
         }
-
-        if (supported == 0)
-        {
-            logger.WriteWarningCode(DnsOverTlsCodes.NotSupported, "DNS over TLS is not supported on authoritative name servers for {0}", domainName);
-        }
-    }
-
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        if (QueryDnsOverride != null)
-        {
-            return await QueryDnsOverride(name, type).ConfigureAwait(false);
-        }
-        return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct).ConfigureAwait(false);
-    }
-
-    private async Task<DnsOverTlsEndpointResult> ProbeDotAsync(string nsHost, IPAddress ip, CancellationToken ct)
-    {
-        if (ProbeOverride != null)
-        {
-            return await ProbeOverride(nsHost, ip, Port, Timeout, ct).ConfigureAwait(false);
-        }
-
-        try
-        {
-            using var tls = await TlsProbe.ProbeAsync(ip, nsHost, Port, Timeout, ct).ConfigureAwait(false);
-            return new DnsOverTlsEndpointResult
-            {
-                NameServerHost = nsHost,
-                ServerIp = ip.ToString(),
-                Port = Port,
-                Supported = true,
-                Protocol = tls.Protocol.ToString(),
-                CipherSuite = tls.CipherSuite,
-                HostnameMatch = tls.HostnameMatch,
-                CertificateValid = tls.CertificateValid,
-            };
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
-        {
-            return new DnsOverTlsEndpointResult
-            {
-                NameServerHost = nsHost,
-                ServerIp = ip.ToString(),
-                Port = Port,
-                Supported = false,
-                Error = ex.Message
-            };
-        }
+        CoverageComplete = DiscoveryErrors.Count == 0 && planned.Length == DiscoveredEndpointCount
+            && results.All(result => result.Outcome == DnsOverTlsProbeOutcome.Supported || result.Outcome == DnsOverTlsProbeOutcome.ConnectionRefused);
+        if (!CoverageComplete) logger.WriteWarningCode(DnsOverTlsCodes.CoverageIncomplete, "DoT coverage is incomplete; support cannot be confirmed for every authoritative endpoint.");
     }
 }

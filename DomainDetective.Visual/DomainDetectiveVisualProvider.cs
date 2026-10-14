@@ -1,8 +1,6 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using OfficeIMO.Drawing;
 using System;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 #if NET8_0_OR_GREATER
@@ -26,47 +24,19 @@ internal static class DomainDetectiveVisualProvider
             return null;
         }
 
+        if (!OfficeRasterImageDecoder.TryDecode(artifact.ImageBytes, out var image) || image == null)
+        {
+            return null;
+        }
+
         try
         {
-            using var image = Image.Load<Rgba32>(artifact.ImageBytes);
-            var originalWidth = image.Width;
-            var originalHeight = image.Height;
-            image.Mutate(ctx => ctx.Resize(new ResizeOptions
-            {
-                Size = new Size(9, 8),
-                Mode = ResizeMode.Stretch,
-                Sampler = KnownResamplers.Bicubic
-            }).Grayscale());
-
-            ulong hash = 0;
-            var bit = 0;
-            for (var y = 0; y < 8; y++)
-            {
-                for (var x = 0; x < 8; x++)
-                {
-                    var left = image[x, y].R;
-                    var right = image[x + 1, y].R;
-                    if (left > right)
-                    {
-                        hash |= 1UL << bit;
-                    }
-
-                    bit++;
-                }
-            }
-
-            return (hash.ToString("x16"), originalWidth, originalHeight);
+            var hash = OfficeRasterFingerprinting.DifferenceHash(image);
+            return (hash.ToString("x16", CultureInfo.InvariantCulture), image.Width, image.Height);
         }
-        catch (UnknownImageFormatException)
+        catch (ArgumentException exception) when (exception.ParamName == "source")
         {
-            return null;
-        }
-        catch (InvalidImageContentException)
-        {
-            return null;
-        }
-        catch (NotSupportedException)
-        {
+            // A decoded image can still exceed the bounded resampling working set.
             return null;
         }
     }

@@ -58,7 +58,7 @@ namespace DomainDetective.Tests {
                     PersistInventorySnapshots = true,
                     AnalysisOverride = async (host, port, logger, cancellationToken) => {
                         var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-                        await analysis.AnalyzeCertificate(cert, cancellationToken);
+                        await analysis.AnalyzeCertificateWithEnrichment(cert, cancellationToken);
                         analysis.Url = host;
                         analysis.IsReachable = true;
                         return analysis;
@@ -123,7 +123,7 @@ namespace DomainDetective.Tests {
                             CensysCtApiUrlTemplate = string.Empty
                         };
                         analysis.CtLogApiTemplates.Clear();
-                        await analysis.AnalyzeCertificate(cert, cancellationToken);
+                        await analysis.AnalyzeCertificateWithEnrichment(cert, cancellationToken);
                         analysis.Url = host;
                         analysis.IsReachable = true;
                         return analysis;
@@ -156,7 +156,7 @@ namespace DomainDetective.Tests {
                     PersistInventorySnapshots = false,
                     AnalysisOverride = async (host, port, logger, cancellationToken) => {
                         var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-                        await analysis.AnalyzeCertificate(cert, cancellationToken);
+                        await analysis.AnalyzeCertificateWithEnrichment(cert, cancellationToken);
                         analysis.Url = host;
                         analysis.IsReachable = true;
                         return analysis;
@@ -254,7 +254,7 @@ namespace DomainDetective.Tests {
                     PersistInventorySnapshots = true,
                     AnalysisOverride = async (host, port, logger, cancellationToken) => {
                         var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-                        await analysis.AnalyzeCertificate(cert, cancellationToken);
+                        await analysis.AnalyzeCertificateWithEnrichment(cert, cancellationToken);
                         analysis.Url = host;
                         analysis.IsReachable = true;
                         return analysis;
@@ -285,7 +285,7 @@ namespace DomainDetective.Tests {
                     PersistInventorySnapshots = true,
                     AnalysisOverride = async (host, port, logger, cancellationToken) => {
                         var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-                        await analysis.AnalyzeCertificate(cert, cancellationToken);
+                        await analysis.AnalyzeCertificateWithEnrichment(cert, cancellationToken);
                         analysis.Url = host;
                         analysis.IsReachable = true;
                         return analysis;
@@ -316,7 +316,7 @@ namespace DomainDetective.Tests {
                     PersistInventorySnapshots = true,
                     AnalysisOverride = async (host, port, logger, cancellationToken) => {
                         var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-                        await analysis.AnalyzeCertificate(cert, cancellationToken);
+                        await analysis.AnalyzeCertificateWithEnrichment(cert, cancellationToken);
                         analysis.Url = host;
                         analysis.IsReachable = true;
                         return analysis;

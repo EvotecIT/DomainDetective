@@ -38,6 +38,7 @@ namespace DomainDetective {
         public bool ReuseResolverClients { get; set; }
 
         /// <summary>Optional answer-only override used by tests and specialized consumers.</summary>
+        /// <remarks>Cancellation stops the library from waiting. The callback owner remains responsible for completing its work because this delegate does not receive a cancellation token.</remarks>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { get; set; }
 
         /// <summary>Optional full-response override used by tests and specialized consumers.</summary>
@@ -184,7 +185,7 @@ namespace DomainDetective {
                 return response ?? CreateErrorResponse(name, recordType, "The DNS response override returned null.");
             }
             if (QueryDnsOverride != null) {
-                DnsAnswer[] answers = await QueryDnsOverride(name, recordType).ConfigureAwait(false) ?? Array.Empty<DnsAnswer>();
+                DnsAnswer[] answers = await QueryDnsOverride(name, recordType).WaitWithCancellation(cancellationToken).ConfigureAwait(false) ?? Array.Empty<DnsAnswer>();
                 cancellationToken.ThrowIfCancellationRequested();
                 return new DnsResponse {
                     Status = DnsResponseCode.NoError,

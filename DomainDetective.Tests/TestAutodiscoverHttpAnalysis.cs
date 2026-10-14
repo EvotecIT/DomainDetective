@@ -18,7 +18,7 @@ public class TestAutodiscoverHttpAnalysis {
                 return resp;
             });
         mock.When("https://example.com/autodiscover/autodiscover.xml")
-            .Respond("application/xml", "<Autodiscover></Autodiscover>");
+            .Respond("application/xml", TestAutodiscoverAttemptBoundaries.RecognizedError);
 
         var analysis = new AutodiscoverHttpAnalysis { HttpHandlerFactory = () => mock };
         await analysis.Analyze("example.com", new InternalLogger());
@@ -39,7 +39,7 @@ public class TestAutodiscoverHttpAnalysis {
         mock.When("https://example.com/autodiscover/autodiscover.xml")
             .Respond(System.Net.HttpStatusCode.NotFound);
         mock.When("http://autodiscover.example.com/autodiscover/autodiscover.xml")
-            .Respond("application/xml", "<Autodiscover></Autodiscover>");
+            .Respond("application/xml", TestAutodiscoverAttemptBoundaries.RecognizedError);
 
         var analysis = new AutodiscoverHttpAnalysis { HttpHandlerFactory = () => mock };
         await analysis.Analyze("example.com", new InternalLogger());

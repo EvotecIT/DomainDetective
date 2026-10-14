@@ -250,7 +250,7 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var artifacts = await CaptureVisualArtifactsAsync(GetCandidateUrl(candidate), candidate, options, cancellationToken).ConfigureAwait(false);
+                var artifacts = await CaptureVisualArtifactsAsync(BuildUrl(candidate.Domain), candidate, options, cancellationToken).ConfigureAwait(false);
                 var match = CompareArtifacts(artifacts, profile, options);
                 if (match != null)
                 {
@@ -500,14 +500,4 @@ public static partial class TyposquattingVisualSimilarityAnalyzer
         return "https://" + domain.Trim();
     }
 
-    private static string GetCandidateUrl(TyposquattingCandidate candidate)
-    {
-        var finalUrl = candidate.Enrichment?.Http?.VisitedUrls?.LastOrDefault();
-        if (!string.IsNullOrWhiteSpace(finalUrl))
-        {
-            return finalUrl!;
-        }
-
-        return BuildUrl(candidate.Domain);
-    }
 }

@@ -9,5 +9,5 @@ internal static class DnsOverTlsCodes
     public const string CertificateInvalid = "DNSOVERTLS.Certificate.Invalid";
     public const string NameServersMissing = "DNSOVERTLS.NS.Missing";
     public const string NameServerAddressesMissing = "DNSOVERTLS.NS.NoAddresses";
+    public const string CoverageIncomplete = "DNSOVERTLS.Coverage.Incomplete";
 }
-

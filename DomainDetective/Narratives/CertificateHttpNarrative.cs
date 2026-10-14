@@ -36,10 +36,10 @@ public static class CertificateHttpNarrative {
         var negatives = new List<string>();
         var remediations = new List<string>();
 
-        hi.Add(analysis.IsReachable
+        hi.Add(analysis.ProvidedCertificateInspection ? "Inspected a supplied certificate; no endpoint was contacted." : analysis.IsReachable
             ? $"Successfully retrieved certificate from {analysis.Url ?? subj}."
             : $"Failed to retrieve certificate from {analysis.Url ?? subj}.");
-        hi.Add(analysis.IsValid ? "Certificate chain is valid." : "Certificate chain is invalid.");
+        hi.Add(!analysis.ChainValidationPerformed ? "Certificate chain trust was not assessed." : analysis.IsValid ? "Certificate chain is valid." : "Certificate chain is invalid.");
         hi.Add(analysis.IsExpired ? "Certificate has expired." : $"Certificate expires in {analysis.DaysToExpire} days.");
 
         if (analysis.Certificate != null) {

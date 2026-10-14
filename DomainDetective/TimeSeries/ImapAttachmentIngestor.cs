@@ -37,8 +37,12 @@ public sealed class ImapAttachmentIngestOptions
     public bool RequireAttachments { get; set; }
     /// <summary>Gets or sets the subject contains value.</summary>
     public string? SubjectContains { get; set; }
-    /// <summary>Gets or sets the max attachment bytes value.</summary>
-    public long MaxAttachmentBytes { get; set; }
+    /// <summary>Maximum decoded attachment bytes; 0 explicitly allows unlimited content.</summary>
+    public long MaxAttachmentBytes { get; set; } = ReportReadLimits.DefaultAttachmentBytes;
+    /// <summary>Maximum raw message bytes before MIME parsing; 0 explicitly allows unlimited content.</summary>
+    public long MaxMessageBytes { get; set; } = ReportReadLimits.DefaultMessageBytes;
+    /// <summary>Maximum expanded report bytes, independently of the encoded attachment size; 0 means unlimited.</summary>
+    public long MaxUncompressedBytes { get; set; } = ReportReadLimits.DefaultUncompressedBytes;
 
     internal void Validate()
     {
@@ -62,6 +66,9 @@ public sealed class ImapAttachmentIngestOptions
         {
             throw new ArgumentException("IMAP mailbox is required.", nameof(Mailbox));
         }
+        if (MaxMessages < 0) throw new ArgumentOutOfRangeException(nameof(MaxMessages));
+        if (MaxMessageBytes < 0) throw new ArgumentOutOfRangeException(nameof(MaxMessageBytes));
+        if (MaxUncompressedBytes < 0) throw new ArgumentOutOfRangeException(nameof(MaxUncompressedBytes));
         if (MaxAttachmentBytes < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(MaxAttachmentBytes), "MaxAttachmentBytes must be >= 0 (0 means unlimited).");
@@ -131,6 +138,7 @@ public static class ImapAttachmentIngestor
             uids = uids.Take(options.MaxMessages).ToList();
         }
 
+        bool interruptedLiteral = false;
         foreach (var uid in uids)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -138,14 +146,31 @@ public static class ImapAttachmentIngestor
             MimeMessage? msg = null;
             try
             {
-                msg = await folder.GetMessageAsync(uid, cancellationToken).ConfigureAwait(false);
+                if (options.MaxMessageBytes > 0) {
+                    var summaries = await folder.FetchAsync(new[] { uid }, MessageSummaryItems.UniqueId | MessageSummaryItems.Size, cancellationToken).ConfigureAwait(false);
+                    var summary = summaries.FirstOrDefault(item => item.UniqueId == uid);
+                    if (summary?.Size > options.MaxMessageBytes) {
+                        result.Errors.Add($"IMAP: message {uid} exceeds max size {options.MaxMessageBytes} bytes.");
+                        continue;
+                    }
+                }
+                msg = await folder.GetMessageAsync(uid, cancellationToken,
+                    new MessageReadLimit(options.MaxMessageBytes)).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (MessageReadLimitException ex) {
+                result.Errors.Add($"IMAP: failed to fetch message {uid}: {ex.Message}");
+                interruptedLiteral = true;
+                break;
             }
             catch (Exception ex)
             {
                 result.Errors.Add($"IMAP: failed to fetch message {uid}: {ex.Message}");
+                if (!client.IsConnected) break;
                 continue;
             }
 
+            using (msg)
             foreach (var attachment in msg.Attachments ?? Array.Empty<MimeEntity>())
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -196,6 +221,7 @@ public static class ImapAttachmentIngestor
                         result.Items.Add(parsed);
                     }
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch (Exception ex)
                 {
                     var id = msg.MessageId ?? uid.ToString();
@@ -204,7 +230,9 @@ public static class ImapAttachmentIngestor
             }
         }
 
-        await client.DisconnectAsync(true, cancellationToken).ConfigureAwait(false);
+        if (!interruptedLiteral && client.IsConnected) {
+            await client.DisconnectAsync(true, cancellationToken).ConfigureAwait(false);
+        } // Disposal closes a connection with an interrupted literal without sending another command.
         return result;
     }
 

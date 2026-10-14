@@ -16,11 +16,16 @@ namespace DomainDetective.PowerShell {
         [ValidateNotNullOrEmpty]
         public string Path { get; set; } = string.Empty;
 
+        /// <para>Maximum expanded report size in MiB. The default is 50; 0 means unlimited.</para>
+        [Parameter]
+        [ValidateRange(0, int.MaxValue)]
+        public int MaxUncompressedMb { get; set; } = 50;
+
         /// <summary>
         /// Parses the DMARC report archive and outputs each summary.
         /// </summary>
         protected override void ProcessRecord() {
-            var report = DmarcReportParser.Parse(Path);
+            var report = DmarcReportParser.Parse(Path, null, (long)MaxUncompressedMb * 1024L * 1024L);
             foreach (var summary in report.Records) {
                 WriteObject(summary);
             }

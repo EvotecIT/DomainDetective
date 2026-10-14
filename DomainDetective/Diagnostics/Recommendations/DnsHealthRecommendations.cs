@@ -4,6 +4,22 @@ namespace DomainDetective.Recommendations;
 
 internal sealed class DnsHealthRecommendations : IRecommendationProvider {
     public void Register(IDictionary<string, RecommendationAdvice> map) {
+        map[DnsHealthCodes.CoverageIncomplete] = new RecommendationAdvice {
+            Code = DnsHealthCodes.CoverageIncomplete,
+            Title = "Authoritative DNS comparison has incomplete evidence",
+            Why = "Unanswered probes or missing nameserver addresses cannot establish consistency.",
+            How = "Check IPv4/IPv6 reachability and DNS access, then repeat the comparison with complete coverage.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "dns", "coverage" }
+        };
+        map[DnsHealthCodes.QueryFailed] = new RecommendationAdvice {
+            Code = DnsHealthCodes.QueryFailed,
+            Title = "Authoritative probe returned a DNS error or non-authoritative response",
+            Why = "A received reply does not necessarily provide authoritative zone data.",
+            How = "Check authoritative service configuration and the recorded response code.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "dns", "authority" }
+        };
         map[DnsHealthCodes.SoaSerialSkew] = new RecommendationAdvice {
             Code = DnsHealthCodes.SoaSerialSkew,
             Title = "SOA serial numbers differ across NS",

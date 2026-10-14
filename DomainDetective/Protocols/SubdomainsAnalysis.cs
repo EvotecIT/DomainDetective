@@ -350,7 +350,9 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                     .Select(FormatNativeCtLogDiagnostic)
                     .Where(line => !string.IsNullOrWhiteSpace(line))
                     .ToList()!;
-                if (nativeResult.SourceSucceeded)
+                // A later batch can fail after earlier matching observations were checkpointed.
+                // Deliver those observations while retaining the failed log's diagnostic status.
+                if (nativeResult.SourceSucceeded || nativeResult.CertificateObservationCount > 0)
                 {
                     sourceSucceeded = true;
                     MergeNativeCtResult(nativeResult, issuerCounts, subdomainMap);
@@ -359,6 +361,10 @@ public sealed partial class SubdomainsAnalysis : IHasAssessments
                 {
                     failure = string.Join("; ", nativeResult.Warnings.Take(3));
                 }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -953,4 +959,3 @@ public enum SensitiveSubdomainRisk
     /// <summary>Represents the high value.</summary>
     High = 2
 }
-

@@ -5,6 +5,66 @@ namespace DomainDetective.Tests;
 
 public sealed class CtCertificateRecordTests {
     [Theory]
+    [InlineData(CtCertificateRecordDetailLevel.Full)]
+    [InlineData(CtCertificateRecordDetailLevel.NamesOnly)]
+    public void FromVerifiedDer_PreservesRecordAndOwnsItsBytes(CtCertificateRecordDetailLevel detail) {
+        byte[] der = CreateCertificateDer("reused.example.test", "api.reused.example.test");
+        var parsed = CtCertificateDer.Parse(der);
+        DateTimeOffset timestamp = DateTimeOffset.FromUnixTimeMilliseconds(1_770_000_000_000);
+        CtCertificateRecord expected = CtCertificateRecord.FromDer("native", der, "entry42", timestamp,
+            "aabb", true, detail);
+        CtCertificateRecord actual = CtCertificateRecord.FromVerifiedDer("native", der, parsed, "entry42", timestamp,
+            "aabb", true, detail);
+
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(actual));
+        der[0] ^= 1;
+        Assert.Equal(expected.CertificateDer, actual.CertificateDer);
+        Assert.Equal(expected.Sha256Fingerprint, actual.EnsureFullDetails().Sha256Fingerprint);
+        Assert.Equal(expected.DnsNames, actual.EnsureFullDetails().DnsNames);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FromVerifiedDer_RejectsMismatchedOrExtendedBytes(bool trailingData) {
+        byte[] der = CreateCertificateDer("verified.example.test", "api.verified.example.test");
+        var parsed = CtCertificateDer.Parse(der);
+        byte[] supplied = trailingData ? der.Concat(new byte[] { 0 }).ToArray()
+            : CreateCertificateDer("different.example.test", "api.different.example.test");
+        Assert.Throws<CryptographicException>(() => CtCertificateRecord.FromVerifiedDer("native", supplied, parsed));
+    }
+
+    [Theory]
+    [InlineData(CtCertificateRecordDetailLevel.Full)]
+    [InlineData(CtCertificateRecordDetailLevel.NamesOnly)]
+    public void FromDer_UsesActualCommonNameAttributes(CtCertificateRecordDetailLevel detail) {
+        using RSA key = RSA.Create(2048);
+        var request = new CertificateRequest("CN=actual.example.test, O=\"Acme, CN=target.example.test, OU=Lab\"",
+            key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var san = new SubjectAlternativeNameBuilder();
+        san.AddDnsName("san.example.test");
+        request.CertificateExtensions.Add(san.Build());
+        using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var record = CtCertificateRecord.FromDer("test", certificate.Export(X509ContentType.Cert), detailLevel: detail);
+        Assert.Equal(new[] { "actual.example.test", "san.example.test" }, record.DnsNames);
+    }
+
+    [Theory]
+    [InlineData(CtCertificateRecordDetailLevel.Full)]
+    [InlineData(CtCertificateRecordDetailLevel.NamesOnly)]
+    public void FromDer_QuotedOrganizationCannotInventCommonName(CtCertificateRecordDetailLevel detail) {
+        using RSA key = RSA.Create(2048);
+        var request = new CertificateRequest("O=\"Acme, CN=target.example.test, OU=Lab\"",
+            key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var san = new SubjectAlternativeNameBuilder();
+        san.AddDnsName("san.example.test");
+        request.CertificateExtensions.Add(san.Build());
+        using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var record = CtCertificateRecord.FromDer("test", certificate.Export(X509ContentType.Cert), detailLevel: detail);
+        Assert.Equal(new[] { "san.example.test" }, record.DnsNames);
+    }
+
+    [Theory]
     [InlineData("pkcs7")]
     [InlineData("pem")]
     [InlineData("trailing")]

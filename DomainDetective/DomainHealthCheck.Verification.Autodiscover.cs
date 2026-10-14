@@ -13,7 +13,7 @@ namespace DomainDetective {
         /// - HTTP: Attempts Autodiscover endpoints in Outlook order (HTTPS GET→POST on subdomain/root, HTTP redirects, Outlook v2 JSON
         ///   discovery with follow-up POST, then HTTPS GET→POST on CNAME and SRV targets when present).
         /// The DNS results are passed into the HTTP analysis (SRV target/port and CNAME target) to improve coverage.
-        /// If Autodiscover CNAME points to Microsoft 365 (outlook.com) but HTTP flow yields no valid XML/JSON, an advisory is logged
+        /// If Autodiscover CNAME points to Microsoft 365 (outlook.com) but HTTP flow yields no recognized service response, an advisory is logged
         /// suggesting possible TLS interception or SNI/network issues.
         /// </remarks>
         /// <param name="domainName">Domain to verify.</param>
@@ -33,18 +33,18 @@ namespace DomainDetective {
             await AutodiscoverHttpAnalysis.Analyze(domainName, _logger, cancellationToken);
             AutodiscoverAnalysis.SetHttpEndpoints(AutodiscoverHttpAnalysis.Endpoints);
 
-            // Advisory: If CNAME points to Outlook/M365 but HTTP flow didn't yield valid XML, hint at network/SNI issues
+            // Advisory: If CNAME points to Outlook/M365 but HTTP flow didn't yield a recognized service response, hint at network/SNI issues
             try {
                 var target = AutodiscoverAnalysis.AutodiscoverTarget ?? string.Empty;
                 var endpoints = AutodiscoverHttpAnalysis?.Endpoints ?? Array.Empty<AutodiscoverEndpointResult>();
-                var anyValid = System.Linq.Enumerable.Any(endpoints, e => e.XmlValid || e.JsonValid);
+                var anyValid = System.Linq.Enumerable.Any(endpoints, e => e.DiscoverySucceeded);
                 if (AutodiscoverAnalysis.AutodiscoverCnameExists &&
                     (target.IndexOf("outlook.com", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                      target.IndexOf("office365.com", System.StringComparison.OrdinalIgnoreCase) >= 0) &&
                     !anyValid)
                 {
                     using var _collector = AssessmentCollector.ForAnalysis(_logger, AutodiscoverAnalysis, category: "Autodiscover", target: domainName);
-                    _logger?.WriteWarningCode(AutodiscoverCodes.Office365FlowFailed, "Autodiscover CNAME targets Outlook, but HTTP Autodiscover did not return valid XML.");
+                    _logger?.WriteWarningCode(AutodiscoverCodes.Office365FlowFailed, "Autodiscover CNAME targets Outlook, but HTTP Autodiscover did not return a recognized service response.");
                 }
             } catch { }
         }

@@ -20,6 +20,9 @@ public static partial class Converters {
             FailureReason = analysis.FailureReason,
             FailureKind = analysis.FailureKind.ToString(),
             IsValid = analysis.IsValid,
+            ChainValidationPerformed = analysis.ChainValidationPerformed,
+            HostnameValidationPerformed = analysis.HostnameValidationPerformed,
+            ProvidedCertificateInspection = analysis.ProvidedCertificateInspection,
             HostnameMatch = analysis.HostnameMatch,
             DaysToExpire = analysis.DaysToExpire,
             DaysValid = analysis.DaysValid,
@@ -40,17 +43,17 @@ public static partial class Converters {
             SctCount = analysis.SctCount,
             OcspMustStaple = analysis.OcspMustStaple,
             OcspStaplingPresent = analysis.OcspStaplingPresent,
-            OcspUrls = analysis.OcspUrls,
-            CrlUrls = analysis.CrlUrls,
+            OcspUrls = analysis.OcspUrls.ToArray(),
+            CrlUrls = analysis.CrlUrls.ToArray(),
             OcspRevoked = analysis.OcspRevoked,
             CrlRevoked = analysis.CrlRevoked,
-            SubjectAlternativeNames = analysis.SubjectAlternativeNames,
+            SubjectAlternativeNames = analysis.SubjectAlternativeNames.ToArray(),
             IsWildcardCertificate = analysis.IsWildcardCertificate,
             SecuresUnrelatedHosts = analysis.SecuresUnrelatedHosts,
             IsSelfSigned = analysis.IsSelfSigned,
             ChainLength = analysis.Chain.Count,
             ChainSource = analysis.ChainSource,
-            ChainSourceHistory = analysis.ChainSourceHistory,
+            ChainSourceHistory = analysis.ChainSourceHistory.ToArray(),
             CertificateSubject = analysis.Certificate?.Subject,
             CertificateIssuer = analysis.Certificate?.Issuer,
             ValidFrom = analysis.Certificate?.NotBefore,
@@ -66,13 +69,13 @@ public static partial class Converters {
             AllowsClientAuthentication = analysis.AllowsClientAuthentication,
             AllowsSecureEmail = analysis.AllowsSecureEmail,
             AuthenticationProfile = analysis.AuthenticationProfile,
-            ExtendedKeyUsageOids = analysis.ExtendedKeyUsageOids,
-            ExtendedKeyUsageFriendlyNames = analysis.ExtendedKeyUsageFriendlyNames,
-            Assessments = analysis.Assessments,
+            ExtendedKeyUsageOids = analysis.ExtendedKeyUsageOids.ToArray(),
+            ExtendedKeyUsageFriendlyNames = analysis.ExtendedKeyUsageFriendlyNames.ToArray(),
+            Assessments = analysis.Assessments.ToArray(),
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{(analysis.IsValid ? "valid" : "invalid")}; host {(analysis.HostnameMatch ? "match" : "mismatch")}; expires {analysis.DaysToExpire}d; grade {analysis.GradeLevel.ToLetter()}; {analysis.KeyAlgorithm} {analysis.KeySize}b",
+            Summary = $"{(analysis.ChainValidationPerformed ? analysis.IsValid ? "valid" : "invalid" : "chain not assessed")}; host {(analysis.HostnameValidationPerformed ? analysis.HostnameMatch ? "match" : "mismatch" : "not assessed")}; expires {analysis.DaysToExpire}d; grade {analysis.GradeLevel.ToLetter()}; {analysis.KeyAlgorithm} {analysis.KeySize}b",
             Narrative = narrative,
             Highlights = narrative.Highlights,
             Details = narrative.Details,
@@ -105,6 +108,12 @@ public class CertificateInfo {
     public string FailureKind { get; set; } = string.Empty;
     /// <summary>Gets or sets the is valid value.</summary>
     public bool IsValid { get; set; }
+    /// <summary>Gets whether system chain trust was evaluated.</summary>
+    public bool ChainValidationPerformed { get; set; }
+    /// <summary>Gets whether a hostname was evaluated.</summary>
+    public bool HostnameValidationPerformed { get; set; }
+    /// <summary>Gets whether this is a supplied certificate inspection.</summary>
+    public bool ProvidedCertificateInspection { get; set; }
     /// <summary>Gets or sets the hostname match value.</summary>
     public bool HostnameMatch { get; set; }
     /// <summary>Gets or sets the days to expire value.</summary>

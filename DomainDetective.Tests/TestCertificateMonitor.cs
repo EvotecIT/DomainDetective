@@ -37,12 +37,11 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task CanStartAndStopMultipleTimes() {
             var monitor = new CertificateMonitor();
-            var timerField = typeof(CertificateMonitor).GetField("_timer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
             for (int i = 0; i < 3; i++) {
                 monitor.Start(Array.Empty<string>(), TimeSpan.FromMilliseconds(1));
-                Assert.NotNull(timerField.GetValue(monitor));
+                Assert.True(monitor.IsRunning);
                 await monitor.StopAsync();
-                Assert.Null(timerField.GetValue(monitor));
+                Assert.False(monitor.IsRunning);
             }
         }
 

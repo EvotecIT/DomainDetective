@@ -1,6 +1,7 @@
 param(
+    [Alias('ConfigurationGateMode')]
     [ValidateSet('Manifest', 'Documentation', 'Build', 'Publish')]
-    [string] $ConfigurationGateMode = 'Build',
+    [string] $RunMode = 'Build',
 
     [bool] $SignModule = $false,
 
@@ -13,9 +14,9 @@ param(
     [string] $GitHubApiKeyPath = 'C:\Support\Important\GitHubAPI.txt'
 )
 
-Import-Module PSPublishModule -MinimumVersion '3.0.130' -Force -ErrorAction Stop
+Import-Module PSPublishModule -MinimumVersion '3.0.158' -Force -ErrorAction Stop
 
-Build-Module -ModuleName 'DomainDetective' {
+Build-Module -ModuleName 'DomainDetective' -RunMode $RunMode {
     # Usual defaults as per standard module
     $Manifest = [ordered] @{
         ModuleVersion        = '1.0.X'
@@ -97,22 +98,23 @@ Build-Module -ModuleName 'DomainDetective' {
         DotSourceClasses                     = $true
         DeleteTargetModuleBeforeBuild        = $true
         NETBinaryModuleDocumentation         = $true
+        SyncNETProjectVersion                = $true
     }
 
     New-ConfigurationBuild @newConfigurationBuildSplat
 
+    $GitHubTokenPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($GitHubApiKeyPath)
     $projectBuildOptions = @{
         PublishApiKeyFilePath = $NuGetApiKeyPath
+        GitHubAccessTokenFilePath = $GitHubTokenPath
     }
-    New-ConfigurationProjectBuild -Name 'DomainDetective' -ConfigPath $ProjectBuildConfigPath -Enabled -BuildBeforeModule -ProvideLocalNuGetFeed -PublishNuget -Options $projectBuildOptions
-    New-ConfigurationRelease -StageRoot 'Artefacts\UploadReady' -VersionSource Module -BuildOrder 'Packages', 'Module' -PublishOrder 'NuGet', 'PowerShellGallery', 'GitHub'
+    New-ConfigurationProjectBuild -Name 'DomainDetective' -ConfigPath $ProjectBuildConfigPath -Enabled -BuildBeforeModule -UseAsReleaseVersionSource -ProvideLocalNuGetFeed -PublishNuget -PublishGitHub -Options $projectBuildOptions
+    New-ConfigurationRelease -StageRoot '..\Artifacts\UploadReady' -VersionSource ProjectBuild -PrimaryProject 'DomainDetective' -SynchronizeModuleVersion -BuildOrder 'Packages', 'Module' -PublishOrder 'NuGet', 'PowerShellGallery', 'GitHub'
 
-    New-ConfigurationArtefact -Type Unpacked -Enable -Path 'Artefacts\Unpacked' -RequiredModulesPath 'Artefacts\Unpacked\Modules'
-    New-ConfigurationArtefact -Type Packed -Enable -Path 'Artefacts\Packed' -IncludeTagName -ArtefactName 'DomainDetective-PowerShellModule.<TagModuleVersionWithPreRelease>.zip' -ID 'ToGitHub'
+    New-ConfigurationArtefact -Type Unpacked -Enable -Path '..\Artifacts\Unpacked' -ModulesPath 'Modules'
+    New-ConfigurationArtefact -Type Packed -Enable -Path '..\Artifacts\Packed' -IncludeTagName -ArtefactName 'DomainDetective-PowerShellModule.<TagModuleVersionWithPreRelease>.zip' -ID 'ToGitHub'
 
     # global options for publishing to github/psgallery
     New-ConfigurationPublish -Type PowerShellGallery -FilePath $PowerShellGalleryApiKeyPath -Enabled:$false
-    New-ConfigurationPublish -Type GitHub -FilePath $GitHubApiKeyPath -UserName 'EvotecIT' -RepositoryName 'DomainDetective' -Enabled:$false -GenerateReleaseNotes -OverwriteTagName 'DomainDetective-PowerShellModule.<TagModuleVersionWithPreRelease>'
-
-    New-ConfigurationGate -Mode $ConfigurationGateMode
+    New-ConfigurationPublish -Type GitHub -FilePath $GitHubTokenPath -UserName 'EvotecIT' -RepositoryName 'DomainDetective' -Enabled:$false -ID 'ToGitHub' -GenerateReleaseNotes -OverwriteTagName 'DomainDetective-v{ModuleVersionWithPreRelease}'
 } -ExitCode

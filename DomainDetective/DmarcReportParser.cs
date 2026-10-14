@@ -49,8 +49,17 @@ public static class DmarcReportParser {
     /// <param name="validationMessages">Optional list collecting schema validation errors.</param>
     /// <returns>The parsed aggregate report.</returns>
     public static DmarcAggregateReport Parse(string path, IList<string>? validationMessages = null) {
+        return Parse(path, validationMessages, TimeSeries.ReportReadLimits.DefaultUncompressedBytes);
+    }
+
+    /// <summary>Parses a report file with an explicit expansion limit.</summary>
+    /// <param name="path">Path to a .xml, .gz, or .zip report.</param>
+    /// <param name="validationMessages">Optional schema validation errors.</param>
+    /// <param name="maxUncompressedBytes">Maximum expanded bytes; 0 means unlimited.</param>
+    /// <returns>The parsed aggregate report.</returns>
+    public static DmarcAggregateReport Parse(string path, IList<string>? validationMessages, long maxUncompressedBytes) {
         using var file = File.OpenRead(path);
-        return Parse(file, path, validationMessages);
+        return Parse(file, path, validationMessages, maxUncompressedBytes);
     }
 
     /// <summary>Parses a DMARC feedback report from a stream.</summary>
@@ -59,7 +68,7 @@ public static class DmarcReportParser {
     /// <param name="validationMessages">Optional list collecting schema validation errors.</param>
     /// <returns>The parsed aggregate report.</returns>
     public static DmarcAggregateReport Parse(Stream stream, string? name = null, IList<string>? validationMessages = null) {
-        return Parse(stream, name, validationMessages, maxUncompressedBytes: 0);
+        return Parse(stream, name, validationMessages, maxUncompressedBytes: TimeSeries.ReportReadLimits.DefaultUncompressedBytes);
     }
 
     /// <summary>Parses a DMARC feedback report from a stream with size limits.</summary>

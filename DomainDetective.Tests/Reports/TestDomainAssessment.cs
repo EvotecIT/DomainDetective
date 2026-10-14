@@ -329,6 +329,34 @@ namespace DomainDetective.Tests.Reports {
         }
 
         [Fact]
+        public void Facts_ReadUnobservedCountsAndHeuristicsForWhatTheyAre() {
+            var views = new List<object> {
+                new HttpInfo { Check = HealthCheckType.HTTP, Subject = "example.org", MixedContentDetected = true, BodyLength = null, BodyTruncated = false },
+                new TlsRptReportsTimeSeriesInfo {
+                    Subject = "example.org",
+                    MxHosts = new[] { new TlsRptMxHostStat { MxHost = "mx1.example.org", SuccessfulSessions = 0, SuccessfulSessionsKnown = false, FailedSessions = 3, FailedSessionsKnown = true } }
+                }
+            };
+            DomainAssessment domain = Assert.Single(DomainAssessmentBuilder.Build(views).Domains);
+
+            // A pattern in the response text is a hint, not detected mixed content; without a captured body, "truncated" means nothing.
+            CheckAssessment http = Assert.Single(domain.Checks, static c => c.Check == HealthCheckType.HTTP);
+            Assert.Contains(http.Facts, static f => f.Label == "HTTP text hint" && f.Value == "Yes");
+            Assert.DoesNotContain(http.Facts, static f => f.Label.StartsWith("Mixed content", StringComparison.Ordinal) || f.Label == "Body truncated" || f.Label.StartsWith("Captured body", StringComparison.Ordinal));
+            var captured = new HttpInfo { Check = HealthCheckType.HTTP, Subject = "example.org", BodyLength = 1024, BodyTruncated = true };
+            CheckAssessment withBody = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new List<object> { captured }).Domains).Checks, static c => c.Check == HealthCheckType.HTTP);
+            Assert.Contains(withBody.Facts, static f => f.Label == "Captured body (bytes)" && f.Value == "1024");
+            Assert.Contains(withBody.Facts, static f => f.Label == "Body truncated" && f.Value == "Yes");
+
+            // A count TLS-RPT does not attribute to a host reads "Not attributed", not 0, and the flag is not its own column.
+            CheckEvidence hosts = Assert.Single(Assert.Single(domain.Checks, static c => c.Key == "tlsrpt-reports").Evidence, static e => e.Title == "MX hosts");
+            Assert.DoesNotContain(hosts.Columns, static c => c.EndsWith("known", StringComparison.Ordinal));
+            List<string> row = Assert.Single(hosts.Rows);
+            Assert.Equal("Not attributed", row[hosts.Columns.IndexOf("Successful sessions")]);
+            Assert.Equal("3", row[hosts.Columns.IndexOf("Failed sessions")]);
+        }
+
+        [Fact]
         public void Html_EncodesUntrustedValues() {
             var views = new List<object> {
                 new SpfRecordInfo {
