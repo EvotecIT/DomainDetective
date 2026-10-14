@@ -568,6 +568,9 @@ public class MailTlsAnalysis : IHasAssessments {
         } catch (Exception ex) when (!connected && (ex is SocketException || ex is OperationCanceledException || ex is TimeoutException)) {
             SetFailure(result, ex is OperationCanceledException ? new TimeoutException("Mail connection budget exhausted.", ex) : ex);
             logger?.WriteInformationCode(MailTlsCodes.ServiceNotOffered, "Mail service not offered at {0}:{1} from this probe: {2}", host, port, ex.Message);
+        } catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested) {
+            SetFailure(result, new TimeoutException("Connected mail TLS budget exhausted; protocol support is incomplete.", ex));
+            logger?.WriteErrorCode(MailTlsCodes.TlsCheckFailed, "Connected TLS checks timed out for {0}:{1}; protocol support is incomplete.", host, port);
         } catch (Exception ex) {
             SetFailure(result, ex);
             logger?.WriteErrorCode(MailTlsCodes.TlsCheckFailed, "TLS check failed for {0}:{1} - {2}", host, port, ex.Message);
@@ -588,20 +591,26 @@ public class MailTlsAnalysis : IHasAssessments {
 
     private async Task ProbeProtocolSupport(MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
         async Task<bool> TryHandshake(SslProtocols proto) {
+            token.ThrowIfCancellationRequested();
             try {
                 using var client = await ConnectAsync(endpoint, token).ConfigureAwait(false);
                 using var ssl = new SslStream(client.GetStream(), false, static (_, _, _, _) => true);
                 await ssl.AuthenticateAsClientAsync(endpoint.HostName, null, proto, false).WaitWithCancellation(token);
                 return ssl.SslProtocol == proto;
-            } catch { return false; }
+            } catch (Exception) when (!token.IsCancellationRequested) { return false; }
         }
-        result.SupportsTls13 = result.SupportsTls13 || await TryHandshake((SslProtocols)12288);
-        result.SupportsTls12 = await TryHandshake(SslProtocols.Tls12);
+        var tls13 = result.SupportsTls13 || await TryHandshake((SslProtocols)12288);
+        var tls12 = result.Protocol == SslProtocols.Tls12 || await TryHandshake(SslProtocols.Tls12);
         // We intentionally probe legacy protocols to report legacy support. Suppress deprecation warnings locally.
 #pragma warning disable SYSLIB0039 // TLS 1.0/1.1 obsolete warnings
-        result.SupportsTls11 = await TryHandshake(SslProtocols.Tls11);
-        result.SupportsTls10 = await TryHandshake(SslProtocols.Tls);
+        var tls11 = result.Protocol == SslProtocols.Tls11 || await TryHandshake(SslProtocols.Tls11);
+        var tls10 = result.Protocol == SslProtocols.Tls || await TryHandshake(SslProtocols.Tls);
 #pragma warning restore SYSLIB0039
+        token.ThrowIfCancellationRequested();
+        result.SupportsTls13 = tls13;
+        result.SupportsTls12 = tls12;
+        result.SupportsTls11 = tls11;
+        result.SupportsTls10 = tls10;
     }
 
     internal async Task<TcpClient> ConnectAsync(string host, int port, CancellationToken cancellationToken) {

@@ -59,7 +59,7 @@ internal static class MailTransportConnector {
             ? null
             : NormalizeAddress(endpoint.ConnectAddress);
         if (outboundAddressResolver != null) {
-            var approved = await outboundAddressResolver(endpoint.HostName, cancellationToken).ConfigureAwait(false)
+            var approved = await outboundAddressResolver(endpoint.HostName, cancellationToken).WaitWithCancellation(cancellationToken).ConfigureAwait(false)
                 ?? Array.Empty<IPAddress>();
             IPAddress[] normalizedApproved = approved
                 .Where(address => address != null)

@@ -9,6 +9,26 @@ public class TestMailTlsBudgets {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task ConnectBudgetStopsAwaitingAnUncooperativeCustomResolver(bool startTls) {
+        var release = new TaskCompletionSource<IReadOnlyList<IPAddress>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try {
+            if (startTls) {
+                var analysis = new STARTTLSAnalysis { ConnectTimeout = TimeSpan.FromMilliseconds(30), OutboundAddressResolver = (_, _) => release.Task };
+                await analysis.AnalyzeServer("mail.example.test", 25, new InternalLogger(), guard.Token);
+                Assert.Contains(analysis.Assessments, item => item.Code == "MAILTLS.Service.NotOffered");
+            } else {
+                var analysis = new MailTlsAnalysis { ConnectTimeout = TimeSpan.FromMilliseconds(30), OutboundAddressResolver = (_, _) => release.Task };
+                await analysis.AnalyzeServer(MailProtocol.Imap, "mail.example.test", 143, new InternalLogger(), guard.Token);
+                Assert.Equal(CertificateFailureKind.Timeout, Assert.Single(analysis.ServerResults).Value.FailureKind);
+            }
+            Assert.False(release.Task.IsCompleted);
+        } finally { release.TrySetResult(Array.Empty<IPAddress>()); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task InfiniteProtocolBudgetStillBoundsTheConnection(bool startTls) {
         using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>> resolver = async (_, token) => {
