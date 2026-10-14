@@ -27,12 +27,16 @@ public class TestAuthoritativeProbeBudgets {
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void PartialAuthoritativeResponsesRetainSuccessfulFamilyEvidence(bool failA, bool different) {
+    public async Task PartialAuthoritativeResponsesRetainSuccessfulFamilyEvidence(bool failA, bool different) {
         DnsResponse Reply(DnsRecordType type, string value) => new() {
             Answers = new[] { new DnsAnswer { Type = type, DataRaw = value } }
         };
         using var health = new DomainHealthCheck();
         var analysis = health.MXAnalysis;
+        analysis.Subject = "example.test";
+        analysis.QueryDnsOverride = (_, recordType) => Task.FromResult(recordType == DnsRecordType.A
+            ? new[] { new DnsAnswer { Type = recordType, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>());
+        await analysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "0 mail.example.test" } }, new InternalLogger());
         var type = failA ? DnsRecordType.AAAA : DnsRecordType.A;
         var first = Reply(type, failA ? "2001:db8::1" : "192.0.2.1");
         var second = different ? Reply(type, failA ? "2001:db8::2" : "192.0.2.2") : first;
