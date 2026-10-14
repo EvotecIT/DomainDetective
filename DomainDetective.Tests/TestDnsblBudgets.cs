@@ -37,7 +37,7 @@ public class TestDnsblBudgets {
         Assert.Equal("Incomplete", repeated.Status);
         Assert.Equal(0, analysis.NotBlacklisted);
         Assert.Equal(1, Assert.Single(repeated.HostSummaries).NotChecked);
-        Assert.Equal(1, analysis.Results["192.0.2.1"].NotChecked);
+        Assert.Equal(0, analysis.Results["192.0.2.1"].NotChecked); // Raw Results retains the latest-result contract.
         Assert.Equal(1, repeated.ProvidersChecked);
         Assert.Contains(analysis.AllResults, record => !record.QuerySucceeded);
     }

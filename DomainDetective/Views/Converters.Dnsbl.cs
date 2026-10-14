@@ -13,7 +13,7 @@ public static partial class Converters
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
         var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var narrative = DomainDetective.Narratives.DnsblNarrative.Build(analysis, analysis.Assessments);
-        var hostSummaries = analysis.Results?.Select(kv => new DnsblHostSummary
+        var hostSummaries = analysis.GetCoverageResults().Select(kv => new DnsblHostSummary
         {
             Key = kv.Key,
             Total = kv.Value.Total,
@@ -202,20 +202,7 @@ public static partial class Converters
             .ToArray();
     }
 
-    private static string GetTargetKey(DNSBLRecord record)
-    {
-        if (!string.IsNullOrWhiteSpace(record.IpAddress))
-        {
-            return record.IpAddress!;
-        }
-
-        if (!string.IsNullOrWhiteSpace(record.SourceHost))
-        {
-            return record.SourceHost!;
-        }
-
-        return record.Query ?? string.Empty;
-    }
+    private static string GetTargetKey(DNSBLRecord record) => DNSBLAnalysis.GetRecordTargetKey(record);
 
     private static string GetTargetLabel(DNSBLRecord record)
     {

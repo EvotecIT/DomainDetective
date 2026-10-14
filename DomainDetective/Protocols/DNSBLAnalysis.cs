@@ -118,13 +118,13 @@ namespace DomainDetective {
             .ToList();
 
         /// <summary>Gets a value indicating whether any query returned a listing.</summary>
-        public bool IsBlacklisted => Results.Any(r => r.Value.IsBlacklisted);
+        public bool IsBlacklisted => GetCoverageResults().Values.Any(result => result.IsBlacklisted);
         /// <summary>Gets the number of hosts or addresses checked.</summary>
         public int RecordChecked => Results.Count;
         /// <summary>Gets the count of hosts that were listed.</summary>
-        public int Blacklisted => Results.Count(r => r.Value.IsBlacklisted);
+        public int Blacklisted => GetCoverageResults().Values.Count(result => result.IsBlacklisted);
         /// <summary>Gets the count of hosts that were not listed.</summary>
-        public int NotBlacklisted => Results.Count(r => !r.Value.IsBlacklisted && r.Value.NotChecked == 0);
+        public int NotBlacklisted => GetCoverageResults().Values.Count(result => !result.IsBlacklisted && result.NotChecked == 0);
 
         /// <summary>Gets the per-host DNSBL query results.</summary>
         public Dictionary<string, DNSQueryResult> Results { get; set; } = new Dictionary<string, DNSQueryResult>();
@@ -351,7 +351,7 @@ namespace DomainDetective {
                 DNSBLRecords = results,
             };
             if (Results.ContainsKey(ipAddressOrHostname)) {
-                queryResult.DNSBLRecords = Results[ipAddressOrHostname].DNSBLRecords.Concat(results).ToArray();
+                Results.Remove(ipAddressOrHostname);
             }
             Results[ipAddressOrHostname] = queryResult;
             AllResults.AddRange(results);
